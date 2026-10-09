@@ -1053,6 +1053,8 @@ of core reference adoption. Preserve the adopted contracts in the
 [temporary datatype proposal](docs/cem-datatype-compilation-proposal.md) and the
 [implementation actions](docs/todo.md#general-datatype-compilation-design).
 
+- [x] Adopt fixed validation input names `value`, `datatype` and `candidate`,
+      with candidate requirements declared per capability (2026-10-08).
 - [ ] Finish registered datatype capability signatures, effective kind/facet contracts
       and execution adapters before enabling executable native attribute `@type`.
 - [x] Decide enumeration constant authoring: preserve whitespace-token `@values`;

@@ -115,6 +115,20 @@ archived, while executable datatype consumption remains guarded.
       Scenarios for later design verification: typed results preserve item identity;
       serialization does not overwrite authored lexical input or clone native nodes.
 
+- [x] Adopt fixed datatype validation input roles `value`, `datatype` and
+      `candidate` (2026-10-08), with candidate requirements declared per
+      registered capability. Do not map arbitrary parameter names to these roles.
+      Validation returns acceptance plus diagnostics; conversion stays separate.
+      Scenarios for later design verification: typed value and original candidate
+      remain distinct; a missing required candidate is unavailable, not invalid.
+
+- [ ] Add native signature/invocation fixtures after concrete metamodel types and
+      result bindings are specified: reject renamed/inferred roles, retain original
+      datatype/candidate owners, and cover source-less rules with and without a
+      required candidate. Keep executable native attribute `@type` guarded.
+      Scenarios for later design verification: role naming supplies no scope grants;
+      scalar, list and node values preserve their registered representations.
+
 - [ ] Specify a registered datatype validation
       adapter that checks retained behavior/owner identity, required input bindings
       and kind-specific representation, distinct from diagnostic-only behaviors.

@@ -9,7 +9,8 @@ adopted. Node rules validate complete target sequences, and candidate requiremen
 are per registered capability. Derived declarations inherit an omitted kind from
 a resolved base, with explicit list kind for item-base semantics. Whitespace-token
 `@values` authoring is adopted; richer retained constants are deferred. Exact signatures and
-remaining kind contracts need decisions. General datatype compilation must be
+remaining kind contracts need decisions. Datatype validation inputs use the adopted
+fixed names `value`, `datatype` and `candidate`. General datatype compilation must be
 designed before enabling native attribute `@type` consumption.
 This draft does not adopt a new executable grammar or enable datatype references.
 
@@ -164,7 +165,7 @@ metamodel `source` literals:
 | Role | Proposed typed input | Purpose |
 | --- | --- | --- |
 | Candidate | Explicit retained native node | Original input/source provenance and allowed candidate navigation |
-| Datatype | Original retained `{type}` declaration | Declaring identity and source contract without a copied record |
+| `datatype` | Original retained `{type}` declaration | Declaring identity and source contract without a copied record |
 | Value | Representation declared by the datatype kind: scalar, ordered items or retained nodes | The consumer's current value, with authored source still retained |
 | Context | Runtime-supplied evaluation frame | Evaluation time/scope and access grants, without an authored root ID |
 
@@ -269,7 +270,8 @@ The consumer retains the lifecycle envelope for complete, pending/unavailable an
 failed execution. An implementation cannot claim completeness for a missing
 dependency or extend scope grants. Conversion continues to use a distinct
 capability with declared typed output, followed by every effective restriction.
-Concrete function parameter names and metamodel types remain to be specified.
+Datatype validation parameter names are fixed by the adopted input-role contract
+below. Concrete metamodel types and result bindings remain to be specified.
 
 ## Adopted validation result protocol
 
@@ -409,6 +411,35 @@ remain effective alongside datatype rules; neither can erase the other's
 rejection. Concrete native sequence parameter types and metamodel admission
 remain required before execution.
 
+## Adopted datatype validation input roles
+
+Adopted 2026-10-08: registered datatype validation rules use fixed input names.
+Registration does not map arbitrary source parameter names to these roles.
+
+| Input name | Role |
+| --- | --- |
+| `value` | The consumer's current typed value, in the registered kind-specific representation |
+| `datatype` | The original retained datatype declaration whose contract is being validated |
+| `candidate` | The original retained input node, when supplied; required only when the registered capability declares that requirement |
+
+The compiler checks these roles against the selected behavior signature and
+registered capability. A differently named parameter does not acquire a role by
+position or inferred aliases. `datatype` and a supplied `candidate` retain their
+native owners and source attribution; neither becomes a copied object record.
+`value` remains scalar, ordered typed items or an ordered retained node sequence
+as required by its contract. A node-valued `value` is distinct from `candidate`.
+
+Candidate availability follows the adopted source-less consumer policy below.
+Missing a required `candidate` leaves execution unavailable; do not manufacture
+a node or infer acceptance. This naming decision does not choose an absent-value
+encoding for an optional candidate.
+
+Completed validation returns explicit acceptance plus attributed diagnostics.
+Validation cannot replace `value`; conversion remains a separate capability.
+The decision fixes validation input names, not a conversion ABI, parameter order,
+new metamodel type literals or the concrete result binding. Those remaining
+contracts must be specified before enabling invocation.
+
 ## Typed adapter signature requirements
 
 The current standalone scalar converter returns `TypedAttributeValue` containing
@@ -420,10 +451,10 @@ values through legacy object parameters.
 | Binding | Required representation | Compiler/runtime check |
 | --- | --- | --- |
 | Datatype | Original retained named `{type}` declaration | Declaring identity, lexical scope and registered capability ownership |
-| Candidate, when supplied | Original retained input node | Explicit native node parameter; no synthesized candidate record |
-| Scalar/lexical/grammar/symbolic value | Declared scalar representation | Registered input type; no inferred primitive from a local name |
-| List value | Ordered typed item sequence | Registered item contract and sequence type |
-| Node value | Ordered retained target sequence | Original owners and permitted native view |
+| `candidate`, when supplied | Original retained input node | Explicit native node parameter; no synthesized candidate record |
+| `value` (scalar/lexical/grammar/symbolic) | Declared scalar representation | Registered input type; no inferred primitive from a local name |
+| `value` (list) | Ordered typed item sequence | Registered item contract and sequence type |
+| `value` (node) | Ordered retained target sequence | Original owners and permitted native view |
 | Validation result | Explicit acceptance and attributed diagnostics | Completed typed result distinct from unavailable/failed execution |
 | Conversion result | Declared canonical scalar/items/native representation | Separate explicit capability; all effective restrictions validate the result |
 
