@@ -456,14 +456,30 @@ reference and datatype tests pass; Nx schema-package verification and CLI build 
       Scenarios for later design verification: matching names in a replacement
       owner cannot satisfy an old slot; a lexical binding grants no scope crossing.
 
-- [ ] Decide literal attribute validation input preparation before automatic
-      descriptor activation. Recommended: separately registered lexical preparation
-      inherited from the original datatype, preserving authored text/source;
-      incomplete preparation remains incomplete. Alternative: require caller-supplied
-      typed inputs. Decision requested 2026-10-08; not implemented yet.
+- [x] Decide literal attribute validation input preparation before automatic
+      descriptor activation. Adopted 2026-10-08: separately registered lexical
+      preparation inherited from the original datatype, preserving authored
+      text/source; incomplete preparation remains incomplete. Contract recorded in
+      the [datatype proposal](cem-datatype-compilation-proposal.md#adopted-lexical-preparation-for-attribute-validation).
       Scenarios for later design verification: boolean validation must not start
       accepting conversion-only `1`/`0`; integer `003` retains its source spelling;
       list tokenization does not invoke an item converter.
+
+- [ ] Add lexical-preparation fixtures before implementation: exact registration
+      and inherited identity, absent/unavailable capabilities, typed output checks,
+      shipped lexical admission, original text/token provenance, no converter calls,
+      rejection versus incomplete execution, cancellation and cumulative limits.
+      Scenarios for later design verification: prepared integer values keep their
+      authored spelling; boolean presence remains compatible; ordered list items
+      and duplicate tokens retain their original source attribution.
+
+- [ ] Implement registered lexical preparation and effective descriptor selection
+      under the adopted contract, including scalar/list preparation and original
+      implementation inheritance. Preserve existing typed/native validation paths
+      and apply every effective restriction after successful preparation.
+      Scenarios for later design verification: missing required preparation cannot
+      activate automatic validation or fall back to conversion; derived restrictions
+      cannot widen lexical admission; interrupted preparation stays incomplete.
 
 - [ ] Add remaining attribute descriptor-consumer fixtures for local facet
       intersection, typed node sequences, input preparation, cancellation and

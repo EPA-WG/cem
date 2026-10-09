@@ -22,7 +22,9 @@ General datatype compilation must be designed before enabling native attribute
 The shared value-contract source surface and explicit result consumer are implemented.
 Explicit registered validation dispatch and opt-in datatype descriptor/package
 readiness integration are implemented below. Automatic native attribute `@type`
-remains guarded pending the remaining compiler and migration work.
+remains guarded pending the remaining compiler and migration work. Separate
+registered lexical preparation for literal validation inputs is adopted below;
+its implementation remains open.
 
 Workstream boundary: general datatype execution, conversion, equality and enumeration
 are separate from core reference adoption. Preserve the adopted contracts here, but
@@ -1704,10 +1706,55 @@ and honor directed crossing grants. Pending expression inputs, incomplete compil
 missing descriptors and traversal failures produce no usable binding. An already
 completed literal binding does not require unused expression inputs. Binding itself
 does not clear model readiness, prepare values or execute conversion/validation.
-Automatic literal/native attribute validation remains actionable in `todo.md`, with
-literal validation input preparation awaiting its explicit contract decision.
+Automatic literal/native attribute validation remains actionable in `todo.md`,
+using the adopted lexical-preparation contract below.
 
 Scenarios for later design verification: package replacement with the same name and
 node IDs cannot substitute for the selected original owner; a QName binding cannot
 grant a scope crossing; incomplete native bindings never turn into scalar strings;
 attribute validation cannot gain conversion-only lexical admission accidentally.
+
+## Adopted lexical preparation for attribute validation
+
+Adopted 2026-10-08. A literal attribute consumer prepares typed validation inputs
+through a separately registered lexical-preparation capability. The capability
+belongs to the original datatype implementation and is inherited with that
+implementation through compatible bases. Names, reference selection and a
+registered converter alone confer no preparation capability. Existing typed
+inputs continue directly to validation; node-valued inputs retain their native
+consumer path.
+
+Preparation receives the authored lexical text and its original attribute/source
+provenance under the consumer's lifecycle context. It produces the datatype's
+declared validation representation while preserving the authored text and source
+handle separately. For example, integer `003` can supply typed integer `3` to a
+rule without rewriting the attribute. Preparation must preserve the datatype's
+lexical admission contract: shipped boolean validation cannot acquire acceptance
+of conversion-only `1` or `0`. Existing whitespace/facet rules remain constraints
+of the attribute consumer; preparation cannot silently widen them.
+
+List preparation uses the effective registered tokenizer and item preparation
+contracts, retaining item order and token provenance. It does not call item
+converters. Whole-list inheritance remains deferred. Preparation never invokes
+conversion or normalization capabilities implicitly, and it cannot bypass any
+inherited datatype restriction, enumeration or attribute-local facet. Prepared
+values must pass all effective validation contracts before acceptance.
+
+Completed preparation, lexical rejection and incomplete execution are distinct
+outcomes. Missing or unavailable required capability, pending lifecycle inputs,
+malformed output, cancellation and exhausted limits cannot become acceptance or
+trigger a converter/string fallback. Capability selection retains its original
+declaration, scope and implementation identity across package snapshots. Execution
+uses the caller's control and cumulative bounds for preparation and subsequent
+validation. Missing required preparation prevents automatic consumer activation;
+a per-input interruption leaves that validation incomplete.
+
+This adoption introduces no new authored attribute or behavior syntax. Native
+registration and fixtures precede automatic attribute integration, as tracked in
+`todo.md`; implementation and activation are still pending.
+
+Scenarios for later design verification: boolean presence and lexical forms keep
+their existing admission; integer spelling and source maps survive preparation;
+lists preserve duplicate items and token provenance without converter calls;
+derived/local restrictions still intersect; cancellation and replacement owners
+cannot expose partially prepared values as a completed validation result.
