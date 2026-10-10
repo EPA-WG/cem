@@ -22,7 +22,7 @@ export { DeclarationStyleOwnership } from './lib/declaration-style-ownership.js'
 export type { CemEdgeStylesheetBatch, CemEdgeStylesheetState, CemEdgeSsrRenderUpdateResult } from './lib/edge-ssr-host.js';
 
 export { getCemActionInvocation, type CemActionInvocation } from './lib/action-command-capability.js';
-export { connectCemNativeSurface, type CemNativeSurfaceController, type CemNativeSurfaceKind } from './lib/native-surface.js';
+export { connectCemNativeSurface, type CemNativeSurfaceController, type CemNativeSurfaceKind, type CemNativeSurfaceOptions, type CemSurfacePreparation } from './lib/native-surface.js';
 export { captureCemSurfaceInvocation, type CemSurfaceInvocation, type CemInvocationGeometry, type CemInvocationInputKind } from './lib/surface-invocation.js';
 
 export type { CemElementReferenceInputs } from './lib/element-reference-inputs.js';

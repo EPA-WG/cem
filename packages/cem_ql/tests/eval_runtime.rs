@@ -25,6 +25,7 @@ fn eval_with_bindings(
     evaluate(
         &query,
         &EvaluationContext {
+            execution_budget: None,
             native_functions: Default::default(),
             data_readers: Default::default(),
             scope: QueryContextScope(0),
@@ -49,6 +50,7 @@ fn controlled_for_loop_preserves_success_and_discards_cancelled_values() {
     )
     .expect("controlled loop compiles");
     let context = EvaluationContext {
+        execution_budget: None,
         native_functions: Default::default(),
         data_readers: Default::default(),
         scope: QueryContextScope(0),

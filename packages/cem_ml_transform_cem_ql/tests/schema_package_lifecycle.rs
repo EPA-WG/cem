@@ -1055,3 +1055,9 @@ fn package_source_capture_survives_closure_refresh_and_pending_lifecycle_prepara
 
 #[path = "schema_package_lifecycle/datatypes.rs"]
 mod datatypes;
+
+#[path = "schema_package_lifecycle/functions.rs"]
+mod functions;
+
+#[path = "schema_package_lifecycle/attribute_datatypes.rs"]
+mod attribute_datatypes;

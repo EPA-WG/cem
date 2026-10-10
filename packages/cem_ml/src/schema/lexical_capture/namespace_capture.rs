@@ -46,6 +46,9 @@ impl Default for NamespaceDeclarationCapture {
     }
 }
 impl NamespaceDeclarationCapture {
+    pub(super) fn current_node(&self) -> Option<AstNodeId> {
+        self.frames.last().and_then(|frame| frame.node)
+    }
     fn pending(&self, prefix: &str) -> Option<AstNodeId> {
         for context in self.contexts.iter().rev() {
             if let Some(declaration) = context.get(prefix) {
@@ -146,10 +149,29 @@ impl NamespaceDeclarationCapture {
                 ..
             }
         );
+        let typed_prefix = if directive {
+            machine.pending_typed_prelude.as_ref().and_then(|slot| slot.prefix.clone())
+        } else { None };
+        if matches!(event, NormalizedEvent::Value { value: ScalarValue::TypedPrelude(_), .. }) {
+            machine.pending_directive_node = self.current_node();
+        }
         let count = machine.current_ns_context().local_bindings().len();
         self.attribute = None;
         machine.consume(event.clone());
-        if let Some(prefix) = prefix.clone().filter(|_| native) {
+        if let Some(prefix) = typed_prefix {
+            if let Some(node) = self.current_node() {
+                self.declared(node, Declaration::Pending(PendingNamespaceDeclaration {
+                    prefix, value: PendingNamespaceValue::Native,
+                }));
+            }
+        } else if let Some(alias) = alias {
+            machine.ns_contexts.last_mut().unwrap().defer_binding("");
+            if let Some(node) = self.current_node() {
+                self.declared(node, Declaration::Pending(PendingNamespaceDeclaration {
+                    prefix: String::new(), value: PendingNamespaceValue::Alias(alias),
+                }));
+            }
+        } else if let Some(prefix) = prefix.clone().filter(|_| native) {
             machine
                 .ns_contexts
                 .last_mut()
@@ -163,15 +185,7 @@ impl NamespaceDeclarationCapture {
             let declared = machine.current_ns_context().local_bindings();
             if declared.len() > count {
                 let binding = declared.last().unwrap().clone();
-                let declaration = if let Some(alias) = alias {
-                    machine.ns_contexts.last_mut().unwrap().defer_binding("");
-                    Declaration::Pending(PendingNamespaceDeclaration {
-                        prefix: String::new(),
-                        value: PendingNamespaceValue::Alias(alias),
-                    })
-                } else {
-                    Declaration::Complete(binding)
-                };
+                let declaration = Declaration::Complete(binding);
                 if directive {
                     if let Some(node) = self.frames.last().and_then(|frame| frame.node) {
                         self.declared(node, declaration);

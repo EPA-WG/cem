@@ -1406,8 +1406,8 @@ into the runtime. Context readiness and crossing grants remain explicit.
 Package loading keeps source references pending unless a runtime compiler is
 explicitly installed. The [native bridge](../cem_ml_transform_cem_ql/README.md#schema-package-lifecycle-compilation)
 connects this host to the engine's package compilation stage before coordinated
-publication. Remaining schema consumers are tracked in
-[todo.md](../../docs/todo.md#5-integrate-schema-validation-and-construct-reuse).
+publication. Completed schema consumer actions are recorded in
+[archived checklist](../../docs/archive/todo-snapshot-2026-10-10.md#5-integrate-schema-validation-and-construct-reuse).
 
 `CemQlSchemaDeclarationHost::validate_input` explicitly validates structural
 input references with the consuming schema model. It reuses the same retained

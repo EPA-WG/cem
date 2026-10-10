@@ -161,6 +161,9 @@ pub use conversion::{constant_interpreter, converter};
 #[path = "datatype_shipped/lists.rs"]
 mod lists;
 pub use lists::{list_implementation, token_source};
+#[path = "datatype_shipped/serialization.rs"]
+mod serialization;
+pub use serialization::list_serializer;
 
 #[path = "datatype_shipped/grammar.rs"]
 mod grammar;

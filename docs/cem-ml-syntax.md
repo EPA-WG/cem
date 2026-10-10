@@ -376,9 +376,9 @@ directive:
 The form is `@doc cem-ml <version>`. The version accepts the SemVer constraint
 forms defined by `cem-ml-ac.md` AC-F-8: `MAJOR`, `MAJOR.MINOR`, or full
 `MAJOR.MINOR.PATCH` with optional prerelease/build metadata. Tier A defines the
-canonical `cem-ml` format at embedded version `1.0.0`, so `@doc cem-ml 1`,
-`@doc cem-ml 1.0`, and `@doc cem-ml 1.0.0` select the same Tier A parser
-profile.
+canonical `cem-ml` format at embedded version `1.1.0`. Broad `@doc cem-ml 1`
+and explicit 1.0 constraints retain literal prelude parsing. Typed prelude slots
+require `@doc cem-ml 1.1` or `1.1.0`, or an explicit compatible fragment profile.
 
 `@doc` must appear before any non-trivia top-level directive or item in a
 persisted `.cem` document. Embedded CEM-ML fragments inherit the parent
@@ -682,9 +682,13 @@ content and `\@schema` remain literal text, including the authored backslash.
 `//` inside a body remains text, preserving URL compatibility. `@doc` is a
 document directive. Existing document directives retain their behavior.
 
-Directive payloads remain literal `src`/`select` headers. For native reference or
-general expression slots, use host or schema-element attributes. Typed prelude
-payloads are a separately conditional follow-up in [todo.md](todo.md).
+The [typed prelude contract](cem-typed-prelude-design.md), implemented in 1.1,
+admits `@schema select={#...}`, `@ns prefix = {#...}` and `@default {#...}`,
+and their explicit `{$ ...}` expression counterparts. The native constructor
+occupies the entire value on one physical line. Quoted values and URI sources
+remain literal. Original slot metadata survives canonical output and versioned
+binary/reload transport; execution still needs current contexts and grants.
+Existing 1.0 and broad-major documents preserve their literal header behavior.
 
 ### Inline Declaration
 
@@ -1064,7 +1068,7 @@ flattening the scopes of the CEM assembly. CEM-QL `#` performs no URL handling.
 
 Consumers own attribute projection, text interpolation, and ID extraction or
 generation. The `cem-element` template reference-to-ID mode and interaction
-attribute API are deferred in
-[todo.md](todo.md#deferred-cem-element-reference-consumption). The complete
+attribute API have implementation evidence in
+[archived checklist](archive/todo-snapshot-2026-10-10.md#deferred-cem-element-reference-consumption). The complete
 adopted contract is in the
 [node references design](cem-ql-cem-ml-node-references-design.md).

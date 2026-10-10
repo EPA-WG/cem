@@ -658,6 +658,7 @@ pub fn validate_embedded_functional_fixture(
     report.evaluation = Some(api::evaluate(
         &query,
         &api::EvaluationContext {
+            execution_budget: None,
             scope: QueryContextScope(0),
             scope_policy: fixture.scope_policy,
             diagnostics: Vec::new(),

@@ -24,6 +24,8 @@ use crate::resolve::BindingId;
 use crate::types::Type;
 
 mod data;
+mod budget;
+pub use budget::QueryExecutionBudget;
 mod chain;
 mod inspection;
 #[cfg(test)]
@@ -673,6 +675,7 @@ pub(crate) struct EvalCtx<'a> {
     limits: HashMap<BudgetAxis, u64>,
     scope_policy: ScopePolicy,
     call_depth: u64,
+    execution_budget: QueryExecutionBudget,
     diagnostics: Vec<Diagnostic>,
     error: Option<EvalError>,
     recovery_depth: usize,
@@ -713,6 +716,7 @@ impl<'a> EvalCtx<'a> {
             limits: limits_from_policy(policy),
             scope_policy: policy,
             call_depth: 0,
+            execution_budget: context.execution_budget.clone().unwrap_or_default(),
             diagnostics: context.diagnostics.clone(),
             error: None,
             recovery_depth: 0,
@@ -1134,10 +1138,17 @@ impl<'a> EvalCtx<'a> {
         #[cfg(test)]
         pipeline::record_read_profile_tests::trace_point(true, source);
         let result = self.safe_points.force();
-        self.map_control_result(source, result)
+        self.map_control_result(source, result)?;
+        if let Some(failure) = self.execution_budget.failure() {
+            return Err(failure);
+        }
+        Ok(())
     }
 
     fn ensure_active(&mut self, source: IrId) -> Result<(), ItemStream> {
+        if let Some(failure) = self.execution_budget.failure() {
+            return Err(failure);
+        }
         self.poll_work(source)
     }
 
@@ -1385,6 +1396,7 @@ impl<'a> EvalCtx<'a> {
             scope: self.safe_points.scope(),
             max_result_items,
             module_resolution: self.module_resolution.as_ref(),
+            execution_budget: &self.execution_budget,
         });
         self.exit_call();
         // Acceptance is outside domain code and outside recoverable errors.
@@ -1736,11 +1748,16 @@ impl<'a> EvalCtx<'a> {
     fn enter_call(&mut self, source: IrId) -> Result<(), ItemStream> {
         self.force_safe_point(source)?;
         self.charge(BudgetAxis::FunctionCalls, 1, source)?;
+        let limit = self.limits[&BudgetAxis::CallDepth];
+        if !self.execution_budget.enter(limit) {
+            return Err(self.budget_exceeded(BudgetAxis::CallDepth, source));
+        }
         self.call_depth += 1;
         // Depth measures simultaneous calls. FunctionCalls above is the
         // cumulative work budget, including calls that later raise errors.
         if let Err(err) = self.check_limit(BudgetAxis::CallDepth, self.call_depth, source) {
             self.call_depth = self.call_depth.saturating_sub(1);
+            self.execution_budget.exit();
             return Err(err);
         }
         Ok(())
@@ -1748,12 +1765,23 @@ impl<'a> EvalCtx<'a> {
 
     fn exit_call(&mut self) {
         self.call_depth = self.call_depth.saturating_sub(1);
+        self.execution_budget.exit();
     }
 
     fn charge(&mut self, axis: BudgetAxis, amount: u64, source: IrId) -> Result<(), ItemStream> {
         self.ensure_active(source)?;
         let current = self.counters.get(&axis).copied().unwrap_or(0);
-        let next = current.saturating_add(amount);
+        let next = if matches!(axis,
+            BudgetAxis::ItemsPerStage | BudgetAxis::ClosureSize | BudgetAxis::CallDepth
+        ) {
+            current.saturating_add(amount)
+        } else {
+            let limit = self.limits.get(&axis).copied().unwrap_or(u64::MAX);
+            match self.execution_budget.charge(axis, amount, limit) {
+                Ok(next) => next,
+                Err(()) => return Err(self.budget_exceeded(axis, source)),
+            }
+        };
         self.check_limit(axis, next, source)?;
         self.counters.insert(axis, next);
         Ok(())
@@ -1762,14 +1790,18 @@ impl<'a> EvalCtx<'a> {
     fn check_limit(&mut self, axis: BudgetAxis, value: u64, source: IrId) -> Result<(), ItemStream> {
         let limit = self.limits.get(&axis).copied().unwrap_or(u64::MAX);
         if value > limit {
-            let message = format!("cem-ql budget exceeded: {}", axis.as_str());
-            let diagnostic = self.diagnostic(source, BUDGET_EXCEEDED, message, Severity::Error);
-            let error = EvalError::BudgetExceeded(axis);
-            self.diagnostics.push(diagnostic.clone());
-            self.error = Some(error.clone());
-            return Err(ItemStream::failed(error, diagnostic));
+            return Err(self.budget_exceeded(axis, source));
         }
         Ok(())
+    }
+
+    fn budget_exceeded(&mut self, axis: BudgetAxis, source: IrId) -> ItemStream {
+        let message = format!("cem-ql budget exceeded: {}", axis.as_str());
+        let diagnostic = self.diagnostic(source, BUDGET_EXCEEDED, message, Severity::Error);
+        let error = EvalError::BudgetExceeded(axis);
+        self.diagnostics.push(diagnostic.clone());
+        self.error = Some(error.clone());
+        self.execution_budget.retain_failure(ItemStream::failed(error, diagnostic))
     }
 
     fn merge_stream_status(&mut self, stream: &ItemStream) {

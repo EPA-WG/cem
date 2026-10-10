@@ -140,9 +140,11 @@ style ownership and duplicate-registration behavior before publishing it.
 
 ## Delivery status
 
-The source/test split is implemented for all eleven canonical components:
+The source/test split is implemented for all twenty canonical components:
 `cem-action`, `cem-select`, `cem-theme-switch`, `cem-icon`, `cem-icon-button`,
-`cem-menu-item`, `cem-menu`, `cem-dropdown`, `cem-field`, `cem-text-field` and `cem-textarea`.
+`cem-menu-item`, `cem-menu`, `cem-dropdown`, `cem-field`, `cem-text-field`, `cem-textarea`,
+`cem-suggestions`, `cem-dialog`, `cem-dialog-shell`, `cem-sheet`, `cem-tooltip`,
+`cem-checkbox`, `cem-radio`, `cem-switch` and `cem-autocomplete`.
 The action companion is implemented at
 `packages/cem-components/playgrounds/cem-action.html`. Its property form uses
 visible `cem-radio` groups for enumerated options and `cem-field` for the label. The source viewer is a static
@@ -169,7 +171,7 @@ uses `xml:base` on generated containers to preserve relative dependencies.
 The original Material action URL remains available and links the playground. In the standalone legacy adapter archive, that link opens the
 repository source; the CEM component package includes both interactive pages.
 
-All seven canonical components now provide linked galleries. The playground
+All twenty canonical components now provide linked galleries. The playground
 verification gate discovers canonical component folders and checks each gallery
 in source and isolated-package previews.
 

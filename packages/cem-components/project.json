@@ -75,18 +75,41 @@
                 "{projectRoot}/dist/cem-icon-button-gallery.html",
                 "{projectRoot}/dist/cem-select-gallery.html",
                 "{projectRoot}/dist/cem-text-field-gallery.html",
-                "{projectRoot}/dist/cem-theme-switch-gallery.html"
+                "{projectRoot}/dist/cem-theme-switch-gallery.html",
+                "{projectRoot}/dist/cem-dialog.html",
+                "{projectRoot}/dist/cem-dialog-gallery.html",
+                "{projectRoot}/dist/cem-dialog-shell.html",
+                "{projectRoot}/dist/cem-dialog-shell-gallery.html",
+                "{projectRoot}/dist/cem-tooltip.html",
+                "{projectRoot}/dist/cem-tooltip-gallery.html",
+                "{projectRoot}/dist/cem-checkbox.html",
+                "{projectRoot}/dist/cem-checkbox-gallery.html",
+                "{projectRoot}/dist/cem-radio.html",
+                "{projectRoot}/dist/cem-radio-gallery.html",
+                "{projectRoot}/dist/cem-switch.html",
+                "{projectRoot}/dist/cem-switch-gallery.html",
+                "{projectRoot}/dist/cem-sheet.html",
+                "{projectRoot}/dist/cem-sheet-gallery.html",
+                "{projectRoot}/dist/cem-autocomplete.html",
+                "{projectRoot}/dist/cem-autocomplete-gallery.html"
             ]
         },
         "verify-menu-dropdown": {
             "executor": "nx:run-commands",
-            "dependsOn": ["build"],
-            "options": { "command": "node tools/scripts/verify-cem-menu-dropdown.mjs", "cwd": "{workspaceRoot}" }
+            "dependsOn": [
+                "build"
+            ],
+            "options": {
+                "command": "node tools/scripts/verify-cem-menu-dropdown.mjs",
+                "cwd": "{workspaceRoot}"
+            }
         },
         "verify-gallery-navigation": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": ["build"],
+            "dependsOn": [
+                "build"
+            ],
             "options": {
                 "command": "node ../../tools/scripts/verify-cem-component-playgrounds.mjs --navigation-only",
                 "cwd": "{projectRoot}"
@@ -96,7 +119,10 @@
                 "{projectRoot}/src/components/**/*.xhtml",
                 "{projectRoot}/package.json",
                 "{workspaceRoot}/tools/scripts/verify-cem-component-playgrounds.mjs",
-                { "dependentTasksOutputFiles": "**/*", "transitive": true }
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": true
+                }
             ],
             "outputs": []
         },
@@ -124,14 +150,66 @@
             "outputs": []
         },
         "build": {
-            "dependsOn": ["^build", "build:styles", "build:catalog", "build:playgrounds", "build:bundle"]
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "^build",
+                "build:styles",
+                "build:catalog",
+                "build:playgrounds",
+                "build:bundle"
+            ],
+            "options": {
+                "cwd": "packages/cem-components",
+                "commands": [
+                    "node ../../tools/scripts/clean-cem-components-runtime.mjs",
+                    "tsc --build tsconfig.lib.json"
+                ],
+                "parallel": false
+            },
+            "inputs": [
+                "{projectRoot}/package.json",
+                "{workspaceRoot}/tsconfig.base.json",
+                "{projectRoot}/tsconfig.lib.json",
+                "{projectRoot}/src/**/*.ts",
+                "!{projectRoot}/vite.config.ts",
+                "!{projectRoot}/vite.config.mts",
+                "!{projectRoot}/vitest.config.ts",
+                "!{projectRoot}/vitest.config.mts",
+                "!{projectRoot}/src/**/*.test.ts",
+                "!{projectRoot}/src/**/*.spec.ts",
+                "!{projectRoot}/src/**/*.test.tsx",
+                "!{projectRoot}/src/**/*.spec.tsx",
+                "!{projectRoot}/src/**/*.test.js",
+                "!{projectRoot}/src/**/*.spec.js",
+                "!{projectRoot}/src/**/*.test.jsx",
+                "!{projectRoot}/src/**/*.spec.jsx",
+                "!{projectRoot}/src/**/*.stories.ts",
+                "!{projectRoot}/src/**/*.stories.tsx",
+                "!{projectRoot}/src/**/*.stories.js",
+                "!{projectRoot}/src/**/*.stories.jsx",
+                {
+                    "dependentTasksOutputFiles": "**/*.{d.ts,d.cts,d.mts,tsbuildinfo}",
+                    "transitive": true
+                },
+                {
+                    "fileset": "{projectRoot}/**/*.{d.ts,d.cts,d.mts}",
+                    "dependencies": true
+                },
+                "^{projectRoot}/tsconfig.lib.json",
+                "{workspaceRoot}/tools/scripts/clean-cem-components-runtime.mjs"
+            ]
         },
         "test": {
             "dependsOn": [
                 "^build",
                 "verify-declarative",
                 "verify-phase3-harness",
-                { "projects": ["cem-elements"], "target": "test" }
+                {
+                    "projects": [
+                        "cem-elements"
+                    ],
+                    "target": "test"
+                }
             ],
             "options": {
                 "command": "vitest --no-file-parallelism"
@@ -144,13 +222,22 @@
                 "command": "node scripts/copy-styles.mjs",
                 "cwd": "{projectRoot}"
             },
-            "inputs": ["{projectRoot}/scripts/copy-styles.mjs", "{projectRoot}/src/styles.css"],
-            "outputs": ["{projectRoot}/dist/styles.css"]
+            "inputs": [
+                "{projectRoot}/scripts/copy-styles.mjs",
+                "{projectRoot}/src/styles.css"
+            ],
+            "outputs": [
+                "{projectRoot}/dist/styles.css"
+            ]
         },
         "build:catalog": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": ["verify-declarative", "verify-primitives", "verify-state-matrix"],
+            "dependsOn": [
+                "verify-declarative",
+                "verify-primitives",
+                "verify-state-matrix"
+            ],
             "options": {
                 "command": "node scripts/build-component-catalog.mjs",
                 "cwd": "{projectRoot}"
@@ -173,7 +260,9 @@
                     "transitive": false
                 }
             ],
-            "outputs": ["{projectRoot}/dist/catalog/cem.components.catalog.json"]
+            "outputs": [
+                "{projectRoot}/dist/catalog/cem.components.catalog.json"
+            ]
         },
         "verify-declarative": {
             "cache": true,
@@ -213,7 +302,14 @@
         "verify-figma-inventory": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "test:figma" }],
+            "dependsOn": [
+                {
+                    "projects": [
+                        "@epa-wg/cem-theme"
+                    ],
+                    "target": "test:figma"
+                }
+            ],
             "options": {
                 "command": "node tools/scripts/verify-cem-components-figma-inventory.mjs",
                 "cwd": "{workspaceRoot}"
@@ -230,7 +326,9 @@
                 "{projectRoot}/src/lib/primitives.ts",
                 "{projectRoot}/tests/state-matrix-coverage.json"
             ],
-            "outputs": ["{projectRoot}/dist/reports/figma-component-library.{json,md}"]
+            "outputs": [
+                "{projectRoot}/dist/reports/figma-component-library.{json,md}"
+            ]
         },
         "verify-material-parity": {
             "cache": true,
@@ -251,8 +349,18 @@
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
-                { "projects": ["@epa-wg/cem-theme"], "target": "build:tokens" },
-                { "projects": ["@epa-wg/cem-theme"], "target": "verify-package" }
+                {
+                    "projects": [
+                        "@epa-wg/cem-theme"
+                    ],
+                    "target": "build:tokens"
+                },
+                {
+                    "projects": [
+                        "@epa-wg/cem-theme"
+                    ],
+                    "target": "verify-package"
+                }
             ],
             "options": {
                 "command": "node tools/scripts/verify-cem-components-styles.mjs",
@@ -279,7 +387,12 @@
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
-                { "projects": ["@epa-wg/cem-theme"], "target": "build:tokens" }
+                {
+                    "projects": [
+                        "@epa-wg/cem-theme"
+                    ],
+                    "target": "build:tokens"
+                }
             ],
             "options": {
                 "command": "node scripts/verify-input-indicator-forced-colors.mjs",
@@ -289,6 +402,9 @@
                 "{projectRoot}/scripts/verify-input-indicator-forced-colors.mjs",
                 "{projectRoot}/src/styles.css",
                 "{projectRoot}/src/components/cem-select/cem-select.xhtml",
+                "{projectRoot}/src/components/cem-checkbox/cem-checkbox.xhtml",
+                "{projectRoot}/src/components/cem-radio/cem-radio.xhtml",
+                "{projectRoot}/src/components/cem-switch/cem-switch.xhtml",
                 {
                     "dependentTasksOutputFiles": "**/*.css",
                     "transitive": false
@@ -299,7 +415,14 @@
         "verify-autocomplete-forced-colors": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "build:tokens" }],
+            "dependsOn": [
+                {
+                    "projects": [
+                        "@epa-wg/cem-theme"
+                    ],
+                    "target": "build:tokens"
+                }
+            ],
             "options": {
                 "command": "node scripts/verify-autocomplete-forced-colors.mjs",
                 "cwd": "{projectRoot}"
@@ -317,7 +440,14 @@
         "verify-navigation-hover-forced-colors": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "build:tokens" }],
+            "dependsOn": [
+                {
+                    "projects": [
+                        "@epa-wg/cem-theme"
+                    ],
+                    "target": "build:tokens"
+                }
+            ],
             "options": {
                 "command": "node scripts/verify-navigation-hover-forced-colors.mjs",
                 "cwd": "{projectRoot}"
@@ -335,7 +465,14 @@
         "verify-content-hover-forced-colors": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "build:tokens" }],
+            "dependsOn": [
+                {
+                    "projects": [
+                        "@epa-wg/cem-theme"
+                    ],
+                    "target": "build:tokens"
+                }
+            ],
             "options": {
                 "command": "node scripts/verify-content-hover-forced-colors.mjs",
                 "cwd": "{projectRoot}"
@@ -353,7 +490,14 @@
         "verify-divider-forced-colors": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "build:tokens" }],
+            "dependsOn": [
+                {
+                    "projects": [
+                        "@epa-wg/cem-theme"
+                    ],
+                    "target": "build:tokens"
+                }
+            ],
             "options": {
                 "command": "node scripts/verify-divider-forced-colors.mjs",
                 "cwd": "{projectRoot}"
@@ -371,7 +515,14 @@
         "verify-expansion-forced-colors": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "build:tokens" }],
+            "dependsOn": [
+                {
+                    "projects": [
+                        "@epa-wg/cem-theme"
+                    ],
+                    "target": "build:tokens"
+                }
+            ],
             "options": {
                 "command": "node scripts/verify-expansion-forced-colors.mjs",
                 "cwd": "{projectRoot}"
@@ -389,7 +540,14 @@
         "verify-progress-spinner-forced-colors": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "build:tokens" }],
+            "dependsOn": [
+                {
+                    "projects": [
+                        "@epa-wg/cem-theme"
+                    ],
+                    "target": "build:tokens"
+                }
+            ],
             "options": {
                 "command": "node scripts/verify-progress-spinner-forced-colors.mjs",
                 "cwd": "{projectRoot}"
@@ -407,7 +565,14 @@
         "verify-sort-header-forced-colors": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "build:tokens" }],
+            "dependsOn": [
+                {
+                    "projects": [
+                        "@epa-wg/cem-theme"
+                    ],
+                    "target": "build:tokens"
+                }
+            ],
             "options": {
                 "command": "node scripts/verify-sort-header-forced-colors.mjs",
                 "cwd": "{projectRoot}"
@@ -425,7 +590,14 @@
         "verify-paginator-forced-colors": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "build:tokens" }],
+            "dependsOn": [
+                {
+                    "projects": [
+                        "@epa-wg/cem-theme"
+                    ],
+                    "target": "build:tokens"
+                }
+            ],
             "options": {
                 "command": "node scripts/verify-paginator-forced-colors.mjs",
                 "cwd": "{projectRoot}"
@@ -443,7 +615,14 @@
         "verify-slider-forced-colors": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "build:tokens" }],
+            "dependsOn": [
+                {
+                    "projects": [
+                        "@epa-wg/cem-theme"
+                    ],
+                    "target": "build:tokens"
+                }
+            ],
             "options": {
                 "command": "node scripts/verify-slider-forced-colors.mjs",
                 "cwd": "{projectRoot}"
@@ -461,17 +640,20 @@
         "verify-tooltip-forced-colors": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "build:tokens" }],
+            "dependsOn": [
+                "build"
+            ],
             "options": {
-                "command": "node scripts/verify-tooltip-forced-colors.mjs",
-                "cwd": "{projectRoot}"
+                "command": "node tools/scripts/verify-cem-component-playgrounds.mjs --surfaces-only",
+                "cwd": ""
             },
             "inputs": [
-                "{projectRoot}/scripts/verify-tooltip-forced-colors.mjs",
-                "{projectRoot}/src/styles.css",
+                "{workspaceRoot}/tools/scripts/verify-cem-component-playgrounds.mjs",
+                "{projectRoot}/src/components/**/*",
+                "{projectRoot}/playgrounds/**/*",
                 {
-                    "dependentTasksOutputFiles": "**/*.css",
-                    "transitive": false
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": true
                 }
             ],
             "outputs": []
@@ -479,7 +661,14 @@
         "verify-timepicker-forced-colors": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "build:tokens" }],
+            "dependsOn": [
+                {
+                    "projects": [
+                        "@epa-wg/cem-theme"
+                    ],
+                    "target": "build:tokens"
+                }
+            ],
             "options": {
                 "command": "node scripts/verify-timepicker-forced-colors.mjs",
                 "cwd": "{projectRoot}"
@@ -497,7 +686,14 @@
         "verify-datepicker-forced-colors": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "build:tokens" }],
+            "dependsOn": [
+                {
+                    "projects": [
+                        "@epa-wg/cem-theme"
+                    ],
+                    "target": "build:tokens"
+                }
+            ],
             "options": {
                 "command": "node scripts/verify-datepicker-forced-colors.mjs",
                 "cwd": "{projectRoot}"
@@ -515,7 +711,14 @@
         "verify-tabs-forced-colors": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "build:tokens" }],
+            "dependsOn": [
+                {
+                    "projects": [
+                        "@epa-wg/cem-theme"
+                    ],
+                    "target": "build:tokens"
+                }
+            ],
             "options": {
                 "command": "node scripts/verify-tabs-forced-colors.mjs",
                 "cwd": "{projectRoot}"
@@ -533,7 +736,14 @@
         "verify-stepper-forced-colors": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "build:tokens" }],
+            "dependsOn": [
+                {
+                    "projects": [
+                        "@epa-wg/cem-theme"
+                    ],
+                    "target": "build:tokens"
+                }
+            ],
             "options": {
                 "command": "node scripts/verify-stepper-forced-colors.mjs",
                 "cwd": "{projectRoot}"
@@ -551,7 +761,14 @@
         "verify-tree-forced-colors": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "build:tokens" }],
+            "dependsOn": [
+                {
+                    "projects": [
+                        "@epa-wg/cem-theme"
+                    ],
+                    "target": "build:tokens"
+                }
+            ],
             "options": {
                 "command": "node scripts/verify-tree-forced-colors.mjs",
                 "cwd": "{projectRoot}"
@@ -569,17 +786,20 @@
         "verify-feedback-focus-forced-colors": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "build:tokens" }],
+            "dependsOn": [
+                "build"
+            ],
             "options": {
-                "command": "node scripts/verify-feedback-focus-forced-colors.mjs",
-                "cwd": "{projectRoot}"
+                "command": "node tools/scripts/verify-cem-component-playgrounds.mjs --surfaces-only",
+                "cwd": ""
             },
             "inputs": [
-                "{projectRoot}/scripts/verify-feedback-focus-forced-colors.mjs",
-                "{projectRoot}/src/styles.css",
+                "{workspaceRoot}/tools/scripts/verify-cem-component-playgrounds.mjs",
+                "{projectRoot}/src/components/**/*",
+                "{projectRoot}/playgrounds/**/*",
                 {
-                    "dependentTasksOutputFiles": "**/*.css",
-                    "transitive": false
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": true
                 }
             ],
             "outputs": []
@@ -615,12 +835,16 @@
                 "{projectRoot}/src/components/**/*.stories.ts",
                 "{projectRoot}/tests/workflows/**/*.html"
             ],
-            "outputs": ["{projectRoot}/dist/reports/component-state-matrix.{json,md}"]
+            "outputs": [
+                "{projectRoot}/dist/reports/component-state-matrix.{json,md}"
+            ]
         },
         "verify-package": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": ["build"],
+            "dependsOn": [
+                "build"
+            ],
             "options": {
                 "command": "node scripts/verify-package.mjs",
                 "cwd": "{projectRoot}"
@@ -684,11 +908,9 @@
                 "verify-state-matrix",
                 "verify-package",
                 "test-ci--src/lib/cem-components.spec.ts",
-                "test-ci--src/lib/autocomplete.browser.spec.ts",
                 "test-ci--src/lib/datepicker.browser.spec.ts",
                 "test-ci--src/lib/divider.browser.spec.ts",
                 "test-ci--src/lib/expansion.browser.spec.ts",
-                "test-ci--src/lib/feedback-expanded.browser.spec.ts",
                 "test-ci--src/lib/paginator.browser.spec.ts",
                 "test-ci--src/lib/primitives.browser.spec.ts",
                 "test-ci--src/lib/progress-spinner.browser.spec.ts",
@@ -698,15 +920,101 @@
                 "test-ci--src/lib/stepper.browser.spec.ts",
                 "test-ci--src/lib/tabs.browser.spec.ts",
                 "test-ci--src/lib/timepicker.browser.spec.ts",
-                "test-ci--src/lib/tooltip.browser.spec.ts",
                 "test-ci--src/lib/tree.browser.spec.ts",
                 "test-ci--src/lib/workflows.browser.spec.ts",
-                "test-ci--src/lib/testing/component-harness.browser.spec.ts"
+                "test-ci--src/lib/testing/component-harness.browser.spec.ts",
+                "verify-sheet",
+                "verify-checkables",
+                "verify-autocomplete"
             ],
             "options": {
                 "command": "echo \"cem-components verification gate green: primitive manifest + Figma component inventory + Angular Material parity inventory + state matrix + style contract + workflow examples + browser harness tests passed.\"",
                 "cwd": "{workspaceRoot}"
             },
+            "outputs": []
+        },
+        "verify-surfaces": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "build"
+            ],
+            "options": {
+                "command": "node tools/scripts/verify-cem-component-playgrounds.mjs --surfaces-only",
+                "cwd": ""
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/verify-cem-component-playgrounds.mjs",
+                "{projectRoot}/src/components/**/*",
+                "{projectRoot}/playgrounds/**/*",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": true
+                }
+            ],
+            "outputs": []
+        },
+        "verify-checkables": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "build"
+            ],
+            "options": {
+                "command": "node tools/scripts/verify-cem-component-playgrounds.mjs --checkables-only",
+                "cwd": ""
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/verify-cem-component-playgrounds.mjs",
+                "{projectRoot}/src/components/**/*",
+                "{projectRoot}/playgrounds/**/*",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": true
+                }
+            ],
+            "outputs": []
+        },
+        "verify-sheet": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "build"
+            ],
+            "options": {
+                "command": "node tools/scripts/verify-cem-component-playgrounds.mjs --sheet-only",
+                "cwd": ""
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/verify-cem-component-playgrounds.mjs",
+                "{projectRoot}/src/components/**/*",
+                "{projectRoot}/playgrounds/**/*",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": true
+                }
+            ],
+            "outputs": []
+        },
+        "verify-autocomplete": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "build"
+            ],
+            "options": {
+                "command": "node tools/scripts/verify-cem-component-playgrounds.mjs --autocomplete-only",
+                "cwd": ""
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/verify-cem-component-playgrounds.mjs",
+                "{projectRoot}/src/components/**/*",
+                "{projectRoot}/playgrounds/**/*",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": true
+                }
+            ],
             "outputs": []
         }
     }

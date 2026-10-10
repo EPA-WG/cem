@@ -43,6 +43,8 @@ impl RegisteredFacetProfile {
 pub enum FacetProfileBinding {
     Unavailable,
     Ready(RegisteredFacetProfile),
+    /// Intersect the selected profile with every retained ancestor profile.
+    CheckedReplacement(RegisteredFacetProfile),
 }
 #[derive(Debug, Clone)]
 pub enum AttributeFacetBindingError {
@@ -51,16 +53,24 @@ pub enum AttributeFacetBindingError {
 }
 #[derive(Debug, Clone)]
 pub struct BoundAttributeFacets {
+    identity: std::sync::Arc<()>,
     binding: BoundAttributeDatatype,
     profile: RegisteredFacetProfile,
     contract: AttributeFacetContract,
 }
 impl BoundAttributeFacets {
+    pub(crate) fn same_binding(&self, other: &Self) -> bool {
+        std::sync::Arc::ptr_eq(&self.identity, &other.identity)
+    }
     pub fn binding(&self) -> &BoundAttributeDatatype {
         &self.binding
     }
     pub fn profile(&self) -> &RegisteredFacetProfile {
         &self.profile
+    }
+    /// Original registrations in validation order, including the selected profile.
+    pub fn profiles(&self) -> &[RegisteredFacetProfile] {
+        self.binding.datatype.facet_profiles()
     }
     pub fn contract(&self) -> &AttributeFacetContract {
         &self.contract
@@ -78,14 +88,21 @@ impl BoundAttributeDatatype {
             .datatype
             .facet_profile()
             .ok_or(AttributeFacetBindingError::MissingProfile)?;
-        let contract = AttributeFacetContract::compile(
+        let families: Vec<_> = self
+            .datatype
+            .facet_profiles()
+            .iter()
+            .map(|p| p.family())
+            .collect();
+        let contract = AttributeFacetContract::compile_profiles(
             schema_uri,
             self.local_constraints(),
-            profile.family(),
+            &families,
             limits,
         )
         .map_err(AttributeFacetBindingError::Contract)?;
         Ok(BoundAttributeFacets {
+            identity: std::sync::Arc::new(()),
             binding: self.clone(),
             profile: profile.clone(),
             contract,

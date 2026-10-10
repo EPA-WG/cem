@@ -28,3 +28,13 @@ composite-menu. Composite Escape stops at the nearest open submenu; an unhandled
 root Escape bubbles to popup. A leaf activation emits `cem-popup-dismiss`, which
 popup ancestors use to dismiss the chain. No separate document key handler is
 installed, so independent popup/menu siblings keep their own focus.
+
+Task-opening leaf activations participate in the shared `native-surface` relay.
+The registered menu chain and outer popup launcher are captured before hiding
+ancestors, including independently linked submenus. While task preparation is
+pending or rejected, ordinary leaf dismissal is suppressed. Successful preparation
+dismisses the captured transient chain without restoring menu focus, then enters
+the task once. Eligible task exits return to the stable launcher; outside and Tab
+destinations are preserved. Source-chain changes invalidate pending handoff.
+Popup dismissal treats independently linked submenu controls as part of its
+interaction region. Relay registrations are released on disconnect.

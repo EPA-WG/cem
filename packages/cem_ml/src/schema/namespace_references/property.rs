@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct NativeNamespaceProperty {
+    /// Original namespace attribute or typed prelude directive, never synthetic.
     pub declaration: SchemaDeclarationNode,
     /// Destination prefix, independent of the selected declaration's prefix.
     pub prefix: String,
@@ -21,7 +22,8 @@ pub enum NativeNamespacePropertyError {
 /// Require the original parser-captured native declaration and its single owning
 /// expression slot. General expressions keep their original `$` wrapper. Literal
 /// namespace declarations/default aliases, ordinary attributes and XML expression-
-/// looking literals are not native properties. This creates no context or result,
+/// looking literals are not native properties. Typed directives require their
+/// original captured role and owning value edge. This creates no context or result,
 /// evaluates no text, grants no crossing and changes no source metadata.
 pub fn decode_native_namespace_property(
     declaration: SchemaDeclarationNode,
@@ -34,6 +36,26 @@ pub fn decode_native_namespace_property(
         .pending_namespace_declaration(declaration.document(), declaration.node_id())
         .filter(|pending| matches!(pending.value, PendingNamespaceValue::Native))
         .ok_or(NativeNamespacePropertyError::NotNativeNamespaceDeclaration)?;
+    if matches!(declaration.node(), CemAstNode::Element { .. }) {
+        use crate::{
+            schema::prelude_values::decode_native_prelude_value, tokenizer::cem::TypedPreludeRole,
+        };
+        let slot = decode_native_prelude_value(declaration.clone(), captured)
+            .map_err(|_| NativeNamespacePropertyError::InvalidValue)?;
+        let prefix = match slot.role() {
+            TypedPreludeRole::Namespace => slot.prefix().unwrap(),
+            TypedPreludeRole::DefaultNamespace => "",
+            _ => return Err(NativeNamespacePropertyError::NotNativeNamespaceDeclaration),
+        };
+        if prefix != pending.prefix {
+            return Err(NativeNamespacePropertyError::InvalidValue);
+        }
+        return Ok(NativeNamespaceProperty {
+            declaration,
+            prefix: prefix.to_owned(),
+            value: slot.value().clone(),
+        });
+    }
     let CemAstNode::Attribute { value_nodes, .. } = declaration.node() else {
         return Err(NativeNamespacePropertyError::NotNativeNamespaceDeclaration);
     };

@@ -56,8 +56,8 @@ source form as the authoring canonical.
 Top-level canonical CEM-ML source begins with `@doc cem-ml <version>` per AC-F-8.
 This is document-format identity, not schema identity: it selects the CEM-ML language
 grammar and parser compatibility family before schema loading starts. Tier A supports
-embedded document-format version `1.0.0`; author-facing `@doc cem-ml 1` is the normal
-shorthand. Embedded CEM-ML fragments inherit an already-established document-format
+embedded document-format version `1.1.0`; `@doc cem-ml 1` preserves literal
+preludes, while typed slots require an explicit 1.1 constraint. Embedded CEM-ML fragments inherit an already-established document-format
 identity unless the host API supplies one explicitly. XML and HTML parity inputs get
 their format identity from the selected parser/content-type profile and do not accept
 `@doc`.
@@ -797,9 +797,9 @@ can still use its earlier pre-declaration context. Shared query ingress accepts
 reparsing input bytes, and the native QL adapter projects only selected roots,
 including an empty forest. Completed-name projection does not evaluate captured
 expressions or prepare their contexts; lexical handoff remains explicit.
-Remaining lifecycle integration tasks are tracked in
-[`todo.md`](todo.md#ast-node-reference-implementation), separately from the deferred
-enclosed child-override syntax.
+Completed lifecycle integration actions are preserved in the
+[archived checklist](archive/todo-snapshot-2026-10-10.md#ast-node-reference-implementation).
+Enclosed child-override syntax has its separate adopted contract in the syntax guide.
 
 ### Schema Version Compatibility
 
@@ -1541,11 +1541,12 @@ cannot replace it. Following controls inside the selected subtree still govern
 actual original child edges. Original destination contexts and limits remain
 independent of placement model routing.
 
-Block-prelude parsing is deferred (2026-10-06): the syntax guide describes block
-shorthand, while the tokenizer currently retains `@schema` within block content as
-text. Recognition and literal-text compatibility must be specified before changing
-that behavior. Typed prelude slots remain separate actionable work; native
-host/schema-element attribute forms are available.
+Literal block-prelude parsing was adopted and implemented on 2026-10-07;
+the syntax guide defines recognition and literal-text compatibility. The
+[typed prelude contract](cem-typed-prelude-design.md), adopted 2026-10-09,
+specifies original native directive slots and version-gated source admission.
+Its parser, native consumers, canonical output and versioned transport are
+implemented alongside the existing host and schema-element attribute forms.
 
 Explicit retained URI loader results now enter the same preparation and runtime
 stages. `set_schema_uri_load` keys pending/unavailable/invalid/completed selections

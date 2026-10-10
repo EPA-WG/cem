@@ -53,18 +53,23 @@ impl LexicalInput {
 pub struct TokenizationLimits {
     pub max_bytes: usize,
     pub max_tokens: usize,
+    /// Includes every inherited admission check and the selected tokenizer.
+    pub max_tokenizers: usize,
 }
 impl Default for TokenizationLimits {
     fn default() -> Self {
         Self {
             max_bytes: 1_048_576,
             max_tokens: 100_000,
+            max_tokenizers: 256,
         }
     }
 }
 #[derive(Debug, Clone)]
 pub enum TokenizationError {
     AbsentInput,
+    Rejected,
+    IncompatibleReplacement,
     Limit,
     InvalidSpan,
     UnaccountedInput,
@@ -93,6 +98,7 @@ pub trait Tokenizer: Debug + Send + Sync {
 pub struct RegisteredTokenizer {
     id: String,
     implementation: Arc<dyn Tokenizer>,
+    inherited: Vec<Arc<dyn Tokenizer>>,
 }
 #[derive(Debug, Clone)]
 pub struct TokenizedInput {
@@ -111,6 +117,7 @@ impl RegisteredTokenizer {
         Ok(Self {
             id,
             implementation: Arc::new(implementation),
+            inherited: vec![],
         })
     }
     /// A capability value only; a host must register it for an exact list source.
@@ -119,6 +126,18 @@ impl RegisteredTokenizer {
     }
     pub fn identity(&self) -> &str {
         &self.id
+    }
+    /// Check every inherited tokenizer against the same original input. This
+    /// preserves exact token boundaries; it never feeds one result into another.
+    pub fn checked_replacement(mut self, base: &Self) -> Self {
+        let mut inherited = base.inherited.clone();
+        inherited.push(base.implementation.clone());
+        inherited.append(&mut self.inherited);
+        self.inherited = inherited;
+        self
+    }
+    pub fn invocations(&self) -> usize {
+        self.inherited.len().saturating_add(1)
     }
     pub fn tokenize(
         &self,
@@ -131,53 +150,72 @@ impl RegisteredTokenizer {
             .check_scope(scope)
             .map_err(TokenizationError::Control)?;
         let input = input.ok_or(TokenizationError::AbsentInput)?;
-        if input.text.len() > limits.max_bytes {
+        if input.text.len() > limits.max_bytes || self.invocations() > limits.max_tokenizers {
             return Err(TokenizationError::Limit);
         }
-        let tokens = self.implementation.tokenize(TokenizationRequest {
-            input: &input,
-            control,
-            scope,
-            limits,
-        })?;
-        control
-            .check_scope(scope)
-            .map_err(TokenizationError::Control)?;
-        if tokens.len() > limits.max_tokens {
-            return Err(TokenizationError::Limit);
-        }
-        let mut end = 0;
-        for (i, span) in tokens.iter().enumerate() {
-            if i % 64 == 0 {
-                control
-                    .check_scope(scope)
-                    .map_err(TokenizationError::Control)?;
+        let mut expected = None;
+        for implementation in self
+            .inherited
+            .iter()
+            .chain(std::iter::once(&self.implementation))
+        {
+            control
+                .check_scope(scope)
+                .map_err(TokenizationError::Control)?;
+            let outcome = implementation.tokenize(TokenizationRequest {
+                input: &input,
+                control,
+                scope,
+                limits,
+            });
+            control
+                .check_scope(scope)
+                .map_err(TokenizationError::Control)?;
+            let tokens = outcome?;
+            if tokens.len() > limits.max_tokens {
+                return Err(TokenizationError::Limit);
             }
-            if span.start < end
-                || span.start >= span.end
-                || span.end > input.text.len()
-                || !input.text.is_char_boundary(span.start)
-                || !input.text.is_char_boundary(span.end)
-            {
-                return Err(TokenizationError::InvalidSpan);
+            let mut end = 0;
+            for (i, span) in tokens.iter().enumerate() {
+                if i % 64 == 0 {
+                    control
+                        .check_scope(scope)
+                        .map_err(TokenizationError::Control)?;
+                }
+                if span.start < end
+                    || span.start >= span.end
+                    || span.end > input.text.len()
+                    || !input.text.is_char_boundary(span.start)
+                    || !input.text.is_char_boundary(span.end)
+                {
+                    return Err(TokenizationError::InvalidSpan);
+                }
+                if !implementation.accepts_separator(&input.text[end..span.start]) {
+                    return Err(TokenizationError::UnaccountedInput);
+                }
+                end = span.end;
             }
-            if !self
-                .implementation
-                .accepts_separator(&input.text[end..span.start])
-            {
+            if !implementation.accepts_separator(&input.text[end..]) {
                 return Err(TokenizationError::UnaccountedInput);
             }
-            end = span.end;
+            control
+                .check_scope(scope)
+                .map_err(TokenizationError::Control)?;
+            if expected
+                .as_ref()
+                .is_some_and(|previous| previous != &tokens)
+            {
+                return Err(TokenizationError::IncompatibleReplacement);
+            }
+            expected = Some(tokens);
         }
-        if !self.implementation.accepts_separator(&input.text[end..]) {
-            return Err(TokenizationError::UnaccountedInput);
-        }
-        control
-            .check_scope(scope)
-            .map_err(TokenizationError::Control)?;
-        Ok(TokenizedInput { input, tokens })
+        Ok(TokenizedInput {
+            input,
+            tokens: expected.expect("selected tokenizer"),
+        })
     }
 }
+
 #[derive(Debug)]
 struct Whitespace;
 impl Tokenizer for Whitespace {
@@ -257,6 +295,9 @@ impl DatatypeCompilation {
             reference_issues: vec![],
             diagnostics: vec![],
         }
+    }
+    pub fn owner(&self) -> &Arc<CemDocument> {
+        &self.owner
     }
     pub fn matches_owner(&self, owner: &Arc<CemDocument>) -> bool {
         Arc::ptr_eq(&self.owner, owner)

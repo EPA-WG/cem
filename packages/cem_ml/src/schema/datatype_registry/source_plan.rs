@@ -25,6 +25,8 @@ pub enum DatatypeKindSource {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DatatypeDependencyRole {
     InheritedBase,
+    /// Explicit whole-list inheritance; never a list item selection.
+    InheritedList,
     ListItem,
     ValidationRule,
 }
@@ -65,6 +67,9 @@ pub struct DatatypeSourcePlan {
     pub source: DatatypeSource,
     pub kind: DatatypeKindSource,
     pub dependencies: Vec<DatatypeDependency>,
+    /// Original nontrivia child slots. Only the explicit enumeration consumer
+    /// may select references and admit retained constant declarations.
+    pub constant_slots: Vec<SchemaDeclarationNode>,
     pub descriptive_rule: Option<SchemaDeclarationNode>,
     pub issues: Vec<DatatypePlanIssue>,
 }
@@ -75,9 +80,26 @@ impl DatatypeSource {
             source: self.clone(),
             kind: DatatypeKindSource::Missing,
             dependencies: Vec::new(),
+            constant_slots: Vec::new(),
             descriptive_rule: None,
             issues: Vec::new(),
         };
+        if let CemAstNode::Element { children, .. } = self.declaration().node() {
+            plan.constant_slots = children
+                .iter()
+                .filter_map(|id| {
+                    let child = SchemaDeclarationNode::new(
+                        self.declaration().document().clone(),
+                        *id,
+                    )?;
+                    match child.node() {
+                        CemAstNode::Whitespace { .. } | CemAstNode::Comment { .. } => None,
+                        CemAstNode::Text { data, .. } if data.trim().is_empty() => None,
+                        _ => Some(child),
+                    }
+                })
+                .collect();
+        }
         plan.kind = match self.attribute("kind") {
             Some(attribute) => match scalar_field(attribute).and_then(parse_kind) {
                 Some(kind) => DatatypeKindSource::Explicit(kind),
@@ -86,7 +108,9 @@ impl DatatypeSource {
                     DatatypeKindSource::Invalid
                 }
             },
-            None if self.attribute("base").is_some() => DatatypeKindSource::Inherited,
+            None if self.attribute("base").is_some() || self.attribute("list-base").is_some() => {
+                DatatypeKindSource::Inherited
+            }
             None => {
                 plan.issue(DatatypePlanIssueKind::MissingKind, self.declaration());
                 DatatypeKindSource::Missing
@@ -99,6 +123,14 @@ impl DatatypeSource {
                 DatatypeDependencyRole::InheritedBase
             };
             plan.dependency(attribute, role);
+        }
+        if let Some(attribute) = self.attribute("list-base") {
+            if self.attribute("base").is_some()
+                || matches!(plan.kind, DatatypeKindSource::Explicit(kind) if kind != DatatypeKind::List)
+            {
+                plan.issue(DatatypePlanIssueKind::InvalidDependency, attribute);
+            }
+            plan.dependency(attribute, DatatypeDependencyRole::InheritedList);
         }
         if let Some(attribute) = self.attribute("rule") {
             if scalar_field(attribute).is_some() {

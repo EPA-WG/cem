@@ -14,7 +14,18 @@ pub struct CardinalityRejection {
     pub actual: usize,
 }
 #[derive(Debug, Clone)]
+pub struct ItemValidationOccurrence {
+    /// Sequence occurrence, never inferred by comparing duplicate values.
+    pub index: usize,
+    pub rules: std::ops::Range<usize>,
+    pub enumerations: std::ops::Range<usize>,
+    pub cardinality: std::ops::Range<usize>,
+}
+#[derive(Debug, Clone)]
 pub struct DatatypeValidation {
+    /// Item report ranges link to sealed decoded spans by occurrence index.
+    pub item_occurrences: Vec<ItemValidationOccurrence>,
+    pub stopped_item: Option<usize>,
     pub accepted: Option<bool>,
     pub enumerations: Vec<crate::datatype_enumeration::EnumerationValidation>,
     /// Includes diagnostics from a comparison that stopped before membership completed.
@@ -44,7 +55,11 @@ impl ExecutableDatatype {
         runtime: &ValidationRuntime<'_>,
         limits: ValidationLimits,
     ) -> DatatypeValidation {
+        let shared_runtime = runtime.with_query_budget();
+        let runtime = &shared_runtime;
         let mut result = DatatypeValidation {
+            item_occurrences: vec![],
+            stopped_item: None,
             accepted: Some(true),
             enumerations: vec![],
             enumeration_diagnostics: vec![],
@@ -54,7 +69,7 @@ impl ExecutableDatatype {
             cardinality: vec![],
             stopped: None,
         };
-        let mut calls = vec![(self, input.value.as_slice())];
+        let mut calls = vec![(self, input.value.as_slice(), None)];
         // Lists currently admit scalar item contracts only, so scheduling is flat.
         if let Some(item) = &self.item {
             if input.value.len() > limits.max_input_values {
@@ -66,13 +81,14 @@ impl ExecutableDatatype {
                         return result.stop(ValidationStopReason::Control(e));
                     }
                 }
-                calls.push((item.as_ref(), std::slice::from_ref(value)));
+                calls.push((item.as_ref(), std::slice::from_ref(value), Some(index)));
             }
         }
         let mut rules = 0usize;
         let mut values = 0usize;
         // Preflight the entire invocation before calling any implementation.
-        for (descriptor, value) in &calls {
+        for (descriptor, value, index) in &calls {
+            result.stopped_item = *index;
             if let Err(e) = runtime.control.check_scope(runtime.scope) {
                 return result.stop(ValidationStopReason::Control(e));
             }
@@ -123,6 +139,7 @@ impl ExecutableDatatype {
                     return result.stop(ValidationStopReason::InvalidInput("value"));
                 }
             }
+            let cardinality_start = result.cardinality.len();
             for restriction in &descriptor.restrictions {
                 if !restriction.bounds.admits(value.len()) {
                     result.cardinality.push(CardinalityRejection {
@@ -132,14 +149,26 @@ impl ExecutableDatatype {
                     });
                 }
             }
+            if let Some(index) = index {
+                result.item_occurrences.push(ItemValidationOccurrence {
+                    index: *index,
+                    rules: 0..0,
+                    enumerations: 0..0,
+                    cardinality: cardinality_start..result.cardinality.len(),
+                });
+            }
         }
+        result.stopped_item = None;
         if result.cardinality.len() > limits.max_diagnostics {
             return result.stop(ValidationStopReason::Limit("diagnostics"));
         }
         result.accepted = Some(result.cardinality.is_empty());
         let mut remaining_diagnostics = limits.max_diagnostics - result.cardinality.len();
         let mut remaining_comparisons = limits.max_comparisons;
-        for (descriptor, value) in calls {
+        for (descriptor, value, index) in calls {
+            result.stopped_item = index;
+            let rule_start = result.completed.len();
+            let enumeration_start = result.enumerations.len();
             let input = ValidationInput {
                 value: Vec::<Item>::from(value),
                 candidate: input.candidate.clone(),
@@ -160,6 +189,10 @@ impl ExecutableDatatype {
                     .saturating_sub(completed.result.execution_diagnostics.len());
             }
             result.completed.extend(batch.completed);
+            if let Some(index) = index {
+                result.item_occurrences[index].rules = rule_start..result.completed.len();
+                result.item_occurrences[index].enumerations = enumeration_start..enumeration_start;
+            }
             if batch.accepted.is_none() {
                 result.accepted = None;
                 result.stopped = batch.stopped;
@@ -185,6 +218,10 @@ impl ExecutableDatatype {
                     Ok(outcome) => {
                         result.accepted = Some(result.accepted.unwrap() && outcome.accepted);
                         result.enumerations.push(outcome);
+                        if let Some(index) = index {
+                            result.item_occurrences[index].enumerations =
+                                enumeration_start..result.enumerations.len();
+                        }
                     }
                     Err(reason) => {
                         result.enumeration_stop =
@@ -194,6 +231,7 @@ impl ExecutableDatatype {
                 }
             }
         }
+        result.stopped_item = None;
         result
     }
 }

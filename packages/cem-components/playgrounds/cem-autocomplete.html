@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>cem-autocomplete: Property playground</title>
+<script type="importmap">{
+    "imports": {
+        "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
+        "@epa-wg/cem-components": "../dist/lib/primitives.js",
+        "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
+        "@epa-wg/cem-components/styles.css": "../dist/styles.css",
+        "@epa-wg/cem-components/components/cem-action": "../src/components/cem-action/cem-action.xhtml",
+        "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
+        "@epa-wg/cem-components/action-playground": "./cem-action.html",
+        "@epa-wg/cem-components/components/cem-theme-switch": "../src/components/cem-theme-switch/cem-theme-switch.xhtml",
+        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
+        "@epa-wg/cem-components/components/cem-select": "../src/components/cem-select/cem-select.xhtml",
+        "@epa-wg/cem-components/components/cem-checkbox": "../src/components/cem-checkbox/cem-checkbox.xhtml",
+        "@epa-wg/cem-components/components/cem-radio": "../src/components/cem-radio/cem-radio.xhtml",
+        "@epa-wg/cem-components/components/cem-switch": "../src/components/cem-switch/cem-switch.xhtml",
+        "@epa-wg/cem-components/components/cem-autocomplete": "../src/components/cem-autocomplete/cem-autocomplete.xhtml",
+        "@epa-wg/cem-components/components/cem-icon-button": "../src/components/cem-icon-button/cem-icon-button.xhtml",
+        "@epa-wg/cem-components/components/cem-menu-item": "../src/components/cem-menu-item/cem-menu-item.xhtml",
+        "@epa-wg/cem-components/components/cem-field": "../src/components/cem-field/cem-field.xhtml",
+        "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml",
+        "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml",
+        "@epa-wg/cem-components/components/cem-textarea": "../src/components/cem-textarea/cem-textarea.xhtml",
+        "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "./assets/wc-square.svg",
+        "@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml": "./cem-gallery-nav.xhtml",
+        "@epa-wg/cem-components/components/cem-menu": "../src/components/cem-menu/cem-menu.xhtml",
+        "@epa-wg/cem-components/components/cem-dropdown": "../src/components/cem-dropdown/cem-dropdown.xhtml",
+        "@epa-wg/cem-components/components/cem-dialog": "../src/components/cem-dialog/cem-dialog.xhtml",
+        "@epa-wg/cem-components/components/cem-dialog-shell": "../src/components/cem-dialog-shell/cem-dialog-shell.xhtml",
+        "@epa-wg/cem-components/components/cem-sheet": "../src/components/cem-sheet/cem-sheet.xhtml",
+        "@epa-wg/cem-components/components/cem-tooltip": "../src/components/cem-tooltip/cem-tooltip.xhtml"
+    }
+}</script>
+<script type="module">
+import { installCemElementRuntime } from '@epa-wg/cem-elements';
+import { installCemComponentPrimitives } from '@epa-wg/cem-components';
+import '@epa-wg/cem-demo-element';
+const runtime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
+window.cemPlaygroundRuntime = runtime;
+await installCemComponentPrimitives(runtime);
+</script>
+<link rel="stylesheet" href="../demo.css">
+<style>body { margin: 0; font-family: system-ui, sans-serif; } #playground-theme { padding: var(--cem-inset-container); } main, .properties { display: grid; gap: var(--cem-gap-group); } [data-gallery-theme] { padding: var(--cem-inset-container); background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } cem-demo-element { display: block; margin-block: var(--cem-gap-group); }</style>
+</head><body>
+<cem-element hidden><template type="text/cem-ml">
+{cem-module-url @slice=cemautocompleteUrl @src="@epa-wg/cem-components/components/cem-autocomplete"}
+{cem:if @test="datadom.slices.cemautocompleteUrl" | {cem-element @tag=cem-autocomplete @capability=editable-choice @src="{$datadom.slices.cemautocompleteUrl}#cem-autocomplete"}}
+</template></cem-element>
+<cem-element hidden><template type="text/cem-ml">
+{cem-module-url @slice=cemcheckboxUrl @src="@epa-wg/cem-components/components/cem-checkbox"}
+{cem:if @test="datadom.slices.cemcheckboxUrl" | {cem-element @tag=cem-checkbox @capability=checkable-control @src="{$datadom.slices.cemcheckboxUrl}#cem-checkbox"}}
+{cem-module-url @slice=cemradioUrl @src="@epa-wg/cem-components/components/cem-radio"}
+{cem:if @test="datadom.slices.cemradioUrl" | {cem-element @tag=cem-radio @src="{$datadom.slices.cemradioUrl}#cem-radio"}}
+{cem-module-url @slice=cemswitchUrl @src="@epa-wg/cem-components/components/cem-switch"}
+{cem:if @test="datadom.slices.cemswitchUrl" | {cem-element @tag=cem-switch @src="{$datadom.slices.cemswitchUrl}#cem-switch"}}
+</template></cem-element>
+<cem-element hidden><template type="text/cem-ml">{cem-module-url @slice=cemdialogUrl @src="@epa-wg/cem-components/components/cem-dialog"}
+{cem:if @test="datadom.slices.cemdialogUrl" | {cem-element @tag=cem-dialog @capability=native-surface @src="{$datadom.slices.cemdialogUrl}#cem-dialog"}}
+{cem-module-url @slice=cemdialogshellUrl @src="@epa-wg/cem-components/components/cem-dialog-shell"}
+{cem:if @test="datadom.slices.cemdialogshellUrl" | {cem-element @tag=cem-dialog-shell @capability=native-surface @src="{$datadom.slices.cemdialogshellUrl}#cem-dialog-shell"}}
+{cem-module-url @slice=cemtooltipUrl @src="@epa-wg/cem-components/components/cem-tooltip"}
+{cem:if @test="datadom.slices.cemtooltipUrl" | {cem-element @tag=cem-tooltip @capability=native-surface @src="{$datadom.slices.cemtooltipUrl}#cem-tooltip"}}
+{cem-module-url @slice=cemfieldUrl @src="@epa-wg/cem-components/components/cem-field"}
+{cem:if @test="datadom.slices.cemfieldUrl" | {cem-element @tag=cem-field @capability=form-control @src="{$datadom.slices.cemfieldUrl}#cem-field"}}
+{cem-module-url @slice=cemactionUrl @src="@epa-wg/cem-components/components/cem-action"}
+{cem:if @test="datadom.slices.cemactionUrl" | {cem-element @tag=cem-action @capability=action-command @src="{$datadom.slices.cemactionUrl}#cem-action"}}
+{cem-module-url @slice=cemmenuUrl @src="@epa-wg/cem-components/components/cem-menu"}
+{cem:if @test="datadom.slices.cemmenuUrl" | {cem-element @tag=cem-menu @capability=composite-menu @src="{$datadom.slices.cemmenuUrl}#cem-menu"}}
+{cem-module-url @slice=cemmenuitemUrl @src="@epa-wg/cem-components/components/cem-menu-item"}
+{cem:if @test="datadom.slices.cemmenuitemUrl" | {cem-element @tag=cem-menu-item @capability=action-control @src="{$datadom.slices.cemmenuitemUrl}#cem-menu-item"}}
+{cem-module-url @slice=cemdropdownUrl @src="@epa-wg/cem-components/components/cem-dropdown"}
+{cem:if @test="datadom.slices.cemdropdownUrl" | {cem-element @tag=cem-dropdown @capability=popup @src="{$datadom.slices.cemdropdownUrl}#cem-dropdown"}}
+{cem-module-url @slice=cemiconbuttonUrl @src="@epa-wg/cem-components/components/cem-icon-button"}
+{cem:if @test="datadom.slices.cemiconbuttonUrl" | {cem-element @tag=cem-icon-button @src="{$datadom.slices.cemiconbuttonUrl}#cem-icon-button"}}
+{cem-module-url @slice=cemthemeswitchUrl @src="@epa-wg/cem-components/components/cem-theme-switch"}
+{cem:if @test="datadom.slices.cemthemeswitchUrl" | {cem-element @tag=cem-theme-switch @src="{$datadom.slices.cemthemeswitchUrl}#cem-theme-switch"}}
+{cem-module-url @slice=cemselectUrl @src="@epa-wg/cem-components/components/cem-select"}
+{cem:if @test="datadom.slices.cemselectUrl" | {cem-element @tag=cem-select @capability=choice-select @src="{$datadom.slices.cemselectUrl}#cem-select"}}
+{cem-module-url @slice=navUrl @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml"}{cem:if @test="datadom.slices.navUrl" | {cem-element @tag=cem-gallery-nav @src="{$datadom.slices.navUrl}#cem-gallery-nav"}}
+{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
+{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
+{cem-module-url @slice=cemsheetUrl @src="@epa-wg/cem-components/components/cem-sheet"}
+{cem:if @test="datadom.slices.cemsheetUrl" | {cem-element @tag=cem-sheet @src="{$datadom.slices.cemsheetUrl}#cem-sheet"}}
+</template></cem-element>
+<div id="playground-theme" class="cem-theme-light"><cem-gallery-nav heading="cem-autocomplete: Property playground"></cem-gallery-nav><p class="component-description">An editable combobox with authoritative suggestions. Choose a person or type a new name. Option identities are submitted while labels remain visible.</p><p><a href="./cem-autocomplete-gallery.html">Full examples and variation matrix</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-autocomplete/cem-autocomplete.stories.ts">Automated stories</a></p><main><p>Arrow keys move through enabled suggestions. Enter commits; Escape, Alt+Up, outside click or Tab closes. Home, End and text editing stay native. Busy describes loading without disabling input. Required selection clears an uncommitted edit on close. Suggestions are supplied upstream; this control does not filter them.</p><p id="person-help">Choose from the list or type a name.</p><p id="person-error">A value is required.</p><form id="person-external"><cem-action type="reset" label="Reset external person"></cem-action></form><cem-element class="properties"><template type="text/cem-ml">
+{slice @name=label | Person}
+{cem-field @label="label" @value="{$datadom.slices.label}" @slice=label @slice-event=input @slice-value="$target.value"}
+{slice @name=name | person}
+{cem-field @label="name" @value="{$datadom.slices.name}" @slice=name @slice-event=input @slice-value="$target.value"}
+{slice @name=value | ada}
+{cem-field @label="value" @value="{$datadom.slices.value}" @slice=value @slice-event=input @slice-value="$target.value"}
+{slice @name=form | }
+{cem-field @label="form" @value="{$datadom.slices.form}" @slice=form @slice-event=input @slice-value="$target.value"}
+{slice @name=placeholder | Choose or type}
+{cem-field @label="placeholder" @value="{$datadom.slices.placeholder}" @slice=placeholder @slice-event=input @slice-value="$target.value"}
+{slice @name=autocomplete | off}
+{cem-field @label="autocomplete" @value="{$datadom.slices.autocomplete}" @slice=autocomplete @slice-event=input @slice-value="$target.value"}
+{slice @name=describedby | }
+{cem-field @label="describedby" @value="{$datadom.slices.describedby}" @slice=describedby @slice-event=input @slice-value="$target.value"}
+{slice @name=error | }
+{cem-field @label="error" @value="{$datadom.slices.error}" @slice=error @slice-event=input @slice-value="$target.value"}
+{slice @name=class | }
+{cem-field @label="class" @value="{$datadom.slices.class}" @slice=class @slice-event=input @slice-value="$target.value"}
+{slice @name=disabled | }
+{fieldset @role=group @aria-label="disabled" @slice=disabled @slice-event=change @slice-value="$target.value" | {legend | disabled}{label | {input @type=radio @name="property-disabled" @value="" @checked=true} absent}{label | {input @type=radio @name="property-disabled" @value=present} present}}
+{slice @name=readonly | }
+{fieldset @role=group @aria-label="readonly" @slice=readonly @slice-event=change @slice-value="$target.value" | {legend | readonly}{label | {input @type=radio @name="property-readonly" @value="" @checked=true} absent}{label | {input @type=radio @name="property-readonly" @value=present} present}}
+{slice @name=required | }
+{fieldset @role=group @aria-label="required" @slice=required @slice-event=change @slice-value="$target.value" | {legend | required}{label | {input @type=radio @name="property-required" @value="" @checked=true} absent}{label | {input @type=radio @name="property-required" @value=present} present}}
+{slice @name=busy | }
+{fieldset @role=group @aria-label="busy" @slice=busy @slice-event=change @slice-value="$target.value" | {legend | busy}{label | {input @type=radio @name="property-busy" @value="" @checked=true} absent}{label | {input @type=radio @name="property-busy" @value=present} present}}
+{slice @name=invalid | }
+{fieldset @role=group @aria-label="invalid" @slice=invalid @slice-event=change @slice-value="$target.value" | {legend | invalid}{label | {input @type=radio @name="property-invalid" @value="" @checked=true} absent}{label | {input @type=radio @name="property-invalid" @value=present} present}}
+{slice @name=require-selection | }
+{fieldset @role=group @aria-label="require-selection" @slice=require-selection @slice-event=change @slice-value="$target.value" | {legend | require-selection}{label | {input @type=radio @name="property-require-selection" @value="" @checked=true} absent}{label | {input @type=radio @name="property-require-selection" @value=present} present}}
+{slice @name=auto-active-first | }
+{fieldset @role=group @aria-label="auto-active-first" @slice=auto-active-first @slice-event=change @slice-value="$target.value" | {legend | auto-active-first}{label | {input @type=radio @name="property-auto-active-first" @value="" @checked=true} absent}{label | {input @type=radio @name="property-auto-active-first" @value=present} present}}
+{slice @name=hidden | }
+{fieldset @role=group @aria-label="hidden" @slice=hidden @slice-event=change @slice-value="$target.value" | {legend | hidden}{label | {input @type=radio @name="property-hidden" @value="" @checked=true} absent}{label | {input @type=radio @name="property-hidden" @value=present} present}}
+{slice @name=indicator | underline}{fieldset @role=group @aria-label="indicator" | {legend | indicator}{label | {input @type=radio @name="property-indicator" @value=underline @checked={if datadom.slices.indicator == "underline" {true} else {null}} @slice=indicator @slice-event=change @slice-value="$target.value"} underline}{label | {input @type=radio @name="property-indicator" @value=outline @checked={if datadom.slices.indicator == "outline" {true} else {null}} @slice=indicator @slice-event=change @slice-value="$target.value"} outline}{label | {input @type=radio @name="property-indicator" @value=unsupported @checked={if datadom.slices.indicator == "unsupported" {true} else {null}} @slice=indicator @slice-event=change @slice-value="$target.value"} unsupported}}
+{slice @name=dir | ltr}{fieldset @role=group @aria-label="dir" | {legend | dir}{label | {input @type=radio @name="property-dir" @value=ltr @checked={if datadom.slices.dir == "ltr" {true} else {null}} @slice=dir @slice-event=change @slice-value="$target.value"} ltr}{label | {input @type=radio @name="property-dir" @value=rtl @checked={if datadom.slices.dir == "rtl" {true} else {null}} @slice=dir @slice-event=change @slice-value="$target.value"} rtl}}
+{form | {cem-autocomplete @label="{$datadom.slices.label}" @name="{$datadom.slices.name}" @form="{$datadom.slices.form}" @placeholder="{$datadom.slices.placeholder}" @autocomplete="{$datadom.slices.autocomplete}" @describedby="{$datadom.slices.describedby}" @error="{$datadom.slices.error}" @class="{$datadom.slices.class}" @indicator="{$datadom.slices.indicator}" @dir="{$datadom.slices.dir}" @disabled={if datadom.slices.disabled == "present" {true} else {null}} @readonly={if datadom.slices.readonly == "present" {true} else {null}} @required={if datadom.slices.required == "present" {true} else {null}} @busy={if datadom.slices.busy == "present" {true} else {null}} @invalid={if datadom.slices.invalid == "present" {true} else {null}} @require-selection={if datadom.slices.require-selection == "present" {true} else {null}} @auto-active-first={if datadom.slices.auto-active-first == "present" {true} else {null}} @hidden={if datadom.slices.hidden == "present" {true} else {null}} | {attribute @name=value @value={datadom.slices.value}}{cem-option @value=ada @label="Ada Lovelace" | {strong | Ada} Lovelace}{cem-option-group @label=Engineering | {cem-option @value=grace @label="Grace Hopper" | Grace Hopper}{cem-option @value=blocked @disabled=true | Unavailable}}}{cem-action @type=reset @label="Reset person"}}</template></cem-element><cem-demo-element legend="Editable person" description="Choose an option or type freely."><template slot="source"><cem-autocomplete label="Person"><cem-option value="ada" label="Ada Lovelace">Ada Lovelace</cem-option></cem-autocomplete></template></cem-demo-element><cem-element><template type="text/cem-ml">{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-autocomplete"}{cem:if @test="datadom.slices.sourceUrl" | {p | {a @href="{$datadom.slices.sourceUrl}" | Open canonical XHTML}}{cem-demo-element @legend="Canonical source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}}</template></cem-element></main></div></body></html>

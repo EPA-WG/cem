@@ -76,5 +76,5 @@ explicit experimental choice without a browser/AT interoperability claim.
 
 Native one/many/empty/repeated cases, separate WASM workers, fallback, SSR export,
 unknown-profile rejection and hydration mismatch fixtures are maintained with
-the [consumer actions](todo.md#next-consumer-actions). Manual interoperability
+the [archived consumer actions](archive/todo-snapshot-2026-10-10.md#next-consumer-actions). Manual interoperability
 work remains a separate [delivery action](todo.md#native-surface-delivery-follow-ups).

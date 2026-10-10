@@ -39,6 +39,7 @@ pub(crate) fn evaluate_query_source_json(source: &str, bindings_json: &str) -> S
             module_resolution: None,
             native_functions: Default::default(),
             data_readers: Default::default(),
+            execution_budget: None,
         },
     );
     query_result_json(&stream).to_string()

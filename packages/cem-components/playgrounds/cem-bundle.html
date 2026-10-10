@@ -19,6 +19,10 @@
         "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
         "@epa-wg/cem-components/components/cem-select": "../src/components/cem-select/cem-select.xhtml",
         "@epa-wg/cem-components/components.xhtml": "../dist/components.xhtml",
+        "@epa-wg/cem-components/components/cem-checkbox": "../src/components/cem-checkbox/cem-checkbox.xhtml",
+        "@epa-wg/cem-components/components/cem-radio": "../src/components/cem-radio/cem-radio.xhtml",
+        "@epa-wg/cem-components/components/cem-switch": "../src/components/cem-switch/cem-switch.xhtml",
+        "@epa-wg/cem-components/components/cem-autocomplete": "../src/components/cem-autocomplete/cem-autocomplete.xhtml",
         "@epa-wg/cem-components/components/cem-icon-button": "../src/components/cem-icon-button/cem-icon-button.xhtml",
         "@epa-wg/cem-components/components/cem-menu": "../src/components/cem-menu/cem-menu.xhtml",
         "@epa-wg/cem-components/components/cem-dropdown": "../src/components/cem-dropdown/cem-dropdown.xhtml",
@@ -43,6 +47,14 @@ window.cemPlaygroundRuntime = installCemElementRuntime(window, { processingPoolP
 {cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
 {cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
 {cem:if @test="datadom.slices.bundleUrl" |
+  {cem-element @tag=cem-checkbox @capability=checkable-control @src="{$datadom.slices.bundleUrl}#cem-checkbox"}
+  {cem-element @tag=cem-radio @src="{$datadom.slices.bundleUrl}#cem-radio"}
+  {cem-element @tag=cem-autocomplete @capability=editable-choice @src="{$datadom.slices.bundleUrl}#cem-autocomplete"}
+  {cem-element @tag=cem-switch @src="{$datadom.slices.bundleUrl}#cem-switch"}
+  {cem-element @tag=cem-sheet @src="{$datadom.slices.bundleUrl}#cem-sheet"}
+  {cem-element @tag=cem-tooltip @capability=native-surface @src="{$datadom.slices.bundleUrl}#cem-tooltip"}
+  {cem-element @tag=cem-dialog-shell @capability=native-surface @src="{$datadom.slices.bundleUrl}#cem-dialog-shell"}
+  {cem-element @tag=cem-dialog @capability=native-surface @src="{$datadom.slices.bundleUrl}#cem-dialog"}
   {cem-element @tag=cem-icon @src="{$datadom.slices.bundleUrl}#cem-icon"}
   {cem-element @tag=cem-icon-button @src="{$datadom.slices.bundleUrl}#cem-icon-button"}
   {cem-element @tag=cem-menu @capability=composite-menu @src="{$datadom.slices.bundleUrl}#cem-menu"}
@@ -62,6 +74,14 @@ window.cemPlaygroundRuntime = installCemElementRuntime(window, { processingPoolP
 
 <p>These components load from the generated <code>components.xhtml</code> through their template IDs.</p>
 <main>
+<cem-checkbox label="Bundled cem-checkbox" name="cem-checkbox" checked></cem-checkbox>
+<cem-radio label="Bundled cem-radio" name="cem-radio" checked></cem-radio>
+<cem-autocomplete label="Bundled autocomplete" name="person" value="ada"><cem-option value="ada" label="Ada Lovelace"><strong>Ada</strong> Lovelace</cem-option><cem-option-group label="Engineering"><cem-option value="grace" label="Grace Hopper">Grace Hopper</cem-option><cem-option value="blocked" disabled>Unavailable</cem-option></cem-option-group></cem-autocomplete>
+<cem-switch label="Bundled cem-switch" name="cem-switch" checked></cem-switch>
+<cem-sheet label="Bundled sheet" transient expanded><cem-field label="Sheet draft" value="Saved"></cem-field></cem-sheet>
+<cem-dialog label="Bundled task" trigger="Open bundled task" close-label="Done"><input autofocus aria-label="Draft"></cem-dialog>
+<cem-dialog-shell label="Bundled shell" trigger="Open bundled shell" close-label="Done">Task content</cem-dialog-shell>
+<cem-tooltip message="Bundled help" show-delay="0" hide-delay="0"><button slot="trigger" type="button">Bundled help</button></cem-tooltip>
 <cem-field id="bundle-field" label="Bundled field" value="Field value"></cem-field>
 <cem-textarea id="bundle-textarea" label="Bundled notes" value="First line&#10;Second line"></cem-textarea>
 <cem-text-field id="bundle-text-field" label="Bundled text field" value="Text value"></cem-text-field>

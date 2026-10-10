@@ -32,6 +32,7 @@ pub enum NamespaceLifecycleError {
     InvalidBounds,
     WorkLimit,
     Resolution(ReferenceResolutionError),
+    Publication(super::NamespacePublicationError),
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NamespaceLifecycleIssue {
@@ -261,6 +262,8 @@ impl CemQlSchemaDeclarationHost {
         if limits.max_depth == 0 || limits.max_work == 0 {
             return Err(NamespaceLifecycleError::InvalidBounds);
         }
+        self.check_operation()
+            .map_err(NamespaceLifecycleError::Resolution)?;
         let (selected, regions) = forest(&captured, roots, limits.max_work)?;
         self.attach_captured_namespaces(captured.clone())
             .map_err(NamespaceLifecycleError::Lexical)?;
@@ -309,6 +312,8 @@ impl CemQlSchemaDeclarationHost {
             .collect();
         let mut exhausted = false;
         loop {
+            host.check_operation()
+                .map_err(NamespaceLifecycleError::Resolution)?;
             let mut progress = false;
             for id in &occurrences {
                 if parents.contains_key(id) {
@@ -362,6 +367,8 @@ impl CemQlSchemaDeclarationHost {
                 }
                 let parent = parents[id];
                 let (context, policy) = prepare(&occurrence, &snapshot, parent, &completion);
+                host.check_operation()
+                    .map_err(NamespaceLifecycleError::Resolution)?;
                 let scope = host
                     .register_lexical_scope_with_policy_overrides(parent, context, policy)
                     .unwrap();
@@ -427,7 +434,7 @@ impl CemQlSchemaDeclarationHost {
                 }
                 if report.is_ready() {
                     host.publish_namespace_property(&report)
-                        .expect("fresh host preparation proof");
+                        .map_err(NamespaceLifecycleError::Publication)?;
                     targets.insert(
                         *id,
                         report
@@ -532,7 +539,11 @@ impl CemQlSchemaDeclarationHost {
             work_used: used,
             work_exhausted: exhausted,
         };
+        host.check_operation()
+            .map_err(NamespaceLifecycleError::Resolution)?;
         let result = consume(host, &snapshot);
+        host.check_operation()
+            .map_err(NamespaceLifecycleError::Resolution)?;
         Ok((snapshot, result))
     }
 }

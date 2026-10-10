@@ -1,5 +1,5 @@
-//! Readiness protection for the adopted native attribute datatype slot.
-//! Executable datatype consumption awaits its separate declaration contract.
+//! Source-only readiness protection for native attribute datatype slots.
+//! An explicit datatype compiler accounts for these slots in its own snapshot.
 use super::*;
 
 pub(crate) fn is_pending_type(document: &CemDocument, declaration: AstNodeId) -> bool {
@@ -40,6 +40,9 @@ pub(crate) fn retain_attribute_type(
     declaration: AstNodeId,
     compilation: &mut DeclarationReferenceCompilation,
 ) {
+    if compilation.compiled_attribute_types {
+        return;
+    }
     // Match scalar attribute compilation's last-authored-slot precedence.
     let Some(attribute) = type_attribute(document, declaration) else {
         return;

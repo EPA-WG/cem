@@ -1,0 +1,24 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-sheet">
+  <template id="cem-sheet" type="text/cem-ml">
+    {attribute @name=label | Sheet}
+    {style @type="text/css" |```
+      :scope { display: contents; }
+      :scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
+      [part~='surface'] {
+        background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text);
+        border: var(--cem-stroke-boundary) solid currentColor; border-radius: var(--cem-bend-container);
+        padding: var(--cem-inset-container); box-sizing: border-box;
+        font-family: var(--cem-typography-ui-font-family); font-size: var(--cem-typography-ui-font-size);
+        line-height: var(--cem-typography-ui-line-height);
+      }
+      [part~='heading'] { margin-block: 0 var(--cem-gap-related); font: inherit; font-weight: var(--cem-typography-ui-font-weight); }
+      @media (forced-colors: active) {
+        [part~='surface'] { background: Canvas; color: CanvasText; border-color: CanvasText; forced-color-adjust: auto; }
+      }
+    ```}
+    {aside @part=surface @role=region @aria-label={if seq:count(datadom.attributes.aria-label) > 0 { datadom.attributes.aria-label } else { $label }} @aria-labelledby={datadom.attributes.aria-labelledby} @aria-describedby={datadom.attributes.aria-describedby} @hidden={if seq:count(datadom.attributes.transient) > 0 { if seq:count(datadom.attributes.expanded) > 0 { null } else { true } } else { null }} |
+      {h2 @part=heading | {slot @name=label | {$label}}}
+      {div @part=body | {slot}}
+    }
+  </template>
+</cem-element>

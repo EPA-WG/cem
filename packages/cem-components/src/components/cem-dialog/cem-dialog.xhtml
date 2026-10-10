@@ -1,0 +1,46 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-dialog" capability="native-surface">
+  <template id="cem-dialog" type="text/cem-ml">
+    {attribute @name=label | Dialog}
+    {style @type="text/css" |```
+      :scope { display: contents; }
+      :scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
+      [part~='surface'] {
+        background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text);
+        border: var(--cem-stroke-boundary) solid currentColor; border-radius: var(--cem-bend-modal);
+        box-shadow: var(--cem-elevation-3); padding: var(--cem-inset-container);
+        max-inline-size: var(--cem-typography-reading-measure-max); box-sizing: border-box;
+        font-family: var(--cem-typography-ui-font-family); font-size: var(--cem-typography-ui-font-size);
+        line-height: var(--cem-typography-ui-line-height);
+      }
+      [part~='surface']:modal { box-shadow: var(--cem-elevation-4); }
+      [part~='heading'] { margin-block: 0 var(--cem-gap-related); font: inherit; font-weight: var(--cem-typography-ui-font-weight); }
+      [part~='body'] { margin-block-end: var(--cem-gap-related); }
+      [part~='trigger'], [part~='close'] {
+        background: var(--cem-action-contextual-default-background); color: var(--cem-action-contextual-default-text);
+        border: 0; border-radius: var(--cem-bend-control); cursor: pointer;
+        min-block-size: var(--cem-control-height); padding: var(--cem-control-padding-y) var(--cem-control-padding-x);
+        font-family: var(--cem-typography-ui-font-family); font-size: var(--cem-typography-ui-font-size); line-height: var(--cem-typography-ui-line-height);
+      }
+      :where([part~='trigger'], [part~='close']):enabled:hover { background: var(--cem-action-contextual-hover-background); color: var(--cem-action-contextual-hover-text); }
+      :where([part~='trigger'], [part~='close']):enabled:active { background: var(--cem-action-contextual-active-background); color: var(--cem-action-contextual-active-text); }
+      :where([part~='trigger'], [part~='close']):disabled { background: var(--cem-action-contextual-disabled-background); color: var(--cem-action-contextual-disabled-text); cursor: default; }
+      [part~='surface']:focus-visible, :where([part~='trigger'], [part~='close']):focus-visible {
+        outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1); outline-offset: var(--cem-stroke-indicator-offset);
+      }
+      @media (forced-colors: active) {
+        [part~='surface'], [part~='trigger'], [part~='close'] { background: Canvas; color: CanvasText; border: var(--cem-stroke-boundary) solid CanvasText; forced-color-adjust: auto; }
+        [part~='surface']:focus-visible, :where([part~='trigger'], [part~='close']):focus-visible { outline-color: Highlight; }
+        :where([part~='trigger'], [part~='close']):disabled { color: GrayText; }
+      }
+    ```}
+    {slot @name=trigger}
+    {dialog @part=surface @id={datadom.attributes.surface-id} @aria-label={datadom.attributes.aria-label} @aria-labelledby={datadom.attributes.aria-labelledby} @aria-describedby={datadom.attributes.aria-describedby} @closedby={datadom.attributes.closedby} @popover={datadom.attributes.popover} |
+      {h2 @part=heading | {slot @name=label | {$label}}}
+      {cem:choose |
+        {cem:when @test="seq:count(datadom.slots.body) > 0" | {slot @name=body}}
+        {cem:otherwise | {div @part=body | {slot}}}
+      }
+      {slot @name=close}
+    }
+  </template>
+</cem-element>

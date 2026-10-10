@@ -138,8 +138,8 @@ cardinality, mixed values, nested chains, missing/ambiguous placements, conflict
 and cancellation. The dedicated browser story checks native command activation,
 typed action endpoints, per-instance IDs, stable rerender and local-name
 compatibility in worker and fallback modes. The runtime unit target passes 588
-tests; typecheck and lint pass. Actionable follow-ups retain their scenarios in
-[todo.md](todo.md#deferred-cem-element-reference-consumption).
+tests; typecheck and lint pass. Completed consumer follow-ups retain their scenarios in
+[archived checklist](archive/todo-snapshot-2026-10-10.md#deferred-cem-element-reference-consumption).
 
 The next consumer checkpoint passes 327 native checks in 36 suites, both real
 WASM worker fixtures, 588 runtime unit tests, 54 Node Edge/SSR cases and dedicated
@@ -188,8 +188,10 @@ equality remain the separate datatype workstream. The
 [cem-element reference-to-ID mode](cem-element-reference-ids-design.md) now
 implements the first native consumer contract. Browser/worker foreign-source lifecycle handoff, popup/submenu endpoints and
 dedicated native SSR/Edge/hydration fixtures are implemented. Granted cross-instance placements and popup/menu focus/geometry consumption
-are implemented. Additional surface adapters and a future ARIA profile remain actionable in
-[todo.md](todo.md#deferred-cem-element-reference-consumption).
+are implemented. Surface adapter and versioned ARIA delivery evidence is preserved in the
+[archived checklist](archive/todo-snapshot-2026-10-10.md#deferred-cem-element-reference-consumption).
+Manual browser/AT acceptance remains in the
+[active checklist](todo.md#native-surface-delivery-follow-ups).
 
 The debug CEMB codec is not a stable production binary format. External AST-owner
 declaration graphs are not admitted by this single-arena reload bundle. Neither

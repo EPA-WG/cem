@@ -231,5 +231,5 @@ can inspect the error without changing the retained input plan. The shared worke
 main-thread fallback and SSR processing boundary use the same native algorithm;
 this mode adds no component JavaScript or browser AST evaluator.
 
-Fixtures and subsequent lifecycle/interaction adoption actions, with adjacent
-verification scenarios, are maintained in [todo.md](todo.md#deferred-cem-element-reference-consumption).
+Completed fixtures and lifecycle/interaction adoption actions, with adjacent
+verification scenarios, are preserved in [archived checklist](archive/todo-snapshot-2026-10-10.md#deferred-cem-element-reference-consumption).

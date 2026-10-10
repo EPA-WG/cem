@@ -73,6 +73,37 @@ fn list_item_and_inherited_base_plans_retain_different_edge_roles() {
 }
 
 #[test]
+fn whole_list_plans_require_an_explicit_distinct_dependency() {
+    for fields in ["@list-base=names", "@kind=list @list-base={#names}"] {
+        let source = source(&format!("{{schema | {{type @name=custom {fields}}}}}"));
+        let plan = source.plan();
+        assert!(plan.issues.is_empty(), "{:?}", plan.issues);
+        assert_eq!(plan.dependencies.len(), 1);
+        assert_eq!(
+            plan.dependencies[0].role,
+            DatatypeDependencyRole::InheritedList
+        );
+        assert_eq!(
+            plan.dependencies[0].attribute.identity(),
+            source.attribute("list-base").unwrap().identity()
+        );
+    }
+    for fields in [
+        "@list-base=''",
+        "@list-base={type}",
+        "@list-base={$a}",
+        "@kind=scalar @list-base=names",
+        "@kind=node @list-base=names",
+        "@kind=list @base=item @list-base=names",
+        "@base=item @list-base=names",
+        "@kind='' @list-base=names",
+    ] {
+        let plan = source(&format!("{{schema | {{type @name=custom {fields}}}}}")).plan();
+        assert!(!plan.issues.is_empty(), "{fields}");
+    }
+}
+
+#[test]
 fn omitted_kind_waits_for_base_and_missing_kind_is_not_a_string_fallback() {
     let source = source("{schema | {type @name=custom @base=vendor:integer}}");
     let plan = source.plan();
@@ -110,6 +141,34 @@ fn malformed_kind_never_infers_from_an_available_base() {
             issue.source.identity(),
             source.attribute("kind").unwrap().identity()
         );
+    }
+}
+
+#[test]
+fn retained_constant_plans_preserve_children_without_evaluation() {
+    let source = source("{schema | {type @name=custom @kind=scalar | {constant @value=\"In progress\"} {#constants}}}");
+    let plan = source.plan();
+    assert!(plan.issues.is_empty());
+    assert_eq!(plan.constant_slots.len(), 2);
+    assert!(matches!(plan.constant_slots[0].node(), CemAstNode::Element { expanded_name, .. } if expanded_name.local_name == "constant"));
+    assert!(matches!(plan.constant_slots[1].node(), CemAstNode::Reference { targets: None, .. }));
+    assert!(plan.constant_slots.iter().all(|n| Arc::ptr_eq(n.document(), source.declaration().document())));
+}
+
+#[test]
+fn retained_constant_metamodel_admits_explicit_values_and_rejects_unknown_children() {
+    use cem_ml::schema::document_model::{compile_schema_document_model, validate_document_model};
+    let model = compile_schema_document_model("schema", include_str!("../schema-packages/schema/v1/schema/cem-schema.cem"));
+    for (children, valid) in [
+        ("{constant @value=\"In progress\"} {constant @value=\"\"}", true),
+        ("{constant}", false),
+        ("{constant @value=x @unknown=y}", false),
+        ("{value | In progress}", false),
+    ] {
+        let input = source(&format!("{{schema @name=test @namespace=urn:test @version=1.0.0 | {{types | {{type @name=custom @kind=scalar | {children}}}}}}}"));
+        let diagnostics = validate_document_model(input.declaration().document(), &model);
+        let errors: Vec<_> = diagnostics.iter().filter(|d| d.severity.is_hard_violation()).collect();
+        assert_eq!(errors.is_empty(), valid, "{children}: {errors:?}");
     }
 }
 

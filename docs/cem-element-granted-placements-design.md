@@ -1,8 +1,8 @@
 # Granted element placements
 
 Status: adopted and implemented through the native, browser and SSR adapters,
-2026-10-07. Verification and remaining consumer work are maintained in
-[todo.md](todo.md#next-consumer-actions).
+2026-10-07. Completed verification and consumer actions are preserved in
+[archived checklist](archive/todo-snapshot-2026-10-10.md#next-consumer-actions).
 
 A native reference identifies an original CEM node. Crossing its source scope
 requires the existing directed lifecycle grant. Using a DOM placement owned by

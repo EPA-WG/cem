@@ -3,7 +3,7 @@ use super::*;
 use crate::{
     api::{self, StandaloneExpressionBinding, StandaloneExpressionContext},
     datatype_results::DatatypeResultError,
-    datatype_validation::{value_type, RuleExecution},
+    datatype_validation::{compile_function_query, value_type, RuleExecution},
     eval::{AtomValue, ItemStream},
     ir::CompiledQuery,
     types::{NodeKind, Type},
@@ -44,9 +44,8 @@ fn error(code: &'static str, behavior: &SchemaDeclarationNode) -> ValueContractE
     error
 }
 fn compile(
-    body: &str,
+    implementation: &ValidationImplementation,
     roles: &[(&str, Type)],
-    behavior: &SchemaDeclarationNode,
 ) -> Result<Arc<CompiledQuery>, ValueContractError> {
     let mut context = StandaloneExpressionContext::default();
     for (name, ty) in roles {
@@ -55,9 +54,7 @@ fn compile(
             StandaloneExpressionBinding::new(ItemStream::empty(), ty.clone()),
         );
     }
-    api::compile_expression(body, &context)
-        .map(|compiled| Arc::new(compiled.query))
-        .map_err(|_| error("query-compilation-failed", behavior))
+    compile_function_query(implementation, &context).map(Arc::new)
 }
 fn evaluate(
     query: &CompiledQuery,
@@ -100,18 +97,17 @@ impl RegisteredScalarEquality {
         contract: EqualityBehaviorContract,
         adapter: DatatypeEqualityResultAdapter,
     ) -> Result<Self, ValueContractError> {
-        let ValidationImplementation::Query { body, .. } = contract.implementation() else {
+        let ValidationImplementation::Query { .. } = contract.implementation() else {
             return Err(error("query-implementation-required", contract.behavior()));
         };
         let ty = value_type(ValueRepresentation::Scalar(contract.representation()));
         let query = compile(
-            body,
+            contract.implementation(),
             &[
                 ("left", ty.clone()),
                 ("right", ty),
                 ("datatype", Type::Node(NodeKind::Node)),
             ],
-            contract.behavior(),
         )?;
         Self::from_source_impl(
             source,
@@ -224,11 +220,11 @@ impl RegisteredConstantInterpreter {
         contract: ConstantBehaviorContract,
         adapter: DatatypeConstantResultAdapter,
     ) -> Result<Self, ValueContractError> {
-        let ValidationImplementation::Query { body, .. } = contract.implementation() else {
+        let ValidationImplementation::Query { .. } = contract.implementation() else {
             return Err(error("query-implementation-required", contract.behavior()));
         };
         let query = compile(
-            body,
+            contract.implementation(),
             &[
                 (
                     "value",
@@ -237,7 +233,6 @@ impl RegisteredConstantInterpreter {
                 ("datatype", Type::Node(NodeKind::Node)),
                 ("candidate", Type::Node(NodeKind::Node)),
             ],
-            contract.behavior(),
         )?;
         Self::from_source_impl(
             source,

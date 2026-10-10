@@ -57,6 +57,21 @@ describe('component test harness', () => {
         harness?.cleanup();
     });
 
+    it('computes native accessible names without hidden required markers or descriptions', async () => {
+        harness = createSubstrateComponentHarness();
+        await harness.render(`<section>
+            <label>Email <span aria-hidden="true">*</span><span hidden>Hidden</span><input aria-describedby="harness-help"></label>
+            <p id="harness-help">Enter an address.</p>
+            <span id="harness-explicit" hidden>Referenced name</span>
+            <input aria-label="Lower priority" aria-labelledby="harness-explicit">
+        </section>`);
+        const [email, referenced] = harness.root.querySelectorAll('input');
+        expect(assertAccessibleName(email, 'Email')).toBe('Email');
+        expect(assertAccessibleName(referenced, 'Referenced name')).toBe('Referenced name');
+        email.closest('label')?.querySelector('[aria-hidden]')?.removeAttribute('aria-hidden');
+        expect(assertAccessibleName(email, 'Email *')).toBe('Email *');
+    });
+
     it('proves action and field contracts through real CEM-ML substrate declarations', async () => {
         harness = createSubstrateComponentHarness();
         await harness.register({

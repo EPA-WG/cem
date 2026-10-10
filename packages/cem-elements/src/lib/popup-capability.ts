@@ -1,9 +1,10 @@
+import { registerCemPopupRelay, containsCemMenuChain } from './menu-task-relay.js';
 import { interactionReference, interactionControl, reportInteractionReference, observeInteractionReferences } from './interaction-reference.js';
 import { focusSurface, restoreSurfaceFocus } from './surface-references.js';
 import type { CemProducedElementBehavior } from './cem-elements.js';
 import { hidePopup, positionPopup, showPopup, observePopupGeometry, releasePopupGeometry } from './popup-controller.js';
 
-interface State { abort?: AbortController; observer?: MutationObserver; trigger?: HTMLElement; panel?: HTMLElement; open: boolean; releaseReferences?: () => void; releaseGeometry?: () => void; geometryReady?: boolean; authoredBase?: boolean; generatedBase?: { node: HTMLElement; hidden: HTMLElement['hidden'] }; external?: { trigger: HTMLElement; attributes: Map<string, string | null> }; authoredDisabled?: boolean; authoredHasPopup?: string; }
+interface State { relayRevision: number; releaseRelay?: () => void; abort?: AbortController; observer?: MutationObserver; trigger?: HTMLElement; panel?: HTMLElement; open: boolean; releaseReferences?: () => void; releaseGeometry?: () => void; geometryReady?: boolean; authoredBase?: boolean; generatedBase?: { node: HTMLElement; hidden: HTMLElement['hidden'] }; external?: { trigger: HTMLElement; attributes: Map<string, string | null> }; authoredDisabled?: boolean; authoredHasPopup?: string; }
 const states = new WeakMap<HTMLElement, State>();
 let sequence = 0;
 const popups = new Set<HTMLElement>();
@@ -38,7 +39,7 @@ function selectedTrigger(host: HTMLElement): HTMLElement | undefined {
 }
 function stateFor(host: HTMLElement): State {
     let state = states.get(host);
-    if (!state) { state = { open: false }; states.set(host, state); }
+    if (!state) { state = { open: false, relayRevision: 0 }; states.set(host, state); }
     return state;
 }
 function setAttribute(node: Element, name: string, value: string | null): void {
@@ -53,7 +54,7 @@ function synchronize(host: HTMLElement): void {
     state.panel = host.querySelector<HTMLElement>(':scope > [part~="popup"]') ?? undefined;
     const { trigger, panel } = state;
     if (previousPanel && previousPanel !== panel) releasePopupGeometry(previousPanel);
-    if (!trigger || !panel) { if (panel) hidePopup(panel); state.open = false; return; }
+    if (!trigger || !panel) { if (panel) hidePopup(panel); if (wasOpen) state.relayRevision++; state.open = false; return; }
     if (!panel.id) panel.id = `cem-popup-panel-${++sequence}`;
     if (!trigger.id) trigger.id = `cem-popup-trigger-${++sequence}`;
     const disabled = host.hasAttribute('disabled') || !!state.authoredDisabled || state.external?.attributes.get('aria-disabled') === 'true';
@@ -72,6 +73,7 @@ function synchronize(host: HTMLElement): void {
             state.open = false; host.setAttribute('open', 'false'); hidePopup(panel); setAttribute(trigger, 'aria-expanded', 'false');
         }
     } else hidePopup(panel);
+    if (wasOpen && !state.open) state.relayRevision++;
 }
 function setOpen(host: HTMLElement, open: boolean, restore = false): void {
     const state = stateFor(host);
@@ -97,6 +99,11 @@ export const CEM_POPUP_CAPABILITY: CemProducedElementBehavior = {
         if (state.abort) return;
         state.abort = new AbortController();
         popups.add(host);
+        state.releaseRelay = registerCemPopupRelay({ host, panel: () => state.panel, launcher: () => state.trigger,
+            revision: () => state.relayRevision,
+            active: () => host.isConnected && state.open && host.getAttribute('open') !== 'false' && !!state.panel && !state.panel.hidden,
+            dismiss: () => setOpen(host, false),
+        });
         state.releaseReferences = observeInteractionReferences(host, () => synchronize(host));
         const options = { signal: state.abort.signal };
         host.addEventListener('click', event => {
@@ -115,7 +122,7 @@ export const CEM_POPUP_CAPABILITY: CemProducedElementBehavior = {
         }, options);
         host.addEventListener('cem-popup-dismiss', () => setOpen(host, false), options);
         host.addEventListener('focusout', () => queueMicrotask(() => {
-            if (state.open && !host.contains(host.ownerDocument.activeElement) && host.ownerDocument.activeElement !== state.trigger) setOpen(host, false);
+            if (state.open && !containsCemMenuChain(host, host.ownerDocument.activeElement) && host.ownerDocument.activeElement !== state.trigger) setOpen(host, false);
         }), options);
         host.ownerDocument.addEventListener('click', event => {
             synchronize(host);
@@ -128,7 +135,7 @@ export const CEM_POPUP_CAPABILITY: CemProducedElementBehavior = {
             if (state.external && event.target === state.trigger && event.key === 'ArrowDown' && !state.trigger?.matches(':disabled,[aria-disabled="true"]')) { event.preventDefault(); setOpen(host, true); }
         }, options);
         for (const eventName of ['pointerdown', 'click']) host.ownerDocument.addEventListener(eventName, event => {
-            if (state.open && !host.contains(event.target as Node) && !state.trigger?.contains(event.target as Node)) setOpen(host, false);
+            if (state.open && !containsCemMenuChain(host, event.target as Node) && !state.trigger?.contains(event.target as Node)) setOpen(host, false);
         }, { ...options, capture: true });
         const view = host.ownerDocument.defaultView;
         const position = () => {
@@ -160,6 +167,7 @@ export const CEM_POPUP_CAPABILITY: CemProducedElementBehavior = {
     },
     disconnected(host) {
         const state = stateFor(host);
+        state.releaseRelay?.(); state.releaseRelay = undefined;
         state.abort?.abort(); state.abort = undefined; state.observer?.disconnect();
         state.releaseReferences?.(); state.releaseReferences = undefined;
         state.releaseGeometry?.(); state.releaseGeometry = undefined;

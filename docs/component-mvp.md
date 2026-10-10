@@ -85,7 +85,7 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
 | Navigation | `step` | `cem-step` | Inert labeled workflow-step payload consumed by `cem-stepper` | palette, navigation, workflow, stroke, bend, gap, coupling, control, typography |
 | Navigation | `paginator` | `cem-paginator` | Paged-content navigation with application-owned data | action, palette, select, control, stroke, bend, gap, inset, typography |
 | Feedback | `tooltip` | `cem-tooltip` | Supplemental plain-text description for one authored native trigger | palette, stroke, bend, gap, inset, layering, typography |
-| Feedback | `dialog` | `cem-dialog` | Modal decision or focused task | palette, stroke, bend, gap, inset |
+| Feedback | `dialog` | `cem-dialog` | Native nonmodal task, with explicit modal decision mode | palette, stroke, bend, gap, inset |
 | Feedback | `dialog-shell` | `cem-dialog-shell` | Labeled dialog shell for focused light-DOM task content | palette, stroke, bend, gap, inset |
 | Feedback | `sheet` | `cem-sheet` | Non-modal or edge-attached task surface | palette, stroke, bend, gap, inset |
 | Feedback | `toast` | `cem-toast` | Transient status message | palette, action, stroke, gap, typography |

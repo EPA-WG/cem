@@ -147,11 +147,37 @@ pub struct SchemaDocumentModel {
     /// Explicit declaration-reference outcomes; diagnostics alone cannot
     /// distinguish neutral/ignored incompleteness from a complete model.
     pub declaration_references: super::declaration_references::DeclarationReferenceCompilation,
+    /// Executable function registrations retained with this publication snapshot.
+    pub function_bindings:
+        Option<std::sync::Arc<dyn super::function_references::CompiledFunctionBindings>>,
     /// Opt-in executable datatype snapshot from the same retained package source.
-    pub datatype_compilation: Option<std::sync::Arc<super::datatype_contracts::DatatypeCompilation>>,
+    pub datatype_compilation:
+        Option<std::sync::Arc<super::datatype_contracts::DatatypeCompilation>>,
+    /// Original registered contracts for actual input validation.
+    pub attribute_datatypes:
+        BTreeMap<String, std::sync::Arc<dyn super::attribute_datatypes::CompiledAttributeDatatype>>,
 }
 
 impl SchemaDocumentModel {
+    /// Retire only contracts replaced at a committed publication boundary.
+    pub fn retire_preparations_replaced_by(&self, replacement: Option<&Self>) {
+        for (name, contract) in &self.attribute_datatypes {
+            if !replacement.and_then(|next| next.attribute_datatypes.get(name))
+                .is_some_and(|next| std::sync::Arc::ptr_eq(contract, next)) {
+                contract.retire_preparations();
+            }
+        }
+    }
+    pub fn attribute_is_node_valued(&self, name: &str) -> bool {
+        self.attribute_datatypes.get(name).map_or_else(
+            || {
+                self.attributes
+                    .get(name)
+                    .is_some_and(AttributeModel::is_node_valued)
+            },
+            |contract| contract.is_node_valued(),
+        )
+    }
     /// Complete declaration-reference outcomes, with no mandatory/invalid
     /// reference failure. Legacy structural projections may contain diagnostics
     /// for behavior supplied by other consumers; those keep existing handling.
@@ -216,6 +242,9 @@ impl SchemaDocumentModelRegistry {
 
     pub fn register(&mut self, model: SchemaDocumentModel) {
         if model.is_ready_for_validation() {
+            if let Some(old) = self.active_models_by_schema_uri.get(&model.schema_uri) {
+                old.retire_preparations_replaced_by(Some(&model));
+            }
             self.active_models_by_schema_uri.insert(model.schema_uri.clone(), model.clone());
         }
         self.inspect_candidate(model);
@@ -229,6 +258,14 @@ impl SchemaDocumentModelRegistry {
 
     pub(crate) fn remove_active(&mut self, schema_uri: &str) {
         self.active_models_by_schema_uri.remove(schema_uri);
+    }
+
+    /// Staging can remove models without revoking the active publication. The
+    /// package transaction invokes this only after all readiness checks pass.
+    pub(crate) fn retire_preparations_replaced_by(&self, replacement: &Self) {
+        for (uri, model) in &self.active_models_by_schema_uri {
+            model.retire_preparations_replaced_by(replacement.active_models_by_schema_uri.get(uri));
+        }
     }
 
     pub(crate) fn inspect_candidates_from(&mut self, candidate: &Self) {
@@ -300,7 +337,8 @@ impl ElementModel {
 pub struct AttributeModel {
     pub name: String,
     pub value_type: Option<String>,
-    /// An authored native datatype slot is retained but has not been consumed.
+    /// A typed slot has no ready executable consumer. Source-only compilation
+    /// guards native slots; an explicit datatype compiler also guards literals.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub native_type_pending: bool,
     pub default_value: Option<String>,
@@ -1360,6 +1398,30 @@ pub(crate) fn validate_element_shallow_with_names<'a>(
     names: Option<&BTreeMap<AstNodeId, crate::parser::ExpandedName>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<&'a ElementModel> {
+    validate_element_shallow_with_source(
+        document,
+        model,
+        node_id,
+        parent_allows_any_child,
+        child_sequence,
+        controls,
+        names,
+        None,
+        diagnostics,
+    )
+}
+
+pub(crate) fn validate_element_shallow_with_source<'a>(
+    document: &CemDocument,
+    model: &'a SchemaDocumentModel,
+    node_id: AstNodeId,
+    parent_allows_any_child: bool,
+    child_sequence: Option<&[String]>,
+    controls: Option<&std::collections::HashSet<AstNodeId>>,
+    names: Option<&BTreeMap<AstNodeId, crate::parser::ExpandedName>>,
+    source_tree: Option<std::sync::Arc<crate::parser::tree::RetainedCemTree>>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<&'a ElementModel> {
     let Some(node) = document.get(node_id) else {
         return None;
     };
@@ -1446,17 +1508,31 @@ pub(crate) fn validate_element_shallow_with_names<'a>(
         } else if let Some(attribute_model) = model.attributes.get(attr_local) {
             let field_value = field_contract_attribute_value(raw_value, attribute_model);
             attribute_values.insert(attr_local.to_owned(), field_value.into_owned());
-            validate_attribute_contracts(
-                &model.schema_uri,
-                &model.diagnostic_behaviors,
-                local,
-                attr_local,
-                raw_value,
-                attribute_model,
-                &attribute_values,
-                attr,
-                diagnostics,
-            );
+            if let Some(contract) = model.attribute_datatypes.get(attr_local) {
+                use super::attribute_datatypes::{AttributeDatatypeInput, AttributeDatatypeValue};
+                let result = contract.validate(AttributeDatatypeInput {
+                    value: AttributeDatatypeValue::Lexical(raw_value),
+                    source: attr,
+                    source_tree: source_tree.clone(),
+                    element_name: local,
+                    attribute_values: &attribute_values,
+                    control: &crate::operation_control::OperationControl::default(),
+                    context: None,
+                });
+                diagnostics.extend(result.diagnostics);
+            } else {
+                validate_attribute_contracts(
+                    &model.schema_uri,
+                    &model.diagnostic_behaviors,
+                    local,
+                    attr_local,
+                    raw_value,
+                    attribute_model,
+                    &attribute_values,
+                    attr,
+                    diagnostics,
+                );
+            }
         } else {
             attribute_values.insert(attr_local.to_owned(), raw_value.to_owned());
         }
@@ -1510,7 +1586,7 @@ pub(crate) fn validate_native_attribute_contract(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let attribute = model.attributes.get(attribute_name);
-    if attribute.is_some_and(AttributeModel::is_node_valued)
+    if model.attribute_is_node_valued(attribute_name)
         || (element_name == "attribute"
             && attribute_name == "type"
             && attribute
@@ -4742,7 +4818,10 @@ pub(crate) fn compile_document_model_with_declarations(
 #[derive(Debug, Clone)]
 pub(crate) enum CompiledSchemaDeclaration {
     Element(ElementModel),
-    Attribute(Box<AttributeModel>),
+    Attribute(
+        Box<AttributeModel>,
+        super::declaration_references::SchemaDeclarationNode,
+    ),
     Behavior(Box<BehaviorDefinition>),
     Diagnostic(Box<DiagnosticDeclaration>),
     Constraint(Box<ConstraintDeclaration>),
@@ -4832,6 +4911,9 @@ fn compile_document_model_from_document_with_declarations(
         document,
         Some(schema_id),
         &mut model.declaration_references,
+    );
+    super::declaration_references::function_slots::retain_authored(
+        schema_uri, document, Some(schema_id), &mut model.declaration_references,
     );
     let uses = collect_schema_uses(document, schema_id);
     model.behaviors = collect_behavior_definitions_with_references(
@@ -4981,7 +5063,13 @@ fn compile_document_model_from_document_with_declarations(
             ));
         }
     }
-    for attribute_model in model.attributes.values() {
+    for attribute_model in model.attributes.values_mut() {
+        if model.declaration_references.compiled_attribute_types
+            && (attribute_model.value_type.is_some() || attribute_model.native_type_pending)
+        {
+            attribute_model.native_type_pending = true;
+            continue;
+        }
         validate_attribute_datatype_param_definition(
             schema_uri,
             attribute_model,
@@ -5100,6 +5188,8 @@ fn empty_document_model(schema_uri: &str) -> SchemaDocumentModel {
         compile_diagnostics: Vec::new(),
         declaration_references: Default::default(),
         datatype_compilation: None,
+        function_bindings: None,
+        attribute_datatypes: BTreeMap::new(),
     }
 }
 
@@ -5164,7 +5254,7 @@ fn collect_attribute_models(
             if matches!(document.get(*child_id), Some(CemAstNode::Reference { .. })) {
                 if let Some(resolved) = declarations.get(child_id) {
                     for declaration in resolved {
-                        if let CompiledSchemaDeclaration::Attribute(attribute) = declaration {
+                        if let CompiledSchemaDeclaration::Attribute(attribute, _) = declaration {
                             attributes.insert(attribute.name.clone(), attribute.as_ref().clone());
                         }
                     }

@@ -179,10 +179,9 @@ keeps focus on the input and commits exactly the clicked enabled option.
 
 ## Theme-token audit
 
-No missing visual theme category was found. Implementation subsequently
-discovered that D4 intentionally excludes numeric physical draw order; the
-bounded `CEM-CSS-002` component exception supplies that non-semantic adapter for
-both select and autocomplete popups.
+No missing visual theme category was found. D4 intentionally excludes numeric
+physical draw order. The canonical select and autocomplete declarations consume
+the existing theme-owned `--cem-select-popup-z-index` adapter.
 
 - The input reuses the D0 `--cem-input-indicator-*` state colors and D5
   underline/outline, pending, focus, and selection stripe geometry.
@@ -200,7 +199,7 @@ not a license to borrow unrelated component paint.
 
 `--cem-layer-overlay` continues to represent semantic overlay elevation through
 its shadow recipe and MUST NOT be assigned to `z-index`. Physical popup
-stacking uses only the private, verifier-bounded adapter accepted in
+stacking uses `--cem-select-popup-z-index`, as recorded in
 `components-css-exceptions.md`.
 
 ## Forced-colors boundary
@@ -218,11 +217,28 @@ The focused Chromium fixture must prove:
 
 ## Focused fixture and assertion matrix
 
-Implementation must first add
-`packages/cem-components/tests/autocomplete/contract.html` and a focused browser
-suite. The fixture must contain ordinary free-form, `require-selection`,
-disabled, readonly, busy, invalid/required, grouped/rich-option, disabled-option,
-preselected, empty-suggestion, and live-option-update cases.
+The canonical declaration is
+[`cem-autocomplete.xhtml`](../src/components/cem-autocomplete/cem-autocomplete.xhtml),
+with unit ownership in its [colocated stories](../src/components/cem-autocomplete/cem-autocomplete.stories.ts).
+It opts into the reusable `editable-choice` runtime capability. Shared
+[capability plays](../../cem-elements/src/lib/editable-choice.stories.ts) cover
+worker/fallback forms, reset/restore, active identity, nested owner boundaries
+and native editing-key guards. Component plays retain the original eight
+contract assertions and add presence values and five-theme checks.
+
+The live-refresh fixture updates `cem-payload:payload` in the current data-island
+schema, preserving all original identity, focus, geometry, committed value and
+event assertions. Browser checks wait for the runtime's render settlement.
+The two recorded baseline failures (live payload and empty boolean presence)
+are resolved without relaxing assertions. The static authoring example remains
+in `tests/autocomplete/contract.html`.
+
+The [property playground](../playgrounds/cem-autocomplete.html) and
+[five-theme gallery](../playgrounds/cem-autocomplete-gallery.html) ship in source
+and packed form, with the canonical declaration also included in the release
+bundle. `verify-autocomplete` exercises those consumers; forced-color gates
+extract the same declaration CSS. Popup stacking uses the existing theme-owned
+`--cem-select-popup-z-index` (default 1), keeping elevation independent.
 
 The executable matrix must assert:
 

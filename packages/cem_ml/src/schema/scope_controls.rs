@@ -17,7 +17,7 @@ pub enum SchemaHostSource {
 
 /// Selection metadata only. A following switch retains its enclosing model and
 /// context; activation applies after the original control in its parent scope.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum SchemaScopeControlExtent {
     Body,
     Following,
@@ -28,7 +28,7 @@ pub enum SchemaScopeControlExtent {
 #[derive(Debug, Clone)]
 pub struct SchemaHostControl {
     pub host: SchemaDeclarationNode,
-    /// Original value occurrence: an attribute, or the prelude text payload.
+    /// Original source site: an attribute, literal prelude text, or typed directive.
     pub attribute: SchemaDeclarationNode,
     pub source: SchemaHostSource,
 }
@@ -219,6 +219,16 @@ where
     F: FnMut(&SchemaDeclarationNode) -> Option<ExpandedName>,
 {
     validate_body_controls(host, &mut resolved_name, true, true, form)
+}
+
+/// Decode an original typed schema directive using its owner-checked capture.
+/// Missing or invalid metadata leaves an unavailable following override; it
+/// never falls back to literal decoding or an inherited schema.
+pub fn validate_typed_schema_prelude(
+    host: SchemaDeclarationNode,
+    captured: &super::machine::LexicallyScopedDocument,
+) -> SchemaHostControlContract {
+    prelude::validate_typed(host, captured)
 }
 
 fn validate_body_controls<F>(

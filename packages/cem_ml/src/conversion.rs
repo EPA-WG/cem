@@ -12714,6 +12714,9 @@ fn conversion_collect_token_projection(
             SchemaTokenKind::Directive { name, data } => {
                 projection.push(ConversionTokenProjectionEvent::Directive { name, data });
             }
+            SchemaTokenKind::TypedDirective { .. } => {
+                projection.push(ConversionTokenProjectionEvent::Error("cem.prelude.preview_output_unsupported".into()));
+            }
             SchemaTokenKind::RichContent { data } => {
                 projection.push(ConversionTokenProjectionEvent::RichContent(data));
             }

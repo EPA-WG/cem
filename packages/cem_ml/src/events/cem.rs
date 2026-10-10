@@ -200,6 +200,19 @@ impl<T: SchemaTokenizer> CemEventNormalizer<T> {
                     source_map,
                 });
             }
+            SchemaTokenKind::TypedDirective { name, value } => {
+                let dir_name = format!("@{name}");
+                self.pending.push_back(NormalizedEvent::OpenScope {
+                    name: qname(&dir_name, byte_range), byte_range, source_map: source_map.clone(),
+                });
+                self.pending.push_back(NormalizedEvent::Value {
+                    byte_range: value.value_range, value: ScalarValue::TypedPrelude(value),
+                });
+                self.pending.push_back(NormalizedEvent::CloseScope {
+                    name: qname(&dir_name, byte_range), byte_range,
+                    synthesis: Synthesis::ImpliedByEof, source_map,
+                });
+            }
             SchemaTokenKind::RichContent { data } => {
                 self.pending.push_back(NormalizedEvent::Value {
                     value: ScalarValue::Text(data),

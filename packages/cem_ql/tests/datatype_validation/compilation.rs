@@ -1,5 +1,26 @@
 use super::*;
 
+#[path = "function_limits.rs"]
+mod function_limits;
+#[path = "overrides.rs"]
+mod overrides;
+#[path = "list_serialization.rs"]
+mod list_serialization;
+#[path = "preparation_evidence.rs"]
+mod preparation_evidence;
+#[path = "pretyped_consumer.rs"]
+mod pretyped_consumer;
+#[path = "whole_list.rs"]
+mod whole_list;
+#[path = "preparation_replacement.rs"]
+mod preparation_replacement;
+#[path = "facet_replacement.rs"]
+mod facet_replacement;
+#[path = "external_typed.rs"]
+mod external_typed;
+#[path = "retained_constants.rs"]
+mod retained_constants;
+
 fn descriptor_fixture(
     text: &str,
     ready: bool,

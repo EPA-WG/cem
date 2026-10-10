@@ -10011,6 +10011,8 @@ impl TransformTemplateTypedCemTreeRenderer<'_, '_> {
             CemTreeAstNode::ProcessingInstruction { name, source, .. } => {
                 self.render_cem_empty_element(name, source, role.as_deref())
             }
+            CemTreeAstNode::Error { code, .. } if code == "cem.writer.invalid_typed_prelude" =>
+                Err("typed prelude cannot be emitted without valid original slot metadata".into()),
             CemTreeAstNode::Cdata { source, .. }
             | CemTreeAstNode::RawText { source, .. }
             | CemTreeAstNode::Error { source, .. } => {

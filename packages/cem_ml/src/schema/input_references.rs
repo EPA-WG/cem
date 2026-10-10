@@ -15,8 +15,8 @@ use crate::{
 };
 use std::{collections::HashSet, sync::Arc};
 
-mod consumed_walk;
 mod behaviors;
+pub(crate) mod consumed_walk;
 mod regions;
 pub use regions::{DiscoveredInputSchemaRegion, InputSchemaRegion};
 use regions::RegionModels;
@@ -635,10 +635,7 @@ where
                         };
                         let eligible = element
                             .allows_attribute(&name.namespace_uri, &name.local_name)
-                            && model
-                                .attributes
-                                .get(&name.local_name)
-                                .is_some_and(|contract| contract.is_node_valued());
+                            && model.attribute_is_node_valued(&name.local_name);
                         let root = if eligible {
                             consumed_walk::value_request_root(&attribute)
                         } else {
@@ -725,7 +722,7 @@ where
         let element = if model.is_empty() || names.is_none() {
             None
         } else {
-            document_model::validate_element_shallow_with_names(
+            document_model::validate_element_shallow_with_source(
                 current.source.document(),
                 model,
                 current.source.node_id(),
@@ -733,6 +730,10 @@ where
                 (current.children_complete && child_names_ready).then_some(sequence.as_slice()),
                 Some(&controls),
                 names,
+                current
+                    .input_view
+                    .as_ref()
+                    .and_then(|view| view.source_tree.clone()),
                 &mut diagnostics,
             )
         };
@@ -776,6 +777,10 @@ where
     if let Some(evaluator) = evaluator {
         behaviors::validate(&mut report, &node_models, &models, host, evaluator);
     }
+    report.complete &= !report
+        .diagnostics
+        .iter()
+        .any(|d| d.code == "cem.schema_validation.attribute_datatype_incomplete");
     report.failed |= report
         .diagnostics
         .iter()

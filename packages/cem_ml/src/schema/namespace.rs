@@ -17,7 +17,7 @@
 
 use crate::source::ByteRange;
 use crate::source_map::SourceMapStack;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use serde::{Deserialize, Serialize};
 
 pub type NamespaceBindingId = u32;
@@ -57,6 +57,9 @@ pub struct NsContext {
     /// resolution is O(1). Shadowing replaces the entry; pop on close
     /// restores the parent's entry from `inherited_overrides`.
     active: HashMap<String, NamespaceBinding>,
+    /// Distinguish an unavailable declaration from an unknown literal alias.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    deferred: BTreeSet<String>,
     /// Previous (parent) entries replaced by a local binding at this
     /// scope. Used to restore parent state when this scope closes.
     inherited_overrides: HashMap<String, Option<NamespaceBinding>>,
@@ -69,7 +72,8 @@ impl NsContext {
     }
 
     pub(crate) fn valid_snapshot(&self) -> bool {
-        self.next_binding_id != 0
+        self.deferred.iter().all(|prefix| !self.active.contains_key(prefix))
+            && self.next_binding_id != 0
             && self.retained_bindings().all(|b| b.binding_id > 0 && b.binding_id < self.next_binding_id)
             && self.active.iter().all(|(prefix, binding)| prefix == &binding.name)
     }
@@ -78,6 +82,7 @@ impl NsContext {
             scope_id,
             bindings: Vec::new(),
             active: HashMap::new(),
+            deferred: BTreeSet::new(),
             inherited_overrides: HashMap::new(),
             next_binding_id: 1,
         }
@@ -89,6 +94,7 @@ impl NsContext {
             scope_id,
             bindings: Vec::new(),
             active: parent.active.clone(),
+            deferred: parent.deferred.clone(),
             inherited_overrides: HashMap::new(),
             next_binding_id: parent.next_binding_id,
         }
@@ -124,6 +130,7 @@ impl NsContext {
         self.inherited_overrides
             .entry(name.clone())
             .or_insert_with(|| self.active.get(&name).cloned());
+        self.deferred.remove(&name);
         self.active.insert(name.clone(), binding.clone());
         self.bindings.push(binding);
         binding_id
@@ -155,6 +162,11 @@ impl NsContext {
     /// Its original AST association is retained by lexical capture separately.
     pub(crate) fn defer_binding(&mut self, prefix: &str) {
         self.active.remove(prefix);
+        self.deferred.insert(prefix.into());
+    }
+
+    pub(crate) fn is_deferred(&self, prefix: &str) -> bool {
+        self.deferred.contains(prefix)
     }
 
     pub fn local_bindings(&self) -> &[NamespaceBinding] {

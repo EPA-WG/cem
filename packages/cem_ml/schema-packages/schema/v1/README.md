@@ -172,6 +172,20 @@ and the caller's operation context. Returned native nodes must preserve supplied
 input views. One conversion is followed by all effective validation restrictions.
 The separate source/query equality and constant profiles are described below.
 
+## Retained scalar enumeration authoring
+
+`type` may contain explicit `{constant @value="In progress"}` declarations.
+Each full literal value is one constant, including an empty string. Use either
+these child slots or token `@values` per declaration; mixing is invalid. Native
+references may select original retained constant declarations, subject to current
+scope grants, readiness and traversal limits. Whole-list/node vocabularies remain
+unsupported.
+
+The registered constant interpreter produces exactly one immutable scalar, which
+must pass the datatype's effective rules and inherited vocabularies. Original
+owners and equality/interpreter bindings are retained; familiar names do not
+supply execution authority. See the [retained constant design](../../../../../docs/cem-datatype-compilation-design.md#retained-scalar-enumeration-constants-adopted-and-implemented-2026-10-09).
+
 ## Explicit scalar equality and constant profiles
 
 `execution="datatype-equality"` declares required singleton `left` and `right`
@@ -187,7 +201,8 @@ boolean `equal` and required `diagnostics`. For example:
 
 `execution="datatype-constant"` declares required singleton `value` (string),
 `datatype` (node) and `candidate` (node). `value` is the current whitespace token;
-`candidate` is its original `@values` attribute in the retained consumer view.
+`candidate` is the original `@values` attribute for token vocabularies, or the
+original constant `@value` attribute for retained literals, in the retained consumer view.
 The native invocation also retains the decoded token span and owner. The function
 returns `datatype-constant-result`, and the behavior result names
 `schema:datatype-constant-result`. Its checked record has `status` equal to
@@ -239,8 +254,8 @@ representations are string, boolean, integer and decimal as declared by the
 capability. Host registration is required; matching a datatype name is insufficient.
 
 Native scalar conversion and retained wide-integer signatures are implemented below.
-Remaining metamodel admission and automatic attribute integration are tracked in
-the [datatype actions](../../../../../docs/todo.md#general-datatype-compilation-design).
+Metamodel admission and automatic attribute integration evidence is preserved in
+the [archived datatype actions](../../../../../docs/archive/todo-snapshot-2026-10-10.md#general-datatype-compilation-design).
 
 ## Native scalar conversion and retained integers
 
@@ -2790,8 +2805,8 @@ consumer authority if they add override support; package URI lists do not
 synthesize grants. The native CEM-QL declaration host is available as
 `cem_ql::schema_references::CemQlSchemaDeclarationHost`. It compiles original
 retained owners under caller-supplied contexts and scope permissions. Package
-lifecycle invocation and publication integration remain tracked in
-[todo.md](../../../../../docs/todo.md#5-integrate-schema-validation-and-construct-reuse).
+lifecycle invocation and publication integration evidence is preserved in
+[archived checklist](../../../../../docs/archive/todo-snapshot-2026-10-10.md#5-integrate-schema-validation-and-construct-reuse).
 
 ### Native attribute datatype readiness
 
@@ -2810,11 +2825,26 @@ literal metadata keeps its existing serialization and decoding behavior.
 
 ### Explicit compiled datatype contracts
 
+External native producers may use explicitly registered typed-only scalar/list
+profiles. These require typed-only ancestry and item contracts, reject lexical
+preparation/facets/defaults, and validate every typed rule and enumeration on use.
+Lists admit local count facets. This adds no authored value syntax or persisted
+producer authority. See the [typed-only admission contract](../../../../../docs/cem-datatype-compilation-design.md#typed-only-external-attribute-admission-adopted-and-implemented-2026-10-09).
+
 Datatype declarations of effective kind `list` or `node` admit nonnegative literal
 `min-items` and `max-items`; defaults are zero and unbounded. Registered, authored
 and inherited bounds intersect, preserving their declaring sources. Node types
-reject lexical facets. Lists keep item-base semantics; whole-list inheritance is
-deferred. These declaration fields are separate from attribute-local camel-case
+reject lexical facets. Root lists retain `@kind=list @base=item`. Whole-list
+derivatives use `@list-base=names` or `@list-base={#selectedList}` and may omit
+`kind` or state `kind=list`. The two base fields are mutually exclusive. A derived
+list shares the original item, tokenizer, preparer and facet contracts by default,
+intersects all bounds, and adds sequence rules. Explicit host-selected checked
+preparer/tokenizer replacements preserve every inherited lexical admission, exact
+prepared representation and token span. Checked facet-profile replacement retains
+all ancestor profiles and requires the local fields to compile under every family.
+See the [checked replacement contract](../../../../../docs/cem-datatype-compilation-design.md#checked-lexical-capability-replacement-adopted-and-implemented-2026-10-09).
+Nested list items remain unsupported. See
+the [whole-list contract](../../../../../docs/cem-datatype-compilation-design.md#whole-list-inheritance-adopted-and-implemented-2026-10-09). These declaration fields are separate from attribute-local camel-case
 `minItems`/`maxItems` facets.
 
 The opt-in `cem_ql::datatype_compilation` compiler resolves dependencies through
@@ -2829,8 +2859,8 @@ returns checked source byte spans; it does not convert items. An authored native
 package model. Incomplete datatype capabilities keep replacements inspectable and
 preserve the complete active package. The engine rejects snapshots from another
 source owner. Native namespace/export discovery and conversion are implemented;
-source/query equality/constant adapters are also available. Shipped parity remains tracked in the
-[datatype actions](../../../../../docs/todo.md#general-datatype-compilation-design).
+source/query equality/constant adapters are also available. Shipped parity evidence is preserved in the
+[archived datatype actions](../../../../../docs/archive/todo-snapshot-2026-10-10.md#general-datatype-compilation-design).
 Automatic attribute `@type` consumption remains guarded as described above.
 
 

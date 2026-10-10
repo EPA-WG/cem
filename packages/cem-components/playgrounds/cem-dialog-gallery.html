@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>cem-dialog: Full examples and variation matrix</title>
+<script type="importmap">{
+    "imports": {
+        "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
+        "@epa-wg/cem-components": "../dist/lib/primitives.js",
+        "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
+        "@epa-wg/cem-components/styles.css": "../dist/styles.css",
+        "@epa-wg/cem-components/components/cem-action": "../src/components/cem-action/cem-action.xhtml",
+        "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
+        "@epa-wg/cem-components/action-playground": "./cem-action.html",
+        "@epa-wg/cem-components/components/cem-theme-switch": "../src/components/cem-theme-switch/cem-theme-switch.xhtml",
+        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
+        "@epa-wg/cem-components/components/cem-select": "../src/components/cem-select/cem-select.xhtml",
+        "@epa-wg/cem-components/components/cem-checkbox": "../src/components/cem-checkbox/cem-checkbox.xhtml",
+        "@epa-wg/cem-components/components/cem-radio": "../src/components/cem-radio/cem-radio.xhtml",
+        "@epa-wg/cem-components/components/cem-switch": "../src/components/cem-switch/cem-switch.xhtml",
+        "@epa-wg/cem-components/components/cem-autocomplete": "../src/components/cem-autocomplete/cem-autocomplete.xhtml",
+        "@epa-wg/cem-components/components/cem-icon-button": "../src/components/cem-icon-button/cem-icon-button.xhtml",
+        "@epa-wg/cem-components/components/cem-menu-item": "../src/components/cem-menu-item/cem-menu-item.xhtml",
+        "@epa-wg/cem-components/components/cem-field": "../src/components/cem-field/cem-field.xhtml",
+        "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml",
+        "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml",
+        "@epa-wg/cem-components/components/cem-textarea": "../src/components/cem-textarea/cem-textarea.xhtml",
+        "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "./assets/wc-square.svg",
+        "@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml": "./cem-gallery-nav.xhtml",
+        "@epa-wg/cem-components/components/cem-menu": "../src/components/cem-menu/cem-menu.xhtml",
+        "@epa-wg/cem-components/components/cem-dropdown": "../src/components/cem-dropdown/cem-dropdown.xhtml",
+        "@epa-wg/cem-components/components/cem-dialog": "../src/components/cem-dialog/cem-dialog.xhtml",
+        "@epa-wg/cem-components/components/cem-dialog-shell": "../src/components/cem-dialog-shell/cem-dialog-shell.xhtml",
+        "@epa-wg/cem-components/components/cem-sheet": "../src/components/cem-sheet/cem-sheet.xhtml",
+        "@epa-wg/cem-components/components/cem-tooltip": "../src/components/cem-tooltip/cem-tooltip.xhtml"
+    }
+}</script>
+<script type="module">
+import { installCemElementRuntime } from '@epa-wg/cem-elements';
+import { installCemComponentPrimitives } from '@epa-wg/cem-components';
+import '@epa-wg/cem-demo-element';
+const runtime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
+window.cemPlaygroundRuntime = runtime;
+await installCemComponentPrimitives(runtime);
+</script>
+<link rel="stylesheet" href="../demo.css">
+<style>body { margin: 0; font-family: system-ui, sans-serif; } #playground-theme { padding: var(--cem-inset-container); } main, .properties { display: grid; gap: var(--cem-gap-group); } [data-gallery-theme] { padding: var(--cem-inset-container); background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } cem-demo-element { display: block; margin-block: var(--cem-gap-group); }</style>
+</head><body>
+<cem-element hidden><template type="text/cem-ml">
+{cem-module-url @slice=cemautocompleteUrl @src="@epa-wg/cem-components/components/cem-autocomplete"}
+{cem:if @test="datadom.slices.cemautocompleteUrl" | {cem-element @tag=cem-autocomplete @capability=editable-choice @src="{$datadom.slices.cemautocompleteUrl}#cem-autocomplete"}}
+</template></cem-element>
+<cem-element hidden><template type="text/cem-ml">
+{cem-module-url @slice=cemcheckboxUrl @src="@epa-wg/cem-components/components/cem-checkbox"}
+{cem:if @test="datadom.slices.cemcheckboxUrl" | {cem-element @tag=cem-checkbox @capability=checkable-control @src="{$datadom.slices.cemcheckboxUrl}#cem-checkbox"}}
+{cem-module-url @slice=cemradioUrl @src="@epa-wg/cem-components/components/cem-radio"}
+{cem:if @test="datadom.slices.cemradioUrl" | {cem-element @tag=cem-radio @src="{$datadom.slices.cemradioUrl}#cem-radio"}}
+{cem-module-url @slice=cemswitchUrl @src="@epa-wg/cem-components/components/cem-switch"}
+{cem:if @test="datadom.slices.cemswitchUrl" | {cem-element @tag=cem-switch @src="{$datadom.slices.cemswitchUrl}#cem-switch"}}
+</template></cem-element>
+<cem-element hidden><template type="text/cem-ml">{cem-module-url @slice=cemdialogUrl @src="@epa-wg/cem-components/components/cem-dialog"}
+{cem:if @test="datadom.slices.cemdialogUrl" | {cem-element @tag=cem-dialog @capability=native-surface @src="{$datadom.slices.cemdialogUrl}#cem-dialog"}}
+{cem-module-url @slice=cemdialogshellUrl @src="@epa-wg/cem-components/components/cem-dialog-shell"}
+{cem:if @test="datadom.slices.cemdialogshellUrl" | {cem-element @tag=cem-dialog-shell @capability=native-surface @src="{$datadom.slices.cemdialogshellUrl}#cem-dialog-shell"}}
+{cem-module-url @slice=cemtooltipUrl @src="@epa-wg/cem-components/components/cem-tooltip"}
+{cem:if @test="datadom.slices.cemtooltipUrl" | {cem-element @tag=cem-tooltip @capability=native-surface @src="{$datadom.slices.cemtooltipUrl}#cem-tooltip"}}
+{cem-module-url @slice=cemfieldUrl @src="@epa-wg/cem-components/components/cem-field"}
+{cem:if @test="datadom.slices.cemfieldUrl" | {cem-element @tag=cem-field @capability=form-control @src="{$datadom.slices.cemfieldUrl}#cem-field"}}
+{cem-module-url @slice=cemactionUrl @src="@epa-wg/cem-components/components/cem-action"}
+{cem:if @test="datadom.slices.cemactionUrl" | {cem-element @tag=cem-action @capability=action-command @src="{$datadom.slices.cemactionUrl}#cem-action"}}
+{cem-module-url @slice=cemmenuUrl @src="@epa-wg/cem-components/components/cem-menu"}
+{cem:if @test="datadom.slices.cemmenuUrl" | {cem-element @tag=cem-menu @capability=composite-menu @src="{$datadom.slices.cemmenuUrl}#cem-menu"}}
+{cem-module-url @slice=cemmenuitemUrl @src="@epa-wg/cem-components/components/cem-menu-item"}
+{cem:if @test="datadom.slices.cemmenuitemUrl" | {cem-element @tag=cem-menu-item @capability=action-control @src="{$datadom.slices.cemmenuitemUrl}#cem-menu-item"}}
+{cem-module-url @slice=cemdropdownUrl @src="@epa-wg/cem-components/components/cem-dropdown"}
+{cem:if @test="datadom.slices.cemdropdownUrl" | {cem-element @tag=cem-dropdown @capability=popup @src="{$datadom.slices.cemdropdownUrl}#cem-dropdown"}}
+{cem-module-url @slice=cemiconbuttonUrl @src="@epa-wg/cem-components/components/cem-icon-button"}
+{cem:if @test="datadom.slices.cemiconbuttonUrl" | {cem-element @tag=cem-icon-button @src="{$datadom.slices.cemiconbuttonUrl}#cem-icon-button"}}
+{cem-module-url @slice=cemthemeswitchUrl @src="@epa-wg/cem-components/components/cem-theme-switch"}
+{cem:if @test="datadom.slices.cemthemeswitchUrl" | {cem-element @tag=cem-theme-switch @src="{$datadom.slices.cemthemeswitchUrl}#cem-theme-switch"}}
+{cem-module-url @slice=cemselectUrl @src="@epa-wg/cem-components/components/cem-select"}
+{cem:if @test="datadom.slices.cemselectUrl" | {cem-element @tag=cem-select @capability=choice-select @src="{$datadom.slices.cemselectUrl}#cem-select"}}
+{cem-module-url @slice=navUrl @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml"}{cem:if @test="datadom.slices.navUrl" | {cem-element @tag=cem-gallery-nav @src="{$datadom.slices.navUrl}#cem-gallery-nav"}}
+{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
+{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
+</template></cem-element>
+<div id="playground-theme" class="cem-theme-light"><cem-gallery-nav heading="cem-dialog: Full examples and variation matrix"></cem-gallery-nav><p class="component-description">A named native task surface with command-based opening and cancelable closing. It shares its lifecycle with <a href="./cem-dialog-shell-gallery.html">cem-dialog-shell</a>; use <a href="./cem-tooltip-gallery.html">cem-tooltip</a> for a supplemental description.</p>
+<p><a href="./cem-dialog.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-dialog/cem-dialog.stories.ts">Automated stories</a></p><main><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="trigger-for"><code>trigger-for</code></li><li data-gallery-attribute="show-delay"><code>show-delay</code></li><li data-gallery-attribute="hide-delay"><code>hide-delay</code></li><li data-gallery-attribute="placement"><code>placement</code></li><li data-gallery-attribute="anchor"><code>anchor</code></li><li data-gallery-attribute="boundary"><code>boundary</code></li><li data-gallery-attribute="fallback"><code>fallback</code></li><li data-gallery-attribute="overflow"><code>overflow</code></li><li data-gallery-attribute="anchor-lost"><code>anchor-lost</code></li><li data-gallery-attribute="surface-id"><code>surface-id</code></li><li data-gallery-attribute="hidden"><code>hidden</code></li><li data-gallery-attribute="class"><code>class</code></li><li data-gallery-attribute="dir"><code>dir</code></li><li data-gallery-attribute="label"><code>label</code></li><li data-gallery-attribute="trigger"><code>trigger</code></li><li data-gallery-attribute="trigger-aria-label"><code>trigger-aria-label</code></li><li data-gallery-attribute="trigger-disabled"><code>trigger-disabled</code></li><li data-gallery-attribute="close-label"><code>close-label</code></li><li data-gallery-attribute="mode"><code>mode</code></li><li data-gallery-attribute="popover"><code>popover</code></li><li data-gallery-attribute="closedby"><code>closedby</code></li><li data-gallery-attribute="default-open"><code>default-open</code></li><li data-gallery-attribute="materialize"><code>materialize</code></li><li data-gallery-attribute="focus-target"><code>focus-target</code></li><li data-gallery-attribute="return-focus"><code>return-focus</code></li><li data-gallery-attribute="context-change"><code>context-change</code></li><li data-gallery-attribute="aria-label"><code>aria-label</code></li><li data-gallery-attribute="aria-labelledby"><code>aria-labelledby</code></li><li data-gallery-attribute="aria-describedby"><code>aria-describedby</code></li></ul><p>Slots: <code>trigger</code> supplies one native control or control provider; <code>label</code> replaces visible fallback text. The default body is eager; <code>body</code> can supply an inert template and <code>close</code> replaces the generated close control.</p><p>Use Tab, Escape, pointer hover and native button activation. Five fixed theme rows compare supported states. Dialog modality is explicit; tooltip hover delays apply only to pointer interest. Disabled flags use presence, including the text false. Unsupported invalid, readonly and selected task states are not synthesized.</p><section data-gallery-theme="light" class="cem-theme-light"><h2>light</h2><cem-dialog label="Nonmodal task" trigger="Nonmodal" close-label="Done" ><label>Draft <input autofocus value="Editable"></label></cem-dialog> <cem-dialog label="Modal task" trigger="Modal" close-label="Done" mode="modal"><label>Draft <input autofocus value="Editable"></label></cem-dialog> <cem-dialog label="Disabled task" trigger="Disabled" close-label="Done" trigger-disabled><label>Draft <input autofocus value="Editable"></label></cem-dialog> </section><section data-gallery-theme="dark" class="cem-theme-dark"><h2>dark</h2><cem-dialog label="Nonmodal task" trigger="Nonmodal" close-label="Done" ><label>Draft <input autofocus value="Editable"></label></cem-dialog> <cem-dialog label="Modal task" trigger="Modal" close-label="Done" mode="modal"><label>Draft <input autofocus value="Editable"></label></cem-dialog> <cem-dialog label="Disabled task" trigger="Disabled" close-label="Done" trigger-disabled><label>Draft <input autofocus value="Editable"></label></cem-dialog> </section><section data-gallery-theme="contrast-light" class="cem-theme-contrast-light"><h2>contrast-light</h2><cem-dialog label="Nonmodal task" trigger="Nonmodal" close-label="Done" ><label>Draft <input autofocus value="Editable"></label></cem-dialog> <cem-dialog label="Modal task" trigger="Modal" close-label="Done" mode="modal"><label>Draft <input autofocus value="Editable"></label></cem-dialog> <cem-dialog label="Disabled task" trigger="Disabled" close-label="Done" trigger-disabled><label>Draft <input autofocus value="Editable"></label></cem-dialog> </section><section data-gallery-theme="contrast-dark" class="cem-theme-contrast-dark"><h2>contrast-dark</h2><cem-dialog label="Nonmodal task" trigger="Nonmodal" close-label="Done" ><label>Draft <input autofocus value="Editable"></label></cem-dialog> <cem-dialog label="Modal task" trigger="Modal" close-label="Done" mode="modal"><label>Draft <input autofocus value="Editable"></label></cem-dialog> <cem-dialog label="Disabled task" trigger="Disabled" close-label="Done" trigger-disabled><label>Draft <input autofocus value="Editable"></label></cem-dialog> </section><section data-gallery-theme="native" class="cem-theme-native"><h2>native</h2><cem-dialog label="Nonmodal task" trigger="Nonmodal" close-label="Done" ><label>Draft <input autofocus value="Editable"></label></cem-dialog> <cem-dialog label="Modal task" trigger="Modal" close-label="Done" mode="modal"><label>Draft <input autofocus value="Editable"></label></cem-dialog> <cem-dialog label="Disabled task" trigger="Disabled" close-label="Done" trigger-disabled><label>Draft <input autofocus value="Editable"></label></cem-dialog> </section><cem-demo-element legend="Visible label, projected heading and accessible name" description="Projected labels replace visible fallback text; aria-label can name the task separately."><template slot="source"><cem-dialog label="Visible label" aria-label="Accessible task" trigger="Named task" close-label="Done"><p>Native task content.</p></cem-dialog><cem-dialog label="Fallback" trigger="Projected heading" close-label="Done"><strong slot="label">Projected heading</strong><p>Task body.</p></cem-dialog></template></cem-demo-element>
+<cem-demo-element legend="Native form validation and result" description="A modal native dialog preserves method=dialog, validation and return values."><template slot="source"><cem-dialog mode="modal" label="Confirm details" trigger="Confirm details" close-label="Cancel"><form method="dialog"><label>Required name <input name="name" required autofocus></label><button type="submit" value="saved">Save</button></form></cem-dialog></template></cem-demo-element>
+<cem-demo-element legend="Retained and disposable bodies" description="An inert payload envelope contains the designated body template. Retain keeps the draft; dispose remounts it."><template slot="source"><cem-dialog label="retain task" trigger="retain" close-label="Close" materialize="retain"><template><template slot="body"><label>Draft <input autofocus value="Initial"></label></template></template></cem-dialog><cem-dialog label="dispose task" trigger="dispose" close-label="Close" materialize="dispose"><template><template slot="body"><label>Draft <input autofocus value="Initial"></label></template></template></cem-dialog></template></cem-demo-element>
+<cem-demo-element legend="Slotted launcher and close" description="Explicit controls replace label-generated buttons without a wrapper."><template slot="source"><cem-dialog label="Slotted task" trigger="Replaced" close-label="Replaced"><button slot="trigger" type="button">Custom launcher</button><p>Content</p><button slot="close" type="button">Custom close</button></cem-dialog></template></cem-demo-element>
+<cem-demo-element legend="External trigger and workflow return" description="Return focus is independent of the geometry anchor."><template slot="source"><div interaction-scope><button type="button" interaction-name="launcher">Open external task</button><button type="button" interaction-name="workflow">Workflow return</button><cem-dialog label="External task" trigger-for="@launcher" return-focus="@workflow" close-label="Done"><input autofocus aria-label="Value"></cem-dialog></div></template></cem-demo-element>
+<cem-demo-element legend="Native command and popover visibility" description="surface-id names the actual native owner; popover visibility is independent of dialog.open."><template slot="source"><button type="button" commandfor="cem-dialog-native-owner" command="--cem-show">Native command</button><cem-dialog label="Native popover task" surface-id="cem-dialog-native-owner" popover="manual" close-label="Done"><input autofocus aria-label="Value"></cem-dialog></template></cem-demo-element>
+<cem-demo-element legend="Nested menu task handoff" description="Preparation retains the menu; task exit returns to the outer menu launcher."><template slot="source"><cem-dropdown label="Task menu" open="false"><cem-menu keyboard="menu" direction="column"><cem-menu-item label="More"><cem-menu slot="submenu"><cem-action label="Open task" commandfor="cem-dialog-menu-task" command="--cem-show"></cem-action></cem-menu></cem-menu-item></cem-menu></cem-dropdown><cem-dialog surface-id="cem-dialog-menu-task" label="Menu task" close-label="Done"><input autofocus aria-label="Task entry"></cem-dialog></template></cem-demo-element>
+</main></div></body></html>

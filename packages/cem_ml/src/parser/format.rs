@@ -24,7 +24,7 @@ pub struct DocumentFormatIdentity {
 /// Tier A defines exactly one canonical document format (AC-F-8).
 pub const SUPPORTED_FORMAT_ID: &str = "cem-ml";
 pub const SUPPORTED_CONTENT_TYPE: &str = "text/cem-ml";
-pub const SUPPORTED_VERSION: SemVer = SemVer::new(1, 0, 0);
+pub const SUPPORTED_VERSION: SemVer = SemVer::new(1, 1, 0);
 
 /// Diagnostic code for a missing top-level `@doc` directive.
 pub const VERSION_MISSING_CODE: &str = "cem.doc.version_missing";
@@ -105,6 +105,20 @@ pub fn resolve_doc_directive(text: &str) -> Result<DocumentFormatIdentity, DocDi
             value: version_str.to_owned(),
         })?;
     resolve_against_supported(version_str, constraint)
+}
+
+/// Explicit typed-prelude capability. A broad major does not opt in.
+pub(crate) fn requires_typed_prelude_preview(text: &str) -> bool {
+    let mut parts = text.split_ascii_whitespace();
+    if parts.next() != Some(SUPPORTED_FORMAT_ID) { return false; }
+    let Some(version) = parts.next() else { return false; };
+    if parts.next().is_some() { return false; }
+    match parse_version_constraint(version).map(|(constraint, _)| constraint) {
+        Some(SchemaVersionConstraint::MajorMinor(1, 1)) => true,
+        Some(SchemaVersionConstraint::Full(version)) => version.major == 1 && version.minor == 1
+            && version.patch == 0 && version.prerelease.is_none(),
+        _ => false,
+    }
 }
 
 fn resolve_against_supported(
@@ -277,7 +291,7 @@ mod tests {
 
     #[test]
     fn future_full_version_yields_version_unsupported() {
-        let err = resolve_doc_directive("cem-ml 1.0.1").unwrap_err();
+        let err = resolve_doc_directive("cem-ml 1.1.1").unwrap_err();
         assert!(matches!(err, DocDirectiveError::VersionUnsupported { .. }));
     }
 

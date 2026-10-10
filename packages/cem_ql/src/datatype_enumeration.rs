@@ -1,4 +1,4 @@
-//! Explicit scalar equality and token interpretation. Neither capability converts
+//! Explicit scalar equality and constant interpretation. Neither capability converts
 //! runtime input, resolves references, or grants access to another scope.
 use crate::{
     datatype_results::DiagnosticAttribution,
@@ -26,6 +26,13 @@ pub struct ConstantToken {
     pub source: SchemaDeclarationNode,
     pub lexical: Arc<str>,
     pub span: Range<usize>,
+    pub form: ConstantForm,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConstantForm {
+    WhitespaceToken,
+    /// The complete decoded @value, including an explicitly empty string.
+    RetainedLiteral,
 }
 impl ConstantToken {
     pub fn text(&self) -> &str {
@@ -63,7 +70,7 @@ pub use source::{SourceConstantInterpreter, SourceScalarEquality};
 
 pub struct ConstantCall<'a> {
     pub token: &'a ConstantToken,
-    /// Original vocabulary attribute, in its retained consumer view.
+    /// Original @values or constant @value attribute, in its retained view.
     pub candidate: &'a Item,
     pub datatype: &'a Item,
     pub runtime: &'a ValidationRuntime<'a>,
@@ -158,10 +165,13 @@ capability!(
 pub struct PreparedConstant {
     pub token: ConstantToken,
     pub value: Item,
+    /// Original retained declaration, absent for legacy @values tokens.
+    pub declaration: Option<SchemaDeclarationNode>,
 }
 #[derive(Debug, Clone)]
 pub struct EnumerationRestriction {
     pub(crate) source: DatatypeSource,
+    pub(crate) vocabulary_source: SchemaDeclarationNode,
     pub(crate) constants: Vec<PreparedConstant>,
     pub(crate) equality: BoundEquality,
     pub(crate) interpreter: BoundInterpreter,
@@ -172,6 +182,9 @@ impl EnumerationRestriction {
     }
     pub fn constants(&self) -> &[PreparedConstant] {
         &self.constants
+    }
+    pub fn vocabulary_source(&self) -> &SchemaDeclarationNode {
+        &self.vocabulary_source
     }
     pub fn equality(&self) -> &ScalarCapabilityIdentity {
         self.equality.registration.identity()
@@ -190,6 +203,8 @@ pub struct EnumerationValidation {
 pub struct ConstantPreparationLimits {
     pub max_constants: usize,
     pub max_lexical_bytes: usize,
+    /// Aggregate immutable output text for the explicit retained-literal form.
+    pub max_retained_value_bytes: usize,
     /// Cumulative across all constants and roots in a compilation.
     pub validation: ValidationLimits,
 }
@@ -198,6 +213,7 @@ impl Default for ConstantPreparationLimits {
         Self {
             max_constants: 4096,
             max_lexical_bytes: 1_048_576,
+            max_retained_value_bytes: 1_048_576,
             validation: ValidationLimits::default(),
         }
     }
@@ -262,6 +278,9 @@ impl EnumerationRestriction {
                 .control
                 .check_scope(runtime.scope)
                 .map_err(ValidationStopReason::Control)?;
+            if let Some(failure) = runtime.query_failure() {
+                return Err(ValidationStopReason::Result(crate::datatype_results::DatatypeResultError::Execution(failure)));
+            }
             let (equal, mut details, state) = match result {
                 EqualityExecution::Complete { equal, diagnostics } => (Some(equal), diagnostics, 0),
                 EqualityExecution::Pending(d) => (None, d, 1),
@@ -282,14 +301,14 @@ impl EnumerationRestriction {
             }
             if equal == Some(true) {
                 return Ok(EnumerationValidation {
-                    source: self.source.attribute("values").unwrap().clone(),
+                    source: self.vocabulary_source.clone(),
                     accepted: true,
                     diagnostics: output_diagnostics[start..].to_vec(),
                 });
             }
         }
         Ok(EnumerationValidation {
-            source: self.source.attribute("values").unwrap().clone(),
+            source: self.vocabulary_source.clone(),
             accepted: false,
             diagnostics: output_diagnostics[start..].to_vec(),
         })

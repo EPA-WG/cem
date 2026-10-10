@@ -6,6 +6,7 @@ use super::{
         ScalarRepresentation, ValidationImplementation, ValidationSignature, ValueRepresentation,
     },
     declaration_references::SchemaDeclarationNode,
+    function_references::{FunctionSelection, FunctionSelectionBudget},
     value_contracts::{ContractName, ValueContractError, ValueContractSource},
 };
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -54,6 +55,33 @@ pub struct ConversionBehaviorContract {
     result: ContractName,
 }
 impl ConversionBehaviorContract {
+    pub fn compile_selected(
+        selection: &FunctionSelection,
+        signature: ConversionSignature,
+        result: ContractName,
+        budget: &mut FunctionSelectionBudget,
+    ) -> Result<Self, ValueContractError> {
+        let (_, behavior, _, _) = selection.binding()?;
+        signature
+            .check()
+            .map_err(|code| ValueContractError::at(code, behavior))?;
+        let source = DatatypeBehaviorContract::compile_selected_profile(
+            selection,
+            ValidationSignature {
+                kind: signature.kind,
+                value: signature.value_representation(),
+                candidate: signature.candidate,
+                result: ResultRepresentation::Accepted(result.clone()),
+            },
+            BehaviorProfile::Conversion,
+            budget,
+        )?;
+        Ok(Self {
+            source,
+            signature,
+            result,
+        })
+    }
     pub fn compile(
         source: &ValueContractSource,
         behavior: &SchemaDeclarationNode,

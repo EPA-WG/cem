@@ -55,10 +55,10 @@ contract requires the component to actually reflect the linkage at runtime via
 - Validation messages (per [`conventions.md §5`](./conventions.md)) MUST be
   reachable via `aria-describedby` so screen readers announce them when the
   field receives focus.
-- `cem-tooltip` appends its stable generated description ID to the exact native
-  trigger's existing `aria-describedby` token list. Its separate visible
-  `role="tooltip"` copy is non-focusable and transient; disabling or removing
-  the component removes only the ID it owns.
+- `cem-tooltip` appends its stable native tooltip ID to the trigger’s existing
+  `aria-describedby` tokens. That same non-focusable owner supplies transient
+  presentation. Disabling suppresses presentation while retaining the description;
+  disconnect or rebinding releases only owned tokens.
 
 ## 4. ARIA wiring
 
@@ -85,7 +85,7 @@ attributes consistent with reflected state.
 | `data-state="loading"` | `aria-busy="true"` for the duration of the loading state. `cem-card[busy]` and `cem-surface[busy]` place both on their stable named sections and remove both when their respective content or layout workflow settles. |
 | `data-state="empty"` | No ARIA attribute. `cem-surface[empty]` reflects this marker on its named section while the visible authored guidance and next action carry their own semantics; the surface does not become a live region. |
 | `aria-invalid="true"` | Required when the field validity is failed. Pair with `aria-describedby` pointing at the error message. |
-| `aria-expanded` | Required on disclosure / popover / menu triggers; reflects open/closed. `cem-nav[collapsible]` puts it on its native button and keeps the sibling content container's `hidden` state in exact agreement. `cem-expansion` additionally exposes persistent header/panel IDs: its native header mirrors the live host `expanded` attribute and controls the panel while reciprocal `aria-labelledby` names that panel. Applications opening a transient `cem-dialog`, `cem-dialog-shell`, or `cem-sheet` put it on their own opener alongside `aria-controls`; the controlled feedback surface does not describe itself as expanded. |
+| `aria-expanded` | Required on disclosure / popover / menu triggers; reflects open/closed. `cem-nav[collapsible]` puts it on its native button and keeps the sibling content container's `hidden` state in exact agreement. `cem-expansion` additionally exposes persistent header/panel IDs: its native header mirrors the live host `expanded` attribute and controls the panel while reciprocal `aria-labelledby` names that panel. Shared dialog launchers maintain their own references; applications opening a `cem-sheet` put it on their own opener alongside `aria-controls`; the controlled feedback surface does not describe itself as expanded. |
 | `aria-selected` | Required on selectable list options and navigation rows. `cem-list[selectable]` mirrors the native option selectedness exactly; passive lists and static table rows do not expose it. |
 | `checked` | A `cem-chip[checkable]` native toggle button MUST expose the current boolean state through `aria-pressed`; passive chips do not expose pressed state. |
 | `aria-current` | Required on the active nav item; value `"page"` or `"step"` per WHATWG/ARIA. |
@@ -98,7 +98,7 @@ attributes consistent with reflected state.
 | Datepicker combobox/dialog/grid | `cem-datepicker` keeps its authored native text input as the labeled value, validation, event, reset, and form owner while adding stable combobox/dialog references. The optional native toggle shares controls/expanded references and requires its own accessible name. The modal dialog contains a labeled grid with localized column headers, exactly one roving day, `aria-selected` for the draft/committed date, `aria-current="date"` for today, and disabled out-of-range dates. |
 | Stepper workflow | `cem-stepper` exposes a labeled region containing an ordered step list. Exact native header buttons use `aria-current="step"`, stable `aria-controls`, visible completion/optional/error copy, `aria-invalid`, and native or focusable ARIA-disabled semantics as appropriate. Stable `role="region"` panels use reciprocal `aria-labelledby`; generic tab roles are not substituted. |
 | Tree hierarchy | `cem-tree` exposes one labeled `role="tree"`. Exact native button treeitems expose stable IDs, explicit level/position/set metadata, parent-only `aria-expanded`, optional truthful `aria-selected`, disabled state, and loading `aria-busy`; stable sibling groups are connected through `aria-owns`. |
-| Tooltip description and presentation | `cem-tooltip` keeps a stable hidden plain-text description connected to exactly one supported native trigger through `aria-describedby`. Its separate manual Popover copy has `role="tooltip"`, no focusable descendants, and does not replace the trigger's accessible name. |
+| Tooltip description and presentation | One non-focusable native tooltip supplies the persistent `aria-describedby` description and transient manual Popover presentation without replacing the trigger’s name. |
 
 The catalog enforces presence; runtime enforces *timing* — the attribute MUST
 update in the same task that the state changes, not in a deferred callback.
@@ -172,12 +172,10 @@ For every component that emits `id`/`for`/`aria-*` references at runtime:
   whole workflow layout. Its section, surviving descendants, placement, and
   focused control remain stable through busy transitions; the workflow owns
   recovery when it replaces the focused node.
-- Static `cem-dialog`, `cem-dialog-shell`, and `cem-sheet` owners remain
-  structural and do not acquire `tabindex` or move focus. In transient mode,
-  the two dialog tags render a native `<dialog>` and let `showModal()` choose an
-  authored `autofocus` target or the browser fallback. A transient sheet
-  remains a focus-neutral region whose authored controls participate in normal
-  document order.
+- `cem-dialog` and `cem-dialog-shell` render native dialogs. The default is
+  nonmodal; explicit modal mode delegates containment to the browser. Shared
+  focus references select eligible entry/return targets. A legacy sheet remains
+  a focus-neutral region with controls in normal document order.
 - Composite components decide tabindex per the WAI-ARIA Authoring Practices for
   their composite pattern (e.g. menubar = one tabstop, internal arrow keys). Per
   pattern, the component MUST set `tabindex="0"` on the entrypoint and
@@ -190,12 +188,12 @@ For every component that emits `id`/`for`/`aria-*` references at runtime:
 
 - Components MUST render a visible focus ring under `:focus-visible`, using
   cem-theme tokens (`--cem-stroke-focus`, `--cem-control-focus-ring`).
-- When a transient `cem-dialog` or `cem-dialog-shell` is itself the browser's
+- When a `cem-dialog` or `cem-dialog-shell` is itself the browser's
   native fallback focus owner, its direct `<dialog>` receives the external D5
   `--cem-stroke-focus` / `--cem-stroke-indicator-offset` ring with zebra focus
-  color. Forced colors retain that geometry with `CanvasText` and
+  color. Forced colors retain that geometry with `Highlight` and
   `forced-color-adjust: auto`.
-- Static dialog wrappers, feedback hosts, and `cem-sheet` regions MUST NOT gain
+- Feedback hosts and `cem-sheet` regions MUST NOT gain
   `tabindex`, `:focus-within` paint, or a descendant-wide ring. Eligible
   authored dialog and sheet controls retain their own focus indicators.
 - A component MUST NOT suppress the focus ring via `outline: none` without
@@ -204,12 +202,10 @@ For every component that emits `id`/`for`/`aria-*` references at runtime:
 
 ### 5.3 Focus restoration
 
-- Transient `cem-dialog` and `cem-dialog-shell` delegate normal close
-  restoration to the native dialog lifecycle. The component separately
-  remembers the active element at `showModal()` time only to recover focus when
-  a still-open dialog host disconnects and that element remains connected.
-- Focus is captured at open time, not at application-trigger activation time,
-  so programmatic opening uses the document's active element at that moment.
+- Shared `native-surface` captures the actual invoker and restores eligible
+  focus after dialog closure, including nested menu-to-task relay. Explicit
+  `return-focus` may name a target or suppress shared restoration with `none`.
+  Disconnect releases open state and owned reference claims.
 - `cem-sheet[transient]` does not move or restore focus. The application owns
   recovery if it removes a focused authored descendant.
 
@@ -230,16 +226,17 @@ patterns below are the contract for the Phase 3 primitive set.
 | `cem-datepicker` | ArrowDown or Alt+ArrowDown on the native text input opens the modal calendar; the optional toggle retains native Enter/Space activation. In the grid, arrows move by day/week, Home/End move to locale week edges, PageUp/PageDown move by month, Shift/Alt+PageUp/PageDown move by year, and Enter/Space drafts one enabled date. Apply commits; Escape, Cancel, or backdrop dismissal closes silently. |
 | `cem-stepper` | Horizontal Left/Right or vertical Up/Down moves roving header focus, wraps, and skips native-disabled steps; Home/End reaches the first/last enabled header. Enter/Space follows native button activation and commits only an eligible non-current step. The other-axis arrows remain native. |
 | `cem-tree` | Up/Down traverses visible enabled nodes without wrapping; Right opens a closed parent or enters its first enabled child; Left closes an open parent or reaches its nearest enabled ancestor; Home/End reaches boundaries; printable typeahead searches visible labels; native Enter/Space toggles a parent or activates a leaf. |
-| `cem-tooltip` | Native trigger keys remain unchanged. Keyboard focus presents the same description as hover; Escape dismisses immediately without moving focus, trapping focus, or synthesizing activation. Blur dismisses unless pointer or declarative `open` still supplies a visibility reason. |
+| `cem-tooltip` | Keyboard focus presents immediately; Escape dismisses without moving focus and cancels pending presentation. Hover and focus are independent; touch remains native. |
 | `cem-text-field` | Native text-input behavior. `Escape` does not mutate authored validation state. |
 | `cem-theme-switch` | Native radio arrow keys choose Light/Dark/Native; Tab reaches Contrast and Space toggles it. Native disables and unchecks Contrast while retaining the preference for other modes. |
 | `cem-suggestions` | The field remains the combobox editor and submission owner. Arrows preview eligible rows; Enter commits; Escape dismisses. Tab and blur do not commit. Group/row names and visible stored-value hints remain declaration-owned; status uses a separate polite live region. |
 | `cem-select` | Dropdown arrows/Home/End/Page/typeahead move the preview; Enter/Space/Tab commit and Escape cancels. Sized single listboxes commit movement. Multiple listboxes use modifier-free Space/click toggle, Shift range, and Ctrl/Cmd+A. |
-| `cem-checkbox` | `Space` toggles. `Enter` MUST NOT toggle (matches native checkbox). |
+| `cem-checkbox` / `cem-switch` | `Space` toggles. `Enter` MUST NOT toggle (matches native checkbox). |
+| `cem-radio` | Native arrow navigation selects an enabled peer in the same name/form group, including ordinary native radio peers. Space selects; Tab follows native group behavior. |
 | `cem-navigation-list` | `ArrowUp`/`ArrowDown` move focus; `Home`/`End` jump to ends; `Enter` activates. Composite tabstop = single. |
 | `cem-data-list` | `ArrowUp`/`ArrowDown` move focus among rows; `Enter` activates row's primary action. |
 | `cem-message-thread` | `ArrowUp`/`ArrowDown` move between messages; `Home`/`End` for ends. `role="log"` does not normally take focus; the thread does so its messages are reachable. |
-| `cem-dialog[transient]`, `cem-dialog-shell[transient]` | Native modal Tab/Shift+Tab containment. Escape dispatches the cancellable native `cancel` request; successful native dismissal closes, restores focus, removes host `expanded`, and then emits `cem-dismiss`. Prevented cancel stays open. Static mode adds no component keyboard handling. |
+| `cem-dialog`, `cem-dialog-shell` | Native modal containment only in explicit modal mode; Escape and close controls request cancelable closure. Native forms retain validation and return values. Shared commands drive persistent nonmodal tasks. |
 | `cem-sheet[transient]` | No component-owned keys. Escape is not intercepted, and authored controls keep their native behavior and document tab order. |
 | `cem-app-shell` | Skip-link target MUST be focusable (`tabindex="-1"`). |
 | `cem-top-bar` | Native focus order; primary actions follow `cem-button` rules. |
@@ -262,10 +259,9 @@ so the catalog can verify there is exactly one entrypoint per composite.
   count exceeds the documented threshold) with `aria-live` per §8.
 - `cem-alert` MUST use `role="alert"` (assertive) for error/destructive intent or
   `role="status"` (polite) for info/success intent.
-- Static `cem-dialog` and `cem-dialog-shell` retain their labeled
-  `div[role="dialog"][aria-modal="true"]` compatibility owner. With
-  `transient`, each renders a labeled native `<dialog>` and MUST NOT add
-  redundant `role`, `aria-modal`, or `tabindex`; the browser owns modal state.
+- `cem-dialog` and `cem-dialog-shell` always render a native dialog. Do not
+  add redundant `role`, `aria-modal` or `tabindex`; the browser owns modality.
+  The visible heading names it unless explicit ARIA naming is supplied.
 - `cem-sheet` remains a labeled `<aside role="region">` in both modes. Its
   transient visibility uses native `hidden` and never claims dialog semantics.
 - `cem-sort-header` renders one `role="columnheader"` with a direct native
@@ -297,9 +293,8 @@ so the catalog can verify there is exactly one entrypoint per composite.
   containers own recursive structure through stable `aria-owns` references.
   Inert `cem-tree-item` payloads add no live role, tab stop, or loading/request
   behavior.
-- `cem-tooltip` renders no competing trigger role. Its stable hidden description
-  supplements the native trigger through `aria-describedby`; only the separate
-  non-interactive visible Popover carries `role="tooltip"`.
+- `cem-tooltip` renders no competing trigger role. Its one non-interactive
+  `role="tooltip"` Popover supplements the trigger through `aria-describedby`.
 
 ## 8. Live regions
 
@@ -412,3 +407,24 @@ focusable trigger. Expanded state and the panel's accessible name reference that
 trigger. Escape restores focus; outside activation preserves the outside target.
 For nested menus, each Escape closes one level before the dropdown closes. Use
 explicit `open="false"` for an initially closed dropdown.
+
+Checkbox, radio and switch follow the [checkable contract](./checkable-contract.md).
+Required markers are visible but aria-hidden; native `required` conveys the
+constraint without changing the accessible name. Checkbox mixed state uses the
+native `indeterminate` property, which activation clears.
+
+## Canonical editable combobox evidence
+
+`cem-autocomplete` uses an unnamed native input for focus and editing, with the
+host owning its single form-associated submitted value. The `editable-choice`
+capability retains input focus during list navigation and pointer commit, skips
+disabled options, and clears popup ID references when no enabled source remains.
+Boolean disabled/readonly/required/busy attributes use presence. Live suggestion
+replacement preserves committed value, input identity, geometry and focus without
+emitting changes. Composition and modified editor keys remain native.
+
+The [colocated plays](../src/components/cem-autocomplete/cem-autocomplete.stories.ts)
+and [shared runtime plays](../../cem-elements/src/lib/editable-choice.stories.ts)
+cover those behaviors, accessible names/references, required validation, reset,
+restore and event ordering. The focused forced-colors check uses the declaration's
+embedded stylesheet; source and packed galleries exercise the real component.

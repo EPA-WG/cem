@@ -51,6 +51,9 @@ impl DebugBinaryEncoder {
         write_edges(&mut out, &doc.nodes);
         write_id_table(&mut out, doc, &dicts);
         write_unresolved_slots(&mut out, doc, &dicts);
+        let metadata = super::source_metadata::SourceMetadata::encode(doc);
+        out.extend_from_slice(&(metadata.len() as u32).to_le_bytes());
+        out.extend_from_slice(&metadata);
 
         let local_node_count = doc.nodes.len() as u32;
         // Write chunk metadata with a placeholder hash; the trailing hash

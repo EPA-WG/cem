@@ -530,6 +530,7 @@ fn evaluate_cem_ql_behavior_query(
     let stream = evaluate(
         &query,
         &EvaluationContext {
+            execution_budget: None,
             scope: QueryContextScope(0),
             scope_policy: ScopePolicy::host_root(),
             diagnostics: Vec::new(),
@@ -3554,6 +3555,7 @@ fn render_cem_ql_expression_payload_internal(
             },
         )?;
     let evaluation_context = EvaluationContext {
+        execution_budget: None,
         scope: QueryContextScope(0),
         scope_policy: ScopePolicy::host_root(),
         diagnostics: Vec::new(),
@@ -6054,6 +6056,7 @@ impl QueryEvaluatorAdapter for CemQlQueryEvaluator {
         let mut stream = evaluate_with_control(
             query.compiled.query(),
             &EvaluationContext {
+                execution_budget: None,
                 scope: QueryContextScope(0),
                 scope_policy: *request.scope_policy,
                 diagnostics: Vec::new(),

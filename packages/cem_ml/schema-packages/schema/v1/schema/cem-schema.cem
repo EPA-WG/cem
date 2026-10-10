@@ -40,7 +40,8 @@
         {element @name="value-contracts" @children="value-contract"}
         {element @name="value-contract" @required-attributes="name" @optional-attributes="allow-extra" @children="value-field"}
         {element @name="value-field" @required-attributes="name" @optional-attributes="kind type required cardinality values"}
-        {element @name="type" @required-attributes="name" @optional-attributes="kind base rule values min-items max-items"}
+        {element @name="type" @required-attributes="name" @optional-attributes="kind base list-base rule values min-items max-items" @children="constant"}
+        {element @name="constant" @required-attributes="value"}
         {element @name="namespace-semantics" @children="binding resolution handoff"}
         {element @name="binding" @required-attributes="directive scope"}
         {element @name="resolution" @required-attributes="target mode"}
@@ -205,6 +206,7 @@
         {attribute @name="schema" @type="cemml:uri"}
         {attribute @name="as" @type="cemml:identifier"}
         {attribute @name="base" @type="schema:element-base"}
+        {attribute @name="list-base" @type="schema:type-reference"}
         {attribute @name="rule" @type="cemml:string"}
         {attribute @name="values" @type="cemml:string"}
         {attribute @name="min-items" @type="schema:integer" @minInclusive=0}
@@ -307,9 +309,9 @@
         {type @name="array" @base="cemml:string"}
         {type @name="json" @base="cemml:string"}
         {type @name="any" @base="cemml:string"}
-        {type @name="name-list" @base="cemml:name-list"}
-        {type @name="wildcard-name-list" @base="cemml:wildcard-name-list"}
-        {type @name="name-value-list" @base="cemml:name-value-list"}
+        {type @name="name-list" @list-base="cemml:name-list"}
+        {type @name="wildcard-name-list" @list-base="cemml:wildcard-name-list"}
+        {type @name="name-value-list" @list-base="cemml:name-value-list"}
         {type @name="content-model" @base="cemml:content-model"}
         {type @name="type-reference" @base="cemml:type-reference"}
         {type @name="attribute-type" @base="cemml:type-reference"}

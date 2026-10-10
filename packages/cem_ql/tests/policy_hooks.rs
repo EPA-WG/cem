@@ -52,6 +52,7 @@ fn contexts() -> (CompileContext, EvaluationContext) {
         EvaluationContext {
             native_functions: Default::default(),
             data_readers: Default::default(),
+            execution_budget: None,
             scope: QueryContextScope(9),
             scope_policy: ScopePolicy::host_root().with_queue_size(128),
             diagnostics: Vec::new(),

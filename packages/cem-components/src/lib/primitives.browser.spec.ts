@@ -25,7 +25,6 @@ const PHASE3_MINIMAL_PRIMITIVE_TAGS = [
     'cem-grid',
     'cem-list',
     'cem-nav',
-    'cem-dialog-shell',
 ] as const;
 
 describe('CEM component primitives', () => {
@@ -72,7 +71,6 @@ describe('CEM component primitives', () => {
                 <cem-grid columns="2"><span>Grid content</span></cem-grid>
                 <cem-list label="Tasks"><li>Review</li></cem-list>
                 <cem-nav label="Sections"><a href="#profile">Profile</a></cem-nav>
-                <cem-dialog-shell label="Confirm"><p>Submit?</p></cem-dialog-shell>
             </div>
         `);
         const hosts = PHASE3_MINIMAL_PRIMITIVE_TAGS.map((tag) => substrateHarness.query<HTMLElement>(tag));
@@ -88,7 +86,6 @@ describe('CEM component primitives', () => {
         expect(assertAccessibleName(substrateHarness.query('cem-surface section'), 'Workspace')).toBe('Workspace');
         expect(assertAccessibleName(substrateHarness.query('cem-list ul'), 'Tasks')).toBe('Tasks');
         expect(assertAccessibleName(substrateHarness.query('cem-nav nav'), 'Sections')).toBe('Sections');
-        expect(assertAccessibleName(substrateHarness.query('cem-dialog-shell [role="dialog"]'), 'Confirm')).toBe('Confirm');
         expect(() => assertAriaReferenceIntegrity(substrateHarness.root)).not.toThrow();
     });
 
@@ -114,45 +111,6 @@ describe('CEM component primitives', () => {
 
         expect(stack.querySelector('.cem-stack')?.getAttribute('data-gap')).toBe('sm');
         expect(text.textContent?.trim()).toBe('Ready');
-        expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
-    });
-
-    it('renders input-family MVP primitives as native accessible controls', async () => {
-        harness = createComponentHarness();
-        const root = await harness.render(`
-            <cem-stack gap="sm">
-                <cem-checkbox name="terms" value="accepted">Accept terms</cem-checkbox>
-                <cem-radio name="plan" value="pro">Pro plan</cem-radio>
-                <cem-switch name="notifications">Notifications</cem-switch>
-            </cem-stack>
-        `);
-        await waitForPrimitive(root, 'cem-switch input');
-
-        const checkbox = harness.query<HTMLInputElement>('cem-checkbox input');
-        const radio = harness.query<HTMLInputElement>('cem-radio input');
-        const switchInput = harness.query<HTMLInputElement>('cem-switch input');
-
-        for (const host of Array.from(
-            harness.root.querySelectorAll<HTMLElement>(
-                'cem-checkbox, cem-radio, cem-switch',
-            ),
-        )) {
-            assertLightDomRendered(host);
-            expect(host.shadowRoot).toBeNull();
-        }
-
-        expect(checkbox.type).toBe('checkbox');
-        expect(checkbox.getAttribute('name')).toBe('terms');
-        expect(checkbox.getAttribute('value')).toBe('accepted');
-        expect(assertAccessibleName(checkbox, 'Accept terms')).toBe('Accept terms');
-        expect(radio.type).toBe('radio');
-        expect(radio.getAttribute('name')).toBe('plan');
-        expect(radio.getAttribute('value')).toBe('pro');
-        expect(assertAccessibleName(radio, 'Pro plan')).toBe('Pro plan');
-        expect(switchInput.type).toBe('checkbox');
-        expect(switchInput.getAttribute('role')).toBe('switch');
-        expect(switchInput.getAttribute('name')).toBe('notifications');
-        expect(assertAccessibleName(switchInput, 'Notifications')).toBe('Notifications');
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
 
@@ -277,16 +235,10 @@ describe('CEM component primitives', () => {
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
 
-    it('renders feedback-family MVP primitives with status and dialog semantics', async () => {
+    it('renders feedback-family MVP primitives with status and region semantics', async () => {
         harness = createComponentHarness();
         const root = await harness.render(`
             <cem-stack gap="sm">
-                <cem-dialog label="Confirm delete">
-                    <p>Delete this asset?</p>
-                </cem-dialog>
-                <cem-sheet label="Filters">
-                    <p>Filter options</p>
-                </cem-sheet>
                 <cem-toast>Saved</cem-toast>
                 <cem-progress label="Upload progress" value="40" max="100"></cem-progress>
                 <cem-skeleton label="Loading card"></cem-skeleton>
@@ -295,8 +247,6 @@ describe('CEM component primitives', () => {
         `);
         await waitForPrimitive(root, 'cem-alert [role="alert"]');
 
-        const dialog = harness.query<HTMLElement>('cem-dialog [role="dialog"]');
-        const sheet = harness.query<HTMLElement>('cem-sheet aside');
         const toast = harness.query<HTMLElement>('cem-toast [role="status"]');
         const progress = harness.query<HTMLProgressElement>('cem-progress progress');
         const skeleton = harness.query<HTMLElement>('cem-skeleton .cem-skeleton');
@@ -304,18 +254,13 @@ describe('CEM component primitives', () => {
 
         for (const host of Array.from(
             harness.root.querySelectorAll<HTMLElement>(
-                'cem-dialog, cem-sheet, cem-toast, cem-progress, cem-skeleton, cem-alert',
+                'cem-toast, cem-progress, cem-skeleton, cem-alert',
             ),
         )) {
             assertLightDomRendered(host);
             expect(host.shadowRoot).toBeNull();
         }
 
-        expect(dialog.getAttribute('aria-modal')).toBe('true');
-        expect(assertAccessibleName(dialog, 'Confirm delete')).toBe('Confirm delete');
-        expect(dialog.textContent).toContain('Delete this asset?');
-        expect(sheet.getAttribute('role')).toBe('region');
-        expect(assertAccessibleName(sheet, 'Filters')).toBe('Filters');
         expect(toast.getAttribute('aria-live')).toBe('polite');
         expect(toast.textContent?.trim()).toBe('Saved');
         expect(assertAccessibleName(progress, 'Upload progress')).toBe('Upload progress');
@@ -328,7 +273,7 @@ describe('CEM component primitives', () => {
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
 
-    it('renders layout, list, navigation, surface, and dialog shell primitives', async () => {
+    it('renders layout, list, navigation, and surface primitives', async () => {
         harness = createComponentHarness();
         const root = await harness.render(`
             <cem-surface label="Account">
@@ -341,9 +286,6 @@ describe('CEM component primitives', () => {
                         <a href="#profile">Profile</a>
                     </cem-nav>
                 </cem-grid>
-                <cem-dialog-shell label="Confirm">
-                    <p>Submit the change?</p>
-                </cem-dialog-shell>
             </cem-surface>
         `);
         await Promise.all([
@@ -351,14 +293,12 @@ describe('CEM component primitives', () => {
             waitForPrimitive(root, 'cem-grid .cem-grid'),
             waitForPrimitive(root, 'cem-list li:not(.cem-list__empty)'),
             waitForPrimitive(root, 'cem-nav nav'),
-            waitForPrimitive(root, 'cem-dialog-shell [role="dialog"]'),
         ]);
 
         const surface = harness.query<HTMLElement>('cem-surface section');
         const grid = harness.query<HTMLElement>('cem-grid .cem-grid');
         const list = harness.query<HTMLUListElement>('cem-list ul');
         const nav = harness.query<HTMLElement>('cem-nav nav');
-        const dialog = harness.query<HTMLElement>('cem-dialog-shell [role="dialog"]');
 
         expect(surface.getAttribute('aria-label')).toBe('Account');
         expect(grid.getAttribute('data-columns')).toBe('2');
@@ -367,8 +307,6 @@ describe('CEM component primitives', () => {
         expect(list.querySelectorAll('li')).toHaveLength(2);
         expect(assertAccessibleName(nav, 'Sections')).toBe('Sections');
         expect(nav.querySelector('a')?.textContent).toBe('Profile');
-        expect(dialog.getAttribute('aria-modal')).toBe('true');
-        expect(assertAccessibleName(dialog, 'Confirm')).toBe('Confirm');
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
 

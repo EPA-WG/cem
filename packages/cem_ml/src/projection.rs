@@ -944,6 +944,24 @@ fn write_scalar_value(out: &mut Vec<u8>, value: &ScalarValue) {
             write_u8(out, 6);
             write_str(out, value);
         }
+        ScalarValue::TypedPrelude(value) => {
+            // Debug event projection only; executable reload is gated separately.
+            write_u8(out, 7);
+            use crate::tokenizer::cem::{TypedPreludeKind, TypedPreludeRole};
+            write_u8(out, match value.role {
+                TypedPreludeRole::SchemaSelector => 1,
+                TypedPreludeRole::Namespace => 2,
+                TypedPreludeRole::DefaultNamespace => 3,
+            });
+            write_optional_str(out, value.prefix.as_deref());
+            write_source_range(out, Some(value.role_range));
+            write_source_range(out, value.prefix_range);
+            write_source_range(out, Some(value.value_range));
+            write_source_range(out, Some(value.payload_range));
+            write_u8(out, match value.kind { TypedPreludeKind::Reference => 1, TypedPreludeKind::Expression => 2 });
+            write_str(out, &value.expression);
+            write_optional_str(out, value.error.as_deref());
+        }
         ScalarValue::Int(value) => {
             write_u8(out, 2);
             out.extend_from_slice(&value.to_be_bytes());
@@ -2059,6 +2077,35 @@ fn project_cem_tree_node(
     source_content_type: Option<&str>,
 ) -> Option<CemTreeAstNode> {
     let node = doc.get(id)?;
+    // Source output lowers the original slot to its canonical directive spelling.
+    // This is presentation only; the retained arena and lexical sidecar stay native.
+    if let Some(syntax) = doc.typed_preludes.get(&id) {
+        let source = match node {
+            CemAstNode::Element { source, .. } => source_map_with_content_type_transform(source, source_content_type),
+            _ => SourceMapStack::default(),
+        };
+        return Some(match crate::schema::prelude_values::validate_source_slot(doc, id, syntax)
+            .and_then(|_| crate::schema::prelude_values::canonical_prelude_body(syntax)) {
+            Ok(body) => CemTreeAstNode::Element {
+                name: match syntax.role {
+                    crate::tokenizer::cem::TypedPreludeRole::SchemaSelector => "@schema",
+                    crate::tokenizer::cem::TypedPreludeRole::Namespace => "@ns",
+                    crate::tokenizer::cem::TypedPreludeRole::DefaultNamespace => "@default",
+                }.into(),
+                attributes: Vec::new(),
+                children: vec![CemTreeAstNode::Text { value: body, source: source.clone() }],
+                source,
+            },
+            Err(_) => CemTreeAstNode::Error { code: "cem.writer.invalid_typed_prelude".into(), source },
+        });
+    }
+    if let CemAstNode::Element { expanded_name, children, source, .. } = node {
+        if expanded_name.local_name.starts_with('@') && children.iter().any(|child|
+            matches!(doc.get(*child), Some(CemAstNode::Reference { .. }))
+            || matches!(doc.get(*child), Some(CemAstNode::Element { expanded_name, .. }) if expanded_name.local_name == "$")) {
+            return Some(CemTreeAstNode::Error { code: "cem.writer.invalid_typed_prelude".into(), source: source.clone() });
+        }
+    }
     let value = match node {
         CemAstNode::Reference { expression, source, .. } => CemTreeAstNode::Element {
             name: "cem:expr".into(), attributes: vec![CemTreeAstAttribute {
@@ -2605,6 +2652,7 @@ fn normalized_event_presentation_fields(
 fn scalar_presentation_value(value: &ScalarValue) -> String {
     match value {
         ScalarValue::Text(value) | ScalarValue::Expression(value) => value.clone(),
+        ScalarValue::TypedPrelude(value) => format!("{value:?}"),
         ScalarValue::Int(value) => value.to_string(),
         ScalarValue::Float(value) => value.to_string(),
         ScalarValue::Bool(value) => value.to_string(),
@@ -2999,6 +3047,7 @@ impl Serialize for ScalarJsonProjectionRef<'_> {
     {
         match self.value {
             ScalarValue::Text(value) | ScalarValue::Expression(value) => serializer.serialize_str(value),
+            ScalarValue::TypedPrelude(value) => value.serialize(serializer),
             ScalarValue::Int(value) => serializer.serialize_i64(*value),
             ScalarValue::Float(value) => serializer.serialize_f64(*value),
             ScalarValue::Bool(value) => serializer.serialize_bool(*value),
@@ -3049,6 +3098,7 @@ fn event_to_json(ev: &NormalizedEvent) -> Value {
         NormalizedEvent::Value { value, byte_range } => {
             let v = match value {
                 ScalarValue::Text(t) | ScalarValue::Expression(t) => Value::String(t.clone()),
+                ScalarValue::TypedPrelude(value) => json!(value),
                 ScalarValue::Int(i) => json!(*i),
                 ScalarValue::Float(f) => json!(*f),
                 ScalarValue::Bool(b) => Value::Bool(*b),

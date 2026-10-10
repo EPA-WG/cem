@@ -1,0 +1,23 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-tooltip" capability="native-surface">
+  <template id="cem-tooltip" type="text/cem-ml">
+    {attribute @name=message | }
+    {style @type="text/css" |```
+      :scope { display: inline-block; }
+      :scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
+      [part~='surface'] {
+        background-color: var(--cem-palette-comfort-x); color: var(--cem-palette-comfort-text-x);
+        border: var(--cem-stroke-boundary) solid var(--cem-palette-comfort-text-x); border-radius: var(--cem-bend-overlay);
+        box-shadow: var(--cem-elevation-3); box-sizing: border-box; padding: var(--cem-inset-control);
+        max-inline-size: var(--cem-typography-reading-measure-max); margin: 0; position: fixed;
+        font-family: var(--cem-typography-ui-font-family); font-size: var(--cem-typography-ui-font-size);
+        font-weight: var(--cem-typography-ui-font-weight); line-height: var(--cem-typography-ui-line-height);
+        letter-spacing: var(--cem-typography-ui-letter-spacing); white-space: normal;
+      }
+      @media (forced-colors: active) {
+        [part~='surface'] { background: Canvas; color: CanvasText; border-color: CanvasText; forced-color-adjust: auto; }
+      }
+    ```}
+    {slot @name=trigger}
+    {span @part=surface @id={datadom.attributes.surface-id} @role=tooltip @popover=manual | {slot @name=label | {$message}}}
+  </template>
+</cem-element>

@@ -24,6 +24,7 @@ use std::{
 };
 
 pub(crate) mod attribute_types;
+pub(crate) mod function_slots;
 pub(crate) mod element_bases;
 mod names;
 pub use names::{DeclarationNameIssue, DeclarationNameIssueKind};
@@ -61,6 +62,10 @@ impl SchemaDeclarationNode {
 }
 
 pub trait SchemaDeclarationHost: ReferenceResolutionHost {
+    /// Explicit datatype consumer owns typed attribute readiness and validation.
+    fn compiled_attribute_types(&self) -> bool {
+        false
+    }
     /// Opt in when original lexical metadata can contain pending QName bindings.
     /// Fixed legacy AST hosts already supply complete names and need no scan.
     fn declaration_name_metadata_required(&self, _source: &SchemaDeclarationNode) -> bool {
@@ -153,6 +158,7 @@ pub enum SchemaDeclarationKind {
     ElementBase,
     Attribute,
     AttributeType,
+    BehaviorFunction,
     Behavior,
     Diagnostic,
     Constraint,
@@ -164,6 +170,7 @@ impl SchemaDeclarationKind {
             Self::Element | Self::ElementBase => "element",
             Self::Attribute => "attribute",
             Self::AttributeType => "type",
+            Self::BehaviorFunction => "function",
             Self::Behavior => "behavior",
             Self::Diagnostic => "diagnostic",
             Self::Constraint => "constraint",
@@ -190,6 +197,10 @@ impl DeclarationReferenceSite {
 
 #[derive(Debug, Clone, Default)]
 pub struct DeclarationReferenceCompilation {
+    /// Original behavior identities keyed by retained native function occurrences.
+    pub function_callers: BTreeMap<String, String>,
+    pub compiled_attribute_types: bool,
+    pub attribute_declarations: BTreeMap<String, SchemaDeclarationNode>,
     pub sites: Vec<DeclarationReferenceSite>,
     /// Original name dependencies, kept separate from reference occurrences.
     pub name_issues: Vec<DeclarationNameIssue>,
@@ -282,7 +293,7 @@ pub fn compile_schema_with_declaration_references<H: SchemaDeclarationHost>(
 }
 
 /// Compile an already-admitted original declaration without searching its arena.
-pub(crate) fn compile_selected_schema_with_declaration_references<H: SchemaDeclarationHost>(
+pub fn compile_selected_schema_with_declaration_references<H: SchemaDeclarationHost>(
     schema_uri: &str,
     declaration: &SchemaDeclarationNode,
     host: &mut H,
@@ -305,7 +316,10 @@ fn compile_schema_at<H: SchemaDeclarationHost>(
     limits: ReferenceTraversalLimits,
 ) -> Result<SchemaDocumentModel, ReferenceResolutionError> {
     let mut declarations: BTreeMap<AstNodeId, Vec<CompiledSchemaDeclaration>> = BTreeMap::new();
-    let mut compilation = DeclarationReferenceCompilation::default();
+    let mut compilation = DeclarationReferenceCompilation {
+        compiled_attribute_types: host.compiled_attribute_types(),
+        ..Default::default()
+    };
     let mut name_work = 0;
     if let Some(source) = schema_id.and_then(|id| SchemaDeclarationNode::new(document.clone(), id))
     {
@@ -426,7 +440,7 @@ fn compile_schema_at<H: SchemaDeclarationHost>(
                         )
                         .map(CompiledSchemaDeclaration::Element)
                     }
-                    SchemaDeclarationKind::AttributeType => None,
+                    SchemaDeclarationKind::AttributeType | SchemaDeclarationKind::BehaviorFunction => None,
                     SchemaDeclarationKind::Attribute => {
                         attribute_types::retain_attribute_type(
                             schema_uri,
@@ -436,16 +450,22 @@ fn compile_schema_at<H: SchemaDeclarationHost>(
                         );
                         document_model::compile_attribute_model(target.document(), target.node_id())
                             .map(|attribute| {
-                                CompiledSchemaDeclaration::Attribute(Box::new(attribute))
+                                CompiledSchemaDeclaration::Attribute(
+                                    Box::new(attribute),
+                                    target.clone(),
+                                )
                             })
                     }
-                    SchemaDeclarationKind::Behavior => document_model::compile_behavior_definition(
+                    SchemaDeclarationKind::Behavior => {
+                        function_slots::retain(schema_uri, target.document(), target.node_id(), &mut compilation);
+                        document_model::compile_behavior_definition(
                         target.document(),
                         target.node_id(),
                         &declaring_uri,
                         &aliases,
                     )
-                    .map(|behavior| CompiledSchemaDeclaration::Behavior(Box::new(behavior))),
+                    .map(|behavior| CompiledSchemaDeclaration::Behavior(Box::new(behavior)))
+                    },
                     SchemaDeclarationKind::FieldContract => {
                         document_model::compile_field_contract_declaration(
                             target.clone(),
@@ -509,6 +529,40 @@ fn compile_schema_at<H: SchemaDeclarationHost>(
         &mut compilation,
         &mut name_work,
     )?;
+    // Preserve the same authored-order precedence as the scalar model, while
+    // retaining each selected declaration's original owner for datatype binding.
+    if let Some(CemAstNode::Element { children, .. }) = schema_id.and_then(|id| document.get(id)) {
+        for collection in children {
+            let Some(CemAstNode::Element {
+                expanded_name,
+                children,
+                ..
+            }) = document.get(*collection)
+            else {
+                continue;
+            };
+            if expanded_name.local_name != "attributes" {
+                continue;
+            }
+            for id in children {
+                if let Some(selected) = declarations.get(id) {
+                    for entry in selected {
+                        if let CompiledSchemaDeclaration::Attribute(model, original) = entry {
+                            compilation
+                                .attribute_declarations
+                                .insert(model.name.clone(), original.clone());
+                        }
+                    }
+                } else if let Some(model) = document_model::compile_attribute_model(&document, *id)
+                {
+                    compilation.attribute_declarations.insert(
+                        model.name,
+                        SchemaDeclarationNode::new(document.clone(), *id).unwrap(),
+                    );
+                }
+            }
+        }
+    }
     Ok(document_model::compile_document_model_with_declarations(
         schema_uri,
         &document,

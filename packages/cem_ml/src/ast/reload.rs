@@ -352,6 +352,8 @@ impl ReferenceReloadBundle {
         }
         if let Some(lexical) = &self.lexical {
             lexical.validate(document, self.payload_fingerprint)?;
+        } else if !document.typed_preludes.is_empty() {
+            return Err(ReloadError::InvalidMetadata);
         }
         let sources: BTreeMap<_, _> = self.sources.iter().map(|s| (s.source_id.0, s)).collect();
         for map in document

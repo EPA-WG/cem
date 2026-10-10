@@ -16,6 +16,8 @@ use cem_ml::{
 use cem_ql::schema_references::CemQlSchemaDeclarationHost;
 use std::sync::Arc;
 mod discovery;
+mod scalars;
+pub use scalars::ScalarPackagePlan;
 
 type Prepare = dyn Fn(
         &SchemaPackageCompilationRequest,
@@ -37,6 +39,7 @@ type CompileDatatypes = dyn Fn(
 pub struct CemQlSchemaPackageCompiler {
     prepare: Arc<Prepare>,
     datatypes: Option<Arc<CompileDatatypes>>,
+    scalars: Option<Arc<scalars::PrepareScalars>>,
 }
 impl std::fmt::Debug for CemQlSchemaPackageCompiler {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -58,6 +61,7 @@ impl CemQlSchemaPackageCompiler {
         Self {
             prepare: Arc::new(prepare),
             datatypes: None,
+            scalars: None,
         }
     }
     /// Opt in to executable datatype readiness for this package. The callback
@@ -75,6 +79,7 @@ impl CemQlSchemaPackageCompiler {
             + 'static,
     {
         self.datatypes = Some(Arc::new(compile));
+        self.scalars = None;
         self
     }
 }
@@ -83,7 +88,10 @@ impl SchemaPackageCompiler for CemQlSchemaPackageCompiler {
         &self,
         request: &SchemaPackageCompilationRequest,
     ) -> Result<SchemaDocumentModel, Vec<Diagnostic>> {
-        let (mut host, limits) = (self.prepare)(request)?;
+        let (mut host, mut limits) = (self.prepare)(request)?;
+        if self.datatypes.is_some() || self.scalars.is_some() {
+            host.enable_attribute_datatypes();
+        }
         let mut model = host
             .compile(&request.schema_uri, request.source.clone(), limits)
             .map_err(|error| {
@@ -92,8 +100,39 @@ impl SchemaPackageCompiler for CemQlSchemaPackageCompiler {
                     error.to_string(),
                 )]
             })?;
-        if let Some(compile) = &self.datatypes {
-            let datatypes = compile(request, &mut host, limits)?;
+        if self.datatypes.is_some() || self.scalars.is_some() {
+            let control = cem_ml::operation_control::OperationControl::default();
+            let runtime = cem_ql::datatype_validation::ValidationRuntime {
+                control: &control,
+                scope: cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
+                query: Default::default(),
+            }
+            .with_query_budget();
+            let mut datatypes = if let Some(prepare) = &self.scalars {
+                let plan = prepare(request, &mut host)?;
+                scalars::compile(plan, request, &mut model, &mut host, &mut limits, &runtime)?
+            } else {
+                self.datatypes.as_ref().unwrap()(request, &mut host, limits)?
+            };
+            if !datatypes.matches_owner(request.source.ast_owner()) {
+                return Err(vec![compilation_failure(
+                    request.source.source_uri(),
+                    "Datatype compilation belongs to another source owner",
+                )]);
+            }
+            cem_ql::attribute_activation::activate_attribute_datatypes(
+                &mut model,
+                &mut datatypes,
+                &mut host,
+                limits,
+                &runtime,
+            )
+            .map_err(|error| {
+                vec![compilation_failure(
+                    request.source.source_uri(),
+                    error.to_string(),
+                )]
+            })?;
             model
                 .compile_diagnostics
                 .extend(datatypes.diagnostics.clone());

@@ -124,6 +124,8 @@ pub enum ReferenceResolutionError {
     InvalidBounds,
     NotReference,
     InvalidScopeHandoff,
+    /// The host's operation stopped; its operation control retains the cause.
+    OperationStopped,
 }
 impl fmt::Display for ReferenceResolutionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -131,6 +133,7 @@ impl fmt::Display for ReferenceResolutionError {
             Self::InvalidBounds => "Reference resolution requires positive depth and work bounds",
             Self::NotReference => "Reference resolution requires a typed reference root",
             Self::InvalidScopeHandoff => "Reference lifecycle scope handoff was rejected",
+            Self::OperationStopped => "Reference lifecycle operation stopped",
         })
     }
 }

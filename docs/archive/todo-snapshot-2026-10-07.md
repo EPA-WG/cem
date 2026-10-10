@@ -1366,7 +1366,7 @@ only and adds no runtime behavior or public syntax.
       and restriction fields acquire an explicit supported meaning.
 - [ ] Adopt the general datatype compilation design and enable bounded singleton
       attribute type consumption only after its executable contracts are chosen.
-      Draft: [general datatype compilation proposal](../cem-datatype-compilation-proposal.md).
+      Draft: [general datatype compilation proposal](../cem-datatype-compilation-design.md).
       Scenarios for later design verification: unsupported declarations cannot
       silently lose rules; source owners, lexical scope and budgets survive reuse.
 - [ ] Define native datatype and function scalar composition contracts before
@@ -3143,7 +3143,7 @@ workstream; no new constant syntax is adopted by the reference work.
 
 - [x] Draft the general datatype compiler representation, dependency lifecycle,
       kind inventory, migration boundary and implementation sequence in
-      [the temporary proposal](../cem-datatype-compilation-proposal.md).
+      [the temporary proposal](../cem-datatype-compilation-design.md).
       Scenarios for later design verification: one compiled descriptor serves
       literal and native selection without cloning authored declarations.
 - [x] Adopt explicitly registered schema-owned executable rule implementations;

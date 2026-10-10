@@ -3,10 +3,8 @@ import type {
     CemElementRuntime,
     CemProducedElementBehavior,
 } from '@epa-wg/cem-elements';
-import { CEM_AUTOCOMPLETE_BEHAVIOR } from './autocomplete-behavior.js';
 import { CEM_DATEPICKER_BEHAVIOR } from './datepicker-behavior.js';
 import { CEM_EXPANSION_BEHAVIOR } from './expansion-behavior.js';
-import { CEM_FEEDBACK_DIALOG_BEHAVIOR } from './feedback-behavior.js';
 import { CEM_NAVIGATION_BEHAVIOR } from './navigation-behavior.js';
 import { CEM_PAGINATOR_BEHAVIOR } from './paginator-behavior.js';
 import { CEM_PROGRESS_SPINNER_BEHAVIOR } from './progress-spinner-behavior.js';
@@ -15,7 +13,6 @@ import { CEM_SORT_HEADER_BEHAVIOR } from './sort-header-behavior.js';
 import { CEM_STEPPER_BEHAVIOR } from './stepper-behavior.js';
 import { CEM_TABS_BEHAVIOR } from './tabs-behavior.js';
 import { CEM_TIMEPICKER_BEHAVIOR } from './timepicker-behavior.js';
-import { CEM_TOOLTIP_BEHAVIOR } from './tooltip-behavior.js';
 import { CEM_TREE_BEHAVIOR } from './tree-behavior.js';
 
 export interface CemComponentPrimitiveDeclaration {
@@ -33,45 +30,6 @@ export interface CemComponentPrimitiveInstallResult {
 }
 
 export const CEM_COMPONENT_PRIMITIVES = [
-    {
-        tag: 'cem-autocomplete',
-        description: 'Form-associated editable combobox with declarative suggestions.',
-        behavior: CEM_AUTOCOMPLETE_BEHAVIOR,
-        behaviorIdentity: 'cem-components-autocomplete-behavior-v1',
-        cemMl:
-            '{module |' +
-            ' {attribute @name=label | Autocomplete}' +
-            ' {attribute @name=indicator | underline}' +
-            ' {slice @name=groups}' +
-            ' {slice @name=displayValue | }' +
-            ' {slice @name=expanded | false}' +
-            ' {template @name=autocomplete-option |' +
-            '  {param @name=option}' +
-            '  {body |' +
-            '   {div @id="{$option.id}" @class=cem-autocomplete__option @role=option @data-option-index="{$option.index}" @data-active="{$option.active}" @aria-selected="{$option.selected}" @aria-disabled="{$option.disabled}" |' +
-            '    {cem:choose |' +
-            '     {cem:when @test="option.hasChildren" | {cem:project-payload @select="option.children" | }}' +
-            '     {cem:otherwise | {$option.label}}}}}}}' +
-            ' {template @name=autocomplete-options |' +
-            '  {param @name=groups}' +
-            '  {body |' +
-            '   {cem:for-each @select="groups" @as=group |' +
-            '    {cem:choose |' +
-            '     {cem:when @test="group.label" |' +
-            '      {div @class=cem-autocomplete__group @role=group @aria-label="{$group.label}" @aria-disabled="{$group.disabled}" |' +
-            '       {div @class=cem-autocomplete__group-label @aria-hidden=true | {$group.label}}' +
-            '       {cem:for-each @select="group.options" @as=option | {call @template=autocomplete-option @with:option="{$option}"}}}}' +
-            '     {cem:otherwise |' +
-            '      {cem:for-each @select="group.options" @as=option | {call @template=autocomplete-option @with:option="{$option}"}}}}}}}' +
-            ' {body |' +
-            '  {div @class=cem-autocomplete |' +
-            '   {span @id="{$datadom.slices.labelId}" @class=cem-autocomplete__label | {slot @name=label | {$label}}}' +
-            '   {input @type=text @class=cem-autocomplete__control @role=combobox @value="{$datadom.slices.displayValue}" @placeholder="{$datadom.attributes.placeholder}" @autocomplete="{$datadom.attributes.autocomplete}" @aria-labelledby="{$datadom.slices.labelId}" @aria-autocomplete=list @aria-haspopup=listbox @aria-expanded="{$datadom.slices.expanded}" @aria-controls={if datadom.slices.expanded { datadom.slices.listboxId } else { null }} @aria-activedescendant={if datadom.slices.expanded && datadom.slices.activeOptionId { datadom.slices.activeOptionId } else { null }} @disabled={if datadom.attributes.disabled || datadom.slices.behaviorDisabled { true } else { null }} @readonly={datadom.attributes.readonly} @required={datadom.attributes.required} @data-state={if datadom.attributes.busy { "loading" } else { null }} @aria-busy={if datadom.attributes.busy { true } else { null }} @aria-invalid={datadom.attributes.invalid} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} | }' +
-            '   {cem:if @test="datadom.slices.expanded" |' +
-            '    {div @id="{$datadom.slices.listboxId}" @class=cem-autocomplete__popup @role=listbox @aria-labelledby="{$datadom.slices.labelId}" |' +
-            '     {call @template=autocomplete-options @with:groups="{$datadom.slices.groups}"}}}' +
-            '   {span @class=cem-autocomplete__help | {slot @name=help}}}}}',
-    },
     {
         tag: 'cem-timepicker',
         description: 'Time-of-day picker retaining one authored native text-input form owner.',
@@ -140,39 +98,6 @@ export const CEM_COMPONENT_PRIMITIVES = [
         tag: 'cem-option-group',
         description: 'Labeled canonical option group consumed by cem-select and cem-autocomplete.',
         cemMl: '{div @class=cem-option-group | {slot}}',
-    },
-    {
-        tag: 'cem-checkbox',
-        description: 'MVP checkbox field with slotted label content.',
-        cemMl:
-            '{attribute @name=label | Checkbox}' +
-            '{attribute @name=value | on}' +
-            '{attribute @name=indicator | outline}' +
-            '{label @class=cem-checkbox |' +
-            ' {input @class=cem-checkbox__control @type=checkbox @name="{$datadom.attributes.name}" @value="{$value}" @checked={datadom.slices.checked ?? datadom.attributes.checked} @disabled={datadom.attributes.disabled} @required={datadom.attributes.required} @data-state={if datadom.attributes.busy { "loading" } else { null }} @aria-busy={if datadom.attributes.busy { true } else { null }} @aria-invalid={datadom.attributes.invalid} @aria-checked={datadom.attributes.indeterminate} @slice=checked @slice-event=change @slice-value="$target.checked" | }' +
-            ' {span @class=cem-checkbox__label | {slot | {$label}}}}',
-    },
-    {
-        tag: 'cem-radio',
-        description: 'MVP radio field with slotted label content.',
-        cemMl:
-            '{attribute @name=label | Radio}' +
-            '{attribute @name=value | on}' +
-            '{attribute @name=indicator | outline}' +
-            '{label @class=cem-radio |' +
-            ' {input @class=cem-radio__control @type=radio @name="{$datadom.attributes.name}" @value="{$value}" @checked={datadom.slices.checked ?? datadom.attributes.checked} @disabled={datadom.attributes.disabled} @required={datadom.attributes.required} @data-state={if datadom.attributes.busy { "loading" } else { null }} @aria-busy={if datadom.attributes.busy { true } else { null }} @aria-invalid={datadom.attributes.invalid} @slice=checked @slice-event=change @slice-value="$target.checked" | }' +
-            ' {span @class=cem-radio__label | {slot | {$label}}}}',
-    },
-    {
-        tag: 'cem-switch',
-        description: 'MVP switch field backed by a native checkbox control.',
-        cemMl:
-            '{attribute @name=label | Switch}' +
-            '{attribute @name=value | on}' +
-            '{attribute @name=indicator | outline}' +
-            '{label @class=cem-switch |' +
-            ' {input @class=cem-switch__control @type=checkbox @role=switch @name="{$datadom.attributes.name}" @value="{$value}" @checked={datadom.slices.checked ?? datadom.attributes.checked} @disabled={datadom.attributes.disabled} @required={datadom.attributes.required} @data-state={if datadom.attributes.busy { "loading" } else { null }} @aria-busy={if datadom.attributes.busy { true } else { null }} @aria-invalid={datadom.attributes.invalid} @slice=checked @slice-event=change @slice-value="$target.checked" | }' +
-            ' {span @class=cem-switch__label | {slot | {$label}}}}',
     },
     {
         tag: 'cem-slider',
@@ -499,52 +424,6 @@ export const CEM_COMPONENT_PRIMITIVES = [
             '  {button @type=button @class=cem-paginator__action @data-page-action=next @disabled={datadom.attributes.disabled} @aria-disabled={if datadom.slices.nextDisabled { true } else { null }} @tabindex={if datadom.slices.nextDisabled { -1 } else { null }} @aria-label="{$datadom.slices.nextPageLabel}" | {span @class=cem-paginator__icon @aria-hidden=true | ›}}' +
             '  {cem:if @test="datadom.attributes.show-first-last" |' +
             '   {button @type=button @class=cem-paginator__action @data-page-action=last @disabled={datadom.attributes.disabled} @aria-disabled={if datadom.slices.nextDisabled { true } else { null }} @tabindex={if datadom.slices.nextDisabled { -1 } else { null }} @aria-label="{$datadom.slices.lastPageLabel}" | {span @class=cem-paginator__icon @aria-hidden=true | »}}}}}',
-    },
-    {
-        tag: 'cem-tooltip',
-        description: 'Supplemental plain-text tooltip retaining one authored native trigger owner.',
-        behavior: CEM_TOOLTIP_BEHAVIOR,
-        behaviorIdentity: 'cem-components-tooltip-behavior-v1',
-        cemMl:
-            '{attribute @name=message | }' +
-            '{attribute @name=position | below}' +
-            '{attribute @name=show-delay | 0}' +
-            '{attribute @name=hide-delay | 0}' +
-            '{span @class=cem-tooltip @data-mode="{$datadom.slices.mode}" @data-position="{$datadom.slices.position}" |' +
-            ' {slot @name=trigger}' +
-            ' {span @id="{$datadom.slices.descriptionId}" @class=cem-tooltip__description | {$datadom.slices.message}}' +
-            ' {span @id="{$datadom.slices.surfaceId}" @class=cem-tooltip__surface @role=tooltip @popover=manual | {$datadom.slices.message}}}',
-    },
-    {
-        tag: 'cem-dialog',
-        description: 'MVP modal decision or focused task surface.',
-        behavior: CEM_FEEDBACK_DIALOG_BEHAVIOR,
-        behaviorIdentity: 'cem-components-feedback-dialog-behavior-v1',
-        cemMl:
-            '{attribute @name=label | Dialog}' +
-            '{cem:choose |' +
-            ' {cem:when @test="datadom.attributes.transient" | {dialog @class=cem-dialog @aria-label="{$label}" | {slot}}}' +
-            ' {cem:otherwise | {div @class=cem-dialog @role=dialog @aria-modal=true @aria-label="{$label}" | {slot}}}}',
-    },
-    {
-        tag: 'cem-dialog-shell',
-        description: 'Dialog shell with labeled light-DOM content.',
-        behavior: CEM_FEEDBACK_DIALOG_BEHAVIOR,
-        behaviorIdentity: 'cem-components-feedback-dialog-behavior-v1',
-        cemMl:
-            '{attribute @name=label | Dialog}' +
-            '{cem:choose |' +
-            ' {cem:when @test="datadom.attributes.transient" | {dialog @class=cem-dialog-shell @aria-label="{$label}" | {slot}}}' +
-            ' {cem:otherwise | {div @class=cem-dialog-shell @role=dialog @aria-modal=true @aria-label="{$label}" | {slot}}}}',
-    },
-    {
-        tag: 'cem-sheet',
-        description: 'MVP non-modal or edge-attached task surface.',
-        cemMl:
-            '{attribute @name=label | Sheet}' +
-            '{cem:choose |' +
-            ' {cem:when @test="datadom.attributes.transient" | {aside @class=cem-sheet @role=region @aria-label="{$label}" @hidden={if datadom.attributes.expanded { null } else { true }} | {slot}}}' +
-            ' {cem:otherwise | {aside @class=cem-sheet @role=region @aria-label="{$label}" | {slot}}}}',
     },
     {
         tag: 'cem-toast',

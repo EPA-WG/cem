@@ -213,6 +213,8 @@ impl ExecutableDatatype {
         runtime: &ValidationRuntime<'_>,
         limits: ConversionLimits,
     ) -> DatatypeConversion {
+        let shared_runtime = runtime.with_query_budget();
+        let runtime = &shared_runtime;
         let selected = self.converter();
         let mut result = DatatypeConversion {
             accepted: None,
@@ -224,6 +226,10 @@ impl ExecutableDatatype {
         };
         if let Err(e) = runtime.control.check_scope(runtime.scope) {
             return result.stop(ConversionStop::Control(e));
+        }
+        if let Some(failure) = runtime.query_failure() {
+            result.diagnostics.extend(failure.diagnostics);
+            return result.stop(ConversionStop::Failed);
         }
         let Some(selected) = selected else {
             return result.stop(ConversionStop::NoConverter);
@@ -288,6 +294,10 @@ impl ExecutableDatatype {
             });
         if let Err(e) = runtime.control.check_scope(runtime.scope) {
             return result.stop(ConversionStop::Control(e));
+        }
+        if let Some(failure) = runtime.query_failure() {
+            result.diagnostics.extend(failure.diagnostics);
+            return result.stop(ConversionStop::Failed);
         }
         let (value, diagnostics, stop, rejected) = match execution {
             ConversionExecution::Converted { value, diagnostics } => {

@@ -24,6 +24,8 @@ pub trait NativeQueryFunction: Debug + Send + Sync {
 }
 
 pub struct NativeQueryRequest<'a> {
+    /// Forward this budget when reentering queries or datatype invocations.
+    pub execution_budget: &'a crate::eval::QueryExecutionBudget,
     /// One successful sequence per argument, including empty and multi-item
     /// arguments. The invoking evaluator retains argument diagnostics.
     pub arguments: &'a [ItemStream],

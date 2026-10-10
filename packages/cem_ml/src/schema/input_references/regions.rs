@@ -321,6 +321,13 @@ impl<'a> RegionModels<'a> {
         {
             return (&[], model, false);
         }
+        // Directive children are control payloads even when the consuming model
+        // is empty. Only their explicit lifecycle may evaluate native slots.
+        if matches!(source.node(), CemAstNode::Element { expanded_name, .. }
+            if expanded_name.local_name.starts_with('@'))
+        {
+            return (&[], model, true);
+        }
         match self.boundaries.get(&key(source)) {
             Some(Some(index)) if self.available[*index] => {
                 let CemAstNode::Element { children, .. } = source.node() else {

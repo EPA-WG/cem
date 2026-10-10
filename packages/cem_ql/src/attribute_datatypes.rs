@@ -164,6 +164,10 @@ pub fn bind_attribute_datatype<H: AttributeDatatypeHost>(
         if !matches!(field.node(), CemAstNode::Attribute { .. }) {
             return Ok(invalid("attribute-constraint-field-required"));
         }
+        if host.input_consumed_namespace_attribute(&field) {
+            constraint_fields.push(field);
+            continue;
+        }
         let Some(name) = host.input_expanded_name(&field) else {
             return Ok(pending("attribute-constraint-name-pending"));
         };

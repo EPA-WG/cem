@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>cem-tooltip: Property playground</title>
+<script type="importmap">{
+    "imports": {
+        "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
+        "@epa-wg/cem-components": "../dist/lib/primitives.js",
+        "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
+        "@epa-wg/cem-components/styles.css": "../dist/styles.css",
+        "@epa-wg/cem-components/components/cem-action": "../src/components/cem-action/cem-action.xhtml",
+        "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
+        "@epa-wg/cem-components/action-playground": "./cem-action.html",
+        "@epa-wg/cem-components/components/cem-theme-switch": "../src/components/cem-theme-switch/cem-theme-switch.xhtml",
+        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
+        "@epa-wg/cem-components/components/cem-select": "../src/components/cem-select/cem-select.xhtml",
+        "@epa-wg/cem-components/components/cem-checkbox": "../src/components/cem-checkbox/cem-checkbox.xhtml",
+        "@epa-wg/cem-components/components/cem-radio": "../src/components/cem-radio/cem-radio.xhtml",
+        "@epa-wg/cem-components/components/cem-switch": "../src/components/cem-switch/cem-switch.xhtml",
+        "@epa-wg/cem-components/components/cem-autocomplete": "../src/components/cem-autocomplete/cem-autocomplete.xhtml",
+        "@epa-wg/cem-components/components/cem-icon-button": "../src/components/cem-icon-button/cem-icon-button.xhtml",
+        "@epa-wg/cem-components/components/cem-menu-item": "../src/components/cem-menu-item/cem-menu-item.xhtml",
+        "@epa-wg/cem-components/components/cem-field": "../src/components/cem-field/cem-field.xhtml",
+        "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml",
+        "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml",
+        "@epa-wg/cem-components/components/cem-textarea": "../src/components/cem-textarea/cem-textarea.xhtml",
+        "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "./assets/wc-square.svg",
+        "@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml": "./cem-gallery-nav.xhtml",
+        "@epa-wg/cem-components/components/cem-menu": "../src/components/cem-menu/cem-menu.xhtml",
+        "@epa-wg/cem-components/components/cem-dropdown": "../src/components/cem-dropdown/cem-dropdown.xhtml",
+        "@epa-wg/cem-components/components/cem-dialog": "../src/components/cem-dialog/cem-dialog.xhtml",
+        "@epa-wg/cem-components/components/cem-dialog-shell": "../src/components/cem-dialog-shell/cem-dialog-shell.xhtml",
+        "@epa-wg/cem-components/components/cem-sheet": "../src/components/cem-sheet/cem-sheet.xhtml",
+        "@epa-wg/cem-components/components/cem-tooltip": "../src/components/cem-tooltip/cem-tooltip.xhtml"
+    }
+}</script>
+<script type="module">
+import { installCemElementRuntime } from '@epa-wg/cem-elements';
+import { installCemComponentPrimitives } from '@epa-wg/cem-components';
+import '@epa-wg/cem-demo-element';
+const runtime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
+window.cemPlaygroundRuntime = runtime;
+await installCemComponentPrimitives(runtime);
+</script>
+<link rel="stylesheet" href="../demo.css">
+<style>body { margin: 0; font-family: system-ui, sans-serif; } #playground-theme { padding: var(--cem-inset-container); } main, .properties { display: grid; gap: var(--cem-gap-group); } [data-gallery-theme] { padding: var(--cem-inset-container); background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } cem-demo-element { display: block; margin-block: var(--cem-gap-group); }</style>
+</head><body>
+<cem-element hidden><template type="text/cem-ml">
+{cem-module-url @slice=cemautocompleteUrl @src="@epa-wg/cem-components/components/cem-autocomplete"}
+{cem:if @test="datadom.slices.cemautocompleteUrl" | {cem-element @tag=cem-autocomplete @capability=editable-choice @src="{$datadom.slices.cemautocompleteUrl}#cem-autocomplete"}}
+</template></cem-element>
+<cem-element hidden><template type="text/cem-ml">
+{cem-module-url @slice=cemcheckboxUrl @src="@epa-wg/cem-components/components/cem-checkbox"}
+{cem:if @test="datadom.slices.cemcheckboxUrl" | {cem-element @tag=cem-checkbox @capability=checkable-control @src="{$datadom.slices.cemcheckboxUrl}#cem-checkbox"}}
+{cem-module-url @slice=cemradioUrl @src="@epa-wg/cem-components/components/cem-radio"}
+{cem:if @test="datadom.slices.cemradioUrl" | {cem-element @tag=cem-radio @src="{$datadom.slices.cemradioUrl}#cem-radio"}}
+{cem-module-url @slice=cemswitchUrl @src="@epa-wg/cem-components/components/cem-switch"}
+{cem:if @test="datadom.slices.cemswitchUrl" | {cem-element @tag=cem-switch @src="{$datadom.slices.cemswitchUrl}#cem-switch"}}
+</template></cem-element>
+<cem-element hidden><template type="text/cem-ml">{cem-module-url @slice=cemdialogUrl @src="@epa-wg/cem-components/components/cem-dialog"}
+{cem:if @test="datadom.slices.cemdialogUrl" | {cem-element @tag=cem-dialog @capability=native-surface @src="{$datadom.slices.cemdialogUrl}#cem-dialog"}}
+{cem-module-url @slice=cemdialogshellUrl @src="@epa-wg/cem-components/components/cem-dialog-shell"}
+{cem:if @test="datadom.slices.cemdialogshellUrl" | {cem-element @tag=cem-dialog-shell @capability=native-surface @src="{$datadom.slices.cemdialogshellUrl}#cem-dialog-shell"}}
+{cem-module-url @slice=cemtooltipUrl @src="@epa-wg/cem-components/components/cem-tooltip"}
+{cem:if @test="datadom.slices.cemtooltipUrl" | {cem-element @tag=cem-tooltip @capability=native-surface @src="{$datadom.slices.cemtooltipUrl}#cem-tooltip"}}
+{cem-module-url @slice=cemfieldUrl @src="@epa-wg/cem-components/components/cem-field"}
+{cem:if @test="datadom.slices.cemfieldUrl" | {cem-element @tag=cem-field @capability=form-control @src="{$datadom.slices.cemfieldUrl}#cem-field"}}
+{cem-module-url @slice=cemactionUrl @src="@epa-wg/cem-components/components/cem-action"}
+{cem:if @test="datadom.slices.cemactionUrl" | {cem-element @tag=cem-action @capability=action-command @src="{$datadom.slices.cemactionUrl}#cem-action"}}
+{cem-module-url @slice=cemmenuUrl @src="@epa-wg/cem-components/components/cem-menu"}
+{cem:if @test="datadom.slices.cemmenuUrl" | {cem-element @tag=cem-menu @capability=composite-menu @src="{$datadom.slices.cemmenuUrl}#cem-menu"}}
+{cem-module-url @slice=cemmenuitemUrl @src="@epa-wg/cem-components/components/cem-menu-item"}
+{cem:if @test="datadom.slices.cemmenuitemUrl" | {cem-element @tag=cem-menu-item @capability=action-control @src="{$datadom.slices.cemmenuitemUrl}#cem-menu-item"}}
+{cem-module-url @slice=cemdropdownUrl @src="@epa-wg/cem-components/components/cem-dropdown"}
+{cem:if @test="datadom.slices.cemdropdownUrl" | {cem-element @tag=cem-dropdown @capability=popup @src="{$datadom.slices.cemdropdownUrl}#cem-dropdown"}}
+{cem-module-url @slice=cemiconbuttonUrl @src="@epa-wg/cem-components/components/cem-icon-button"}
+{cem:if @test="datadom.slices.cemiconbuttonUrl" | {cem-element @tag=cem-icon-button @src="{$datadom.slices.cemiconbuttonUrl}#cem-icon-button"}}
+{cem-module-url @slice=cemthemeswitchUrl @src="@epa-wg/cem-components/components/cem-theme-switch"}
+{cem:if @test="datadom.slices.cemthemeswitchUrl" | {cem-element @tag=cem-theme-switch @src="{$datadom.slices.cemthemeswitchUrl}#cem-theme-switch"}}
+{cem-module-url @slice=cemselectUrl @src="@epa-wg/cem-components/components/cem-select"}
+{cem:if @test="datadom.slices.cemselectUrl" | {cem-element @tag=cem-select @capability=choice-select @src="{$datadom.slices.cemselectUrl}#cem-select"}}
+{cem-module-url @slice=navUrl @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml"}{cem:if @test="datadom.slices.navUrl" | {cem-element @tag=cem-gallery-nav @src="{$datadom.slices.navUrl}#cem-gallery-nav"}}
+{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
+{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
+</template></cem-element>
+<div id="playground-theme" class="cem-theme-light"><cem-gallery-nav heading="cem-tooltip: Property playground"></cem-gallery-nav><p class="component-description">A supplemental description that preserves focus and native trigger behavior. Use <a href="./cem-dialog-gallery.html">cem-dialog</a> for interactive task content and <a href="./cem-field-gallery.html">cem-field</a> for permanent field help.</p>
+<p><a href="./cem-tooltip-gallery.html">Full examples and variation matrix</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-tooltip/cem-tooltip.stories.ts">Automated stories</a></p><main><p>Blank inputs omit optional attributes. The preview uses #tooltip-playground-trigger. Change trigger-for to #tooltip-playground-alternate to rebind it. The gallery demonstrates projected triggers. Clear trigger-for to remove the relationship. Typed CEM references are authored in source. Keyboard focus presents immediately; pointer interest uses the delay controls. Escape dismisses while native editing and touch remain available.</p><cem-element class="properties"><template type="text/cem-ml">{slice @name=trigger-for | #tooltip-playground-trigger}
+{slice @name=show-delay | 500}
+{slice @name=hide-delay | 100}
+{slice @name=placement | block-start center}
+{slice @name=anchor | }
+{slice @name=boundary | }
+{slice @name=fallback | }
+{slice @name=overflow | flip shift resize}
+{slice @name=anchor-lost | close}
+{slice @name=surface-id | }
+{slice @name=hidden | }
+{slice @name=class | }
+{slice @name=dir | ltr}
+{slice @name=message | Supplemental description}
+{slice @name=disabled | }
+{slice @name=default-open | }
+{cem-field @label="trigger-for" @value="{$datadom.slices.trigger-for}" @slice=trigger-for @slice-event=input @slice-value="$target.value"}
+{cem-field @label="show-delay" @value="{$datadom.slices.show-delay}" @slice=show-delay @slice-event=input @slice-value="$target.value"}
+{cem-field @label="hide-delay" @value="{$datadom.slices.hide-delay}" @slice=hide-delay @slice-event=input @slice-value="$target.value"}
+{cem-field @label="placement" @value="{$datadom.slices.placement}" @slice=placement @slice-event=input @slice-value="$target.value"}
+{cem-field @label="anchor" @value="{$datadom.slices.anchor}" @slice=anchor @slice-event=input @slice-value="$target.value"}
+{cem-field @label="boundary" @value="{$datadom.slices.boundary}" @slice=boundary @slice-event=input @slice-value="$target.value"}
+{cem-field @label="fallback" @value="{$datadom.slices.fallback}" @slice=fallback @slice-event=input @slice-value="$target.value"}
+{cem-field @label="overflow" @value="{$datadom.slices.overflow}" @slice=overflow @slice-event=input @slice-value="$target.value"}
+{fieldset @slice=anchor-lost @slice-event=change @slice-value="$target.value" | {legend | anchor-lost}{cem-radio @name="surface-anchor-lost" @value="freeze" @checked=true | freeze}{cem-radio @name="surface-anchor-lost" @value="close" | close}}
+{cem-field @label="surface-id" @value="{$datadom.slices.surface-id}" @slice=surface-id @slice-event=input @slice-value="$target.value"}
+{fieldset @slice=hidden @slice-event=change @slice-value="$target.value" | {legend | hidden}{cem-radio @name="surface-hidden" @value="" @checked=true | absent}{cem-radio @name="surface-hidden" @value="present" | present}}
+{cem-field @label="class" @value="{$datadom.slices.class}" @slice=class @slice-event=input @slice-value="$target.value"}
+{fieldset @slice=dir @slice-event=change @slice-value="$target.value" | {legend | dir}{cem-radio @name="surface-dir" @value="ltr" @checked=true | ltr}{cem-radio @name="surface-dir" @value="rtl" | rtl}}
+{cem-field @label="message" @value="{$datadom.slices.message}" @slice=message @slice-event=input @slice-value="$target.value"}
+{fieldset @slice=disabled @slice-event=change @slice-value="$target.value" | {legend | disabled}{cem-radio @name="surface-disabled" @value="" @checked=true | absent}{cem-radio @name="surface-disabled" @value="present" | present}}
+{fieldset @slice=default-open @slice-event=change @slice-value="$target.value" | {legend | default-open}{cem-radio @name="surface-default-open" @value="" @checked=true | absent}{cem-radio @name="surface-default-open" @value="present" | present}}
+{button @id=tooltip-playground-trigger @type=button | External tooltip launcher}
+{button @id=tooltip-playground-alternate @type=button | Alternate tooltip launcher}
+{cem-tooltip @trigger-for={if datadom.slices.trigger-for != "" { datadom.slices.trigger-for } else { null }} @show-delay={if datadom.slices.show-delay != "" { datadom.slices.show-delay } else { null }} @hide-delay={if datadom.slices.hide-delay != "" { datadom.slices.hide-delay } else { null }} @placement={if datadom.slices.placement != "" { datadom.slices.placement } else { null }} @anchor={if datadom.slices.anchor != "" { datadom.slices.anchor } else { null }} @boundary={if datadom.slices.boundary != "" { datadom.slices.boundary } else { null }} @fallback={if datadom.slices.fallback != "" { datadom.slices.fallback } else { null }} @overflow={if datadom.slices.overflow != "" { datadom.slices.overflow } else { null }} @anchor-lost={if datadom.slices.anchor-lost != "" { datadom.slices.anchor-lost } else { null }} @surface-id={if datadom.slices.surface-id != "" { datadom.slices.surface-id } else { null }} @hidden={if datadom.slices.hidden == "present" { true } else { null }} @class={if datadom.slices.class != "" { datadom.slices.class } else { null }} @dir={if datadom.slices.dir != "" { datadom.slices.dir } else { null }} @message={if datadom.slices.message != "" { datadom.slices.message } else { null }} @disabled={if datadom.slices.disabled == "present" { true } else { null }} @default-open={if datadom.slices.default-open == "present" { true } else { null }}}</template></cem-element><cem-element><template type="text/cem-ml">{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-tooltip"}{cem:if @test="datadom.slices.sourceUrl" | {p | {a @href="{$datadom.slices.sourceUrl}" | Open canonical XHTML}}{cem-demo-element @legend="Canonical source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}}</template></cem-element></main></div></body></html>

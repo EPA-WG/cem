@@ -1194,6 +1194,7 @@ fn render_compiled_template_internal(
     profile.next("render/renderer-metadata");
     let mut renderer = PlanRenderer {
         evaluation_context: EvaluationContext {
+            execution_budget: None,
             scope: QueryContextScope(0),
             scope_policy: policy,
             diagnostics: Vec::new(),

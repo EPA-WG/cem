@@ -127,6 +127,8 @@ import {
     type CemRepositoryStatus,
 } from './repository.js';
 import { CEM_FORM_CONTROL_CAPABILITY } from './form-control-capability.js';
+import { CEM_EDITABLE_CHOICE_CAPABILITY } from './editable-choice-capability.js';
+import { CEM_CHECKABLE_CONTROL_CAPABILITY } from './checkable-control.js';
 import { CEM_SUGGESTIONS_CAPABILITY, refreshCemSuggestionsAuthorization, localCemSuggestionsBinding, type CemLocalSuggestionsEnvironment } from './suggestions-capability.js';
 import type { CemSuggestionsControllerOptions } from './suggestions-controller.js';
 import { CEM_POPUP_CAPABILITY } from './popup-capability.js';
@@ -717,6 +719,8 @@ export interface CemProducedElementBehavior {
      * is a side-effect-free ownership check, not a lifecycle callback.
      */
     preserveRenderedAttribute?(instance: HTMLElement, current: Element, desired: Element, attribute: Attr): boolean;
+    /** Browser-owned derived nodes excluded from authored reconciliation, never serialized. */
+    preserveRenderedNode?(instance: HTMLElement, current: Node): boolean;
     rendered?(instance: HTMLElement, context: CemProducedElementBehaviorContext): void;
     disconnected?(instance: HTMLElement, context: CemProducedElementBehaviorContext): void;
     formDisabled?(instance: HTMLElement, disabled: boolean, context: CemProducedElementBehaviorContext): void;
@@ -745,13 +749,21 @@ export interface CemDeclarationRegistrationOptions {
  * cem-elements and are versioned as part of the declaration identity.
  */
 export const CEM_DECLARATIVE_CAPABILITIES = Object.freeze({
+    'editable-choice': {
+        behavior: CEM_EDITABLE_CHOICE_CAPABILITY,
+        behaviorIdentity: 'cem-elements-editable-choice-v1',
+    },
+    'checkable-control': {
+        behavior: CEM_CHECKABLE_CONTROL_CAPABILITY,
+        behaviorIdentity: 'cem-elements-checkable-control-v1',
+    },
     'suggestions': {
         behavior: CEM_SUGGESTIONS_CAPABILITY,
         behaviorIdentity: 'cem-elements-suggestions-v1',
     },
     'native-surface': {
         behavior: CEM_NATIVE_SURFACE_CAPABILITY,
-        behaviorIdentity: 'cem-elements-native-surface-v2',
+        behaviorIdentity: 'cem-elements-native-surface-v5',
     },
     'form-control': {
         behavior: CEM_FORM_CONTROL_CAPABILITY,
@@ -759,7 +771,7 @@ export const CEM_DECLARATIVE_CAPABILITIES = Object.freeze({
     },
     'popup': {
         behavior: CEM_POPUP_CAPABILITY,
-        behaviorIdentity: 'cem-elements-popup-v3',
+        behaviorIdentity: 'cem-elements-popup-v4',
     },
     'action-control': {
         behavior: CEM_ACTION_CONTROL_CAPABILITY,
@@ -771,7 +783,7 @@ export const CEM_DECLARATIVE_CAPABILITIES = Object.freeze({
     },
     'composite-menu': {
         behavior: CEM_COMPOSITE_MENU_CAPABILITY,
-        behaviorIdentity: 'cem-elements-composite-menu-v3',
+        behaviorIdentity: 'cem-elements-composite-menu-v4',
     },
     'choice-select': {
         behavior: CEM_CHOICE_SELECT_CAPABILITY,
@@ -782,6 +794,8 @@ export const CEM_DECLARATIVE_CAPABILITIES = Object.freeze({
 export type CemDeclarativeCapabilityName = keyof typeof CEM_DECLARATIVE_CAPABILITIES;
 
 export interface CemProducedElementBehaviorContext {
+    /** Accepted serialized state represents an existing instance, not a new initial request. */
+    readonly resumed?: boolean;
     readonly runtime: CemElementRuntime;
     readonly internals: ElementInternals | null;
     snapshot(): DataIslandSnapshot;
@@ -1857,6 +1871,30 @@ export class CemElementRuntime {
         }
     }
 
+    /** Bind newly materialized projection using the owning native instance lifecycle. */
+    prepareSurfaceBody(instance: HTMLElement, owner: HTMLElement, signal: AbortSignal): void | Promise<void> {
+        const compiled = this.declarationForInstance(instance);
+        if (!compiled || signal.aborted) return;
+        this.bindRenderedSliceEvents(instance, compiled, owner);
+        this.bindRenderedCustomValidity(owner);
+        this.bindRenderedFormEvents(instance, compiled, owner);
+        const visited = new Set<HTMLElement>();
+        const settle = (): void | Promise<void> => {
+            if (signal.aborted || !owner.isConnected) return;
+            const children = [...owner.querySelectorAll<HTMLElement>('*')].filter(element =>
+                !visited.has(element) && !!this.declarationForInstance(element));
+            if (!children.length) return;
+            children.forEach(element => visited.add(element));
+            return new Promise<void>((resolve, reject) => {
+                const cancel = () => resolve();
+                signal.addEventListener('abort', cancel, { once: true });
+                void Promise.all(children.map(element => this.whenRenderSettled(element))).then(() => resolve(), reject)
+                    .finally(() => signal.removeEventListener('abort', cancel));
+            }).then(settle);
+        };
+        return settle();
+    }
+
     install(host: CemElementWindow): void {
         if (host.customElements.get(this.declarationTag)) {
             return;
@@ -2562,6 +2600,7 @@ export class CemElementRuntime {
     private behaviorContext(instance: HTMLElement): CemProducedElementBehaviorContext {
         return {
             runtime: this,
+            resumed: this.hydrationSnapshots.has(instance),
             internals: this.elementInternals.get(instance) ?? null,
             snapshot: () => this.snapshotInstance(instance),
             setSlices: (values, options) => this.setInstanceSlices(instance, values, options),
@@ -3897,6 +3936,7 @@ export class CemElementRuntime {
         const behavior = compiled.behavior;
         const preserveRenderedAttribute = behavior?.preserveRenderedAttribute?.bind(behavior);
         return {
+            preserveNode: (node) => behavior?.preserveRenderedNode?.(instance, node) ?? false,
             preserveElementAttribute: preserveRenderedAttribute
                 ? (current, desired, attribute) => preserveRenderedAttribute(instance, current, desired, attribute)
                 : undefined,
@@ -4575,7 +4615,7 @@ export class CemElementRuntime {
             return;
         }
         const expression = renderedBindingAttribute(element, 'slice-value');
-        const nativeValue = renderedNativeAttributeBindings(element).find(b => b.name === 'slice-value')?.value;
+        const nativeValue = renderedNativeAttributeBindings(element, ['slice-value']).find(b => b.name === 'slice-value')?.value;
         if (target.localName === 'form') {
             this.formSliceNames.set(target, sliceNames);
         }
@@ -6665,6 +6705,7 @@ export class CemElementRuntime {
                   preserveRenderedAttribute(instance, current, desired, attribute)
             : undefined;
         const mergeOptions = {
+            preserveNode: (node: Node) => behavior?.preserveRenderedNode?.(instance, node) ?? false,
             preserveElementAttribute,
             preserveElementChildren: (current: Element) =>
                 (this.declarationsByDocument.get(current.ownerDocument)?.has(current.localName) ?? false) &&

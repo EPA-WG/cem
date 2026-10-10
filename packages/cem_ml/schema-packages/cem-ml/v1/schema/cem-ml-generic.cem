@@ -102,6 +102,7 @@
         {constraint @kind="tokenizer-unterminated-node" @target="element" @diagnostic="cem.tokenizer.unterminated_node" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-unterminated-node" @policy="node scopes must close before end of input"}
         {constraint @kind="tokenizer-invalid-processing-instruction" @target="processing-instruction" @diagnostic="cem.tokenizer.invalid_processing_instruction" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-invalid-processing-instruction" @policy="processing instructions must declare a target name"}
         {constraint @kind="tokenizer-unterminated-processing-instruction" @target="processing-instruction" @diagnostic="cem.tokenizer.unterminated_processing_instruction" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-unterminated-processing-instruction" @policy="processing instructions must close with ?>"}
+        {constraint @kind="tokenizer-invalid-typed-prelude" @target="directive" @diagnostic="cem.tokenizer.invalid_typed_prelude" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-invalid-typed-prelude" @policy="preview native prelude values must occupy one complete bounded constructor on one physical line"}
         {constraint @kind="tokenizer-unterminated-expression" @target="expression" @diagnostic="cem.tokenizer.unterminated_expression" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-unterminated-expression" @policy="expression nodes must close their brace scope"}
         {constraint @kind="tokenizer-unterminated-rich-content" @target="raw-text" @diagnostic="cem.tokenizer.unterminated_rich_content" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-unterminated-rich-content" @policy="rich-content fenced blocks must close with triple backticks"}
         {constraint @kind="semantic-unbound-prefix" @target="attribute" @diagnostic="cem.lint.unbound_prefix" @behavior="cem-ml-semantic-report-fact" @fact-kind="semantic-unbound-prefix" @policy="document validation reports prefixed attributes whose prefix is not declared by active namespace bindings or accepted by the active language family"}
@@ -142,6 +143,7 @@
         {diagnostic @code="cem.tokenizer.unterminated_node" @severity="error"}
         {diagnostic @code="cem.tokenizer.invalid_processing_instruction" @severity="error"}
         {diagnostic @code="cem.tokenizer.unterminated_processing_instruction" @severity="error"}
+        {diagnostic @code="cem.tokenizer.invalid_typed_prelude" @severity="error"}
         {diagnostic @code="cem.tokenizer.unterminated_expression" @severity="error"}
         {diagnostic @code="cem.tokenizer.unterminated_rich_content" @severity="error"}
         {diagnostic @code="cem.lint.unbound_prefix" @severity="warning"}

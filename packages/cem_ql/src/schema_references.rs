@@ -43,6 +43,8 @@ use std::{
 mod attribute_datatypes;
 mod element_references;
 mod datatype_dependencies;
+mod datatype_overrides;
+pub(crate) use datatype_overrides::DatatypeOverrideHostStamp;
 pub use element_references::CemQlElementReferenceHost;
 mod source_diagnostics;
 mod lexical_handoff;
@@ -52,6 +54,7 @@ mod namespace_handoff;
 mod namespace_property;
 mod namespace_activation;
 mod namespace_lifecycle;
+mod operation;
 pub use namespace_lifecycle::{
     NamespaceLifecycleError, NamespaceLifecycleIssue, NamespaceLifecycleSnapshot,
 };
@@ -109,6 +112,7 @@ pub struct CemQlSchemaReferenceNode {
 }
 #[derive(Debug, Clone)]
 pub struct CemQlSchemaDeclarationHost {
+    compiled_attribute_types: bool,
     identity: u64,
     scopes: Vec<Scope>,
     // Arena addresses are private storage keys, not reference syntax or scopes.
@@ -127,6 +131,14 @@ pub struct CemQlSchemaDeclarationHost {
     // Original completed/pending namespace declarations remain immutable; their
     // consumer selection and activation are separate lifecycle stages.
     captured_namespaces: BTreeMap<usize, Arc<cem_ml::schema::machine::LexicallyScopedDocument>>,
+    operation: Option<(
+        cem_ml::operation_control::OperationControl,
+        cem_ml::operation_control::ExecutionScopeId,
+    )>,
+    captured_schema_preludes: BTreeMap<
+        usize,
+        BTreeMap<AstNodeId, cem_ml::schema::scope_controls::SchemaHostControlContract>,
+    >,
     // Explicit loader snapshots; keys keep original controls and authored URIs distinct.
     schema_uri_loads:
         BTreeMap<(usize, AstNodeId, String), ReferenceLinkEvaluation<SchemaDeclarationNode>>,
@@ -152,6 +164,7 @@ impl CemQlSchemaDeclarationHost {
     pub fn new() -> Self {
         static NEXT_HOST: AtomicU64 = AtomicU64::new(1);
         Self {
+            compiled_attribute_types: false,
             identity: NEXT_HOST.fetch_add(1, Ordering::Relaxed),
             scopes: vec![],
             node_scopes: BTreeMap::new(),
@@ -171,6 +184,8 @@ impl CemQlSchemaDeclarationHost {
             namespace_name_completions: BTreeMap::new(),
             captured_schema_forms: BTreeMap::new(),
             captured_namespaces: BTreeMap::new(),
+            operation: None,
+            captured_schema_preludes: BTreeMap::new(),
             fallback_policy: ReferenceScopePolicy::schema_defaults()
                 .expect("embedded reference policy"),
         }
@@ -386,19 +401,23 @@ impl CemQlSchemaDeclarationHost {
                     .map_err(|error| self.source_diagnostics(source, error.diagnostics))?,
             ),
         };
-        let result = evaluate(
-            &compiled.query,
-            &EvaluationContext {
-                scope: context.scope,
-                scope_policy: context.scope_policy,
-                diagnostics: context.diagnostics.clone(),
-                policy_bindings: context.policy_bindings(),
-                current_item: context.context_item.clone(),
-                module_resolution: context.module_resolution.clone(),
-                native_functions: context.native_functions.clone(),
-                data_readers: Default::default(),
-            },
-        );
+        let evaluation_context = EvaluationContext {
+            execution_budget: None,
+            scope: context.scope,
+            scope_policy: context.scope_policy,
+            diagnostics: context.diagnostics.clone(),
+            policy_bindings: context.policy_bindings(),
+            current_item: context.context_item.clone(),
+            module_resolution: context.module_resolution.clone(),
+            native_functions: context.native_functions.clone(),
+            data_readers: Default::default(),
+        };
+        let result = match &self.operation {
+            Some((control, scope)) => crate::api::evaluate_with_control(
+                &compiled.query, &evaluation_context, control, *scope,
+            ),
+            None => evaluate(&compiled.query, &evaluation_context),
+        };
         self.source_expressions.entry(key).or_insert(compiled);
         if result.error.is_some() {
             Err(self.source_diagnostics(source, result.diagnostics))
@@ -424,6 +443,10 @@ impl CemQlSchemaDeclarationHost {
             .then(|| self.scopes.get(scope.index))
             .flatten()
     }
+    pub fn enable_attribute_datatypes(&mut self) {
+        self.compiled_attribute_types = true;
+    }
+
     pub fn compile(
         &mut self,
         schema_uri: &str,
@@ -566,6 +589,9 @@ impl CemQlSchemaDeclarationHost {
 impl ReferenceResolutionHost for CemQlSchemaDeclarationHost {
     type Node = CemQlSchemaReferenceNode;
     type Scope = Option<DeclarationScope>;
+    fn prepare_node(&mut self, _node: &mut Self::Node) -> Result<(), ReferenceResolutionError> {
+        self.check_operation()
+    }
     fn scope(&self, node: &Self::Node) -> Self::Scope {
         node.scope
     }
@@ -701,6 +727,9 @@ impl ReferenceResolutionHost for CemQlSchemaDeclarationHost {
     }
 }
 impl SchemaDeclarationHost for CemQlSchemaDeclarationHost {
+    fn compiled_attribute_types(&self) -> bool {
+        self.compiled_attribute_types
+    }
     fn declaration_name_metadata_required(&self, source: &SchemaDeclarationNode) -> bool {
         self.captured_names
             .contains_key(&(Arc::as_ptr(source.document()) as usize))

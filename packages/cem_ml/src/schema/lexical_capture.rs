@@ -30,8 +30,22 @@ use namespace_capture::NamespaceDeclarationCapture;
 pub enum SchemaElementForm {
     Wrapping,
     Following,
-    /// Original document/block directive, retained as an opaque text payload.
+    /// Original document/block directive with literal or explicitly admitted native payload.
     Prelude,
+}
+
+/// Original directive/value edge and the environment before its declaration.
+/// Handles are meaningful only through the owner-checked capture lookup.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TypedPreludeSlot {
+    pub directive: AstNodeId,
+    pub value: AstNodeId,
+    pub syntax: crate::tokenizer::cem::TypedPreludeValue,
+    pub preceding: LexicalScopeSnapshot,
+    pub form: SchemaElementForm,
+    pub extent: crate::schema::scope_controls::SchemaScopeControlExtent,
+    pub required_version: crate::schema::ir::SemVer,
 }
 
 /// Passive namespace context at an original attribute name. Literal QName consumers
@@ -56,6 +70,7 @@ pub struct LexicallyScopedDocument {
     pending_namespace_names: BTreeMap<AstNodeId, PendingNamespaceName>,
     pending_namespace_bindings: BTreeMap<AstNodeId, BTreeMap<String, AstNodeId>>,
     diagnostics: Vec<Diagnostic>,
+    typed_preludes: BTreeMap<AstNodeId, TypedPreludeSlot>,
 }
 
 impl LexicallyScopedDocument {
@@ -104,6 +119,7 @@ impl LexicallyScopedDocument {
             pending_namespace_names: BTreeMap::new(),
             pending_namespace_bindings: BTreeMap::new(),
             diagnostics,
+            typed_preludes: BTreeMap::new(),
         }
     }
     /// Engine finalization before this owner is shared with consumers.
@@ -113,6 +129,12 @@ impl LexicallyScopedDocument {
 
     pub fn document(&self) -> &Arc<CemDocument> {
         &self.document
+    }
+
+    pub fn has_typed_preludes(&self) -> bool { !self.typed_preludes.is_empty() }
+
+    pub fn typed_prelude(&self, owner: &Arc<CemDocument>, directive: AstNodeId) -> Option<&TypedPreludeSlot> {
+        Arc::ptr_eq(owner, &self.document).then(|| self.typed_preludes.get(&directive)).flatten()
     }
 
     pub fn attribute_namespaces(
@@ -256,6 +278,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
     /// Runtime contexts, policies, readiness and grants remain caller supplied.
     pub fn build_with_lexical_scopes(self) -> LexicallyScopedDocument {
         let pending = Mutex::new(None);
+        let pending_typed = Mutex::new(None);
         let pending_bindings = Mutex::new(None);
         let diagnostics = Mutex::new(Vec::new());
         let opening_name = Mutex::new(None);
@@ -269,10 +292,17 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                     name.lexical_name == "$" || name.lexical_name == "cem:expr"
                 }
                 Some(NormalizedEvent::Value {
-                    value: crate::events::ScalarValue::Expression(_),
+                    value: crate::events::ScalarValue::Expression(_) | crate::events::ScalarValue::TypedPrelude(_),
                     ..
                 }) => true,
                 _ => false,
+            };
+            *pending_typed.lock().unwrap() = match event {
+                Some(NormalizedEvent::Value { value: crate::events::ScalarValue::TypedPrelude(syntax), .. }) => {
+                    namespace_capture.lock().unwrap().current_node()
+                        .map(|directive| (directive, syntax.clone(), machine.lexical_snapshot()))
+                }
+                _ => None,
             };
             *pending.lock().unwrap() = expression.then(|| machine.lexical_snapshot());
             *pending_bindings.lock().unwrap() =
@@ -315,6 +345,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         events.namespace_capture = Some(namespace_capture.clone());
         let mut attribute_namespaces = BTreeMap::new();
         let mut occurrences = BTreeMap::new();
+        let mut typed_preludes = BTreeMap::new();
         let mut occurrence_pending_bindings = BTreeMap::new();
         let mut names = BTreeMap::new();
         let document = CemAstBuilder::new(events).build_with_node_observer(|node, attribute| {
@@ -329,6 +360,13 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                 }
             }
             if let Some(node) = node {
+                if let Some((directive, syntax, preceding)) = pending_typed.lock().unwrap().take() {
+                    typed_preludes.insert(directive, TypedPreludeSlot {
+                        directive, value: node, syntax, preceding, form: SchemaElementForm::Prelude,
+                        extent: crate::schema::scope_controls::SchemaScopeControlExtent::Following,
+                        required_version: crate::schema::ir::SemVer::new(1, 1, 0),
+                    });
+                }
                 if let Some(name) = opening_name.lock().unwrap().take() {
                     names.insert(node, name);
                 }
@@ -411,6 +449,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             pending_namespace_names,
             pending_namespace_bindings: occurrence_pending_bindings,
             diagnostics: diagnostics.into_inner().unwrap(),
+            typed_preludes,
         }
     }
 

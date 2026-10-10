@@ -248,8 +248,8 @@ Relevant source files: [parser AST](../packages/cem_ml/src/parser.rs), [parser d
 
 These layers are implementation context, not a mandatory common storage
 structure or evidence that every adopted lifecycle and schema rule is
-implemented. Remaining representation work is recorded in
-[todo.md](todo.md#ast-node-reference-implementation).
+implemented. Representation implementation evidence is recorded in
+[archived checklist](archive/todo-snapshot-2026-10-10.md#ast-node-reference-implementation).
 
 ### Context-specific references and common resolution (adopted)
 
@@ -298,8 +298,8 @@ Consequences for this design:
 Parser-side lexical capture and explicit consumer scope handoff preserve these
 associations alongside the specialized records. The established schema controls
 and native namespace attributes now have distinct target-kind, cardinality,
-readiness and explicit activation contracts described below. Remaining cross-consumer
-integration is tracked in [todo.md](todo.md#ast-node-reference-implementation).
+readiness and explicit activation contracts described below. Cross-consumer
+integration evidence is recorded in [archived checklist](archive/todo-snapshot-2026-10-10.md#ast-node-reference-implementation).
 No replacement of every frame or binding table is mandated.
 
 ### Scope-property consumption audit (2026-10-06)
@@ -392,8 +392,8 @@ namespace preparation stays explicit in the host's `prepare_loaded` hook.
 Ordinary parsing, loading, inspection and query preparation stay passive. End-to-end
 fixtures cover repeated source reuse, shared query ingress, completed core controls
 versus foreign lookalikes, original-source inspection, denied grants, cumulative
-work, local policy and incomplete-input retry. Active follow-ups and deferred
-contracts retain their scenarios in [todo.md](todo.md#ast-node-reference-implementation)
+work, local policy and incomplete-input retry. Completed follow-ups and design
+contracts retain their scenarios in [archived checklist](archive/todo-snapshot-2026-10-10.md#ast-node-reference-implementation)
 and [the roadmap](../roadmap.md#deferred-cem-reference-query-and-transport-contracts).
 
 The original child-override deferral is superseded by the 2026-10-07
@@ -625,7 +625,7 @@ an inspectable model; lifecycle activation must still require complete dependenc
 and no hard compilation diagnostics. It neither activates a region nor supplies an
 inherited fallback.
 The decision, implementation tasks and verification scenarios are recorded in
-[todo.md](todo.md#ast-node-reference-implementation).
+[archived checklist](archive/todo-snapshot-2026-10-10.md#ast-node-reference-implementation).
 
 `CemQlSchemaDeclarationHost::prepare_schema_scope` now provides an explicit
 consumer preparation stage for one retained native reference. It resolves the
@@ -945,12 +945,13 @@ inside a selected subtree govern its actual owning child edges; destination
 contexts, local policy provenance and limits remain independent of this model
 routing. Original sources and repeated placements remain retained.
 
-The source tokenizer currently recognizes document-level directives and retains
-`@schema` inside block content as text, despite the syntax guide describing block
-shorthand. Block parsing is deferred (2026-10-06) until recognition, line-position
-and literal-text compatibility are specified. Typed prelude reference slots
-are likewise a separate source design task; existing native attribute forms remain
-available. This stage selects no enclosed child-reference syntax.
+The 2026-10-07 adoption subsequently implemented literal block-prelude
+recognition with the syntax guide's line-position and opening-region bounds.
+Typed prelude slots are now specified separately in the
+[typed prelude contract](cem-typed-prelude-design.md), adopted 2026-10-09 after an
+explicit request. Their 1.1 parser, metadata, native consumers, writer and executable reload are
+implemented; existing native attribute forms remain available. The enclosed
+child override decision remains independent.
 
 ### Explicit schema URI loader handoff (implemented 2026-10-06)
 
@@ -1055,8 +1056,9 @@ metadata naming exact authored QNames. Standard namespace declarations and
 lexical ownership with entity-aware source frames. Ordinary XML brace strings
 remain literal; consumers do not infer intent from their values. The metadata
 is excluded from application attribute validation. Block preludes recognize
-known literal directives on their own opening lines; native typed prelude
-payloads remain conditional future work. See the syntax guide for full bounds.
+known literal directives on their own opening lines. Native typed prelude
+payloads follow the separately adopted [1.1 specification](cem-typed-prelude-design.md)
+and remain pending implementation. See the syntax guide for current bounds.
 
 ### Four different pieces of information
 
@@ -1385,8 +1387,8 @@ Source-reference evaluation uses an explicitly supplied lifecycle host with
 original scopes, contexts and directed grants. Browser/SSR placement adapters
 also require independent host grants and fresh revision/readiness checks.
 Prepared producers are admitted only within private coordinated transactions;
-serialized hints confer no authority. Additional provider adoption remains actionable in
-[todo.md](todo.md#deferred-cem-element-reference-consumption).
+serialized hints confer no authority. Completed provider adoption is recorded in
+[archived checklist](archive/todo-snapshot-2026-10-10.md#deferred-cem-element-reference-consumption).
 
 ## Public query reference access (adopted 2026-10-06)
 
@@ -1556,7 +1558,9 @@ without requiring runtime contexts or synthetic context IDs in source exports.
 
 - Enclosed child override syntax is adopted in the syntax guide; its
   [roadmap checkpoint](../roadmap.md#deferred-cem-reference-syntax-decision)
-  is closed. Native typed prelude payloads remain conditional future work.
+  is closed. Native typed prelude payloads have an adopted
+  [specification](cem-typed-prelude-design.md); native consumers and versioned
+  writer/reload support are implemented.
 - Public query access, lexical reload and graph/transport contracts are adopted
   above. Their completed implementation and fixtures are recorded in the
   [archived checklist](archive/todo-snapshot-2026-10-07.md#reference-query-and-transport-contract-implementation), with
@@ -1564,17 +1568,18 @@ without requiring runtime contexts or synthetic context IDs in source exports.
   [roadmap.md](../roadmap.md#deferred-cem-reference-query-and-transport-contracts).
 - Concrete expression/lexical representation, linkage to existing specialized
   records, runtime outcome handling, and schema traversal limits and policy
-  declarations are actionable work in
-  [todo.md](todo.md#ast-node-reference-implementation).
+  declarations have implementation evidence in
+  [archived checklist](archive/todo-snapshot-2026-10-10.md#ast-node-reference-implementation).
 - `cem-element` ID projection and typed interaction inputs are adopted in
   [the consumer design](cem-element-reference-ids-design.md). Shared native
-  rendering and action endpoints implement the bounded first contract; further
-  lifecycle/provider adoption is in
-  [todo.md](todo.md#deferred-cem-element-reference-consumption).
+  rendering and action endpoints implement the bounded first contract; completed
+  lifecycle/provider adoption is recorded in
+  [archived checklist](archive/todo-snapshot-2026-10-10.md#deferred-cem-element-reference-consumption).
 
-Scenarios for later design verification are preserved next to those action
-items. Deferring these details does not reopen the adopted scope, lifecycle,
-reference-chain, or consumer-ownership principles.
+Scenarios for later design verification are preserved next to the archived
+actions. A listed scenario alone does not establish completed verification. The
+adopted scope, lifecycle, reference-chain and consumer-ownership principles remain
+in force.
 
 ## Design authority and limits
 
@@ -2048,9 +2053,9 @@ failure if none was supplied; invalid traversal limits also fail publication.
 Native query failures retain their original codes and source attribution.
 The existing readiness and coordinated publication gates apply to every result.
 
-Remaining validation/composition consumers and deferred syntax/element behavior
-remain actionable work, with verification scenarios, in
-[todo.md](todo.md#5-integrate-schema-validation-and-construct-reuse).
+Validation/composition consumers and syntax/element implementation actions
+are preserved, with verification scenarios, in
+[archived checklist](archive/todo-snapshot-2026-10-10.md#5-integrate-schema-validation-and-construct-reuse).
 
 
 ### Schema consumer inventory and attribute declaration reuse (2026-10-04)
@@ -2069,7 +2074,9 @@ input is rewritten. The existing sites are:
 | Direct references in `{constraints}` | Zero or more `{constraint}` declarations with nonempty `@kind` | Explicit schema compilation after behavior assembly; implemented. |
 | Direct references in `{field-contracts}` | Zero or more `{field-contract}` declarations with nonempty `@name` and `@target`; ordered applications | Explicit schema compilation after element and behavior assembly; implemented. |
 | Element `@base` with `{uses}` aliases | One named element model from the declaring lexical alias/registry contract | The schema-owned `element-base` datatype preserves literal QName/wildcard lookup and admits an explicit native reference selecting exactly one named element declaration. |
-| Attribute `@type` and diagnostic strings; behavior/function strings; constraint and field-contract target strings | Existing datatype, diagnostic, function and local-name contracts | Compile-time dependency checks and final input validation remain compatible; these strings are not implicit native reference constructors. |
+| Attribute `@type`; datatype `@base` and `@rule` | Singleton original type/base/item or registered validation behavior, according to the site | Implemented by the explicit registered compiler under the [datatype design](cem-datatype-compilation-design.md); literal rule text retains its descriptive meaning. |
+| Behavior `@function` | Singleton original function with checked visibility, signature and execution authority | [Scalar composition contract](cem-scalar-composition-design.md) adopted 2026-10-09; native/literal selection and checked datatype-profile invocation verified. Automatic package activation remains pending. Existing literal profiles remain compatible. |
+| Diagnostic strings; signature type metadata; constraint and field-contract target strings | Existing datatype, diagnostic, function and local-name contracts | Compile-time dependency checks and final input validation remain compatible; these strings are not implicit native reference constructors. |
 | Specialized schema and namespace scope properties | Existing schema/namespace identity and runtime scope contracts | Lexical capture, schema region handoff, bounded namespace selection, explicit declaration admission and independent pending-QName completion/query views are implemented. Explicit publication, lexical handoff, opt-in lifecycle coordination and resumable schema URI integration are implemented. Enclosed child overrides now use the adopted existing host-bound forms. |
 | Native references in structural validation-input child positions | Ordered zero/many retained structural child nodes; parent and selected-subtree rules use the consuming schema | Explicit native structural validation API, QL host stage, per-placement behavior checks and typed node function candidates are implemented. The optional engine stage retains CEM/XML parser owners and JSON/YAML/CSV lifecycle owners; other specialized validators retain their existing paths. |
 
@@ -2414,8 +2421,8 @@ inputs remain incomplete and defer dependent behavior. Diagnostic disposition an
 consumption completeness remain separate. These are schema consumer policies;
 CEM-ML syntax does not prescribe attribute projection or DOM ID generation.
 
-The remaining collection, scalar-link and validation-input work is in
-[todo.md](todo.md#5-integrate-schema-validation-and-construct-reuse), alongside
+The collection, scalar-link and validation-input implementation history is in
+[archived checklist](archive/todo-snapshot-2026-10-10.md#5-integrate-schema-validation-and-construct-reuse), alongside
 scenarios for later verification. This inventory does not choose deferred child
 scope syntax or cem-element ID projection behavior.
 
@@ -2445,9 +2452,13 @@ implicit retained-document registry or grant additional scope crossings.
 
 Reusing a declaration still does not import its whole declaring schema.
 Dependencies can be supplied explicitly through direct or referenced collection
-declarations. Inline behavior functions retain existing function binding rules;
-other scalar function/alias composition follows its existing registry and
-visibility contracts. Those scalar-site extensions remain separate action items.
+declarations. Inline behavior functions retain existing function binding rules.
+The [scalar composition design](cem-scalar-composition-design.md), adopted
+2026-10-09, defines singleton native `@function` selection with original ownership,
+visibility, explicit registration and bounded readiness. Passive native/literal
+selection now has ML and QL host fixtures; executable binding and activation
+remain open actions. Existing literal function/alias profiles keep their registry
+and visibility contracts.
 
 An incomplete behavior or diagnostic collection cannot prove that a local
 dependency is absent. Compilation defers the affected missing local lookups and
@@ -2562,27 +2573,19 @@ source AST or evaluating general attribute expressions.
 
 ### Native attribute datatype adoption boundary
 
-Attribute declaration `@type={#datatype}` adopts an explicit native reference
-selecting exactly one named schema `{type}` declaration, retaining its original
-owner and lexical scope. Literal type names retain their existing behavior.
-This adopts the reference site; it does not yet select executable datatype forms.
+Attribute declaration `@type={#datatype}` selects exactly one named original
+schema `{type}` through the explicit registered datatype compiler. Literal QNames
+and native slots share its retained descriptor, effective restrictions, lexical
+preparation, facet profile and declaration-readiness checks. Empty or multiple
+native selections are invalid. Pending, denied, unavailable and bounded-out
+selections keep the model incomplete without an untyped/string fallback.
 
-Until that consumer is implemented, compilation retains native type constructors
-as pending and cannot activate the model. This applies to authored attributes and
-attributes selected through declaration collection references. Local attribute
-metadata stays available for inspection. General native expressions, composite
-slots and missing native handles are invalid under the explicit-constructor
-contract. Readiness guarding does not invoke a datatype evaluator or implicitly
-turn an unconsumed native type into an untyped attribute.
-
-General datatype compilation must be designed before enabling consumption;
-the limited built-in-base/values-only consumer was not adopted. The temporary
-[datatype compiler proposal](cem-datatype-compilation-proposal.md) inventories
-existing kinds and rule descriptions, proposes retained descriptors and a shared
-literal/native dependency lifecycle, and records the remaining semantic decisions.
-Pending attribute metadata defers type-dependent facet/default checks, while
-known malformed facets and local value errors remain visible. Standalone value
-conversion rejects unconsumed type metadata instead of falling back to strings.
+The adopted [datatype compilation design](cem-datatype-compilation-design.md#supported-lifecycle-and-activation)
+owns executable contracts and their activation rules. Package activation now
+requires every effective typed attribute to bind and pass original-scope
+diagnostic/default checks. The previous complete schema/converters/artifacts
+remain active during an incomplete replacement. Parsing and source-only compilation
+retain the native guard; execution authority is explicitly registered.
 
 General datatype rule execution adopts explicitly registered schema-owned
 implementations and preserves shipped prose as descriptions. It does not introduce
@@ -2590,8 +2593,7 @@ an executable grammar language. Registration grants no additional scope access,
 and matching a rule description or local type name cannot acquire a primitive.
 Custom binding adopts explicit native `@rule={#behavior}` selecting one named
 registered datatype-compatible behavior, with literal descriptions retained.
-A separate `@behavior` field is not adopted. Rule consumption remains disabled
-until its typed signature and lifecycle adapter are specified. Rules validate
+A separate `@behavior` field is not adopted. Rule consumption requires its registered typed signature and lifecycle adapter. Rules validate
 and report acceptance or diagnostics; an explicitly requested separate conversion
 capability produces the canonical value. Rules cannot replace that value or
 mutate authored source nodes. Distinct same-name datatype declarations in one
@@ -2671,17 +2673,17 @@ establish executable datatype readiness.
 ### Reference and datatype workstream boundary
 
 General datatype execution, conversion, equality and enumeration authoring are a
-separate workstream in the [datatype proposal](cem-datatype-compilation-proposal.md)
-and [datatype actions](todo.md#general-datatype-compilation-design). All adopted
-contracts remain effective. Enumeration constant authoring remains an unanswered
-future datatype decision, rather than the next decision for reference adoption.
+separate workstream in the [datatype design](cem-datatype-compilation-design.md)
+and [completed datatype actions](archive/todo-snapshot-2026-10-10.md#general-datatype-compilation-design). All adopted
+contracts remain effective. Whitespace-token enumeration constants are adopted; richer retained constant
+authoring remains deferred.
 
 Core reference work can continue with explicit consumer binding, lifecycle outcomes
-and readiness boundaries. The particular executable native attribute `@type`
-consumer remains guarded until its separately designed datatype compiler is ready.
+and readiness boundaries. The executable native attribute `@type` consumer is supported by the explicit
+registered datatype compiler and remains guarded in source-only compilation.
 Complete reference selection cannot by itself claim an executable type or activate
-an incomplete schema package. Track the integration and its verification scenarios
-in [reference adoption actions](todo.md#reference-adoption-dependency-binding-and-readiness).
+an incomplete schema package. Integration and verification scenarios are preserved
+in [archived reference adoption actions](archive/todo-snapshot-2026-10-10.md#reference-adoption-dependency-binding-and-readiness).
 
 
 ### Retained expression artifact lifecycle (2026-10-05)
@@ -2712,9 +2714,9 @@ scalar type. Full Nx CEM-QL verification passes 862 tests (nine ignored), and th
 transformation adapter target passes 132 tests. Namespace-aliased XML/CDATA references
 compile and evaluate through
 the same typed context as CEM-ML standalone references. This does not enable the
-separately deferred XML attribute expression contract. The remaining source-position
-linkage and expression-slot parity work is recorded with adjacent verification
-scenarios in [todo.md](todo.md#reference-adoption-dependency-binding-and-readiness).
+separately deferred XML attribute expression contract. Source-position
+linkage and expression-slot parity implementation are recorded with adjacent verification
+scenarios in [archived checklist](archive/todo-snapshot-2026-10-10.md#reference-adoption-dependency-binding-and-readiness).
 
 
 ### Reference expression diagnostic provenance (2026-10-05)
@@ -2748,8 +2750,8 @@ fixtures. Ninety focused CEM-ML tokenizer/parser/codec/native-slot/source-mappin
 tests pass, including three new segment and binary fixtures. The complete CEM-QL
 and transformation adapter Nx test targets pass.
 
-Remaining expression-slot, lexical default/shadowing and tree-sitter parity work is
-still tracked in [todo.md](todo.md#reference-adoption-dependency-binding-and-readiness).
+Expression-slot, lexical default/shadowing and tree-sitter parity implementation is
+recorded in [archived checklist](archive/todo-snapshot-2026-10-10.md#reference-adoption-dependency-binding-and-readiness).
 XML attribute opt-in and enclosed child overrides are adopted and verified below;
 cem-element ID consumption remains on its separate consumer track.
 
@@ -2804,6 +2806,7 @@ diagnostic spans and independent runtime contexts/grants. Source-reference CEMV
 guards remain separate from executable bundle transport.
 
 The existing host/schema enclosure, explicit XML attribute opt-in, and bounded
-literal block preludes are adopted and verified. Typed prelude payloads and
-cem-element ID projection remain separate. Actionable follow-ups retain adjacent
-scenarios in [todo.md](todo.md#ast-node-reference-implementation).
+literal block preludes are adopted and verified. Typed prelude payloads have a
+separate [adopted specification](cem-typed-prelude-design.md), with native consumers
+and versioned writer/reload support implemented; cem-element ID projection retains
+its separate consumer contract. Completed actions retain adjacent scenarios in [archived checklist](archive/todo-snapshot-2026-10-10.md#ast-node-reference-implementation).

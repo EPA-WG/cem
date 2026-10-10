@@ -1,9 +1,9 @@
 # Component CSS Exceptions
 
-**Status:** One accepted bounded exception for frozen legacy choice components. `CEM-CSS-001` was resolved by
-adopting generated theme tokens. `CEM-CSS-002` authorizes one private physical
-stacking adapter for transient choice popups until migration. Canonical `cem-select` now consumes the theme-owned public
-`--cem-select-popup-z-index` (§15.1.1 of D4), which defaults to `1`.
+**Status:** No active component CSS exceptions. `CEM-CSS-001` and
+`CEM-CSS-002` are resolved by generated theme tokens. Canonical `cem-select`
+and `cem-autocomplete` consume the theme-owned `--cem-select-popup-z-index`
+(§15.1.1 of D4), which defaults to `1`.
 
 ## Token-first rule
 
@@ -44,9 +44,8 @@ no component-local CSS exception is needed.
 
 ## Accepted bounded exceptions
 
-| ID | Status | Requirement | Accepted scope |
-| --- | --- | --- | --- |
-| CEM-CSS-002 | Accepted — component-local physical adapter | A select/autocomplete popup must paint above later in-flow, positioned component content while remaining anchored to its input/control. | Only the frozen legacy `cem-select .cem-select__popup` and `cem-autocomplete .cem-autocomplete__popup` may declare private `--_cem-choice-popup-z-index: 1` and consume it through `z-index`. The generated D4 overlay endpoint continues to own semantic elevation through `box-shadow`; the private integer carries no semantic tier and is not public API. |
+None. The final legacy choice-popup owner migrated to the existing public theme
+adapter with `cem-autocomplete`.
 
 ### CEM-CSS-002 rationale and verifier boundary
 
@@ -58,21 +57,17 @@ discarded that invalid value, allowing later positioned fields to intercept
 pointer input intended for an open popup.
 
 At the time of this exception, no generated theme category represented the
-integer. D4 now owns the canonical public choice-popup stacking token; this
-exception remains only for frozen legacy declarations. The accepted value is the
-smallest positive local stacking level and is intentionally private. It does
-not create an overlay ladder, compete with command/modal policy, authorize
-portals, or alter dismissal/focus semantics. The style verifier accepts the
-declaration only on the two choice-popup selectors, requires the exact private
-property and value, rejects `--cem-layer-overlay` as a z-index value, and
-rejects any other legacy component z-index declaration. The canonical select
-gate instead requires the generated `--cem-select-popup-z-index` token and
-rejects a local default or private alias.
+integer. D4 now owns the public choice-popup stacking token. Both canonical
+choice declarations consume it directly; the legacy private adapter is retired.
+The canonical gate requires the generated token and rejects a local default or
+private alias. The legacy stylesheet gate rejects all z-index declarations.
+This transition changes no popup dismissal, focus or elevation behavior.
 
 ## Closed decisions
 
 | ID | Status | Requirement | Resolution |
 | --- | --- | --- | --- |
+| CEM-CSS-002 | Closed — existing theme adapter adopted | Positive local stacking for select and autocomplete popups. | Both canonical declarations consume `--cem-select-popup-z-index` directly, with no private alias or local default. |
 | CEM-CSS-001 | Closed — adopted into theme, no exception | Distinguishable default, hover, disabled, readonly, invalid, pending, focus, and selection indicators across field-like and binary input controls. | D0 owns generated semantic input-indicator colors; D5 owns pending thickness and outline/underline geometry selectors. Component CSS composes one local three-stripe shadow stack exclusively from those endpoints, with system-color forced-colors fallbacks. |
 
 ### CEM-CSS-001 discovery evidence

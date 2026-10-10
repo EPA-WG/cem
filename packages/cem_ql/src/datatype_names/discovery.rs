@@ -139,6 +139,8 @@ impl DatatypeNameCatalog {
             }
             host.attach_captured_names(&input.captured)
                 .map_err(|_| pending("datatype-source-owner-unavailable", &input.schema))?;
+            host.attach_captured_namespaces(input.captured.clone())
+                .map_err(|_| pending("datatype-source-owner-unavailable", &input.schema))?;
             if !named(host, &input.schema, "schema")? {
                 return Err(error("datatype-schema-required", &input.schema));
             }
@@ -184,6 +186,18 @@ impl DatatypeNameCatalog {
             }
             environments.push((namespace, uses));
         }
+        let schema_aliases = inputs
+            .iter()
+            .zip(&environments)
+            .map(|(input, (_, uses))| {
+                (
+                    input.schema.identity(),
+                    uses.iter()
+                        .map(|(alias, (uri, _))| (alias.clone(), uri.clone()))
+                        .collect(),
+                )
+            })
+            .collect();
         let mut scopes = vec![];
         for ((input, types), (namespace, uses)) in inputs.iter().zip(members).zip(environments) {
             let mut declarations = vec![];
@@ -288,7 +302,9 @@ impl DatatypeNameCatalog {
                 imports: input.imports.clone(),
             });
         }
-        Self::collect(&scopes, host, limits)
+        let mut catalog = Self::collect(&scopes, host, limits)?;
+        catalog.schema_aliases = schema_aliases;
+        Ok(catalog)
     }
 }
 

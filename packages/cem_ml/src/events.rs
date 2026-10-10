@@ -22,6 +22,8 @@ pub enum ScalarValue {
     Text(String),
     /// Unevaluated source expression, including its authored braces.
     Expression(String),
+    /// Original typed directive slot, never a legacy literal payload.
+    TypedPrelude(crate::tokenizer::cem::TypedPreludeValue),
     Int(i64),
     Float(f64),
     Bool(bool),

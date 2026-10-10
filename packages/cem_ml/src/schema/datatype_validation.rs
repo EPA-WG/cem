@@ -3,6 +3,7 @@
 use super::{
     datatype_registry::DatatypeKind,
     declaration_references::SchemaDeclarationNode,
+    function_references::{FunctionSelection, FunctionSelectionBudget},
     registry::CEM_SCHEMA_URI,
     value_contracts::{
         self as fields, Cardinality, ContractName, ValueContractError, ValueContractSource,
@@ -49,6 +50,8 @@ pub enum ValidationImplementation {
     Query {
         function: SchemaDeclarationNode,
         body: String,
+        source: ValueContractSource,
+        body_source: SchemaDeclarationNode,
     },
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -93,6 +96,37 @@ impl DatatypeBehaviorContract {
         signature: ValidationSignature,
         profile: BehaviorProfile,
     ) -> Result<Self, ValueContractError> {
+        Self::compile_profile_binding(source, behavior, signature, profile, None)
+    }
+    /// Check an immutable completed selection against this exact registered
+    /// profile. Execution still requires explicit registry admission.
+    pub fn compile_selected(
+        selection: &FunctionSelection,
+        signature: ValidationSignature,
+        budget: &mut FunctionSelectionBudget,
+    ) -> Result<Self, ValueContractError> {
+        Self::compile_selected_profile(selection, signature, BehaviorProfile::Validation, budget)
+    }
+    pub(super) fn compile_selected_profile(
+        selection: &FunctionSelection,
+        signature: ValidationSignature,
+        profile: BehaviorProfile,
+        budget: &mut FunctionSelectionBudget,
+    ) -> Result<Self, ValueContractError> {
+        let (source, behavior, _, function) = selection.binding()?;
+        budget.inspect(&source.schema)?;
+        if function.source().schema.identity() != source.schema.identity() {
+            budget.inspect(&function.source().schema)?;
+        }
+        Self::compile_profile_binding(source, behavior, signature, profile, Some(selection))
+    }
+    fn compile_profile_binding(
+        source: &ValueContractSource,
+        behavior: &SchemaDeclarationNode,
+        signature: ValidationSignature,
+        profile: BehaviorProfile,
+        selection: Option<&FunctionSelection>,
+    ) -> Result<Self, ValueContractError> {
         let fail = |code| ValueContractError::at(code, behavior);
         if !source.named(&source.schema, "schema")
             || !Arc::ptr_eq(source.schema.document(), behavior.document())
@@ -133,7 +167,7 @@ impl DatatypeBehaviorContract {
                 _ => return Err(fail("incompatible-kind-representation")),
             }
         }
-        let behavior_attrs = fields::attrs(
+        let behavior_attrs = fields::attrs_except(
             source,
             behavior,
             &[
@@ -143,6 +177,9 @@ impl DatatypeBehaviorContract {
                 "primitive",
                 "function",
             ],
+            selection
+                .map(|s| s.binding().map(|(_, _, slot, _)| slot))
+                .transpose()?,
         )?;
         if fields::required(&behavior_attrs, "name", behavior)?
             .trim()
@@ -228,18 +265,36 @@ impl DatatypeBehaviorContract {
         let implementation = match fields::required(&behavior_attrs, "implementation", behavior)?
             .as_str()
         {
-            "engine" if behavior_attrs.get("function").is_none() && functions.is_empty() => {
+            "engine"
+                if selection.is_none()
+                    && behavior_attrs.get("function").is_none()
+                    && functions.is_empty() =>
+            {
                 let id = fields::required(&behavior_attrs, "primitive", behavior)?;
                 if id.trim().is_empty() {
                     return Err(fail("missing-implementation-id"));
                 }
                 ValidationImplementation::Native(id)
             }
-            "function" if behavior_attrs.get("primitive").is_none() && functions.len() == 1 => {
-                let function = functions.remove(0);
-                let fa = fields::attrs(source, &function, &["name", "returns", "deterministic"])?;
-                if fields::required(&fa, "name", &function)?
-                    != fields::required(&behavior_attrs, "function", behavior)?
+            "function"
+                if behavior_attrs.get("primitive").is_none()
+                    && (selection.is_some() || functions.len() == 1) =>
+            {
+                let (source, function) = if let Some(selection) = selection {
+                    let (_, _, _, selected) = selection.binding()?;
+                    (selected.source(), selected.function().clone())
+                } else {
+                    (source, functions.remove(0))
+                };
+                let allowed = if selection.is_some() {
+                    &["name", "returns", "deterministic", "visibility"][..]
+                } else {
+                    &["name", "returns", "deterministic"][..]
+                };
+                let fa = fields::attrs(source, &function, allowed)?;
+                if selection.is_none()
+                    && fields::required(&fa, "name", &function)?
+                        != fields::required(&behavior_attrs, "function", behavior)?
                 {
                     return Err(fail("function-binding-mismatch"));
                 }
@@ -286,8 +341,12 @@ impl DatatypeBehaviorContract {
                 if params.len() != 3 {
                     return Err(ValueContractError::at("missing-function-role", &function));
                 }
+                let (body, body_source) =
+                    body.ok_or_else(|| ValueContractError::at("missing-function-body", &function))?;
                 ValidationImplementation::Query {
-                    body: body.ok_or_else(|| fail("missing-function-body"))?,
+                    body,
+                    body_source,
+                    source: source.clone(),
                     function,
                 }
             }
@@ -370,12 +429,13 @@ fn primitive(p: ScalarRepresentation) -> &'static str {
 fn expression(
     source: &ValueContractSource,
     body: &SchemaDeclarationNode,
-) -> Result<String, ValueContractError> {
+) -> Result<(String, SchemaDeclarationNode), ValueContractError> {
     fields::attrs(source, body, &[])?;
     let children = fields::elements(body)?;
     if children.len() != 1 {
         return Err(ValueContractError::at("single-expression-required", body));
     }
+    let body_source = children[0].clone();
     let CemAstNode::Element {
         expanded_name,
         attributes,
@@ -405,5 +465,5 @@ fn expression(
     if expression.trim().is_empty() {
         return Err(ValueContractError::at("empty-expression", body));
     }
-    Ok(expression)
+    Ok((expression, body_source))
 }

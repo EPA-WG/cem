@@ -193,6 +193,7 @@ fn document(artifact: &TransformTemplateDataArtifact) -> Result<ItemStream, Stri
             unresolved_slots: owner.unresolved_slots.clone(),
             diagnostics: owner.diagnostics.clone(),
             format_identity: owner.format_identity.clone(),
+            typed_preludes: owner.typed_preludes.clone(),
         };
         let tree = cem_ml::parser::tree::RetainedCemTree::new(
             ast,

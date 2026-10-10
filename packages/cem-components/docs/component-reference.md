@@ -75,17 +75,18 @@ The aggregate gate includes:
 | Sort-header forced colors | `yarn nx run @epa-wg/cem-components:verify-sort-header-forced-colors` | Proves character-distinct none/ascending/descending states, system hover/active/disabled colors, D5 focus coexistence, D2/D2c geometry, and transient-input state isolation. |
 | Paginator forced colors | `yarn nx run @epa-wg/cem-components:verify-paginator-forced-colors` | Proves native select/action ownership, system hover/active/disabled colors, D5 focus coexistence, D2/D2c geometry, surviving character icons, and transient-input state isolation. |
 | Slider forced colors | `yarn nx run @epa-wg/cem-components:verify-slider-forced-colors` | Proves native range-input ownership, system remaining/active/disabled track and thumb semantics, surviving ticks, D2/D2c geometry, D5 focus, and transient-input state isolation. |
-| Tooltip forced colors | `yarn nx run @epa-wg/cem-components:verify-tooltip-forced-colors` | Proves exact trigger ownership, persistent description, `Canvas`/`CanvasText` surface paint, top-layer CSS anchor placement and fallback, pointer/focus continuity, stable geometry, and event/state isolation. |
+| Tooltip forced colors | `yarn nx run @epa-wg/cem-components:verify-tooltip-forced-colors` | Proves exact trigger ownership, persistent description, source/installed rendering and `Canvas`/`CanvasText` surface paint through the shared native-surface verification gate. |
 | Timepicker forced colors | `yarn nx run @epa-wg/cem-components:verify-timepicker-forced-colors` | Proves exact native input ownership, `Canvas`/`CanvasText` popup paint, system hover/active/selected/disabled coexistence, D5 focus, top-layer CSS anchor placement, stable geometry, and event/state isolation. |
 | Datepicker forced colors | `yarn nx run @epa-wg/cem-components:verify-datepicker-forced-colors` | Proves exact native input ownership, modal/top-layer containment, `Canvas` dialog paint, `SelectedItem` selected paint, `Mark` current paint, `CanvasText` focus coexistence, disabled suppression, logical anchor placement, stable geometry, and event/state isolation. |
 | Tabs forced colors | `yarn nx run @epa-wg/cem-components:verify-tabs-forced-colors` | Proves selected/default/disabled system paint, a surviving `Highlight` indicator, D2 target size, D5 focus, stable geometry and ARIA, and absence of animation or numeric stacking. |
 | Stepper forced colors | `yarn nx run @epa-wg/cem-components:verify-stepper-forced-colors` | Proves exact native header ownership, current/hover/active/focus/completed/invalid/disabled coexistence, completed/remaining connector paint, D2/D5 geometry, and transient event/state isolation. |
 | Tree forced colors | `yarn nx run @epa-wg/cem-components:verify-tree-forced-colors` | Proves exact native treeitem ownership, default/hover/active/selected/focus/disabled/loading system paint, visible state shapes, D2/D5 geometry, wrapper isolation, and transient event/state silence. |
 | Input indicator forced colors | `yarn nx run @epa-wg/cem-components:verify-input-indicator-forced-colors` | Launches Chromium with forced colors active; proves component shadows collapse, field/binary hover uses `Highlight`, and keyboard focus traverses the original seven input owners with full `CanvasText` outlines. |
+| Autocomplete source/packed/bundle | `yarn nx run @epa-wg/cem-components:verify-autocomplete` | Proves property controls, authoritative refresh, focus, forms, gallery binding and canonical bundle loading. |
 | Autocomplete forced colors | `yarn nx run @epa-wg/cem-components:verify-autocomplete-forced-colors` | Proves popup draw order, input/option pointer ownership, system hover/active/selected/disabled colors, keyboard focus coexistence, stable geometry, and event/state isolation. |
 | Navigation hover/focus/active/disabled forced colors | `yarn nx run @epa-wg/cem-components:verify-navigation-hover-forced-colors` | Launches Chromium with forced colors active; proves system hover/current/active/disabled colors, ARIA-disabled current/selected precedence, full keyboard traversal, focus coexistence, native-disabled skipping, restoration, and wrapper/state isolation. |
 | Content hover/focus forced colors | `yarn nx run @epa-wg/cem-components:verify-content-hover-forced-colors` | Launches Chromium with forced colors active; proves exact content-owner keyboard order and `CanvasText` rings alongside checkable-chip system fills, native-listbox hover boundary color, selected/checked coexistence, disabled skipping, restoration, and passive wrapper isolation. |
-| Feedback focus forced colors | `yarn nx run @epa-wg/cem-components:verify-feedback-focus-forced-colors` | Launches Chromium with forced colors active; proves both transient native-dialog fallback owners retain the D5 width/offset with `CanvasText` and automatic color adjustment while static wrappers, hosts, sheets, and authored descendants remain outside component focus paint. |
+| Native surfaces and forced colors | `yarn nx run @epa-wg/cem-components:verify-surfaces` | Verifies dialog, dialog-shell and tooltip source/installed property pages, five-theme galleries, release bundle, native focus and system-color paint. |
 | Legacy stylesheet publication | `yarn nx run @epa-wg/cem-components:verify-package` | Preserves the frozen legacy component stylesheet byte-for-byte in `dist`, verifies the side-effect-free `./styles.css` compatibility export, and checks the dry-run npm file inventory. Migrated declaration CSS does not enter this artifact. |
 | Phase 3 substrate harness | `yarn nx run @epa-wg/cem-components:verify-phase3-harness` | Typechecks and lints the package, then proves real CEM-ML action/field registration, render settlement and re-rendering, slice-driven events, native form data/reset/validity, light-DOM accessibility, a reviewed structural/computed-style baseline, and Chromium screenshot capture. |
 | Legacy browser and unit behavior | `yarn nx run @epa-wg/cem-components:test` | Keeps the frozen Node/Chromium migration baseline executable. New/migrated component unit ownership is the colocated `.stories.ts` CSF Next module, not this suite. |
@@ -100,28 +101,27 @@ verifiable but are not valid locations or implementation patterns for new work:
 | Legacy primitive declarations | `../src/lib/primitives.ts` |
 | Angular Material parity inventory | `../tests/angular-material-parity.json` |
 | Primitive family coverage | `../src/lib/primitives.browser.spec.ts` |
-| Autocomplete behavior and state coverage | `../src/lib/autocomplete.browser.spec.ts` |
+| Autocomplete behavior and state coverage | `../src/components/cem-autocomplete/cem-autocomplete.stories.ts` |
 | Expansion behavior and state coverage | `../src/lib/expansion.browser.spec.ts` |
 | Sort-header behavior and state coverage | `../src/lib/sort-header.browser.spec.ts` |
 | Paginator behavior and state coverage | `../src/lib/paginator.browser.spec.ts` |
 | Slider behavior and state coverage | `../src/lib/slider.browser.spec.ts` |
-| Tooltip behavior and state coverage | `../src/lib/tooltip.browser.spec.ts` |
+| Tooltip behavior and state coverage | `../src/components/cem-tooltip/cem-tooltip.stories.ts` |
 | Timepicker behavior and state coverage | `../src/lib/timepicker.browser.spec.ts` |
 | Datepicker behavior and state coverage | `../src/lib/datepicker.browser.spec.ts` |
 | Tabs behavior and state coverage | `../src/lib/tabs.browser.spec.ts` |
 | Stepper behavior and state coverage | `../src/lib/stepper.browser.spec.ts` |
 | Tree behavior and state coverage | `../src/lib/tree.browser.spec.ts` |
 | State, ARIA, focus, and event payload coverage | `../src/lib/states.browser.spec.ts` |
-| Feedback lifecycle and focus coverage | `../src/lib/feedback-expanded.browser.spec.ts` |
+| Sheet lifecycle and focus coverage | `../src/components/cem-sheet/cem-sheet.stories.ts` |
 | Workflow fixture coverage | `../src/lib/workflows.browser.spec.ts` |
 | Declarative workflow fixtures | `../tests/workflows/` |
-| Declarative feedback fixture | `../tests/feedback/expanded.html` |
 | Declarative autocomplete fixture | `../tests/autocomplete/contract.html` |
 | Declarative expansion fixture | `../tests/expansion/contract.html` |
 | Declarative sort-header fixture | `../tests/sort-header/contract.html` |
 | Declarative paginator fixture | `../tests/paginator/contract.html` |
 | Declarative slider fixture | `../tests/slider/contract.html` |
-| Declarative tooltip fixture | `../tests/tooltip/contract.html` |
+| Declarative tooltip fixture | `../playgrounds/cem-tooltip-gallery.html` |
 | Declarative timepicker fixture | `../tests/timepicker/contract.html` |
 | Declarative datepicker fixture | `../tests/datepicker/contract.html` |
 | Declarative tabs fixture | `../tests/tabs/contract.html` |
@@ -131,7 +131,7 @@ verifiable but are not valid locations or implementation patterns for new work:
 | Phase 3 action/field substrate harness fixture | `../src/lib/testing/component-harness.browser.spec.ts` |
 | Style and manifest verifier scripts | `../../../tools/scripts/verify-cem-components-*.mjs` |
 | Package stylesheet source | `../src/styles.css` |
-| Package publication and forced-colors scripts | `../scripts/copy-styles.mjs`, `../scripts/verify-package.mjs`, `../scripts/verify-input-indicator-forced-colors.mjs`, `../scripts/verify-autocomplete-forced-colors.mjs`, `../scripts/verify-navigation-hover-forced-colors.mjs`, `../scripts/verify-content-hover-forced-colors.mjs`, `../scripts/verify-expansion-forced-colors.mjs`, `../scripts/verify-sort-header-forced-colors.mjs`, `../scripts/verify-paginator-forced-colors.mjs`, `../scripts/verify-slider-forced-colors.mjs`, `../scripts/verify-tooltip-forced-colors.mjs`, `../scripts/verify-timepicker-forced-colors.mjs`, `../scripts/verify-datepicker-forced-colors.mjs`, `../scripts/verify-tabs-forced-colors.mjs`, `../scripts/verify-tree-forced-colors.mjs`, `../scripts/verify-feedback-focus-forced-colors.mjs` |
+| Package publication and forced-colors scripts | `../scripts/copy-styles.mjs`, `../scripts/verify-package.mjs`, `../scripts/verify-input-indicator-forced-colors.mjs`, `../scripts/verify-autocomplete-forced-colors.mjs`, `../scripts/verify-navigation-hover-forced-colors.mjs`, `../scripts/verify-content-hover-forced-colors.mjs`, `../scripts/verify-expansion-forced-colors.mjs`, `../scripts/verify-sort-header-forced-colors.mjs`, `../scripts/verify-paginator-forced-colors.mjs`, `../scripts/verify-slider-forced-colors.mjs`, `../scripts/verify-timepicker-forced-colors.mjs`, `../scripts/verify-datepicker-forced-colors.mjs`, `../scripts/verify-tabs-forced-colors.mjs`, `../scripts/verify-tree-forced-colors.mjs` |
 
 The Phase 3 visual baseline is the inline Vitest snapshot produced by the
 headless Chromium project used on Linux CI. It records normalized visible HTML,
@@ -250,9 +250,9 @@ value writes update submission/validity synchronously and preserve reset default
 | `cem-select` | Form-associated custom single/multiple choice with HTML-rendered options. | Canonical direct `cem-option`/`cem-option-group`; all-native `option`/`optgroup` migration adapter; `multiple`, `size`, `indicator`, `busy`, label/help slots. See the [custom select contract](./select-contract.md). | select, input indicator, stroke, zebra, bend, layering, control, typography | Label slot or `label` attribute names the combobox/listbox; focus remains on the composite owner with `aria-activedescendant`. |
 | `cem-option` | Canonical rich option payload consumed by `cem-select`, `cem-autocomplete`, and `cem-timepicker`. | Required `value`; optional `label`, `selected`, and `disabled`; static HTML descendants. Timepicker values use canonical `HH:mm`. | palette, typography | Does not create a nested tab stop or interaction owner. |
 | `cem-option-group` | Canonical labeled grouping payload consumed by `cem-select` and `cem-autocomplete`. | Required `label`; optional `disabled`; direct `cem-option` children. | palette, typography | The consuming composite projects `role="group"` and its accessible label. |
-| `cem-checkbox` | Binary form choice. | Default slot is label; `name` and `value` forward to native input; `indicator`; `busy`. | input indicator, stroke, zebra, control, bend, typography | Wrapping label must expose the visible text as the accessible name. |
-| `cem-radio` | Mutually exclusive form choice. | Default slot is label; shared `name` groups radios; `indicator`; `busy`. | input indicator, stroke, zebra, control, typography | Radio group context should provide the set label. |
-| `cem-switch` | Immediate boolean setting. | Default slot is label; renders checkbox with `role="switch"`; `indicator`; `busy`. | input indicator, stroke, zebra, action, control, bend | Visible label must name the switch. |
+| `cem-checkbox` | Native binary/mixed form choice. | Default slot replaces `label`; `name`, `value`, `form`, presence flags, native `indeterminate`, ARIA naming/help, `required-marker`, `indicator` and `busy`. See [checkable contract](./checkable-contract.md). | input indicator, stroke, zebra, control, bend, typography | Wrapping label must expose the visible text as the accessible name. |
+| `cem-radio` | Mutually exclusive form choice. | Default slot replaces `label`; `name` and native form owner group radios; checked/default reset, presence flags, ARIA naming/help, `required-marker`, `indicator` and `busy`. | input indicator, stroke, zebra, control, typography | Radio group context should provide the set label. |
+| `cem-switch` | Immediate boolean setting. | Default slot replaces `label`; native checkbox with `role="switch"`, `name`, `value`, `form`, checked/default reset, presence flags, ARIA naming/help, `required-marker`, `indicator` and `busy`. | input indicator, stroke, zebra, action, control, bend | Visible label must name the switch. |
 | `cem-slider` | Horizontal single-value or range input. | One direct native range input marked `single`, or exact `start`/`end` inputs; parent `min`, `max`, `step`, `disabled`, `discrete`, `show-tick-marks`. See the [slider contract](./slider-contract.md). | slider, coupling, stroke, bend, gap, typography | Every input retains native slider semantics and requires an accessible name; range thumbs require distinct names. Generated visuals are hidden. |
 
 States: `default`, `hover`, `focus-visible`, `disabled`, `loading`, `expanded`, `invalid`, `required`, `readonly`,
@@ -349,7 +349,7 @@ Native `commandfor`, `command`, `popovertarget`, `popovertargetaction`, and `int
 
 Conflicting native/CEM invocation routes are rejected rather than toggled twice. Missing targets rebind as the DOM changes. Submit/reset behavior remains native even when invalid surface wiring is diagnosed. `cem-interaction-error` bubbles from the invoker when no valid target exists. Existing controls and target IDs survive ordinary rerender.
 
-This first delivery implements action-side wiring and native targets. Accepted popup/dialog session commands and their target-side lifecycle are subsequent component deliveries, not simulated by the action.
+This first delivery implements action-side wiring and native targets. Shared popup/dialog targets own session commands and their target-side lifecycle.
 
 ## Layout
 
@@ -457,10 +457,10 @@ during refresh or provide visible loading text plus layout-preserving
 
 | Component | Semantics | Content and Attributes | Token Families | Required A11y |
 | --- | --- | --- | --- | --- |
-| `cem-tooltip` | Supplemental plain-text description with a transient top-layer presentation. | Exactly one supported native trigger assigned to `slot="trigger"`; required `message`; logical `position`; optional `show-delay`, `hide-delay`, `open`, and `disabled`. See the [tooltip contract](./tooltip-contract.md). | palette, stroke, bend, gap, inset, layering, typography | Appends a stable hidden description to the trigger's existing `aria-describedby`; the separate non-focusable visual has `role="tooltip"`. Focus remains on the native trigger. |
-| `cem-dialog` | Static dialog surface by default; native modal decision or task surface with `transient`. | `label` names the owner; default slot is body. Presence-only `transient` opts into lifecycle behavior and `expanded` supplies open state in that mode. | palette, stroke, bend, gap, inset | Static mode retains `div[role="dialog"][aria-modal="true"]`. Transient mode renders a native `<dialog>` and delegates modality, focus entry/containment, Escape, and restoration to the browser. The application-owned opener carries `aria-expanded` and `aria-controls`. |
-| `cem-dialog-shell` | Compatibility dialog-shell alias sharing the `cem-dialog` lifecycle boundary. | `label`, default body slot, and presence-only `transient` / `expanded` follow `cem-dialog`. | palette, stroke, bend, gap, inset | Uses the same static ARIA-wrapper versus transient native-dialog split as `cem-dialog`; it does not add another focus model. |
-| `cem-sheet` | Static non-modal task surface by default; application-controlled visible/hidden region with `transient`. | `label` names the region; default slot is body. In transient mode, presence-only `expanded` removes `hidden`. | palette, stroke, bend, gap, inset | Always remains a labeled `<aside role="region">`. It does not trap or move focus, intercept Escape, make the document inert, or dispatch dialog dismissal. |
+| `cem-tooltip` | Supplemental native tooltip description. | `message` or label slot; trigger slot, `trigger-for` or native interest; delays, `disabled` and logical `placement`. See [contract](./tooltip-contract.md). | palette, stroke, bend, gap, inset, layering, typography | The same non-focusable native Popover supplies the persistent accessible description; focus stays on the native trigger. |
+| `cem-dialog` | Native nonmodal task by default; explicit modal mode. | Heading `label`/label slot; eager or template body; launcher/close conveniences, commands, focus and geometry references. See [contract](./dialog-contract.md). | palette, stroke, bend, gap, inset, layering, typography | Shared `native-surface` owns lifecycle; native dialog owns form behavior and modality. |
+| `cem-dialog-shell` | Compatibility alias for the native dialog contract. | Same attributes, slots and shared capability as `cem-dialog`. | palette, stroke, bend, gap, inset, layering, typography | Stable native dialog with heading naming, explicit mode and shared focus restoration. |
+| `cem-sheet` | Static non-modal task surface by default; application-controlled visible/hidden region with `transient`. | `label` supplies the visible heading and default region name; `slot="label"` replaces visible markup. `aria-label`/`aria-labelledby` name it separately, and `aria-describedby` supplies help. Default slot is retained body. In transient mode, presence-only `expanded` removes `hidden`. | palette, stroke, bend, gap, inset | Always remains a labeled `<aside role="region">`. It does not trap or move focus, intercept Escape, make the document inert, or dispatch dialog dismissal. |
 | `cem-toast` | Transient status message. | Default slot is message text. | palette, action, stroke, gap, typography | Renders polite `role="status"` live region. |
 | `cem-progress` | Determinate or indeterminate progress. | `value`, `max`, and `label`. | palette, action, control, typography | Native progress must have an accessible name. |
 | `cem-progress-spinner` | Non-interactive circular determinate or indeterminate progress. | `label` names the progressbar; presence of `value` selects determinate mode, absence selects indeterminate mode; `max` defaults to 100; `describedby` may reference task context. | progress, timing | Exposes normalized range values only when determinate, hides its SVG from assistive technology, has no tab stop or live region, and stops automatic rotation under reduced motion. |
@@ -469,14 +469,9 @@ during refresh or provide visible loading text plus layout-preserving
 
 States: `default`, `focus-visible`, `loading`, `expanded`, `invalid`, `indeterminate`.
 
-`cem-tooltip` keeps the authored native trigger as the exact hover, focus,
-keyboard, and activation owner. Hover and focus are independent visibility
-reasons; pointer travel onto the tooltip retains presentation; Escape dismisses
-without moving focus; touch remains native and does not auto-present. A stable
-hidden description is always available unless the host or native trigger is
-disabled. Existing inverse palette, D1 spacing, D3 shape, D4 elevation, D5
-boundary, and D6 typography semantics cover the Popover/CSS Anchor Positioning
-surface in normal and forced colors without a CSS exception.
+The [tooltip contract](./tooltip-contract.md) defines native trigger ownership,
+independent focus/hover interest, touch preservation, description cleanup and
+shared placement. The same owner supplies description and visible presentation.
 
 `cem-progress-spinner` is the distinct circular owner; linear `cem-progress`
 does not change shape to satisfy it. Missing `value` means indeterminate, and
@@ -486,16 +481,10 @@ colors use `GrayText` for the remaining track and `Highlight` for the indicator;
 reduced motion leaves a static incomplete arc. See the
 [progress spinner contract](./progress-spinner-contract.md).
 
-The transient feedback lifecycle is defined by the
-[feedback expanded contract](./feedback-expanded-contract.md). The separate
-[feedback focus-visible contract](./feedback-focus-visible-contract.md) accepts
-only a transient native dialog when it is itself the browser's focused fallback.
-That owner receives the external D5 width/offset and zebra-color outline; forced
-colors retain its dimensions with `CanvasText` and automatic color adjustment.
-Eligible authored descendants retain their own focus styling. Static dialog
-wrappers, feedback hosts, and sheets receive no `tabindex`, `:focus-within`, or
-component focus paint, and focus never changes their geometry, DOM, ARIA, or
-lifecycle state.
+The [native dialog contract](./dialog-contract.md) defines commands, explicit
+modal mode, cancelable closing, focus restoration and retained/disposed bodies.
+The [feedback focus contract](./feedback-focus-visible-contract.md) covers
+actual native focus owners and forced colors. Sheets remain separate regions.
 
 ### Action dimensions
 

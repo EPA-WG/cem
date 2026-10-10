@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>cem-tooltip: Full examples and variation matrix</title>
+<script type="importmap">{
+    "imports": {
+        "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
+        "@epa-wg/cem-components": "../dist/lib/primitives.js",
+        "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
+        "@epa-wg/cem-components/styles.css": "../dist/styles.css",
+        "@epa-wg/cem-components/components/cem-action": "../src/components/cem-action/cem-action.xhtml",
+        "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
+        "@epa-wg/cem-components/action-playground": "./cem-action.html",
+        "@epa-wg/cem-components/components/cem-theme-switch": "../src/components/cem-theme-switch/cem-theme-switch.xhtml",
+        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
+        "@epa-wg/cem-components/components/cem-select": "../src/components/cem-select/cem-select.xhtml",
+        "@epa-wg/cem-components/components/cem-checkbox": "../src/components/cem-checkbox/cem-checkbox.xhtml",
+        "@epa-wg/cem-components/components/cem-radio": "../src/components/cem-radio/cem-radio.xhtml",
+        "@epa-wg/cem-components/components/cem-switch": "../src/components/cem-switch/cem-switch.xhtml",
+        "@epa-wg/cem-components/components/cem-autocomplete": "../src/components/cem-autocomplete/cem-autocomplete.xhtml",
+        "@epa-wg/cem-components/components/cem-icon-button": "../src/components/cem-icon-button/cem-icon-button.xhtml",
+        "@epa-wg/cem-components/components/cem-menu-item": "../src/components/cem-menu-item/cem-menu-item.xhtml",
+        "@epa-wg/cem-components/components/cem-field": "../src/components/cem-field/cem-field.xhtml",
+        "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml",
+        "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml",
+        "@epa-wg/cem-components/components/cem-textarea": "../src/components/cem-textarea/cem-textarea.xhtml",
+        "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "./assets/wc-square.svg",
+        "@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml": "./cem-gallery-nav.xhtml",
+        "@epa-wg/cem-components/components/cem-menu": "../src/components/cem-menu/cem-menu.xhtml",
+        "@epa-wg/cem-components/components/cem-dropdown": "../src/components/cem-dropdown/cem-dropdown.xhtml",
+        "@epa-wg/cem-components/components/cem-dialog": "../src/components/cem-dialog/cem-dialog.xhtml",
+        "@epa-wg/cem-components/components/cem-dialog-shell": "../src/components/cem-dialog-shell/cem-dialog-shell.xhtml",
+        "@epa-wg/cem-components/components/cem-sheet": "../src/components/cem-sheet/cem-sheet.xhtml",
+        "@epa-wg/cem-components/components/cem-tooltip": "../src/components/cem-tooltip/cem-tooltip.xhtml"
+    }
+}</script>
+<script type="module">
+import { installCemElementRuntime } from '@epa-wg/cem-elements';
+import { installCemComponentPrimitives } from '@epa-wg/cem-components';
+import '@epa-wg/cem-demo-element';
+const runtime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
+window.cemPlaygroundRuntime = runtime;
+await installCemComponentPrimitives(runtime);
+</script>
+<link rel="stylesheet" href="../demo.css">
+<style>body { margin: 0; font-family: system-ui, sans-serif; } #playground-theme { padding: var(--cem-inset-container); } main, .properties { display: grid; gap: var(--cem-gap-group); } [data-gallery-theme] { padding: var(--cem-inset-container); background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } cem-demo-element { display: block; margin-block: var(--cem-gap-group); }</style>
+</head><body>
+<cem-element hidden><template type="text/cem-ml">
+{cem-module-url @slice=cemautocompleteUrl @src="@epa-wg/cem-components/components/cem-autocomplete"}
+{cem:if @test="datadom.slices.cemautocompleteUrl" | {cem-element @tag=cem-autocomplete @capability=editable-choice @src="{$datadom.slices.cemautocompleteUrl}#cem-autocomplete"}}
+</template></cem-element>
+<cem-element hidden><template type="text/cem-ml">
+{cem-module-url @slice=cemcheckboxUrl @src="@epa-wg/cem-components/components/cem-checkbox"}
+{cem:if @test="datadom.slices.cemcheckboxUrl" | {cem-element @tag=cem-checkbox @capability=checkable-control @src="{$datadom.slices.cemcheckboxUrl}#cem-checkbox"}}
+{cem-module-url @slice=cemradioUrl @src="@epa-wg/cem-components/components/cem-radio"}
+{cem:if @test="datadom.slices.cemradioUrl" | {cem-element @tag=cem-radio @src="{$datadom.slices.cemradioUrl}#cem-radio"}}
+{cem-module-url @slice=cemswitchUrl @src="@epa-wg/cem-components/components/cem-switch"}
+{cem:if @test="datadom.slices.cemswitchUrl" | {cem-element @tag=cem-switch @src="{$datadom.slices.cemswitchUrl}#cem-switch"}}
+</template></cem-element>
+<cem-element hidden><template type="text/cem-ml">{cem-module-url @slice=cemdialogUrl @src="@epa-wg/cem-components/components/cem-dialog"}
+{cem:if @test="datadom.slices.cemdialogUrl" | {cem-element @tag=cem-dialog @capability=native-surface @src="{$datadom.slices.cemdialogUrl}#cem-dialog"}}
+{cem-module-url @slice=cemdialogshellUrl @src="@epa-wg/cem-components/components/cem-dialog-shell"}
+{cem:if @test="datadom.slices.cemdialogshellUrl" | {cem-element @tag=cem-dialog-shell @capability=native-surface @src="{$datadom.slices.cemdialogshellUrl}#cem-dialog-shell"}}
+{cem-module-url @slice=cemtooltipUrl @src="@epa-wg/cem-components/components/cem-tooltip"}
+{cem:if @test="datadom.slices.cemtooltipUrl" | {cem-element @tag=cem-tooltip @capability=native-surface @src="{$datadom.slices.cemtooltipUrl}#cem-tooltip"}}
+{cem-module-url @slice=cemfieldUrl @src="@epa-wg/cem-components/components/cem-field"}
+{cem:if @test="datadom.slices.cemfieldUrl" | {cem-element @tag=cem-field @capability=form-control @src="{$datadom.slices.cemfieldUrl}#cem-field"}}
+{cem-module-url @slice=cemactionUrl @src="@epa-wg/cem-components/components/cem-action"}
+{cem:if @test="datadom.slices.cemactionUrl" | {cem-element @tag=cem-action @capability=action-command @src="{$datadom.slices.cemactionUrl}#cem-action"}}
+{cem-module-url @slice=cemmenuUrl @src="@epa-wg/cem-components/components/cem-menu"}
+{cem:if @test="datadom.slices.cemmenuUrl" | {cem-element @tag=cem-menu @capability=composite-menu @src="{$datadom.slices.cemmenuUrl}#cem-menu"}}
+{cem-module-url @slice=cemmenuitemUrl @src="@epa-wg/cem-components/components/cem-menu-item"}
+{cem:if @test="datadom.slices.cemmenuitemUrl" | {cem-element @tag=cem-menu-item @capability=action-control @src="{$datadom.slices.cemmenuitemUrl}#cem-menu-item"}}
+{cem-module-url @slice=cemdropdownUrl @src="@epa-wg/cem-components/components/cem-dropdown"}
+{cem:if @test="datadom.slices.cemdropdownUrl" | {cem-element @tag=cem-dropdown @capability=popup @src="{$datadom.slices.cemdropdownUrl}#cem-dropdown"}}
+{cem-module-url @slice=cemiconbuttonUrl @src="@epa-wg/cem-components/components/cem-icon-button"}
+{cem:if @test="datadom.slices.cemiconbuttonUrl" | {cem-element @tag=cem-icon-button @src="{$datadom.slices.cemiconbuttonUrl}#cem-icon-button"}}
+{cem-module-url @slice=cemthemeswitchUrl @src="@epa-wg/cem-components/components/cem-theme-switch"}
+{cem:if @test="datadom.slices.cemthemeswitchUrl" | {cem-element @tag=cem-theme-switch @src="{$datadom.slices.cemthemeswitchUrl}#cem-theme-switch"}}
+{cem-module-url @slice=cemselectUrl @src="@epa-wg/cem-components/components/cem-select"}
+{cem:if @test="datadom.slices.cemselectUrl" | {cem-element @tag=cem-select @capability=choice-select @src="{$datadom.slices.cemselectUrl}#cem-select"}}
+{cem-module-url @slice=navUrl @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml"}{cem:if @test="datadom.slices.navUrl" | {cem-element @tag=cem-gallery-nav @src="{$datadom.slices.navUrl}#cem-gallery-nav"}}
+{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
+{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
+</template></cem-element>
+<div id="playground-theme" class="cem-theme-light"><cem-gallery-nav heading="cem-tooltip: Full examples and variation matrix"></cem-gallery-nav><p class="component-description">A supplemental description that preserves focus and native trigger behavior. Use <a href="./cem-dialog-gallery.html">cem-dialog</a> for interactive task content and <a href="./cem-field-gallery.html">cem-field</a> for permanent field help.</p>
+<p><a href="./cem-tooltip.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-tooltip/cem-tooltip.stories.ts">Automated stories</a></p><main><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="trigger-for"><code>trigger-for</code></li><li data-gallery-attribute="show-delay"><code>show-delay</code></li><li data-gallery-attribute="hide-delay"><code>hide-delay</code></li><li data-gallery-attribute="placement"><code>placement</code></li><li data-gallery-attribute="anchor"><code>anchor</code></li><li data-gallery-attribute="boundary"><code>boundary</code></li><li data-gallery-attribute="fallback"><code>fallback</code></li><li data-gallery-attribute="overflow"><code>overflow</code></li><li data-gallery-attribute="anchor-lost"><code>anchor-lost</code></li><li data-gallery-attribute="surface-id"><code>surface-id</code></li><li data-gallery-attribute="hidden"><code>hidden</code></li><li data-gallery-attribute="class"><code>class</code></li><li data-gallery-attribute="dir"><code>dir</code></li><li data-gallery-attribute="message"><code>message</code></li><li data-gallery-attribute="disabled"><code>disabled</code></li><li data-gallery-attribute="default-open"><code>default-open</code></li></ul><p>Slots: <code>trigger</code> supplies one native control or control provider; <code>label</code> replaces visible fallback text. Tooltip descriptions remain noninteractive.</p><p>Use Tab, Escape, pointer hover and native button activation. Five fixed theme rows compare supported states. Dialog modality is explicit; tooltip hover delays apply only to pointer interest. Disabled flags use presence, including the text false. Unsupported invalid, readonly and selected task states are not synthesized.</p><section data-gallery-theme="light" class="cem-theme-light"><h2>light</h2><cem-tooltip message="Default supplemental help" show-delay="0"><button type="button" slot="trigger">Default</button></cem-tooltip> <cem-tooltip message="Disabled supplemental help" disabled><button type="button" slot="trigger">Disabled</button></cem-tooltip> <cem-tooltip message="Delayed supplemental help" show-delay="500"><button type="button" slot="trigger">Delayed</button></cem-tooltip> </section><section data-gallery-theme="dark" class="cem-theme-dark"><h2>dark</h2><cem-tooltip message="Default supplemental help" show-delay="0"><button type="button" slot="trigger">Default</button></cem-tooltip> <cem-tooltip message="Disabled supplemental help" disabled><button type="button" slot="trigger">Disabled</button></cem-tooltip> <cem-tooltip message="Delayed supplemental help" show-delay="500"><button type="button" slot="trigger">Delayed</button></cem-tooltip> </section><section data-gallery-theme="contrast-light" class="cem-theme-contrast-light"><h2>contrast-light</h2><cem-tooltip message="Default supplemental help" show-delay="0"><button type="button" slot="trigger">Default</button></cem-tooltip> <cem-tooltip message="Disabled supplemental help" disabled><button type="button" slot="trigger">Disabled</button></cem-tooltip> <cem-tooltip message="Delayed supplemental help" show-delay="500"><button type="button" slot="trigger">Delayed</button></cem-tooltip> </section><section data-gallery-theme="contrast-dark" class="cem-theme-contrast-dark"><h2>contrast-dark</h2><cem-tooltip message="Default supplemental help" show-delay="0"><button type="button" slot="trigger">Default</button></cem-tooltip> <cem-tooltip message="Disabled supplemental help" disabled><button type="button" slot="trigger">Disabled</button></cem-tooltip> <cem-tooltip message="Delayed supplemental help" show-delay="500"><button type="button" slot="trigger">Delayed</button></cem-tooltip> </section><section data-gallery-theme="native" class="cem-theme-native"><h2>native</h2><cem-tooltip message="Default supplemental help" show-delay="0"><button type="button" slot="trigger">Default</button></cem-tooltip> <cem-tooltip message="Disabled supplemental help" disabled><button type="button" slot="trigger">Disabled</button></cem-tooltip> <cem-tooltip message="Delayed supplemental help" show-delay="500"><button type="button" slot="trigger">Delayed</button></cem-tooltip> </section><cem-demo-element legend="Visible fallback and projected description" description="Message is plain text; the label slot replaces it without changing the native trigger name."><template slot="source"><cem-tooltip message="Save changes" show-delay="0"><button slot="trigger" type="button">Save</button></cem-tooltip><cem-tooltip message="Fallback" show-delay="0"><button slot="trigger" type="button" aria-label="Account details">Account</button><strong slot="label">Projected account help</strong></cem-tooltip></template></cem-demo-element>
+<cem-demo-element legend="Native editor and stable description" description="Focus shows help immediately; existing description tokens remain."><template slot="source"><p id="tooltip-permanent-help">Required account name.</p><cem-tooltip message="Use your public display name" placement="inline-end center"><input slot="trigger" aria-label="Account name" aria-describedby="tooltip-permanent-help"></cem-tooltip></template></cem-demo-element>
+<cem-demo-element legend="External scoped trigger" description="The existing compatibility name stays within its interaction scope."><template slot="source"><div interaction-scope><button type="button" interaction-name="help">External help</button><cem-tooltip message="Scoped help" trigger-for="@help"></cem-tooltip></div></template></cem-demo-element>
+<cem-demo-element legend="Native interest route" description="Native interestfor targets the exact produced native owner."><template slot="source"><button type="button" interestfor="native-tooltip-description">Native interest</button><cem-tooltip surface-id="native-tooltip-description" message="Native interest description"></cem-tooltip></template></cem-demo-element>
+</main></div></body></html>

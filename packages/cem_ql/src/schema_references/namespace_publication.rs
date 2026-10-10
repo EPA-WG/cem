@@ -33,7 +33,8 @@ fn same_node(left: &SchemaDeclarationNode, right: &SchemaDeclarationNode) -> boo
 }
 impl NamespacePublicationProof {
     pub(super) fn matches(&self, host: &CemQlSchemaDeclarationHost) -> bool {
-        self.snapshot == host.namespace_input_snapshot
+        host.check_operation().is_ok()
+            && self.snapshot == host.namespace_input_snapshot
             && self
                 .dependencies
                 .iter()
@@ -55,6 +56,33 @@ impl CemQlSchemaDeclarationHost {
         &mut self,
         report: &NamespacePropertyPreparation,
     ) -> Result<(), NamespacePublicationError> {
+        let proof = self.validate_namespace_property_report(report)?;
+        let key = (
+            Arc::as_ptr(report.declaration.document()) as usize,
+            report.declaration.node_id(),
+        );
+        if let Some(existing) = self
+            .namespace_publications
+            .get(&key)
+            .filter(|proof| proof.matches(self))
+        {
+            if !same_node(
+                existing.target.binding_declaration(),
+                proof.target.binding_declaration(),
+            ) || existing.target.namespace_uri() != proof.target.namespace_uri()
+            {
+                return Err(NamespacePublicationError::ConflictingResult);
+            }
+        } else {
+            self.namespace_publications.insert(key, proof.clone());
+        }
+        Ok(())
+    }
+
+    pub(super) fn validate_namespace_property_report<'a>(
+        &self,
+        report: &'a NamespacePropertyPreparation,
+    ) -> Result<&'a NamespacePublicationProof, NamespacePublicationError> {
         if !report.is_ready() {
             return Err(NamespacePublicationError::NotReady);
         }
@@ -96,21 +124,6 @@ impl CemQlSchemaDeclarationHost {
         {
             return Err(NamespacePublicationError::ReportMismatch);
         }
-        if let Some(existing) = self
-            .namespace_publications
-            .get(&key)
-            .filter(|proof| proof.matches(self))
-        {
-            if !same_node(
-                existing.target.binding_declaration(),
-                proof.target.binding_declaration(),
-            ) || existing.target.namespace_uri() != proof.target.namespace_uri()
-            {
-                return Err(NamespacePublicationError::ConflictingResult);
-            }
-        } else {
-            self.namespace_publications.insert(key, proof.clone());
-        }
-        Ok(())
+        Ok(proof)
     }
 }

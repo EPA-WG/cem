@@ -21,6 +21,10 @@ const historyEvidence = [];
 const navigationOnly = process.argv.includes('--navigation-only');
 const actionOnly = process.argv.includes('--action-only');
 const iconsOnly = process.argv.includes('--icons-only');
+const surfacesOnly = process.argv.includes('--surfaces-only');
+const sheetOnly = process.argv.includes('--sheet-only');
+const autocompleteOnly = process.argv.includes('--autocomplete-only');
+const checkablesOnly = process.argv.includes('--checkables-only');
 const installedOnly = process.argv.includes('--installed-only');
 const verifiedLocations = installedOnly ? 'isolated package archives' : 'source and isolated package archives';
 let browser;
@@ -40,7 +44,11 @@ try {
     if (nativeDatalistOnly && historyOnly) throw new Error('Choose one evidence mode');
     if (!evidenceOnly && (headed || nativeBrowser !== 'chromium' || evidenceOutput)) throw new Error('Browser evidence flags require --native-datalist-only or --history-only');
     browser = await ({ chromium, firefox, webkit })[nativeBrowser].launch({ headless: !headed });
-    if (!installedOnly && iconsOnly) await verifyIcons(`${origin}/packages/cem-components/playgrounds/`);
+    if (!installedOnly && autocompleteOnly) await verifyAutocomplete(`${origin}/packages/cem-components/playgrounds/`);
+    else if (!installedOnly && checkablesOnly) await verifyCheckables(`${origin}/packages/cem-components/playgrounds/`);
+    else if (!installedOnly && sheetOnly) await verifySheet(`${origin}/packages/cem-components/playgrounds/`);
+    else if (!installedOnly && surfacesOnly) await verifySurfaces(`${origin}/packages/cem-components/playgrounds/`);
+    else if (!installedOnly && iconsOnly) await verifyIcons(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly) {
         if (!navigationOnly && !suggestionsOnly) {
             await verify(`${origin}/packages/cem-components/playgrounds/cem-action.html`);
@@ -56,6 +64,10 @@ try {
             if (!actionOnly) await verifyBundle(`${origin}/packages/cem-components/playgrounds/cem-bundle.html`);
             if (!actionOnly) await verifyPendingTheme(`${origin}/packages/cem-theme/dist/lib/css-generators/cem-colors.html`);
         }
+        if (!evidenceOnly && !navigationOnly && !actionOnly) await verifySurfaces(`${origin}/packages/cem-components/playgrounds/`);
+        if (!evidenceOnly && !navigationOnly && !actionOnly) await verifySheet(`${origin}/packages/cem-components/playgrounds/`);
+        if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyAutocomplete(`${origin}/packages/cem-components/playgrounds/`);
+        if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyCheckables(`${origin}/packages/cem-components/playgrounds/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifySuggestions(`${origin}/packages/cem-components/playgrounds/`);
         if (nativeDatalistOnly) await verifyNativeDatalist(`${origin}/packages/cem-components/playgrounds/`, 'source');
         if (historyOnly) await verifyNativeHistory(`${origin}/packages/cem-components/playgrounds/`, 'source');
@@ -66,7 +78,11 @@ try {
         await mkdir(target, { recursive: true });
         execFileSync('tar', ['-xzf', join(temporary, output[0].filename), '--strip-components=1', '-C', target]);
     }
-    if (iconsOnly) await verifyIcons(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    if (autocompleteOnly) await verifyAutocomplete(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    else if (checkablesOnly) await verifyCheckables(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    else if (sheetOnly) await verifySheet(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    else if (surfacesOnly) await verifySurfaces(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    else if (iconsOnly) await verifyIcons(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     else {
         if (!navigationOnly && !suggestionsOnly) {
             await verify(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-action.html`);
@@ -82,6 +98,10 @@ try {
             if (!actionOnly) await verifyBundle(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-bundle.html`);
             if (!actionOnly) await verifyPendingTheme(`${origin}/installed/node_modules/@epa-wg/cem-theme/dist/lib/css-generators/cem-colors.html`);
         }
+        if (!evidenceOnly && !navigationOnly && !actionOnly) await verifySurfaces(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+        if (!evidenceOnly && !navigationOnly && !actionOnly) await verifySheet(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+        if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyAutocomplete(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+        if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyCheckables(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifySuggestions(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
         if (nativeDatalistOnly) {
             await verifyNativeDatalist(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`, 'installed');
@@ -96,7 +116,11 @@ try {
             console.log(JSON.stringify(report, null, 2));
         }
     }
-    if (iconsOnly) console.log(`Icon and icon-button playgrounds, galleries and release bundle verified from ${verifiedLocations}.`);
+    if (autocompleteOnly) console.log(`Autocomplete property controls, galleries, live payload, forms and bundle verified from ${verifiedLocations}.`);
+    else if (checkablesOnly) console.log(`Checkbox, radio and switch playgrounds, galleries, native forms, bundle and forced colors verified from ${verifiedLocations}.`);
+    else if (sheetOnly) console.log(`Sheet region playground, gallery, bundle and forced colors verified from ${verifiedLocations}.`);
+    else if (surfacesOnly) console.log(`Native dialog, dialog-shell and tooltip playgrounds, galleries, bundle and forced colors verified from ${verifiedLocations}.`);
+    else if (iconsOnly) console.log(`Icon and icon-button playgrounds, galleries and release bundle verified from ${verifiedLocations}.`);
     else if (suggestionsOnly && !evidenceOnly) console.log(`Suggestions playground and gallery verified from ${verifiedLocations}.`);
     else if (actionOnly) console.log(`Action playground and gallery verified from ${verifiedLocations}.`);
     else if (navigationOnly) console.log(`Gallery navigation verified from ${verifiedLocations}.`);
@@ -413,6 +437,7 @@ async function verify(url) {
         };
         assert.equal(await page.getByRole('combobox').count(), 0);
         assert.equal(await page.getByRole('radiogroup').count(), 9);
+        await page.waitForFunction(() => [...document.querySelectorAll('cem-radio')].every(host => host.querySelector('input[type=radio]')), undefined, { timeout: 30000 });
         assert.equal(await page.getByRole('radio').count(), 30);
         await choose('Native command', 'Toggle popover');
         await page.waitForFunction(() => document.querySelector('#action-preview button')?.getAttribute('commandfor') === 'action-preview-popup');
@@ -732,7 +757,7 @@ async function verifyBundle(url) {
             const bundleUrl = declaration.getAttribute('src').split('#')[0];
             const bundle = new DOMParser().parseFromString(await (await fetch(bundleUrl)).text(), 'application/xml');
             const checks = [];
-            for (const tag of ['cem-action', 'cem-select', 'cem-theme-switch', 'cem-icon', 'cem-icon-button', 'cem-menu-item', 'cem-menu', 'cem-dropdown', 'cem-field', 'cem-text-field', 'cem-textarea']) {
+            for (const tag of [...document.querySelectorAll('cem-element[tag][src]')].filter(node => node.getAttribute('src').split('#')[0] === declaration.getAttribute('src').split('#')[0]).map(node => node.getAttribute('tag'))) {
                 const sourceUrl = new URL(`../src/components/${tag}/${tag}.xhtml`, bundleUrl).href;
                 const original = new DOMParser().parseFromString(await (await fetch(sourceUrl)).text(), 'application/xml');
                 const template = bundle.getElementById(tag);
@@ -915,7 +940,10 @@ async function verifyGalleries(baseUrl, tags) {
             await page.waitForFunction(selector => {
                 const samples = [...document.querySelectorAll(selector)];
                 return samples.length > 0 && samples.every(node => node.querySelector('[part]'));
-            }, sampleSelector);
+            }, sampleSelector).catch(async error => {
+                const missing = await page.locator(sampleSelector).evaluateAll(nodes => nodes.filter(node => !node.querySelector('[part]')).map(node => ({ html: node.outerHTML, diagnostics: window.cemPlaygroundRuntime.diagnosticsFor(node) })));
+                throw new Error(`${tag} gallery samples did not render at ${page.url()}: ${JSON.stringify(missing)}`, { cause: error });
+            });
             assert.equal(await page.locator('[data-gallery-theme]').count(), 5, `${tag}: five theme modes`);
             await page.waitForFunction(() => {
                 const demos = [...document.querySelectorAll('cem-demo-element')];
@@ -931,7 +959,7 @@ async function verifyGalleries(baseUrl, tags) {
             for (const attribute of implemented) assert(documented.includes(attribute), `${tag}: missing ${attribute} in gallery inventory`);
             await page.getByRole('link', { name: 'Automated stories', exact: true }).waitFor();
             const first = page.locator(sampleSelector).first();
-            const control = first.locator(tag === 'cem-menu' ? 'button, a[href]' : '[part="control"], input').first();
+            const control = first.locator(tag === 'cem-menu' ? 'button, a[href]' : ['cem-dialog', 'cem-dialog-shell', 'cem-tooltip'].includes(tag) ? '[part=trigger], [slot=trigger]' : '[part="control"], input').first();
             if (tag !== 'cem-icon') {
                 await control.hover();
                 await control.focus();
@@ -1540,4 +1568,358 @@ async function verifyNativeHistory(base, packaging) {
             historyEvidence.push({ packaging, variant, steps });
         } finally { await context.close(); }
     }
+}
+
+async function verifyCheckables(baseUrl) {
+    const tags = ['cem-checkbox', 'cem-radio', 'cem-switch'];
+    await verifyGalleries(baseUrl, tags);
+    for (const tag of tags) {
+        const context = await browser.newContext(), page = await context.newPage(), errors = [];
+        page.on('pageerror', error => errors.push(error.message));
+        try {
+            await page.goto(new URL(`${tag}.html`, baseUrl).href);
+            const host = page.locator(`.properties form > ${tag}`), input = host.locator('input');
+            await input.waitFor();
+            const settle = () => host.evaluate(node => window.cemPlaygroundRuntime.whenRenderSettled(node));
+            const text = async (name, value) => {
+                await page.locator(`.properties cem-field[label="${name}"] input`).fill(value);
+                await page.waitForFunction(({ tag, name, value }) => document.querySelector(`.properties form > ${tag}`)?.getAttribute(name) === value, { tag, name, value });
+                await settle();
+            };
+            const flag = async (name, present) => {
+                await page.getByRole('group', { name, exact: true }).getByRole('radio', { name: present ? 'present' : 'absent', exact: true }).check();
+                await page.waitForFunction(({ tag, name, present }) => document.querySelector(`.properties form > ${tag}`)?.hasAttribute(name) === present, { tag, name, present });
+                await settle();
+            };
+            const role = tag === 'cem-radio' ? 'radio' : tag === 'cem-switch' ? 'switch' : 'checkbox';
+            await text('label', 'Edited choice'); await flag('required', true);
+            assert.equal(await host.getByRole(role, { name: 'Edited choice', exact: true }).count(), 1);
+            await text('required-marker', 'Required'); assert.equal(await host.getByRole(role, { name: 'Edited choice', exact: true }).count(), 1);
+            await text('required-marker', ''); assert.equal(await host.locator('[part=required-marker]').textContent(), '');
+            await text('aria-label', 'Accessible choice'); assert.equal(await host.getByRole(role, { name: 'Accessible choice', exact: true }).count(), 1);
+            await text('aria-labelledby', 'choice-name'); await text('aria-describedby', 'choice-help'); await text('aria-errormessage', 'choice-error');
+            assert.equal(await host.getByRole(role, { name: 'Referenced choice', exact: true }).count(), 1);
+            await flag('checked', true); assert.equal(await input.isChecked(), true);
+            await input.evaluate(node => { window.checkableInput = node; node.checked = false; });
+            await text('class', 'preference-choice'); assert.equal(await input.isChecked(), false);
+            await page.locator('.properties').getByRole('button', { name: 'Reset choice', exact: true }).click(); assert.equal(await input.isChecked(), true);
+            await flag('disabled', true); assert.equal(await input.isDisabled(), true);
+            assert.deepEqual(await input.evaluate(node => [...new FormData(node.form)]), []);
+            await flag('disabled', false); await flag('busy', true);
+            assert.equal(await input.getAttribute('aria-busy'), 'true'); assert.equal(await input.isDisabled(), false);
+            await text('value', 'accepted'); assert.deepEqual(await input.evaluate(node => [...new FormData(node.form)]), [['choice', 'accepted']]);
+            await text('value', ''); assert.deepEqual(await input.evaluate(node => [...new FormData(node.form)]), [['choice', '']]);
+            await text('form', 'choice-external'); assert.equal(await input.evaluate(node => node.form?.id), 'choice-external');
+            await input.evaluate(node => { node.checked = false; }); await page.getByRole('button', { name: 'Reset external form', exact: true }).click(); assert.equal(await input.isChecked(), true);
+            assert.equal(await input.evaluate(node => node === window.checkableInput), true);
+            if (tag === 'cem-checkbox') {
+                await flag('indeterminate', true); assert.equal(await input.evaluate(node => node.indeterminate), true);
+                await input.click(); assert.equal(await input.evaluate(node => node.indeterminate), false);
+                await text('label', 'Unchanged mixed default'); assert.equal(await input.evaluate(node => node.indeterminate), false);
+            }
+            await flag('hidden', true); assert.equal(await input.isVisible(), false); await flag('hidden', false);
+            await page.goto(new URL(`${tag}-gallery.html`, baseUrl).href);
+            const demo = legend => page.locator(`cem-demo-element[legend="${legend}"]`);
+            await demo('Labels and required markers').getByRole(role, { name: 'Projected choice', exact: true }).waitFor();
+            assert.equal(await demo('Labels and required markers').getByRole(role, { name: 'Visible choice', exact: true }).count(), 1);
+            const nativeForm = demo('Native forms and reset').locator('form').first(), control = nativeForm.locator(`${tag}[name=choice] input`);
+            await control.waitFor(); assert.deepEqual(await nativeForm.evaluate(node => [...new FormData(node)]), [['choice', 'yes']]);
+            await control.evaluate(node => { node.checked = false; }); assert.equal(await nativeForm.evaluate(node => node.checkValidity()), false);
+            await nativeForm.getByRole('button', { name: 'Reset choices', exact: true }).click(); assert.equal(await control.isChecked(), true);
+            if (tag === 'cem-radio') {
+                const groups = demo('Native radio groups'), basic = groups.locator('cem-radio[value=basic] input'), pro = groups.locator('cem-radio[value=pro] input');
+                await basic.focus(); await page.keyboard.press('ArrowRight'); assert.equal(await pro.isChecked(), true); assert.equal(await basic.isChecked(), false);
+                await page.keyboard.press('ArrowRight'); assert.equal(await groups.locator('input[value=native]').isChecked(), true); assert.equal(await pro.isChecked(), false);
+                assert.equal(await groups.locator('cem-radio[value=separate] input').isChecked(), true);
+                await groups.getByRole('button', { name: 'Reset plan', exact: true }).click(); assert.equal(await basic.isChecked(), true);
+            } else {
+                const binding = demo('Declarative change binding'); await binding.locator('input').check();
+                await page.waitForFunction(() => document.querySelector('cem-demo-element[legend="Declarative change binding"] output')?.textContent === 'true');
+            }
+            const first = page.locator(`[data-gallery-theme] ${tag}[label=Default] input`).first();
+            await first.focus(); await page.keyboard.press('Space'); assert.equal(await first.isChecked(), true);
+            await page.emulateMedia({ forcedColors: 'active' }); await first.focus(); await page.keyboard.press('Shift');
+            const paint = await first.evaluate(node => {
+                const style = getComputedStyle(node, node.type === 'radio' ? '::before' : null);
+                return { focused: node.matches(':focus-visible'), shadow: style.boxShadow, outline: style.outlineStyle, width: parseFloat(style.outlineWidth) };
+            });
+            assert.equal(paint.focused, true); assert.equal(paint.shadow, 'none'); assert.equal(paint.outline, 'solid'); assert(paint.width > 0);
+            assert.deepEqual(await page.evaluate(tag => [...document.querySelectorAll(tag)].flatMap(node => window.cemPlaygroundRuntime.diagnosticsFor(node)), tag), []);
+            assert.deepEqual(errors, []);
+        } finally { await context.close(); }
+    }
+    await verifyBundle(new URL('cem-bundle.html', baseUrl).href);
+}
+
+async function verifySheet(baseUrl) {
+    await verifyGalleries(baseUrl, ['cem-sheet']);
+    const context = await browser.newContext(), page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    try {
+        await page.goto(new URL('cem-sheet.html', baseUrl).href);
+        const host = page.locator('.properties cem-sheet'), owner = host.locator('[part=surface]');
+        await owner.waitFor();
+        assert.equal(await owner.getAttribute('role'), 'region');
+        const setText = async (name, value) => {
+            await page.locator(`.properties cem-field[label="${name}"] input`).fill(value);
+            await page.waitForFunction(({ name, value }) => document.querySelector('.properties cem-sheet')?.getAttribute(name) === value, { name, value });
+            await host.evaluate(node => window.cemPlaygroundRuntime.whenRenderSettled(node));
+        };
+        await setText('label', 'Edited filters');
+        assert.equal(await owner.getAttribute('aria-label'), 'Edited filters');
+        assert.equal(await host.locator('[part=heading]').textContent(), 'Edited filters');
+        await setText('aria-label', 'Accessible filters');
+        assert.equal(await owner.getAttribute('aria-label'), 'Accessible filters');
+        await setText('aria-labelledby', 'sheet-playground-name');
+        await setText('aria-describedby', 'sheet-playground-help');
+        assert.equal(await page.getByRole('region', { name: 'Referenced filters', exact: true }).count(), 1);
+        const projected = page.locator('cem-demo-element[legend="Projected label"]');
+        await projected.locator('cem-sheet [part=heading] strong').waitFor();
+        assert.equal(await projected.locator('cem-sheet [part=heading] strong').textContent(), 'Projected title');
+        assert.equal(await projected.getByRole('region', { name: 'Projected title', exact: true }).count(), 1);
+        await setText('class', 'filter-region');
+        await page.getByRole('group', { name: 'dir', exact: true }).getByRole('radio', { name: 'rtl', exact: true }).check();
+        await page.waitForFunction(() => document.querySelector('.properties cem-sheet')?.getAttribute('dir') === 'rtl');
+        assert.equal(await owner.evaluate(node => getComputedStyle(node).direction), 'rtl');
+        await host.locator('cem-field input').fill('Retained draft');
+        await host.evaluate(node => { window.sheetOwner = node.querySelector('aside'); window.sheetInput = node.querySelector('input'); });
+        const toggle = async (name, present) => {
+            const control = page.getByRole('group', { name, exact: true }).getByRole('radio', { name: present ? 'present' : 'absent', exact: true });
+            await control.check();
+            await page.waitForFunction(({ name, present }) => document.querySelector('.properties cem-sheet')?.hasAttribute(name) === present, { name, present });
+            await host.evaluate(node => window.cemPlaygroundRuntime.whenRenderSettled(node));
+            assert.equal(await control.evaluate(node => document.activeElement === node), true, `${name}: visibility leaves focus on its control`);
+        };
+        await toggle('transient', true); assert.equal(await owner.evaluate(node => node.hidden), true);
+        await toggle('expanded', true); assert.equal(await owner.evaluate(node => node.hidden), false);
+        await host.locator('input').focus(); await page.keyboard.press('Escape');
+        assert.equal(await owner.evaluate(node => node.hidden), false);
+        assert.equal(await host.locator('input').evaluate(node => document.activeElement === node), true);
+        await toggle('expanded', false); await toggle('transient', false);
+        assert.equal(await owner.evaluate(node => node.hidden), false);
+        assert.equal(await host.evaluate(node => node.querySelector('aside') === window.sheetOwner && node.querySelector('input') === window.sheetInput), true);
+        assert.equal(await host.locator('input').inputValue(), 'Retained draft');
+        await host.getByRole('button', { name: 'Reset', exact: true }).click();
+        assert.equal(await host.locator('input').inputValue(), 'Editable draft');
+        await toggle('hidden', true); assert.equal(await owner.isVisible(), false); await toggle('hidden', false);
+        await page.goto(new URL('cem-sheet-gallery.html', baseUrl).href);
+        await page.waitForFunction(() => {
+            const demos = [...document.querySelectorAll('cem-demo-element')];
+            return demos.length === 5 && demos.every(node => node.getAttribute('data-state') === 'ready');
+        });
+        const demo = legend => page.locator(`cem-demo-element[legend="${legend}"]`);
+        await demo('Visible labels and accessible names').getByRole('region', { name: 'Projected filters', exact: true }).waitFor();
+        await demo('Visible labels and accessible names').getByRole('region', { name: 'Search settings', exact: true }).waitFor();
+        assert.equal(await demo('Visible labels and accessible names').getByRole('region', { name: 'Projected filters', exact: true }).count(), 1);
+        assert.equal(await demo('Visible labels and accessible names').getByRole('region', { name: 'Search settings', exact: true }).count(), 1);
+        const controlled = demo('Application-controlled visibility'), sheet = controlled.locator('cem-sheet');
+        await sheet.locator('aside').waitFor({ state: 'attached' });
+        assert.equal(await sheet.locator('aside').evaluate(node => node.hidden), true);
+        const open = controlled.getByRole('radio', { name: 'Open', exact: true }); await open.check();
+        await sheet.locator('aside').waitFor(); assert.equal(await open.evaluate(node => node === document.activeElement), true);
+        await sheet.locator('input').fill('Gallery draft'); await controlled.getByRole('radio', { name: 'Closed', exact: true }).check();
+        await sheet.locator('aside').waitFor({ state: 'hidden' }); await open.check(); await sheet.locator('aside').waitFor();
+        assert.equal(await sheet.locator('input').inputValue(), 'Gallery draft');
+        assert.equal(await demo('Presence and persistent mode').locator('cem-sheet[expanded="false"] aside').isVisible(), true);
+        assert.equal(await demo('Host visibility and direction').locator('cem-sheet[hidden] aside').isVisible(), false);
+        const form = demo('Native form ownership'); await form.locator('input').fill('Changed'); await form.getByRole('button', { name: 'Reset filters', exact: true }).click();
+        assert.equal(await form.locator('input').inputValue(), 'Saved');
+        await page.emulateMedia({ forcedColors: 'active' });
+        const first = page.locator('[data-gallery-theme] cem-sheet').first();
+        await first.locator('input').focus(); await page.keyboard.press('ArrowRight');
+        assert.equal(await first.locator('input').evaluate(node => node.matches(':focus-visible')), true);
+        assert.equal(await first.locator('aside').getAttribute('tabindex'), null);
+        const paint = await first.locator('aside').evaluate(node => {
+            const probe = document.createElement('span'); probe.style.cssText = 'background: Canvas; color: CanvasText'; node.append(probe);
+            const style = getComputedStyle(node), system = getComputedStyle(probe);
+            const result = { background: style.backgroundColor, color: style.color, canvas: system.backgroundColor, text: system.color, border: parseFloat(style.borderTopWidth) };
+            probe.remove(); return result;
+        });
+        assert.equal(paint.background, paint.canvas); assert.equal(paint.color, paint.text); assert(paint.border > 0);
+        assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('cem-sheet')].flatMap(node => window.cemPlaygroundRuntime.diagnosticsFor(node))), []);
+        await page.goto(new URL('cem-bundle.html', baseUrl).href);
+        const bundled = page.locator('main > cem-sheet'); await bundled.locator('input').waitFor();
+        await bundled.locator('input').fill('Bundled draft');
+        await bundled.evaluate(async node => { node.removeAttribute('expanded'); await window.cemPlaygroundRuntime.whenRenderSettled(node); });
+        assert.equal(await bundled.locator('aside').evaluate(node => node.hidden), true);
+        await bundled.evaluate(async node => { node.setAttribute('expanded', ''); await window.cemPlaygroundRuntime.whenRenderSettled(node); });
+        assert.equal(await bundled.locator('input').inputValue(), 'Bundled draft');
+        assert.deepEqual(errors, []);
+    } finally { await context.close(); }
+    await verifyBundle(new URL('cem-bundle.html', baseUrl).href);
+}
+
+async function verifySurfaces(baseUrl) {
+    const tags = ['cem-dialog', 'cem-dialog-shell', 'cem-tooltip'];
+    await verifyGalleries(baseUrl, tags);
+    for (const tag of tags) {
+        const context = await browser.newContext();
+        const page = await context.newPage();
+        try {
+            await page.goto(new URL(`${tag}.html`, baseUrl).href);
+            const host = page.locator(`.properties ${tag}`).first();
+            await host.locator('[part=surface]').waitFor({ state: 'attached' });
+            const property = tag === 'cem-tooltip' ? 'message' : 'label';
+            await page.locator(`.properties cem-field[label="${property}"] input`).fill('Edited surface');
+            await page.waitForFunction(({ tag, property }) => document.querySelector(`.properties ${tag}`)?.getAttribute(property) === 'Edited surface', { tag, property });
+            await host.evaluate(node => window.cemPlaygroundRuntime.whenRenderSettled(node));
+            const source = tag === 'cem-tooltip' ? page.getByRole('button', { name: 'External tooltip launcher', exact: true }) : host.locator('[part=trigger], [slot=trigger]');
+            if (tag === 'cem-tooltip') {
+                await source.focus();
+                await page.waitForFunction(() => document.querySelector('.properties cem-tooltip [part=surface]')?.matches(':popover-open'));
+                assert.equal(await source.evaluate(node => document.getElementById(node.getAttribute('aria-describedby').split(/\s+/).at(-1)).textContent), 'Edited surface');
+                await page.keyboard.press('Escape');
+                assert.equal(await host.locator('[part=surface]').evaluate(node => node.matches(':popover-open')), false);
+                await page.locator('.properties cem-field[label="trigger-for"] input').fill('#tooltip-playground-alternate');
+                await page.waitForFunction(() => {
+                    const host = document.querySelector('.properties cem-tooltip'), external = document.getElementById('tooltip-playground-alternate');
+                    return !host?.querySelector('[slot=trigger]') && external?.getAttribute('aria-describedby') === host?.querySelector('[part=surface]')?.id;
+                });
+                await page.getByRole('button', { name: 'Alternate tooltip launcher', exact: true }).focus();
+                await page.waitForFunction(() => document.querySelector('.properties cem-tooltip [part=surface]')?.matches(':popover-open'));
+                await page.keyboard.press('Escape');
+            } else {
+                await source.click();
+                await page.waitForFunction(tag => document.querySelector(`.properties ${tag} dialog`)?.open, tag);
+                assert.equal(await host.locator('dialog').evaluate(node => node.matches(':modal')), false);
+                await host.locator('[part=close], [slot=close]').click();
+                assert.equal(await source.evaluate(node => document.activeElement === node), true);
+            }
+            await page.goto(new URL(`${tag}-gallery.html`, baseUrl).href);
+            const first = page.locator(`[data-gallery-theme] ${tag}`).first();
+            await first.locator('[part=surface]').waitFor({ state: 'attached' });
+            const sourceControl = first.locator('[part=trigger], [slot=trigger]');
+            await sourceControl.focus();
+            if (tag === 'cem-tooltip') {
+                await page.waitForFunction(() => document.querySelector('[data-gallery-theme] cem-tooltip [part=surface]')?.matches(':popover-open'));
+                await page.keyboard.press('Escape');
+                assert.equal(await sourceControl.evaluate(node => document.activeElement === node), true);
+            } else {
+                await page.keyboard.press('Enter');
+                await page.waitForFunction(tag => document.querySelector(`[data-gallery-theme] ${tag} dialog`)?.open, tag);
+                assert.equal(await first.locator('dialog').evaluate(node => node.matches(':modal')), false);
+                await first.locator('[part=close]').click();
+                const modal = page.locator(`[data-gallery-theme] ${tag}[mode=modal]`).first();
+                await modal.locator('[part=trigger]').click();
+                await page.waitForFunction(tag => document.querySelector(`[data-gallery-theme] ${tag}[mode=modal] dialog`)?.matches(':modal'), tag);
+                await page.keyboard.press('Escape');
+                await page.waitForFunction(tag => !document.querySelector(`[data-gallery-theme] ${tag}[mode=modal] dialog`)?.open, tag);
+                assert.equal(await modal.locator('[part=trigger]').evaluate(node => document.activeElement === node), true);
+            }
+            await page.getByRole('link', { name: 'Property playground', exact: true }).focus();
+            await page.emulateMedia({ forcedColors: 'active' });
+            await sourceControl.focus();
+            if (tag !== 'cem-tooltip') await page.keyboard.press('Enter');
+            await page.waitForFunction(tag => {
+                const owner = document.querySelector(`[data-gallery-theme] ${tag} [part=surface]`);
+                return owner && (owner.open || owner.matches(':popover-open'));
+            }, tag);
+            const paint = await first.locator('[part=surface]').evaluate(node => {
+                const style = getComputedStyle(node), probe = document.createElement('span');
+                probe.style.cssText = 'background: Canvas; color: CanvasText; outline: 2px solid Highlight'; node.append(probe);
+                const system = getComputedStyle(probe), result = { background: style.backgroundColor, color: style.color, adjustment: style.forcedColorAdjust, canvas: system.backgroundColor, canvasText: system.color };
+                probe.remove(); return result;
+            });
+            assert.equal(paint.background, paint.canvas); assert.equal(paint.color, paint.canvasText); assert.equal(paint.adjustment, 'auto');
+            if (tag !== 'cem-tooltip') {
+                await first.locator('[part=close]').focus(); await page.keyboard.press('ArrowRight');
+                assert.equal(await first.locator('[part=close]').evaluate(node => getComputedStyle(node).outlineStyle), 'solid');
+            }
+        } finally { await context.close(); }
+    }
+    const context = await browser.newContext(), page = await context.newPage();
+    try {
+        await page.goto(new URL('cem-bundle.html', baseUrl).href);
+        for (const tag of tags) {
+            const host = page.locator(`main > ${tag}`), owner = host.locator('[part=surface]'), source = host.locator('[part=trigger], [slot=trigger]');
+            await owner.waitFor({ state: 'attached' });
+            if (tag === 'cem-tooltip') await source.focus(); else await source.click();
+            await page.waitForFunction(tag => {
+                const node = document.querySelector(`main > ${tag} [part=surface]`); return node?.open || node?.matches(':popover-open');
+            }, tag);
+            await page.keyboard.press('Escape');
+        }
+    } finally { await context.close(); }
+}
+
+async function verifyAutocomplete(baseUrl) {
+    console.log(`Autocomplete gallery: ${baseUrl}`);
+    await verifyGalleries(baseUrl, ['cem-autocomplete']);
+    const context = await browser.newContext(), page = await context.newPage(), errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    try {
+        console.log(`Autocomplete property controls: ${baseUrl}`);
+        await page.goto(new URL('cem-autocomplete.html', baseUrl).href);
+        const host = page.locator('.properties form > cem-autocomplete'), input = host.locator('input');
+        await input.waitFor();
+        const settle = () => host.evaluate(node => window.cemPlaygroundRuntime.whenRenderSettled(node));
+        const text = async (name, value) => {
+            await page.locator(`.properties cem-field[label="${name}"] input`).fill(value);
+            await page.waitForFunction(({ name, value }) => document.querySelector('.properties form > cem-autocomplete')?.getAttribute(name) === value, { name, value });
+            await settle();
+        };
+        const flag = async (name, present) => {
+            await page.getByRole('group', { name, exact: true }).getByRole('radio', { name: present ? 'present' : 'absent', exact: true }).check();
+            await page.waitForFunction(({ name, present }) => document.querySelector('.properties form > cem-autocomplete')?.hasAttribute(name) === present, { name, present });
+            await settle();
+        };
+        assert.equal(await input.inputValue(), 'Ada Lovelace');
+        assert.deepEqual(await host.evaluate(node => [...new FormData(node.form)]), [['person', 'ada']]);
+        await text('label', 'Edited person'); assert.equal(await host.getByRole('combobox', { name: 'Edited person', exact: true }).count(), 1);
+        await text('placeholder', 'Type a name'); assert.equal(await input.getAttribute('placeholder'), 'Type a name');
+        await text('describedby', 'person-help'); await text('error', 'person-error');
+        assert.equal(await input.getAttribute('aria-describedby'), 'person-help'); assert.equal(await input.getAttribute('aria-errormessage'), 'person-error');
+        await text('value', 'grace'); assert.equal(await input.inputValue(), 'Grace Hopper');
+        await flag('disabled', true); assert.equal(await input.isDisabled(), true); assert.deepEqual(await host.evaluate(node => [...new FormData(node.form)]), []);
+        await flag('disabled', false); await flag('readonly', true); assert.equal(await input.evaluate(node => node.readOnly), true);
+        await flag('readonly', false); await flag('busy', true); assert.equal(await input.getAttribute('aria-busy'), 'true'); assert.equal(await input.isDisabled(), false);
+        await flag('require-selection', true); await flag('required', true);
+        await input.fill('Unmatched'); await settle(); assert.equal(await host.evaluate(node => node.value), '');
+        await host.evaluate(node => { window.autocompleteEvents = []; for (const name of ['input', 'change']) node.addEventListener(name, event => window.autocompleteEvents.push([event.type, node.value, node.displayValue])); });
+        await input.press('Escape'); await settle(); assert.equal(await input.inputValue(), '');
+        assert.deepEqual(await page.evaluate(() => window.autocompleteEvents), [['input', '', ''], ['change', '', '']]);
+        assert.equal(await host.evaluate(node => node.validity.valueMissing), true);
+        await flag('require-selection', false); await flag('busy', false);
+        await page.locator('.properties').getByRole('button', { name: 'Reset person', exact: true }).click(); await settle();
+        assert.equal(await input.inputValue(), 'Ada Lovelace');
+        await text('form', 'person-external'); assert.equal(await host.evaluate(node => node.form.id), 'person-external');
+        await input.fill('New person'); await input.press('Tab');
+        assert.deepEqual(await host.evaluate(node => [...new FormData(node.form)]), [['person', 'New person']]);
+        await page.getByRole('button', { name: 'Reset external person', exact: true }).click(); await settle(); assert.equal(await input.inputValue(), 'Ada Lovelace');
+        await input.focus(); await settle();
+        await host.evaluate(node => {
+            window.autocompleteInput = node.querySelector('input'); window.autocompleteEvents = [];
+            const payload = node.querySelector('template[data-cem-island=instance]').content.querySelector('cem-payload\\:payload');
+            payload.querySelectorAll('cem-option, cem-option-group').forEach(option => option.remove());
+            const option = document.createElement('cem-option'); option.setAttribute('value', 'lin'); option.textContent = 'Lin Chen'; payload.append(option);
+        });
+        await page.waitForFunction(() => document.querySelector('.properties form > cem-autocomplete')?.querySelector('[role=option]')?.textContent.trim() === 'Lin Chen');
+        assert.deepEqual(await host.evaluate(node => ({ value: node.value, display: node.displayValue, selected: node.selectedIndex, same: node.querySelector('input') === window.autocompleteInput, focus: document.activeElement === window.autocompleteInput })), { value: 'ada', display: 'Ada Lovelace', selected: -1, same: true, focus: true });
+        assert.deepEqual(await page.evaluate(() => window.autocompleteEvents), []);
+        await host.evaluate(node => node.querySelector('template[data-cem-island=instance]').content.querySelector('cem-option').remove());
+        await page.waitForFunction(() => !document.querySelector('.properties form > cem-autocomplete').expanded);
+        await settle(); assert.equal(await input.getAttribute('aria-controls'), null); assert.equal(await input.getAttribute('aria-activedescendant'), null);
+        await flag('hidden', true); assert.equal(await input.isVisible(), false); await flag('hidden', false);
+        assert.deepEqual(await host.evaluate(node => window.cemPlaygroundRuntime.diagnosticsFor(node)), []);
+        console.log(`Autocomplete gallery interactions and bundle: ${baseUrl}`);
+        await page.goto(new URL('cem-autocomplete-gallery.html', baseUrl).href);
+        const bound = page.locator('cem-demo-element[legend="Declarative value binding"]');
+        await bound.getByRole('combobox', { name: 'Bound person' }).fill('Person');
+        await bound.getByRole('combobox').press('ArrowDown'); await bound.getByRole('combobox').press('Enter');
+        await page.waitForFunction(() => document.querySelector('cem-demo-element[legend="Declarative value binding"] output')?.textContent === 'ada');
+        await page.emulateMedia({ forcedColors: 'active' });
+        const first = page.locator('[data-gallery-theme] cem-autocomplete').first(); await first.locator('input').focus();
+        await first.evaluate(node => window.cemPlaygroundRuntime.whenRenderSettled(node));
+        assert.equal(await first.locator('input').evaluate(node => getComputedStyle(node).boxShadow), 'none');
+        assert.equal(await first.locator('[part=popup]').evaluate(node => getComputedStyle(node).zIndex), '1');
+        await page.emulateMedia({ forcedColors: 'none' });
+        await page.goto(new URL('cem-bundle.html', baseUrl).href);
+        const bundled = page.getByRole('combobox', { name: 'Bundled autocomplete', exact: true }); await bundled.waitFor();
+        assert.equal(await bundled.inputValue(), 'Ada Lovelace');
+        await bundled.focus(); await bundled.press('ArrowDown'); await bundled.press('Enter');
+        await page.waitForFunction(() => document.querySelector('cem-autocomplete')?.value === 'grace');
+        assert.equal(await bundled.inputValue(), 'Grace Hopper');
+        assert.deepEqual(errors, []);
+    } finally { await context.close(); }
 }

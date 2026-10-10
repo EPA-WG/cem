@@ -54,7 +54,23 @@
         "./playgrounds/cem-dropdown.html": "./dist/cem-dropdown.html",
         "./playgrounds/cem-dropdown-gallery.html": "./dist/cem-dropdown-gallery.html",
         "./playgrounds/cem-suggestions.html": "./dist/cem-suggestions.html",
-        "./playgrounds/cem-suggestions-gallery.html": "./dist/cem-suggestions-gallery.html"
+        "./playgrounds/cem-suggestions-gallery.html": "./dist/cem-suggestions-gallery.html",
+        "./playgrounds/cem-dialog.html": "./dist/cem-dialog.html",
+        "./playgrounds/cem-dialog-gallery.html": "./dist/cem-dialog-gallery.html",
+        "./playgrounds/cem-dialog-shell.html": "./dist/cem-dialog-shell.html",
+        "./playgrounds/cem-dialog-shell-gallery.html": "./dist/cem-dialog-shell-gallery.html",
+        "./playgrounds/cem-tooltip.html": "./dist/cem-tooltip.html",
+        "./playgrounds/cem-tooltip-gallery.html": "./dist/cem-tooltip-gallery.html",
+        "./playgrounds/cem-checkbox.html": "./dist/cem-checkbox.html",
+        "./playgrounds/cem-checkbox-gallery.html": "./dist/cem-checkbox-gallery.html",
+        "./playgrounds/cem-radio.html": "./dist/cem-radio.html",
+        "./playgrounds/cem-radio-gallery.html": "./dist/cem-radio-gallery.html",
+        "./playgrounds/cem-switch.html": "./dist/cem-switch.html",
+        "./playgrounds/cem-switch-gallery.html": "./dist/cem-switch-gallery.html",
+        "./playgrounds/cem-sheet.html": "./dist/cem-sheet.html",
+        "./playgrounds/cem-sheet-gallery.html": "./dist/cem-sheet-gallery.html",
+        "./playgrounds/cem-autocomplete.html": "./dist/cem-autocomplete.html",
+        "./playgrounds/cem-autocomplete-gallery.html": "./dist/cem-autocomplete-gallery.html"
     },
     "files": [
         "dist",
@@ -67,7 +83,8 @@
     "dependencies": {
         "@epa-wg/cem-demo-element": "^0.1.1",
         "@epa-wg/cem-elements": "^0.1.1",
-        "@epa-wg/cem-theme": "^0.1.1"
+        "@epa-wg/cem-theme": "^0.1.1",
+        "dom-accessibility-api": "^0.6.3"
     },
     "publishConfig": {
         "access": "public"

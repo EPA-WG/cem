@@ -1,3 +1,4 @@
+import { registerCemMenuRelay, resetCemTaskActivation, consumeCemTaskActivation } from './menu-task-relay.js';
 import { interactionReference, interactionControl, reportInteractionReference, observeInteractionReferences } from './interaction-reference.js';
 import { focusSurface, restoreSurfaceFocus } from './surface-references.js';
 import type { CemProducedElementBehavior } from './cem-elements.js';
@@ -18,12 +19,14 @@ const states = new WeakMap<HTMLElement, State>();
 let sequence = 0;
 const menus = new Set<HTMLElement>();
 interface State {
+    relayRevision: number;
     active?: HTMLElement;
     open?: HTMLElement;
     openPanel?: HTMLElement;
     parent?: HTMLElement;
     relationshipHidden?: { value: HTMLElement['hidden'] };
     releaseReferences?: () => void;
+    releaseRelay?: () => void;
     releaseGeometry?: () => void;
     geometryReady?: boolean;
     buffer: string;
@@ -34,7 +37,7 @@ interface State {
 }
 function stateFor(host: HTMLElement): State {
     let state = states.get(host);
-    if (!state) { state = { buffer: '', typedAt: 0, syncing: false }; states.set(host, state); }
+    if (!state) { state = { relayRevision: 0, buffer: '', typedAt: 0, syncing: false }; states.set(host, state); }
     return state;
 }
 function container(host: HTMLElement): HTMLElement | null { return host.querySelector<HTMLElement>(`:scope > ${COMPOSITE}`); }
@@ -126,6 +129,7 @@ function close(host: HTMLElement, restore = false): void {
     const trigger = state.open;
     state.open = undefined;
     if (!trigger) return;
+    state.relayRevision++;
     const panel = state.openPanel ?? panelFor(trigger);
     state.openPanel = undefined;
     if (panel) {
@@ -253,6 +257,14 @@ export const CEM_COMPOSITE_MENU_CAPABILITY: CemProducedElementBehavior = {
         const abort = new AbortController();
         state.abort = abort;
         menus.add(host);
+        state.releaseRelay = registerCemMenuRelay({ host,
+            owns: node => controls(host).some(control => control === node || control.contains(node)),
+            parent: () => parentMenu(host) ?? undefined, launcher: () => interactionControl(owner(host) ?? undefined),
+            revision: () => state.relayRevision,
+            active: () => host.isConnected && enabled(host) && !host.closest('[hidden],[inert]')
+                && (!parentMenu(host) || stateFor(parentMenu(host)!).openPanel === host),
+            dismiss: () => close(host),
+        });
         state.releaseReferences = observeInteractionReferences(host, () => relationshipsChanged(host));
         const options = { signal: abort.signal };
         host.addEventListener('keydown', event => handleKey(host, event), options);
@@ -260,12 +272,16 @@ export const CEM_COMPOSITE_MENU_CAPABILITY: CemProducedElementBehavior = {
             const control = (event.target as Element).closest<HTMLElement>('button,a');
             if (!control || !controls(host).includes(control)) return;
             if (unavailable(control)) { event.preventDefault(); event.stopImmediatePropagation(); return; }
+            resetCemTaskActivation(control);
             if (panelFor(control)) {
                 event.preventDefault();
                 if (state.open === control) close(host, true); else open(host, control);
             } else if (enabled(host)) {
                 // Let native link/command activation complete before dismissing.
-                queueMicrotask(() => { dismiss(host); host.dispatchEvent(new Event('cem-popup-dismiss', { bubbles: true })); });
+                queueMicrotask(() => {
+                    if (consumeCemTaskActivation(control) || event.defaultPrevented || !host.isConnected) return;
+                    dismiss(host); host.dispatchEvent(new Event('cem-popup-dismiss', { bubbles: true }));
+                });
             }
         }, { ...options, capture: true });
         host.addEventListener('focusin', event => {
@@ -298,6 +314,7 @@ export const CEM_COMPOSITE_MENU_CAPABILITY: CemProducedElementBehavior = {
         close(host);
         controls(host).forEach(releaseRelationship);
         const state = stateFor(host);
+        state.releaseRelay?.(); state.releaseRelay = undefined;
         state.abort?.abort();
         state.abort = undefined;
         state.observer?.disconnect();

@@ -73,7 +73,7 @@ a different profile rerenders. Unknown identifiers fail preparation. The
 DOM evidence and the separate, unverified assistive-technology mappings.
 
 The shared `native-surface` capability connects one direct `part="surface"` native
-dialog or tooltip popover to an eager semantic lifecycle. It supports persistent
+dialog or tooltip popover to the shared preparation/open/close lifecycle. It supports persistent
 nonmodal dialogs, native modal entry, popover visibility, cancelable close
 requests, context-key policies, typed focus/return/anchor/boundary relationships,
 and invocation-captured pointer/selection geometry. Centered tasks need no anchor.
@@ -82,8 +82,34 @@ accepts a `CemSurfaceInvocation`, optionally captured with
 `captureCemSurfaceInvocation(source, event, { selectionOwner })`. The context
 stays a retained `NativeCemValue`; geometry never becomes a focus destination.
 Tooltips preserve stable description tokens and input focus. Owners survive
-rerender, while disconnect cleans sessions and resources. Authors supply names
-on native owners. Component migration and lazy body preparation remain separate;
+rerender, while disconnect cleans sessions and resources. Explicit ARIA names take precedence; a direct `part="heading"` supplies
+a stable generated heading relationship when no explicit name is present. A direct `template[slot="body"]` in the native owner defaults
+to retained materialization; `materialize="eager"` mounts at connection and
+`materialize="dispose"` removes the body after close/focus/exit cleanup. Body
+projection preserves native values and stable identity while separately owned
+draft slices survive disposal. The declaration capability waits for nested
+produced elements to settle; shared host adapters can supply `prepareBody` with
+an abort signal. Pending preparation keeps launcher focus and busy state; late
+completion cannot reopen a canceled request. `open()` reports admission, while
+`cem-open` reports actual visibility. Default-open does not replay on reconnect
+or accepted serialized resume. Shared menu-to-task relay captures validated nested
+or independent menu ancestry before dismissal, keeps menus available through
+preparation, and returns eligible task exits to the stable root launcher.
+Hosts can request generated buttons with `trigger`/`close-label`, replace them
+with `slot="trigger"`/`slot="close"` controls or providers, or use typed
+`trigger-for` for an external launcher. A slotted trigger takes precedence over
+the label; external and local triggers conflict. Generated launchers support
+`trigger-aria-label` and presence-based `trigger-disabled`. Native button routes
+are adopted once, actual visibility drives expanded state, and close controls
+use the cancelable lifecycle. Generated controls and owned attributes survive
+rerender and clean up on disconnect without overwriting unrelated attributes.
+Canonical `cem-dialog`, `cem-dialog-shell` and `cem-tooltip` declarations now
+consume this capability. Tooltips accept slotted native/editor triggers or shared
+control providers, scoped/typed external launchers and native interest. Focus and
+hover are independent; Escape cancels delayed presentation, touch remains native,
+and disabling suppresses presentation while retaining the description. Native-surface
+behavior identity is v5; popup/composite identities remain v4.
+For the shared lifecycle,
 see the [implemented adapter contract](../../docs/cem-interaction-design.md#implemented-shared-native-surface-adapter).
 
 Shared geometry now gives each actual panel an exclusive transient lease. A
@@ -299,6 +325,42 @@ Unchanged bindings preserve pending edits during unrelated renders. Updates keep
 the input node, focus and selection (clamped to the new length); native input
 sanitization and form reset defaults still apply. File inputs and controls whose
 values already reflect their attributes retain native behavior.
+
+Declarations may opt into `capability="checkable-control"` for one owned native
+`input[type="checkbox"][part~="control"]`. The host's `indeterminate` presence
+sets the native mixed-state property, including empty values and the text
+`false`. Activation clears that property natively. Unchanged authored presence
+does not reapply it on unrelated renders or reconnects; removing and readding
+the flag reapplies it. Nested custom-element controls are excluded, and multiple
+owners or a switch role do not receive mixed state. Fragment loaders must repeat
+the capability. Native checked/defaultChecked, value, forms, radio grouping,
+reset, validity, keys and events remain browser-owned; this capability does not
+add a form-associated host or synthetic change events.
+
+Declarations may opt into `capability="editable-choice"` for a single editable
+combobox whose submitted option identity differs from its visible label. The
+host owns form association; its unnamed `input[part~=control][role=combobox]`
+owns native editing and focus. A stable root contains the control and conditional
+`[part~=popup][role=listbox]`; owned rows use `part="option"` and
+`data-option-index`. Nested custom-element controls and rows are excluded.
+
+The capability shares canonical/native option normalization with `choice-select`.
+It consumes the current authored payload without filtering, preserves committed
+value/display text when suggestions disappear, and retains active option identity
+when suggestions reorder. The runtime observes the island's `cem-payload:payload`
+section; sibling nodes outside that section are not new payload. Render slices
+expose groups, label/listbox/active IDs, expanded state and display text. Input,
+change, reset, restore, required-selection close and silent setters follow the
+[editable-choice contract](../cem-components/docs/autocomplete-contract.md).
+Composition and modified editing keys stay with the input. Option commits update
+native text, model, validity and form submission before the single input/change
+pair. Scroll reveal is confined to the popup.
+
+This ownership differs from the `suggestions` attachment: editable choice owns
+its editor, submitted identity and committed label, accepts authoritative source
+replacement and does not connect a separate editor provider or query/filter the
+native suggestions model. Shared [runtime plays](src/lib/editable-choice.stories.ts)
+cover worker/fallback lifecycle, native forms and nested ownership.
 
 Declarations may opt into `capability="form-control"` for one string-valued
 native input or textarea marked `part="control"`. The produced host owns

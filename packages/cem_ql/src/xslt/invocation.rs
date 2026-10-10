@@ -318,6 +318,7 @@ mod tests {
         let control = OperationControl::default();
         control.cancel_root(None, None).unwrap();
         let result = function.call(NativeQueryRequest {
+            execution_budget: &Default::default(),
             arguments: &[],
             current_item: None,
             query_scope: crate::eval::QueryContextScope(0),

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>cem-radio: Property playground</title>
+<script type="importmap">{
+    "imports": {
+        "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
+        "@epa-wg/cem-components": "../dist/lib/primitives.js",
+        "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
+        "@epa-wg/cem-components/styles.css": "../dist/styles.css",
+        "@epa-wg/cem-components/components/cem-action": "../src/components/cem-action/cem-action.xhtml",
+        "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
+        "@epa-wg/cem-components/action-playground": "./cem-action.html",
+        "@epa-wg/cem-components/components/cem-theme-switch": "../src/components/cem-theme-switch/cem-theme-switch.xhtml",
+        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
+        "@epa-wg/cem-components/components/cem-select": "../src/components/cem-select/cem-select.xhtml",
+        "@epa-wg/cem-components/components/cem-checkbox": "../src/components/cem-checkbox/cem-checkbox.xhtml",
+        "@epa-wg/cem-components/components/cem-radio": "../src/components/cem-radio/cem-radio.xhtml",
+        "@epa-wg/cem-components/components/cem-switch": "../src/components/cem-switch/cem-switch.xhtml",
+        "@epa-wg/cem-components/components/cem-autocomplete": "../src/components/cem-autocomplete/cem-autocomplete.xhtml",
+        "@epa-wg/cem-components/components/cem-icon-button": "../src/components/cem-icon-button/cem-icon-button.xhtml",
+        "@epa-wg/cem-components/components/cem-menu-item": "../src/components/cem-menu-item/cem-menu-item.xhtml",
+        "@epa-wg/cem-components/components/cem-field": "../src/components/cem-field/cem-field.xhtml",
+        "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml",
+        "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml",
+        "@epa-wg/cem-components/components/cem-textarea": "../src/components/cem-textarea/cem-textarea.xhtml",
+        "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "./assets/wc-square.svg",
+        "@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml": "./cem-gallery-nav.xhtml",
+        "@epa-wg/cem-components/components/cem-menu": "../src/components/cem-menu/cem-menu.xhtml",
+        "@epa-wg/cem-components/components/cem-dropdown": "../src/components/cem-dropdown/cem-dropdown.xhtml",
+        "@epa-wg/cem-components/components/cem-dialog": "../src/components/cem-dialog/cem-dialog.xhtml",
+        "@epa-wg/cem-components/components/cem-dialog-shell": "../src/components/cem-dialog-shell/cem-dialog-shell.xhtml",
+        "@epa-wg/cem-components/components/cem-sheet": "../src/components/cem-sheet/cem-sheet.xhtml",
+        "@epa-wg/cem-components/components/cem-tooltip": "../src/components/cem-tooltip/cem-tooltip.xhtml"
+    }
+}</script>
+<script type="module">
+import { installCemElementRuntime } from '@epa-wg/cem-elements';
+import { installCemComponentPrimitives } from '@epa-wg/cem-components';
+import '@epa-wg/cem-demo-element';
+const runtime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
+window.cemPlaygroundRuntime = runtime;
+await installCemComponentPrimitives(runtime);
+</script>
+<link rel="stylesheet" href="../demo.css">
+<style>body { margin: 0; font-family: system-ui, sans-serif; } #playground-theme { padding: var(--cem-inset-container); } main, .properties { display: grid; gap: var(--cem-gap-group); } [data-gallery-theme] { padding: var(--cem-inset-container); background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } cem-demo-element { display: block; margin-block: var(--cem-gap-group); }</style>
+</head><body>
+<cem-element hidden><template type="text/cem-ml">
+{cem-module-url @slice=cemautocompleteUrl @src="@epa-wg/cem-components/components/cem-autocomplete"}
+{cem:if @test="datadom.slices.cemautocompleteUrl" | {cem-element @tag=cem-autocomplete @capability=editable-choice @src="{$datadom.slices.cemautocompleteUrl}#cem-autocomplete"}}
+</template></cem-element>
+<cem-element hidden><template type="text/cem-ml">
+{cem-module-url @slice=cemcheckboxUrl @src="@epa-wg/cem-components/components/cem-checkbox"}
+{cem:if @test="datadom.slices.cemcheckboxUrl" | {cem-element @tag=cem-checkbox @capability=checkable-control @src="{$datadom.slices.cemcheckboxUrl}#cem-checkbox"}}
+{cem-module-url @slice=cemradioUrl @src="@epa-wg/cem-components/components/cem-radio"}
+{cem:if @test="datadom.slices.cemradioUrl" | {cem-element @tag=cem-radio @src="{$datadom.slices.cemradioUrl}#cem-radio"}}
+{cem-module-url @slice=cemswitchUrl @src="@epa-wg/cem-components/components/cem-switch"}
+{cem:if @test="datadom.slices.cemswitchUrl" | {cem-element @tag=cem-switch @src="{$datadom.slices.cemswitchUrl}#cem-switch"}}
+</template></cem-element>
+<cem-element hidden><template type="text/cem-ml">{cem-module-url @slice=cemdialogUrl @src="@epa-wg/cem-components/components/cem-dialog"}
+{cem:if @test="datadom.slices.cemdialogUrl" | {cem-element @tag=cem-dialog @capability=native-surface @src="{$datadom.slices.cemdialogUrl}#cem-dialog"}}
+{cem-module-url @slice=cemdialogshellUrl @src="@epa-wg/cem-components/components/cem-dialog-shell"}
+{cem:if @test="datadom.slices.cemdialogshellUrl" | {cem-element @tag=cem-dialog-shell @capability=native-surface @src="{$datadom.slices.cemdialogshellUrl}#cem-dialog-shell"}}
+{cem-module-url @slice=cemtooltipUrl @src="@epa-wg/cem-components/components/cem-tooltip"}
+{cem:if @test="datadom.slices.cemtooltipUrl" | {cem-element @tag=cem-tooltip @capability=native-surface @src="{$datadom.slices.cemtooltipUrl}#cem-tooltip"}}
+{cem-module-url @slice=cemfieldUrl @src="@epa-wg/cem-components/components/cem-field"}
+{cem:if @test="datadom.slices.cemfieldUrl" | {cem-element @tag=cem-field @capability=form-control @src="{$datadom.slices.cemfieldUrl}#cem-field"}}
+{cem-module-url @slice=cemactionUrl @src="@epa-wg/cem-components/components/cem-action"}
+{cem:if @test="datadom.slices.cemactionUrl" | {cem-element @tag=cem-action @capability=action-command @src="{$datadom.slices.cemactionUrl}#cem-action"}}
+{cem-module-url @slice=cemmenuUrl @src="@epa-wg/cem-components/components/cem-menu"}
+{cem:if @test="datadom.slices.cemmenuUrl" | {cem-element @tag=cem-menu @capability=composite-menu @src="{$datadom.slices.cemmenuUrl}#cem-menu"}}
+{cem-module-url @slice=cemmenuitemUrl @src="@epa-wg/cem-components/components/cem-menu-item"}
+{cem:if @test="datadom.slices.cemmenuitemUrl" | {cem-element @tag=cem-menu-item @capability=action-control @src="{$datadom.slices.cemmenuitemUrl}#cem-menu-item"}}
+{cem-module-url @slice=cemdropdownUrl @src="@epa-wg/cem-components/components/cem-dropdown"}
+{cem:if @test="datadom.slices.cemdropdownUrl" | {cem-element @tag=cem-dropdown @capability=popup @src="{$datadom.slices.cemdropdownUrl}#cem-dropdown"}}
+{cem-module-url @slice=cemiconbuttonUrl @src="@epa-wg/cem-components/components/cem-icon-button"}
+{cem:if @test="datadom.slices.cemiconbuttonUrl" | {cem-element @tag=cem-icon-button @src="{$datadom.slices.cemiconbuttonUrl}#cem-icon-button"}}
+{cem-module-url @slice=cemthemeswitchUrl @src="@epa-wg/cem-components/components/cem-theme-switch"}
+{cem:if @test="datadom.slices.cemthemeswitchUrl" | {cem-element @tag=cem-theme-switch @src="{$datadom.slices.cemthemeswitchUrl}#cem-theme-switch"}}
+{cem-module-url @slice=cemselectUrl @src="@epa-wg/cem-components/components/cem-select"}
+{cem:if @test="datadom.slices.cemselectUrl" | {cem-element @tag=cem-select @capability=choice-select @src="{$datadom.slices.cemselectUrl}#cem-select"}}
+{cem-module-url @slice=navUrl @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml"}{cem:if @test="datadom.slices.navUrl" | {cem-element @tag=cem-gallery-nav @src="{$datadom.slices.navUrl}#cem-gallery-nav"}}
+{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
+{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
+{cem-module-url @slice=cemsheetUrl @src="@epa-wg/cem-components/components/cem-sheet"}
+{cem:if @test="datadom.slices.cemsheetUrl" | {cem-element @tag=cem-sheet @src="{$datadom.slices.cemsheetUrl}#cem-sheet"}}
+</template></cem-element>
+<div id="playground-theme" class="cem-theme-light"><cem-gallery-nav heading="cem-radio: Property playground"></cem-gallery-nav><p class="component-description">A native radio for one choice in a named group. Radios share native keyboard and form ownership with ordinary inputs. Related choices: <a href="./cem-checkbox-gallery.html">cem-checkbox</a> · <a href="./cem-switch-gallery.html">cem-switch</a>. Use <a href="./cem-field-gallery.html">cem-field</a> for text input.</p><p><a href="./cem-radio-gallery.html">Full examples and variation matrix</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-radio/cem-radio.stories.ts">Automated stories</a></p><main><p>Click or press Space to select. Radio arrow keys move among peers with the same name and form. Tab skips disabled controls. Checked controls contribute their value to the form; reset restores the authored checked attribute. Boolean flags use presence, including the text false. Busy is descriptive and permits interaction. Empty value and required-marker text are preserved; other blank optional controls omit the attribute.</p><p id="choice-name">Referenced choice</p><p id="choice-help">Supporting choice instructions.</p><p id="choice-error">Choose an option to continue.</p><form id="choice-external"><p>External form owner: use choice-external in the form control.</p><cem-action type="reset" label="Reset external form"></cem-action></form><cem-element class="properties"><template type="text/cem-ml">{slice @name=label | Choice}
+{cem-field @label="label" @value="{$datadom.slices.label}" @slice=label @slice-event=input @slice-value="$target.value"}
+{slice @name=name | choice}
+{cem-field @label="name" @value="{$datadom.slices.name}" @slice=name @slice-event=input @slice-value="$target.value"}
+{slice @name=value | yes}
+{cem-field @label="value" @value="{$datadom.slices.value}" @slice=value @slice-event=input @slice-value="$target.value"}
+{slice @name=form | }
+{cem-field @label="form" @value="{$datadom.slices.form}" @slice=form @slice-event=input @slice-value="$target.value"}
+{slice @name=required-marker | *}
+{cem-field @label="required-marker" @value="{$datadom.slices.required-marker}" @slice=required-marker @slice-event=input @slice-value="$target.value"}
+{slice @name=aria-label | }
+{cem-field @label="aria-label" @value="{$datadom.slices.aria-label}" @slice=aria-label @slice-event=input @slice-value="$target.value"}
+{slice @name=aria-labelledby | }
+{cem-field @label="aria-labelledby" @value="{$datadom.slices.aria-labelledby}" @slice=aria-labelledby @slice-event=input @slice-value="$target.value"}
+{slice @name=aria-describedby | }
+{cem-field @label="aria-describedby" @value="{$datadom.slices.aria-describedby}" @slice=aria-describedby @slice-event=input @slice-value="$target.value"}
+{slice @name=aria-errormessage | }
+{cem-field @label="aria-errormessage" @value="{$datadom.slices.aria-errormessage}" @slice=aria-errormessage @slice-event=input @slice-value="$target.value"}
+{slice @name=class | }
+{cem-field @label="class" @value="{$datadom.slices.class}" @slice=class @slice-event=input @slice-value="$target.value"}
+{slice @name=checked | }
+{fieldset @slice=checked @slice-event=change @slice-value="$target.value" | {legend | checked}{cem-radio @name="cem-radio-checked" @value="" @checked=true | absent}{cem-radio @name="cem-radio-checked" @value="present" | present}}
+{slice @name=disabled | }
+{fieldset @slice=disabled @slice-event=change @slice-value="$target.value" | {legend | disabled}{cem-radio @name="cem-radio-disabled" @value="" @checked=true | absent}{cem-radio @name="cem-radio-disabled" @value="present" | present}}
+{slice @name=required | }
+{fieldset @slice=required @slice-event=change @slice-value="$target.value" | {legend | required}{cem-radio @name="cem-radio-required" @value="" @checked=true | absent}{cem-radio @name="cem-radio-required" @value="present" | present}}
+{slice @name=busy | }
+{fieldset @slice=busy @slice-event=change @slice-value="$target.value" | {legend | busy}{cem-radio @name="cem-radio-busy" @value="" @checked=true | absent}{cem-radio @name="cem-radio-busy" @value="present" | present}}
+{slice @name=invalid | }
+{fieldset @slice=invalid @slice-event=change @slice-value="$target.value" | {legend | invalid}{cem-radio @name="cem-radio-invalid" @value="" @checked=true | absent}{cem-radio @name="cem-radio-invalid" @value="true" | true}{cem-radio @name="cem-radio-invalid" @value="false" | false}}
+{slice @name=indicator | outline}
+{fieldset @slice=indicator @slice-event=change @slice-value="$target.value" | {legend | indicator}{cem-radio @name="cem-radio-indicator" @value="outline" @checked=true | outline}{cem-radio @name="cem-radio-indicator" @value="underline" | underline}{cem-radio @name="cem-radio-indicator" @value="unsupported" | unsupported}}
+{slice @name=hidden | }
+{fieldset @slice=hidden @slice-event=change @slice-value="$target.value" | {legend | hidden}{cem-radio @name="cem-radio-hidden" @value="" @checked=true | absent}{cem-radio @name="cem-radio-hidden" @value="present" | present}}
+{slice @name=dir | ltr}
+{fieldset @slice=dir @slice-event=change @slice-value="$target.value" | {legend | dir}{cem-radio @name="cem-radio-dir" @value="ltr" @checked=true | ltr}{cem-radio @name="cem-radio-dir" @value="rtl" | rtl}}
+{form | {cem-radio @label={if datadom.slices.label != "" { datadom.slices.label } else { null }} @name={if datadom.slices.name != "" { datadom.slices.name } else { null }} @form={if datadom.slices.form != "" { datadom.slices.form } else { null }} @aria-label={if datadom.slices.aria-label != "" { datadom.slices.aria-label } else { null }} @aria-labelledby={if datadom.slices.aria-labelledby != "" { datadom.slices.aria-labelledby } else { null }} @aria-describedby={if datadom.slices.aria-describedby != "" { datadom.slices.aria-describedby } else { null }} @aria-errormessage={if datadom.slices.aria-errormessage != "" { datadom.slices.aria-errormessage } else { null }} @class={if datadom.slices.class != "" { datadom.slices.class } else { null }} @checked={if datadom.slices.checked == "present" { true } else { null }} @disabled={if datadom.slices.disabled == "present" { true } else { null }} @required={if datadom.slices.required == "present" { true } else { null }} @busy={if datadom.slices.busy == "present" { true } else { null }} @invalid={if datadom.slices.invalid != "" { datadom.slices.invalid } else { null }} @indicator={if datadom.slices.indicator != "" { datadom.slices.indicator } else { null }} @hidden={if datadom.slices.hidden == "present" { true } else { null }} @dir={if datadom.slices.dir != "" { datadom.slices.dir } else { null }} | {attribute @name=value @value={datadom.slices.value}}{attribute @name=required-marker @value={datadom.slices.required-marker}}}{cem-action @type=reset @label="Reset choice"}}</template></cem-element><cem-demo-element legend="Projected label" description="Projected default content replaces label text. The required marker stays visible and is excluded from the accessible name."><template slot="source"><cem-radio label="Fallback" required><strong>Projected choice</strong><em slot="required-marker">Required</em></cem-radio></template></cem-demo-element><cem-element><template type="text/cem-ml">{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-radio"}{cem:if @test="datadom.slices.sourceUrl" | {p | {a @href="{$datadom.slices.sourceUrl}" | Open canonical XHTML}}{cem-demo-element @legend="Canonical source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}}</template></cem-element></main></div></body></html>

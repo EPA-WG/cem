@@ -8,7 +8,10 @@ import { chromium } from 'playwright';
 
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const repoRoot = join(packageRoot, '..', '..');
-const componentCss = await readFile(join(packageRoot, 'src', 'styles.css'), 'utf8');
+const declaration = await readFile(join(packageRoot, 'src/components/cem-autocomplete/cem-autocomplete.xhtml'), 'utf8');
+const css = declaration.match(/\{style(?:\s+[^|{}]*)?\s*\|```([\s\S]*?)```\s*\}/i)?.[1];
+if (!css) throw new Error('Autocomplete declaration must contain embedded CSS');
+const componentCss = `@scope (cem-autocomplete) {${css}}`;
 const themeCss = await readFile(
     join(repoRoot, 'packages', 'cem-theme', 'dist', 'lib', 'css', 'cem-combined.css'),
     'utf8',
@@ -23,11 +26,11 @@ try {
         <main class="cem-theme-light">
             <button id="focus-start" type="button">Focus start</button>
             <cem-autocomplete id="autocomplete-host">
-                <div class="cem-autocomplete">
-                    <label class="cem-autocomplete__label" for="autocomplete-input">Person</label>
+                <div class="cem-autocomplete" part="root">
+                    <label class="cem-autocomplete__label" part="label" for="autocomplete-input">Person</label>
                     <input
                         id="autocomplete-input"
-                        class="cem-autocomplete__control"
+                        class="cem-autocomplete__control" part="control"
                         role="combobox"
                         aria-autocomplete="list"
                         aria-expanded="true"
@@ -35,10 +38,10 @@ try {
                         aria-activedescendant="selected-active-option"
                         value="Ada Lovelace"
                     >
-                    <div id="autocomplete-popup" class="cem-autocomplete__popup" role="listbox">
+                    <div id="autocomplete-popup" class="cem-autocomplete__popup" part="popup" role="listbox">
                         <div
                             id="selected-active-option"
-                            class="cem-autocomplete__option"
+                            class="cem-autocomplete__option" part="option"
                             role="option"
                             aria-selected="true"
                             aria-disabled="false"
@@ -46,14 +49,14 @@ try {
                         >Ada Lovelace</div>
                         <div
                             id="hover-option"
-                            class="cem-autocomplete__option"
+                            class="cem-autocomplete__option" part="option"
                             role="option"
                             aria-selected="false"
                             aria-disabled="false"
                         >Grace Hopper</div>
                         <div
                             id="disabled-option"
-                            class="cem-autocomplete__option"
+                            class="cem-autocomplete__option" part="option"
                             role="option"
                             aria-selected="false"
                             aria-disabled="true"
@@ -62,9 +65,9 @@ try {
                 </div>
             </cem-autocomplete>
             <cem-autocomplete id="later-host">
-                <div class="cem-autocomplete">
-                    <label id="later-label" class="cem-autocomplete__label" for="later-input">Later field</label>
-                    <input id="later-input" class="cem-autocomplete__control" value="Later content">
+                <div class="cem-autocomplete" part="root">
+                    <label id="later-label" class="cem-autocomplete__label" part="label" for="later-input">Later field</label>
+                    <input id="later-input" class="cem-autocomplete__control" part="control" value="Later content">
                 </div>
             </cem-autocomplete>
         </main>

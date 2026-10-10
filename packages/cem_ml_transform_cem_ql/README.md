@@ -205,3 +205,260 @@ yarn nx run cem_ml_transform_cem_ql:build
 The surrounding transformation contract is documented in the
 [CEM-ML acceptance criteria](../../docs/cem-ml-ac.md) and the
 [CEM-QL implementation design](../../docs/cem-ql-stack-design-impl.md).
+
+## Executable schema attribute datatypes
+
+The adopted [datatype compilation design](../../docs/cem-datatype-compilation-design.md)
+defines the implementation and provenance contracts. Installing
+`CemQlSchemaPackageCompiler::with_datatypes` now automatically binds typed attribute
+declarations after its callback supplies original executable descriptors.
+`with_datatype_discovery` adds literal QName discovery using original namespace
+captures, declaring `uses` aliases and explicit exports. Native `@type={#datatype}`
+requires one named original type and the usual context, crossing and budget checks.
+
+The callback registers validation, lexical preparation and facet capabilities
+explicitly. Names never imply built-in implementations. Binding checks local
+facets, original declaring-scope diagnostics and literal defaults before publishing
+the package. Incomplete candidates preserve the last active schema/converters/artifacts.
+Validation uses the installed consumer for lexical input and authorized retained
+node sequences, with separate invalid and incomplete outcomes and no implicit
+conversion. Use retained input validation when a capability requires a candidate;
+source-less lexical validation cannot manufacture one. The
+[pretyped provenance contract](../../docs/cem-datatype-compilation-design.md#adopted-pretyped-attribute-input-provenance)
+has native issuance, read-only inspection and explicit combined consumption implemented.
+Its extension requires a
+sealed native preparation result retaining the original lexical text, item spans,
+candidate access and exact binding/invocation identity. Bare typed values, public
+preparation reports and canonical exports cannot supply that evidence. Typed rules
+and local lexical facets still require fresh validation in the live invocation;
+the core also admits an opaque preparation handle through the registered consumer.
+Explicit declaration overrides use
+the separate host transaction described below.
+
+An embedding can use
+`cem_ql::preparation_evidence::AttributePreparationInvocation::new` with an exact
+`BoundAttributeFacets`, original `PreparationInput`, runtime and finite limits,
+then call `prepare`. Complete preparation returns opaque evidence alongside its
+public report. Read-only evidence getters retain original text, source maps,
+candidate access, native values and item spans; `verify(&invocation)` checks live
+authority. Public reports cannot construct evidence, and issuance runs no typed
+rules or local facets and supplies no acceptance verdict. Invocation clones share
+remaining allowances. Cancellation, query failure, explicit `close` or dropping
+all invocation handles expires authority. Call `close` before input, context,
+grants or package publication changes when using this standalone API. The registered
+core handoff provides the lifecycle checks described below.
+
+Call `BoundAttributeFacets::validate_pretyped(&invocation, evidence.as_ref(),
+facet_context, max_facet_model_bytes)` for explicit combined consumption. It checks
+exact live evidence, runs fresh typed rules and enumerations, then applies local
+facets to the original text and list count. The inspection phase retains evidence
+and a fresh datatype report. Missing, foreign or expired evidence is incomplete;
+a present empty list still validates. Consumption calls no preparation, conversion
+or serialization capability. All calls share the invocation's remaining budgets,
+including inspection, validation and local diagnostics; supplying another runtime
+or a new budget is not part of this API. Close the invocation before facet context
+changes as well as input, runtime, grant or publication changes.
+
+For the core handoff, keep an `AttributeDatatypeContext` for the current host
+context/grants and supply it in `AttributeDatatypeInput::context`. Call the active
+`CompiledAttributeDatatype::prepare` with original lexical input, then pass its
+handle back as `AttributeDatatypeValue::Prepared`. The engine checks its private
+issuer and original binding/source/operation, executes fresh validation and shares
+the issuing invocation's budgets. Core CEM-ML retains the opaque native handle
+without depending on CEM-QL values. Arbitrary payloads and stale handles remain
+incomplete; there is no implicit preparation fallback.
+
+Call `context.advance()` when external context roots or effective grants change,
+and `context.close()` when the host invocation ends. Dropping all context owners,
+operation cancellation/completion, changed input/facet context and committed
+package or datatype override replacement expire preparation authority. Failed
+replacement candidates preserve active receipts. Retained old models cannot reuse
+retired prepared authority. Reloaded source requires fresh preparation; neither
+the handle nor its context identity is serialized.
+
+## Explicit list serialization
+
+List conversion and lexical export are separate requests. An embedding can select
+`cem_ql::datatype_shipped::list_serializer` for an original `NameList` or
+`WildcardNameList` declaration through
+`DatatypeImplementations::select_list_serializer`. Custom lexical formats implement
+`NativeListSerializer` and register their scalar item representation and candidate
+requirement against the exact original list source. Selected unavailable serializers
+keep package candidates incomplete, preserving the previous complete publication.
+
+After compilation, call `ExecutableDatatype::serialize_list` with a typed
+`ValidationInput`, current `ValidationRuntime` and finite `SerializationLimits`.
+All effective item/list restrictions run before serialization. Use `result.text`
+only when `result.accepted == Some(true)`. Shipped serializers preserve item
+spellings, order and duplicates, separating items with one ASCII space; original
+token views, source maps and lexical spans remain unchanged. Scalar result types,
+automatic attribute input, conversion and native document presentation stay on
+their existing APIs. See the [list export contract](../../docs/cem-datatype-compilation-design.md#explicit-list-serialization-adopted-2026-10-09).
+
+## Executable schema function bindings
+
+`CemQlSchemaPackageCompiler::with_scalar_datatypes` installs the coordinated
+function/datatype path. Its callback returns a `ScalarPackagePlan` with original
+`ValueContractSource` owners and declaring aliases, explicit public exports,
+`FunctionAdmission` entries, datatype roots and exact implementation registrations.
+Each admission names an original behavior and a `FunctionProfile`: validation,
+conversion, equality or constant preparation. Diagnostic validation uses the
+validation profile with its explicit `LegacyAcceptance` mapping.
+
+The compiler assembles admitted behavior collections before forward function
+lookup, checks literal or native singleton selections and signatures, then
+registers executable queries. Set up reference contexts and directed grants in
+the compiler's initial host callback. Function and datatype compilation share a
+finite allowance; attribute activation receives the remainder. The model retains
+its `FunctionBindings` snapshot, and successful registration clears only the
+matching original behavior's native readiness guard. Unadmitted slots remain
+pending. Failed attempts preserve the previous complete schema, bindings,
+converters and artifacts; retries use the retained source and current context.
+
+This builder replaces a preceding datatype-only builder, and a later
+`with_datatypes`/`with_datatype_discovery` replaces it. No ordinary adapter
+installation, source execution label or matching function name enables this path.
+See the [scalar composition contract](../../docs/cem-scalar-composition-design.md)
+and [package fixtures](tests/schema_package_lifecycle/functions.rs).
+
+
+## Whole-list inheritance
+
+Use `@list-base` to derive a complete list contract:
+
+```cem
+{type @name=names @kind=list @base=identifier}
+{type @name=pair @list-base=names @min-items=2 @max-items=2}
+```
+
+The host registers the root list and scalar item capabilities. `pair` inherits
+them without another registration. A native `@list-base={#selectedList}` must
+resolve to one authorized list declaration. `kind` may be omitted or `list`;
+`base` and `list-base` cannot be combined. Root list `base` retains item semantics.
+
+Derived lists share the exact item contract, tokenizer, lexical preparer and
+facet profile. Bounds intersect and rules accumulate; each item is validated once.
+Item enumerations, token provenance and sealed pretyped consumption remain intact.
+Converters and list serializers inherit unless explicitly replaced by compatible
+host registrations. Tokenizers and preparers support explicit checked replacement
+as described below; checked facet replacement retains every ancestor profile. Missing ancestor
+capabilities keep package activation pending.
+
+Explicit override grants may name an original `list-base` slot to rebind it;
+unlisted edges remain pinned. The transaction recompiles every affected derivative
+before publishing. See the [whole-list design](../../docs/cem-datatype-compilation-design.md#whole-list-inheritance-adopted-and-implemented-2026-10-09).
+
+## Checked inherited lexical capabilities
+
+An original derived datatype may opt into
+`PreparationBinding::CheckedReplacement(registered_preparer)`. A whole-list
+implementation may use `TokenizerBinding::CheckedReplacement(registered_tokenizer)`.
+Ordinary `Ready` selection continues to reject implicit inherited replacement.
+
+The runtime checks every ancestor on the same original input before executing the
+selected implementation. Preparers must produce the same immutable primitive
+representation; tokenizers must produce exactly the same decoded spans. A child
+may reject more inputs, but cannot widen base admission or change the prepared
+value. Base failure stops the child, and no earlier result is used as fallback.
+Each callback retains its original datatype owner and candidate requirements.
+
+Shared preparation/input/diagnostic budgets include ancestor checks. The new
+`TokenizationLimits::max_tokenizers` field bounds tokenizer invocations (default
+256); use `..Default::default()` in limit literals when not overriding it.
+Sealed native preparation records successful checks once; pretyped consumers
+reuse the prepared value and revalidate all effective restrictions. Defaults and
+package publication use the same path. See the [checked replacement contract](../../docs/cem-datatype-compilation-design.md#checked-lexical-capability-replacement-adopted-and-implemented-2026-10-09)
+for exact representation, provenance and budget rules.
+
+## Checked inherited facet profiles
+
+Use `FacetProfileBinding::CheckedReplacement(registered_profile)` to select a
+derived profile while retaining every ancestor's original registration and
+acceptance checks. All families must use the same representation. Ordinary `Ready`
+selection still rejects inherited replacement, and missing ancestor profiles keep
+readiness pending.
+
+Local fields must compile under every profile. A URI-to-string replacement keeps
+URI admission, but a local `uriHosts` field makes that combination invalid because
+the string family does not support it. No field is silently discarded. The
+composite contract checks the original input oldest-first and stops on rejection
+or incomplete work. List profiles use the prepared count; node profiles never
+atomize. `facet_profile()` returns the selected registration, while
+`facet_profiles()` (or bound facets' `profiles()`) retains the complete sequence.
+
+Model and lexical-input byte limits cover the complete profile chain. Sealed
+consumption revalidates it each time; defaults and package readiness use the same
+path. See the [facet replacement contract](../../docs/cem-datatype-compilation-design.md#checked-inherited-facet-profile-replacement-adopted-and-implemented-2026-10-09).
+
+## Retained enumeration constants
+
+A scalar datatype may use `{constant @value="In progress"}` children instead of
+whitespace-token `@values`. Each complete decoded `@value` is one interpreter
+input; empty strings and embedded whitespace are preserved. Mixing both forms
+in one declaration is invalid. Native child references may select original
+retained constant declarations under the current host's scope grants and limits.
+
+Constant interpretation and equality still require explicit registration.
+Preparation checks one immutable scalar against the datatype's rules and
+inherited vocabularies. Original constant/value owners, decoded spans and
+interpreter/equality bindings survive inheritance. Source/query interpreters use
+the same fixed roles, with the original `@value` as candidate. All constants share
+compilation limits; `max_retained_value_bytes` separately bounds retained output
+text. Incomplete or invalid preparation preserves the active package.
+
+See the [retained constant contract](../../docs/cem-datatype-compilation-design.md#retained-scalar-enumeration-constants-adopted-and-implemented-2026-10-09)
+for source admission, reference selection and budget details.
+
+## Typed-only external attribute values
+
+Hosts may register `FacetFamily::TypedScalar(primitive)` or
+`FacetFamily::TypedList(primitive)` for original scalar/list declarations. Every
+ancestor and list item must also admit typed ingress; lexical profiles, preparers
+and tokenizers cannot be bypassed. Scalar local value facets and literal defaults
+are rejected. Lists additionally allow count facets. Typed datatype rules,
+enumerations and inherited bounds still run.
+
+For a bound native consumer, use `ExternalTypedProducer::new`. For an active core
+contract, obtain `typed_admission()` and pass it to
+`ExternalTypedProducer::from_native`. Produce an explicitly present immutable
+sequence, then pass its `native_handle()` as `AttributeDatatypeValue::ExternalTyped`
+under a live `AttributeDatatypeContext`. An absent sequence differs from an empty
+list. The source attribute is attribution/context, not a claim of lexical origin.
+
+Every use validates afresh. Closing a producer expires its values; committed
+package replacement expires its core admission. A live external value may enter
+a fresh live context without pretending to be a preparation receipt. Opaque
+payload claims, foreign bindings and serialized handles confer no authority.
+See the [typed-only contract](../../docs/cem-datatype-compilation-design.md#typed-only-external-attribute-admission-adopted-and-implemented-2026-10-09)
+for the complete omitted-field, representation, budget and lifecycle rules.
+
+## Explicit datatype overrides
+
+An embedding that owns a ready datatype model and its admitted name catalog can
+use `cem_ql::datatype_overrides::DatatypeOverrideRegistry`. The host explicitly
+supplies the public consuming scope/name, exact expected and replacement sources,
+and any original inheritance/list-item dependency slots to rebind. The replacement
+must already be present in the original catalog; its implementations and crossing
+grants are supplied independently.
+
+```rust,ignore
+let mut overrides = DatatypeOverrideRegistry::new(catalog, active_model)?;
+let grant = overrides.authorize(&request)?; // embedding host's authority decision
+let prepared = overrides.prepare(&[request], &[grant], &host, options)?;
+overrides.activate(&mut host, prepared)?;
+let ready_model = overrides.model().clone();
+```
+
+Preparation builds a private catalog, host, datatype graph and attribute model.
+Publication checks the generation, current operation and exact host input snapshot.
+Failed or stale candidates preserve the preceding publication. Native selections
+stay pinned unless an exact datatype dependency slot is included in the request;
+literal attribute consumers see the new public binding after activation. Continue
+the same registry for later overrides so its original dependency policy survives.
+
+The ready model can enter the embedding's existing package readiness/publication
+boundary. Ordinary compiler registration and package manifests do not issue these
+grants. No authored override syntax is introduced. Inherited lexical replacement
+requires the separate checked capability selection above; facet replacement remains
+deferred. See the [override contract](../../docs/cem-datatype-compilation-design.md#explicit-declaration-overrides-adopted-2026-10-09)
+and [native fixtures](../cem_ql/tests/datatype_validation/overrides.rs).

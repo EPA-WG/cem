@@ -26,6 +26,7 @@ impl EvaluationContext {
             module_resolution: self.module_resolution.clone(),
             native_functions: self.native_functions.clone(),
             data_readers: self.data_readers.clone(),
+            execution_budget: self.execution_budget.clone(),
         }
     }
 }

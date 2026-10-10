@@ -46,6 +46,8 @@ pub enum SchemaSource {
     Select(String),
     /// References an inline declaration by `cem:name`.
     InlineRef(String),
+    /// Unresolved original native prelude. Never inherit or decode as a URI.
+    PendingPrelude { directive: Option<AstNodeId>, value_range: ByteRange },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

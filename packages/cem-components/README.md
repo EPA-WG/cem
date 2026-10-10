@@ -79,11 +79,24 @@ The promise resolves after every accepted declaration settles. Inspect
 application content. Behavior-backed primitives supply stable versioned host
 identities as part of their registration contract.
 
-This registers the remaining legacy primitive tags: `cem-autocomplete`, `cem-timepicker`, `cem-datepicker`, `cem-option`, `cem-option-group`, `cem-checkbox`,
-`cem-radio`, `cem-switch`, `cem-slider`, `cem-surface`, `cem-text`,
+This registers the remaining legacy primitive tags: `cem-timepicker`, `cem-datepicker`, `cem-option`, `cem-option-group`,
+`cem-slider`, `cem-surface`, `cem-text`,
 `cem-stack`, `cem-grid`, `cem-divider`, `cem-list`, `cem-card`, `cem-expansion`, `cem-table`, `cem-sort-header`, `cem-chip`, `cem-badge`, `cem-avatar`,
-`cem-media-preview`, `cem-tree`, `cem-tree-item`, `cem-app-bar`, `cem-nav`, `cem-tabs`, `cem-tab`, `cem-stepper`, `cem-step`, `cem-paginator`, `cem-tooltip`, `cem-dialog`, `cem-dialog-shell`, `cem-sheet`,
+`cem-media-preview`, `cem-tree`, `cem-tree-item`, `cem-app-bar`, `cem-nav`, `cem-tabs`, `cem-tab`, `cem-stepper`, `cem-step`, `cem-paginator`,
 `cem-toast`, `cem-progress`, `cem-progress-spinner`, `cem-skeleton`, and `cem-alert`.
+
+Load canonical `cem-autocomplete` with `capability="editable-choice"`. It keeps
+native text input focus, authoritative option payloads and one form-associated
+submitted value, including the distinction between option identity and label.
+See the [autocomplete contract](docs/autocomplete-contract.md),
+[property playground](playgrounds/cem-autocomplete.html) and
+[gallery](playgrounds/cem-autocomplete-gallery.html).
+
+Load canonical `cem-checkbox`, `cem-radio` and `cem-switch` declarations
+explicitly. Their native inputs own checked state, radio groups, forms and
+reset; checkbox adds the shared `checkable-control` capability for mixed state.
+See the [checkable contract](docs/checkable-contract.md), linked property
+playgrounds and five-theme galleries for names, presence flags and native keys.
 
 ## Legacy stylesheet install
 
@@ -218,14 +231,14 @@ cross; `discrete` labels and `show-tick-marks` remain hidden visual output.
 Canonical D0 slider paint, D2c track/thumb geometry, D2 targets, and D5 focus
 cover normal and forced colors without a component CSS exception.
 
-`cem-tooltip` owns one persistent plain-text description and a separate
-non-interactive top-layer presentation for exactly one named native trigger.
-The trigger retains pointer, focus, keyboard, activation, and application-event
-ownership. Independent hover/focus reasons, Escape, delay, declarative `open`,
-disabled suppression, logical CSS Anchor Positioning, and viewport fallback are
-covered without long-press interception or geometry/state mutation. Existing
-D0/D1/D3/D4/D5/D6 semantics cover normal and forced colors without a component
-CSS exception.
+`cem-dialog`, `cem-dialog-shell` and `cem-tooltip` are canonical declarations
+using shared `native-surface`. Dialogs default to persistent nonmodal tasks,
+with explicit modal mode, native forms, commands, heading naming and retained
+or disposed bodies. Tooltips preserve native triggers and persistent descriptions
+with independent focus/hover interest. See the [dialog](docs/dialog-contract.md)
+and [tooltip](docs/tooltip-contract.md) contracts for migration from legacy APIs.
+`verify-surfaces` checks source/installed galleries, property pages, release
+bundle, keyboard behavior and forced colors.
 
 ## Build & Verify
 
@@ -317,7 +330,7 @@ datepicker, stepper, and tree), and exact dry-run npm inclusion of one `dist/sty
 | Sort-header forced-colors gate | `scripts/verify-sort-header-forced-colors.mjs` |
 | Paginator forced-colors gate | `scripts/verify-paginator-forced-colors.mjs` |
 | Slider forced-colors gate | `scripts/verify-slider-forced-colors.mjs` |
-| Tooltip forced-colors gate | `scripts/verify-tooltip-forced-colors.mjs` |
+| Tooltip forced-colors gate | `../../tools/scripts/verify-cem-component-playgrounds.mjs --surfaces-only` |
 | Timepicker forced-colors gate | `scripts/verify-timepicker-forced-colors.mjs` |
 | Datepicker forced-colors gate | `scripts/verify-datepicker-forced-colors.mjs` |
 | Stepper forced-colors gate | `scripts/verify-stepper-forced-colors.mjs` |
@@ -325,7 +338,7 @@ datepicker, stepper, and tree), and exact dry-run npm inclusion of one `dist/sty
 | Package publication gate | `scripts/verify-package.mjs` |
 | Stylesheet copy | `scripts/copy-styles.mjs` |
 | Primitive browser coverage | `src/lib/primitives.browser.spec.ts` |
-| Autocomplete browser coverage | `src/lib/autocomplete.browser.spec.ts` |
+| Autocomplete browser coverage | `src/components/cem-autocomplete/cem-autocomplete.stories.ts` |
 | Expansion browser coverage | `src/lib/expansion.browser.spec.ts` |
 | Progress-spinner browser coverage | `src/lib/progress-spinner.browser.spec.ts` |
 | Sort-header browser coverage | `src/lib/sort-header.browser.spec.ts` |
@@ -335,7 +348,7 @@ datepicker, stepper, and tree), and exact dry-run npm inclusion of one `dist/sty
 | Stepper declarative contract fixture | `tests/stepper/contract.html` |
 | Tree browser coverage | `src/lib/tree.browser.spec.ts` |
 | Tree declarative contract fixture | `tests/tree/contract.html` |
-| Tooltip browser coverage | `src/lib/tooltip.browser.spec.ts` |
+| Tooltip browser coverage | `src/components/cem-tooltip/cem-tooltip.stories.ts` |
 | Timepicker browser coverage | `src/lib/timepicker.browser.spec.ts` |
 | Datepicker browser coverage | `src/lib/datepicker.browser.spec.ts` |
 | State and ARIA coverage | `src/lib/states.browser.spec.ts` |
@@ -347,7 +360,7 @@ datepicker, stepper, and tree), and exact dry-run npm inclusion of one `dist/sty
 | Sort-header contract fixture | `tests/sort-header/contract.html` |
 | Paginator contract fixture | `tests/paginator/contract.html` |
 | Slider contract fixture | `tests/slider/contract.html` |
-| Tooltip contract fixture | `tests/tooltip/contract.html` |
+| Tooltip contract fixture | `playgrounds/cem-tooltip-gallery.html` |
 | Timepicker contract fixture | `tests/timepicker/contract.html` |
 | Datepicker contract fixture | `tests/datepicker/contract.html` |
 | Package examples | `examples/` |

@@ -19,11 +19,13 @@ pub enum DecodeError {
     InvalidUtf8,
     InvalidReference(AstNodeId),
     CountLimitExceeded,
+    InvalidMetadata,
 }
 
 impl std::fmt::Display for DecodeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            DecodeError::InvalidMetadata => f.write_str("invalid or missing required source metadata"),
             DecodeError::CountLimitExceeded => f.write_str("binary AST collection count limit exceeded"),
             DecodeError::InvalidReference(id) => write!(f, "invalid reference node or context ID: {id}"),
             DecodeError::BadMagic => f.write_str("invalid magic"),
@@ -105,7 +107,7 @@ impl DebugBinaryDecoder {
             }
         }
         let nodes = link_edges(nodes, attr_map, child_map);
-        validate_value_ownership(&nodes)?;
+        validate_value_ownership(&nodes, false)?;
         for node in &nodes {
             if let CemAstNode::Reference { context, targets, .. } = node {
                 for &id in std::iter::once(context).chain(targets.iter().flatten()) {
@@ -116,33 +118,45 @@ impl DebugBinaryDecoder {
 
         let id_table = read_id_table(&mut r, &strings)?;
         let unresolved_slots = read_unresolved_slots(&mut r, &strings, &source_map_frames)?;
+        let metadata = if version >= 5 {
+            let count = r.read_u32()? as usize;
+            r.ensure(count)?;
+            let bytes = &r.bytes[r.cursor..r.cursor + count];
+            r.cursor += count;
+            Some(bytes)
+        } else { None };
 
         // Chunk metadata is parsed for completeness even though Tier A
         // round-trip tests don't need it; surfacing parse errors here
         // is the validation we want.
         read_chunk_metadata(&mut r)?;
 
-        Ok(CemDocument {
+        let mut document = CemDocument {
             nodes,
             id_table,
             unresolved_slots,
             diagnostics: Vec::new(),
-            // Binary AST round-trip is Tier A scope-only; the
-            // document-format identity is recorded at parse time
-            // (AC-F-8) and not yet serialized through the binary form.
-            // A Tier B follow-up can extend AC-CC-* / AC-F-8 to carry
-            // it on the binary header.
             format_identity: None,
-        })
+            typed_preludes: Default::default(),
+        };
+        if let Some(metadata) = metadata {
+            super::source_metadata::SourceMetadata::decode(metadata, &mut document, max_entries)?;
+        } else {
+            crate::schema::prelude_values::validate_document_slots(&document)
+                .map_err(|_| DecodeError::InvalidMetadata)?;
+        }
+        if !document.typed_preludes.is_empty() { validate_value_ownership(&document.nodes, true)?; }
+        Ok(document)
     }
 }
 
 /// Native attribute values are owning graph edges, unlike reference targets.
 /// Check the complete owning graph whenever it contains a native slot.
-fn validate_value_ownership(nodes: &[CemAstNode]) -> Result<(), DecodeError> {
-    if !nodes
+fn validate_value_ownership(nodes: &[CemAstNode], force: bool) -> Result<(), DecodeError> {
+    if !force && !nodes
         .iter()
-        .any(|n| matches!(n, CemAstNode::Attribute { value_nodes, .. } if !value_nodes.is_empty()))
+        .any(|n| matches!(n, CemAstNode::Attribute { value_nodes, .. } if !value_nodes.is_empty())
+            || matches!(n, CemAstNode::Reference { .. }))
     {
         return Ok(());
     }

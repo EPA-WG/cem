@@ -1084,6 +1084,7 @@ fn register_validated_schema_package_manifest(
         staged
             .converter_registry
             .set_package_origin(&package_id, incoming);
+        context.schema_document_models.retire_preparations_replaced_by(&staged.schema_document_models);
         context.schema_registry = staged.schema_registry;
         context.schema_document_models = staged.schema_document_models;
         context.converter_registry = staged.converter_registry;
@@ -11121,6 +11122,7 @@ fn observe_pipeline_with_scope(
             NormalizedEvent::Value { value, byte_range } => {
                 let v = match value {
                     ScalarValue::Text(t) | ScalarValue::Expression(t) => t.clone(),
+                    ScalarValue::TypedPrelude(value) => format!("{value:?}"),
                     ScalarValue::Int(i) => i.to_string(),
                     ScalarValue::Float(f) => f.to_string(),
                     ScalarValue::Bool(b) => b.to_string(),

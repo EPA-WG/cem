@@ -24,6 +24,7 @@ pub enum NamespacePropertyActivationError {
     DuplicateDeclaration(AstNodeId),
     PropertyMismatch(AstNodeId),
     PropertyNotReady(AstNodeId),
+    StaleProperty(AstNodeId),
     Namespace(NamespaceNameCompletionError),
     Handoff(NamespaceLexicalScopeHandoffError),
 }
@@ -80,6 +81,13 @@ impl CemQlSchemaDeclarationHost {
             if !result.is_ready() {
                 return Err(NamespacePropertyActivationError::PropertyNotReady(id));
             }
+            self.validate_namespace_property_report(result)
+                .map_err(|issue| match issue {
+                    super::NamespacePublicationError::DifferentSnapshot => {
+                        NamespacePropertyActivationError::StaleProperty(id)
+                    }
+                    _ => NamespacePropertyActivationError::PropertyMismatch(id),
+                })?;
             let original = decode_native_namespace_property(result.declaration.clone(), &captured)
                 .map_err(|_| NamespacePropertyActivationError::PropertyMismatch(id))?;
             let property = result.property.as_ref().expect("ready property report");

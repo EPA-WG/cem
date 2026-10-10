@@ -1264,6 +1264,7 @@ fn build_html_events(
             | SchemaTokenKind::ExpressionNode(_)
             | SchemaTokenKind::AnonymousScopeStart
             | SchemaTokenKind::Directive { .. }
+            | SchemaTokenKind::TypedDirective { .. }
             | SchemaTokenKind::RichContent { .. }
             | SchemaTokenKind::ProcessingInstruction { .. } => {}
         }

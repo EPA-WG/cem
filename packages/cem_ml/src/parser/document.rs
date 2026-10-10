@@ -11,6 +11,8 @@ use std::collections::HashMap;
 
 #[derive(Debug, Default)]
 pub struct CemDocument {
+    /// Passive original typed directive syntax; runtime bindings are separate.
+    pub typed_preludes: std::collections::BTreeMap<AstNodeId, crate::tokenizer::cem::TypedPreludeValue>,
     /// Flat arena. `nodes[i].node_id == i`. Index `0` is reserved for the
     /// root `Document` variant.
     pub nodes: Vec<CemAstNode>,

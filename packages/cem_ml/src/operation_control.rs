@@ -909,6 +909,11 @@ impl OperationControl {
         ROOT_EXECUTION_SCOPE_ID
     }
 
+    /// Numeric operation IDs supplied by a host are not execution authority.
+    pub fn same_operation(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.inner, &other.inner)
+    }
+
     pub fn abort_signal(&self) -> &AbortSignal {
         &self.abort_signal
     }

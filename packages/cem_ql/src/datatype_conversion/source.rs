@@ -3,7 +3,7 @@ use super::*;
 use crate::{
     api::{self, StandaloneExpressionBinding, StandaloneExpressionContext},
     datatype_results::DatatypeResultError,
-    datatype_validation::{value_type, RuleExecution},
+    datatype_validation::{compile_function_query, value_type, RuleExecution},
     eval::{AtomValue, ItemStream},
     ir::CompiledQuery,
     types::{NodeKind, Type},
@@ -40,7 +40,7 @@ impl RegisteredDatatypeConverter {
         contract: ConversionBehaviorContract,
         adapter: DatatypeConversionResultAdapter,
     ) -> Result<Self, ValueContractError> {
-        let ValidationImplementation::Query { body, .. } = contract.implementation() else {
+        let ValidationImplementation::Query { .. } = contract.implementation() else {
             return Err(error("query-implementation-required", &contract));
         };
         let context = StandaloneExpressionContext::default()
@@ -62,15 +62,14 @@ impl RegisteredDatatypeConverter {
                     Type::stream(Type::Node(NodeKind::Node)),
                 ),
             );
-        let query = api::compile_expression(body, &context)
-            .map_err(|_| error("query-compilation-failed", &contract))?;
+        let query = compile_function_query(contract.implementation(), &context)?;
         let id = format!("query:{}", contract.behavior().identity());
         Self::from_source_impl(
             source,
             id,
             contract,
             adapter,
-            Implementation::Query(Arc::new(query.query)),
+            Implementation::Query(Arc::new(query)),
         )
     }
     pub fn from_source(

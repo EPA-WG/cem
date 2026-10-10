@@ -793,7 +793,7 @@ fn highlight_cem_token(source: &str, token: &SchemaToken, spans: &mut Vec<Source
         SchemaTokenKind::ProcessingInstruction { .. } => {
             highlight_wrapped_value(source, start, end, "<?", "?>", "syntax.keyword", spans);
         }
-        SchemaTokenKind::Directive { name, .. } => {
+        SchemaTokenKind::Directive { name, .. } | SchemaTokenKind::TypedDirective { name, .. } => {
             push_span(source, spans, start, 1, "syntax.punctuation");
             let name_start = start.saturating_add(1);
             let name_end = name_start.saturating_add(name.len());

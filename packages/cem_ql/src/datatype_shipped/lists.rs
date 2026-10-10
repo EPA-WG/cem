@@ -76,10 +76,12 @@ impl NativeDatatypeConverter for ListConverter {
             TokenizationLimits {
                 max_bytes: call.limits.max_lexical_bytes,
                 max_tokens: call.limits.max_output_values,
+                ..Default::default()
             },
         ) {
             Ok(tokens) => Arc::new(tokens),
             Err(TokenizationError::Limit) => return ConversionExecution::Limit("tokenization"),
+            Err(TokenizationError::Rejected) => return ConversionExecution::Rejected { diagnostics: vec![] },
             Err(_) => return ConversionExecution::Failed(vec![]),
         };
         let mut value = Vec::with_capacity(tokens.tokens.len());

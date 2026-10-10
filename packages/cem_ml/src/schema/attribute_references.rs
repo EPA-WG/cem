@@ -81,11 +81,7 @@ pub fn validate_native_attribute_reference<H: InputReferenceHost>(
         attribute.node(),
         &mut report.diagnostics,
     );
-    if !model
-        .attributes
-        .get(name)
-        .is_some_and(|contract| contract.is_node_valued())
-    {
+    if !model.attribute_is_node_valued(name) {
         report.failed = report
             .diagnostics
             .iter()
@@ -99,6 +95,35 @@ pub fn validate_native_attribute_reference<H: InputReferenceHost>(
         return Ok(report);
     };
     if !matches!(root.node(), CemAstNode::Reference { .. }) {
+        return Ok(report);
+    }
+    if model.attribute_datatypes.contains_key(name) {
+        let consumed = super::input_references::consumed_walk::walk(
+            host.source_node(root),
+            model,
+            host,
+            limits,
+            Some((attribute.clone(), element_name.to_owned())),
+        )?;
+        report.complete = consumed.structure.resolution.is_complete();
+        report.failed = consumed.structure.resolution.failed;
+        report
+            .diagnostics
+            .extend(consumed.structure.resolution.diagnostics);
+        for (_, value) in consumed.attributes {
+            report.complete &= value.complete;
+            report.targets.extend(
+                value
+                    .access
+                    .roots()
+                    .iter()
+                    .filter_map(|id| value.access.node(*id).cloned()),
+            );
+        }
+        report.failed |= report
+            .diagnostics
+            .iter()
+            .any(|d| d.severity.is_hard_violation());
         return Ok(report);
     }
     let resolved = resolve_reference(host.source_node(root), host, limits)?;

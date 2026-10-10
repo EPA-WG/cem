@@ -1,0 +1,137 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-checkbox" capability="checkable-control">
+  <template id="cem-checkbox" type="text/cem-ml">
+    {attribute @name=label | Checkbox}
+    {attribute @name=value | on}
+    {attribute @name=indicator | outline}
+    {attribute @name=required-marker | *}
+    {style @type="text/css" |```
+      :scope { display: inline-block; }
+      :scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
+      [part~='root'] { display: inline-flex; align-items: center; gap: var(--cem-gap-related); font-family: var(--cem-typography-ui-font-family); font-size: var(--cem-typography-ui-font-size); line-height: var(--cem-typography-ui-line-height); }
+      [part~='control'] { margin: 0; }
+      [part~='required-marker'] { margin-inline-start: var(--cem-gap-related); }
+
+      [part~='control'] {
+          --_cem-input-indicator-anchor-width: var(--cem-stroke-none);
+          --_cem-input-indicator-focus-width: var(--cem-stroke-none);
+          --_cem-input-indicator-selection-width: var(--cem-stroke-none);
+          --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-color);
+          --_cem-input-indicator-focus-color: var(--cem-zebra-color-1);
+          --_cem-input-indicator-selection-color: var(--cem-input-indicator-selection-color);
+      }
+      [part~='control']:where(:focus-visible, :checked, :indeterminate, [aria-expanded='true'], [aria-invalid='true']:enabled, [data-state='loading']:enabled) {
+          box-shadow:
+              0 calc(var(--_cem-input-indicator-appearance) * var(--_cem-input-indicator-anchor-width)) 0
+                  calc((1 - var(--_cem-input-indicator-appearance)) * var(--_cem-input-indicator-anchor-width))
+                  var(--_cem-input-indicator-anchor-color),
+              0
+                  calc(
+                      var(--_cem-input-indicator-appearance) *
+                          (var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width))
+                  )
+                  0
+                  calc(
+                      (1 - var(--_cem-input-indicator-appearance)) *
+                          (var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width))
+                  )
+                  var(--_cem-input-indicator-focus-color),
+              0
+                  calc(
+                      var(--_cem-input-indicator-appearance) *
+                          (
+                              var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width) +
+                                  var(--_cem-input-indicator-selection-width)
+                          )
+                  )
+                  0
+                  calc(
+                      (1 - var(--_cem-input-indicator-appearance)) *
+                          (
+                              var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width) +
+                                  var(--_cem-input-indicator-selection-width)
+                          )
+                  )
+                  var(--_cem-input-indicator-selection-color);
+          outline: var(--cem-stroke-none) solid transparent;
+      }
+      [part~='control'] {
+          --_cem-input-indicator-appearance: var(
+              --cem-input-indicator-appearance,
+              var(--cem-indicator-appearance-outline)
+          );
+          display: inline-block;
+      }
+      :scope:where([indicator='underline']) [part~='control'] {
+          --_cem-input-indicator-appearance: var(
+              --cem-input-indicator-appearance,
+              var(--cem-indicator-appearance-underline)
+          );
+      }
+      [part~='control']:where(:enabled:hover) {
+          --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-hover-color);
+      }
+      [part~='control']:where([data-state='loading']:enabled) {
+          --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-pending-color);
+          --_cem-input-indicator-anchor-width: var(--cem-stroke-pending);
+      }
+      [part~='control']:where([aria-invalid='true']:enabled) {
+          --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-color);
+          --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
+      }
+      [part~='control']:where([aria-invalid='true']:enabled:hover) {
+          --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-hover-color);
+          --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
+      }
+      [part~='control']:where(:disabled) {
+          --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-disabled-color);
+          --_cem-input-indicator-anchor-width: var(--cem-stroke-none);
+      }
+      [part~='control']:where(:enabled:focus-visible) {
+          --_cem-input-indicator-focus-width: var(--cem-zebra-strip-size);
+      }
+      [part~='control']:where(:checked) {
+          --_cem-input-indicator-selection-width: var(--cem-zebra-strip-size);
+      }
+      [part~='control']:where(:indeterminate) {
+          --_cem-input-indicator-selection-color: var(--cem-input-indicator-indeterminate-color);
+          --_cem-input-indicator-selection-width: var(--cem-zebra-strip-size);
+      }
+      @media (forced-colors: active) {
+
+          [part~='control'] {
+              box-shadow: none;
+          }
+      }
+      @media (forced-colors: active) {
+
+          [part~='control']:where(:enabled:hover) {
+              outline: var(--cem-stroke-boundary) solid Highlight;
+              outline-offset: var(--cem-stroke-indicator-offset);
+          }
+      }
+      @media (forced-colors: active) {
+
+          [part~='control']:where([data-state='loading']:enabled:not([aria-invalid='true'])) {
+              outline: var(--cem-stroke-pending) solid CanvasText;
+              outline-offset: var(--cem-stroke-indicator-offset);
+          }
+      }
+      @media (forced-colors: active) {
+
+          [part~='control']:where(:enabled:focus-visible),
+          [part~='control']:where([data-state='loading']:enabled:focus-visible) {
+              outline: var(--cem-stroke-focus) solid CanvasText;
+              outline-offset: var(--cem-stroke-indicator-offset);
+          }
+      }
+    ```}
+    {label @part=root |
+      {input @part=control @type=checkbox @name={datadom.attributes.name} @checked={if seq:count(datadom.attributes.checked) > 0 { true } else { null }} @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @required={if seq:count(datadom.attributes.required) > 0 { true } else { null }} @data-state={if seq:count(datadom.attributes.busy) > 0 { "loading" } else { null }} @aria-busy={if seq:count(datadom.attributes.busy) > 0 { true } else { null }} @aria-invalid={datadom.attributes.invalid} @aria-label={datadom.attributes.aria-label} @aria-labelledby={datadom.attributes.aria-labelledby} @aria-describedby={datadom.attributes.aria-describedby} @aria-errormessage={datadom.attributes.aria-errormessage} |
+        {attribute @name=value @value={$value}}
+        {cem:if @test="seq:count(datadom.attributes.form) > 0" | {attribute @name=form @value={datadom.attributes.form}}}
+      }
+      {span @part=label @class=cem-checkbox__label | {slot | {$label}}}
+      {cem:if @test="seq:count(datadom.attributes.required) > 0" | {span @part=required-marker @aria-hidden=true | {slot @name=required-marker | {$required-marker}}}}
+    }
+  </template>
+</cem-element>

@@ -178,3 +178,31 @@ leaves the entire event payload unchanged. A focused runtime regression confirms
 that the slice remains `"click"` while native target metadata refreshes.
 See the [investigation and pending decision](legacy-action-state-investigation.md).
 The probe was removed; no production migration or baseline repair is claimed.
+
+## Checkable migration and required-marker names — 2026-10-10
+
+Checkbox, radio and switch now have canonical declarations and colocated stories.
+Their legacy-only primitive and state cases move to those stories, covering native
+forms, reset, fieldsets, radio peers, mixed state, keys and indicator paint.
+The shared name helper now uses `dom-accessibility-api`; regression cases prove
+hidden required markers stay out of names, descriptions remain separate and
+explicitly referenced hidden labels can name controls. The original registration
+and reset workflow assertions remain unchanged. The focused legacy run passes
+all 14 workflows, eight primitive tests and two harness tests. This is a focused
+result, not a new full-suite baseline; the other failures above remain open.
+
+## Autocomplete migration — 2026-10-10
+
+The eight legacy autocomplete tests now live in the canonical declaration's
+colocated CSF Next stories, with an additional boolean-presence/five-theme play.
+Both recorded failures are resolved: live replacement targets the current
+`cem-payload:payload` section, and disabled/readonly/required/busy attributes use
+presence rather than string truthiness. Original assertions for live input and
+focus identity, committed value, geometry and absence of events remain intact.
+Render-dependent assertions await runtime settlement rather than assuming a frame
+is sufficient. All nine component plays pass; two shared editable-choice plays
+also cover worker/fallback forms/reset/restore, event ordering, composition/key
+boundaries, active identity and nested owners. Source and isolated package pages
+and the canonical bundle pass their focused interaction gate. The legacy
+behavior and browser spec are removed. No new full legacy-suite baseline is
+claimed; remaining owners above are still open.

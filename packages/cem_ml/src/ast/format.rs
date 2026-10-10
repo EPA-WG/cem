@@ -3,10 +3,11 @@
 use crate::source_map::SourceMapFrame;
 
 pub const MAGIC: [u8; 4] = *b"CEMB";
+/// Version 5 adds required format capabilities and typed directive syntax.
 /// Version 4 adds owning attribute value edges.
 /// Version 3 adds retained reference expressions and non-owning target IDs.
 /// Version 2 added the Element `has_explicit_boundary` byte.
-pub const VERSION: u16 = 4;
+pub const VERSION: u16 = 5;
 pub const FLAGS_NONE: u16 = 0;
 
 /// Kind tag for every variant of `CemAstNode`. Stable across the lifetime

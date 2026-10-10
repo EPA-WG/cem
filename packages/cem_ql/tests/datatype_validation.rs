@@ -102,6 +102,42 @@ fn native(node: &SchemaDeclarationNode) -> Item {
         .unwrap()
         .query_item()
 }
+/// Select the original inline declaration through the production native slot
+/// consumer; profile-specific tests still have to register execution explicitly.
+fn selected_function(
+    src: &ValueContractSource,
+) -> (
+    cem_ml::schema::function_references::FunctionSelection,
+    cem_ml::schema::function_references::FunctionSelectionBudget,
+) {
+    use cem_ml::schema::{
+        function_references::{FunctionCatalog, FunctionSelectionBudget},
+        reference_policy::ReferenceScopePolicy,
+        reference_traversal::ReferenceTraversalLimits,
+    };
+    use cem_ql::{
+        api::{StandaloneExpressionBinding, StandaloneExpressionContext},
+        schema_references::CemQlSchemaDeclarationHost,
+    };
+    let target = native(&node(src, "function"));
+    let tree = cem_ql::eval::retained_cem_node(&target).unwrap().owner().clone();
+    let mut host = CemQlSchemaDeclarationHost::new();
+    host.register_scope(
+        tree,
+        Some(StandaloneExpressionContext::default().with_binding(
+            "chosen", StandaloneExpressionBinding::any(ItemStream::once(target)),
+        )),
+        ReferenceScopePolicy::schema_defaults().unwrap(),
+    );
+    let mut budget = FunctionSelectionBudget::new(ReferenceTraversalLimits {
+        max_depth: 32, max_work: 10_000,
+    }).unwrap();
+    let catalog = FunctionCatalog::collect(&[src.clone()], &mut budget).unwrap();
+    let selected = catalog
+        .select(&node(src, "behavior"), &mut host, &mut budget).unwrap();
+    assert!(selected.target().is_some(), "{selected:?}");
+    (selected, budget)
+}
 fn declaration(required: bool) -> String {
     format!(
         r#"@ns schema = "https://cem.dev/ns/schema/1"
@@ -390,6 +426,32 @@ fn query_rule(body: &str) -> cem_ql::datatype_validation::BoundDatatypeRule {
             DatatypeKind::Scalar,
         )
         .unwrap()
+}
+#[test]
+fn selected_validation_requires_original_candidates_and_checked_results() {
+    use cem_ql::datatype_validation::ValidationStopReason;
+    for (body, accepted) in [
+        ("{accepted: true, diagnostics: ()}", Some(true)),
+        ("{accepted: 1, diagnostics: ()}", None),
+    ] {
+        let text = query_declaration(body)
+            .replace("@function=check-body", "@function={#chosen}")
+            .replace("@required=false @cardinality=zero-or-one", "@required=true @cardinality=one");
+        let src = source(&text);
+        let (selected, mut budget) = selected_function(&src);
+        let contract = DatatypeBehaviorContract::compile_selected(
+            &selected, signature(true), &mut budget,
+        ).unwrap();
+        let mut registry = DatatypeValidationRegistry::default();
+        registry.register_query(contract, adapter(), None).unwrap();
+        let rule = registry.bind(
+            &src.schema, &node(&src, "behavior"), native(&node(&src, "type")), DatatypeKind::Scalar,
+        ).unwrap();
+        assert!(matches!(run(&[rule.clone()], &input()).stopped.unwrap().reason, ValidationStopReason::MissingCandidate));
+        let mut request = input();
+        request.candidate = vec![native(&node(&src, "type"))];
+        assert_eq!(run(&[rule], &request).accepted, accepted);
+    }
 }
 #[test]
 fn authored_query_uses_fixed_native_bindings_and_checks_results() {

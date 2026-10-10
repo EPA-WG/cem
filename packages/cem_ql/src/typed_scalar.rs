@@ -66,6 +66,12 @@ pub(crate) fn integer_lexical(value: &Item) -> Option<&str> {
     let typed = value.view()?.downcast_ref::<TypedValue>()?;
     (typed.value.datatype == "integer").then_some(typed.value.lexical.as_str())
 }
+/// Borrow immutable backing storage for bounded native evidence inspection.
+/// Public representation tags cannot imitate this private adapter identity.
+pub(crate) fn immutable_storage(value: &Item) -> Option<(&str, Option<&SourceMapStack>)> {
+    let typed = value.view()?.downcast_ref::<TypedValue>()?;
+    Some((&typed.value.lexical, typed.source.as_ref()))
+}
 
 pub(crate) fn compare_integers(left: &Item, right: &Item) -> Option<Option<std::cmp::Ordering>> {
     let left_wide = integer_lexical(left);

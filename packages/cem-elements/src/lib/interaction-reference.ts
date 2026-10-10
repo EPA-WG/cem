@@ -43,7 +43,8 @@ export function observeInteractionReferences(host: HTMLElement, callback: () => 
             attributeFilter: ['id', 'part', 'slot', 'interaction-name', 'interaction-scope', 'trigger-for', 'parent-item', 'editor-for', 'data-cem-node-ref-editor-for',
                 'data-cem-node-ref-trigger-for', 'data-cem-node-ref-parent-item', 'focus-target', 'return-focus', 'anchor', 'boundary', 'anchor-lost',
                 'data-cem-node-ref-focus-target', 'data-cem-node-ref-return-focus', 'data-cem-node-ref-anchor', 'data-cem-node-ref-boundary', 'hidden', 'disabled', 'inert', 'tabindex',
-                'interestfor', 'kind', 'mode', 'presentation', 'placement', 'fallback', 'overflow', 'context-change', 'show-delay', 'hide-delay'] });
+                'interestfor', 'kind', 'mode', 'presentation', 'placement', 'fallback', 'overflow', 'context-change', 'show-delay', 'hide-delay',
+                'aria-label', 'aria-labelledby', 'aria-describedby', 'trigger', 'trigger-aria-label', 'trigger-disabled', 'close-label', 'surface-id', 'type', 'commandfor', 'command', 'popovertarget', 'popovertargetaction'] });
         group = { observer, callbacks }; roots.set(root, group);
     }
     group.callbacks.add(callback);

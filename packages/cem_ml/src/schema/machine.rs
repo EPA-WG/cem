@@ -33,7 +33,7 @@ use std::collections::BTreeMap;
 #[path = "lexical_capture.rs"]
 mod lexical_capture;
 pub use lexical_capture::{
-    AttributeNamespaceSnapshot, LexicalReloadMetadata, LexicalScopeEvents, LexicalScopeSnapshot, LexicallyScopedDocument, SchemaElementForm,
+    AttributeNamespaceSnapshot, LexicalReloadMetadata, LexicalScopeEvents, LexicalScopeSnapshot, LexicallyScopedDocument, SchemaElementForm, TypedPreludeSlot,
 };
 #[path = "xml_capture.rs"]
 mod xml_capture;
@@ -67,6 +67,8 @@ pub struct CemSchemaMachine<E: EventNormalizer> {
     /// close go into `pending_directive_body`.
     active_directive: Option<DirectiveKind>,
     pending_directive_body: String,
+    pending_typed_prelude: Option<crate::tokenizer::cem::TypedPreludeValue>,
+    pending_directive_node: Option<crate::parser::AstNodeId>,
     pending_directive_open: Option<ByteRange>,
     handoffs: HandoffStack,
     /// One entry per open frame: depth of `handoffs` when the frame opened,
@@ -182,6 +184,8 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             pending_host_switches: Vec::new(),
             active_directive: None,
             pending_directive_body: String::new(),
+            pending_typed_prelude: None,
+            pending_directive_node: None,
             pending_directive_open: None,
             handoffs: HandoffStack::default(),
             handoff_depths: Vec::new(),
@@ -487,6 +491,8 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         if let Some(rest) = name.strip_prefix('@') {
             self.active_directive = Some(directive_kind(rest));
             self.pending_directive_body.clear();
+            self.pending_typed_prelude = None;
+            self.pending_directive_node = None;
             self.pending_directive_open = Some(byte_range);
         } else {
             let child = match self.ns_contexts.last() {
@@ -548,6 +554,8 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             self.commit_directive(&frame);
             self.active_directive = None;
             self.pending_directive_body.clear();
+            self.pending_typed_prelude = None;
+            self.pending_directive_node = None;
             self.pending_directive_open = None;
         } else {
             // AC-P-6.8 / AC-P-V-4 / AC-P-V-7: a dispatched XSLT region root emits
@@ -748,6 +756,17 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         // Directive bodies arrive as Value events; capture them for
         // commit at directive-close time.
         if self.active_directive.is_some() && self.pending_attr.is_none() {
+            if let ScalarValue::TypedPrelude(slot) = &value {
+                if let Some(code) = &slot.error {
+                    use crate::parser::diagnostics::{cem_ml_parser_fact_diagnostic, CemMlParserFact, CemMlParserFactKind};
+                    if let Some(diagnostic) = cem_ml_parser_fact_diagnostic(&CemMlParserFact {
+                        kind: CemMlParserFactKind::TokenizerInvalidTypedPrelude,
+                        byte_offset: Some(slot.value_range.start), message: code.clone(),
+                        source_map: self.frames.last().map(|frame| frame.source_map_stack.clone()),
+                    }, None) { self.diagnostics.push(diagnostic); }
+                }
+                self.pending_typed_prelude = Some(slot.clone());
+            }
             if let ScalarValue::Text(t) = &value {
                 if !self.pending_directive_body.is_empty() {
                     self.pending_directive_body.push(' ');
@@ -763,7 +782,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             return;
         };
         let text = match value {
-            ScalarValue::Expression(_) => return,
+            ScalarValue::Expression(_) | ScalarValue::TypedPrelude(_) => return,
             ScalarValue::Text(t) => t,
             ScalarValue::Int(i) => i.to_string(),
             ScalarValue::Float(f) => f.to_string(),
@@ -1169,6 +1188,19 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             Some(k) => k,
             None => return,
         };
+        if let Some(slot) = &self.pending_typed_prelude {
+            use crate::tokenizer::cem::TypedPreludeRole;
+            match slot.role {
+                TypedPreludeRole::SchemaSelector => self.schema_scopes.current_mut().set_active(
+                    SchemaSource::PendingPrelude { directive: self.pending_directive_node, value_range: slot.value_range }),
+                TypedPreludeRole::Namespace | TypedPreludeRole::DefaultNamespace => {
+                    if let Some(prefix) = &slot.prefix {
+                        self.ns_contexts.last_mut().unwrap().defer_binding(prefix);
+                    }
+                }
+            }
+            return;
+        }
         let body = self.pending_directive_body.trim().to_owned();
         if body.is_empty() {
             return;
@@ -1206,6 +1238,10 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                 // prefix in the current context, copy its URI; otherwise
                 // treat the token as a literal URI.
                 let token = body.trim_matches('"').trim().to_owned();
+                if !token.is_empty() && self.current_ns_context().is_deferred(&token) {
+                    self.ns_contexts.last_mut().unwrap().defer_binding("");
+                    return;
+                }
                 let uri = self
                     .ns_contexts
                     .last()

@@ -55,10 +55,6 @@ const PROGRESS_SPINNER_TAGS = new Set(['cem-progress-spinner']);
 const SORT_HEADER_TAGS = new Set(['cem-sort-header']);
 const PAGINATOR_TAGS = new Set(['cem-paginator']);
 const TOOLTIP_TAGS = new Set(['cem-tooltip']);
-const CHOICE_POPUP_STACKING_SELECTORS = new Set([
-    'cem-autocomplete .cem-autocomplete__popup',
-]);
-const CHOICE_POPUP_Z_INDEX_PROPERTY = '--_cem-choice-popup-z-index';
 const PUBLIC_COMPONENT_ADAPTERS = new Set(['--cem-input-indicator-appearance']);
 const ACTION_BINDINGS = new Map([
     [
@@ -261,14 +257,9 @@ const TABS_LAYOUT_BINDINGS = new Map([
         ]),
     ],
 ]);
-const FEEDBACK_BINDINGS = new Map([
-    ['cem-dialog[transient] > dialog.cem-dialog:focus-visible', focusBinding()],
-    ['cem-dialog-shell[transient] > dialog.cem-dialog-shell:focus-visible', focusBinding()],
-]);
-const FEEDBACK_FORCED_COLOR_BINDINGS = new Map([
-    ['cem-dialog[transient] > dialog.cem-dialog:focus-visible', forcedColorFocusBinding()],
-    ['cem-dialog-shell[transient] > dialog.cem-dialog-shell:focus-visible', forcedColorFocusBinding()],
-]);
+// Canonical dialog styles are embedded; any global dialog selector is a regression.
+const FEEDBACK_BINDINGS = new Map();
+const FEEDBACK_FORCED_COLOR_BINDINGS = new Map();
 const DIVIDER_MARGIN_VALUE =
     'calc(\n        (max(var(--_cem-divider-space), var(--cem-coupling-guard-min)) - var(--cem-stroke-divider)) / 2\n    )';
 const DIVIDER_BINDINGS = new Map([
@@ -639,92 +630,9 @@ const PAGINATOR_FORCED_COLOR_BINDINGS = new Map([
     [`${PAGINATOR_SELECT_SELECTOR}:focus-visible`, forcedColorFocusBinding()],
     [`${PAGINATOR_ACTION_SELECTOR}:focus-visible`, forcedColorFocusBinding()],
 ]);
-const TOOLTIP_BINDINGS = new Map([
-    [
-        'cem-tooltip',
-        new Map([
-            ['anchor-scope', '--_cem-tooltip-anchor'],
-            ['display', 'inline-block'],
-        ]),
-    ],
-    ['cem-tooltip > .cem-tooltip', new Map([['display', 'contents']])],
-    [
-        "cem-tooltip > .cem-tooltip > [slot='trigger']",
-        new Map([['anchor-name', '--_cem-tooltip-anchor']]),
-    ],
-    [
-        'cem-tooltip .cem-tooltip__description',
-        new Map([
-            ['block-size', 'var(--cem-stroke-standard)'],
-            ['clip', 'rect(0 0 0 0)'],
-            ['clip-path', 'inset(50%)'],
-            ['inline-size', 'var(--cem-stroke-standard)'],
-            ['overflow', 'hidden'],
-            ['position', 'absolute'],
-            ['white-space', 'nowrap'],
-        ]),
-    ],
-    [
-        'cem-tooltip .cem-tooltip__surface',
-        new Map([
-            ['background-color', 'var(--cem-palette-comfort-x)'],
-            ['border', 'var(--cem-stroke-boundary) solid var(--cem-palette-comfort-text-x)'],
-            ['border-radius', 'var(--cem-bend-overlay)'],
-            ['box-shadow', 'var(--cem-elevation-3)'],
-            ['box-sizing', 'border-box'],
-            ['color', 'var(--cem-palette-comfort-text-x)'],
-            ['font-family', 'var(--cem-typography-ui-font-family)'],
-            ['font-size', 'var(--cem-typography-ui-font-size)'],
-            ['font-weight', 'var(--cem-typography-ui-font-weight)'],
-            ['inset', 'auto'],
-            ['letter-spacing', 'var(--cem-typography-ui-letter-spacing)'],
-            ['line-height', 'var(--cem-typography-ui-line-height)'],
-            ['margin', 'var(--cem-gap-related)'],
-            ['max-inline-size', 'var(--cem-typography-reading-measure-max)'],
-            ['padding', 'var(--cem-inset-control)'],
-            ['position', 'fixed'],
-            ['position-anchor', '--_cem-tooltip-anchor'],
-            ['position-area', 'block-end center'],
-            ['position-try-fallbacks', 'block-start'],
-            ['position-try-order', 'most-height'],
-            ['white-space', 'normal'],
-        ]),
-    ],
-    [
-        "cem-tooltip > .cem-tooltip[data-position='above'] > .cem-tooltip__surface",
-        new Map([
-            ['position-area', 'block-start center'],
-            ['position-try-fallbacks', 'block-end'],
-        ]),
-    ],
-    [
-        "cem-tooltip > .cem-tooltip[data-position='before'] > .cem-tooltip__surface",
-        new Map([
-            ['position-area', 'inline-start center'],
-            ['position-try-fallbacks', 'inline-end'],
-            ['position-try-order', 'most-width'],
-        ]),
-    ],
-    [
-        "cem-tooltip > .cem-tooltip[data-position='after'] > .cem-tooltip__surface",
-        new Map([
-            ['position-area', 'inline-end center'],
-            ['position-try-fallbacks', 'inline-start'],
-            ['position-try-order', 'most-width'],
-        ]),
-    ],
-]);
-const TOOLTIP_FORCED_COLOR_BINDINGS = new Map([
-    [
-        'cem-tooltip .cem-tooltip__surface',
-        new Map([
-            ['background-color', 'Canvas'],
-            ['border-color', 'CanvasText'],
-            ['color', 'CanvasText'],
-            ['forced-color-adjust', 'auto'],
-        ]),
-    ],
-]);
+// Canonical tooltip styles are embedded; retain the empty legacy-selector guard.
+const TOOLTIP_BINDINGS = new Map();
+const TOOLTIP_FORCED_COLOR_BINDINGS = new Map();
 const PROGRESS_SPINNER_BINDINGS = new Map([
     ['cem-progress-spinner', new Map([['display', 'inline-block']])],
     [
@@ -1002,16 +910,18 @@ function assertCanonicalActionStyles(tag = 'cem-action') {
     }
 }
 
-function assertCanonicalSelectStacking(tokenNames) {
-    const path = join(componentRoot, 'src/components/cem-select/cem-select.xhtml');
-    const source = readText(path);
-    const label = repoPath(path);
-    if (!tokenNames.has('--cem-select-popup-z-index')) {
-        fail(`${label}: popup stacking must be exported by the theme`);
-    }
-    if (!source.includes('z-index: var(--cem-select-popup-z-index);') ||
-        /--cem-select-popup-z-index\s*:|--_cem-choice-popup-z-index/.test(source)) {
-        fail(`${label}: consume public theme stacking without a local default or private alias`);
+function assertCanonicalChoiceStacking(tokenNames) {
+    for (const tag of ['cem-select', 'cem-autocomplete']) {
+        const path = join(componentRoot, 'src/components', tag, tag + '.xhtml');
+        const source = readText(path);
+        const label = repoPath(path);
+        if (!tokenNames.has('--cem-select-popup-z-index')) {
+            fail(`${label}: popup stacking must be exported by the theme`);
+        }
+        if (!source.includes('z-index: var(--cem-select-popup-z-index);') ||
+            /--cem-select-popup-z-index\s*:|--_cem-choice-popup-z-index/.test(source)) {
+            fail(`${label}: consume public theme stacking without a local default or private alias`);
+        }
     }
 }
 
@@ -1037,7 +947,6 @@ function assertPublicComponentStyles(components, tokenNames) {
     const paginatorForcedColorRules = new Map();
     const tooltipRules = new Map();
     const tooltipForcedColorRules = new Map();
-    const choicePopupStackingRules = new Map();
     const privateProperties = new Set(
         rules.flatMap(({ declarations }) => [...declarations.keys()].filter((name) => name.startsWith('--_cem-'))),
     );
@@ -1136,30 +1045,11 @@ function assertPublicComponentStyles(components, tokenNames) {
             feedbackRuleSet.set(rule.selector, rule.declarations);
         }
         if (rule.declarations.has('z-index')) {
-            if (rule.media || !CHOICE_POPUP_STACKING_SELECTORS.has(rule.selector)) {
-                fail(`${pathLabel}: z-index is allowed only on accepted choice-popup selectors`);
-            } else {
-                choicePopupStackingRules.set(rule.selector, rule.declarations);
-            }
+            fail(`${pathLabel}: legacy component CSS cannot own physical stacking; canonical choice declarations consume the theme token`);
         }
     }
 
-    for (const selector of CHOICE_POPUP_STACKING_SELECTORS) {
-        const declarations = choicePopupStackingRules.get(selector);
-        if (!declarations) {
-            fail(`${pathLabel}: missing CEM-CSS-002 physical stacking binding on \`${selector}\``);
-            continue;
-        }
-        if (declarations.get(CHOICE_POPUP_Z_INDEX_PROPERTY) !== '1') {
-            fail(`${pathLabel}: \`${selector}\` must declare ${CHOICE_POPUP_Z_INDEX_PROPERTY}: 1`);
-        }
-        if (declarations.get('z-index') !== `var(${CHOICE_POPUP_Z_INDEX_PROPERTY})`) {
-            fail(`${pathLabel}: \`${selector}\` must consume the private CEM-CSS-002 z-index adapter`);
-        }
-        if (declarations.get('box-shadow') !== 'var(--cem-elevation-3)') {
-            fail(`${pathLabel}: \`${selector}\` must retain D4 overlay elevation independently of physical stacking`);
-        }
-    }
+
 
     for (const tag of ACTION_TAGS) {
         const path = join(componentRoot, `src/components/${tag}/${tag}.xhtml`);
@@ -1499,7 +1389,7 @@ assertNoComponentSpecificStyleLiterals();
 assertPublicComponentStyles(components, tokenNames);
 assertCanonicalActionStyles();
 assertCanonicalActionStyles('cem-icon-button');
-assertCanonicalSelectStacking(tokenNames);
+assertCanonicalChoiceStacking(tokenNames);
 
 if (failures.length > 0) {
     for (const failure of failures) {

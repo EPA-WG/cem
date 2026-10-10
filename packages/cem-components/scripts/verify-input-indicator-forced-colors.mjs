@@ -13,10 +13,11 @@ const selectDeclaration = await readFile(
     join(packageRoot, 'src', 'components', 'cem-select', 'cem-select.xhtml'),
     'utf8',
 );
-const selectCss = selectDeclaration.match(/\{style(?:\s+[^|{}]*)?\s*\|```([\s\S]*?)```\s*\}/i)?.[1];
-if (!selectCss) throw new Error('cem-select.xhtml must contain embedded CEM-ML style content');
+const selectStyle = selectDeclaration.match(/\{style(?:\s+[^|{}]*)?\s*\|```([\s\S]*?)```\s*\}/i)?.[1];
+if (!selectStyle) throw new Error('cem-select.xhtml must contain embedded CEM-ML style content');
+const selectCss = `@scope (cem-select) {${selectStyle}}`;
 let fieldCss = '';
-for (const tag of ['cem-field', 'cem-text-field', 'cem-textarea']) {
+for (const tag of ['cem-field', 'cem-text-field', 'cem-textarea', 'cem-checkbox', 'cem-radio', 'cem-switch', 'cem-autocomplete']) {
     const declaration = await readFile(join(packageRoot, 'src', 'components', tag, tag + '.xhtml'), 'utf8');
     const css = declaration.match(/\{style(?:\s+[^|{}]*)?\s*\|```([\s\S]*?)```\s*\}/i)?.[1];
     if (!css) throw new Error(tag + ' must contain embedded CSS');
@@ -44,26 +45,26 @@ try {
             </div>
         </cem-select>
         <cem-checkbox>
-            <label id="binary-label"><input id="binary" type="checkbox"><span>Choice</span></label>
+            <label id="binary-label"><input part="control" id="binary" type="checkbox"><span>Choice</span></label>
         </cem-checkbox>
         <cem-radio>
-            <label id="radio-label"><input id="radio" type="radio"><span>Radio</span></label>
+            <label id="radio-label"><input part="control" id="radio" type="radio"><span>Radio</span></label>
         </cem-radio>
         <cem-switch>
             <label id="switch-label">
-                <input id="switch" type="checkbox" role="switch"><span>Switch</span>
+                <input part="control" id="switch" type="checkbox" role="switch"><span>Switch</span>
             </label>
         </cem-switch>
         <cem-radio>
             <label id="disabled-binary-label">
-                <input id="disabled-binary" type="radio" disabled><span>Disabled</span>
+                <input part="control" id="disabled-binary" type="radio" disabled><span>Disabled</span>
             </label>
         </cem-radio>
         <button id="focus-end" type="button">End</button>
         <cem-field><input part="control" id="pending-field" data-state="loading" aria-busy="true" value="pending"></cem-field>
         <cem-checkbox>
             <label id="pending-binary-label">
-                <input id="pending-binary" type="checkbox" data-state="loading" aria-busy="true">
+                <input part="control" id="pending-binary" type="checkbox" data-state="loading" aria-busy="true">
                 <span>Pending choice</span>
             </label>
         </cem-checkbox>
@@ -192,13 +193,13 @@ async function verifyNativeIndicators() {
                 <cem-field><input part="control" id="field" aria-label="Field"></cem-field>
                 <cem-text-field><input part="control" id="text" aria-label="Text"></cem-text-field>
                 <cem-textarea><textarea part="control" id="area" aria-label="Area"></textarea></cem-textarea>
-                <cem-autocomplete><input id="autocomplete" class="cem-autocomplete__control" aria-label="Autocomplete"></cem-autocomplete>
+                <cem-autocomplete><input id="autocomplete" class="cem-autocomplete__control" part="control" aria-label="Autocomplete"></cem-autocomplete>
                 <cem-datepicker><div class="cem-datepicker"><input id="date" slot="input" aria-label="Date"></div></cem-datepicker>
                 <cem-timepicker><div class="cem-timepicker"><input id="time" slot="input" aria-label="Time"></div></cem-timepicker>
                 <cem-select><button id="select" part="control" class="cem-select__control">Select</button></cem-select>
-                <cem-checkbox><label><input id="checkbox" type="checkbox">Checkbox</label></cem-checkbox>
-                <cem-radio><label><input id="radio" type="radio">Radio</label></cem-radio>
-                <cem-switch><label><input id="switch" type="checkbox" role="switch">Switch</label></cem-switch>
+                <cem-checkbox><label><input part="control" id="checkbox" type="checkbox">Checkbox</label></cem-checkbox>
+                <cem-radio><label><input part="control" id="radio" type="radio">Radio</label></cem-radio>
+                <cem-switch><label><input part="control" id="switch" type="checkbox" role="switch">Switch</label></cem-switch>
             </section>
         `);
         const ids = ['field', 'text', 'area', 'autocomplete', 'date', 'time', 'select', 'checkbox', 'radio', 'switch'];
@@ -206,6 +207,7 @@ async function verifyNativeIndicators() {
             await page.locator('section').evaluate((node, mode) => { node.className = `cem-theme-${mode}`; }, mode);
             for (const id of ids) {
                 const control = page.locator(`#${id}`);
+                const persistentBoundary = ['field', 'text', 'area'].includes(id);
                 const read = () => control.evaluate(node => {
                     const style = getComputedStyle(node, node.type === 'radio' ? '::before' : null);
                     const rect = node.getBoundingClientRect();
@@ -215,10 +217,10 @@ async function verifyNativeIndicators() {
                 const check = async (active, state) => {
                     const actual = await read();
                     if (id === 'field' || id === 'text' || id === 'area') assert(await control.evaluate(node => getComputedStyle(node).borderWidth) === '0px', `${mode}/${id}/${state}: native border restored`);
-                    assert((actual.shadow !== 'none') === active, `${mode}/${id}/${state}: unexpected shadow ${actual.shadow}`);
-                    if (active) {
-                        assert([...actual.shadow.matchAll(/(-?\d*\.?\d+)px/g)].some(match => Number(match[1]) !== 0), `${mode}/${id}/${state}: feedback has zero width`);
-                    }
+                    // Canonical text fields retain their resting boundary and
+                    // serialize zero-width shadow layers when disabled.
+                    const painted = [...actual.shadow.matchAll(/(-?\d*\.?\d+)px/g)].some(match => Number(match[1]) !== 0);
+                    assert(painted === active, `${mode}/${id}/${state}: unexpected shadow ${actual.shadow}`);
                     assert(actual.width === baseline.width && actual.height === baseline.height, `${mode}/${id}/${state}: indicator changed geometry`);
                     if (id === 'radio') {
                         const native = await control.evaluate(node => {
@@ -231,7 +233,7 @@ async function verifyNativeIndicators() {
                     }
                     assert(await page.locator('label').evaluateAll(labels => labels.every(label => getComputedStyle(label).boxShadow === 'none')), `${mode}/${id}/${state}: label acquired a shadow`);
                 };
-                await check(false, 'rest');
+                await check(persistentBoundary, 'rest');
                 await control.hover();
                 await check(id === 'field' || id === 'text' || id === 'area', 'hover');
                 await page.mouse.move(0, 0);
@@ -245,14 +247,14 @@ async function verifyNativeIndicators() {
                     assert(radius >= baseline.width / 2, `${mode}/radio: outline must follow the native circle: radius=${radius}, width=${baseline.width}`);
                 }
                 await control.evaluate(node => node.blur());
-                await check(false, 'blur');
+                await check(persistentBoundary, 'blur');
                 for (const [attribute, value] of [['aria-invalid', 'true'], ['data-state', 'loading']]) {
                     await control.evaluate((node, [attribute, value]) => node.setAttribute(attribute, value), [attribute, value]);
                     await check(true, value);
                     await control.evaluate(node => { node.disabled = true; });
                     await check(false, `disabled ${value}`);
                     await control.evaluate((node, attribute) => { node.disabled = false; node.removeAttribute(attribute); }, attribute);
-                    await check(false, `removed ${value}`);
+                    await check(persistentBoundary, `removed ${value}`);
                 }
                 if (['checkbox', 'radio', 'switch'].includes(id)) {
                     await control.check();

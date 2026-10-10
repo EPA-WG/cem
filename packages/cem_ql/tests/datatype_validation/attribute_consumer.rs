@@ -8,7 +8,7 @@ use cem_ql::{
     datatype_preparation::*,
 };
 
-fn fixture(
+pub(super) fn fixture(
     family: FacetFamily,
     fields: &str,
     prepare: bool,

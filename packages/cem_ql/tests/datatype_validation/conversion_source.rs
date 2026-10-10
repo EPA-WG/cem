@@ -107,6 +107,28 @@ fn request() -> ConversionInput {
     }
 }
 #[test]
+fn selected_conversion_checks_results_and_is_never_used_by_validation() {
+    for (body, converts) in [
+        (r#"{status: "converted", value: value, diagnostics: {code: "selected", severity: "info", message: "converted", source: datatype}}"#, true),
+        (r#"{status: "converted", value: 1, diagnostics: ()}"#, false),
+        ("1 / 0", false),
+    ] {
+        let original = source(&text(body).replace("@function=check-body", "@function={#chosen}"));
+        let (selected, mut budget) = selected_function(&original);
+        let contract = ConversionBehaviorContract::compile_selected(&selected, sig(), ContractName::new(CEM_SCHEMA_URI, "datatype-conversion-result"), &mut budget).unwrap();
+        let descriptor = compiled_with(sig(), |source| RegisteredDatatypeConverter::from_query(source.clone(), contract, result_adapter()).unwrap());
+        let control = OperationControl::default();
+        let runtime = ValidationRuntime { control: &control, scope: ROOT_EXECUTION_SCOPE_ID, query: Default::default() };
+        assert_eq!(validate_descriptor(&descriptor, vec![Item::Atomic(AtomValue::String("original".into()))]).accepted, Some(true));
+        let result = descriptor.convert(&request(), &runtime, Default::default());
+        assert_eq!(result.accepted, converts.then_some(true), "{result:?}");
+        if converts {
+            assert_eq!(result.value.unwrap(), vec![Item::Atomic(AtomValue::String("original".into()))]);
+            assert!(result.diagnostics[0].node.is_some());
+        }
+    }
+}
+#[test]
 fn query_conversion_retains_fixed_roles_and_original_diagnostics() {
     let descriptor = descriptor(
         r#"{status: "converted", value: value, diagnostics: {code:"note",severity:"warning",message:"converted",source: datatype}}"#,

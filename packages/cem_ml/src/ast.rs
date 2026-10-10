@@ -27,6 +27,7 @@
 pub mod decode;
 pub mod encode;
 pub mod format;
+mod source_metadata;
 pub mod reload;
 
 pub use decode::DebugBinaryDecoder;

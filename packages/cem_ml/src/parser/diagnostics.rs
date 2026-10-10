@@ -88,6 +88,7 @@ pub(crate) enum CemMlParserFactKind {
     TokenizerUnterminatedProcessingInstruction,
     TokenizerUnterminatedExpression,
     TokenizerUnterminatedRichContent,
+    TokenizerInvalidTypedPrelude,
 }
 
 impl CemMlParserFactKind {
@@ -115,6 +116,7 @@ impl CemMlParserFactKind {
             }
             Self::TokenizerUnterminatedExpression => "tokenizer-unterminated-expression",
             Self::TokenizerUnterminatedRichContent => "tokenizer-unterminated-rich-content",
+            Self::TokenizerInvalidTypedPrelude => "tokenizer-invalid-typed-prelude",
         }
     }
 

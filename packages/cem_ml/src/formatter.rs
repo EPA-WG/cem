@@ -28,6 +28,16 @@ use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind
 use crate::tokenizer::SchemaTokenizer;
 use crate::transform_template::DEFAULT_FORMATTER_INDENT;
 
+/// Explicit output profile; native directive slots cannot be downgraded to 1.0.
+pub fn format_with_profile(doc: &CemDocument, profile: crate::schema::ir::SemVer) -> Result<String, String> {
+    crate::schema::prelude_values::validate_document_slots(doc)?;
+    if profile.major != 1 || profile.minor > 1 || profile.patch != 0 || profile.prerelease.is_some()
+        || (!doc.typed_preludes.is_empty() && profile.minor < 1) {
+        return Err("unsupported CEM output profile or typed prelude downgrade".into());
+    }
+    Ok(format(doc))
+}
+
 pub fn format(doc: &CemDocument) -> String {
     let mut out = String::new();
     if let Some(root) = doc.root() {
@@ -111,6 +121,7 @@ fn write_node(
         } => {
             let local = expanded_name.local_name.as_str();
             if local.starts_with('@') {
+                if at_block { push_indent(out, indent); }
                 write_directive(doc, node, out);
                 return;
             }
@@ -217,13 +228,20 @@ fn write_node(
 
 fn write_directive(doc: &CemDocument, node: &CemAstNode, out: &mut String) {
     let CemAstNode::Element {
-        expanded_name,
+        expanded_name, node_id,
         children,
         ..
     } = node
     else {
         return;
     };
+    if let Some(syntax) = doc.typed_preludes.get(node_id) {
+        match crate::schema::prelude_values::canonical_prelude_body(syntax) {
+            Ok(body) => { out.push_str(&expanded_name.local_name); out.push(' '); out.push_str(&body); out.push('\n'); },
+            Err(error) => { out.push_str("/* unsupported output: "); out.push_str(&error); out.push_str(" */\n"); },
+        }
+        return;
+    }
     out.push('@');
     out.push_str(
         expanded_name

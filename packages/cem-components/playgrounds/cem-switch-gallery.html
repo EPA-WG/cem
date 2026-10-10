@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>cem-switch: Full examples and variation matrix</title>
+<script type="importmap">{
+    "imports": {
+        "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
+        "@epa-wg/cem-components": "../dist/lib/primitives.js",
+        "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
+        "@epa-wg/cem-components/styles.css": "../dist/styles.css",
+        "@epa-wg/cem-components/components/cem-action": "../src/components/cem-action/cem-action.xhtml",
+        "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
+        "@epa-wg/cem-components/action-playground": "./cem-action.html",
+        "@epa-wg/cem-components/components/cem-theme-switch": "../src/components/cem-theme-switch/cem-theme-switch.xhtml",
+        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
+        "@epa-wg/cem-components/components/cem-select": "../src/components/cem-select/cem-select.xhtml",
+        "@epa-wg/cem-components/components/cem-checkbox": "../src/components/cem-checkbox/cem-checkbox.xhtml",
+        "@epa-wg/cem-components/components/cem-radio": "../src/components/cem-radio/cem-radio.xhtml",
+        "@epa-wg/cem-components/components/cem-switch": "../src/components/cem-switch/cem-switch.xhtml",
+        "@epa-wg/cem-components/components/cem-autocomplete": "../src/components/cem-autocomplete/cem-autocomplete.xhtml",
+        "@epa-wg/cem-components/components/cem-icon-button": "../src/components/cem-icon-button/cem-icon-button.xhtml",
+        "@epa-wg/cem-components/components/cem-menu-item": "../src/components/cem-menu-item/cem-menu-item.xhtml",
+        "@epa-wg/cem-components/components/cem-field": "../src/components/cem-field/cem-field.xhtml",
+        "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml",
+        "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml",
+        "@epa-wg/cem-components/components/cem-textarea": "../src/components/cem-textarea/cem-textarea.xhtml",
+        "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "./assets/wc-square.svg",
+        "@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml": "./cem-gallery-nav.xhtml",
+        "@epa-wg/cem-components/components/cem-menu": "../src/components/cem-menu/cem-menu.xhtml",
+        "@epa-wg/cem-components/components/cem-dropdown": "../src/components/cem-dropdown/cem-dropdown.xhtml",
+        "@epa-wg/cem-components/components/cem-dialog": "../src/components/cem-dialog/cem-dialog.xhtml",
+        "@epa-wg/cem-components/components/cem-dialog-shell": "../src/components/cem-dialog-shell/cem-dialog-shell.xhtml",
+        "@epa-wg/cem-components/components/cem-sheet": "../src/components/cem-sheet/cem-sheet.xhtml",
+        "@epa-wg/cem-components/components/cem-tooltip": "../src/components/cem-tooltip/cem-tooltip.xhtml"
+    }
+}</script>
+<script type="module">
+import { installCemElementRuntime } from '@epa-wg/cem-elements';
+import { installCemComponentPrimitives } from '@epa-wg/cem-components';
+import '@epa-wg/cem-demo-element';
+const runtime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
+window.cemPlaygroundRuntime = runtime;
+await installCemComponentPrimitives(runtime);
+</script>
+<link rel="stylesheet" href="../demo.css">
+<style>body { margin: 0; font-family: system-ui, sans-serif; } #playground-theme { padding: var(--cem-inset-container); } main, .properties { display: grid; gap: var(--cem-gap-group); } [data-gallery-theme] { padding: var(--cem-inset-container); background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } cem-demo-element { display: block; margin-block: var(--cem-gap-group); }</style>
+</head><body>
+<cem-element hidden><template type="text/cem-ml">
+{cem-module-url @slice=cemautocompleteUrl @src="@epa-wg/cem-components/components/cem-autocomplete"}
+{cem:if @test="datadom.slices.cemautocompleteUrl" | {cem-element @tag=cem-autocomplete @capability=editable-choice @src="{$datadom.slices.cemautocompleteUrl}#cem-autocomplete"}}
+</template></cem-element>
+<cem-element hidden><template type="text/cem-ml">
+{cem-module-url @slice=cemcheckboxUrl @src="@epa-wg/cem-components/components/cem-checkbox"}
+{cem:if @test="datadom.slices.cemcheckboxUrl" | {cem-element @tag=cem-checkbox @capability=checkable-control @src="{$datadom.slices.cemcheckboxUrl}#cem-checkbox"}}
+{cem-module-url @slice=cemradioUrl @src="@epa-wg/cem-components/components/cem-radio"}
+{cem:if @test="datadom.slices.cemradioUrl" | {cem-element @tag=cem-radio @src="{$datadom.slices.cemradioUrl}#cem-radio"}}
+{cem-module-url @slice=cemswitchUrl @src="@epa-wg/cem-components/components/cem-switch"}
+{cem:if @test="datadom.slices.cemswitchUrl" | {cem-element @tag=cem-switch @src="{$datadom.slices.cemswitchUrl}#cem-switch"}}
+</template></cem-element>
+<cem-element hidden><template type="text/cem-ml">{cem-module-url @slice=cemdialogUrl @src="@epa-wg/cem-components/components/cem-dialog"}
+{cem:if @test="datadom.slices.cemdialogUrl" | {cem-element @tag=cem-dialog @capability=native-surface @src="{$datadom.slices.cemdialogUrl}#cem-dialog"}}
+{cem-module-url @slice=cemdialogshellUrl @src="@epa-wg/cem-components/components/cem-dialog-shell"}
+{cem:if @test="datadom.slices.cemdialogshellUrl" | {cem-element @tag=cem-dialog-shell @capability=native-surface @src="{$datadom.slices.cemdialogshellUrl}#cem-dialog-shell"}}
+{cem-module-url @slice=cemtooltipUrl @src="@epa-wg/cem-components/components/cem-tooltip"}
+{cem:if @test="datadom.slices.cemtooltipUrl" | {cem-element @tag=cem-tooltip @capability=native-surface @src="{$datadom.slices.cemtooltipUrl}#cem-tooltip"}}
+{cem-module-url @slice=cemfieldUrl @src="@epa-wg/cem-components/components/cem-field"}
+{cem:if @test="datadom.slices.cemfieldUrl" | {cem-element @tag=cem-field @capability=form-control @src="{$datadom.slices.cemfieldUrl}#cem-field"}}
+{cem-module-url @slice=cemactionUrl @src="@epa-wg/cem-components/components/cem-action"}
+{cem:if @test="datadom.slices.cemactionUrl" | {cem-element @tag=cem-action @capability=action-command @src="{$datadom.slices.cemactionUrl}#cem-action"}}
+{cem-module-url @slice=cemmenuUrl @src="@epa-wg/cem-components/components/cem-menu"}
+{cem:if @test="datadom.slices.cemmenuUrl" | {cem-element @tag=cem-menu @capability=composite-menu @src="{$datadom.slices.cemmenuUrl}#cem-menu"}}
+{cem-module-url @slice=cemmenuitemUrl @src="@epa-wg/cem-components/components/cem-menu-item"}
+{cem:if @test="datadom.slices.cemmenuitemUrl" | {cem-element @tag=cem-menu-item @capability=action-control @src="{$datadom.slices.cemmenuitemUrl}#cem-menu-item"}}
+{cem-module-url @slice=cemdropdownUrl @src="@epa-wg/cem-components/components/cem-dropdown"}
+{cem:if @test="datadom.slices.cemdropdownUrl" | {cem-element @tag=cem-dropdown @capability=popup @src="{$datadom.slices.cemdropdownUrl}#cem-dropdown"}}
+{cem-module-url @slice=cemiconbuttonUrl @src="@epa-wg/cem-components/components/cem-icon-button"}
+{cem:if @test="datadom.slices.cemiconbuttonUrl" | {cem-element @tag=cem-icon-button @src="{$datadom.slices.cemiconbuttonUrl}#cem-icon-button"}}
+{cem-module-url @slice=cemthemeswitchUrl @src="@epa-wg/cem-components/components/cem-theme-switch"}
+{cem:if @test="datadom.slices.cemthemeswitchUrl" | {cem-element @tag=cem-theme-switch @src="{$datadom.slices.cemthemeswitchUrl}#cem-theme-switch"}}
+{cem-module-url @slice=cemselectUrl @src="@epa-wg/cem-components/components/cem-select"}
+{cem:if @test="datadom.slices.cemselectUrl" | {cem-element @tag=cem-select @capability=choice-select @src="{$datadom.slices.cemselectUrl}#cem-select"}}
+{cem-module-url @slice=navUrl @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml"}{cem:if @test="datadom.slices.navUrl" | {cem-element @tag=cem-gallery-nav @src="{$datadom.slices.navUrl}#cem-gallery-nav"}}
+{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
+{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
+{cem-module-url @slice=cemsheetUrl @src="@epa-wg/cem-components/components/cem-sheet"}
+{cem:if @test="datadom.slices.cemsheetUrl" | {cem-element @tag=cem-sheet @src="{$datadom.slices.cemsheetUrl}#cem-sheet"}}
+</template></cem-element>
+<div id="playground-theme" class="cem-theme-light"><cem-gallery-nav heading="cem-switch: Full examples and variation matrix"></cem-gallery-nav><p class="component-description">A native checkbox with switch semantics for an on/off setting. Related choices: <a href="./cem-checkbox-gallery.html">cem-checkbox</a> · <a href="./cem-radio-gallery.html">cem-radio</a>. Use <a href="./cem-field-gallery.html">cem-field</a> for text input.</p><p><a href="./cem-switch.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-switch/cem-switch.stories.ts">Automated stories</a></p><main><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="label"><code>label</code> — default: Switch.</li><li data-gallery-attribute="name"><code>name</code> — default: Absent.</li><li data-gallery-attribute="value"><code>value</code> — default: on.</li><li data-gallery-attribute="form"><code>form</code> — default: Absent.</li><li data-gallery-attribute="required-marker"><code>required-marker</code> — default: *.</li><li data-gallery-attribute="aria-label"><code>aria-label</code> — default: Absent.</li><li data-gallery-attribute="aria-labelledby"><code>aria-labelledby</code> — default: Absent.</li><li data-gallery-attribute="aria-describedby"><code>aria-describedby</code> — default: Absent.</li><li data-gallery-attribute="aria-errormessage"><code>aria-errormessage</code> — default: Absent.</li><li data-gallery-attribute="class"><code>class</code> — default: Absent.</li><li data-gallery-attribute="checked"><code>checked</code> — default: Absent.</li><li data-gallery-attribute="disabled"><code>disabled</code> — default: Absent.</li><li data-gallery-attribute="required"><code>required</code> — default: Absent.</li><li data-gallery-attribute="busy"><code>busy</code> — default: Absent.</li><li data-gallery-attribute="invalid"><code>invalid</code> — default: Absent.</li><li data-gallery-attribute="indicator"><code>indicator</code> — default: outline.</li><li data-gallery-attribute="hidden"><code>hidden</code> — default: Absent.</li><li data-gallery-attribute="dir"><code>dir</code> — default: Inherited.</li></ul><p>The default slot replaces label text. The required-marker slot replaces the visible marker and remains aria-hidden. aria-label and aria-labelledby name the input separately; aria-describedby and aria-errormessage reference authored help and errors. Name and form define the native form owner; checked changes the native checked default. Boolean presence includes empty values and false. Invalid uses the explicit string true. Indicator supports outline and underline; unsupported values fall back to outline. Readonly is not supported by native checkable inputs.</p><p>Use real pointer hover, Space and Tab to compare focus with checked state. Radios also support native arrow navigation. Busy does not disable the control or delay changes. </p><section data-gallery-theme="light" class="cem-theme-light"><h2>light</h2><cem-switch label="Default" name="light-default" ></cem-switch> <cem-switch label="Checked" name="light-checked" checked></cem-switch> <cem-switch label="Disabled" name="light-disabled" disabled checked></cem-switch> <cem-switch label="Invalid" name="light-invalid" invalid="true" required></cem-switch> <cem-switch label="Pending" name="light-pending" busy></cem-switch> <cem-switch label="Underline" name="light-underline" indicator="underline" checked></cem-switch> </section><section data-gallery-theme="dark" class="cem-theme-dark"><h2>dark</h2><cem-switch label="Default" name="dark-default" ></cem-switch> <cem-switch label="Checked" name="dark-checked" checked></cem-switch> <cem-switch label="Disabled" name="dark-disabled" disabled checked></cem-switch> <cem-switch label="Invalid" name="dark-invalid" invalid="true" required></cem-switch> <cem-switch label="Pending" name="dark-pending" busy></cem-switch> <cem-switch label="Underline" name="dark-underline" indicator="underline" checked></cem-switch> </section><section data-gallery-theme="contrast-light" class="cem-theme-contrast-light"><h2>contrast-light</h2><cem-switch label="Default" name="contrast-light-default" ></cem-switch> <cem-switch label="Checked" name="contrast-light-checked" checked></cem-switch> <cem-switch label="Disabled" name="contrast-light-disabled" disabled checked></cem-switch> <cem-switch label="Invalid" name="contrast-light-invalid" invalid="true" required></cem-switch> <cem-switch label="Pending" name="contrast-light-pending" busy></cem-switch> <cem-switch label="Underline" name="contrast-light-underline" indicator="underline" checked></cem-switch> </section><section data-gallery-theme="contrast-dark" class="cem-theme-contrast-dark"><h2>contrast-dark</h2><cem-switch label="Default" name="contrast-dark-default" ></cem-switch> <cem-switch label="Checked" name="contrast-dark-checked" checked></cem-switch> <cem-switch label="Disabled" name="contrast-dark-disabled" disabled checked></cem-switch> <cem-switch label="Invalid" name="contrast-dark-invalid" invalid="true" required></cem-switch> <cem-switch label="Pending" name="contrast-dark-pending" busy></cem-switch> <cem-switch label="Underline" name="contrast-dark-underline" indicator="underline" checked></cem-switch> </section><section data-gallery-theme="native" class="cem-theme-native"><h2>native</h2><cem-switch label="Default" name="native-default" ></cem-switch> <cem-switch label="Checked" name="native-checked" checked></cem-switch> <cem-switch label="Disabled" name="native-disabled" disabled checked></cem-switch> <cem-switch label="Invalid" name="native-invalid" invalid="true" required></cem-switch> <cem-switch label="Pending" name="native-pending" busy></cem-switch> <cem-switch label="Underline" name="native-underline" indicator="underline" checked></cem-switch> </section><cem-demo-element legend="Labels and required markers" description="Visible text, projected markup and accessibility-only names stay distinct. Required markers never join the accessible name."><template slot="source"><cem-switch label="Visible choice" required></cem-switch><cem-switch label="Fallback" required><strong>Projected choice</strong><em slot="required-marker">Required</em></cem-switch><cem-switch label="Visible setting" aria-label="Accessible setting"></cem-switch><p id="choice-gallery-name">Referenced choice</p><p id="choice-gallery-help">Choose carefully.</p><p id="choice-gallery-error">Choose an option.</p><cem-switch aria-labelledby="choice-gallery-name" aria-describedby="choice-gallery-help" aria-errormessage="choice-gallery-error" invalid="true"></cem-switch></template></cem-demo-element>
+<cem-demo-element legend="Native forms and reset" description="The native input owns successful values, required validity, fieldset disabling and reset. There is one submitted value per selected control."><template slot="source"><form><fieldset><legend>Preferences</legend><cem-switch label="Choice" name="choice" value="yes" checked required></cem-switch><cem-switch label="Unassociated choice" name="unassociated" form="" checked></cem-switch><cem-switch label="Unavailable" name="unavailable" value="ignored" checked disabled></cem-switch></fieldset><cem-action type="reset" label="Reset choices"></cem-action></form><form><fieldset disabled><legend>Unavailable group</legend><cem-switch label="Disabled by fieldset" name="blocked" checked></cem-switch></fieldset></form></template></cem-demo-element>
+<cem-demo-element legend="External form ownership" description="A native form attribute associates the input with this form. Reset restores the authored default."><template slot="source"><form id="cem-switch-external-form"><cem-action type="reset" label="Reset external choice"></cem-action></form><cem-switch form="cem-switch-external-form" name="external-choice" label="External choice" value="external" checked></cem-switch></template></cem-demo-element>
+<cem-demo-element legend="Presence and host options" description="Empty attributes and false both count as present. Host hidden, class and direction follow native rules."><template slot="source"><cem-switch label="False is present" checked="false" required="false" busy="false"></cem-switch><cem-switch label="Disabled false" disabled="false"></cem-switch><cem-switch label="Hidden choice" hidden></cem-switch><cem-switch label="RTL choice" dir="rtl" class="preference-choice"></cem-switch><cem-switch label="Fallback indicator" indicator="unsupported"></cem-switch></template></cem-demo-element>
+<cem-demo-element legend="Declarative change binding" description="The native change event updates the application slice. Rendering the result leaves the input checked state intact."><template slot="source"><cem-element><template type="text/cem-ml">{slice @name=enabled | false}{cem-switch @label="Enable option" @slice=enabled @slice-event=change @slice-value="$target.checked"}{p | Enabled: {output | {$datadom.slices.enabled}}}</template></cem-element></template></cem-demo-element>
+</main></div></body></html>

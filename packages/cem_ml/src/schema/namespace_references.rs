@@ -19,7 +19,7 @@ pub use property::{
 /// Original declaration dependency, not a stored evaluation or runtime context.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PendingNamespaceValue {
-    /// Evaluate the declaration attribute's original native value slots.
+    /// Evaluate the attribute or directive's original native value slot.
     Native,
     /// An existing literal default-prefix alias selected this earlier binding.
     Alias(crate::parser::AstNodeId),

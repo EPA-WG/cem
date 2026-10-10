@@ -1,6 +1,13 @@
 use super::*;
 
 fn datatype_compiler(name: &str, tokenizer_ready: bool) -> CemQlSchemaPackageCompiler {
+    datatype_compiler_with_serializer(name, tokenizer_ready, None)
+}
+fn datatype_compiler_with_serializer(
+    name: &str,
+    tokenizer_ready: bool,
+    serializer_ready: Option<bool>,
+) -> CemQlSchemaPackageCompiler {
     compiler(Some(name)).with_datatypes(move |request,host,limits| {
         use cem_ml::schema::{datatype_registry::{DatatypeRegistry,DatatypeKind},datatype_validation::{ScalarRepresentation,ValueRepresentation},declaration_references::SchemaDeclarationNode};
         use cem_ql::datatype_compilation::{DatatypeImplementation,DatatypeImplementations,TokenizerBinding,compile_datatypes};
@@ -11,6 +18,7 @@ fn datatype_compiler(name: &str, tokenizer_ready: bool) -> CemQlSchemaPackageCom
             let declaration=SchemaDeclarationNode::new(ast.clone(),*node_id).unwrap();registry.insert(schema.clone(),declaration).unwrap();
             let name=attributes.iter().find_map(|id|match ast.get(*id){Some(CemAstNode::Attribute{expanded_name,value,..}) if expanded_name.local_name=="name"=>value.as_deref(),_=>None}).unwrap();
             let source=registry.source(&schema,name).unwrap();host.register_datatype_source(source.clone()).unwrap();host.bind_literal_datatype(&schema,name,source.declaration().clone()).unwrap();
+            if source.attribute("list-base").is_some() { sources.push(source); continue; }
             let list=name=="names";
             let mut entry = if list {
                 cem_ql::datatype_shipped::list_implementation(
@@ -40,6 +48,18 @@ fn datatype_compiler(name: &str, tokenizer_ready: bool) -> CemQlSchemaPackageCom
                 implementations.select_converter(
                     source.clone(), cem_ql::datatype_conversion::ConverterBinding::Ready(converter),
                 ).unwrap();
+                if let Some(ready) = serializer_ready {
+                    use cem_ql::datatype_serialization::ListSerializerBinding;
+                    let binding = if ready {
+                        ListSerializerBinding::Ready(cem_ql::datatype_shipped::list_serializer(
+                            source.clone(),
+                            cem_ml::schema::document_model::shipped_datatypes::ShippedDatatype::NameList,
+                        ).unwrap())
+                    } else {
+                        ListSerializerBinding::Unavailable
+                    };
+                    implementations.select_list_serializer(source.clone(), binding).unwrap();
+                }
             }
             implementations.register(entry).unwrap();
             sources.push(source);
@@ -47,6 +67,10 @@ fn datatype_compiler(name: &str, tokenizer_ready: bool) -> CemQlSchemaPackageCom
         Ok(compile_datatypes(ast.clone(),&sources,host,&implementations,&Default::default(),limits))
     })
 }
+#[path = "list_serialization.rs"]
+mod list_serialization;
+#[path = "whole_list.rs"]
+mod whole_list;
 #[test]
 fn incomplete_datatype_capability_preserves_package_and_retries_original_candidate() {
     let authored=SOURCE.replace("{elements |", "{types | {type @name=item @kind=scalar} {type @name=names @kind=list @base=item}} {elements |");
@@ -559,6 +583,36 @@ fn unprepared_vocabulary_preserves_active_package_and_retries_original_owner() {
             && d.source_map.is_some()),
         "{diagnostics:?}"
     );
+    assert_active(&context, "new", "new-converter", "new.cemt");
+}
+
+#[test]
+fn retained_constant_vocabulary_preserves_active_package_until_ready_replacement() {
+    let authored = SOURCE.replace("{elements |", r#"{types | {type @name=sample @kind=scalar | {constant @value="In progress"} {constant @value=""}}} {elements |"#);
+    let mut context = context(&authored);
+    context.schema_package_compiler = Some(Arc::new(enumeration_compiler("old", true)));
+    load(&mut context, &input());
+    assert_active(&context, "old", "runtime-converter", "old.cemt");
+    let owner = context.schema_package_sources.get(SOURCE_URI).unwrap().clone();
+    let mut replacement = input();
+    replacement.bytes = MANIFEST.replace("runtime-converter", "new-converter").replace("old.cemt", "new.cemt").into_bytes();
+    context.schema_package_compiler = Some(Arc::new(enumeration_compiler("new", false)));
+    load(&mut context, &replacement);
+    assert_active(&context, "old", "runtime-converter", "old.cemt");
+    let pending = context.schema_document_models.get(SCHEMA_URI).unwrap().datatype_compilation.as_ref().unwrap();
+    assert!(!pending.is_ready());
+    assert!(pending.matches_owner(owner.ast_owner()));
+    context.schema_package_compiler = Some(Arc::new(enumeration_compiler("new", true)));
+    load(&mut context, &replacement);
+    assert_active(&context, "new", "new-converter", "new.cemt");
+    let ready = context.schema_document_models.get(SCHEMA_URI).unwrap().datatype_compilation.as_ref().unwrap();
+    let descriptor = ready.contracts[0].as_any().downcast_ref::<cem_ql::datatype_compilation::ExecutableDatatype>().unwrap();
+    let constants = descriptor.enumerations()[0].constants();
+    assert_eq!(constants.iter().map(|c| c.token.text()).collect::<Vec<_>>(), ["In progress", ""]);
+    assert!(constants.iter().all(|c| Arc::ptr_eq(c.token.source.document(), owner.ast_owner())));
+    set_source(&mut context, &authored.replace("@kind=scalar |", "@kind=scalar @values=old |"));
+    let diagnostics = load_schema_package_manifest_into_context(&mut context, &replacement).unwrap();
+    assert!(diagnostics.iter().any(|d| d.severity.is_hard_violation() && d.message.contains("datatype-mixed-vocabulary")), "{diagnostics:?}");
     assert_active(&context, "new", "new-converter", "new.cemt");
 }
 

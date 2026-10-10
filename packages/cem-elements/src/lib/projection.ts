@@ -120,10 +120,13 @@ const NATIVE_ATTRIBUTE_STORE = Symbol.for('cem.native-attribute-store.v1');
 const nativeAttributeEnvironment = globalThis as typeof globalThis & { [NATIVE_ATTRIBUTE_STORE]?: NativeAttributeStore };
 const nativeAttributeValues = nativeAttributeEnvironment[NATIVE_ATTRIBUTE_STORE] ??= new WeakMap();
 /** Retained native attributes, separate from their final browser string projection. */
-export function renderedNativeAttributeBindings(element: Element): NativeCemAttributeBinding[] {
-    return [...(nativeAttributeValues.get(element) ?? [])].filter(([name, record]) =>
-        renderPlanAttributeValue(element, name) === record.projection
-    ).map(([name, record]) => ({ name, value: record.value }));
+export function renderedNativeAttributeBindings(element: Element, consumedAttributes: readonly string[] = []): NativeCemAttributeBinding[] {
+    return [...(nativeAttributeValues.get(element) ?? [])].filter(([name, record]) => {
+        const projected = renderPlanAttributeValue(element, name);
+        // A binding adapter may consume an attribute after wiring its listener.
+        // Its native capsule is still owned by the retained plan, not by DOM text.
+        return (projected ?? (consumedAttributes.includes(name) ? renderedPlanAttributeValue(element, name) : null)) === record.projection;
+    }).map(([name, record]) => ({ name, value: record.value }));
 }
 export function restoreNativeAttributeBindings(element: Element, bindings: readonly NativeCemAttributeBinding[]): void {
     nativeAttributeValues.set(element, new Map(bindings.map(({ name, value }) => [name, { value, projection: renderPlanAttributeValue(element, name) ?? '' }])));
@@ -184,6 +187,8 @@ export interface RenderedFragmentMergeOptions {
      */
     preserveElementAttribute?: (current: Element, desired: Element, attribute: Attr) => boolean;
     preserveElementChildren?: (current: Element, desired: Element) => boolean;
+    /** Exact runtime-owned nodes excluded from authored reconciliation and patch lookup. */
+    preserveNode?: (current: Node) => boolean;
 }
 
 export interface RenderPlanApplyOptions extends RenderedFragmentMergeOptions {
@@ -1930,6 +1935,26 @@ function escapeRegExp(value: string): string {
  * Materialize a render plan into a live light-DOM fragment. UI-adapter side: this is the
  * only place the projection boundary touches live DOM on the way out.
  */
+/** Materialize derived template output while retaining native attribute capsules.
+ * This copies browser projection, never recaptures instance data or invents native authority.
+ */
+export function materializeRenderedTemplate(template: HTMLTemplateElement): DocumentFragment {
+    const fragment = template.ownerDocument.importNode(template.content, true);
+    const copy = (source: Node, target: Node): void => {
+        if (source.nodeType === 1 && target.nodeType === 1) {
+            const original = source as Element, element = target as Element;
+            restoreNativeAttributeBindings(element, renderedNativeAttributeBindings(original));
+            const attributes = renderedAttributeValues.get(original);
+            if (attributes) renderedAttributeValues.set(element, new Map(attributes));
+        }
+        const a = source.nodeType === 1 ? renderPlanElementChildContainer(source as Element) : source;
+        const b = target.nodeType === 1 ? renderPlanElementChildContainer(target as Element) : target;
+        Array.from(a.childNodes).forEach((child, index) => copy(child, b.childNodes[index]));
+    };
+    copy(template.content, fragment);
+    return fragment;
+}
+
 export function materializeRenderPlan(plan: RenderPlan, document: Document): DocumentFragment {
     const fragment = document.createDocumentFragment();
     for (const node of plan.nodes) {
@@ -2022,7 +2047,7 @@ export function applyPatchFramesToRange(
     document: Document,
     options: RenderPlanApplyOptions = {},
 ): PatchFramesApplyResult {
-    const validation = validatePatchFrames(bounds, frames, expectedRevision, document);
+    const validation = validatePatchFrames(bounds, frames, expectedRevision, document, options);
     if (!validation.ok) return validation.result;
     const { parsed, resolved } = validation;
     const replacements = parsed.ops.filter((operation): operation is Extract<DomPatchOp, { op: 'replaceScope' }> => operation.op === 'replaceScope');
@@ -2109,7 +2134,7 @@ type ValidatedPatch = {
 } | { ok: false; result: { status: 'stale' | 'aborted'; diagnostics: PatchFramesApplyDiagnostic[] } };
 
 function validatePatchFrames(bounds: RenderPlanDomRange, frames: readonly PatchFrame[], expectedRevision: RenderRevision,
-    document: Document): ValidatedPatch {
+    document: Document, options: RenderPlanApplyOptions): ValidatedPatch {
     const parsed = parseCommittedPatchFrames(frames);
     if (!parsed.ok) return { ok: false, result: { status: 'aborted', diagnostics: [parsed.diagnostic] } };
     if (renderRevisionKey(parsed.revision) !== renderRevisionKey(expectedRevision)) return { ok: false, result: {
@@ -2129,7 +2154,7 @@ function validatePatchFrames(bounds: RenderPlanDomRange, frames: readonly PatchF
     const resolved: Array<{ operation: Exclude<DomPatchOp, { op: 'replaceScope' }>; target: Node }> = [];
     for (const operation of parsed.ops) {
         if (operation.op === 'replaceScope') continue;
-        const target = findNodeByRenderIdentityInRange(bounds, operation.target.id);
+        const target = findNodeByRenderIdentityInRange(bounds, operation.target.id, options);
         if (!target || ((operation.op === 'setAttribute' || operation.op === 'reconcileChildren') && target.nodeType !== 1)) {
             return { ok: false, result: abortedPatch(`patch target \`${operation.target.id}\` was not present in the rendered range`) };
         }
@@ -2153,7 +2178,7 @@ export function preparePatchFramesForRange(bounds: RenderPlanDomRange, frames: r
     const range = { start: bounds.start, end: bounds.end };
     const snapshot = structuredClone({ frames, expectedRevision });
     const applyOptions = { ...options };
-    const initial = validatePatchFrames(range, snapshot.frames, snapshot.expectedRevision, document);
+    const initial = validatePatchFrames(range, snapshot.frames, snapshot.expectedRevision, document, applyOptions);
     const parent = range.start.parentNode;
     const children: Node[] = [];
     if (initial.ok) for (let node = range.start.nextSibling; node && node !== range.end; node = node.nextSibling) children.push(node);
@@ -2161,7 +2186,7 @@ export function preparePatchFramesForRange(bounds: RenderPlanDomRange, frames: r
     const check: PreparedPatchFrames['check'] = currentRevision => {
         if (!available) return abortedPatch('prepared patch transaction was already consumed or cancelled');
         if (!initial.ok) return initial.result;
-        const current = validatePatchFrames(range, snapshot.frames, currentRevision, document);
+        const current = validatePatchFrames(range, snapshot.frames, currentRevision, document, applyOptions);
         if (!current.ok) return current.result;
         let node = range.start.nextSibling;
         const sameChildren = children.every(child => { const equal = child === node; node = node?.nextSibling ?? null; return equal; }) && node === range.end;
@@ -2278,6 +2303,7 @@ function reconcileRenderedAttributes(bounds: RenderPlanDomRange, options: Render
 }
 
 function reconcileNodeRenderedAttributes(node: Node, options: RenderPlanApplyOptions): void {
+    if (options.preserveNode?.(node)) return;
     let preserveChildren = false;
     if (node.nodeType === 1) {
         const element = node as Element;
@@ -2331,6 +2357,7 @@ function isRenderMetadataAttribute(name: string): boolean {
 }
 
 function updateNodeRenderMetadata(node: Node, identity: RenderPlanIdentity, options: RenderPlanApplyOptions): void {
+    if (options.preserveNode?.(node)) return;
     let preserveChildren = false;
     if (node.nodeType === 1) {
         const element = node as Element;
@@ -2501,6 +2528,7 @@ function mergeRenderPlanChildNodes(
     trackSelectChildren(parent);
     let current: ChildNode | null = firstCurrent;
     for (const desired of desiredNodes) {
+        while (current && current !== end && context.options.preserveNode?.(current)) current = current.nextSibling;
         const match = matchRenderPlanNode(current, end, desired, context);
         if (match) {
             const moved = match.first !== current;
@@ -2518,7 +2546,7 @@ function mergeRenderPlanChildNodes(
 
     while (current && current !== end) {
         const next = current.nextSibling as ChildNode | null;
-        parent.removeChild(current);
+        if (!context.options.preserveNode?.(current)) parent.removeChild(current);
         current = next;
     }
     if (parent.nodeType === 1 && end === null) rememberRenderedChildren(parent as Element, desiredNodes);
@@ -2601,6 +2629,7 @@ function matchRenderPlanNodeAt(
     desired: RenderPlanNode,
     context: RenderPlanApplyContext,
 ): RenderPlanNodeMatch | null {
+    if (context.options.preserveNode?.(current)) return null;
     if (desired.kind === 'text' || desired.kind === 'comment') {
         if (context.options.dynamicTextRanges) {
             const rangeEnd = matchDynamicRange(current, dynamicRangeId(desired));
@@ -2814,7 +2843,8 @@ function mergeChildNodes(
     trackSelectChildren(parent);
     let current: ChildNode | null = firstCurrent;
     for (const desired of desiredNodes) {
-        const matched = matchMergeNode(current, end, desired);
+        while (current && current !== end && options.preserveNode?.(current)) current = current.nextSibling;
+        const matched = matchMergeNode(current, end, desired, options);
         if (matched) {
             if (matched !== current) {
                 parent.insertBefore(matched, current ?? end);
@@ -2829,12 +2859,12 @@ function mergeChildNodes(
 
     while (current && current !== end) {
         const next = current.nextSibling as ChildNode | null;
-        parent.removeChild(current);
+        if (!options.preserveNode?.(current)) parent.removeChild(current);
         current = next;
     }
 }
 
-function matchMergeNode(current: ChildNode | null, end: Node | null, desired: Node): ChildNode | null {
+function matchMergeNode(current: ChildNode | null, end: Node | null, desired: Node, options: RenderedFragmentMergeOptions): ChildNode | null {
     if (!current || current === end) {
         return null;
     }
@@ -2849,7 +2879,7 @@ function matchMergeNode(current: ChildNode | null, end: Node | null, desired: No
 
     let sibling = current.nextSibling as ChildNode | null;
     while (sibling && sibling !== end) {
-        if (renderIdentity(sibling) === desiredId && canMergeNode(sibling, desired)) {
+        if (!options.preserveNode?.(sibling) && renderIdentity(sibling) === desiredId && canMergeNode(sibling, desired)) {
             return sibling;
         }
         sibling = sibling.nextSibling as ChildNode | null;
@@ -3018,6 +3048,7 @@ function refreshControlledSelectsInRange(
     options: RenderedFragmentMergeOptions = {},
 ): void {
     const visit = (node: Node): void => {
+        if (options.preserveNode?.(node)) return;
         if (node.nodeType === 1) {
             const element = node as Element;
             if (options.preserveElementChildren?.(element, element.cloneNode(false) as Element)) return;
@@ -3227,10 +3258,10 @@ function findElementByRenderIdentityInRange(bounds: RenderPlanDomRange, id: stri
     return null;
 }
 
-function findNodeByRenderIdentityInRange(bounds: RenderPlanDomRange, id: string): Node | null {
+function findNodeByRenderIdentityInRange(bounds: RenderPlanDomRange, id: string, options: RenderPlanApplyOptions = {}): Node | null {
     let current = bounds.start.nextSibling;
     while (current && current !== bounds.end) {
-        const found = findNodeByRenderIdentity(current, id);
+        const found = findNodeByRenderIdentity(current, id, options);
         if (found) {
             return found;
         }
@@ -3239,15 +3270,17 @@ function findNodeByRenderIdentityInRange(bounds: RenderPlanDomRange, id: string)
     return null;
 }
 
-function findNodeByRenderIdentity(node: Node, id: string): Node | null {
+function findNodeByRenderIdentity(node: Node, id: string, options: RenderPlanApplyOptions): Node | null {
+    if (options.preserveNode?.(node)) return null;
     const identity =
         (node as Node & { cemRenderNodeId?: string }).cemRenderNodeId ??
         (node.nodeType === 1 ? renderIdentity(node) : null);
     if (identity === id) {
         return node;
     }
-    for (let child = node.firstChild; child; child = child.nextSibling) {
-        const found = findNodeByRenderIdentity(child, id);
+    const container = node.nodeType === 1 ? renderPlanElementChildContainer(node as Element) : node;
+    for (let child = container.firstChild; child; child = child.nextSibling) {
+        const found = findNodeByRenderIdentity(child, id, options);
         if (found) {
             return found;
         }

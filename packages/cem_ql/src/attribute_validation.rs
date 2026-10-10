@@ -5,6 +5,9 @@ use crate::{
     datatype_facets::BoundAttributeFacets,
     datatype_preparation::{DatatypePreparation, PreparationInput, PreparationLimits},
     datatype_validation::{ValidationInput, ValidationRuntime},
+    preparation_evidence::{
+        AttributePreparationInvocation, EvidenceStop, SealedPreparationEvidence,
+    },
 };
 use cem_ml::{
     operation_control::ControlError,
@@ -33,7 +36,16 @@ impl Default for AttributeValidationLimits {
 }
 #[derive(Debug, Clone)]
 pub enum AttributeDatatypePhase {
+    ExternalTyped {
+        input: ValidationInput,
+        validation: DatatypeValidation,
+    },
     Lexical(DatatypePreparation),
+    Pretyped {
+        evidence: SealedPreparationEvidence,
+        /// A fresh verdict for this consumption, never cached in the receipt.
+        validation: DatatypeValidation,
+    },
     Nodes {
         /// Preserve the exact consumer-supplied native views, including their
         /// navigation boundaries, original owners and authored descendants.
@@ -43,7 +55,9 @@ pub enum AttributeDatatypePhase {
 }
 #[derive(Debug)]
 pub enum AttributeValidationStop {
+    ExternalTyped(crate::external_typed::ExternalTypedError),
     InvalidInput,
+    Evidence(EvidenceStop),
     /// The retained datatype phase provides the specific incomplete reason.
     Datatype,
     Facets(FacetExecutionError<ControlError>),
@@ -58,7 +72,7 @@ pub struct AttributeValidation {
     pub stopped: Option<AttributeValidationStop>,
 }
 impl AttributeValidation {
-    fn empty() -> Self {
+    pub(crate) fn empty() -> Self {
         Self {
             accepted: None,
             datatype: None,
@@ -66,13 +80,68 @@ impl AttributeValidation {
             stopped: None,
         }
     }
-    fn stop(mut self, reason: AttributeValidationStop) -> Self {
+    pub(crate) fn stop(mut self, reason: AttributeValidationStop) -> Self {
         self.accepted = None;
         self.stopped = Some(reason);
         self
     }
 }
 impl BoundAttributeFacets {
+    /// Consume sealed preparation in its original live invocation. Missing input
+    /// remains incomplete; present empty lists are represented by valid evidence.
+    /// The embedding closes the invocation before changing facet/runtime context.
+    pub fn validate_pretyped(
+        &self,
+        invocation: &AttributePreparationInvocation,
+        evidence: Option<&SealedPreparationEvidence>,
+        context: FacetContext<'_>,
+        max_facet_model_bytes: usize,
+    ) -> AttributeValidation {
+        invocation.consume(self, evidence, context, max_facet_model_bytes)
+    }
+
+    pub(crate) fn validate_prepared(
+        &self,
+        evidence: &SealedPreparationEvidence,
+        input: &ValidationInput,
+        context: FacetContext<'_>,
+        runtime: &ValidationRuntime<'_>,
+        limits: AttributeValidationLimits,
+    ) -> AttributeValidation {
+        let mut report = AttributeValidation::empty();
+        let validation =
+            self.binding()
+                .datatype
+                .validate(input, runtime, limits.preparation.validation);
+        let accepted = validation.accepted;
+        let cost = diagnostic_cost(&validation);
+        report.datatype = Some(AttributeDatatypePhase::Pretyped {
+            evidence: evidence.clone(),
+            validation,
+        });
+        let Some(accepted) = accepted else {
+            return report.stop(AttributeValidationStop::Datatype);
+        };
+        let facet_input = match self.profile().family().representation() {
+            ValueRepresentation::Scalar(_) => FacetInput::Scalar(&evidence.lexical().text),
+            ValueRepresentation::List(_) => FacetInput::List {
+                lexical: &evidence.lexical().text,
+                count: evidence.values().len(),
+            },
+            ValueRepresentation::Nodes => {
+                return report.stop(AttributeValidationStop::InvalidInput)
+            }
+        };
+        self.finish(
+            report,
+            accepted,
+            cost,
+            facet_input,
+            context,
+            runtime,
+            limits,
+        )
+    }
     /// Prepare original lexical input, validate its complete datatype contract,
     /// then intersect the local facets. Never invoke conversion or stringify nodes.
     pub fn validate_lexical(
@@ -175,7 +244,7 @@ impl BoundAttributeFacets {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn finish(
+    pub(crate) fn finish(
         &self,
         mut report: AttributeValidation,
         datatype_accepted: bool,
@@ -215,7 +284,7 @@ impl BoundAttributeFacets {
 }
 /// Cardinality rejections consume diagnostics even though they retain a typed
 /// report rather than a rendered diagnostic. Do not replenish that allowance.
-fn diagnostic_cost(report: &DatatypeValidation) -> usize {
+pub(crate) fn diagnostic_cost(report: &DatatypeValidation) -> usize {
     report.completed.iter().fold(
         report
             .cardinality

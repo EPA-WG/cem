@@ -40,7 +40,7 @@ fn explicit_lexical_conversion_trims_without_rewriting_or_resolving() {
     }
 }
 
-fn list_descriptor(ty: T, tokenizer: Option<TokenizerBinding>) -> ExecutableDatatype {
+pub(super) fn list_descriptor(ty: T, tokenizer: Option<TokenizerBinding>) -> ExecutableDatatype {
     let item = ty.item().unwrap();
     let text = declaration(false).replace(
         "urn:test:validate",
@@ -59,6 +59,14 @@ fn list_descriptor(ty: T, tokenizer: Option<TokenizerBinding>) -> ExecutableData
         list.tokenizer = binding;
     }
     implementations.register(list).unwrap();
+    implementations
+        .select_list_serializer(
+            sources[1].clone(),
+            cem_ql::datatype_serialization::ListSerializerBinding::Ready(
+                datatype_shipped::list_serializer(sources[1].clone(), ty).unwrap(),
+            ),
+        )
+        .unwrap();
     implementations
         .select_converter(
             sources[1].clone(),

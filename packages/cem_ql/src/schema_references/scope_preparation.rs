@@ -55,8 +55,8 @@ impl SchemaScopePreparation {
 }
 
 impl CemQlSchemaDeclarationHost {
-    /// Attach immutable namespace and schema-element form metadata to a registered
-    /// original arena.
+    /// Attach immutable names, schema-element forms and typed schema prelude
+    /// contracts to a registered original arena.
     /// Repeat handoff is idempotent. No AST, tree view, context or scope changes.
     pub fn attach_captured_names(
         &mut self,
@@ -89,6 +89,25 @@ impl CemQlSchemaDeclarationHost {
                     captured
                         .schema_element_form(owner, id)
                         .map(|form| (id, form))
+                })
+                .collect()
+        });
+        self.captured_schema_preludes.entry(key).or_insert_with(|| {
+            (0..owner.nodes.len())
+                .filter_map(|id| {
+                    let id = id as cem_ml::parser::AstNodeId;
+                    let slot = captured.typed_prelude(owner, id)?;
+                    if slot.syntax.role != cem_ml::tokenizer::cem::TypedPreludeRole::SchemaSelector
+                    {
+                        return None;
+                    }
+                    let source = SchemaDeclarationNode::new(owner.clone(), id)?;
+                    Some((
+                        id,
+                        cem_ml::schema::scope_controls::validate_typed_schema_prelude(
+                            source, captured,
+                        ),
+                    ))
                 })
                 .collect()
         });
@@ -209,15 +228,15 @@ pub(super) fn prepare_schema_scope_selection<H: SchemaPreparationHost>(
         prepared.issue = Some(SchemaScopePreparationIssue::TargetHasNoSourceHandle);
         return Ok(prepared);
     };
-    let target = match admit_schema_scope_target(source, |node| {
-        host.consuming_expanded_name(node).cloned()
-    }) {
-        Ok(target) => target,
-        Err(issue) => {
-            prepared.issue = Some(SchemaScopePreparationIssue::TargetAdmission(issue));
-            return Ok(prepared);
-        }
-    };
+    let target =
+        match admit_schema_scope_target(source, |node| host.consuming_expanded_name(node).cloned())
+        {
+            Ok(target) => target,
+            Err(issue) => {
+                prepared.issue = Some(SchemaScopePreparationIssue::TargetAdmission(issue));
+                return Ok(prepared);
+            }
+        };
     // A declaration's lifecycle context can remain unavailable even when
     // selection from the requesting context completed and needs no inputs.
     if !host.target_context_is_ready(&target.declaration)? {

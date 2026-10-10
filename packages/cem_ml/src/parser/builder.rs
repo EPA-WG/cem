@@ -117,8 +117,11 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
             let opening = matches!(event, NormalizedEvent::OpenScope { .. });
             let attribute_expression = matches!(event,
                 NormalizedEvent::Value { value: ScalarValue::Expression(_), .. });
+            let typed_prelude = matches!(event, NormalizedEvent::Value { value: ScalarValue::TypedPrelude(_), .. });
             self.consume(event);
-            let node = if opening {
+            let node = if typed_prelude && self.doc.nodes.len() > before {
+                Some(before as AstNodeId)
+            } else if opening {
                 match self.stack.last() {
                     Some(Frame::Element { id, .. }) => Some(*id),
                     _ => None,
@@ -172,8 +175,12 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
                     self.flush_native_attribute(expression, byte_range);
                     return;
                 }
+                if let ScalarValue::TypedPrelude(slot) = &value {
+                    self.append_typed_prelude(slot);
+                    return;
+                }
                 let text = match value {
-                    ScalarValue::Expression(_) => unreachable!(),
+                    ScalarValue::Expression(_) | ScalarValue::TypedPrelude(_) => unreachable!(),
                     ScalarValue::Text(t) => t,
                     ScalarValue::Int(i) => i.to_string(),
                     ScalarValue::Float(f) => f.to_string(),
@@ -397,6 +404,35 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
         let leading = body.len() - body.trim_start().len();
         let body = body.trim();
         let payload_range = ByteRange::new(range.start + 1 + leading as u64, body.len() as u32);
+        let value_id = self.append_native_value(body, payload_range, context, body.starts_with('#'));
+        if let CemAstNode::Attribute { value_nodes, .. } = &mut self.doc.nodes[attr_id as usize] {
+            value_nodes.push(value_id);
+        }
+    }
+
+    fn append_typed_prelude(&mut self, slot: &crate::tokenizer::cem::TypedPreludeValue) {
+        let directive = match self.stack.last() {
+            Some(Frame::Element { id, .. }) => *id,
+            _ => 0,
+        };
+        self.doc.typed_preludes.insert(directive, slot.clone());
+        if let Some(code) = &slot.error {
+            self.append_error(code.clone(), slot.value_range);
+            self.push_parser_fact_diagnostic(CemMlParserFactKind::TokenizerInvalidTypedPrelude,
+                Some(slot.value_range.start), code.clone(),
+                Some(self.current_source_map(slot.value_range, TransformKind::CemAstBuilder)));
+            return;
+        }
+        let context = match self.stack.last() {
+            Some(Frame::Element { id, .. }) => *id,
+            _ => 0,
+        };
+        let value = self.append_native_value(&slot.expression, slot.payload_range, context,
+            slot.kind == crate::tokenizer::cem::TypedPreludeKind::Reference);
+        self.attach_child(value);
+    }
+
+    fn append_native_value(&mut self, body: &str, payload_range: ByteRange, context: AstNodeId, reference: bool) -> AstNodeId {
         let mut source = self.current_source_map(payload_range, TransformKind::CemAstBuilder);
         source.push(SourceMapFrame {
             source_id: source.current().map(|frame| frame.source_id).unwrap_or(crate::source::SourceId(0)),
@@ -406,7 +442,7 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
             },
         });
         let value_id = self.doc.nodes.len() as AstNodeId;
-        if body.starts_with('#') {
+        if reference {
             self.doc.nodes.push(CemAstNode::Reference {
                 node_id: value_id,
                 expression: body.into(),
@@ -431,9 +467,7 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
                 source,
             });
         }
-        if let CemAstNode::Attribute { value_nodes, .. } = &mut self.doc.nodes[attr_id as usize] {
-            value_nodes.push(value_id);
-        }
+        value_id
     }
 
     fn update_references(&mut self, name: &str, value: Option<&str>, attr_id: AstNodeId) {

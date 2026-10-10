@@ -29,6 +29,29 @@ use std::{
     sync::Arc,
 };
 
+/// Compile only the profile's fixed roles and retain the original embedded body
+/// before the query's relative spans. Every datatype query adapter uses this
+/// boundary, including functions selected from another retained schema.
+pub(crate) fn compile_function_query(
+    implementation: &ValidationImplementation,
+    context: &StandaloneExpressionContext,
+) -> Result<CompiledQuery, ValueContractError> {
+    let ValidationImplementation::Query {
+        body, body_source, ..
+    } = implementation else {
+        return Err(ValueContractError::new("query-implementation-required"));
+    };
+    let mut query = api::compile_expression(body, context)
+        .map_err(|_| error("query-compilation-failed", body_source))?
+        .query;
+    if let CemAstNode::Element { source, .. } = body_source.node() {
+        for map in &mut query.tree.source_maps {
+            map.frames.splice(0..0, source.frames.iter().cloned());
+        }
+    }
+    Ok(query)
+}
+
 /// No mapping is installed implicitly. Codes permit validity to differ from
 /// severity; NoDiagnostics is available only when explicitly selected by a host.
 #[derive(Debug, Clone)]
@@ -69,6 +92,21 @@ pub struct ValidationRuntime<'a> {
     pub control: &'a OperationControl,
     pub scope: ExecutionScopeId,
     pub query: EvaluationContext,
+}
+impl<'a> ValidationRuntime<'a> {
+    pub(crate) fn query_failure(&self) -> Option<ItemStream> {
+        self.query.execution_budget.as_ref().and_then(|budget| budget.failure())
+    }
+    /// Preserve a supplied enclosing allowance, or establish one for this call.
+    pub fn with_query_budget(&self) -> Self {
+        let mut query = self.query.clone();
+        query.execution_budget.get_or_insert_with(Default::default);
+        Self {
+            control: self.control,
+            scope: self.scope,
+            query,
+        }
+    }
 }
 #[derive(Debug, Clone)]
 pub struct ValidationInput {
@@ -149,7 +187,7 @@ impl DatatypeValidationRegistry {
         adapter: DatatypeResultAdapter,
         legacy: Option<LegacyAcceptance>,
     ) -> Result<(), ValueContractError> {
-        let ValidationImplementation::Query { body, .. } = contract.implementation() else {
+        let ValidationImplementation::Query { .. } = contract.implementation() else {
             return Err(error("query-implementation-required", contract.behavior()));
         };
         let signature = contract.signature();
@@ -169,13 +207,12 @@ impl DatatypeValidationRegistry {
                     Type::stream(Type::Node(NodeKind::Node)),
                 ),
             );
-        let compiled = api::compile_expression(body, &context)
-            .map_err(|_| error("query-compilation-failed", contract.behavior()))?;
+        let query = compile_function_query(contract.implementation(), &context)?;
         self.insert(
             contract,
             adapter,
             legacy,
-            Implementation::Query(Arc::new(compiled.query)),
+            Implementation::Query(Arc::new(query)),
         )
     }
     fn insert(
@@ -328,8 +365,16 @@ pub fn validate_rules(
     runtime: &ValidationRuntime<'_>,
     limits: ValidationLimits,
 ) -> ValidationBatch {
+    let shared_runtime = runtime.with_query_budget();
+    let runtime = &shared_runtime;
     if let Err(e) = runtime.control.check_scope(runtime.scope) {
         return stopped(vec![], None, ValidationStopReason::Control(e));
+    }
+    if let Some(failure) = runtime.query_failure() {
+        return stopped(
+            vec![], None,
+            ValidationStopReason::Result(DatatypeResultError::Execution(failure)),
+        );
     }
     if rules.len() > limits.max_rules {
         return stopped(vec![], None, ValidationStopReason::Limit("rules"));
@@ -422,6 +467,12 @@ pub fn validate_rules(
         };
         if let Err(e) = runtime.control.check_scope(runtime.scope) {
             return stopped(completed, Some(rule), ValidationStopReason::Control(e));
+        }
+        if let Some(failure) = runtime.query_failure() {
+            return stopped(
+                completed, Some(rule),
+                ValidationStopReason::Result(DatatypeResultError::Execution(failure)),
+            );
         }
         let stream = match execution {
             RuleExecution::Complete(stream) => stream,

@@ -60,6 +60,18 @@ pub fn import_bytes_with_lexical_scopes(
     source_uri: &str,
     schema: CompiledSchema,
 ) -> Result<ScopedCemImport, String> {
+    import_bytes_with_lexical_scopes_and_profile(bytes, content_type, source_uri, schema, None)
+}
+
+/// Explicit enclosing format capability for headerless CEM fragments. Authored
+/// leading document constraints take precedence; XML does not consume this option.
+pub fn import_bytes_with_lexical_scopes_and_profile(
+    bytes: &[u8],
+    content_type: &str,
+    source_uri: &str,
+    schema: CompiledSchema,
+    profile: Option<crate::schema::ir::SemVer>,
+) -> Result<ScopedCemImport, String> {
     use crate::{
         events::cem::CemEventNormalizer,
         parser::tree::RetainedCemTree,
@@ -91,16 +103,31 @@ pub fn import_bytes_with_lexical_scopes(
             }
         }
         let text = std::str::from_utf8(bytes).map_err(|error| error.to_string())?;
-        let events = CemEventNormalizer::new(CemTokenizer::from_source(BytesSource::new(
-            SourceId(1),
-            bytes.to_vec(),
-        )));
+        let source = BytesSource::new(SourceId(1), bytes.to_vec());
+        let tokenizer = match profile.clone() {
+            Some(profile) => CemTokenizer::from_source_with_format_profile(source, profile)?,
+            None => CemTokenizer::from_source(source),
+        };
+        let events = CemEventNormalizer::new(tokenizer);
         let captured = CemSchemaMachine::new(schema, events).build_with_lexical_scopes();
+        if let Some(error) = captured
+            .diagnostics()
+            .iter()
+            .find(|d| d.code.starts_with("cem.doc."))
+        {
+            return Err(format!(
+                "Unsupported CEM document admission: {}",
+                error.code
+            ));
+        }
         if captured.document().nodes.len() > super::MAX_DOCUMENT_VALUES {
             return Err("CEM document node import limit exceeded.".into());
         }
         (captured, CemTreeSemantics::default(), None, text)
     } else {
+        if profile.is_some() {
+            return Err("CEM format profiles require native CEM input.".into());
+        }
         let native = Arc::new(super::parse_bytes(
             bytes,
             content_type,
@@ -113,10 +140,11 @@ pub fn import_bytes_with_lexical_scopes(
         let imported = import_xml_ast_with_lexical_scopes(document, schema)?;
         (imported.captured, imported.semantics, Some(native), "")
     };
+    let profile_key = profile.map(|p| p.to_string()).unwrap_or_default();
     semantics.source_fingerprint = Some(super::source_fingerprint(
         source_uri,
         bytes,
-        &["lexical-import/1", content_type],
+        &["lexical-import/2", content_type, &profile_key],
     ));
     let captured = Arc::new(captured);
     let tree = RetainedCemTree::from_shared(

@@ -16,13 +16,11 @@ const packedDeclarations = canonicalTags.map(tag => `src/components/${tag}/${tag
 const packageJsonPath = join(packageRoot, 'package.json');
 const sourcePrimitivesPath = join(packageRoot, 'src', 'lib', 'primitives.ts');
 const builtPrimitivesPath = join(packageRoot, 'dist', 'lib', 'primitives.js');
-const builtAutocompleteBehaviorPath = join(packageRoot, 'dist', 'lib', 'autocomplete-behavior.js');
 const builtExpansionBehaviorPath = join(packageRoot, 'dist', 'lib', 'expansion-behavior.js');
 const builtProgressSpinnerBehaviorPath = join(packageRoot, 'dist', 'lib', 'progress-spinner-behavior.js');
 const builtSortHeaderBehaviorPath = join(packageRoot, 'dist', 'lib', 'sort-header-behavior.js');
 const builtPaginatorBehaviorPath = join(packageRoot, 'dist', 'lib', 'paginator-behavior.js');
 const builtSliderBehaviorPath = join(packageRoot, 'dist', 'lib', 'slider-behavior.js');
-const builtTooltipBehaviorPath = join(packageRoot, 'dist', 'lib', 'tooltip-behavior.js');
 const builtTimepickerBehaviorPath = join(packageRoot, 'dist', 'lib', 'timepicker-behavior.js');
 const builtDatepickerBehaviorPath = join(packageRoot, 'dist', 'lib', 'datepicker-behavior.js');
 const builtTabsBehaviorPath = join(packageRoot, 'dist', 'lib', 'tabs-behavior.js');
@@ -63,12 +61,11 @@ if (suggestions.length !== 1 || suggestions[0].id !== 'suggestions' || suggestio
     throw new Error('public catalog must identify cem-suggestions as one declarative field attachment');
 }
 
-if (!sourcePrimitives.includes("tag: 'cem-autocomplete'")) {
-    throw new Error('source primitive inventory must contain cem-autocomplete');
+if (sourcePrimitives.includes("tag: 'cem-autocomplete'") || builtPrimitives.includes("tag: 'cem-autocomplete'")) {
+    throw new Error('autocomplete must be supplied by its canonical declaration');
 }
-
-if (!builtPrimitives.includes("tag: 'cem-autocomplete'")) {
-    throw new Error('built primitive inventory must contain cem-autocomplete');
+if (existsSync(join(packageRoot, 'dist/lib/autocomplete-behavior.js'))) {
+    throw new Error('retired autocomplete behavior must not ship');
 }
 
 if (!sourcePrimitives.includes("tag: 'cem-divider'")) {
@@ -119,14 +116,6 @@ if (!builtPrimitives.includes("tag: 'cem-slider'")) {
     throw new Error('built primitive inventory must contain cem-slider');
 }
 
-if (!sourcePrimitives.includes("tag: 'cem-tooltip'")) {
-    throw new Error('source primitive inventory must contain cem-tooltip');
-}
-
-if (!builtPrimitives.includes("tag: 'cem-tooltip'")) {
-    throw new Error('built primitive inventory must contain cem-tooltip');
-}
-
 if (!sourcePrimitives.includes("tag: 'cem-timepicker'")) {
     throw new Error('source primitive inventory must contain cem-timepicker');
 }
@@ -167,9 +156,6 @@ if (!builtPrimitives.includes("tag: 'cem-tree'") || !builtPrimitives.includes("t
     throw new Error('built primitive inventory must contain cem-tree and cem-tree-item');
 }
 
-if (!existsSync(builtAutocompleteBehaviorPath)) {
-    throw new Error('built package must contain the autocomplete behavior artifact');
-}
 
 if (!existsSync(builtExpansionBehaviorPath)) {
     throw new Error('built package must contain the expansion behavior artifact');
@@ -189,10 +175,6 @@ if (!existsSync(builtPaginatorBehaviorPath)) {
 
 if (!existsSync(builtSliderBehaviorPath)) {
     throw new Error('built package must contain the slider behavior artifact');
-}
-
-if (!existsSync(builtTooltipBehaviorPath)) {
-    throw new Error('built package must contain the tooltip behavior artifact');
 }
 
 if (!existsSync(builtTimepickerBehaviorPath)) {
@@ -318,14 +300,18 @@ try {
         throw new Error('npm pack must not contain component-owned JavaScript, TypeScript, or CSS beneath src');
     }
 
+    for (const retired of ['feedback-behavior', 'tooltip-behavior']) {
+        if (packedFiles.some(path => path.startsWith(`dist/lib/${retired}.`))) {
+            throw new Error(`npm pack contains retired runtime ${retired}`);
+        }
+    }
+
     for (const artifact of [
-        'dist/lib/autocomplete-behavior.js',
         'dist/lib/expansion-behavior.js',
         'dist/lib/progress-spinner-behavior.js',
         'dist/lib/sort-header-behavior.js',
         'dist/lib/paginator-behavior.js',
         'dist/lib/slider-behavior.js',
-        'dist/lib/tooltip-behavior.js',
         'dist/lib/timepicker-behavior.js',
         'dist/lib/datepicker-behavior.js',
         'dist/lib/tabs-behavior.js',

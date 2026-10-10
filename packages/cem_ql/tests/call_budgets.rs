@@ -178,3 +178,83 @@ fn explicit_execution_scopes_bound_context_call_budgets_and_isolate_siblings() {
         );
     }
 }
+
+#[test]
+fn explicitly_shared_queries_keep_call_work_and_release_completed_depth() {
+    let context = EvaluationContext {
+        execution_budget: Some(Default::default()),
+        scope_policy: ScopePolicy::host_root()
+            .with_cpu_workers(1)
+            .with_queue_size(8),
+        ..Default::default()
+    };
+    let query = compile(
+        "declare function down(n) { if n == 0 { 1 } else { down(n - 1) } } down(15)",
+        &CompileContext::default(),
+    )
+    .unwrap();
+    for _ in 0..8 {
+        assert!(evaluate(&query, &context).error.is_none());
+    }
+    let failed = evaluate(&query, &context);
+    assert_eq!(
+        failed.error,
+        Some(EvalError::BudgetExceeded(BudgetAxis::FunctionCalls))
+    );
+    assert!(failed.items.is_empty());
+}
+
+#[derive(Debug)]
+struct Reenter(cem_ql::ir::CompiledQuery);
+impl NativeQueryFunction for Reenter {
+    fn call(&self, request: NativeQueryRequest<'_>) -> ItemStream {
+        let context = EvaluationContext {
+            execution_budget: Some(request.execution_budget.clone()),
+            scope_policy: ScopePolicy::host_root()
+                .with_cpu_workers(1)
+                .with_queue_size(128),
+            ..Default::default()
+        };
+        // A callback cannot turn an exhausted nested query into successful data.
+        let _ = evaluate_with_control(&self.0, &context, request.control, request.scope);
+        ItemStream::empty()
+    }
+}
+
+#[test]
+fn native_reentry_shares_active_depth_and_cannot_hide_a_nested_budget_failure() {
+    let mut functions = cem_ql::native::NativeFunctionRegistry::default();
+    functions
+        .register(
+            "test.reenter",
+            0,
+            Reenter(
+                compile(
+                    "declare function down(n) { if n == 0 { 1 } else { down(n - 1) } } down(15)",
+                    &CompileContext::default(),
+                )
+                .unwrap(),
+            ),
+        )
+        .unwrap();
+    let query = compile(
+        r#"try { native:call("test.reenter") } catch (code, message) { 99 }"#,
+        &CompileContext::default(),
+    )
+    .unwrap();
+    let result = evaluate(
+        &query,
+        &EvaluationContext {
+            native_functions: functions,
+            scope_policy: ScopePolicy::host_root()
+                .with_cpu_workers(1)
+                .with_queue_size(128),
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        result.error,
+        Some(EvalError::BudgetExceeded(BudgetAxis::CallDepth))
+    );
+    assert!(result.items.is_empty());
+}

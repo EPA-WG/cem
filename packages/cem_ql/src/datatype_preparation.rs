@@ -16,6 +16,7 @@ use cem_ml::{
     },
 };
 use std::{fmt::Debug, ops::Range, sync::Arc};
+mod replacement;
 
 #[derive(Debug, Clone, Copy)]
 pub struct PreparationSignature {
@@ -132,8 +133,11 @@ impl RegisteredLexicalPreparation {
             return None;
         }
         Some(BoundLexicalPreparation {
-            registration: self.clone(),
-            datatype: RetainedCemNode::new(tree, source.node_id())?.query_item(),
+            selected: Arc::new(PreparationStep {
+                registration: self.clone(),
+                datatype: RetainedCemNode::new(tree, source.node_id())?.query_item(),
+            }),
+            inherited: vec![],
         })
     }
 }
@@ -141,18 +145,33 @@ impl RegisteredLexicalPreparation {
 pub enum PreparationBinding {
     Unavailable,
     Ready(RegisteredLexicalPreparation),
+    /// Explicitly retain and check the base's original lexical admission.
+    CheckedReplacement(RegisteredLexicalPreparation),
 }
 #[derive(Debug, Clone)]
-pub struct BoundLexicalPreparation {
+struct PreparationStep {
     registration: RegisteredLexicalPreparation,
     datatype: Item,
 }
+#[derive(Debug, Clone)]
+pub struct BoundLexicalPreparation {
+    selected: Arc<PreparationStep>,
+    inherited: Vec<Arc<PreparationStep>>,
+}
 impl BoundLexicalPreparation {
     pub fn identity(&self) -> &PreparationIdentity {
-        self.registration.identity()
+        self.selected.registration.identity()
     }
     pub fn signature(&self) -> PreparationSignature {
-        self.registration.signature()
+        self.selected.registration.signature()
+    }
+    pub fn invocations(&self) -> usize {
+        self.inherited.len().saturating_add(1)
+    }
+    pub(crate) fn checked_replacement(mut self, base: &Self) -> Self {
+        self.inherited = base.inherited.clone();
+        self.inherited.push(base.selected.clone());
+        self
     }
 }
 #[derive(Debug, Clone)]
@@ -164,6 +183,8 @@ pub struct PreparationInput {
 #[derive(Debug, Clone, Copy)]
 pub struct PreparationLimits {
     pub max_lexical_bytes: usize,
+    /// Shared allowance for selected preparers and inherited admission checks.
+    /// List orchestration includes all selected/inherited tokenizer invocations.
     pub max_preparations: usize,
     pub max_output_values: usize,
     /// Input visits and diagnostics are shared with subsequent validation.
@@ -185,6 +206,7 @@ pub enum PreparationStop {
     MissingCandidate,
     InvalidInput(&'static str),
     InvalidOutput,
+    IncompatibleReplacement,
     Limit(&'static str),
     Control(ControlError),
     Pending,
@@ -212,6 +234,25 @@ impl ExecutableDatatype {
         runtime: &ValidationRuntime<'_>,
         limits: PreparationLimits,
     ) -> DatatypePreparation {
+        self.prepare_phase(input, runtime, limits, true).0
+    }
+    pub(crate) fn prepare_without_validation(
+        &self,
+        input: &PreparationInput,
+        runtime: &ValidationRuntime<'_>,
+        limits: PreparationLimits,
+    ) -> (DatatypePreparation, usize) {
+        self.prepare_phase(input, runtime, limits, false)
+    }
+    fn prepare_phase(
+        &self,
+        input: &PreparationInput,
+        runtime: &ValidationRuntime<'_>,
+        limits: PreparationLimits,
+        validate: bool,
+    ) -> (DatatypePreparation, usize) {
+        let shared_runtime = runtime.with_query_budget();
+        let runtime = &shared_runtime;
         let mut report = DatatypePreparation {
             input: input.clone(),
             preparer: self.preparation().map(|p| p.identity().clone()),
@@ -223,11 +264,12 @@ impl ExecutableDatatype {
             preparations: 0,
             stopped: None,
         };
-        if let Err(stop) = prepare(self, input, runtime, limits, &mut report) {
+        let mut visits = 0;
+        if let Err(stop) = prepare(self, input, runtime, limits, &mut report, &mut visits, validate) {
             report.stopped = Some(stop);
             report.accepted = None;
         }
-        report
+        (report, visits)
     }
 }
 fn check(runtime: &ValidationRuntime<'_>) -> Result<(), PreparationStop> {
@@ -248,19 +290,26 @@ fn candidate(
     {
         return Err(PreparationStop::InvalidInput("candidate"));
     }
-    if selected.signature().candidate == CandidateRequirement::Required
+    if selected
+        .inherited
+        .iter()
+        .chain(std::iter::once(&selected.selected))
+        .any(|step| step.registration.signature().candidate == CandidateRequirement::Required)
         && input.candidate.is_empty()
     {
         return Err(PreparationStop::MissingCandidate);
     }
     Ok(())
 }
+#[allow(clippy::too_many_arguments)]
 fn prepare(
     d: &ExecutableDatatype,
     input: &PreparationInput,
     runtime: &ValidationRuntime<'_>,
     limits: PreparationLimits,
     report: &mut DatatypePreparation,
+    visits: &mut usize,
+    validate: bool,
 ) -> Result<(), PreparationStop> {
     check(runtime)?;
     if input.lexical.text.len() > limits.max_lexical_bytes {
@@ -276,8 +325,7 @@ fn prepare(
     if attribution.source_map.is_none() {
         attribution.source_map = Some(input.lexical.source.clone());
     }
-    let mut visits = 0usize;
-    let values = match &selected.registration.implementation {
+    let values = match &selected.selected.registration.implementation {
         Implementation::Scalar(_) => scalar(
             selected,
             input,
@@ -287,7 +335,7 @@ fn prepare(
             limits,
             &attribution,
             report,
-            &mut visits,
+            visits,
         )?,
         Implementation::ListItems => {
             let item = d
@@ -295,29 +343,58 @@ fn prepare(
                 .and_then(|item| item.preparation())
                 .ok_or(PreparationStop::NoPreparation)?;
             candidate(item, input)?;
-            spend(report, limits)?;
             let tokenizer = d.tokenizer().ok_or(PreparationStop::Unavailable)?;
-            let tokens = tokenizer
-                .tokenize(
-                    Some(input.lexical.clone()),
-                    runtime.control,
-                    runtime.scope,
-                    TokenizationLimits {
-                        max_bytes: limits.max_lexical_bytes,
-                        max_tokens: limits.max_output_values,
-                    },
-                )
-                .map_err(|e| match e {
-                    TokenizationError::Control(e) => PreparationStop::Control(e),
-                    TokenizationError::Limit => PreparationStop::Limit("tokenization"),
-                    _ => PreparationStop::Failed,
-                })?;
+            let cost = selected
+                .invocations()
+                .saturating_add(tokenizer.invocations() - 1);
+            if report.preparations.saturating_add(cost) > limits.max_preparations {
+                return Err(PreparationStop::Limit("preparations"));
+            }
+            report.preparations += cost;
+            let tokens = match tokenizer.tokenize(
+                Some(input.lexical.clone()),
+                runtime.control,
+                runtime.scope,
+                TokenizationLimits {
+                    max_bytes: limits.max_lexical_bytes,
+                    max_tokens: limits.max_output_values,
+                    max_tokenizers: tokenizer.invocations(),
+                },
+            ) {
+                Ok(tokens) => tokens,
+                Err(TokenizationError::Rejected) => {
+                    report.accepted = Some(false);
+                    return Ok(());
+                }
+                Err(e) => {
+                    return Err(match e {
+                        TokenizationError::Control(e) => PreparationStop::Control(e),
+                        TokenizationError::Limit => PreparationStop::Limit("tokenization"),
+                        TokenizationError::IncompatibleReplacement => {
+                            PreparationStop::IncompatibleReplacement
+                        }
+                        _ => PreparationStop::Failed,
+                    })
+                }
+            };
             report.token_spans = tokens.tokens;
             // Preflight cumulative invocation count before any item callback.
-            if report.preparations.saturating_add(report.token_spans.len())
+            if report
+                .preparations
+                .saturating_add(report.token_spans.len().saturating_mul(item.invocations()))
                 > limits.max_preparations
             {
                 return Err(PreparationStop::Limit("preparations"));
+            }
+            if visits.saturating_add(
+                report
+                    .token_spans
+                    .len()
+                    .saturating_mul(item.invocations())
+                    .saturating_mul(1 + input.candidate.len()),
+            ) > limits.validation.max_input_values
+            {
+                return Err(PreparationStop::Limit("input-values"));
             }
             let mut values = Vec::with_capacity(report.token_spans.len());
             for index in 0..report.token_spans.len() {
@@ -335,7 +412,7 @@ fn prepare(
                     limits,
                     &attribution,
                     report,
-                    &mut visits,
+                    visits,
                 )?
                 else {
                     return Ok(());
@@ -349,6 +426,10 @@ fn prepare(
         return Ok(());
     };
     check(runtime)?;
+    if !validate {
+        report.value = Some(values);
+        return Ok(());
+    }
     let validation = d.validate(
         &ValidationInput {
             value: values.clone(),
@@ -358,7 +439,7 @@ fn prepare(
         runtime,
         ValidationLimits {
             max_diagnostics: limits.validation.max_diagnostics - report.diagnostics.len(),
-            max_input_values: limits.validation.max_input_values - visits,
+            max_input_values: limits.validation.max_input_values - *visits,
             ..limits.validation
         },
     );
@@ -389,6 +470,67 @@ fn scalar(
     report: &mut DatatypePreparation,
     visits: &mut usize,
 ) -> Result<Option<Vec<Item>>, PreparationStop> {
+    candidate(selected, input)?;
+    if report.preparations.saturating_add(selected.invocations()) > limits.max_preparations {
+        return Err(PreparationStop::Limit("preparations"));
+    }
+    if visits.saturating_add(
+        selected
+            .invocations()
+            .saturating_mul(1 + input.candidate.len()),
+    ) > limits.validation.max_input_values
+    {
+        return Err(PreparationStop::Limit("input-values"));
+    }
+    let mut expected = None;
+    let mut result = None;
+    for step in selected
+        .inherited
+        .iter()
+        .chain(std::iter::once(&selected.selected))
+    {
+        let Some(value) = scalar_step(
+            step,
+            input,
+            lexical,
+            token_span.clone(),
+            runtime,
+            limits,
+            attribution,
+            report,
+            visits,
+        )?
+        else {
+            return Ok(None);
+        };
+        if !selected.inherited.is_empty() {
+            let fingerprint = replacement::fingerprint(
+                &value[0],
+                input,
+                token_span.as_ref(),
+                limits.max_lexical_bytes,
+            )?;
+            if expected.as_ref().is_some_and(|base| base != &fingerprint) {
+                return Err(PreparationStop::IncompatibleReplacement);
+            }
+            expected = Some(fingerprint);
+        }
+        result = Some(value);
+    }
+    Ok(result)
+}
+#[allow(clippy::too_many_arguments)]
+fn scalar_step(
+    selected: &PreparationStep,
+    input: &PreparationInput,
+    lexical: &LexicalInput,
+    token_span: Option<Range<usize>>,
+    runtime: &ValidationRuntime<'_>,
+    limits: PreparationLimits,
+    attribution: &DiagnosticAttribution,
+    report: &mut DatatypePreparation,
+    visits: &mut usize,
+) -> Result<Option<Vec<Item>>, PreparationStop> {
     check(runtime)?;
     spend(report, limits)?;
     *visits = visits.saturating_add(1 + input.candidate.len());
@@ -401,16 +543,23 @@ fn scalar(
     let Implementation::Scalar(implementation) = &selected.registration.implementation else {
         return Err(PreparationStop::InvalidOutput);
     };
-    let execution = implementation.prepare(PreparationCall {
-        original: &input.lexical,
-        lexical,
-        token_span,
-        datatype: &selected.datatype,
-        candidate: &input.candidate,
-        runtime,
-        limits,
-    });
+    let execution = if let Some(failure) = runtime.query_failure() {
+        PreparationExecution::Failed(failure.diagnostics)
+    } else {
+        implementation.prepare(PreparationCall {
+            original: &input.lexical,
+            lexical,
+            token_span,
+            datatype: &selected.datatype,
+            candidate: &input.candidate,
+            runtime,
+            limits,
+        })
+    };
     check(runtime)?;
+    let execution = runtime.query_failure().map_or(execution, |failure| {
+        PreparationExecution::Failed(failure.diagnostics)
+    });
     let (value, diagnostics, stop) = match execution {
         PreparationExecution::Prepared { value, diagnostics } => (Some(value), diagnostics, None),
         PreparationExecution::Rejected(d) => (None, d, None),
@@ -439,7 +588,7 @@ fn scalar(
         report.accepted = Some(false);
         return Ok(None);
     };
-    let ValueRepresentation::Scalar(expected) = selected.signature().output else {
+    let ValueRepresentation::Scalar(expected) = selected.registration.signature().output else {
         return Err(PreparationStop::InvalidOutput);
     };
     if value.len() != 1 || !datatype_validation::scalar(&value[0], expected) {

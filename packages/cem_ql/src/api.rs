@@ -316,6 +316,7 @@ pub fn evaluate_expression(
             module_resolution: context.module_resolution.clone(),
             native_functions: context.native_functions.clone(),
             data_readers: Default::default(),
+            execution_budget: None,
         },
     );
     Ok(ExpressionEvaluation { compiled, result })
@@ -467,6 +468,8 @@ impl std::error::Error for CompileError {}
 
 #[derive(Debug, Clone)]
 pub struct EvaluationContext {
+    /// Runtime-only cumulative work for queries in one enclosing invocation.
+    pub execution_budget: Option<crate::eval::QueryExecutionBudget>,
     pub scope: QueryContextScope,
     pub scope_policy: ScopePolicy,
     pub diagnostics: Vec<Diagnostic>,
@@ -484,6 +487,7 @@ impl Default for EvaluationContext {
     fn default() -> Self {
         Self {
             scope: QueryContextScope(0),
+            execution_budget: None,
             scope_policy: ScopePolicy::host_root(),
             diagnostics: Vec::new(),
             policy_bindings: BTreeMap::new(),

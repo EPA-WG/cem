@@ -118,11 +118,20 @@ where
         source: SchemaDeclarationNode,
         limits: ReferenceTraversalLimits,
     ) -> Result<Option<DiscoveredInputSchemaRegion>, ReferenceResolutionError> {
-        let contract = validate_schema_scope_controls(
-            source.clone(),
-            |source| self.host.consuming_expanded_name(source).cloned(),
-            self.host.captured_schema_element_form(&source),
-        );
+        self.host.check_operation()?;
+        let contract = self
+            .host
+            .captured_schema_preludes
+            .get(&(Arc::as_ptr(source.document()) as usize))
+            .and_then(|contracts| contracts.get(&source.node_id()))
+            .cloned()
+            .unwrap_or_else(|| {
+                validate_schema_scope_controls(
+                    source.clone(),
+                    |source| self.host.consuming_expanded_name(source).cloned(),
+                    self.host.captured_schema_element_form(&source),
+                )
+            });
         if !contract.has_override() {
             return Ok(None);
         }
@@ -144,6 +153,7 @@ where
             let context = (self.context)(SchemaHostRuntimeContextRequest::Body(inputs.region()));
             inputs = inputs.with_context(context);
         }
+        self.host.check_operation()?;
         let ready = inputs.is_ready();
         let following = inputs.region().contract.extent() == SchemaScopeControlExtent::Following;
         if following {
@@ -232,6 +242,7 @@ where
     type Node = CemQlSchemaReferenceNode;
     type Scope = Option<DeclarationScope>;
     fn prepare_node(&mut self, node: &mut Self::Node) -> Result<(), ReferenceResolutionError> {
+        self.host.prepare_node(node)?;
         let Some(source) = &node.source else {
             return Ok(());
         };
@@ -313,10 +324,7 @@ where
     ) -> Option<&'a ExpandedName> {
         SchemaDeclarationHost::input_expanded_name(self.host, source)
     }
-    fn input_source_tree(
-        &self,
-        source: &SchemaDeclarationNode,
-    ) -> Option<Arc<RetainedCemTree>> {
+    fn input_source_tree(&self, source: &SchemaDeclarationNode) -> Option<Arc<RetainedCemTree>> {
         SchemaDeclarationHost::input_source_tree(self.host, source)
     }
     fn source_reference(&self, source: SchemaDeclarationNode) -> Self::Node {
@@ -413,6 +421,7 @@ impl CemQlSchemaDeclarationHost {
             SchemaHostRuntimeContextRequest<'a>,
         ) -> Option<StandaloneExpressionContext>,
     {
+        self.check_operation()?;
         let original_assignments = self.node_scopes.clone();
         let mut host = RuntimeHost {
             host: self,
@@ -451,6 +460,7 @@ impl CemQlSchemaDeclarationHost {
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.severity.is_hard_violation());
+        host.host.check_operation()?;
         Ok(SchemaHostRuntimeValidation {
             validation,
             inputs: std::mem::take(&mut host.inputs),

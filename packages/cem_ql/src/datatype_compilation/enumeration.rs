@@ -65,10 +65,14 @@ impl<H: DatatypeDependencyHost> Compiler<'_, '_, H> {
     pub(super) fn prepare_enumeration(
         &mut self,
         descriptor: &ExecutableDatatype,
-        attribute: &SchemaDeclarationNode,
+        plan: &DatatypeSourcePlan,
     ) -> Result<EnumerationRestriction, DatatypeCompilationIssue> {
-        let fail = |code| pending(code, attribute);
-        let malformed = |code| invalid(code, attribute);
+        let vocabulary_source = descriptor
+            .source
+            .attribute("values")
+            .unwrap_or_else(|| descriptor.source.declaration());
+        let fail = |code| pending(code, vocabulary_source);
+        let malformed = |code| invalid(code, vocabulary_source);
         let (Some(EqualityBinding::Ready(equality)), Some(ConstantBinding::Ready(interpreter))) =
             (&descriptor.equality, &descriptor.interpreter)
         else {
@@ -77,29 +81,13 @@ impl<H: DatatypeDependencyHost> Compiler<'_, '_, H> {
         let runtime = self
             .runtime
             .ok_or_else(|| fail("datatype-constant-context-unavailable"))?;
-        let check = || {
-            runtime
-                .control
-                .check_scope(runtime.scope)
-                .map_err(|_| fail("datatype-constant-control"))
-        };
-        check()?;
+        runtime
+            .control
+            .check_scope(runtime.scope)
+            .map_err(|_| fail("datatype-constant-control"))?;
         let ValueRepresentation::Scalar(representation) = descriptor.representation else {
             return Err(malformed("unsupported-datatype-facet"));
         };
-        let lexical = match attribute.node() {
-            CemAstNode::Attribute {
-                value: Some(value),
-                value_nodes,
-                ..
-            } if value_nodes.is_empty() => value.as_str(),
-            _ => return Err(malformed("datatype-values-require-literal-tokens")),
-        };
-        if lexical.len() > self.preparation.max_lexical_bytes {
-            return Err(fail("datatype-constant-byte-limit"));
-        }
-        self.preparation.max_lexical_bytes -= lexical.len();
-        let lexical: Arc<str> = Arc::from(lexical);
         let equality = equality
             .bind(
                 self.host
@@ -114,92 +102,165 @@ impl<H: DatatypeDependencyHost> Compiler<'_, '_, H> {
                     .ok_or_else(|| fail("constant-source-owner-unavailable"))?,
             )
             .ok_or_else(|| malformed("constant-source-owner"))?;
-        let tree = self
-            .host
-            .input_source_tree(attribute)
-            .filter(|t| Arc::ptr_eq(t.ast_owner(), attribute.document()))
-            .ok_or_else(|| fail("datatype-source-owner-unavailable"))?;
-        let candidate = RetainedCemNode::new(tree, attribute.node_id())
-            .ok_or_else(|| malformed("datatype-source-owner"))?
-            .query_item();
-        let attribution = DiagnosticAttribution::from_node(&candidate);
+        let fields = if let Some(attribute) = descriptor.source.attribute("values") {
+            vec![(attribute.clone(), None)]
+        } else {
+            self.retained_constant_fields(plan)?
+                .into_iter()
+                .map(|(field, declaration)| (field, Some(declaration)))
+                .collect()
+        };
         let mut constants = vec![];
-        // Offsets are byte ranges in the decoded value; source ownership stays on the attribute.
-        let mut start = None;
-        for (position, (index, ch)) in lexical
-            .char_indices()
-            .chain(std::iter::once((lexical.len(), ' ')))
-            .enumerate()
-        {
-            if position % 64 == 0 {
-                check()?;
-            }
-            if !ch.is_whitespace() {
-                start.get_or_insert(index);
-                continue;
-            }
-            let Some(start) = start.take() else { continue };
-            if self.preparation.max_constants == 0 {
-                return Err(fail("datatype-constant-count-limit"));
-            }
-            self.preparation.max_constants -= 1;
-            self.spend(1, attribute)?;
-            check()?;
-            let token = ConstantToken {
-                source: attribute.clone(),
-                lexical: lexical.clone(),
-                span: start..index,
+        for (attribute, declaration) in fields {
+            let fail = |code| pending(code, &attribute);
+            let malformed = |code| invalid(code, &attribute);
+            let lexical = match attribute.node() {
+                CemAstNode::Attribute {
+                    value: Some(value),
+                    value_nodes,
+                    ..
+                } if value_nodes.is_empty() => value.as_str(),
+                _ => return Err(malformed("datatype-values-require-literal-tokens")),
             };
-            let execution = interpreter
-                .registration
-                .implementation
-                .interpret(ConstantCall {
-                    token: &token,
-                    candidate: &candidate,
-                    fallback: &attribution,
-                    limits: self.preparation.validation,
-                    datatype: &interpreter.datatype,
-                    runtime,
+            if lexical.len() > self.preparation.max_lexical_bytes {
+                return Err(fail("datatype-constant-byte-limit"));
+            }
+            self.preparation.max_lexical_bytes -= lexical.len();
+            let lexical: Arc<str> = Arc::from(lexical);
+            let tree = self
+                .host
+                .input_source_tree(&attribute)
+                .filter(|t| Arc::ptr_eq(t.ast_owner(), attribute.document()))
+                .ok_or_else(|| fail("datatype-source-owner-unavailable"))?;
+            let candidate = RetainedCemNode::new(tree, attribute.node_id())
+                .ok_or_else(|| malformed("datatype-source-owner"))?
+                .query_item();
+            let attribution = DiagnosticAttribution::from_node(&candidate);
+            let mut spans = vec![];
+            let form = if declaration.is_some() {
+                if self.preparation.max_constants == 0 {
+                    return Err(fail("datatype-constant-count-limit"));
+                }
+                spans.push(0..lexical.len());
+                ConstantForm::RetainedLiteral
+            } else {
+                let mut start = None;
+                for (position, (index, ch)) in lexical
+                    .char_indices()
+                    .chain(std::iter::once((lexical.len(), ' ')))
+                    .enumerate()
+                {
+                    if position % 64 == 0 {
+                        runtime
+                            .control
+                            .check_scope(runtime.scope)
+                            .map_err(|_| fail("datatype-constant-control"))?;
+                    }
+                    if !ch.is_whitespace() {
+                        start.get_or_insert(index);
+                        continue;
+                    }
+                    let Some(start) = start.take() else { continue };
+                    if spans.len() >= self.preparation.max_constants {
+                        return Err(fail("datatype-constant-count-limit"));
+                    }
+                    spans.push(start..index);
+                }
+                ConstantForm::WhitespaceToken
+            };
+            for span in spans {
+                self.preparation.max_constants -= 1;
+                self.spend(1, &attribute)?;
+                let token = ConstantToken {
+                    source: attribute.clone(),
+                    lexical: lexical.clone(),
+                    span,
+                    form,
+                };
+                let execution = interpreter
+                    .registration
+                    .implementation
+                    .interpret(ConstantCall {
+                        token: &token,
+                        candidate: &candidate,
+                        fallback: &attribution,
+                        limits: self.preparation.validation,
+                        datatype: &interpreter.datatype,
+                        runtime,
+                    });
+                runtime
+                    .control
+                    .check_scope(runtime.scope)
+                    .map_err(|_| fail("datatype-constant-control"))?;
+                if let Some(failure) = runtime.query_failure() {
+                    self.diagnostics.extend(failure.diagnostics);
+                    return Err(fail("datatype-constant-query-budget"));
+                }
+                let (value, mut diagnostics, issue) = match execution {
+                    ConstantExecution::Prepared { value, diagnostics } => {
+                        (Some(value), diagnostics, None)
+                    }
+                    ConstantExecution::Rejected(d) => {
+                        (None, d, Some(malformed("datatype-constant-rejected")))
+                    }
+                    ConstantExecution::Pending(d) => {
+                        (None, d, Some(fail("datatype-constant-pending")))
+                    }
+                    ConstantExecution::Unavailable(d) => {
+                        (None, d, Some(fail("datatype-constant-unavailable")))
+                    }
+                    ConstantExecution::Failed(d) => {
+                        (None, d, Some(fail("datatype-constant-failed")))
+                    }
+                };
+                if diagnostics.len() > self.preparation.validation.max_diagnostics {
+                    return Err(fail("datatype-constant-diagnostic-limit"));
+                }
+                self.preparation.validation.max_diagnostics -= diagnostics.len();
+                attribute_diagnostics(&mut diagnostics, &attribution, runtime)
+                    .map_err(|_| fail("datatype-constant-control"))?;
+                self.diagnostics.extend(diagnostics);
+                if let Some(issue) = issue {
+                    return Err(issue);
+                }
+                let value = value.unwrap();
+                if declaration.is_some() {
+                    use crate::eval::{AtomValue, Item};
+                    let [scalar] = value.as_slice() else {
+                        return Err(malformed("datatype-constant-representation"));
+                    };
+                    let bytes = match scalar {
+                        Item::Atomic(
+                            AtomValue::String(s) | AtomValue::Decimal(s) | AtomValue::AnyUri(s),
+                        ) => s.len(),
+                        Item::Atomic(_) => 0,
+                        _ => crate::typed_scalar::immutable_storage(scalar)
+                            .ok_or_else(|| malformed("datatype-constant-immutable-value-required"))?
+                            .0
+                            .len(),
+                    };
+                    if bytes > self.preparation.max_retained_value_bytes {
+                        return Err(fail("datatype-constant-value-byte-limit"));
+                    }
+                    self.preparation.max_retained_value_bytes -= bytes;
+                }
+                if value.len() != 1 || !datatype_validation::scalar(&value[0], representation) {
+                    return Err(malformed("datatype-constant-representation"));
+                }
+                self.validate_constant(descriptor, &value, &candidate, &attribution, &attribute)?;
+                constants.push(PreparedConstant {
+                    token,
+                    value: value[0].clone(),
+                    declaration: declaration.clone(),
                 });
-            check()?;
-            let (value, mut diagnostics, issue) = match execution {
-                ConstantExecution::Prepared { value, diagnostics } => {
-                    (Some(value), diagnostics, None)
-                }
-                ConstantExecution::Rejected(d) => {
-                    (None, d, Some(malformed("datatype-constant-rejected")))
-                }
-                ConstantExecution::Pending(d) => (None, d, Some(fail("datatype-constant-pending"))),
-                ConstantExecution::Unavailable(d) => {
-                    (None, d, Some(fail("datatype-constant-unavailable")))
-                }
-                ConstantExecution::Failed(d) => (None, d, Some(fail("datatype-constant-failed"))),
-            };
-            if diagnostics.len() > self.preparation.validation.max_diagnostics {
-                return Err(fail("datatype-constant-diagnostic-limit"));
             }
-            self.preparation.validation.max_diagnostics -= diagnostics.len();
-            attribute_diagnostics(&mut diagnostics, &attribution, runtime)
-                .map_err(|_| fail("datatype-constant-control"))?;
-            self.diagnostics.extend(diagnostics);
-            if let Some(issue) = issue {
-                return Err(issue);
-            }
-            let value = value.unwrap();
-            if value.len() != 1 || !datatype_validation::scalar(&value[0], representation) {
-                return Err(malformed("datatype-constant-representation"));
-            }
-            self.validate_constant(descriptor, &value, &candidate, &attribution, attribute)?;
-            constants.push(PreparedConstant {
-                token,
-                value: value[0].clone(),
-            });
         }
         if constants.is_empty() {
             return Err(malformed("datatype-empty-vocabulary"));
         }
         Ok(EnumerationRestriction {
             source: descriptor.source.clone(),
+            vocabulary_source: vocabulary_source.clone(),
             constants,
             equality,
             interpreter,

@@ -497,12 +497,38 @@ pub(crate) fn attrs(
     source: &SchemaDeclarationNode,
     allowed: &[&str],
 ) -> Result<BTreeMap<String, String>, ValueContractError> {
+    attrs_except(input, source, allowed, None)
+}
+/// Omit only an already-consumed original scalar slot. All field names and
+/// duplicates still pass the ordinary closed-profile checks.
+pub(crate) fn attrs_except(
+    input: &ValueContractSource,
+    source: &SchemaDeclarationNode,
+    allowed: &[&str],
+    consumed: Option<&SchemaDeclarationNode>,
+) -> Result<BTreeMap<String, String>, ValueContractError> {
     let CemAstNode::Element { attributes, .. } = source.node() else {
         return Err(ValueContractError::at("element-required", source));
     };
     let mut result = BTreeMap::new();
+    let mut seen = BTreeSet::new();
     for id in attributes {
         let a = SchemaDeclarationNode::new(source.document().clone(), *id).unwrap();
+        let expanded_name = input
+            .name(&a)
+            .ok_or_else(|| ValueContractError::at("pending-source-name", &a))?;
+        if (!expanded_name.namespace_uri.is_empty()
+            && expanded_name.namespace_uri != CEM_SCHEMA_URI)
+            || !allowed.contains(&expanded_name.local_name.as_str())
+        {
+            return Err(ValueContractError::at("unknown-source-field", &a));
+        }
+        if !seen.insert(expanded_name.local_name.clone()) {
+            return Err(ValueContractError::at("duplicate-source-field", &a));
+        }
+        if consumed.is_some_and(|slot| slot.identity() == a.identity()) {
+            continue;
+        }
         let CemAstNode::Attribute {
             value: Some(value),
             value_nodes,
@@ -514,21 +540,7 @@ pub(crate) fn attrs(
         if !value_nodes.is_empty() {
             return Err(ValueContractError::at("literal-field-required", &a));
         }
-        let expanded_name = input
-            .name(&a)
-            .ok_or_else(|| ValueContractError::at("pending-source-name", &a))?;
-        if (!expanded_name.namespace_uri.is_empty()
-            && expanded_name.namespace_uri != CEM_SCHEMA_URI)
-            || !allowed.contains(&expanded_name.local_name.as_str())
-        {
-            return Err(ValueContractError::at("unknown-source-field", &a));
-        }
-        if result
-            .insert(expanded_name.local_name.clone(), value.clone())
-            .is_some()
-        {
-            return Err(ValueContractError::at("duplicate-source-field", &a));
-        }
+        result.insert(expanded_name.local_name.clone(), value.clone());
     }
     Ok(result)
 }

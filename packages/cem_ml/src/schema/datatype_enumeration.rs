@@ -6,6 +6,7 @@ use super::{
         ScalarRepresentation, ValidationImplementation, ValidationSignature, ValueRepresentation,
     },
     declaration_references::SchemaDeclarationNode,
+    function_references::{FunctionSelection, FunctionSelectionBudget},
     value_contracts::{ContractName, ValueContractError, ValueContractSource},
 };
 macro_rules! contract {
@@ -17,6 +18,30 @@ macro_rules! contract {
             result: ContractName,
         }
         impl $name {
+            pub fn compile_selected(
+                selection: &FunctionSelection,
+                representation: ScalarRepresentation,
+                result: ContractName,
+                budget: &mut FunctionSelectionBudget,
+            ) -> Result<Self, ValueContractError> {
+                let input: fn(ScalarRepresentation) -> ScalarRepresentation = $input;
+                let source = DatatypeBehaviorContract::compile_selected_profile(
+                    selection,
+                    ValidationSignature {
+                        kind: DatatypeKind::Scalar,
+                        value: ValueRepresentation::Scalar(input(representation)),
+                        candidate: CandidateRequirement::Required,
+                        result: ResultRepresentation::Accepted(result.clone()),
+                    },
+                    BehaviorProfile::$profile,
+                    budget,
+                )?;
+                Ok(Self {
+                    source,
+                    representation,
+                    result,
+                })
+            }
             pub fn compile(
                 source: &ValueContractSource,
                 behavior: &SchemaDeclarationNode,

@@ -14,7 +14,7 @@ describe('cem-element declarative capability contract', () => {
         expect(Object.keys(CEM_DECLARATIVE_CAPABILITIES)).toEqual(['suggestions', 'native-surface', 'form-control', 'popup', 'action-control', 'action-command', 'composite-menu', 'choice-select']);
         expect(CEM_DECLARATIVE_CAPABILITIES.suggestions.behaviorIdentity).toBe('cem-elements-suggestions-v1');
         expect(CEM_DECLARATIVE_CAPABILITIES.suggestions.behavior.formAssociated).toBeUndefined();
-        expect(CEM_DECLARATIVE_CAPABILITIES['native-surface'].behaviorIdentity).toBe('cem-elements-native-surface-v2');
+        expect(CEM_DECLARATIVE_CAPABILITIES['native-surface'].behaviorIdentity).toBe('cem-elements-native-surface-v5');
         expect(CEM_DECLARATIVE_CAPABILITIES['form-control'].behaviorIdentity).toBe('cem-elements-form-control-v3');
         expect(CEM_DECLARATIVE_CAPABILITIES['choice-select'].behaviorIdentity).toBe(
             'cem-elements-choice-select-v1',

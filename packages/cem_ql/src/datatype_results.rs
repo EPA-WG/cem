@@ -142,6 +142,12 @@ impl DiagnosticAttribution {
                 attribution.column = (range.column > 0).then_some(range.column);
             }
         }
+        if attribution.uri.is_none() {
+            attribution.uri = node
+                .view()
+                .and_then(|view| view.provenance())
+                .and_then(|source| source.source_uri);
+        }
         if attribution.byte_offset.is_none() {
             attribution.byte_offset = attribution
                 .source_map

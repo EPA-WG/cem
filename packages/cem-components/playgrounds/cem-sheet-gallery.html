@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>cem-sheet: Full examples and variation matrix</title>
+<script type="importmap">{
+    "imports": {
+        "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
+        "@epa-wg/cem-components": "../dist/lib/primitives.js",
+        "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
+        "@epa-wg/cem-components/styles.css": "../dist/styles.css",
+        "@epa-wg/cem-components/components/cem-action": "../src/components/cem-action/cem-action.xhtml",
+        "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
+        "@epa-wg/cem-components/action-playground": "./cem-action.html",
+        "@epa-wg/cem-components/components/cem-theme-switch": "../src/components/cem-theme-switch/cem-theme-switch.xhtml",
+        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
+        "@epa-wg/cem-components/components/cem-select": "../src/components/cem-select/cem-select.xhtml",
+        "@epa-wg/cem-components/components/cem-checkbox": "../src/components/cem-checkbox/cem-checkbox.xhtml",
+        "@epa-wg/cem-components/components/cem-radio": "../src/components/cem-radio/cem-radio.xhtml",
+        "@epa-wg/cem-components/components/cem-switch": "../src/components/cem-switch/cem-switch.xhtml",
+        "@epa-wg/cem-components/components/cem-autocomplete": "../src/components/cem-autocomplete/cem-autocomplete.xhtml",
+        "@epa-wg/cem-components/components/cem-icon-button": "../src/components/cem-icon-button/cem-icon-button.xhtml",
+        "@epa-wg/cem-components/components/cem-menu-item": "../src/components/cem-menu-item/cem-menu-item.xhtml",
+        "@epa-wg/cem-components/components/cem-field": "../src/components/cem-field/cem-field.xhtml",
+        "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml",
+        "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml",
+        "@epa-wg/cem-components/components/cem-textarea": "../src/components/cem-textarea/cem-textarea.xhtml",
+        "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "./assets/wc-square.svg",
+        "@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml": "./cem-gallery-nav.xhtml",
+        "@epa-wg/cem-components/components/cem-menu": "../src/components/cem-menu/cem-menu.xhtml",
+        "@epa-wg/cem-components/components/cem-dropdown": "../src/components/cem-dropdown/cem-dropdown.xhtml",
+        "@epa-wg/cem-components/components/cem-dialog": "../src/components/cem-dialog/cem-dialog.xhtml",
+        "@epa-wg/cem-components/components/cem-dialog-shell": "../src/components/cem-dialog-shell/cem-dialog-shell.xhtml",
+        "@epa-wg/cem-components/components/cem-sheet": "../src/components/cem-sheet/cem-sheet.xhtml",
+        "@epa-wg/cem-components/components/cem-tooltip": "../src/components/cem-tooltip/cem-tooltip.xhtml"
+    }
+}</script>
+<script type="module">
+import { installCemElementRuntime } from '@epa-wg/cem-elements';
+import { installCemComponentPrimitives } from '@epa-wg/cem-components';
+import '@epa-wg/cem-demo-element';
+const runtime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
+window.cemPlaygroundRuntime = runtime;
+await installCemComponentPrimitives(runtime);
+</script>
+<link rel="stylesheet" href="../demo.css">
+<style>body { margin: 0; font-family: system-ui, sans-serif; } #playground-theme { padding: var(--cem-inset-container); } main, .properties { display: grid; gap: var(--cem-gap-group); } [data-gallery-theme] { padding: var(--cem-inset-container); background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } cem-demo-element { display: block; margin-block: var(--cem-gap-group); }</style>
+</head><body>
+<cem-element hidden><template type="text/cem-ml">
+{cem-module-url @slice=cemautocompleteUrl @src="@epa-wg/cem-components/components/cem-autocomplete"}
+{cem:if @test="datadom.slices.cemautocompleteUrl" | {cem-element @tag=cem-autocomplete @capability=editable-choice @src="{$datadom.slices.cemautocompleteUrl}#cem-autocomplete"}}
+</template></cem-element>
+<cem-element hidden><template type="text/cem-ml">
+{cem-module-url @slice=cemcheckboxUrl @src="@epa-wg/cem-components/components/cem-checkbox"}
+{cem:if @test="datadom.slices.cemcheckboxUrl" | {cem-element @tag=cem-checkbox @capability=checkable-control @src="{$datadom.slices.cemcheckboxUrl}#cem-checkbox"}}
+{cem-module-url @slice=cemradioUrl @src="@epa-wg/cem-components/components/cem-radio"}
+{cem:if @test="datadom.slices.cemradioUrl" | {cem-element @tag=cem-radio @src="{$datadom.slices.cemradioUrl}#cem-radio"}}
+{cem-module-url @slice=cemswitchUrl @src="@epa-wg/cem-components/components/cem-switch"}
+{cem:if @test="datadom.slices.cemswitchUrl" | {cem-element @tag=cem-switch @src="{$datadom.slices.cemswitchUrl}#cem-switch"}}
+</template></cem-element>
+<cem-element hidden><template type="text/cem-ml">{cem-module-url @slice=cemdialogUrl @src="@epa-wg/cem-components/components/cem-dialog"}
+{cem:if @test="datadom.slices.cemdialogUrl" | {cem-element @tag=cem-dialog @capability=native-surface @src="{$datadom.slices.cemdialogUrl}#cem-dialog"}}
+{cem-module-url @slice=cemdialogshellUrl @src="@epa-wg/cem-components/components/cem-dialog-shell"}
+{cem:if @test="datadom.slices.cemdialogshellUrl" | {cem-element @tag=cem-dialog-shell @capability=native-surface @src="{$datadom.slices.cemdialogshellUrl}#cem-dialog-shell"}}
+{cem-module-url @slice=cemtooltipUrl @src="@epa-wg/cem-components/components/cem-tooltip"}
+{cem:if @test="datadom.slices.cemtooltipUrl" | {cem-element @tag=cem-tooltip @capability=native-surface @src="{$datadom.slices.cemtooltipUrl}#cem-tooltip"}}
+{cem-module-url @slice=cemfieldUrl @src="@epa-wg/cem-components/components/cem-field"}
+{cem:if @test="datadom.slices.cemfieldUrl" | {cem-element @tag=cem-field @capability=form-control @src="{$datadom.slices.cemfieldUrl}#cem-field"}}
+{cem-module-url @slice=cemactionUrl @src="@epa-wg/cem-components/components/cem-action"}
+{cem:if @test="datadom.slices.cemactionUrl" | {cem-element @tag=cem-action @capability=action-command @src="{$datadom.slices.cemactionUrl}#cem-action"}}
+{cem-module-url @slice=cemmenuUrl @src="@epa-wg/cem-components/components/cem-menu"}
+{cem:if @test="datadom.slices.cemmenuUrl" | {cem-element @tag=cem-menu @capability=composite-menu @src="{$datadom.slices.cemmenuUrl}#cem-menu"}}
+{cem-module-url @slice=cemmenuitemUrl @src="@epa-wg/cem-components/components/cem-menu-item"}
+{cem:if @test="datadom.slices.cemmenuitemUrl" | {cem-element @tag=cem-menu-item @capability=action-control @src="{$datadom.slices.cemmenuitemUrl}#cem-menu-item"}}
+{cem-module-url @slice=cemdropdownUrl @src="@epa-wg/cem-components/components/cem-dropdown"}
+{cem:if @test="datadom.slices.cemdropdownUrl" | {cem-element @tag=cem-dropdown @capability=popup @src="{$datadom.slices.cemdropdownUrl}#cem-dropdown"}}
+{cem-module-url @slice=cemiconbuttonUrl @src="@epa-wg/cem-components/components/cem-icon-button"}
+{cem:if @test="datadom.slices.cemiconbuttonUrl" | {cem-element @tag=cem-icon-button @src="{$datadom.slices.cemiconbuttonUrl}#cem-icon-button"}}
+{cem-module-url @slice=cemthemeswitchUrl @src="@epa-wg/cem-components/components/cem-theme-switch"}
+{cem:if @test="datadom.slices.cemthemeswitchUrl" | {cem-element @tag=cem-theme-switch @src="{$datadom.slices.cemthemeswitchUrl}#cem-theme-switch"}}
+{cem-module-url @slice=cemselectUrl @src="@epa-wg/cem-components/components/cem-select"}
+{cem:if @test="datadom.slices.cemselectUrl" | {cem-element @tag=cem-select @capability=choice-select @src="{$datadom.slices.cemselectUrl}#cem-select"}}
+{cem-module-url @slice=navUrl @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml"}{cem:if @test="datadom.slices.navUrl" | {cem-element @tag=cem-gallery-nav @src="{$datadom.slices.navUrl}#cem-gallery-nav"}}
+{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
+{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
+{cem-module-url @slice=cemsheetUrl @src="@epa-wg/cem-components/components/cem-sheet"}
+{cem:if @test="datadom.slices.cemsheetUrl" | {cem-element @tag=cem-sheet @src="{$datadom.slices.cemsheetUrl}#cem-sheet"}}
+</template></cem-element>
+<div id="playground-theme" class="cem-theme-light"><cem-gallery-nav heading="cem-sheet: Full examples and variation matrix"></cem-gallery-nav><p class="component-description">A persistent named region for nearby tasks and filters. Applications can control its visibility without moving focus. Use <a href="./cem-dialog-gallery.html">cem-dialog</a> when the task needs native dialog presentation and focus management, and <a href="./cem-field-gallery.html">cem-field</a> for editable content.</p><p><a href="./cem-sheet.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-sheet/cem-sheet.stories.ts">Automated stories</a></p><main><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="label"><code>label</code>: Visible heading and default region name; defaults to Sheet.</li><li data-gallery-attribute="transient"><code>transient</code>: Absent: persistent. Present (including false): application-controlled visibility.</li><li data-gallery-attribute="expanded"><code>expanded</code>: Presence shows a transient region; ignored for a persistent region.</li><li data-gallery-attribute="aria-label"><code>aria-label</code>: Separate accessibility-only name; leaves visible text unchanged.</li><li data-gallery-attribute="aria-labelledby"><code>aria-labelledby</code>: ID references for an authored heading; takes precedence over aria-label.</li><li data-gallery-attribute="aria-describedby"><code>aria-describedby</code>: ID references for supporting instructions.</li><li data-gallery-attribute="hidden"><code>hidden</code>: Native host visibility.</li><li data-gallery-attribute="class"><code>class</code>: Consumer composition hooks.</li><li data-gallery-attribute="dir"><code>dir</code>: Inherited ltr or rtl writing direction.</li></ul><p>The default slot holds the retained body. The label slot replaces visible fallback markup; use an explicit ARIA reference when that markup supplies the region name. Hover and focus belong to the authored controls. The sheet has no disabled, invalid, pending, readonly or selected state; those states belong to its controls.</p><section data-gallery-theme="light" class="cem-theme-light"><h2>light</h2><cem-sheet label="Persistent filters"><cem-field label="Search" value="Saved"></cem-field></cem-sheet><cem-sheet label="Visible transient filters" transient expanded><cem-field label="Search" value="Draft"></cem-field></cem-sheet><cem-sheet label="Collapsed transient filters" transient><cem-field label="Search"></cem-field></cem-sheet></section><section data-gallery-theme="dark" class="cem-theme-dark"><h2>dark</h2><cem-sheet label="Persistent filters"><cem-field label="Search" value="Saved"></cem-field></cem-sheet><cem-sheet label="Visible transient filters" transient expanded><cem-field label="Search" value="Draft"></cem-field></cem-sheet><cem-sheet label="Collapsed transient filters" transient><cem-field label="Search"></cem-field></cem-sheet></section><section data-gallery-theme="contrast-light" class="cem-theme-contrast-light"><h2>contrast-light</h2><cem-sheet label="Persistent filters"><cem-field label="Search" value="Saved"></cem-field></cem-sheet><cem-sheet label="Visible transient filters" transient expanded><cem-field label="Search" value="Draft"></cem-field></cem-sheet><cem-sheet label="Collapsed transient filters" transient><cem-field label="Search"></cem-field></cem-sheet></section><section data-gallery-theme="contrast-dark" class="cem-theme-contrast-dark"><h2>contrast-dark</h2><cem-sheet label="Persistent filters"><cem-field label="Search" value="Saved"></cem-field></cem-sheet><cem-sheet label="Visible transient filters" transient expanded><cem-field label="Search" value="Draft"></cem-field></cem-sheet><cem-sheet label="Collapsed transient filters" transient><cem-field label="Search"></cem-field></cem-sheet></section><section data-gallery-theme="native" class="cem-theme-native"><h2>native</h2><cem-sheet label="Persistent filters"><cem-field label="Search" value="Saved"></cem-field></cem-sheet><cem-sheet label="Visible transient filters" transient expanded><cem-field label="Search" value="Draft"></cem-field></cem-sheet><cem-sheet label="Collapsed transient filters" transient><cem-field label="Search"></cem-field></cem-sheet></section><cem-demo-element legend="Visible labels and accessible names" description="label supplies the visible heading and region name. Projected markup replaces the heading; explicit ARIA naming stays separate."><template slot="source"><cem-sheet label="Filters">Default body.</cem-sheet><cem-sheet label="Fallback" aria-labelledby="sheet-projected-title"><strong slot="label" id="sheet-projected-title">Projected filters</strong>Projected body.</cem-sheet><cem-sheet label="Visible filters" aria-label="Search settings">A separate accessible name.</cem-sheet><p id="sheet-description">Filters apply to saved records.</p><cem-sheet label="Described filters" aria-describedby="sheet-description">Described body.</cem-sheet></template></cem-demo-element>
+<cem-demo-element legend="Application-controlled visibility" description="The shared choice controls update expanded declaratively. They keep focus; opening and closing never add a tab stop or synthesize dismissal."><template slot="source"><cem-element><template type="text/cem-ml">{slice @name=visibility | closed}{fieldset @slice=visibility @slice-event=change @slice-value="$target.value" | {legend | Filters visibility}{cem-radio @name=sheet-visibility @value=closed @checked=true | Closed}{cem-radio @name=sheet-visibility @value=open | Open}}{cem-sheet @label="Controlled filters" @transient=true @expanded={if datadom.slices.visibility == "open" { true } else { null }} | {template | {cem-field @label=Draft @value="Saved draft"}}}}</template></cem-element></template></cem-demo-element>
+<cem-demo-element legend="Presence and persistent mode" description="Empty boolean attributes and the text false both count as present. A persistent region ignores expanded."><template slot="source"><cem-sheet label="Persistent with expanded" expanded>Still visible.</cem-sheet><cem-sheet label="Closed transient" transient>Retained hidden body.</cem-sheet><cem-sheet label="False is present" transient="false" expanded="false">Visible transient body.</cem-sheet></template></cem-demo-element>
+<cem-demo-element legend="Native form ownership" description="The body retains native field values, validity and reset behavior across visibility changes. Sheet itself does not submit or dismiss."><template slot="source"><cem-sheet label="Edit filters" transient expanded><form><cem-field label="Search query" name="query" value="Saved" required></cem-field><cem-action type="reset" label="Reset filters"></cem-action><cem-action type="submit" label="Apply filters"></cem-action></form></cem-sheet></template></cem-demo-element>
+<cem-demo-element legend="Host visibility and direction" description="Native hidden hides the whole component. Direction and consumer classes stay on the host."><template slot="source"><cem-sheet label="Hidden filters" hidden>Hidden body.</cem-sheet><cem-sheet label="RTL filters" dir="rtl" class="filter-region"><cem-field label="Search"></cem-field></cem-sheet></template></cem-demo-element>
+</main></div></body></html>

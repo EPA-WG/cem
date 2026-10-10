@@ -17,6 +17,7 @@ use std::sync::Arc;
 pub enum NamespaceLexicalScopeHandoffError {
     Lexical(LexicalScopeHandoffError),
     Namespace(NamespaceNameCompletionError),
+    OperationStopped,
 }
 impl From<LexicalScopeHandoffError> for NamespaceLexicalScopeHandoffError {
     fn from(error: LexicalScopeHandoffError) -> Self {
@@ -54,6 +55,8 @@ impl CemQlSchemaDeclarationHost {
             ReferenceScopePolicyOverrides,
         ),
     {
+        self.check_operation()
+            .map_err(|_| NamespaceLexicalScopeHandoffError::OperationStopped)?;
         let captured = completion.captured();
         let owner = captured.document();
         if !self
@@ -94,6 +97,8 @@ impl CemQlSchemaDeclarationHost {
                 (source.node_id(), parent, context, policy)
             })
             .collect();
+        self.check_operation()
+            .map_err(|_| NamespaceLexicalScopeHandoffError::OperationStopped)?;
         self.attach_captured_names(captured)?;
         Ok(prepared
             .into_iter()

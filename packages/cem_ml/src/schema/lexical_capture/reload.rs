@@ -4,11 +4,13 @@ use crate::{
     ast::reload::ReloadError, parser::format::DocumentFormatIdentity, source_map::SourceMapStack,
 };
 
-pub const LEXICAL_RELOAD_VERSION: u16 = 1;
+pub const LEXICAL_RELOAD_VERSION: u16 = 2;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LexicalReloadMetadata {
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub typed_preludes: BTreeMap<AstNodeId, TypedPreludeSlot>,
     pub version: u16,
     pub payload_fingerprint: [u8; 32],
     pub occurrences: BTreeMap<AstNodeId, LexicalScopeSnapshot>,
@@ -27,6 +29,7 @@ pub struct LexicalReloadMetadata {
 impl LexicalReloadMetadata {
     pub(crate) fn export(capture: &LexicallyScopedDocument, payload_fingerprint: [u8; 32]) -> Self {
         Self {
+            typed_preludes: capture.typed_preludes.clone(),
             version: LEXICAL_RELOAD_VERSION,
             payload_fingerprint,
             occurrences: capture.occurrences.clone(),
@@ -47,14 +50,89 @@ impl LexicalReloadMetadata {
         document: &CemDocument,
         fingerprint: [u8; 32],
     ) -> Result<(), ReloadError> {
-        if self.version != LEXICAL_RELOAD_VERSION {
+        if !(1..=LEXICAL_RELOAD_VERSION).contains(&self.version)
+            || (self.version < 2
+                && (!self.typed_preludes.is_empty() || !document.typed_preludes.is_empty()))
+        {
             return Err(ReloadError::UnsupportedVersion);
         }
         if self.payload_fingerprint != fingerprint {
             return Err(ReloadError::FingerprintMismatch);
         }
         let invalid = || ReloadError::InvalidMetadata;
+        if self.format_identity.as_ref().is_some_and(|identity| {
+            identity.format_id != "cem-ml"
+                || identity.content_type != "text/cem-ml"
+                || !matches!(
+                    identity.format_version,
+                    crate::schema::ir::SemVer {
+                        major: 1,
+                        minor: 0 | 1,
+                        patch: 0,
+                        prerelease: None,
+                        ..
+                    }
+                )
+        }) {
+            return Err(ReloadError::UnsupportedVersion);
+        }
+        crate::schema::prelude_values::validate_document_slots(document).map_err(|_| invalid())?;
+        if self.typed_preludes.len() != document.typed_preludes.len()
+            || ((self.version >= 2 || document.format_identity.is_some())
+                && self.format_identity != document.format_identity)
+        {
+            return Err(invalid());
+        }
+        for (&id, slot) in &self.typed_preludes {
+            if slot.directive != id
+                || document.typed_preludes.get(&id) != Some(&slot.syntax)
+                || slot.required_version != crate::schema::ir::SemVer::new(1, 1, 0)
+                || slot.form != SchemaElementForm::Prelude
+                || slot.extent != crate::schema::scope_controls::SchemaScopeControlExtent::Following
+                || crate::schema::prelude_values::validate_source_slot(document, id, &slot.syntax)
+                    .ok()
+                    != Some(slot.value)
+                || !self.occurrences.contains_key(&slot.value)
+                || rmp_serde::to_vec_named(&slot.preceding).ok()
+                    != self
+                        .occurrences
+                        .get(&slot.value)
+                        .and_then(|s| rmp_serde::to_vec_named(s).ok())
+            {
+                return Err(invalid());
+            }
+        }
+        for (&id, slot) in &self.typed_preludes {
+            use crate::schema::namespace_references::PendingNamespaceValue;
+            use crate::tokenizer::cem::TypedPreludeRole;
+            if slot.syntax.role != TypedPreludeRole::SchemaSelector
+                && !self
+                    .pending_namespace_declarations
+                    .get(&id)
+                    .is_some_and(|declaration| {
+                        Some(&declaration.prefix) == slot.syntax.prefix.as_ref()
+                            && matches!(declaration.value, PendingNamespaceValue::Native)
+                    })
+            {
+                return Err(invalid());
+            }
+        }
         for (&id, snapshot) in &self.occurrences {
+            if let crate::schema::scoping::SchemaSource::PendingPrelude {
+                directive,
+                value_range,
+            } = &snapshot.schema.active
+            {
+                if !directive
+                    .and_then(|id| self.typed_preludes.get(&id))
+                    .is_some_and(|slot| {
+                        slot.syntax.role == crate::tokenizer::cem::TypedPreludeRole::SchemaSelector
+                            && slot.syntax.value_range == *value_range
+                    })
+                {
+                    return Err(invalid());
+                }
+            }
             if !(matches!(document.get(id), Some(CemAstNode::Reference { .. }))
                 || matches!(document.get(id), Some(CemAstNode::Element { expanded_name, .. }) if expanded_name.local_name == "$"))
                 || !snapshot.namespaces.valid_snapshot()
@@ -83,7 +161,9 @@ impl LexicalReloadMetadata {
                 return Err(invalid());
             }
             for (prefix, target) in &snapshot.pending {
-                if !self.pending_namespace_declarations.get(target)
+                if !self
+                    .pending_namespace_declarations
+                    .get(target)
                     .is_some_and(|d| &d.prefix == prefix)
                     || snapshot.namespaces.binding(prefix).is_some()
                 {
@@ -175,9 +255,11 @@ impl LexicalReloadMetadata {
                     .values()
                     .flat_map(|s| s.namespaces.retained_bindings().map(|b| &b.source_map)),
             )
-            .chain(self.attribute_namespaces.values().flat_map(|s| {
-                s.namespaces.retained_bindings().map(|b| &b.source_map)
-            }))
+            .chain(
+                self.attribute_namespaces
+                    .values()
+                    .flat_map(|s| s.namespaces.retained_bindings().map(|b| &b.source_map)),
+            )
             .chain(self.occurrences.values().flat_map(|s| {
                 s.schema
                     .declared_inlines
@@ -199,6 +281,7 @@ impl LexicalReloadMetadata {
             pending_namespace_names: self.pending_namespace_names.clone(),
             pending_namespace_bindings: self.pending_namespace_bindings.clone(),
             diagnostics: self.diagnostics.clone(),
+            typed_preludes: self.typed_preludes.clone(),
         }
     }
 }

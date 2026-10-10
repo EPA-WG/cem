@@ -105,6 +105,10 @@ pub enum SchemaTokenKind {
         name: String,
         data: String,
     },
+    TypedDirective {
+        name: String,
+        value: cem::TypedPreludeValue,
+    },
     RichContent {
         data: String,
     },

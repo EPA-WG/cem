@@ -37,7 +37,13 @@ use crate::tokenizer::{
 use std::cell::RefCell;
 use std::collections::VecDeque;
 
+mod typed_prelude;
+pub use typed_prelude::{TypedPreludeKind, TypedPreludePreview, TypedPreludeRole, TypedPreludeValue};
+
 pub struct CemTokenizer {
+    prelude_preview: Option<TypedPreludePreview>,
+    typed_preludes_enabled: bool,
+    doc_admission_open: bool,
     source_id: SourceId,
     scalars: Vec<(char, ByteRange)>,
     cursor: usize,
@@ -56,7 +62,7 @@ impl CemTokenizer {
     /// Build a tokenizer from a `ByteSource`, decoding all bytes eagerly.
     /// Decode diagnostics are surfaced via [`take_diagnostics`].
     pub fn from_source<S: ByteSource>(source: S) -> Self {
-        Self::from_source_inner(source, None)
+        Self::from_source_inner(source, None, None)
     }
 
     pub fn from_source_with_control<S: ByteSource>(
@@ -64,10 +70,10 @@ impl CemTokenizer {
         control: crate::operation_control::OperationControl,
         scope: crate::operation_control::ExecutionScopeId,
     ) -> Self {
-        Self::from_source_inner(source, Some(TokenizerControl::new(control, scope)))
+        Self::from_source_inner(source, Some(TokenizerControl::new(control, scope)), None)
     }
 
-    fn from_source_inner<S: ByteSource>(source: S, mut control: Option<TokenizerControl>) -> Self {
+    fn from_source_inner<S: ByteSource>(source: S, mut control: Option<TokenizerControl>, prelude_preview: Option<TypedPreludePreview>) -> Self {
         let mut decoder = Utf8Decoder::with_config(
             source,
             DecodeConfig {
@@ -96,6 +102,9 @@ impl CemTokenizer {
             }],
         };
         let mut tokenizer = Self {
+            doc_admission_open: true,
+            prelude_preview,
+            typed_preludes_enabled: prelude_preview.is_some(),
             source_id,
             scalars,
             cursor: 0,
@@ -284,7 +293,7 @@ impl CemTokenizer {
             self.skip_trivia();
             match self.peek() {
                 None => break,
-                Some('@') => self.scan_directive(),
+                Some('@') => self.scan_directive(false),
                 Some('{') => self.scan_node(),
                 Some('<') if self.peek_at(1) == Some('?') => {
                     let open_start = self.cursor;
@@ -294,6 +303,7 @@ impl CemTokenizer {
                 Some('`') if self.is_rich_open() => self.scan_rich_content(),
                 Some(_) => self.scan_top_text(),
             }
+            self.doc_admission_open = false;
         }
     }
 
@@ -324,7 +334,7 @@ impl CemTokenizer {
         }
     }
 
-    fn scan_directive(&mut self) {
+    fn scan_directive(&mut self, in_block: bool) {
         let start = self.cursor;
         // Consume '@'
         self.cursor += 1;
@@ -340,6 +350,7 @@ impl CemTokenizer {
             .iter()
             .map(|(c, _)| *c)
             .collect();
+        if self.scan_typed_directive(start, &name, in_block) { return; }
         // Collect the rest of the directive body up to end-of-line or top-level
         // sigil. Directives terminate at newline in canonical form.
         let body_start = self.cursor;
@@ -353,6 +364,10 @@ impl CemTokenizer {
             .iter()
             .map(|(c, _)| *c)
             .collect();
+        let doc_error = if name == "doc" && !in_block && self.doc_admission_open {
+            self.admit_prelude_doc(&body);
+            crate::parser::format::resolve_doc_directive(&body).err()
+        } else { None };
         let range = self.range_from(start, self.cursor);
         self.emit(
             SchemaTokenKind::Directive {
@@ -361,6 +376,10 @@ impl CemTokenizer {
             },
             range,
         );
+        if let Some(error) = doc_error {
+            self.parser_fact(CemMlParserFactKind::from_doc_directive_error(&error), error.message(), range);
+            self.emit(SchemaTokenKind::Error { code: error.code().into() }, range);
+        }
     }
 
     fn scan_node(&mut self) {
@@ -607,7 +626,7 @@ impl CemTokenizer {
             // Eagerly flush whitespace/trivia between content tokens.
             self.flush_whitespace_trivia();
             if prelude && self.is_block_prelude_directive() {
-                self.scan_directive();
+                self.scan_directive(true);
                 continue;
             }
             if !matches!((self.peek(), self.peek_at(1)), (Some('/'), Some('*'))) {
@@ -829,17 +848,28 @@ impl CemTokenizer {
     /// Scan a CEM-QL brace body without interpreting or evaluating its payload.
     /// Quoted strings and nested comments cannot close the surrounding slot.
     fn scan_query_brace_body(&mut self) {
+        let _ = self.scan_query_brace_body_bounded(None);
+    }
+
+    fn scan_query_brace_body_bounded(&mut self, bounds: Option<(usize, TypedPreludePreview)>) -> Result<(), &'static str> {
         let mut depth = 1u32;
         let mut quote = None;
         let mut comment_depth = 0u32;
         let mut block_comment = false;
         let mut line_comment = false;
         while let Some(c) = self.peek() {
+            if let Some((start, limits)) = bounds {
+                if matches!(c, '\n' | '\r') { return Err("cem.prelude.unterminated"); }
+                if self.current_offset() - self.scalars[start].1.start >= limits.max_value_bytes.min(64 * 1024) as u64
+                    || depth + comment_depth > limits.max_nesting.min(128) {
+                    return Err("cem.prelude.limit");
+                }
+            }
             let next = self.scalars.get(self.cursor + 1).map(|(c, _)| *c);
             if let Some(delimiter) = quote {
                 if c == '\\' {
                     self.cursor += 1;
-                    if self.peek().is_some() {
+                    if self.peek().is_some_and(|c| bounds.is_none() || !matches!(c, '\n' | '\r')) {
                         self.cursor += 1;
                     }
                 } else if c == delimiter && next == Some(delimiter) {
@@ -908,7 +938,7 @@ impl CemTokenizer {
                 '}' => {
                     depth -= 1;
                     if depth == 0 {
-                        break;
+                        return Ok(());
                     }
                     self.cursor += 1;
                 }
@@ -917,6 +947,7 @@ impl CemTokenizer {
                 }
             }
         }
+        Err("cem.prelude.unterminated")
     }
 
     fn scan_expression_body(&mut self) {
@@ -1181,6 +1212,7 @@ mod tests {
                 SchemaTokenKind::ExpressionNode(_) => "Expr",
                 SchemaTokenKind::AnonymousScopeStart => "AnonStart",
                 SchemaTokenKind::Directive { .. } => "Directive",
+                SchemaTokenKind::TypedDirective { .. } => "TypedDirective",
                 SchemaTokenKind::RichContent { .. } => "Rich",
                 SchemaTokenKind::Error { .. } => "Error",
             })

@@ -104,14 +104,14 @@ struct Site {
     supported: bool,
     model: usize,
 }
-pub(super) struct ConsumedWalk<N> {
+pub(crate) struct ConsumedWalk<N> {
     pub structure: ReferenceStructureResolution<N>,
     pub attributes: Vec<(Option<usize>, ConsumedAttributeValue)>,
     pub models: Vec<Option<usize>>,
 }
 /// Directly authored attribute requests and structurally selected attributes use
 /// exactly this walk. The latter keep the enclosing active identities/budgets.
-pub(super) fn walk<H: InputReferenceHost>(
+pub(crate) fn walk<H: InputReferenceHost>(
     root: H::Node,
     model: &SchemaDocumentModel,
     host: &mut H,
@@ -271,10 +271,7 @@ where
                             }
                             let supported = element
                                 .allows_attribute(&name.namespace_uri, &name.local_name)
-                                && model
-                                    .attributes
-                                    .get(&name.local_name)
-                                    .is_some_and(|contract| contract.is_node_valued());
+                                && model.attribute_is_node_valued(&name.local_name);
                             let reference = if supported {
                                 value_request_root(&attribute)
                             } else {
@@ -509,7 +506,7 @@ where
             && !value_issues[site_id]
             && !incomplete_containers.contains(&site_id)
             && !invalid_sites.contains(&site_id);
-        if selection_complete {
+        if selection_complete && !model.attribute_datatypes.contains_key(name) {
             document_model::validate_native_attribute_count(
                 model,
                 &site.element,
@@ -519,16 +516,36 @@ where
                 &mut diagnostics,
             );
         }
-        let complete = access.complete
-            && !model
-                .attributes
-                .get(name)
-                .is_some_and(has_unconsumed_constraints);
+        let mut complete = access.complete
+            && (model.attribute_datatypes.contains_key(name)
+                || !model
+                    .attributes
+                    .get(name)
+                    .is_some_and(has_unconsumed_constraints));
+        let access = Arc::new(access);
+        if complete {
+            if let Some(contract) = model.attribute_datatypes.get(name) {
+                use crate::schema::attribute_datatypes::{
+                    AttributeDatatypeInput, AttributeDatatypeValue,
+                };
+                let result = contract.validate(AttributeDatatypeInput {
+                    value: AttributeDatatypeValue::Nodes(access.clone()),
+                    source: site.attribute.node(),
+                    source_tree: tagged_host.inner.input_source_tree(&site.attribute),
+                    element_name: &site.element,
+                    attribute_values: &Default::default(),
+                    control: &crate::operation_control::OperationControl::default(),
+                    context: None,
+                });
+                complete &= result.accepted.is_some();
+                diagnostics.extend(result.diagnostics);
+            }
+        }
         attributes.push((
             site.owner.and_then(|owner| structural_map[owner]),
             ConsumedAttributeValue {
                 attribute: site.attribute,
-                access: Arc::new(access),
+                access,
                 complete,
             },
         ));

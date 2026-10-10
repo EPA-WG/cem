@@ -1,3 +1,8 @@
+import switchDeclaration from '../components/cem-switch/cem-switch.xhtml?raw';
+import radioDeclaration from '../components/cem-radio/cem-radio.xhtml?raw';
+import checkboxDeclaration from '../components/cem-checkbox/cem-checkbox.xhtml?raw';
+import sheetDeclaration from '../components/cem-sheet/cem-sheet.xhtml?raw';
+import dialogDeclaration from '../components/cem-dialog/cem-dialog.xhtml?raw';
 import textareaDeclaration from '../components/cem-textarea/cem-textarea.xhtml?raw';
 import fieldDeclaration from '../components/cem-field/cem-field.xhtml?raw';
 import textFieldDeclaration from '../components/cem-text-field/cem-text-field.xhtml?raw';
@@ -44,7 +49,7 @@ describe('CEM component workflow fixtures', () => {
 
     beforeAll(async () => {
         runtime = new CemElementRuntime({ declarationTag: 'cem-components-workflow-declaration' });
-        for (const markup of [textareaDeclaration, fieldDeclaration, textFieldDeclaration, iconButtonDeclaration, menuItemDeclaration]) {
+        for (const markup of [checkboxDeclaration, radioDeclaration, switchDeclaration, sheetDeclaration, dialogDeclaration, textareaDeclaration, fieldDeclaration, textFieldDeclaration, iconButtonDeclaration, menuItemDeclaration]) {
             const source = document.createElement('div');
             source.innerHTML = markup;
             const declaration = source.firstElementChild as HTMLElement;
@@ -243,7 +248,7 @@ describe('CEM component workflow fixtures', () => {
         const toast = harness.query<HTMLElement>('cem-toast [role="status"]');
         const progress = harness.query<HTMLProgressElement>('cem-progress progress');
         const skeleton = harness.query<HTMLElement>('cem-skeleton .cem-skeleton');
-        const dialog = harness.query<HTMLElement>('cem-dialog [role="dialog"]');
+        const dialog = harness.query<HTMLElement>('cem-dialog dialog');
         const sheet = harness.query<HTMLElement>('cem-sheet aside');
         const archived = harness.query<HTMLInputElement>('cem-sheet cem-checkbox input[name="include-archived"]');
 
@@ -257,6 +262,8 @@ describe('CEM component workflow fixtures', () => {
         expect(assertAccessibleName(progress, 'Sync progress')).toBe('Sync progress');
         expect(progress.getAttribute('value')).toBe('40');
         expect(skeleton.getAttribute('aria-hidden')).toBe('true');
+        harness.query<HTMLButtonElement>('cem-dialog [part=trigger]').click();
+        await nextRenderFrame();
         expect(assertAccessibleName(dialog, 'Confirm changes')).toBe('Confirm changes');
         expect(assertAccessibleName(sheet, 'Advanced filters')).toBe('Advanced filters');
         expect(assertAccessibleName(archived, 'Include archived assets')).toBe('Include archived assets');

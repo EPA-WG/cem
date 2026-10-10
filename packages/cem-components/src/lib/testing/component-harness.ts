@@ -1,3 +1,4 @@
+import { computeAccessibleName } from 'dom-accessibility-api';
 import {
     CemElementRuntime,
     type CemProducedElementBehavior,
@@ -344,37 +345,9 @@ export async function expectComponentEvent<TDetail>(
     return event;
 }
 
+/** Standards-based name calculation shared with Testing Library; descriptions stay separate. */
 export function accessibleName(element: Element): string {
-    const labelledBy = splitIdRefs(element.getAttribute('aria-labelledby'));
-    if (labelledBy.length > 0) {
-        return labelledBy
-            .map((id) => element.ownerDocument.getElementById(id)?.textContent?.trim() ?? '')
-            .filter(Boolean)
-            .join(' ')
-            .trim();
-    }
-
-    const ariaLabel = element.getAttribute('aria-label')?.trim();
-    if (ariaLabel) {
-        return ariaLabel;
-    }
-
-    const id = element.getAttribute('id');
-    if (id) {
-        const label = element.ownerDocument.querySelector<HTMLLabelElement>(`label[for="${cssEscape(id)}"]`);
-        const text = label?.textContent?.trim();
-        if (text) {
-            return text;
-        }
-    }
-
-    const wrappingLabel = element.closest('label');
-    const wrappingLabelText = wrappingLabel ? labelTextWithoutControl(wrappingLabel, element) : '';
-    if (wrappingLabelText) {
-        return wrappingLabelText;
-    }
-
-    return normalizeText(element.textContent ?? '');
+    return computeAccessibleName(element);
 }
 
 export function assertAccessibleName(element: Element, expected?: string): string {
@@ -486,14 +459,6 @@ function assertJsonSerializable(value: unknown, label: string): void {
     }
 }
 
-function cssEscape(value: string): string {
-    if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
-        return CSS.escape(value);
-    }
-
-    return value.replaceAll('"', '\\"');
-}
-
 function elementsUnder(root: ParentNode): Element[] {
     const elements = Array.from(root.querySelectorAll('*'));
 
@@ -517,18 +482,6 @@ function normalizeVisualHtml(element: HTMLElement): string {
     }
 
     return clone.outerHTML.replace(/\s+/g, ' ').replace(/> </g, '><').trim();
-}
-
-function labelTextWithoutControl(label: HTMLLabelElement, control: Element): string {
-    const clone = label.cloneNode(true) as HTMLLabelElement;
-    const controls = Array.from(label.querySelectorAll('button, input, meter, output, progress, select, textarea'));
-    const controlIndex = controls.indexOf(control);
-
-    if (controlIndex >= 0) {
-        clone.querySelectorAll('button, input, meter, output, progress, select, textarea')[controlIndex]?.remove();
-    }
-
-    return normalizeText(clone.textContent ?? '');
 }
 
 function normalizeText(text: string): string {

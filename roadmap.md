@@ -1029,7 +1029,10 @@ explicit XML attribute opt-in are adopted. The
 implements local and explicitly granted foreign placements through its native
 lifecycle, browser coordinator and SSR/hydration adapters. Private host-owned
 transactions may admit prepared producers only for coordinated publication.
-Versioned ARIA selection and additional surface adapters remain actionable in [the consumer list](docs/todo.md#deferred-cem-element-reference-consumption).
+Versioned ARIA selection and surface adapter delivery are recorded in the
+[archived consumer checklist](docs/archive/todo-snapshot-2026-10-10.md#deferred-cem-element-reference-consumption).
+Manual browser/AT acceptance remains in the
+[active checklist](docs/todo.md#native-surface-delivery-follow-ups).
 
 ### Scenarios for later design verification
 
@@ -1050,8 +1053,12 @@ Versioned ARIA selection and additional surface adapters remain actionable in [t
 General datatype compilation grew from native schema `@type` consumption. Its
 execution, conversion, equality and enumeration design is now tracked independently
 of core reference adoption. Preserve the adopted contracts in the
-[temporary datatype proposal](docs/cem-datatype-compilation-proposal.md) and the
-[implementation actions](docs/todo.md#general-datatype-compilation-design).
+[datatype compilation design](docs/cem-datatype-compilation-design.md) and the
+[completed implementation actions](docs/archive/todo-snapshot-2026-10-10.md#general-datatype-compilation-design).
+The [scalar composition contract](docs/cem-scalar-composition-design.md), adopted
+2026-10-09, also defines singleton native behavior function selection and shared
+datatype/function bounds. Completed function consumer implementation is recorded in
+[schema construct reuse](docs/archive/todo-snapshot-2026-10-10.md#5-integrate-schema-validation-and-construct-reuse).
 
 - [x] Adopt fixed validation input names `value`, `datatype` and `candidate`,
       with candidate requirements declared per capability (2026-10-08).

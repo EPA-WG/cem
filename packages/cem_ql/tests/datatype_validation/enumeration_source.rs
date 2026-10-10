@@ -55,13 +55,21 @@ fn contracts() -> Arc<ValueContracts> {
     )
 }
 fn equality(src: &DatatypeSource, body: &str) -> RegisteredScalarEquality {
-    let text = source(&profile(true, body));
-    let contract = EqualityBehaviorContract::compile(
+    equality_binding(src, body, false)
+}
+fn equality_binding(src: &DatatypeSource, body: &str, native_slot: bool) -> RegisteredScalarEquality {
+    let mut text = profile(true, body);
+    if native_slot { text = text.replace("@function=run", "@function={#chosen}"); }
+    let text = source(&text);
+    let contract = if native_slot {
+        let (selected, mut budget) = selected_function(&text);
+        EqualityBehaviorContract::compile_selected(&selected, ScalarRepresentation::String, ContractName::new(CEM_SCHEMA_URI, "datatype-equality-result"), &mut budget)
+    } else { EqualityBehaviorContract::compile(
         &text,
         &node(&text, "behavior"),
         ScalarRepresentation::String,
         ContractName::new(CEM_SCHEMA_URI, "datatype-equality-result"),
-    )
+    ) }
     .unwrap();
     RegisteredScalarEquality::from_query(
         src.clone(),
@@ -76,13 +84,21 @@ fn equality(src: &DatatypeSource, body: &str) -> RegisteredScalarEquality {
     .unwrap()
 }
 fn interpreter(src: &DatatypeSource, body: &str) -> RegisteredConstantInterpreter {
-    let text = source(&profile(false, body));
-    let contract = ConstantBehaviorContract::compile(
+    interpreter_binding(src, body, false)
+}
+fn interpreter_binding(src: &DatatypeSource, body: &str, native_slot: bool) -> RegisteredConstantInterpreter {
+    let mut text = profile(false, body);
+    if native_slot { text = text.replace("@function=run", "@function={#chosen}"); }
+    let text = source(&text);
+    let contract = if native_slot {
+        let (selected, mut budget) = selected_function(&text);
+        ConstantBehaviorContract::compile_selected(&selected, ScalarRepresentation::String, ContractName::new(CEM_SCHEMA_URI, "datatype-constant-result"), &mut budget)
+    } else { ConstantBehaviorContract::compile(
         &text,
         &node(&text, "behavior"),
         ScalarRepresentation::String,
         ContractName::new(CEM_SCHEMA_URI, "datatype-constant-result"),
-    )
+    ) }
     .unwrap();
     RegisteredConstantInterpreter::from_query(
         src.clone(),
@@ -110,7 +126,16 @@ fn run_registered(
     control: &OperationControl,
     limits: ConstantPreparationLimits,
 ) -> cem_ml::schema::datatype_contracts::DatatypeCompilation {
-    let (mut host, sources) = types_fixture("{type @name=sample @kind=scalar @values=\" 3  5 \"}");
+    run_authored("{type @name=sample @kind=scalar @values=\" 3  5 \"}", eq, constant, control, limits)
+}
+fn run_authored(
+    authored: &str,
+    eq: impl FnOnce(&DatatypeSource) -> RegisteredScalarEquality,
+    constant: impl FnOnce(&DatatypeSource) -> RegisteredConstantInterpreter,
+    control: &OperationControl,
+    limits: ConstantPreparationLimits,
+) -> cem_ml::schema::datatype_contracts::DatatypeCompilation {
+    let (mut host, sources) = types_fixture(authored);
     let mut implementations = DatatypeImplementations::default();
     implementations
         .register(implementation(
@@ -152,6 +177,41 @@ fn run_registered(
 }
 const EQ: &str = "{equal: left == right, diagnostics: ()}";
 const CONSTANT: &str = "{status: \"prepared\", value: value, diagnostics: {code: \"token\", severity: \"info\", message: value, source: candidate}}";
+#[test]
+fn query_constant_interpreters_receive_full_retained_values_and_original_candidates() {
+    let result = run_authored(r#"{type @name=sample @kind=scalar | {constant @value="In progress"} {constant @value=""}}"#,
+        |s| equality(s, EQ), |s| interpreter(s, CONSTANT), &OperationControl::default(), Default::default());
+    assert!(result.is_ready(), "{:?}", result.issues);
+    let descriptor = result.contracts[0].as_any().downcast_ref::<ExecutableDatatype>().unwrap();
+    for (value, accepted) in [("In progress", true), ("", true), ("In", false)] {
+        assert_eq!(validate_descriptor(descriptor, vec![Item::Atomic(AtomValue::String(value.into()))]).accepted, Some(accepted));
+    }
+    assert_eq!(result.diagnostics.len(), 2);
+    for (diagnostic, constant) in result.diagnostics.iter().zip(descriptor.enumerations()[0].constants()) {
+        assert_eq!(diagnostic.message, constant.token.text());
+        assert_eq!(diagnostic.node, native(&constant.token.source).identity());
+        assert_eq!(constant.token.form, ConstantForm::RetainedLiteral);
+        assert!(constant.declaration.is_some());
+    }
+}
+#[test]
+fn selected_enumeration_profiles_execute_fixed_roles_and_reject_malformed_results() {
+    for (eq, constant, ready) in [
+        (EQ, CONSTANT, true),
+        ("{equal: 1, diagnostics: ()}", CONSTANT, true),
+        (EQ, "{status: \"prepared\", value: 3, diagnostics: ()}", false),
+    ] {
+        let result = run_registered(|s| equality_binding(s, eq, true), |s| interpreter_binding(s, constant, true), &OperationControl::default(), Default::default());
+        assert_eq!(result.is_ready(), ready, "{:?}", result.issues);
+        if ready {
+            let descriptor = result.contracts[0].as_any().downcast_ref::<ExecutableDatatype>().unwrap();
+            for (value, accepted) in [("3", true), ("003", false)] {
+                assert_eq!(validate_descriptor(descriptor, vec![Item::Atomic(AtomValue::String(value.into()))]).accepted, (eq == EQ).then_some(accepted));
+            }
+            assert!(result.diagnostics.iter().all(|d| d.node.is_some()));
+        }
+    }
+}
 #[test]
 fn query_enumeration_retains_tokens_and_uses_explicit_equality() {
     let result = run(EQ, CONSTANT);

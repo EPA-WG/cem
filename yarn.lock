@@ -1441,6 +1441,7 @@ __metadata:
     "@vitest/browser-playwright": "npm:4.1.5"
     "@vitest/coverage-v8": "npm:4.1.5"
     ajv: "npm:8.18.0"
+    dom-accessibility-api: "npm:^0.6.3"
     eslint: "npm:10.2.1"
     eslint-config-prettier: "npm:10.1.8"
     eslint-plugin-storybook: "npm:10.5.10"

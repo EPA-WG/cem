@@ -94,6 +94,8 @@ struct Scope {
 }
 #[derive(Debug, Clone, Default)]
 pub struct DatatypeNameCatalog {
+    pub(crate) schema_aliases: BTreeMap<String, BTreeMap<String, String>>,
+    public_overrides: BTreeMap<(String, String, String), DatatypeSource>,
     scopes: BTreeMap<String, Scope>,
     declarations: BTreeMap<String, DatatypeNameDeclaration>,
 }
@@ -270,6 +272,7 @@ impl DatatypeNameCatalog {
         }
         Ok(catalog)
     }
+    pub(crate) fn has_public_overrides(&self) -> bool { !self.public_overrides.is_empty() }
     pub fn contains_scope(&self, scope: &SchemaDeclarationNode) -> bool {
         self.scopes.contains_key(&scope.identity())
     }
@@ -281,6 +284,49 @@ impl DatatypeNameCatalog {
     }
     pub fn source(&self, target: &SchemaDeclarationNode) -> Option<&DatatypeSource> {
         self.declarations.get(&target.identity()).map(|d| &d.source)
+    }
+    /// Public binding only. Original declaration lookup remains pinned to its
+    /// lexical catalog; this entry point is restricted to checked transactions.
+    pub(crate) fn replace_public_binding(
+        &mut self, scope: &SchemaDeclarationNode, namespace: &str, name: &str,
+        expected: &DatatypeSource, replacement: &DatatypeSource,
+    ) -> Result<(), &'static str> {
+        let DatatypeNameLookup::Target(current) = self.lookup_in_scope(scope, Some(namespace), name) else {
+            return Err("datatype-override-binding-unavailable");
+        };
+        if current.declaration().identity() != expected.declaration().identity()
+            || current.scope().identity() != expected.scope().identity() {
+            return Err("datatype-override-original-mismatch");
+        }
+        if !self.source(replacement.declaration()).is_some_and(|s| s.scope().identity() == replacement.scope().identity()) {
+            return Err("datatype-override-replacement-unadmitted");
+        }
+        self.public_overrides.insert((scope.identity(), namespace.into(), name.into()), replacement.clone());
+        Ok(())
+    }
+    pub fn lookup_in_scope(
+        &self,
+        scope: &SchemaDeclarationNode,
+        namespace: Option<&str>,
+        name: &str,
+    ) -> DatatypeNameLookup<'_> {
+        use DatatypeNameLookup::*;
+        let Some(scope) = self.scopes.get(&scope.identity()) else {
+            return Pending("datatype-name-scope-unavailable");
+        };
+        let Some(namespace) = namespace.or(scope.namespace.as_deref()) else {
+            return Pending("datatype-namespace-pending");
+        };
+        if let Some(replacement) = self.public_overrides.get(&(scope.source.identity(), namespace.into(), name.into())) {
+            return Target(replacement);
+        }
+        let selected = if scope.namespace.as_deref() == Some(namespace) {
+            scope.locals.get(name)
+        } else {
+            None
+        }
+        .or_else(|| scope.imports.get(&(namespace.into(), name.into())));
+        selected.map_or(Unresolved("unexported-datatype-name"), Target)
     }
     pub fn lookup(&self, source: &DatatypeSource, qname: &str) -> DatatypeNameLookup<'_> {
         use DatatypeNameLookup::*;
