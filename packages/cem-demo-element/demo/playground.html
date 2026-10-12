@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CEM playground</title>
+    <link rel="stylesheet" href="../../cem-theme/dist/lib/css/cem-combined.css">
+    <link rel="stylesheet" href="./demo.css">
+    <link rel="stylesheet" href="./playground.css">
+    <script type="importmap">
+        {
+            "imports": {
+                "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+                "@epa-wg/cem-ml/runtime.json": "../../cem-ml-npm/dist/cem-ml-runtime.json",
+                "@epa-wg/cem-ml-cli/browser": "../../cem-ml-cli-npm/dist/browser.js"
+            }
+        }
+    </script>
+    <script type="module">
+        import { installCemElementRuntime } from '../../cem-elements/dist/index.js';
+        import { initializePlayground } from '../dist/playground.js';
+
+        installCemElementRuntime(window);
+        initializePlayground(document.querySelector('main'));
+    </script>
+</head>
+<body class="playground" data-theme="cem-theme-light">
+<nav aria-label="Demo pages">
+    <a href="../../cem-elements/index.html">Elements gallery</a>
+    <a href="../../cem-components/index.html">Components gallery</a>
+    <a href="./index.html">Basic use</a>
+    <a href="./advanced.html">Advanced use</a>
+    <a href="./syntax-coloring.html">Syntax coloring</a>
+    <strong aria-current="page">Playground</strong>
+</nav>
+<header>
+    <p class="eyebrow">CEM · EDIT / CONVERT / RENDER</p>
+    <h1>One source. Another view.</h1>
+    <p>Edit the code, choose an output, and render it with CEM.</p>
+</header>
+<main aria-label="CEM playground">
+    <form aria-label="Render settings">
+        <div class="playground-metadata">
+            <label>Title
+                <input name="title" type="text" value="Hello, CEM">
+            </label>
+            <label>Description
+                <textarea name="description" rows="2">A small HTML example to edit, convert, and render.</textarea>
+            </label>
+        </div>
+        <div class="playground-toolbar">
+            <label>Input format
+                <select name="input" aria-describedby="input-help">
+                    <option value="auto">Auto</option>
+                </select>
+            </label>
+            <label>Output format
+                <select name="output">
+                    <option value="html">HTML</option>
+                </select>
+            </label>
+            <button type="submit" disabled>Render</button>
+            <button type="button" name="copy-link" disabled>Copy Link</button>
+        </div>
+    </form>
+    <p id="input-help" class="playground-hint">Auto suggests an input format. Choose one explicitly if the source is ambiguous.</p>
+    <p role="status" aria-live="polite" class="playground-status">Loading CEM…</p>
+    <div class="playground-panels">
+        <section aria-labelledby="source-heading">
+            <h2 id="source-heading">Source</h2>
+            <cem-demo-element demo="false" type="html" aria-label="Editable source">
+                <template slot="source"><article>
+    <h2>Hello, CEM</h2>
+    <p>Edit this HTML, then choose another output format.</p>
+    <button type="button">A live HTML button</button>
+</article></template>
+            </cem-demo-element>
+        </section>
+        <section aria-labelledby="output-heading">
+            <h2 id="output-heading">Output</h2>
+            <cem-demo-element demo="false" text="false" aria-label="Rendered output">
+                <template slot="source"></template>
+                <div slot="demo" class="playground-preview">
+                    <p>Render the source to see the result here.</p>
+                </div>
+            </cem-demo-element>
+        </section>
+    </div>
+    <details class="playground-link" hidden>
+        <summary>Shareable link</summary>
+        <label>Link to this source
+            <input name="share-link" type="url" readonly>
+        </label>
+    </details>
+    <section class="playground-examples" aria-labelledby="examples-heading">
+        <h2 id="examples-heading">Examples and copied links</h2>
+        <ul aria-label="Examples and copied links"></ul>
+    </section>
+</main>
+</body>
+</html>

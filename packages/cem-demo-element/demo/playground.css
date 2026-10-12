@@ -1,0 +1,200 @@
+.playground {
+    max-width: 90rem;
+    color: var(--cem-palette-comfort-text, CanvasText);
+    background: var(--cem-palette-comfort, Canvas);
+}
+
+.playground > main {
+    display: block;
+}
+
+.playground nav {
+    flex-wrap: wrap;
+}
+
+.playground header {
+    margin-block: 2.5rem 1.75rem;
+}
+
+.playground .eyebrow {
+    color: var(--cem-palette-calm-x, LinkText);
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+}
+
+.playground h1 {
+    margin-block: 0.5rem;
+    font-size: clamp(2rem, 4vw, 3.25rem);
+}
+
+.playground-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: 0.75rem;
+}
+
+.playground-metadata {
+    display: grid;
+    grid-template-columns: minmax(12rem, 1fr) minmax(0, 2fr);
+    align-items: start;
+    gap: 0.75rem;
+    margin-block-end: 1rem;
+}
+
+.playground label {
+    display: grid;
+    gap: 0.35rem;
+    font-weight: 600;
+}
+
+.playground :is(select, button, input, textarea) {
+    min-height: 2.75rem;
+    box-sizing: border-box;
+    padding: 0.55rem 0.8rem;
+    border: 1px solid var(--cem-palette-calm-x, ButtonBorder);
+    border-radius: 0.4rem;
+    font: inherit;
+    color: inherit;
+    background: var(--cem-palette-comfort, Canvas);
+}
+
+.playground-metadata :is(input, textarea) {
+    width: 100%;
+    font-weight: 400;
+}
+
+.playground textarea {
+    resize: vertical;
+}
+
+.playground select {
+    min-width: 10rem;
+}
+
+.playground button[type="submit"] {
+    color: var(--cem-palette-trust, ButtonText);
+    background: var(--cem-palette-trust-x, ButtonFace);
+}
+
+.playground button {
+    cursor: pointer;
+}
+
+.playground button:disabled {
+    cursor: wait;
+    opacity: 0.6;
+}
+
+.playground :is(button, select, input, textarea, code[contenteditable]):focus-visible {
+    outline: 3px solid var(--cem-palette-creativity-x, Highlight);
+    outline-offset: 3px;
+}
+
+.playground-hint {
+    font-size: 0.875rem;
+}
+
+.playground-status {
+    min-height: 1.5em;
+    white-space: pre-line;
+    color: var(--cem-palette-calm-x, CanvasText);
+}
+
+.playground-status[data-state="error"] {
+    color: var(--cem-action-destructive-hover-background, MarkText);
+}
+
+.playground-panels {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.5rem;
+}
+
+.playground-panels > section {
+    min-width: 0;
+}
+
+.playground h2 {
+    font-size: 1.1rem;
+    margin-block: 0.5rem 0.75rem;
+}
+
+.playground cem-demo-element {
+    border-style: solid;
+    border-radius: 0.6rem;
+    min-height: 21rem;
+}
+
+.playground [aria-label="Editable source"] > [slot="demo"],
+.playground [aria-label="Rendered output"] > [slot="text"] {
+    display: none;
+}
+
+.playground [slot="text"] {
+    flex: 1;
+}
+
+.playground code[contenteditable] {
+    display: block;
+    min-height: 19rem;
+    outline-offset: -3px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    caret-color: var(--cem-palette-comfort-text, CanvasText);
+}
+
+.playground-preview {
+    overflow: auto;
+}
+
+.playground-preview pre {
+    margin: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    tab-size: 4;
+}
+
+.playground-preview code.cem-source-code {
+    font: 0.875rem/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+    color: var(--cem-color-syntax-raw);
+}
+
+.playground-link {
+    margin-block: 1rem;
+}
+
+.playground-link input {
+    width: 100%;
+    font-weight: 400;
+}
+
+.playground-examples {
+    margin-block: 1.5rem;
+}
+
+.playground-examples ul {
+    padding-inline-start: 1.25rem;
+}
+
+.playground-examples li {
+    margin-block: 0.75rem;
+    overflow-wrap: anywhere;
+}
+
+.playground-examples a {
+    font-weight: 600;
+}
+
+.playground-examples p {
+    margin-block: 0.25rem 0;
+    white-space: pre-wrap;
+}
+
+@media (max-width: 48rem) {
+    .playground-panels,
+    .playground-metadata {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

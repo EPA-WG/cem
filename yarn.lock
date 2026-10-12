@@ -1367,6 +1367,7 @@ __metadata:
   resolution: "@epa-wg/cem-demo-element@workspace:packages/cem-demo-element"
   dependencies:
     "@epa-wg/cem-ml": "npm:^0.1.0"
+    "@epa-wg/cem-ml-cli": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -1378,7 +1379,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@epa-wg/cem-ml-cli@npm:0.1.0, @epa-wg/cem-ml-cli@workspace:packages/cem-ml-cli-npm":
+"@epa-wg/cem-ml-cli@npm:0.1.0, @epa-wg/cem-ml-cli@workspace:^, @epa-wg/cem-ml-cli@workspace:packages/cem-ml-cli-npm":
   version: 0.0.0-use.local
   resolution: "@epa-wg/cem-ml-cli@workspace:packages/cem-ml-cli-npm"
   dependencies:

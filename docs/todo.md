@@ -12,6 +12,38 @@ remain in their design documents. Earlier history is linked from the snapshot.
 
 ## Current work: Declarative Amsterdam 2026 CEM presentation
 
+- [x] Append YML to JSON and CSV to CEM-ML playground examples. Verified URL format selection and colored JSON output; CSV example reports the native missing export adapter.
+- [ ] Add the native typed CSV AST export adapter for CEM-ML; the playground CSV to CEM-ML example currently reports `cem.lifecycle.internal_ast_target_unsupported`.
+
+- [x] Refresh the packaged demo site with `yarn copy:demo`. Fixed the components
+      build to consume Nx-built dependency declarations instead of recursively
+      compiling the CLI's removed temporary command-schema source. Copied 470
+      files and generated 7 in `/home/suns/cem-bin`; Chromium verified the
+      homepage link, all four playground examples, and reciprocal gallery links
+      against the packaged shared WASM runtime without browser/request errors.
+
+- [x] Append the Markdown cem-ml playground example; verify Markdown and embedded CEM-ML SVG render together and the shared link restores the source. Build and 18 Chromium tests passed; served-page check confirmed link restoration and inline SVG rendering.
+
+- [x] Add playground title/description fields and named Hello HTML, Hello
+      CEM-ML and login CEM-ML links. Include metadata in shared URLs and append
+      each copied link to the list; verify preset rendering and URL restoration.
+      All three preset links restore and render. Copied links retain metadata,
+      source and formats; clipboard fallback also appends the link. Login forms
+      render outside the playground controls form. Build, lint, typecheck,
+      Storybook build and 18 Chromium tests passed; served-page checks covered
+      clipboard success, URL restoration, append order and mobile layout.
+
+- [x] Add a CEM demo playground with editable, colored source, format selection,
+      native WASM parsing/conversion, an inline HTML or colored text preview, and
+      shareable source/input/output URL parameters. Cover editing, conversion,
+      diagnostics and URL round trips with browser interaction checks.
+      Delivered `packages/cem-demo-element/demo/playground.html`: Auto input,
+      12 textual formats, HTML default output, and clipboard fallback. Build,
+      lint, typecheck, Storybook build and all 16 Chromium tests passed. Served
+      page checks confirmed URL restore, clipboard success, native multiline
+      editing, colors and mobile layout. Unsupported conversions show native
+      diagnostics; Auto is a syntax hint with an explicit format override.
+
 Priority switch requested 2026-10-10. Until the presentation is ready, `continue`
 means the next unfinished presentation action in this section. Read the
 [presentation handoff](presentation/declarative-amsterdam-2026-handoff.md) after
@@ -110,6 +142,14 @@ audience-facing message. This file remains the sole execution checklist.
       Keep physical slide 2 (the original title slide) in dark mode as contrast.
       Use CEM dark mode for terminal output samples. Preserve semantic syntax
       colors and verify their contrast. The new opening teaser uses light mode.
+- [x] Test native animation import for the opening: 2-second fades at 0, 12
+      and 24 seconds. The converted one-slide deck retains editable groups,
+      all three fades and exact delays in its exported animation timeline.
+      Static rendering passed. See [opening animation](declarative-amsterdam-2026/opening-animation.md).
+- [ ] Copy the prepared animated opening into the main deck and verify the
+      26-second sequence in Slideshow. Import currently requires one starting
+      click; try After previous in the Motion panel for automatic slide-entry
+      playback, then recheck timing. The live deck remains unchanged.
 - [x] Synchronize Sasha's native slide additions and ordering: preserve the DCE
       promise diagram and embedding edits, renumber every physical slide,
       reconcile timing and documentation, and verify the rendered deck.

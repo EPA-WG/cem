@@ -53,6 +53,7 @@ async function copyDemoSite(destination) {
         ['packages/cem-demo-element/demo', demoExtensions],
         ['packages/cem-demo-element/dist', runtimeExtensions],
         ['packages/cem-ml-npm/dist/wasm/browser', runtimeExtensions],
+        ['packages/cem-ml-cli-npm/dist', runtimeExtensions],
         ['packages/cem-components/examples', demoExtensions],
         ['packages/cem-components/src/components', demoExtensions],
         ['packages/cem-components/dist', demoExtensions],
@@ -68,12 +69,14 @@ async function copyDemoSite(destination) {
         ['Theme CSS generators and demos', 'packages/cem-theme/dist/lib/css-generators/index.html'],
         ['Design token documentation', 'packages/cem-theme/dist/lib/tokens/index.xhtml'],
         ['Demo viewer examples', 'packages/cem-demo-element/demo/index.html'],
+        ['CEM playground', 'packages/cem-demo-element/demo/playground.html'],
         ['Syntax coloring examples', 'packages/cem-demo-element/demo/syntax-coloring.html'],
         ['NPM version picker', 'packages/cem-elements/demo/npm-versions-demo.html'],
         ['String functions', 'packages/cem-elements/demo/functions/str.html'],
     ];
     const files = [
         'LICENSE',
+        'packages/cem-ml-npm/dist/cem-ml-runtime.json',
         'packages/cem-elements/index.html',
         'packages/cem-elements/demo/framework-logos/README.md',
         'packages/cem-components/index.html',

@@ -127,6 +127,45 @@ The rendered live output and markup-valued `legend`/`description` are trusted
 author content. Do not pass untrusted fetched source to a live HTML or CEM-ML
 demo without sanitizing it first.
 
+## Editable playground
+
+Open [`demo/playground.html`](./demo/playground.html) through the local demo
+server. Edit the `contenteditable` code pane, select input and output formats,
+then choose **Render**. Input defaults to **Auto**; output defaults to **HTML**.
+Auto provides a syntax hint for pasted text; select a format explicitly for
+ambiguous input.
+
+The page uses the native CEM WASM command service to import an AST, format the
+source, and convert it. The HTML colorer writes escaped, colored markup back
+into the editable code pane. HTML output appears inline; other outputs appear
+as formatted, colored code. The CEM elements runtime is installed for live
+declarations in the preview. JavaScript connects the editor, clipboard and
+URL controls to those shared APIs.
+
+The selectors include HTML, CEM-ML, XML, XHTML, SVG, MathML, XSLT, JSON, YAML,
+CSV, Markdown and CSS. Supported conversions depend on the input and output
+pair. Native diagnostics explain invalid input and unavailable conversions.
+For example, try HTML → CEM-ML, CEM-ML → HTML, or JSON → YAML.
+
+Give the example a **Title** and **Description**. The example list starts with
+**Hello, CEM**, **Hello, CEM-ML**, **Login form CEM-ML**, **Markdown cem-ml**,
+**YML to JSON**, and **CSV to CEM-ML**.
+YML to JSON renders colored JSON; CSV to CEM-ML currently reports the missing
+CSV AST export adapter.
+The Markdown example includes a `cem-ml svg` fence rendered as inline SVG.
+
+**Copy Link** stores the title, description, code and selected formats in the
+`title`, `description`, `source`, `input` and `output` query parameters. It
+copies the URL and appends a named link to the current page's list, with its
+description underneath. Opening a link restores all fields;
+choose Render to execute its preview. If clipboard access is unavailable,
+the page selects the link for manual copying. Links include the complete
+source, so they are intended for small, shareable examples.
+
+Build with `yarn nx run @epa-wg/cem-demo-element:build`. Nx builds the CLI
+adapter dependency first; the demo compiles against its generated declarations
+without recursively rebuilding its temporary command-schema source.
+
 ## Tests
 
 Storybook Chromium interaction stories are this package's unit tests. They

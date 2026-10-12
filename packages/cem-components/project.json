@@ -162,7 +162,7 @@
                 "cwd": "packages/cem-components",
                 "commands": [
                     "node ../../tools/scripts/clean-cem-components-runtime.mjs",
-                    "tsc --build tsconfig.lib.json"
+                    "tsc --project tsconfig.lib.json"
                 ],
                 "parallel": false
             },

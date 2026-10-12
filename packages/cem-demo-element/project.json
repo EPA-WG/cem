@@ -3,13 +3,15 @@
     "$schema": "../../node_modules/nx/schemas/project-schema.json",
     "sourceRoot": "packages/cem-demo-element/src",
     "projectType": "library",
-    "implicitDependencies": ["@epa-wg/cem-ml", "@epa-wg/cem-theme"],
+    "implicitDependencies": ["@epa-wg/cem-ml", "@epa-wg/cem-ml-cli", "@epa-wg/cem-theme"],
     "targets": {
         "build": {
-            "dependsOn": [{ "projects": ["@epa-wg/cem-ml"], "target": "build" }]
+            "dependsOn": [{ "projects": ["@epa-wg/cem-ml", "@epa-wg/cem-ml-cli"], "target": "build" }],
+            "options": { "command": "tsc --project tsconfig.lib.json" }
         },
         "typecheck": {
-            "dependsOn": [{ "projects": ["@epa-wg/cem-ml"], "target": "build" }]
+            "dependsOn": [{ "projects": ["@epa-wg/cem-ml", "@epa-wg/cem-ml-cli"], "target": "build" }],
+            "options": { "command": "tsc --project tsconfig.lib.json --noEmit" }
         },
         "storybook": {
             "executor": "nx:run-commands",
