@@ -11,6 +11,12 @@ current code, tests, or recorded verification, not that the conference demo or
 public release has been verified. **Partial** identifies a bounded capability.
 **Direction** identifies a goal or proposed demonstration.
 
+**Delivery update, 2026-10-11:** Sasha confirms Studio is not ready for
+participant use. [Discussion #24](https://github.com/EPA-WG/cem/discussions/24)
+is the stable resource destination; add Studio and other access links there as
+they become available. The implementation evidence below does not establish
+public availability.
+
 ## DCE promises carried forward
 
 The supplied

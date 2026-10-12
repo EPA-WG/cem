@@ -42,9 +42,9 @@ Use schemas to define expected data and catch errors at their source. Develop
 transformation modules independently, then connect them into a pipeline.
 Inspect its dependencies, intermediate results, and outputs.
 
-**Edit, run, inspect, repair, and test.** Use Studio as your workbench, or bring
-CLI and library interfaces into existing tools and checks. Source-linked
-diagnostics and traces connect results to their inputs and rules.
+**Edit, run, inspect, repair, and test.** Bring CLI and library interfaces into
+existing tools and checks. CEM Studio is a workbench in development.
+Source-linked diagnostics and traces connect results to their inputs and rules.
 
 Package schemas, modules, and assets. Bind them to runtime resources and
 policies. Use diagnostics to investigate failures and compatibility checks
@@ -129,3 +129,6 @@ Define inputs and expected outputs. Make one meaningful change and see how
 much work you keep.
 
 **Bring your data. Keep your expertise. Compose the capability your customers need.**
+
+Follow [resources and updates](https://github.com/EPA-WG/cem/discussions/24)
+for links to examples, releases, and Studio as they become available.

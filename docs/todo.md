@@ -19,13 +19,14 @@ clearing chat context; it records the starting material, implementation
 checkpoint and return path. The existing
 [session proposal](declarative.amsterdam.2026.md) is the starting brief. The
 [working presentation document](declarative-amsterdam-2026/presentation.md)
-records the 2026-10-10 public-source review, earlier tutorial outline and
-remaining correspondence/release checks. On 2026-10-10 the user changed the
-direction to an adoption-focused platform pitch: establish the CEM manifesto
-and platform pitch first, then map those into the website and presentation.
-The syntax-led tutorial outline is historical input, not the active narrative.
+records the 2026-10-11 program/discussion review, current agenda and
+[presentation minutes](declarative-amsterdam-2026/presentation.md#presentation-minutes).
+The user requested adoption-focused framing on October 10 and alignment with
+the public agenda on October 11. Use the pitch to explain why the promised
+document activities matter; preserve the login walkthrough, platform subjects,
+and six proposal intervals. Correspondence and release checks remain open.
 The [presentation plan](declarative-amsterdam-2026/presentation-plan.md) owns
-design and adoption planning; the
+ideas, preliminary design, and adoption planning; the
 [platform pitch](declarative-amsterdam-2026/cem-platform-pitch.md) owns the
 audience-facing message. This file remains the sole execution checklist.
 
@@ -76,27 +77,62 @@ audience-facing message. This file remains the sole execution checklist.
       presentation plan for slides, website, and spoken copy.
 - [x] Align schema choices across the pitch, manifesto, plan, and evidence:
       pick, extend, or create your own schemas. Retain all three in future copy.
+- [x] Commit and push the existing preparation documents before agenda changes
+      (`33e18c99` on `origin/develop`). Recheck the official program and discussion
+      #24, then map their subjects into the current 60-minute run. Preserve all
+      six intervals, the login lifecycle, formatting/reporting and provenance,
+      and named platform modules. Reconcile plan, index, and handoff references.
+      Source and documentation review on 2026-10-11 passed; validated 11 segments,
+      60 minutes, all six proposal boundaries, and 292 local links/anchors.
+      Demonstrations, releases, slides, and rehearsal remain unverified.
+- [x] Adopt [discussion #24](https://github.com/EPA-WG/cem/discussions/24) as
+      the stable resource link for slides, QR codes, handouts, and the website.
+      Record Studio as not ready; keep it in the platform overview as work in
+      progress and add its access link when available. Slide drafting can proceed.
+- [x] Generate a slide-code preview from the existing login source with the
+      native CLI's tabular formatter and the existing CEM HTML colorer. Saved
+      the [preview workflow](declarative-amsterdam-2026/code-preview.md), standalone
+      HTML, full screenshot, and code-only image. Chromium confirms exact source
+      insertion, 61 colored tokens, and no clipping. Direct CLI HTML output
+      currently stays plain; the preview uses the syntax demo's CEM WASM colorer.
+      Studio is not required. Sasha approved the formatting and colors on
+      2026-10-11 for the Google Slides presentation.
+- [x] Create the native Google Slides deck with editable narrative text,
+      diagrams, timed speaker notes and the approved code colors. Generate and
+      verify presentation-only login, query and diagnostic assets from existing
+      examples; record exact commands and any demo gaps. Import the local deck,
+      inspect its rendered slides, and save the delivery link and generation files.
+      Delivered 2026-10-11: 24 main slides, four reference slides, 28 speaker
+      notes and a native-deck PDF. See [deck delivery](declarative-amsterdam-2026/deck-delivery.md).
+      Verified schema failure/repair and equivalent query source spans; full
+      interactive tutorial, participant installation and rehearsal remain open.
+- [ ] Apply the canonical CEM theme light palette throughout the slide deck.
+      Keep physical slide 2 (the original title slide) in dark mode as contrast.
+      Use CEM dark mode for terminal output samples. Preserve semantic syntax
+      colors and verify their contrast. The new opening teaser uses light mode.
+- [x] Develop the opening thought → DNA → CEM metaphor in the user-edited
+      first slide, add speaker talking points, and verify its native rendering.
+      Saved [opening idea and notes](declarative-amsterdam-2026/opening-teaser.md).
+      Used canonical CEM light colors, kept slide 2 dark, and retained the
+      60-minute slot with 25 main slides plus four reference slides.
 - [ ] Use the presentation plan to map the manifesto and platform pitch into
-      the presentation website and revised slide narrative. Use familiar
-      side-by-side representations and
-      visible outcomes; prioritize XML/XSLT developers, web UI developers and
-      platform/integration owners. Keep the 60-minute published slot while
-      replacing the syntax-lesson framing.
+      the presentation website and slides, following the current presentation
+      minutes. Use familiar side-by-side representations and visible outcomes;
+      prioritize XML/XSLT developers, web UI developers and platform/integration
+      owners. Keep the published activities and 60-minute slot; use broader
+      pipeline and security examples as companions.
 
-- [ ] Reconcile the session proposal and earlier drafts with current CEM
-      implementation. Establish audience, learning outcomes, accepted duration,
-      delivery format and review requirements. Use the published 60-minute
-      slot and revised adoption-focused pitch as the working baseline; verify conference details
-      and release availability before presenting them as confirmed.
-      Public program placement and implementation boundaries are recorded in the
-      working presentation document; Gmail history, final organizer requirements
-      and participant release availability remain unresolved.
+- [ ] Verify the selected exercise against current CEM implementation and
+      resolve remaining delivery requirements. Published title, slot, audience,
+      activities, and working minutes are recorded in the presentation document.
+      Gmail history, session-specific submission requirements, participant
+      releases, and the complete demonstration path remain unresolved.
 - [x] Develop the timed narrative and slide outline around one document's
       validation, inspection, source-linked diagnostics, conversion,
       query/transformation and light-DOM rendering. Connect the exercise to the
       wider CEM platform and distinguish implemented capabilities from plans.
-      Earlier tutorial outline completed in the working presentation document;
-      superseded as the active narrative by the manifesto/pitch direction above.
+      Initial outline completed October 10; revised October 11 into the current
+      minutes, preserving public commitments with adoption-focused framing.
 - [ ] Prepare a reproducible tutorial and presenter demo with source files,
       exact commands, expected results, an intentional error and repair, and a
       presenter-led fallback. Reuse current examples and native capabilities;
@@ -104,7 +140,9 @@ audience-facing message. This file remains the sole execution checklist.
 - [ ] Produce the presentation, speaker notes, diagrams and participant setup
       instructions. Check the proposed Node/Linux installation paths against
       actual available releases, and record requirements for any other platforms
-      included in the session.
+      included in the session. Prepare resource entries for discussion #24;
+      add verified links as materials become available. Use that stable URL
+      throughout the deck; Studio remains a future participant route.
 - [ ] Rehearse the timed walkthrough and verify every shown command, example,
       output and demo path. Check slide readability and the fallback flow;
       record the tested versions and remaining limitations with the materials.

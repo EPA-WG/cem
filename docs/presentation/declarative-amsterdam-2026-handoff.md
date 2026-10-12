@@ -1,9 +1,9 @@
 # Declarative Amsterdam 2026 — presentation handoff
 
-Saved 2026-10-10 before clearing chat context. The user requested a temporary
-switch from implementation to preparing the CEM presentation for Declarative
-Amsterdam 2026. The current priority order is presentation, CEM Studio, then
-the preserved implementation queue.
+Started 2026-10-10 before clearing chat context; updated 2026-10-11 after agenda
+alignment. The user requested a temporary switch from implementation to preparing
+the CEM presentation for Declarative Amsterdam 2026. The current priority order
+is presentation, CEM Studio, then the preserved implementation queue.
 
 ## Resume after clearing context
 
@@ -12,17 +12,30 @@ section in [docs/todo.md](../todo.md#current-work-declarative-amsterdam-2026-cem
 That file remains the sole execution checklist. Work on its first unfinished
 presentation action; do not start datepicker migration while this set is active.
 
-Direction changed on 2026-10-10: the user requested an adoption-focused platform
-pitch rather than a syntax-led tutorial. Document purposes are now separated.
-Read the [presentation plan](../declarative-amsterdam-2026/presentation-plan.md)
-for design and adoption decisions, the
+The user requested an adoption-focused platform pitch on October 10 and
+alignment with the published agenda on October 11. Read the
+[presentation minutes](../declarative-amsterdam-2026/presentation.md#presentation-minutes)
+for the current run: preserve the public login walkthrough and all six proposal
+blocks, using the pitch to explain their value. Read the
+[presentation plan](../declarative-amsterdam-2026/presentation-plan.md)
+for ideas, preliminary design, and adoption decisions, the
 [platform pitch](../declarative-amsterdam-2026/cem-platform-pitch.md) for the
 audience message, the [manifesto](../declarative-amsterdam-2026/cem-manifesto.md)
 for principles, and the [evidence record](../declarative-amsterdam-2026/platform-evidence.md)
-for capability support. Then map the content into the presentation website and
-revised slide narrative according to the active checklist. Prior
-tutorial planning remains historical input. Slides, runnable demonstrations,
-public release checks, benchmarks and conference acceptance checks remain open.
+for capability support. The [native Slides deck and PDF](../declarative-amsterdam-2026/deck-delivery.md)
+were created on October 11 with 25 main slides, four reference slides and speaker
+notes, including the [opening DNA metaphor](../declarative-amsterdam-2026/opening-teaser.md).
+The native deck includes Sasha's edits; do not replace it with the initial PPTX.
+The website, complete runnable demonstration, public release checks,
+benchmarks and conference acceptance checks remain open.
+
+Studio is not ready yet. The slides use
+[discussion #24](https://github.com/EPA-WG/cem/discussions/24) as the stable
+resource destination for slide links, QR codes, handouts, and the later website.
+Exercise, release, and Studio links will be added there as verified and
+available. Keep Studio in the platform overview; the session's participant
+route does not depend on it. Verify the login demonstration and prepare its
+presenter-led fallback independently.
 
 Keep durable decisions, artifact locations, tested commands/versions and the next
 step in these repository documents as presentation work proceeds. The chat and
@@ -32,8 +45,9 @@ temporary files are not the only record needed to continue.
 
 - [Presentation plan](../declarative-amsterdam-2026/presentation-plan.md): internal
   audience strategy, narrative, demonstration design, adoption criteria and
-  preparation requirements. XML/XSLT, data, integration and UI developers share
-  a supplier-processing story across CLI, library and browser use.
+  preparation requirements. The login document is the required demonstration;
+  a supplier pipeline across formats and hosts is a companion for XML/XSLT,
+  data, integration, and UI developers.
 - [CEM manifesto](../declarative-amsterdam-2026/cem-manifesto.md) and
   [platform pitch](../declarative-amsterdam-2026/cem-platform-pitch.md): principles
   and audience-facing message. Public wording stays in the pitch; presentation
@@ -62,17 +76,26 @@ temporary files are not the only record needed to continue.
   [roadmap](../../roadmap.md): current implementation and platform context.
 
 The [working presentation document](../declarative-amsterdam-2026/presentation.md)
-records a 2026-10-10 public-source review and the earlier tutorial outline.
-The published program places Sasha at 13:45 on November 12, with a
-break at 14:45 CET, supporting the proposed 60-minute duration. Its heading
-still uses the older title. The organizing committee's archived CFP gives an
-October 12 materials deadline; Gmail correspondence must still establish any
-later or session-specific requirements. Final slides, runnable tutorial files,
-delivery/export requirements, public Studio/CLI availability and rehearsal
-evidence remain open. The proposal's planned release is not evidence that a
-release was published.
+records the 2026-10-11 program/discussion review, topic coverage, and current
+minute allocations. The [published program](https://declarative.amsterdam/program)
+lists Sasha Firsov's **CEM-ML declarative document lifecycle engine** at 13:45
+on November 12, with a break at 14:45 CET and default room L016 / Hypatia.
+Use that title; the architecture title remains the proposal's framing.
+The [discussion timeline](https://github.com/EPA-WG/cem/discussions/24) supplies
+the six intervals retained in the minutes. The organizing committee's archived
+CFP gives an October 12 materials deadline; correspondence must still establish
+any later or session-specific requirements. Slides and a native-deck PDF are
+delivered; runnable tutorial completion, delivery requirements, CLI release
+verification and rehearsal evidence remain open. Studio's readiness is tracked
+separately. The proposal's planned
+release is not evidence that a release was published.
 
 ## Implementation checkpoint to preserve
+
+The presentation preparation checkpoint was committed and pushed to
+`origin/develop` as `33e18c99` before the October 11 agenda revisions. It saves
+the pitch, manifesto, evidence, and earlier planning; the current minutes add
+public-agenda alignment after that checkpoint.
 
 The switch began from clean `develop`, synchronized with `origin/develop` at
 `9de4302a43df71a0b1db4f8231453e05f6b494b8`:

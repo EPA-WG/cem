@@ -8,13 +8,15 @@ This index links the active project, release, and token workflow documents.
 - [CEM platform pitch](./declarative-amsterdam-2026/cem-platform-pitch.md) — audience-facing message:
   market, platform value, development lifecycle, security insulation and invitation to adopt.
 - [Declarative Amsterdam 2026 presentation plan](./declarative-amsterdam-2026/presentation-plan.md) —
-  audience strategy, narrative design, demonstrations, adoption criteria and preparation requirements.
+  ideas, preliminary design, companion demonstrations, adoption criteria and preparation requirements.
 - [CEM pitch evidence](./declarative-amsterdam-2026/platform-evidence.md) — 32 schema packages,
   six resource layers, implementation boundaries and demonstration requirements.
 - [Declarative Amsterdam 2026 introduction](./declarative.amsterdam.2026.md) — platform-first session introduction
   and 60-minute newcomer mini-tutorial journey for CEM-ML.
 - [Declarative Amsterdam 2026 presentation](./declarative-amsterdam-2026/presentation.md) —
-  conference sources and the earlier tutorial brief, outline and exercise design.
+  published agenda coverage, current 60-minute schedule, and required exercise design.
+- [Google Slides deck and delivery](./declarative-amsterdam-2026/deck-delivery.md) —
+  native presentation, PDF, speaker notes, generation scripts and verification.
 - [Declarative Amsterdam 2026 preparation handoff](./presentation/declarative-amsterdam-2026-handoff.md) —
   current presentation work, source material and the preserved implementation return point.
 - [Roadmap](../roadmap.md) — product/module sequencing and major delivery phases.

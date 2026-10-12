@@ -1,31 +1,35 @@
 # Declarative Amsterdam 2026: presentation design and adoption plan
 
-Internal preparation plan, revised 2026-10-10. This document organizes the
-audience, evidence, demonstrations, timing, and adoption decision for the CEM
-presentation. It is separate from the message delivered to prospective users.
+Internal ideas and preliminary design plan, revised 2026-10-11. This document
+organizes audience priorities, demonstrations, adoption goals, and preparation.
+The published conference session sets the delivery commitment; this plan
+explains how to make that session persuasive.
 
 ## Document ownership and session constraints
 
 | Document | Authority |
 | --- | --- |
+| [Conference program](https://declarative.amsterdam/program) | Published title, speaker, session description, and conference slot |
+| [Proposal and participant resources](https://github.com/EPA-WG/cem/discussions/24) | Proposed subjects, six timeline blocks, and the stable destination for updated resource links |
+| [Presentation agenda and minutes](presentation.md) | Current source-aligned agenda, detailed delivery minutes, and coverage of both public sources |
 | [CEM platform pitch](cem-platform-pitch.md) | Audience-facing positioning, platform goals, and adoption message |
 | [CEM manifesto](cem-manifesto.md) | Principles behind the platform's direction |
 | [Platform evidence](platform-evidence.md) | Capability facts, implementation boundaries, sources, and proof gaps |
-| This plan | Internal narrative design, demonstration coverage, and preparation dependencies |
-| [Earlier presentation brief](presentation.md) | Historical tutorial proposal, conference facts, correspondence status, and biography |
+| This plan | Internal ideas, narrative design, demonstration options, and preparation dependencies |
 | [Active work in docs/todo.md](../todo.md#current-work-declarative-amsterdam-2026-cem-presentation) | Sole active execution checklist, including fixtures and verification work |
 
-Use the public pitch for introduction and spoken copy; do not maintain another
-long introduction here. This plan supersedes the historical syntax-led journey
-as the presentation design. It does not change organizer agreements.
+Use the pitch for audience copy and the presentation minutes for timing. Design
+options here must fit the published session, **CEM-ML declarative document
+lifecycle engine**, presented by **Sasha Firsov**. Preserve the proposal's six
+blocks and the program's practical promises; sales and adoption framing give
+those activities purpose rather than replace them.
 
-Plan for the **60-minute slot** recorded in the earlier brief, including
-questions and recovery time. Preserve beginner accessibility and interaction:
-assume no previous CEM-ML experience, explain terms when needed, and make the
-presenter-led route sufficient for participants without a working local setup.
-The conference record contains unresolved title, format, deadline, and email
-questions; resolve those through its sources rather than treating this plan
-as new organizer confirmation.
+The **60-minute slot** starts at **13:45 CET on Thursday, 12 November 2026**.
+Assume no previous CEM-ML experience. Explain terms when needed, invite small
+participant decisions, and make the presenter-led route sufficient without a
+working local setup. Keep questions and recovery within the slot. Verified
+conference facts and correspondence limits belong in the
+[presentation agenda](presentation.md).
 
 ## Audience priorities and adoption outcome
 
@@ -36,10 +40,10 @@ entry point should respect XML expertise while making the wider market clear.
 | Priority / audience | Familiar starting point | Decision the presentation should enable | Evidence to prioritize |
 | --- | --- | --- | --- |
 | Primary: XML/XSLT developers | XML, XPath, XSLT, publishing pipelines | Whether CEM extends existing expertise into other formats and delivery paths | XML/CEM-ML and supported XPath/CEM-QL comparisons, followed by useful outputs |
-| Primary adjacent: data and automation engineers | Feeds, conversion, batch jobs, validation, CI | Whether one processing definition can replace repeated rules | Multi-source CLI processing with several output branches |
-| Service and tooling developers | Backends, import/export, editors, domain services | Whether the engine fits behind an existing product interface | Library invocation returning artifacts and diagnostics |
+| Primary adjacent: data and automation engineers | Feeds, conversion, batch jobs, validation, CI | Whether one processing definition can replace repeated rules | Core document conversion and CLI path; multi-source/output companion example |
+| Service and tooling developers | Backends, import/export, editors, domain services | Whether the engine fits behind an existing product interface | Platform overview and a linked library example returning artifacts and diagnostics |
 | Secondary conference, strong online: web UI developers | HTML, components, binding, build tools, SSR | Whether processing and interaction can be reused across hosts | Standalone and embedded views, explicit state and customization |
-| Platform and integration engineers | Schemas, APIs, onboarding, access controls, budgets | Whether change and authority boundaries are inspectable | Connector replacement, compatibility checks, and a real enforced denial |
+| Platform and integration engineers | Schemas, APIs, onboarding, access controls, budgets | Whether change and authority boundaries are inspectable | Contracts in the core journey; verified connector and denied-access companion examples |
 | Product and partner owners | Distribution, delivery cost, customer workflows | Whether a bounded integration deserves investment | Measured repeated work and a capability used inside a partner workflow |
 
 The desired exit action is one bounded pilot: a difficult format boundary,
@@ -48,25 +52,29 @@ to embed. A platform replacement decision follows evidence from that pilot.
 
 ## Message hierarchy and editorial choices
 
-Open with the market and framework goals from the public pitch. Establish
-repeated integration work across data services, pipelines, and applications;
-then demonstrate what CEM makes reusable. Embedding supplies a commercial
-destination while CLI and library use retain independent value.
+Open with the working login view and the market goals from the public pitch.
+Use it to explain why a document lifecycle matters across data services,
+pipelines, and applications. Each promised activity should answer a practical
+question: can I read it, change it, trust it, diagnose it, convert it, and make
+it useful? Embedding supplies a commercial destination while CLI and library
+use retain independent value.
 
 | Message level | Attraction point | Presentation treatment |
 | --- | --- | --- |
-| Lead | Shared rules across formats, locations, and outputs | Familiar source comparison and visible multi-source result |
-| Lead | Processing reusable through CLI, library, and browser hosts | One agreed result through specified runtime entry points |
-| Lead | Security insulation around independently supplied scopes | Explain all six layers and demonstrate only verified enforcement paths |
-| Lead | Embeddable capability and traceable results | Show usefulness inside a workflow, then diagnose a failure |
-| Explain | Evolutionary Architecture | One dedicated explanation after a working payoff, plus recurring proof |
-| Prove selectively | Connectors, version adapters, state continuity, SSR/resume | Choose a few changes that make preserved contracts visible |
-| Support | Native/WASM portability, concurrency, demand loading | Named runtime profiles and measured workloads |
-| Catalog | 32 checked-in schema packages and extension mechanisms | Linked capability catalog; demonstrate one custom vocabulary |
+| Lead | Neutrality to formats, source locations, and execution tiers | Familiar source comparison and second format for the same model; multi-source/output companion |
+| Lead | Processing reusable through CLI, library, and browser hosts | Follow the document into a web view; identify supported runtime entry points in the platform overview |
+| Lead | Security insulation around independently supplied scopes | Brief six-layer scope explanation in the platform overview; deeper verified proofs as companions |
+| Lead | Embeddable capability and traceable results | Diagnose the document failure, then show its working light-DOM view |
+| Explain | Evolutionary Architecture | Dedicated explanation in the opening seven minutes, followed by recurring contract evidence |
+| Companion | Connectors, version adapters, state continuity, SSR/resume | Independent examples for the website or questions, subject to verified time |
+| Support | Native/WASM portability, concurrency, demand loading | Required runtime overview; workload measurements and deeper mechanisms in companion material |
+| Catalog | 32 checked-in schema packages and extension mechanisms | Linked catalog; show pick/extend/create choices during validation without a separate catalog tour |
 | Direction | Complete vendor containment, full progressive processing, bundler parity | Explicitly identified goals with proof requirements |
 
 Use each feature to answer a practical question before naming its mechanism.
 Avoid a package inventory or notation tour as the organizing structure.
+Use the [code preview workflow](code-preview.md) for CLI tabular source and
+CEM-colored HTML/screenshots; its first login preview is ready for visual review.
 The AI-era argument is a strategic thesis about connecting more available
 software to existing workflows. Do not use an unsupported tenfold app-growth
 claim or imply that AI-generated declarations are safe by construction.
@@ -89,33 +97,46 @@ and terminals.” The [pitch](cem-platform-pitch.md) is the style reference.
 When describing schema choices, retain all three: “Pick, extend, or create
 your own schemas.”
 
-## Proposed 60-minute run
+## Agenda boundaries and rehearsal priorities
 
-This is a rehearsal allocation, not a finished slide sequence. The exact
-examples depend on verified builds and the proof choices below.
+Use [presentation minutes](presentation.md#presentation-minutes) as the single
+timed run sheet. It preserves the discussion's six intervals: why the stack
+must evolve; reading and editing the login document; validation, inspection,
+diagnostics, and conversion; querying and templating into a light-DOM view;
+the platform; then participants' use cases and questions. This plan adds no
+competing schedule.
 
-| Minutes | Purpose | Main visible proof | Participant involvement |
-| --- | --- | --- | --- |
-| 0–5 | Establish market, recurring work, and platform goals | Supplier information needed by a feed, service, and ordering workflow | Recognize a similar integration problem |
-| 5–12 | Make CEM familiar | XML beside CEM-ML; supported XPath beside equivalent CEM-QL | Predict the selected records |
-| 12–22 | Show reusable processing and the development loop | XML + CSV, explicit mapping, YAML/JSON outputs; edit, inspect, repair, rerun a check | Choose or make one business-rule change |
-| 22–27 | Explain Evolutionary Architecture | Replace one source boundary while preserving expected output | Identify what changed and what stayed stable |
-| 27–37 | Carry processing into delivery | CLI result, library invocation, then an embedded view; show packaging dependencies | Follow the same definition across hosts |
-| 37–47 | Make security insulation concrete | Six-layer scope model, configured denied access, surrounding work continues | Predict whether a scoped request should be admitted |
-| 47–53 | Show state/performance depth and the next adoption step | One verified SSR/resume or bounded concurrency proof, with measurements | Relate the result to a potential pilot |
-| 53–60 | Questions, recovery, and adoption decision | Reproducible example and public entry point when available | Name a useful first integration |
+The required demonstration follows **one login document** through that journey.
+Show the finished view first, then return to its source. Keep XML/CEM-ML and
+XPath/CEM-QL comparisons within the corresponding reading and query blocks.
+The platform overview must include Rust native/WASM, CLI, Node, browser and
+worker use, `cem-element`, Consumer Semantic Theme, CEM Components, CEM Studio,
+and CEM Site. Connect each to the document already demonstrated.
 
-Keep the core path runnable without participant installation. Optional
-variants must have independent entry points so they can move to questions or
-the later website without breaking the story. If time slips, shorten optional
-variants before removing the verified result, the security boundary explanation,
-or the pilot decision. Rehearse remote-readable source and result panes.
+Treat full SDLC coverage, format/location/tier neutrality, extensible
+connectors, and security insulation as reasons behind these activities. Their
+deeper examples are design options for the website or questions. The supplier
+pipeline below supplements the promised login exercise; it does not replace
+it. Do not crowd validation, source-linked repair, conversion, or the working
+web view out of the session with additional feature tours.
+
+Keep the core path runnable without participant installation. Prepare saved
+checkpoints for each required stage and rehearse source/result panes at remote
+viewing size. If time slips, omit optional variants and shorten exposition;
+preserve the public lifecycle demonstration, platform overview, and audience
+questions. Rehearsal decides which companion examples fit, not which published
+subjects to drop.
 
 ## Development lifecycle proof journey
 
 The audience should see continuity from source selection to operating and
-changing software. Studio is the interactive workbench; CLI and library
-interfaces connect the engine to existing editors, hosts, and automation.
+changing software through the required login exercise. Studio is the planned
+interactive workbench and is not ready yet; CLI and library interfaces connect
+the engine to existing editors, hosts, and automation. The table is a design
+coverage map, not ten separate live demonstrations. Reading, editing, validation,
+inspection, repair,
+conversion, querying, and rendering receive the time promised publicly; the
+platform overview and companion material connect them to the remaining stages.
 The [lifecycle evidence](platform-evidence.md#development-lifecycle) records
 the current foundations for this journey.
 
@@ -137,13 +158,39 @@ composition, check enforceable boundaries and workloads, bind host policy at
 deployment, then inspect behavior during execution. The service host still
 owns endpoints, scheduling, authentication, and operational deployment.
 
-## Central demonstration and baseline deliverables
+## Required login demonstration and companion examples
 
-Use a supplier availability capability instead of the historical login form.
-Product descriptions arrive as XML and stock as CSV. Explicitly match records
-by product ID, convert numeric values under a stated rule, select availability,
-and branch to a YAML partner feed, a JSON service payload, and a web view.
-Graph joins organize artifacts; the domain query owns the business matching.
+### Core: one document through its lifecycle
+
+Use the login document promised in the conference program and proposal. The
+same displayed source should connect every stage, with saved checkpoints so a
+failure does not prevent the next promised activity.
+
+| Required checkpoint | Visible result | Design purpose |
+| --- | --- | --- |
+| Read and edit | XML beside CEM-ML; a small change in the login document | Make the notation approachable without a syntax lecture |
+| Validate and repair | An intentional schema failure, source-linked diagnostic, and corrected document | Show why picking, extending, or creating schemas matters |
+| Inspect | Typed document structure tied to the displayed source | Make the shared model and diagnostic evidence visible |
+| Convert | A second representation of the same model | Explain format neutrality and any explicit mapping limits |
+| Query and transform | Supported XPath beside CEM-QL, then a template producing the view | Connect existing expertise to reusable processing |
+| Render | A working login view through the light-DOM `cem-element` path | Deliver the published practical outcome |
+| Locate it in the platform | Trace the example through the named runtimes, theme, components, Studio, and Site | Show where to continue development and adoption |
+
+Verify the selected schema, invalid edit, conversion, query, template, and
+rendering path as one reproducible example. Pick the second format only after
+confirming that the example's agreed model and required semantics are retained.
+Describe the login view's actual behavior; do not imply a production identity
+service or security guarantees beyond the demonstrated implementation.
+
+### Companion: supplier data across inputs, outputs, and hosts
+
+Use supplier availability to deepen the broader platform pitch online or in
+questions. Product descriptions arrive as XML and stock as CSV. Explicitly
+match records by product ID, convert numeric values under a stated rule,
+select availability, and branch to a YAML partner feed, a JSON service payload,
+and a web view. Graph joins organize artifacts; the domain query owns the
+business matching. This proposed extension makes multiple inputs and outputs,
+each in its own format, concrete without replacing the promised core.
 
 ```mermaid
 flowchart LR
@@ -157,12 +204,12 @@ flowchart LR
     V --> P["Partner ordering portal"]
 ```
 
-Prepare one source set, mapping, domain rule, expected-result set, and failure
-case as the reference across the selected hosts. The composed example remains
+For this companion, prepare one source set, mapping, domain rule, expected-result
+set, and failure case across the selected hosts. The composed example remains
 proposed until its fixtures, commands, and outputs are verified; individual
 repository operations do not establish the whole demonstration.
 
-| Entry point | Baseline demonstration | Host responsibility and boundary |
+| Entry point | Companion demonstration | Host responsibility and boundary |
 | --- | --- | --- |
 | Linux native CLI | One automated run produces multiple file artifacts and diagnostics | Bind permitted input/output paths and capture the reproducible command |
 | Library in a small service or tool | Invoke supported processing, inspect returned artifacts, return the explicit JSON output | Own transport, identity, scheduling, error handling, and publication |
@@ -193,36 +240,40 @@ need explicit mappings and loss reporting when relevant.
 The [schema catalog](platform-evidence.md#schema-package-catalog) lists all
 32 checked-in packages by purpose. Use it as evidence of breadth, with parsing,
 validation, query, formatting, and rendering support identified independently.
-Show the choice to pick, extend, or create a schema. Demonstrate an extension
-with one added vocabulary term or constraint and its diagnostic.
+Show the choice to pick, extend, or create a schema while validating the login
+document. A separate vocabulary extension and its diagnostic are companion
+options, included live only if rehearsal preserves the required activities.
 An arbitrary new lexical syntax also requires a parser/import adapter; a schema
 definition alone does not generate universal parser support.
 
-For the diagnosis proof, select an incorrect availability result and trace it
-through the transformation to its stock cell or product node. Also inspect a
-dependency behind a generated asset. Verify each traced path before showing it;
-the point is an explainable failure, not a promise of universal provenance.
+The core diagnosis proof must locate and repair an error in the login document.
+For the supplier companion, select an incorrect availability result and trace
+it to its stock cell or product node. A generated asset dependency offers
+another optional trace. Verify each path before showing it; the point is an
+explainable failure, not a promise of universal provenance.
 
 ## Variant and proof coverage
 
-Keep these variants as a coverage map. Select the live subset during rehearsal;
-preserve the others as independent examples for later material. None is a
-completion claim until its composed path is verified.
+Keep these variants as optional coverage beyond the required login journey.
+Prepare them as independent website examples or answers to audience questions.
+A live variant needs verified timing within the published blocks; it must not
+displace a required activity. None is a completion claim until its composed
+path is verified.
 
 | Variant | Visible change | Contract / proof | Place in the narrative |
 | --- | --- | --- | --- |
-| Source format | Change stock CSV to JSON | Same agreed domain output; format mapping changes explicitly | Main evolution proof candidate |
-| Schema extension | Add a product constraint and violate it | Useful source-linked rejection, then successful repair | Main development loop |
+| Source format | Change stock CSV to JSON | Same agreed domain output; format mapping changes explicitly | Supplier companion: evolution |
+| Schema extension | Add a product constraint and violate it | Useful source-linked rejection, then successful repair | Supplier companion: schema extension |
 | Resource location | File → permitted HTTPS → host-supplied memory | Same query/result, updated provenance, retained denial of ungranted locations | Connector proof candidate |
 | Publication | Return the result through another supported publication path | Named output semantics and host access policy preserved | Connector extension |
 | Version adapter | Supplier v2 field/structure → explicit v1-compatible transformation | Version range and meaning-preserving limits declared; consumer checks still pass | Evolution extension |
-| Processing host | CLI → library → selected WASM host | Agreed outputs and diagnostics for the supported profile | Main delivery proof |
-| Embedding | Standalone view → partner-hosted view | Same capability receives host context and keeps behavior coherent | Main application payoff |
+| Processing host | CLI → library → selected WASM host | Agreed outputs and diagnostics for the supported profile | Companion runtime comparison |
+| Embedding | Standalone view → partner-hosted view | Same capability receives host context and keeps behavior coherent | Companion embedding payoff |
 | Host styling | Same view in two themes | Provider-declared tokens/hooks work; incompatible customization is reported | Web-developer extension |
 | Presentation context | Compact indicator → detailed panel → dedicated page | Same domain result with deliberate task-specific presentation | Proposed UI variants, not a universal mode API |
 | Multiple instances | Two suppliers or product selections on one page | Independent instance context and selection state | Ownership proof |
 | Explicit effects | Read-only result → permitted reservation/persistence service | Grant or withhold host service; no ambient authority inferred | Application/security bridge |
-| Denied resource | Request an ungranted location or publication | Denial before the identified I/O path; separate permitted work completes | Main security proof candidate |
+| Denied resource | Request an ungranted location or publication | Denial before the identified I/O path; separate permitted work completes | Companion security proof |
 | Cross-tier state | Server output → browser continuation → state update | Compatible state/revision/declaration identity; stale revision handled | Lifecycle depth candidate |
 | Resource pressure | Constrain or cancel one admitted workload | Measured limit/cancellation behavior and independent sibling result | Performance/security candidate |
 
@@ -240,7 +291,10 @@ or rejection. They are not automatically repaired by a common runtime.
 
 ## Scope security: explain the mechanism and prove the boundary
 
-Use the DCE scope/inclusion model as the architectural explanation: each
+Introduce the scope model briefly in the 47–54-minute platform overview. The
+six-layer diagram connects independent modules to the insulation model; a
+complete enforcement tour belongs in companion material or questions. Use the
+DCE scope/inclusion model as the architectural explanation: each
 independently supplied application, pipeline stage, or connector is surrounded
 by applicable insulation layers. Declarations request access, hosts determine
 grants, and runtime mechanisms must enforce the boundary during execution.
@@ -260,8 +314,9 @@ these candidates are not yet verified presentation demonstrations.
 | DOM, browser | Inert state islands, owned ranges, nested ownership; no live DOM in workers | Update one instance while preserving sibling state/focus | Hostile same-page script and active-markup confinement |
 | CSS, browser | Native scoped rules, ownership, hooks, limits, diagnostics | Two host themes and a rejected unsupported construct | All style effects, inheritance, and resource-bearing constructs |
 
-Show a scope/inclusion diagram with a supplier receiving product and stock
-data, a shipping contribution receiving only region and parcel dimensions,
+For the companion proof, show a scope/inclusion diagram with a supplier
+receiving product and stock data, a shipping contribution receiving only region
+and parcel dimensions,
 and the view receiving results. Annotate requested and granted resources.
 The full multi-vendor composition is a proposed proof; identify exactly which
 part of the diagram each live denial establishes.
@@ -279,9 +334,11 @@ the proof remains specific about engine, host, profile, and trust assumptions.
 
 ## Evolutionary Architecture: one explanation, recurring evidence
 
-Reserve the dedicated 22–27-minute explanation after the first useful result.
-In the eventual deck it merits its own slide. Connect it to the
-[authors' account of incremental change and fitness functions](https://evolutionaryarchitecture.com/precis.html).
+Use minutes 0–3 for the finished login view and its practical goal, then
+minutes 3–7 to explain Evolutionary Architecture within the proposal's opening
+block. The explanation merits its own slide; the
+[presentation minutes](presentation.md#presentation-minutes) own the timing.
+Connect it to the [authors' account of incremental change and fitness functions](https://evolutionaryarchitecture.com/precis.html).
 Repeat three questions with each significant change: what changes, what remains
 stable, and which executable check proves it?
 
@@ -300,6 +357,11 @@ latency and resource requirements. Extensibility alone is insufficient proof
 of guided evolution.
 
 ## Measurement and transformation-graph coverage
+
+These are companion proof requirements, not an additional block in the
+conference agenda. Introduce the relevant execution choices in the platform
+overview; keep a detailed benchmark, SSR/resume, concurrency, or streaming
+demonstration for the website or questions unless rehearsal proves it fits.
 
 Choose one workload that demonstrates a useful outcome. Keep input, output,
 operation, runtime version, machine/browser, and policy profile explicit.
@@ -326,6 +388,11 @@ Use [processing evidence](platform-evidence.md#processing-delivery-and-performan
 to choose the claims and variants that are ready.
 
 ## Commercial adoption and pilot acceptance
+
+Use the closing use-case discussion to invite one bounded pilot and let
+participants connect the lifecycle to their own work. The detailed acceptance
+criteria below support follow-up and the website; do not turn the final
+question period into a second sales presentation.
 
 Show who benefits: providers reuse a capability across consumers; hosts reduce
 reconstruction and onboarding work; users keep task context and avoid repeated
@@ -356,7 +423,9 @@ ownership remain explicit integration responsibilities.
 
 ## Comparison preparation
 
-Choose comparisons relevant to the selected audience question. Acknowledge
+Keep these comparisons as preparation for questions and optional website
+material. The main session retains its promised document journey. Choose
+comparisons relevant to the selected audience question. Acknowledge
 existing strengths, then demonstrate the particular CEM combination. These
 sources provide context, not implementation requirements for CEM.
 
@@ -377,28 +446,39 @@ use it to explain a recognizable problem rather than announce a new category.
 
 ## Preparation dependencies, fallback, and later website
 
-The public pitch and manifesto establish the message; the evidence record
-selects defensible claims; verified examples enable rehearsal; rehearsal then
-determines the final slide and website mapping. This document creates no
+The program and proposal establish required coverage; the presentation minutes
+record its delivery. The pitch and manifesto establish the message, while the
+evidence record selects defensible claims. Verify the core login example
+before rehearsing optional proofs. Draft slides from the current minutes now;
+use rehearsal and verified outputs to finish the deck. This document creates no
 website, slides, fixture, benchmark, or release by itself.
+
+Link slides, QR codes, handouts, and the later website to
+[discussion #24](https://github.com/EPA-WG/cem/discussions/24) for participant
+resources. Add exercise, release, and Studio links there as they are verified
+and available. Studio remains in the platform overview, but its availability
+is neither a prerequisite for drafting slides nor a required participant route.
 
 | Deliverable | Dependency / acceptance evidence |
 | --- | --- |
-| Reproducible core example | Source fixtures, exact builds, commands/library calls, expected artifacts, and failure cases |
+| Reproducible login lifecycle | Source fixtures, exact build, read/edit checkpoint, validation failure and repair, typed inspection, second-format output, query/template, and working web view |
+| Platform overview | Verified roles for Rust native/WASM, CLI, Node, browser/worker, `cem-element`, Consumer Semantic Theme, CEM Components, Studio, and Site |
+| Companion examples | Independent source fixtures, commands/library calls, expected artifacts, failure cases, and evidence labels |
 | Familiar comparisons | Verified supported expressions and equivalent highlighted results |
 | Security/performance proof | Named host/profile, observed allowed and denied behavior, measured workload, explicit limitations |
-| Installation and access notes | Tested Linux/Node paths and working browser access; other platforms only when tested |
+| Installation and access notes | Tested Linux/Node paths and the presenter's browser demonstration; publish verified participant options through discussion #24 |
 | Presenter fallback | Saved outputs and source snapshots or a recorded run matching the demonstrated version |
-| Rehearsal record | Timed core path, remote legibility, recovery points, and selected optional variants |
+| Rehearsal record | All required subjects within the six published intervals; remote legibility, recovery points, and optional variants only where time permits |
 | Later public website | Immediate result, familiar source, one meaningful edit, inspection, and a reproducible download/entry point |
 
-The later site should offer routes for automation, embedding processing in a
-service/tool, and composing an application. Each example should stand alone.
-Choose page and slide structure only after the message and proofs stabilize.
-Preserve the presenter-led path if local installation or connectivity fails.
+The later site should reproduce the conference login journey, then offer
+companion routes for automation, embedding processing in a service/tool, and
+composing an application. Each example should stand alone.
+Refine page and slide structure as proofs are verified. Preserve the
+presenter-led path if local installation or connectivity fails.
 
-The [historical conference record](presentation.md#conference-facts-and-correspondence-status)
-owns unresolved organizer facts and unavailable correspondence. The
+The [presentation agenda](presentation.md) owns conference facts, source
+coverage, delivery minutes, and correspondence limits. The
 [evidence record](platform-evidence.md#demonstration-evidence-and-gaps) owns
 capability gaps. The [EPA/DWA source notes](platform-evidence.md#ideas-from-epa-and-dwa)
 explain inspiration retained from those repositories without adopting their
