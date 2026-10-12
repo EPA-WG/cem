@@ -42,8 +42,11 @@ comfort `#F1FEFE`, comfort-text `#001010`, creativity-x `#6A1B9A`, creativity
 
 The teaser takes 00:00–00:45. The original title slide, now physical slide 2,
 stays dark and takes 00:45–01:10. The visible login result takes 01:10–03:00;
-later time boundaries stay intact. The deck now has 25 main slides and four
-reference slides. Physical numbering follows that order.
+the opening seven-minute block stays intact. The current deck has 30 physical
+slides: 26 timed slides and four optional references at positions 25 and 27–29.
+Sasha's “Browser vs DCE security” diagram takes 50:00–50:30 within the platform block;
+questions remain 54:00–60:00 on slide 30. The [slide story](slide-story.md)
+follows the native order and owns the per-slide notes.
 
 The deck-wide CEM light palette and dark terminal samples are recorded in
 [docs/todo.md](../todo.md). This update applies light mode to the teaser only;

@@ -23,8 +23,12 @@ for ideas, preliminary design, and adoption decisions, the
 audience message, the [manifesto](../declarative-amsterdam-2026/cem-manifesto.md)
 for principles, and the [evidence record](../declarative-amsterdam-2026/platform-evidence.md)
 for capability support. The [native Slides deck and PDF](../declarative-amsterdam-2026/deck-delivery.md)
-were created on October 11 with 25 main slides, four reference slides and speaker
-notes, including the [opening DNA metaphor](../declarative-amsterdam-2026/opening-teaser.md).
+were created on October 11 and now contain 30 physical slides: 26 timed slides
+and four optional references interleaved in Sasha's order, all with speaker
+notes. The [opening DNA metaphor](../declarative-amsterdam-2026/opening-teaser.md)
+starts the session; “Browser vs DCE security” is slide 23 and the closing resource
+slide is 30. References 25 and 27–29 add no scheduled time. The session retains
+the six public intervals and 54–60-minute question period.
 The native deck includes Sasha's edits; do not replace it with the initial PPTX.
 The website, complete runnable demonstration, public release checks,
 benchmarks and conference acceptance checks remain open.

@@ -52,8 +52,9 @@ to embed. A platform replacement decision follows evidence from that pilot.
 
 ## Message hierarchy and editorial choices
 
-Open with the working login view and the market goals from the public pitch.
-Use it to explain why a document lifecycle matters across data services,
+Open with the brief thought → DNA → CEM metaphor, introduce the session, then
+show the working login view and the market goals from the public pitch.
+Use that result to explain why a document lifecycle matters across data services,
 pipelines, and applications. Each promised activity should answer a practical
 question: can I read it, change it, trust it, diagnose it, convert it, and make
 it useful? Embedding supplies a commercial destination while CLI and library
@@ -107,7 +108,8 @@ the platform; then participants' use cases and questions. This plan adds no
 competing schedule.
 
 The required demonstration follows **one login document** through that journey.
-Show the finished view first, then return to its source. Keep XML/CEM-ML and
+After the opening metaphor and title, show the finished view before returning
+to its source. Keep XML/CEM-ML and
 XPath/CEM-QL comparisons within the corresponding reading and query blocks.
 The platform overview must include Rust native/WASM, CLI, Node, browser and
 worker use, `cem-element`, Consumer Semantic Theme, CEM Components, CEM Studio,
@@ -334,10 +336,17 @@ the proof remains specific about engine, host, profile, and trust assumptions.
 
 ## Evolutionary Architecture: one explanation, recurring evidence
 
-Use minutes 0–3 for the finished login view and its practical goal, then
+Use minutes 0–3 for the DNA metaphor, session title, and finished login view, then
 minutes 3–7 to explain Evolutionary Architecture within the proposal's opening
 block. The explanation merits its own slide; the
 [presentation minutes](presentation.md#presentation-minutes) own the timing.
+In the platform block, use the added “Browser vs DCE security” diagram as a
+30-second bridge from deployment routes to scope insulation. It contrasts
+shared host resources with owned, guarded resources for each vendor, including
+nested applications. Carry that security ambition across browser, backend,
+and CLI hosts; the evidence record defines the supported operations and
+enforcement boundaries. Keep the four interleaved reference
+slides optional, with no additional scheduled time.
 Connect it to the [authors' account of incremental change and fitness functions](https://evolutionaryarchitecture.com/precis.html).
 Repeat three questions with each significant change: what changes, what remains
 stable, and which executable check proves it?

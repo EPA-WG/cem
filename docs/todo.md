@@ -110,6 +110,12 @@ audience-facing message. This file remains the sole execution checklist.
       Keep physical slide 2 (the original title slide) in dark mode as contrast.
       Use CEM dark mode for terminal output samples. Preserve semantic syntax
       colors and verify their contrast. The new opening teaser uses light mode.
+- [x] Synchronize Sasha's native slide additions and ordering: preserve the DCE
+      promise diagram and embedding edits, renumber every physical slide,
+      reconcile timing and documentation, and verify the rendered deck.
+      Reviewed 2026-10-11: 30 slides, 26 timed plus four optional references;
+      all rendered pages checked. The 60-minute run and six-minute Q&A remain.
+      See the [native order](declarative-amsterdam-2026/native-slide-order.md).
 - [x] Develop the opening thought → DNA → CEM metaphor in the user-edited
       first slide, add speaker talking points, and verify its native rendering.
       Saved [opening idea and notes](declarative-amsterdam-2026/opening-teaser.md).

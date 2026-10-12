@@ -1,5 +1,5 @@
 /* Build the INITIAL 28-slide PowerPoint snapshot. The native Google Slides
- * deck now contains Sasha's edits and a 29th slide; it is authoritative.
+ * deck contains subsequent additions and Sasha's edits; it is authoritative.
  * Do not reimport this snapshot over the edited deck. Use native updates.
  * Generated binaries belong in dist/.
  * Prerequisites: generate-code-preview.mjs and generate-slide-assets.mjs.

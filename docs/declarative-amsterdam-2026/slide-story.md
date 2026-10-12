@@ -1,7 +1,8 @@
 # Declarative Amsterdam 2026 — slide story and speaker notes
 
-Source-aligned authoring script, 2026-10-11. Twenty-five main slides occupy
-60 minutes; four appendix slides are outside the timed run. The final six
+Source-aligned authoring script, 2026-10-11. Thirty physical slides contain
+26 timed slides and four optional references interleaved in Sasha's order. The
+timed slides occupy 60 minutes; references add no scheduled time. The final six
 minutes belong to questions and adoption discussion. The title follows the
 [published program](https://declarative.amsterdam/program), and the intervals
 preserve the [discussion #24](https://github.com/EPA-WG/cem/discussions/24)
@@ -15,7 +16,7 @@ proposed example wording below. Do not invent a diagnostic or command result
 to fill a demonstration slot.
 
 The native deck's timing is mirrored below; its current readback is
-`dist/declarative-amsterdam-2026/slides/raw-after-teaser-final.json`. Current asset evidence
+`dist/declarative-amsterdam-2026/slides/raw-after-user-sync.json`. Current asset evidence
 is `dist/declarative-amsterdam-2026/slide-assets/evidence.json`: native validation
 demonstrates the teaching schema's required-method error and repair; XPath and
 CEM-QL select matching source spans from a namespace-repaired XML export.
@@ -493,11 +494,11 @@ boundary against arbitrary same-page JavaScript.
 >
 > Put a specialist transformation inside the pipeline that needs it.
 
-The provider maintains the capability. The host supplies context and permitted
-actions.
+Embeddable Provider apps maintain the capability.
+Host app supplies context, permitted actions and visual integration.
 
-**Visual:** Provider capability inside a host workflow; a visible boundary with
-named inputs, actions, and styling hooks.
+**Visual:** Two use-case quotes share a purple panel. The provider/host copy
+below names who maintains the capability and who supplies its integration context.
 
 **Speaker notes:** “More software competes for a place in existing workflows.
 Providers gain reach when their capabilities fit inside another product;
@@ -542,7 +543,7 @@ all migrations, public releases, or runtime capabilities are complete.
 
 ## 22 · Put processing where the work happens
 
-**Time:** 49:00–50:30 · 1 minute 30 seconds
+**Time:** 49:00–50:00 · 1 minute
 
 **Slide copy**
 
@@ -569,7 +570,41 @@ and version questions to the resource discussion.
 **Sources:** [CLI/library applications](platform-evidence.md#cli-library-and-pipeline-applications),
 [connectors](platform-evidence.md#format-and-location-independence).
 
-## 23 · Insulate each vendor's contribution
+## 23 · Browser vs DCE security
+
+**Time:** 50:00–50:30 · 30 seconds
+
+**Slide copy:** “Browser vs DCE security” — Sasha's original comparison,
+retained as supplied.
+
+**Visual:** The left panel shows first- and third-party JavaScript sharing access
+to Memory, Storage, CPU, DOM, CSS, and Network. The right panel shows the DWA
+insulation promise: an owned, guarded resource stack for the host and another
+for each embedded third-party application. Nested inclusion keeps the stacks
+separate. This is the historical DCE security diagram, not an execution trace.
+
+**Speaker notes:** “The original DCE promise is visible here: embedding another
+vendor's application should not give it the host's resources. Each contribution
+needs guarded Memory, Storage, CPU, and Network; browser scopes add DOM and CSS.
+CEM carries this security model into its architecture across browser, backend,
+and CLI hosts. The next slide separates the intended insulation from the
+controls we can verify today.”
+
+**Presenter's added note:** “Declarative Custom Element <custom-element> promise.
+Now this promise is fulfilled by CEM engine as in browser as for Back-End service
+as in CLI.”
+
+Treat the diagram as the inherited security direction. Its blanket JavaScript
+contrast describes shared-authority embedding, not every browser isolation
+mechanism. Supported processing across hosts does not establish full feature
+parity or complete vendor confinement. The next slide states the scope model;
+reference slide 25 records current enforcement boundaries.
+
+**Sources:** [DCE promises](platform-evidence.md#dce-promises-carried-forward),
+[CLI, library and pipeline applications](platform-evidence.md#cli-library-and-pipeline-applications),
+[scope evidence](platform-evidence.md#six-resource-layers).
+
+## 24 · Insulate each vendor's contribution
 
 **Time:** 50:30–52:30 · 2 minutes
 
@@ -600,7 +635,42 @@ plugins are not made hostile-code safe by declaring a scope.
 **Sources:** [Six layers and current gaps](platform-evidence.md#six-resource-layers),
 [nested scopes](platform-evidence.md#nested-scopes-and-inclusions).
 
-## 24 · Make performance a lifecycle property
+## 25 · Reference — Six layers: controls and remaining boundaries
+
+**Time:** Outside the timed run.
+
+**Slide copy**
+
+Memory: accounted allocations ≠ full private-memory isolation
+
+Storage: host ports ≠ universal per-vendor store authority
+
+CPU: bounded/cooperative work ≠ preemption of arbitrary native code
+
+Network: configured resolver policy ≠ universal denied-by-default egress
+
+DOM: owned ranges ≠ hostile same-page-script confinement
+
+CSS: scope ownership ≠ containment of every style effect
+
+**Visual:** Six paired rows: existing foundation / remaining boundary. Keep the
+architecture-target label consistent with slide 24.
+
+**Speaker notes:** “The value of this model depends on observable enforcement
+at every crossing. An ownership label, permission declaration, or resource
+counter is not sufficient by itself.” Current plugins execute in process with
+host privileges; elapsed-time checks after return do not preempt arbitrary
+plugin code. Resolver defaults are passthrough unless the host supplies a
+restrictive policy. A convincing proof needs allowed and denied cases,
+indirect effects, nested budgets, revocation, and sibling behavior. Capability
+security is not claimed as a CEM invention; the goal is its integration across
+the declarative composition.
+
+**Sources:** [Six-layer evidence](platform-evidence.md#six-resource-layers),
+[plugin runtime](../../packages/cem_ml/src/plugin/runtime.rs),
+[resolver](../../packages/cem_ml/src/resolver.rs).
+
+## 26 · Make performance a lifecycle property
 
 **Time:** 52:30–54:00 · 1 minute 30 seconds
 
@@ -625,36 +695,35 @@ input size, first useful result, total duration, and resource use.
 **Sources:** [Processing and performance evidence](platform-evidence.md#processing-delivery-and-performance),
 [component lifecycle](../cem-element-lifecycle-principle.md).
 
-## 25 · Bring one useful integration
+## 27 · Reference — Reproduce the walkthrough
 
-**Time:** 54:00–60:00 · 6 minutes
+**Time:** Outside the timed run.
 
 **Slide copy**
 
-A format boundary. A repeated rule. A capability to embed.
+Source + schema + engine version
 
-Bring your data. Keep your expertise.
+Commands + expected results + recovery checkpoints
 
-Resources and updates
+Resources and updates → discussion #24
 
-https://github.com/EPA-WG/cem/discussions/24
+**Visual:** Three artifact groups with links; include only verified commands
+and versions resolved by the deck's evidence manifest.
 
-**Visual:** Three small pilot options and a readable QR code/link. Keep this
-slide visible throughout the question period.
+**Speaker notes:** Identify the exact version and route used to produce the
+shown artifacts. A local source build does not establish a publicly installable
+release. Participant instructions require separate clean-install verification
+for each advertised host. The source and outputs should be available locally
+for presenter recovery; the stable discussion receives distribution links as
+they become ready. Studio is not required to follow the CLI/browser exercise.
+Do not display guessed package versions or unsupported native macOS/Windows
+installation instructions.
 
-**Speaker notes:** “Which boundary in your work would make a useful first
-experiment? What input, expected output, and failure case would convince you
-the integration is worth keeping?” Spend most of this block listening and
-answering. Connect questions to a bounded pilot rather than requesting a
-platform-wide replacement decision. Explain that discussion #24 is the single
-place for examples, CLI releases, installation notes, recordings, and Studio
-access as those links become available. If a support question exceeds verified
-evidence, identify the required check rather than promising unsupported parity.
+**Sources:** [Delivery and fallback](presentation.md#delivery-setup-and-fallback),
+[preview generator](generate-code-preview.mjs),
+[resources](https://github.com/EPA-WG/cem/discussions/24).
 
-**Sources:** [Stable resource discussion](https://github.com/EPA-WG/cem/discussions/24),
-[adoption outcome](presentation-plan.md#audience-priorities-and-adoption-outcome).
-
-## 26 · Appendix — 32 schema packages
+## 28 · Reference — 32 schema packages
 
 **Time:** Outside the timed run; show in response to a relevant question.
 
@@ -689,7 +758,7 @@ the count as a feature-parity score.
 
 **Sources:** [Catalog and limits](platform-evidence.md#schema-package-catalog).
 
-## 27 · Appendix — Defined profiles, explicit boundaries
+## 29 · Reference — Defined profiles, explicit boundaries
 
 **Time:** Outside the timed run.
 
@@ -718,79 +787,50 @@ arbitrary new syntax also needs an import adapter.
 [runtime profile](../xslt-runtime-lowering.md),
 [deployment contract](../cem-ml-deployment-contract.md).
 
-## 28 · Appendix — Six layers: controls and remaining boundaries
+## 30 · Bring one useful integration
 
-**Time:** Outside the timed run.
-
-**Slide copy**
-
-Memory: accounted allocations ≠ full private-memory isolation
-
-Storage: host ports ≠ universal per-vendor store authority
-
-CPU: bounded/cooperative work ≠ preemption of arbitrary native code
-
-Network: configured resolver policy ≠ universal denied-by-default egress
-
-DOM: owned ranges ≠ hostile same-page-script confinement
-
-CSS: scope ownership ≠ containment of every style effect
-
-**Visual:** Six paired rows: existing foundation / remaining boundary. Keep the
-architecture-target label consistent with slide 22.
-
-**Speaker notes:** “The value of this model depends on observable enforcement
-at every crossing. An ownership label, permission declaration, or resource
-counter is not sufficient by itself.” Current plugins execute in process with
-host privileges; elapsed-time checks after return do not preempt arbitrary
-plugin code. Resolver defaults are passthrough unless the host supplies a
-restrictive policy. A convincing proof needs allowed and denied cases,
-indirect effects, nested budgets, revocation, and sibling behavior. Capability
-security is not claimed as a CEM invention; the goal is its integration across
-the declarative composition.
-
-**Sources:** [Six-layer evidence](platform-evidence.md#six-resource-layers),
-[plugin runtime](../../packages/cem_ml/src/plugin/runtime.rs),
-[resolver](../../packages/cem_ml/src/resolver.rs).
-
-## 29 · Appendix — Reproduce the walkthrough
-
-**Time:** Outside the timed run.
+**Time:** 54:00–60:00 · 6 minutes
 
 **Slide copy**
 
-Source + schema + engine version
+A format boundary. A repeated rule. A capability to embed.
 
-Commands + expected results + recovery checkpoints
+Bring your data. Keep your expertise.
 
-Resources and updates → discussion #24
+Resources and updates
 
-**Visual:** Three artifact groups with links; include only verified commands
-and versions resolved by the deck's evidence manifest.
+https://github.com/EPA-WG/cem/discussions/24
 
-**Speaker notes:** Identify the exact version and route used to produce the
-shown artifacts. A local source build does not establish a publicly installable
-release. Participant instructions require separate clean-install verification
-for each advertised host. The source and outputs should be available locally
-for presenter recovery; the stable discussion receives distribution links as
-they become ready. Studio is not required to follow the CLI/browser exercise.
-Do not display guessed package versions or unsupported native macOS/Windows
-installation instructions.
+**Visual:** Three small pilot options and a readable QR code/link. Keep this
+slide visible throughout the question period.
 
-**Sources:** [Delivery and fallback](presentation.md#delivery-setup-and-fallback),
-[preview generator](generate-code-preview.mjs),
-[resources](https://github.com/EPA-WG/cem/discussions/24).
+**Speaker notes:** “Which boundary in your work would make a useful first
+experiment? What input, expected output, and failure case would convince you
+the integration is worth keeping?” Spend most of this block listening and
+answering. Connect questions to a bounded pilot rather than requesting a
+platform-wide replacement decision. Explain that discussion #24 is the single
+place for examples, CLI releases, installation notes, recordings, and Studio
+access as those links become available. If a support question exceeds verified
+evidence, identify the required check rather than promising unsupported parity.
+
+**Sources:** [Stable resource discussion](https://github.com/EPA-WG/cem/discussions/24),
+[adoption outcome](presentation-plan.md#audience-priorities-and-adoption-outcome).
 
 ## Timing check
 
 | Proposal block | Slides | Minutes |
 | --- | --- | --- |
-| Opening and Evolutionary Architecture | 01–04 | 0–7 |
-| Read and edit the login | 05–08 | 7–17 |
-| Validate, inspect, diagnose, convert | 09–14 | 17–35 |
-| Query, template, and light-DOM rendering | 15–19 | 35–47 |
-| Platform and extension paths | 20–23 | 47–54 |
-| Questions and first adoption experiment | 24 | 54–60 |
+| Opening and Evolutionary Architecture | 01–05 | 0–7 |
+| Read and edit the login | 06–09 | 7–17 |
+| Validate, inspect, diagnose, convert | 10–15 | 17–35 |
+| Query, template, and light-DOM rendering | 16–20 | 35–47 |
+| Platform and extension paths | 21–24, 26 | 47–54 |
+| Questions and first adoption experiment | 30 | 54–60 |
+
+Slides 25 and 27–29 are optional references in the native order. Skip them in
+the rehearsed run; use them for a relevant question within the existing time.
+The DCE security promise takes 30 seconds from the deployment overview, preserving the
+47–54 platform block and the six-minute question period.
 
 If time slips, shorten the supplier companion and catalog explanation. Keep
 the edit, failure/repair, inspection, conversion, rendered result, required

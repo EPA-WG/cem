@@ -35,11 +35,14 @@ is the stable link for slides and handouts. Keep the resource links there up to
 date as materials become available. **Studio is not ready yet.**
 
 **Slide deck created 2026-10-11:** [Google Slides](https://docs.google.com/presentation/d/1v5JEclFycuXuYk5Mnpwb0alxdKIi30J6XgvLBmawxI4/edit)
-contains 25 main slides and four reference slides, with timed speaker notes and
-the approved source colors. [Delivery and verification](deck-delivery.md)
+now contains 30 physical slides: 26 timed slides and four optional references
+interleaved in Sasha's order, with speaker notes and the approved source colors.
+[Delivery and verification](deck-delivery.md)
 records the PDF, editable source, demonstrated checkpoints and remaining gaps.
 The [slide story](slide-story.md) expands the speaking notes. The opening
 [DNA metaphor](opening-teaser.md) precedes the original dark title slide.
+The added DCE security diagram connects deployment routes to guarded resources
+for each vendor's contribution. The closing resource slide is now slide 30.
 
 The [active checklist](../todo.md#current-work-declarative-amsterdam-2026-cem-presentation)
 remains the execution authority. Deck production and agenda coverage do not
@@ -114,11 +117,11 @@ value of each result. The allocations below total **60 minutes**.
 
 | Proposal interval | Subjects retained | Visible result or participation |
 | --- | --- | --- |
-| 0–7 | Cost of disconnected formats, validation, builds, runtimes, and source mappings; Evolutionary Architecture | Show the finished view, then identify a contract worth keeping as tools change. |
+| 0–7 | Opening DNA metaphor; cost of disconnected formats, validation, builds, runtimes, and source mappings; Evolutionary Architecture | Connect the metaphor to the finished view, then identify a contract worth keeping as tools change. |
 | 7–17 | Read and edit the public login document; minimal CEM-ML notation and namespaces | Participants change a label or heading; explain schema reuse, extension, and creation. |
 | 17–35 | Validation, repair, typed inspection, source-linked diagnostics, and second-format conversion | Find and repair a schema violation, inspect a report, format the structure, and compare the HTML counterpart. |
 | 35–47 | Declarative query, expression, and template; transformation and light-DOM rendering | Select content, transform it through a visible graph, and observe the edited result in a browser. |
-| 47–54 | Rust engine and schema packages; native/WASM, CLI, Node/browser/worker hosts; `<cem-element>`; Consumer Semantic Theme, CEM Components, CEM Studio, CEM Site | One platform map connects each owner to the exercise and shows where new formats, modules, or hosts fit. |
+| 47–54 | Rust engine and schema packages; native/WASM, CLI, Node/browser/worker hosts; `<cem-element>`; Consumer Semantic Theme, CEM Components, CEM Studio, CEM Site; the inherited DCE security promise and scope model | One platform map connects each owner to the exercise and shows where new formats, modules, or hosts fit. |
 | 54–60 | Participant use cases, extension opportunities, and questions | Identify a first integration and the evidence needed to adopt it. |
 
 Formatting, reporting, and provenance are explicit parts of the walkthrough,
@@ -226,7 +229,7 @@ the preparation instructions, outside these 60 minutes.
 
 | Elapsed | Clock (CET) | Beat / focus | Presenter action and adoption point | Participant checkpoint |
 | --- | --- | --- | --- | --- |
-| 0–3 | 13:45–13:48 | 1. A useful result | Show the finished login view beside its source. Connect it to the wider cost of integrating data services and applications across formats, locations, and tiers. | Recognize the result and what will change. |
+| 0–3 | 13:45–13:48 | 1. From an idea to a useful result | Introduce the DNA metaphor and session title, then show the finished login view beside its source. Connect it to the wider cost of integrating data services and applications across formats, locations, and tiers. | Recognize the result and what will change. |
 | 3–7 | 13:48–13:52 | 2. Evolutionary Architecture | Show how disconnected formats, validators, builds, runtimes, and source mappings repeat work. Follow the lifecycle from sources and schemas to deployment; identify contracts that survive a format or host change. | Name a change their system must accommodate. |
 | 7–12 | 13:52–13:57 | 3. Familiar structure, another notation | Put the login's HTML/XML structure beside CEM-ML. Explain only the nodes, attributes, content separator, and namespaces needed to read it. | Locate the heading, input, and button. |
 | 12–17 | 13:57–14:02 | 4. Make the first change | Edit a heading or label. Introduce the schema behind it: **Pick, extend, or create your own schemas.** Explain how rules support development as well as validation. | Make or predict the same edit. |
@@ -235,7 +238,7 @@ the preparation instructions, outside these 60 minutes.
 | 29–35 | 14:14–14:20 | 7. Change the input format | Import the HTML counterpart and export an explicit representation. Compare agreed semantic fields, retained source identity, and mapping limits. Briefly locate it in the schema catalog. | Explain what stays equivalent and what changes. |
 | 35–41 | 14:20–14:26 | 8. Query and transform | Compare a supported XPath question with CEM-QL. Use a query, expression, and template to produce the view; show the graph and trace a generated result to source bytes and its transformation. | Predict the output, then change one template value. |
 | 41–47 | 14:26–14:32 | 9. Render and embed | Show the edited result through the verified browser and `<cem-element>` path. Inspect light DOM; identify declarative data, events, queries, and templates and the runtime machinery they use. Explain the embedding opportunity. | Observe the changed view and inspect its DOM. |
-| 47–54 | 14:32–14:39 | 10. Locate the platform | Map Rust engine/schema packages, native/WASM, CLI/library, Node/browser/worker hosts, `<cem-element>`, Consumer Semantic Theme, CEM Components, CEM Studio, and CEM Site. Connect them to the exercise, extensible connectors, and six-layer scope insulation; identify current support and goals. | Locate an extension or execution path for their own work. |
+| 47–54 | 14:32–14:39 | 10. Locate the platform | Map Rust engine/schema packages, native/WASM, CLI/library, Node/browser/worker hosts, `<cem-element>`, Consumer Semantic Theme, CEM Components, CEM Studio, and CEM Site. Connect them to the exercise, extensible connectors, the inherited DCE security promise, and six-layer scope insulation; identify current support and goals. | Locate an extension or execution path for their own work. |
 | 54–60 | 14:39–14:45 | 11. Choose a first use case | Take questions about languages, schemas, modules, and application layers. Show the handout and link/QR code to discussion #24 for resources and updates; invite one bounded adoption experiment. | State a use case and bookmark the resource discussion. |
 
 Keep the source visible throughout the lifecycle. The login is a view, not an
@@ -253,7 +256,7 @@ support a presenter-led run when a participant cannot complete a local step.
 
 | Elapsed | Slides | Coverage |
 | --- | --- | --- |
-| 0–3 | 1–3 | Introduction and visible login result |
+| 0–3 | 1–3 | DNA metaphor, session title and visible login result |
 | 3–7 | 4–5 | Adoption proposition and Evolutionary Architecture |
 | 7–12 | 6–7 | XML/CEM-ML comparison and minimal notation |
 | 12–17 | 8–9 | First edit; pick, extend, or create schemas |
@@ -262,10 +265,18 @@ support a presenter-led run when a participant cannot complete a local step.
 | 29–35 | 14–15 | Verified XML route and multi-input/output companion |
 | 35–41 | 16–18 | Verified query comparison; transformation and provenance contracts |
 | 41–47 | 19–20 | Static preview, declarative runtime explanation and embedding |
-| 47–54 | 21–24 | Platform map, hosts, scope insulation and performance mechanisms |
-| 54–60 | 25 | Questions and adoption; resource link and QR |
+| 47–54 | 21–24, 26 | Platform map, hosts, inherited DCE security promise, scope insulation and performance mechanisms |
+| 54–60 | 30 | Questions and adoption; resource link and QR |
 
-Slides 26–29 are reference material outside the timed run. The current XML
+Slides 25 and 27–29 are optional references in Sasha's native order: scope
+enforcement, reproducibility, the schema catalog, and compatibility. Skip them
+in the rehearsed run; use them for a relevant question within the existing time.
+The platform block allocates 47:00–49:00 to slide 21, 49:00–50:00 to slide 22,
+50:00–50:30 to the DCE security comparison on slide 23, 50:30–52:30 to slide 24, and
+52:30–54:00 to slide 26. The six public intervals and final six-minute question
+period remain intact.
+
+The current XML
 checkpoint supplements the promised HTML input exercise. Complete HTML import,
 template execution, interactive `<cem-element>` output and generated-result
 tracing remain preparation work, as recorded in [deck delivery](deck-delivery.md).
