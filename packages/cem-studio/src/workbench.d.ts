@@ -25,9 +25,52 @@ export interface CemStudioWorkbenchSelection {
     readonly end: number;
 }
 
+export interface CemStudioExplorerNode {
+    readonly key: string;
+    readonly name: string;
+    readonly children: readonly CemStudioExplorerNode[];
+}
+export interface CemStudioExplorerState {
+    readonly nodes: readonly CemStudioExplorerNode[];
+    readonly selected: string;
+    readonly search: {
+        readonly query: string;
+        readonly status: 'idle' | 'searching' | 'ready' | 'failed';
+        readonly results: readonly { key: string; projectId: string; kind: string; entityId: string; title: string; path: string; snippet: string }[];
+        readonly error?: { code: string; message: string };
+    };
+}
+
+export interface CemStudioHomeState {
+    readonly status: 'ready' | 'working';
+    readonly projects: readonly { id: string; name: string }[];
+    readonly trash?: readonly { id: string; name: string; revision: number }[];
+    readonly storage?: string;
+    readonly usage?: number;
+    readonly quota?: number;
+    readonly message?: string;
+    readonly error?: { code: string; message: string };
+}
+
 export interface CemStudioWorkbenchState {
+    readonly structure?: {
+        projectId: string; name: string; revision: number; busy: boolean;
+        entries: readonly { id: string; name: string; kind: string; parentId?: string }[];
+        parents: readonly { id: string; name: string }[];
+        resources: readonly { id: string; path: string }[];
+        canUndo: boolean; canRedo: boolean; message?: string; error?: { message: string };
+    };
+    readonly home?: CemStudioHomeState;
+    readonly draftRecovery?: import('./project-session.js').CemStudioDraftRecovery;
+    readonly navigationError?: { code: string; message: string };
+    readonly explorer?: CemStudioExplorerState;
     readonly status: string;
     readonly projectId: string;
+    readonly transition?: import('./project-session.js').CemStudioProjectTransition;
+    readonly sessionStatus?: import('./project-session.js').CemStudioProjectSessionState['status'];
+    readonly entryId?: string;
+    readonly editable?: boolean;
+    readonly runnable?: boolean;
     readonly resourceId: string;
     readonly path: string;
     readonly contentType: string;
@@ -58,6 +101,8 @@ export interface CemStudioWorkbenchCommandChange {
 }
 
 export interface CemStudioWorkbenchCommand {
+    readonly formVersion?: string;
+    readonly formError?: Readonly<{ code: string; message: string }>;
     readonly projection: 'studio';
     readonly status: 'checking' | 'current' | 'changed' | 'invalid';
     readonly current: CemStudioResourceCommandPreview;
@@ -158,6 +203,8 @@ export interface CemStudioFeatureTourWorkbench {
     updateDraft(draft: string): CemStudioWorkbenchState;
     reload(): Promise<CemStudioWorkbenchState>;
     selectWorkbench(workbenchId: string): Promise<CemStudioWorkbenchState>;
+    /** Persist exact source bytes without requiring validation to complete. */
+    saveSource(options?: { signal?: AbortSignal }): Promise<CemStudioWorkbenchState>;
     saveAndValidate(options?: { signal?: AbortSignal }): Promise<CemStudioWorkbenchState>;
     validatePersisted(options?: { signal?: AbortSignal }): Promise<CemStudioWorkbenchState>;
     parsePersisted(
@@ -167,12 +214,14 @@ export interface CemStudioFeatureTourWorkbench {
     inspectPersisted(view?: CemStudioInspectView, options?: { signal?: AbortSignal }): Promise<CemStudioWorkbenchState>;
     runPersistedOperation(options?: { signal?: AbortSignal }): Promise<CemStudioWorkbenchState>;
     updateCommandDraft(text: string): Promise<CemStudioWorkbenchState>;
+    updateCommandField(id: string, value: string, version: string | number, reset?: boolean): Promise<CemStudioWorkbenchState>;
     resetCommandDraft(): Promise<CemStudioWorkbenchState>;
     copyCommand(writeText?: (text: string) => Promise<void>): Promise<CemStudioWorkbenchState>;
     copyProjection(writeText?: (text: string) => Promise<void>): Promise<CemStudioWorkbenchState>;
     downloadProjection(
         save?: (file: { filename: string; contentType: string; bytes: Uint8Array }) => Promise<void>,
     ): Promise<CemStudioWorkbenchState>;
+    downloadSource(save?: (file: { filename: string; contentType: string; bytes: Uint8Array }) => Promise<void>): Promise<void>;
     setCommandTarget(target: CemStudioCommandPageTarget): CemStudioWorkbenchState;
     applyCommand(options?: { signal?: AbortSignal }): Promise<CemStudioWorkbenchState>;
     applyAndRun(options?: { signal?: AbortSignal }): Promise<CemStudioWorkbenchState>;
@@ -205,3 +254,31 @@ export declare function mountCemStudioFeatureTourWorkbench(options: {
         dispose(): void;
     }>
 >;
+
+export declare function createCemStudioProjectWorkbench(options: {
+    repository: CemStudioIndexedDbRepository;
+    validator: CemStudioBrowserValidator;
+    selection: import('./project-session.js').CemStudioProjectSelection;
+    signal?: AbortSignal;
+    sample?: Readonly<Record<string, unknown>>;
+}): Promise<CemStudioFeatureTourWorkbench | CemStudioReadOnlyWorkbench>;
+
+export declare function createCemStudioSessionWorkbench(options: {
+    repository: CemStudioIndexedDbRepository;
+    session: import('./project-session.js').CemStudioProjectSession;
+    home?: { starter: { project: Record<string, unknown>; contents: Record<string, Uint8Array> }; provider: { importFallback(input: { archive: Uint8Array; mode: 'create' }): Promise<{ project: unknown }> }; selectImport(): Promise<Uint8Array> };
+}): Promise<CemStudioFeatureTourWorkbench & {
+    editStructure(edit: import('./repository.js').CemStudioStructureEdit | { kind: 'undo' | 'redo' }): Promise<CemStudioWorkbenchState>;
+    clearDraftRecovery(): CemStudioWorkbenchState;
+    downloadDraftRecovery(save: (archive: { filename: string; contentType: string; bytes: Uint8Array }) => Promise<void>): Promise<void>;
+    searchProjects(query: string): Promise<void>;
+    openEntity(key: string): Promise<CemStudioWorkbenchState>;
+    createProject(name: string): Promise<void>;
+    importProject(): Promise<void>;
+    setProjectTrashed(id: string, trashed: boolean): Promise<void>;
+    refreshNavigation(): Promise<void>;
+    resolveNavigation(decision: import('./project-session.js').CemStudioProjectTransitionDecision): Promise<import('./project-session.js').CemStudioProjectSessionState>;
+}>;
+
+export type CemStudioReadOnlyWorkbench = Pick<CemStudioFeatureTourWorkbench,
+    'snapshot' | 'subscribe' | 'dispose' | 'downloadSource'>;

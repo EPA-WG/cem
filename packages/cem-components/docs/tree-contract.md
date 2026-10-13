@@ -166,3 +166,8 @@ form the executable contract:
 - [Pinned Angular Material tree source](https://github.com/angular/components/blob/0b67c3c38141049657b1167479accc80e455d2bd/src/material/tree/tree.md)
 - [WAI-ARIA Tree View Pattern](https://www.w3.org/WAI/ARIA/apg/patterns/treeview/)
 - [ARIA in HTML role allowances](https://www.w3.org/TR/html-aria/)
+
+The `ProjectScale` story also renders and expands 128 resource leaves without
+losing any identities. The shared runtime hashes repeated native binary artifacts
+with a versioned binary content address rather than serializing a full artifact
+for each typed attribute; tree payload and selection semantics are unchanged.

@@ -76,6 +76,10 @@
         "@epa-wg/custom-element": {
             "path": "../../../node_modules/@epa-wg/custom-element/custom-element.js",
             "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-studio/project-session": {
+            "path": "../src/project-session.js",
+            "contentType": "text/javascript"
         }
     },
     "resources": {
@@ -691,6 +695,10 @@
         "@epa-wg/cem-elements/dist/lib/manual-listbox.js": {
             "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/manual-listbox.js",
             "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-studio/workbench-navigation-view": {
+            "path": "../src/workbench-navigation.xhtml",
+            "contentType": "application/xhtml+xml"
         },
         "@epa-wg/cem-studio/workbench-controls-view": {
             "path": "../src/workbench-controls.xhtml",

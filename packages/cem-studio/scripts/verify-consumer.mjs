@@ -20,6 +20,7 @@ try {
     const dependencyArchives = [
         pack(resolve(workspaceRoot, 'packages/cem-elements')),
         pack(resolve(workspaceRoot, 'packages/cem-components')),
+        pack(resolve(workspaceRoot, 'packages/cem-demo-element')),
         pack(resolve(workspaceRoot, 'packages/cem-theme')),
     ];
     writeFileSync(
@@ -62,6 +63,7 @@ try {
         'dist/static/assets/@epa-wg/cem-studio/file-system-provider.js',
         'dist/static/assets/@epa-wg/cem-studio/feature-tour.js',
         'dist/static/assets/@epa-wg/cem-studio/workbench.js',
+        'dist/static/assets/@epa-wg/cem-studio/project-session.js',
         'dist/static/assets/@epa-wg/cem-studio/preview.js',
         'dist/static/assets/@epa-wg/cem-ml-cli/dist/browser-worker.js',
         'dist/static/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm',
@@ -73,8 +75,11 @@ try {
         'src/repository.d.ts',
         'src/preview.d.ts',
         'src/workbench.d.ts',
+        'src/project-session.d.ts',
     ]) {
         assert.ok(statSync(resolve(installedStudioRoot, path)).isFile(), `installed package is missing ${path}`);
+        assert.ok(readFileSync(resolve(installedStudioRoot, path)).equals(readFileSync(resolve(projectRoot, path))),
+            `installed package contains stale bytes for ${path}`);
     }
 
     writeFileSync(
@@ -87,26 +92,32 @@ try {
   createCemStudioFileSystemProvider,
   installCemStudioFeatureTour,
   createCemStudioFeatureTourWorkbench,
+  createCemStudioProjectSession,
+  createCemStudioProjectWorkbench,
+  createCemStudioSessionWorkbench,
   createCemStudioPreview,
+  describeCemStudioOperationFields,
+  editCemStudioOperationField,
 } from '@epa-wg/cem-studio';
+import { createCemStudioProjectSession as sessionSubpath } from '@epa-wg/cem-studio/project-session';
+
+const session = sessionSubpath({ openWorkbench: async () => { throw new Error('not opened'); } });
 
 console.log(JSON.stringify({
-  exports: [loadCemMlBrowser, mountCemStudio, registerCemStudioServiceWorker, createCemStudioProjectRepository, createCemStudioFileSystemProvider, installCemStudioFeatureTour, createCemStudioFeatureTourWorkbench, createCemStudioPreview].map((value) => typeof value),
+  exports: [loadCemMlBrowser, mountCemStudio, registerCemStudioServiceWorker, createCemStudioProjectRepository, createCemStudioFileSystemProvider, installCemStudioFeatureTour, createCemStudioFeatureTourWorkbench, createCemStudioPreview, createCemStudioProjectSession, createCemStudioProjectWorkbench, createCemStudioSessionWorkbench].map((value) => typeof value),
+  typedHelpers: [describeCemStudioOperationFields, editCemStudioOperationField].map(value => typeof value),
+  sessionStatus: session.snapshot().status,
+  sessionExportMatches: sessionSubpath === createCemStudioProjectSession,
   navigatorPresent: 'navigator' in globalThis,
 }));
+session.dispose();
 `,
     );
     const probe = JSON.parse(capture(process.execPath, ['probe.mjs']));
-    assert.deepEqual(probe.exports, [
-        'function',
-        'function',
-        'function',
-        'function',
-        'function',
-        'function',
-        'function',
-        'function',
-    ]);
+    assert.equal(probe.sessionStatus, 'empty');
+    assert.equal(probe.sessionExportMatches, true);
+    assert.deepEqual(probe.exports, Array(11).fill('function'));
+    assert.deepEqual(probe.typedHelpers, ['function', 'function']);
 
     const report = {
         schemaVersion: 1,
@@ -128,16 +139,17 @@ console.log(JSON.stringify({
 }
 
 function pack(packageRoot) {
+    const { name, version } = readJson(resolve(packageRoot, 'package.json'));
+    const archive = resolve(packRoot, `${name.replace(/^@/, '').replaceAll('/', '-')}-${version}.tgz`);
     const result = spawnSync(
-        process.platform === 'win32' ? 'npm.cmd' : 'npm',
-        ['pack', packageRoot, '--pack-destination', packRoot, '--json'],
-        { cwd: consumerRoot, encoding: 'utf8' },
+        process.platform === 'win32' ? 'yarn.cmd' : 'yarn',
+        ['pack', '--out', archive, '--json'],
+        { cwd: packageRoot, encoding: 'utf8' },
     );
     if (result.status !== 0) {
-        throw new Error(`npm pack ${packageRoot} failed:\n${result.stderr || result.stdout || result.error}`);
+        throw new Error(`yarn pack ${packageRoot} failed:\n${result.stderr || result.stdout || result.error}`);
     }
-    const [{ filename }] = JSON.parse(result.stdout);
-    return resolve(packRoot, filename);
+    return archive;
 }
 
 function findRuntimeInstalls(root) {

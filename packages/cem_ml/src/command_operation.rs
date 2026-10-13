@@ -994,6 +994,34 @@ mod tests {
         .expect("normalized fixture plan")
     }
 
+    #[test]
+    fn configuration_relative_input_is_an_exact_snapshot_lookup_key() {
+        let plan = parse_normalized_run_plan(NormalizedRunPlanRequest {
+            config_bytes: Some(br#"{"inputs":[{"uri":"data.xml"}]}"#.to_vec()),
+            config_base_uri: Some("studio://catalog/config/run.json".into()),
+            ..Default::default()
+        })
+        .unwrap();
+        let mut request = request(PortableOperationRequestV1::VersionCapabilities);
+        request.resources.insert(
+            "studio://catalog/config/data.xml".into(),
+            VirtualResourceV1 {
+                bytes: b"<root/>".to_vec(),
+                identity: None,
+            },
+        );
+        assert!(matches!(engine_input(&request, &plan, "input:0"),
+            Err(CommandOperationPreparationError::InlineResourceRequired { uri }) if uri == "data.xml"));
+        request.resources.insert(
+            "data.xml".into(),
+            VirtualResourceV1 {
+                bytes: b"<root/>".to_vec(),
+                identity: None,
+            },
+        );
+        assert_eq!(engine_input(&request, &plan, "input:0").unwrap().uri, "data.xml");
+    }
+
     fn capability() -> CapabilityManifest {
         capability_manifest(CapabilityRequest {
             runtime: RuntimeKind::Native,

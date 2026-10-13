@@ -54,6 +54,8 @@ export {
     CEM_STUDIO_PROJECT_CEM_CONTENT_TYPE,
     CEM_STUDIO_PROJECT_CONTENT_TYPE,
     CEM_STUDIO_PROJECT_SCHEMA,
+    describeCemStudioOperationFields,
+    editCemStudioOperationField,
     createCemStudioBrowserValidator,
     createCemStudioFeatureTourCopy,
     installCemStudioFeatureTour,
@@ -77,7 +79,8 @@ export {
     installCemStudioShellComponents,
     mountCemStudioApplicationShell,
 } from './shell.js';
-export { createCemStudioFeatureTourWorkbench, mountCemStudioFeatureTourWorkbench } from './workbench.js';
+export { createCemStudioProjectSession } from './project-session.js';
+export { createCemStudioProjectWorkbench, createCemStudioSessionWorkbench, createCemStudioFeatureTourWorkbench, mountCemStudioFeatureTourWorkbench } from './workbench.js';
 export {
     CEM_STUDIO_LIMITS,
     CemStudioLimitError,

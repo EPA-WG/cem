@@ -1,6 +1,9 @@
 import * as runtime from '@epa-wg/cem-ml/wasm';
 import runtimeMetadata from '@epa-wg/cem-ml/runtime.json' with { type: 'json' };
 
+export { BrowserHtmlBaseHost, createBrowserHtmlBaseHost } from './browser-html-base.js';
+export type { BrowserHtmlBaseOptions, BrowserHtmlBasePolicy } from './browser-html-base.js';
+
 import {
     CemMlOperationHandle,
     OperationHostController,
@@ -766,3 +769,5 @@ function requireBoundedInteger(field: string, value: number, minimum: number, ma
         throw new RangeError(`${field}=${value} is outside ${minimum}..=${maximum}`);
     }
 }
+
+export type { ResourceRebindRequest, ResourceRebindPlan } from './protocol.js';

@@ -3,7 +3,9 @@ import '@epa-wg/custom-element';
 import {
     createCemStudioBrowserValidator,
     createCemStudioFileSystemProvider,
-    createCemStudioFeatureTourWorkbench,
+    createCemStudioProjectWorkbench,
+    createCemStudioProjectSession,
+    createCemStudioSessionWorkbench,
     createCemStudioProjectRepository,
     installCemStudioFeatureTour,
     loadCemStudioFeatureTour,
@@ -18,6 +20,7 @@ const registration = await registerCemStudioServiceWorker().catch(() => undefine
 const validator = await createCemStudioBrowserValidator();
 const repository = createCemStudioProjectRepository({
     validateProject: validator.validateProject,
+    planResourceRebind: validator.planResourceRebind,
 });
 const seed = await loadCemStudioFeatureTour({
     baseUrl: new URL('./samples/feature-tour/', mounted.baseUrl),
@@ -29,18 +32,43 @@ const fileSystemProvider = createCemStudioFileSystemProvider({
     decodeProjectManifest: validator.decodeProjectManifest,
     encodeProjectManifest: validator.encodeProjectManifest,
 });
-const workbench = await createCemStudioFeatureTourWorkbench({
-    repository,
-    validator,
-    seed,
-    projectId: featureTour.projectId,
+/** @typedef {{id: string, runConfigResourceId?: string}} PageRecord */
+/** @typedef {{packageId?: string, contentType: string, runConfigResourceId?: string}} SampleRecord */
+const examples = /** @type {SampleRecord[]} */ (seed.catalog.examples);
+const scenarios = /** @type {SampleRecord[]} */ (seed.catalog.workbenches ?? []);
+const session = createCemStudioProjectSession({
+    storage: { getItem: key => globalThis.localStorage.getItem(key), setItem: (key, value) => globalThis.localStorage.setItem(key, value) },
+    openWorkbench: async (selection, { signal }) => {
+        // Optional sample expectations/portable scenarios do not own project records.
+        const record = await repository.query({ protocolVersion: 1, repository: 'studio-projects',
+            operation: 'get-project', requestRevision: 1, parameters: { projectId: selection.projectId } }, signal);
+        const project = /** @type {{entries: PageRecord[]} | null} */ (record.value);
+        const entry = project?.entries.find(item => item.id === selection.entryId);
+        const sample = selection.projectId === featureTour.projectId
+            ? [...examples, ...scenarios].find(item =>
+                entry?.runConfigResourceId === item.runConfigResourceId) : undefined;
+        return createCemStudioProjectWorkbench({ repository, validator, selection, signal, sample });
+    },
 });
+const initial = examples.find(item => item.packageId === 'cem-ml' && item.contentType.includes('cem'));
+const initialProject = await repository.query({ protocolVersion: 1, repository: 'studio-projects',
+    operation: 'get-project', requestRevision: 1, parameters: { projectId: featureTour.projectId } });
+const initialRecord = /** @type {{entries: PageRecord[]}} */ (initialProject.value);
+const initialEntry = initialRecord.entries.find(item => item.runConfigResourceId === initial?.runConfigResourceId);
+await session.recover({ projectId: featureTour.projectId, ...(initialEntry ? { entryId: initialEntry.id } : {}) });
+// A bounded starter uses only the bundled source. Command pages are authored explicitly.
+const starterResource = /** @type {{id: string}[]} */ (seed.bundle.project.resources).find(resource => resource.id === /** @type {{resourceId?: string}} */ (initial)?.resourceId);
+if (!starterResource) throw new Error('Bundled CEM-ML starter is unavailable');
+const starter = { project: { ...seed.bundle.project, entries: [], resources: [starterResource] },
+    contents: { [starterResource.id]: seed.bundle.contents[starterResource.id] } };
+const workbench = await createCemStudioSessionWorkbench({ repository, session,
+    home: { starter, provider: fileSystemProvider, selectImport: selectProjectArchive } });
 const shell = await mountCemStudioApplicationShell({
     root: mounted.root,
     registration,
     repository,
     persistState: async () => {
-        if (workbench.snapshot().dirty) await workbench.saveAndValidate();
+        throw Object.assign(new Error('Save source and Apply or reset the command draft before updating.'), { code: 'unsaved-work' });
     },
     fileSystem: {
         provider: fileSystemProvider,
@@ -49,13 +77,29 @@ const shell = await mountCemStudioApplicationShell({
         downloadExport: downloadProjectArchive,
     },
 });
+/** @type {string | undefined} */
+let providerSelection;
 const unsubscribeUpdateState = workbench.subscribe((snapshot) => {
-    shell.update.setDirty(snapshot.dirty);
+    const identity = JSON.stringify([snapshot.projectId, snapshot.resourceId]);
+    if (identity !== providerSelection) {
+        providerSelection = identity;
+        void shell.fileSystem.setProject(snapshot.projectId, snapshot.resourceId || undefined).catch(() => undefined);
+    }
+    shell.update.setDirty(snapshot.dirty || Boolean(snapshot.command && snapshot.command.draftText !== snapshot.command.current.text));
     const active =
+        snapshot.structure?.busy || snapshot.home?.status === 'working' || Boolean(snapshot.transition) || ['opening', 'settling'].includes(snapshot.sessionStatus ?? '') ||
+        Boolean(shell.fileSystem.status().operation) ||
         ['loading', 'saving', 'validating', 'projecting'].includes(snapshot.status) ||
         snapshot.command?.application?.status === 'applying' ||
         snapshot.command?.application?.status === 'running';
     shell.update.setActiveRequestCount(active ? 1 : 0);
+});
+const unsubscribeProvider = shell.fileSystem.subscribe(status => {
+    if (status.operation) shell.update.setActiveRequestCount(1);
+    else {
+        const state = workbench.snapshot();
+        shell.update.setActiveRequestCount(state.structure?.busy || state.home?.status === 'working' || state.transition || ['opening', 'settling'].includes(state.sessionStatus ?? '') || ['loading', 'saving', 'validating', 'projecting'].includes(state.status) || ['applying', 'running'].includes(state.command?.application?.status ?? '') ? 1 : 0);
+    }
 });
 const workbenchView = await mountCemStudioFeatureTourWorkbench({
     root: mounted.root,
@@ -78,6 +122,7 @@ Object.defineProperty(globalThis, '__cemStudioApplication', {
     writable: false,
     value: Object.freeze({
         shell,
+        session,
         repository,
         validator,
         seed,
@@ -86,6 +131,7 @@ Object.defineProperty(globalThis, '__cemStudioApplication', {
         workbench,
         workbenchView,
         unsubscribeUpdateState,
+        unsubscribeProvider,
     }),
 });
 
@@ -95,6 +141,7 @@ function selectProjectArchive() {
         input.type = 'file';
         input.accept = 'application/vnd.cem.studio-project-bundle+json,.cem-studio.json';
         input.hidden = true;
+        input.addEventListener('cancel', () => { input.remove(); reject(new DOMException('project archive selection was cancelled', 'AbortError')); }, { once: true });
         input.addEventListener(
             'change',
             async () => {
@@ -104,7 +151,7 @@ function selectProjectArchive() {
                     reject(new DOMException('project archive selection was cancelled', 'AbortError'));
                     return;
                 }
-                resolve(new Uint8Array(await file.arrayBuffer()));
+                try { resolve(new Uint8Array(await file.arrayBuffer())); } catch (error) { reject(error); }
             },
             { once: true },
         );

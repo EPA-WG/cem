@@ -59,6 +59,8 @@
 
           [part~='root'] {
             display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            min-inline-size: 0;
             gap: var(--cem-gap-related);
             position: relative;
           }
@@ -72,6 +74,7 @@
           }
 
           [part~='control'] {
+            min-inline-size: 0;
             --_cem-input-indicator-anchor-width: var(--cem-stroke-none);
             --_cem-input-indicator-focus-width: var(--cem-stroke-none);
             --_cem-input-indicator-selection-width: var(--cem-stroke-none);

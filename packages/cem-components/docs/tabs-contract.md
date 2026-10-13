@@ -77,6 +77,10 @@ The exact generated owners implement the WAI-ARIA tabs pattern:
   and
 - exactly one enabled tab has `tabindex="0"`.
 
+Horizontal tab labels wrap within the available container width; long words may
+wrap without shrinking the themed minimum block hit target. Wrapping preserves
+the horizontal Left/Right focus order and manual activation contract.
+
 Tab labels are authored plain strings. Rich panel content remains authored CEM
 payload and is never derived from the label or inserted as HTML. The component
 does not own deletion, popup menus, lazy loading, label pagination, routing, or
@@ -132,3 +136,8 @@ Focused browser and forced-color gates must prove:
   and focusable-panel guidance.
 - The existing CEM navigation state, style, accessibility, and forced-color
   contracts remain authoritative for shared paint and input-state behavior.
+
+A declarative host-service view may bind `host-command-event="cem-tab"` to the
+tab owner. The shared bridge delivers its own string value only, excludes nested
+owners and retains service-boundary revocation. Studio uses this to keep local
+pane state declarative and reveal Source before diagnostic caret/focus requests.

@@ -1022,55 +1022,904 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
     Production project transactions, stale completions and broader device/browser/AT
     acceptance remain in their following checklist items. Presentation work stays
     deferred with its existing resume context preserved.
-- [ ] **Generalize the project session and workbench.**
-  - [ ] Fixture: two non-seed projects, nested entries, empty project, missing
+- [x] **Generalize the project session and workbench.**
+  - [x] First deliver the session admission service before navigation wiring.
+        Fixture: independent source Save/Discard/Cancel and command
+        Apply/Discard/Cancel, both dirty, explicit replacement confirmation,
+        persistence conflict/failure, editing during Save/Apply, duplicate requests,
+        cancelled/failed candidate opening and late results. Defer discards until
+        selection commits; saving must not depend on native validation succeeding.
+        Keep each candidate workbench isolated until its durable identity is admitted.
+        Include delayed native previews/projections so background results cannot
+        replace a newer command draft or an applied baseline, and source persistence
+        stays independent of native preview or validation failure; recheck and
+        Apply the retained command after native preview recovers; recheck admission
+        when both drafts are reverted while a decision is pending.
+        Verify graph-emitted and isolated-package session exports, including an
+        empty session without UI side effects; reject mismatched project/page/resource
+        candidates and allow retry after an initial open failure.
+  - [x] Refresh Studio's dependency fixture for the migrated shared library:
+        distinguish published dependency routes from workspace demo/story routes,
+        assert the exact CLI and component-gallery runtime paths, and retain the
+        isolated consumer's single installed runtime check. Pack the gallery's
+        demo dependency with Yarn's normal workspace-protocol conversion. Refresh
+        the import-map CSP hash for the added session export.
+        Fixture: required installed files must match the verified deployment/types;
+        include emitted build outputs directly in the package cache inputs so a
+        source change cannot reuse a stale tarball.
+  - Admission slice evidence (2026-10-12): `createCemStudioProjectSession` is
+    exported from the root and `/project-session`, with typed snapshots and
+    transition decisions. It admits isolated workbenches only after exact
+    identity checks and independent draft decisions. Discard consent is deferred
+    until successful admission; failed/cancelled opens and newer edits retain
+    drafts. Cancelled transactions may finish durably but cannot navigate.
+    `saveSource()` separates persistence from native validation, Apply establishes
+    its committed command baseline, and late previews/projections retain newer
+    edits. The contract is in `docs/cem-studio.md#project-session-admission-service`.
+  - Verification: `@epa-wg/cem-studio:verify:consumer` and its prerequisite gates
+    pass. All 33 workbench Chromium cases pass (18 admission cases), alongside
+    repository, provider, native Feature Tour, preview and shell regressions;
+    lint, typecheck and all 23 UI classifications pass. Deployment verifies 169
+    declared assets / 259 files, repeat-build determinism and native worker/WASM
+    operation online and offline. The isolated consumer verifies both session
+    exports, an empty session, current archive bytes/types and one installed
+    runtime. The dependency audit asserts exactly three published and nine
+    workspace routes. A failing archive-byte fixture exposed and verified the
+    fix for the package target's missing direct build-output cache dependency.
+  - CEM review: this slice adds service orchestration only, with no visible DOM,
+    UI listeners, CSS, token defaults or variation families. Save/Apply,
+    Discard/Cancel, conflict and pending states remain distinct scalar data for
+    shared CEM controls. Emitted shell/workbench checks pass all five themes,
+    inherited token overrides, forced colors/reduced motion and offline reload.
+    This initial service slice preceded the resolver/dialog integration recorded
+    below. Physical device/AT acceptance and presentation work retain their
+    existing deferred context.
+  - [x] Fixture: two non-seed projects, nested entries, empty project, missing
         selection, supported/unsupported resources and a command-created page;
         resolve project-owned commands/dependencies without a seed catalog.
-  - [ ] Fixture: source Save/Discard/Cancel and command Apply/Discard/Cancel,
-        both drafts dirty, cancelled dialog, failed save, stale Apply, duplicate
-        requests and late completions during navigation. Keep drafts on failure;
-        commit selection only after the guarded transition is admitted.
-  - [ ] Select project/page/resource by durable identity, retain exact revision
+        Cover native command-created page reopening/execution, input identity
+        independent of resource order, exact binary downloads, and deployed
+        project selection with optional Feature Tour expectation metadata.
+  - [x] Shared select prerequisite: a changed nonempty `value-request` token
+        reapplies the authored value even when it is unchanged. Fixture: preserve
+        selection without a new token, reset without synthetic events, retain
+        the focused control and cancel stale popup preview. Advance the shared
+        capability identity with this contract. Studio uses it to
+        restore admitted selection after rejected navigation; keep a stable
+        CEM stack around conditional guard surfaces.
+  - [x] Integrate the admission service with project-owned workbenches and shared
+        native dialogs. Fixture: source Save/Discard/Cancel and command
+        Apply/Discard/Cancel, both drafts dirty, cancelled dialog, failed save,
+        stale Apply, duplicate requests and late completions during navigation.
+        Keep drafts on failure; commit selection only after guarded admission.
+        Exercise mounted native dialog Save/Apply failures, successful persistence,
+        Escape focus return, and cancellation while a candidate opens.
+  - [x] Select project/page/resource by durable identity, retain exact revision
         and stale-result authority, and adapt Feature Tour metadata as optional
         sample data. Implement draft/transition guards before wiring navigation;
         keep selected identity/preferences outside portable exports.
-- [ ] **Deliver Home, project creation and import.**
-  - [ ] Fixture: list/open existing projects, create from a validated bundled
+  - Resolver/navigation evidence (2026-10-12): project workbenches load durable
+    page/resource identities, exact revisions and declared dependencies without
+    requiring a seed catalog. Native CLI command resources are decoded through
+    the shared grammar, select their input independently of resource order and
+    execute exact persisted bytes. Empty and read-only resources remain selectable;
+    original binary bytes are downloadable. Optional sample expectations and
+    legacy portable scenarios retain Feature Tour compatibility.
+    Startup now uses the guarded session adapter and project-record selector.
+    Source and command decisions, incompatible replacement, failure, cancellation
+    and late candidate disposal preserve the admitted workbench. Nested page labels
+    retain parent context; refreshed records expose newly created command pages.
+  - Shared prerequisite: `choice-select` v2 adds explicit `value-request` replay
+    without synthetic input/change events or stale popup commitment. Studio's
+    stable `cem-stack` composition preserves the launcher while conditional
+    dialogs appear, and cancellation restores both admitted value and focus.
+    Replacement has one modal owner during guarded Apply.
+  - Verification: all 40 Studio workbench Chromium cases pass, including seven
+    project-record/mounted-navigation cases; all 13 select stories and 19
+    declaration/capability unit cases pass. Native deployment checks pass all 32
+    schema-package examples, portable operations and online/offline recovery.
+    `@epa-wg/cem-studio:verify:consumer` passes all 48 prerequisite/consumer
+    tasks: lint/typecheck, all 23 UI classifications, 169 declared deployment
+    assets / 259 files, deterministic builds, exact dependency routes, current
+    installed archive bytes/types and a single installed runtime. The consumer
+    verifies both new workbench factories as well as the session exports.
+    Explicit Parse prepares the command editor for enabled-state theme checks;
+    no load-time command is inferred to satisfy an old fixture.
+  - CEM review: shared select/dialog/action/editor/status controls own interaction
+    and presentation. Studio adds repository/session orchestration and CEM-ML
+    composition, with no application UI listeners, styling, token defaults or
+    parallel variation families. Five themes, inherited token overrides, system
+    colors, reduced motion and keyboard/focus behavior pass deployed checks.
+    Home, retained explorer/search panes, local selection recovery and full
+    provider coordination remain below; broader device/AT acceptance and the
+    deferred presentation resume context are unchanged.
+- [x] **Deliver Home, project creation and import.**
+  - [x] Fixture: deployed bundled starter passes native validation and exports one
+        source resource; empty Home and unavailable storage remain readable.
+  - [x] Fixture: mounted shared Home controls create/list/open projects through draft
+        guards; cancelled pickers, duplicate archives, invalid names and failed writes
+        retain the active draft and repository contents.
+  - [x] Fixture: list/open existing projects, create from a validated bundled
         starter with a fresh project identity, and import a distinct archive;
         duplicate identities, invalid input and quota failure leave existing data
         unchanged. Confirm that an imported project becomes selectable/openable.
-  - [ ] Compose Home from shared fields, lists, actions and status controls;
+  - [x] Compose Home from shared fields, lists, actions and status controls;
         use existing validated repository transactions and native format boundaries.
         Present empty/storage/error states and preserve existing user copies at boot.
-- [ ] **Deliver explorer, search and retained workbench panes.**
-  - [ ] Fixture: nested keyboard navigation, stable opaque entity keys,
+  - Implemented: persistent declarative Home, repository-owned project choices,
+    UUID starter creation, create-only archive import, explicit refresh and guarded
+    Open project. Successful creation/import leaves the current draft in place.
+    Browser picker cancellation and file-read failures settle without hanging.
+  - CEM review: existing shared card, select, text-field, action and alert controls
+    own semantics and styling; no app UI listeners, local CSS, private token defaults
+    or new behavior were needed. Deployed theme/inherited-override, forced-color
+    and offline checks pass. Broader device/AT acceptance remains below.
+  - Fixtures: 42 Chromium workbench cases pass; mounted Home covers empty/storage
+    states, create/import/open, duplicate/invalid/quota failures and cancellation.
+    The deployed native starter exports one source and no inferred command pages.
+  - Final evidence: `yarn nx run @epa-wg/cem-studio:verify:consumer` passes all
+    48 prerequisite/consumer tasks, including lint/types, all UI classifications,
+    deterministic 259-file output, native worker/online/offline regressions and a
+    clean seven-package consumer with one runtime copy. `git diff --check` passes.
+- [x] **Deliver explorer, search and retained workbench panes.**
+  - [x] Fixture: shared tab host events deliver only validated owner values; repeated
+        diagnostic/result navigation reveals the retained source pane before applying
+        its caret/focus request, without leaking nested tab events.
+  - [x] Shared hash fixture: version binary-bearing content addresses, digest actual
+        repeated artifact bytes once per call, preserve nonbinary v1 addresses,
+        detect byte mutations and make cloned/shared buffers content-equivalent.
+  - [x] Shared scale fixture: render a 128-resource tree without serialization
+        failure; preserve every identity and expansion/selection semantics.
+  - [x] Shared prerequisite fixture: bind a host service to an authored declarative
+        child without replacing it; retain identity/caret through parent renders,
+        reject foreign/wrong-tag/already-owned targets and revoke disposed commands.
+        Prove worker/fallback behavior before Studio retained-pane adoption.
+  - [x] Fixture: mounted recursive tree uses stable whitespace-safe keys, separates
+        parent expansion/focus from admission, retains committed selection on Cancel,
+        and preserves source/command nodes and caret across retained pane switches.
+  - [x] Fixture: bounded deterministic repository search admits exact result identities,
+        rejects stale completions, reports empty/error states, and refreshes newly
+        applied command pages without losing drafts. Verify compact/expanded viewports.
+  - [x] Fixture: nested keyboard navigation, stable opaque entity keys,
         parent expansion without navigation, focus without selection, deterministic
         search/result activation, and caret/selection retention across pane changes.
-  - [ ] Compose canonical tree, local-view tabs and existing editor/result views;
+  - [x] Compose canonical tree, local-view tabs and existing editor/result views;
         bind all navigation through the project session. Reuse the bounded search
         service and project-owned command Apply/current/existing/new page paths.
         Initial compact and expanded layouts both use retained local-view panes.
-- [ ] **Finish recovery and active-project provider coordination.**
-  - [ ] Fixture: exact bytes and last committed selection after offline reload,
+  - Implemented: recursive repository explorer, stable encoded record keys, guarded
+    tree/search admission, deterministic 50-result search with stale-completion
+    rejection, and navigation refresh after durable workbench Save/Apply. Shared
+    tabs retain Source/command and Results at compact and expanded widths;
+    diagnostic/provenance actions reveal Source before requesting caret/focus.
+  - Shared prerequisites: host views bind authored direct children with revocable
+    service ownership; validated own `cem-tab` values cross the host bridge.
+    Binary-bearing content addresses use `stable-json-fnv1a64-binary-v2`, hashing
+    actual artifact bytes once per buffer per call. Nonbinary v1 keys are unchanged;
+    old binary v1 cache entries require fresh publication, not silent reinterpretation.
+    Native typed artifacts and their validation/authority remain intact.
+  - Layer evidence: 45 Studio Chromium workbench cases, 8 worker/fallback host-view
+    stories, 9 shared tree stories (including 128-resource expansion), 5 projection/
+    content-address unit cases, 49 processing engine/host unit cases and 58 edge/SSR
+    unit cases pass. Shared lint passes with 15 existing warnings and no new warnings.
+  - CEM review: canonical tree/content and tabs/navigation semantics are preserved,
+    including transparent resting tree paint, independent focus/selection, retained
+    node identity and service-admitted navigation. No application CSS, private token
+    defaults or application UI listeners were added. Deployed checks cover all five
+    themes, inherited tree/control overrides, forced colors/reduced motion, retained
+    editor/caret at 390px and 1280px, and offline reload. Broader device/AT acceptance
+    and resizable simultaneous panes remain separately open.
+  - Final delivery evidence: `yarn nx run @epa-wg/cem-studio:verify:consumer`
+    passes all 48 tasks, including lint/types, 23 UI classifications, deterministic
+    170-asset/260-file output, native worker/Feature Tour regressions and a clean
+    seven-package consumer with one runtime copy. `git diff --check` passes.
+- [x] **Finish recovery and active-project provider coordination.**
+  - [x] Fixture: recover only admitted identities; missing/trashed records fall back,
+        cancelled navigation keeps the committed identity and exact saved bytes.
+  - [x] Fixture: repository invalidation refreshes explorer/search/Trash without
+        replacing drafts; stale revisions fail Save and restore preserves bytes.
+  - [x] Fixture: provider status and picker completion cannot retarget a changed
+        active project; cancellation/denial retain archive fallback access.
+  - [x] Fixture: update activation blocks unresolved source/command drafts,
+        navigation/provider work and edits made during asynchronous persistence.
+  - [x] Fixture: exact bytes and last committed selection after offline reload,
         multi-tab revision conflict, missing/trashed selection recovery,
         export/trash/restore and search invalidation, active provider target,
         picker cancellation/denial, archive fallback and safe-update persistence.
-  - [ ] Coordinate the session, shell/update and provider services; display
+  - [x] Coordinate the session, shell/update and provider services; display
         conflicts without overwriting drafts, keep browser permissions explicit,
         and expose durable-save versus validation outcomes separately. Explicit
         Save/Apply is this slice's durability boundary; autosave remains later work.
-- [ ] **Close deployed acceptance and CEM principle review.**
-  - [ ] Fixture: run the complete two-project lifecycle from graph-emitted Studio
+  - Admission stores only local project/page/resource identity; reload reopens
+    IndexedDB bytes. Missing/trashed identities fall back with a recovery alert.
+    Repository notifications refresh navigation/search without replacing drafts;
+    Home Trash/Restore remains reversible and revision-checked. Trashed resource
+    writes are rejected until restore; stale saves retain their draft and conflict.
+  - Provider actions capture the active target; late picker/status results cannot
+    retarget the session. Cancellation and denial retain explicit archive fallback.
+    Update activation waits for Home/navigation/provider work and both draft kinds;
+    Save/Apply or reset must resolve drafts before activation. No implicit command
+    Apply or draft autosave was added.
+  - Build-order fix: shell delivery now depends on determinism, just like the
+    full worker delivery check, so it cannot read output during a clean rebuild.
+  - Evidence: 46 workbench and 9 shell browser cases pass, including actual Home
+    Trash/Restore actions, multi-instance change delivery, retained drafts, revision
+    conflicts, byte-exact export/recovery and stale provider completion. Deployed
+    output reopens a non-default second project offline with the matching provider
+    target, then preserves native Feature Tour/command regressions.
+  - CEM audit: shared select/action/alert semantics, destructive Trash intent and
+    named status text; no app-owned UI listeners, CSS or private theme defaults.
+    Emitted checks retain five themes, inherited overrides, forced colors,
+    reduced motion, keyboard behavior and compact/expanded layouts. Complete
+    two-project UI lifecycle and physical browser/device/AT acceptance remain open
+    below/above; draft autosave and structural editing remain subsequent work.
+  - Final verification: `yarn nx run @epa-wg/cem-studio:verify:consumer` passes
+    all 48 tasks (41 cached), including lint/types, 23 UI classifications,
+    deterministic 170-asset/260-file output and the isolated seven-package consumer
+    with one runtime copy. Final output hash:
+    `3f189ae4094f0c9dd7e7ed3afb06f5c78db8c5877d41f52225ae72924b014bab`.
+    `git diff --check` passes.
+- [x] **Close deployed acceptance and CEM principle review.**
+  - [x] Fixture: drive two user-owned projects through native CEM controls for
+        create/import, source save, command-page Apply/run, guarded navigation,
+        export, Trash/Restore and offline reopen with exact persisted bytes.
+  - [x] Fixture: constrain shared `cem-select` long resource labels to a narrow
+        container without losing accessible names, option access or return focus.
+  - [x] Fixture: inspect the emitted Chromium accessibility tree, unique IDREFs,
+        required control names, modal keyboard containment/return, retained caret,
+        visible keyboard focus and 320/390/1280px reflow; retain five-theme,
+        inherited-override, forced-color and reduced-motion delivery checks.
+  - [x] Fixture: run the complete two-project lifecycle from graph-emitted Studio
         output online and offline, including command-created pages and retained
         input/focus; preserve Feature Tour native-command/artifact regressions.
-  - [ ] Include all new declarations/assets in the deployment graph, verify the
+  - [x] Include all new declarations/assets in the deployment graph, verify the
         isolated package consumer, run focused layer checks and Studio `check`,
         then record exact evidence and limits. Complete the semantic/token,
         five-theme/forced-color, keyboard and compact-layout audit before closure.
+  - Deployed evidence: the dedicated `verify:workspace-delivery` gate drives the
+    real file picker/download and CEM controls across two user-owned projects.
+    Source Save/validation, native command-page Apply/search/run, cancelled and
+    discarded navigation, exact UTF-8 backup, Trash/Restore, offline Save/Apply/run
+    and reload all pass. The first project's saved bytes remain unchanged.
+  - Chromium 148.0.7778.96 on Linux exposes 46 named interactive controls with
+    unique IDs and valid label/help/control references. Modal Tab may visit browser
+    chrome but never the inert background; Escape restores the select launcher
+    while editor identity, draft and caret remain intact. Keyboard zebra focus
+    is visible; page width equals 320/390/1280px at each tested viewport.
+  - Shared fix: `cem-select` grid/control minimum sizing now permits its existing
+    ellipsis to contain long selected resource labels. The new 240px fixture first
+    reproduced 799px overflow, then passes with all 14 select stories, preserving
+    option access, accessible naming and return focus. No application CSS or UI
+    behavior workaround, theme defaults or parallel tokens were introduced.
+  - CEM review: semantic action/status roles, bounded shared-control geometry,
+    public token ownership and inherited theme behavior remain intact. Five-theme,
+    inherited-override, forced-color and reduced-motion delivery gates remain in
+    the aggregate check. `workspace-delivery.json` records the browser and scope;
+    release evidence requires and references its lifecycle/accessibility results.
+  - Limit: this closes automated Chromium deployed acceptance only. It does not
+    claim WCAG certification, physical touch/pen/IME or spoken screen-reader
+    acceptance; the independent device/browser/AT checklists stay open above.
+  - Final evidence: `yarn nx run @epa-wg/cem-studio:check` passes all 51 tasks
+    (32 cached), including 46 workbench cases, 9 shell cases, 32 native Feature Tour
+    samples, 23 UI classifications, deterministic 170-asset/260-file output,
+    clean seven-package consumer with one runtime copy and release evidence.
+    The separate shared select suite passes all 14 stories. Output hash:
+    `08cf4e2d5ccecd14e86d576b84c1f2dcd2032c7691e2b457cc589f4f56aba667`.
+    `git diff --check` passes. Draft recovery/autosave is the next implementation
+    milestone; structural editing follows. Presentation context remains deferred.
 
-After this milestone, prioritize autosave/draft recovery and structural project
-editing (rename/copy/reorder/resources and undo), followed by typed operation
-forms and graph authoring. Expanded/resizable panes and larger-data controls
-must follow the same library-first rule. Physical device/browser/AT acceptance
-remains independently open above. Presentation preparation stays deferred and
-its existing checklist/resume context is preserved.
+- [x] **Local draft autosave and recovery** — journal source and command text by
+  admitted project/page/resource identity; never Save, Apply, or Run implicitly.
+  - [x] Add browser fixtures for reload recovery, exact Unicode/empty drafts,
+    baseline conflicts, corrupt/quota storage, discarded navigation, cancelled
+    admission, and independent project journals; verify no repository mutation.
+  - [x] Provide shared CEM alert/action recovery status, backup download and
+    explicit removal of blocked recovery records; retain failed writes in memory.
+  - [x] Verify deployed reload recovery and conflict controls, Studio checks and
+    CEM principle review.
+
+  - Evidence: `yarn nx run @epa-wg/cem-studio:check` passes all 51 tasks
+    (35 cached), including 51 workbench cases and deployed offline recovery,
+    backup download and conflict clearing. Release evidence requires
+    `workspace-delivery.json`'s `draftRecovery` flag. Clean seven-package consumer
+    retains one runtime copy; 170 assets / 260 files remain deterministic.
+    SHA-256: `6f0d6e559bbec8773f27236d75eaa6e71ddac4bd1d8349968c2c8b2d2782eb2d`.
+  - CEM review: existing declarative alerts/actions express status and destructive
+    clearing with accessible names and native focus. No app CSS, tokens, DOM
+    listeners or component-local behavior were added. Inherited theme, five-theme,
+    forced-color, reduced-motion and deployed reflow checks pass in the aggregate.
+  - Bounded contract: immediate local recovery is separate from project Save/Apply
+    and exports; records are capped at 1,000,000 UTF-16 code units. Storage failures
+    expose current in-memory backups. Conflicts do not merge automatically;
+    simultaneous cross-tab writes are not transactional. Pending targets without
+    command-text changes and backup import/merge remain outside this slice.
+    Physical device/spoken AT acceptance and deferred presentation context remain
+    independently open. `git diff --check` passes.
+
+- [x] **Structural project editing and undo** — native-validated, revision-checked
+  project/page rename, subproject creation, subtree copy/move, sibling reorder,
+  resource creation/copy; bounded session undo/redo without implicit Save/Apply.
+  - [x] Add repository browser fixtures for order/export round trips, copy byte
+    identity, hierarchy rejection, stale revisions, Trash and monotonic undo.
+  - [x] Add workbench fixtures for clean/dirty admission, history isolation and
+    divergent revisions; add deployed shared-control editing/undo acceptance.
+  - [x] Extend shared host-view fixtures with a field named `id`; read form
+    identity through attributes to prevent native named-control clobbering.
+  - [x] Verify aggregate Studio gates and record CEM principle review and limits.
+
+  - Evidence: `yarn nx run @epa-wg/cem-studio:check` passes all 51 tasks
+    (41 cached), including 53 workbench cases, 15 repository cases and the deployed
+    offline structure/edit/undo/redo/reload scenario. All 8 shared host-view stories
+    pass with an `id`-named field in worker and fallback paths. Release evidence
+    now requires `workspace-delivery.json`'s `structuralEditing` flag.
+  - The new replace path exposed an existing IndexedDB key-cursor deletion bug;
+    replacement now uses value cursors and rejects cursor callback failures.
+    Form identity capture reads the attribute rather than a clobberable property.
+  - Ordered native manifest arrays survive IndexedDB through private order
+    metadata; portable exports gain no schema fields. Command Apply retains order.
+    Undo/redo is capped at 20 snapshots / 8 MiB per project per session; divergent
+    revisions disable replay. In-flight typing remains behind guarded admission.
+  - CEM review: shared cards/fields/selects/textareas/alerts/actions own semantics,
+    geometry, names and focus; no app CSS, public token overrides or UI listeners
+    were introduced. Five-theme, inherited overrides, forced colors, reduced motion
+    and deployed 320/390/1280px reflow gates pass. Clean seven-package consumer
+    retains one runtime copy. Deterministic 170-asset/260-file SHA-256:
+    `66cc9d77108471111a06b8ceeb443c03ee1f0c3317b8e5d9faf82508317e894a`.
+    `git diff --check` passes. Physical-device/spoken AT acceptance and deferred
+    presentation context remain open. Resource path rename/delete require an
+    explicit authored-reference rebinding contract; current copies retain references.
+
+- [x] **Typed operation forms** — shared controls for native-metadata scalar,
+  enum and boolean options on parse/inspect/convert/query/transform/trace drafts.
+  Preserve unedited arguments and explicit Apply/Run; reject stale field submits.
+  - [x] Add browser fixtures for metadata choices/defaults, literal quoting,
+    unchanged repeated options, invalid choices, stale updates, no execution and
+    packaged helper exports.
+  - [x] Add shared tabs narrow-container coverage for wrapping labels without
+    page overflow, retaining accessible selection and keyboard behavior.
+  - [x] Verify deployed bounded option selection (one active editor), draft editing and explicit Apply/Run, plus
+    aggregate Studio gates and CEM theme/accessibility review.
+
+  - Evidence: `yarn nx run @epa-wg/cem-studio:check` passes all 51 tasks
+    (33 cached), including 55 workbench cases, deployed option selection/Set/Reset,
+    unchanged project revision before Apply, explicit Run and offline lifecycle.
+    All 7 shared tabs stories pass. Release evidence requires `typedOperationForms`;
+    clean seven-package consumption verifies the public helpers and one runtime copy.
+  - One option editor is rendered at a time. Rendering every option concurrently
+    exceeded the shared scheduler's bounded queue and left result tables stale;
+    bounded declarative composition fixes that without changing scheduler limits
+    or weakening the original settled trace/graph row assertions.
+  - CEM review: native metadata owns grammar/choices/defaults; shared CEM controls
+    own names, focus, geometry and theme styling. UI selection is a declaration-local
+    slice. Shared tabs wrap at narrow widths while preserving token-derived targets
+    and keyboard order. No app CSS, token defaults or UI listeners were added.
+    Inherited overrides, five-theme, forced-color, reduced-motion and deployed
+    320/390/1280px reflow gates pass. Deterministic 170-asset/260-file SHA-256:
+    `9c94c66eea46f1c6d5bb9e0be99c4575d6ae74788e64171b06195ee217c74149`.
+  - Limits: forms edit prepared scalar/enum/boolean options on six operations;
+    coupled/repeated options remain in the literal editor. Switching options drops
+    unsubmitted field input; Set enters the guarded/recoverable command draft.
+    Existing Apply support remains parse/inspect. Physical-device/spoken AT
+    acceptance and deferred presentation context remain open. `git diff --check` passes.
+
+- [x] **Safe resource-path rename/delete for data and parse/inspect projects** —
+  atomic, revision-checked edits with native project validation, command input
+  rebinding, guarded navigation and bounded session undo/redo.
+  - [x] Add repository fixtures for command rebinding, exact untouched bytes,
+    referenced deletion, unsupported dependency blockers, stale revisions and undo;
+    extend workbench fixtures to prove dirty drafts block both path operations.
+  - [x] Add deployed shared-control rename/delete, run-after-rebind and undo coverage;
+    verify aggregate Studio gates and record the bounded CEM contract.
+
+  - Evidence: `yarn nx run @epa-wg/cem-studio:check` passes all 51 tasks
+    (30 cached), including 18 repository and 55 workbench cases. Deployed acceptance
+    renames the active source, blocks referenced deletion, deletes/restores an unused
+    resource, executes the rebound command and reopens offline. Release evidence now
+    requires `resourcePathEditing`; clean consumer retains one runtime copy.
+  - Stable resource IDs keep manifest/page references intact. Only matching authored
+    command inputs are reserialized and rehashed through the shared CLI contract;
+    other bytes remain exact. Undo restores paths and command bytes at new revisions.
+    All resource commands, including orphans, participate in dependency checks.
+  - Boundaries: data/expected leaf assets and native parse/inspect command resources
+    only. Other page kinds, executable resource roles, command formats, relative or
+    unresolved inputs, resolver/configuration/output options and non-input project
+    URI options block path edits. Embedded document text/hyperlinks are not rewritten.
+    No cascade deletion, implicit Save/Apply/Run or unbounded history was introduced.
+  - CEM review: existing shared select/field/textarea/actions own interaction and
+    geometry; deletion has explicit destructive intent. Alerts expose blockers and
+    bounded history. No app CSS, UI listeners or new token defaults were added.
+    Inherited themes, forced colors, reduced motion, accessible names/focus and
+    320/390/1280px reflow pass. Deterministic 170-asset/260-file SHA-256:
+    `d6e3a8892dc1e54e1d03555d3b093945592c925734f9eeb44ff3f38a74a28499`.
+    `git diff --check` passes. Broader dependency and physical-device/AT coverage
+    remain explicit follow-ups; presentation context remains preserved.
+
+- [ ] **Native dependency rebinding for configured workbenches** — define native
+  discovery/rewrite contracts for validation, query, transformation and graph
+  configurations (including relative references and resolver/module maps), then
+  extend path-edit admission with native fixtures before Studio adoption.
+  - [x] Add native run-config planning fixtures for owned input/schema-package
+    references and output input links; exact no-op bytes; identity preservation;
+    relative/base, resolver/module-map, unknown-field and output blockers; malformed
+    configuration and rename collisions. Implement the bounded planner before host adoption.
+  - Native foundation delivered in `run_config_rebind.rs`: typed reference roles,
+    field-pointer blockers and optional replacement bytes; admitted exact absolute
+    input/schema-package URLs and output input links. Native validation before/after
+    rejects malformed configurations, dangling links and URI collisions. Unknown
+    fields/non-object records and unresolved dependency mechanisms block all rewrites.
+    Format/namespace identities retain their values; no-op source bytes remain exact.
+  - Evidence: Rust tests were added first; `cargo test -p cem-ml --lib run_config`
+    passes all 55 tests, including 6 new planner cases. `git diff --check` passes.
+    CEM review: semantic dependency ownership remains native, variation is explicitly
+    bounded, and the planner does not fetch, execute or mutate projects. This layer
+    introduces no UI, CSS or token changes; existing shared-control behavior is not
+    broadened. Browser/theme gates were not rerun for this unconnected native API.
+  - Limits: this is one config's plan, not project-wide authorization or a complete
+    deletion inventory. Worker transport and Studio adoption remain pending. Relative
+    inputs, scope bases, resolver/module maps, formatter pipelines, outputs and graph
+    dependencies need execution-aligned contracts before admission can expand.
+  - [x] Add native graph dependency fixtures for execution-aligned relative references,
+    distinct read/template/map/output roles, transitive scan requirements, opaque
+    imports, glob blockers and invalid graph diagnostics; implement native discovery.
+  - Graph discovery delivered in `transform_graph_dependencies.rs`: native CEM-ML
+    parsing, acquired graph base and executor-owned relative resolution; immediate
+    references retain node/attribute ownership, authored spelling and separate
+    input/template/module-map/output roles. Explicit follow-ups cover document,
+    template/map inspection, output ownership and pattern expansion. Opaque imports
+    are leaves. Invalid graphs return diagnostics without partial inventories.
+  - Evidence: fixtures first, then `cargo test -p cem-ml --lib transform_graph`
+    passes 31 cases, including 5 new discovery fixtures and the existing provider,
+    module-map and execution cases. Discovery's input/output fixture compares
+    directly against manifest-provider acquisition. `git diff --check` passes.
+  - CEM review: native semantic ownership and bounded contracts are preserved;
+    node links/format identities/parameters are not rewritten as resource URLs.
+    No app UI behavior, styles or theme defaults were introduced. This remains a
+    native planning API; browser/theme gates were not rerun and Studio admission
+    remains unchanged. Transitive closure and source-preserving graph edits remain
+    open; this immediate inventory cannot authorize project rename/deletion.
+  - [x] Add native graph rewrite fixtures for exact surrounding bytes, Unicode,
+    quote styles, relative inputs, multiple matches, no-op bytes, output collisions,
+    transitive blockers and ambiguous source slots; implement bounded opaque-input
+    rewrites using native token ranges and revalidate the resulting graph.
+  - Opaque-input source rewriting delivered in `transform_graph_rebind.rs`:
+    executor-resolved matches bind to native AST/tokenizer attribute ranges, preserve
+    surrounding source bytes and quote style, and turn rewritten relative inputs
+    into absolute URLs. Reverse-order patches avoid offset drift. Native reparsing
+    requires graph equality except for selected input values. No-op/blocked plans
+    return no replacement. Graph relocation, conflicting outputs, unknown/duplicate
+    attributes and transitive/pattern dependencies remain blocked.
+  - Evidence: Rust fixtures first; `cargo test -p cem-ml --lib transform_graph`
+    passes 36 tests, including 5 new rewrite cases and acquisition using only the
+    rebound resource URI. Formatting and `git diff --check` pass.
+  - CEM review: edits follow native semantic ownership rather than text matching;
+    bounded admission preserves original source and explicit execution. No UI,
+    CSS or token changes. Browser/theme gates were not rerun for this native-only
+    candidate planner. Full transitive scans, host project validation/revision
+    checks, worker/Studio adoption and deployed acceptance remain open.
+  - [x] Add native source module-map dependency fixtures for v1/v2/v3 paths,
+    map-relative resolution, declared cross-asset edges/cycles, missing or ambiguous
+    targets and invalid formats; reuse execution's parser for discovery.
+  - Source module-map discovery now shares execution's extracted parser and
+    inventories v1/v2/v3 imports/resources with map-relative URIs and validated
+    content types. V3 declared edges retain specifier/asset ownership and resolve
+    target URIs; cycles remain explicit. Missing/ambiguous/non-module edge targets,
+    undeclared formats and unknown top-level fields fail closed. Destination maps
+    remain a distinct publication contract.
+  - Evidence: fixtures first; `cargo test -p cem-ml --lib transform_graph` passes
+    39 tests, including 3 new module-map cases and existing graph execution/provider
+    tests. The extracted execution parser body is unchanged apart from its parameter
+    and indentation. `git diff --check` passes.
+  - CEM review: dependency semantics stay native, with bounded format admission and
+    no app UI behavior/CSS/token changes. This inventories declared edges only;
+    asset content verification, relative/dynamic JavaScript dependencies and native
+    document/template inspection remain open. Empty edges do not prove a leaf.
+    Browser/theme gates were not rerun; worker/Studio admission remains pending.
+  - [x] Add native asset-verification fixtures for declared bare module edges,
+    exact-byte hashes, missing/invalid assets, unused/undeclared imports and explicit
+    relative/dynamic/template follow-ups; reuse execution's native source checks.
+  - V3 declared-edge source verification now reuses execution's lexical module
+    checks against immutable supplied assets. Evidence includes exact map/asset
+    hashes, byte lengths and declared edges. Missing assets, conflicting content
+    types, invalid UTF-8 and undeclared/unused imports fail without partial evidence.
+    Non-bare imports, dynamic calls, template literals and non-JavaScript contents
+    remain explicit follow-ups. Candidate bytes are discarded; sources stay exact.
+  - Evidence: fixtures first; `cargo test -p cem-ml --lib transform_graph` passes
+    42 cases including 3 new source-verification fixtures. `git diff --check` passes.
+  - CEM review: native semantic ownership and bounded verification remain intact;
+    no UI, CSS or theme defaults were added. This verifies declared bare imports,
+    not JavaScript syntax or full runtime loading. Empty follow-ups never authorize
+    rename/delete. Document/template inspection, runtime-load policy, snapshot/revision
+    checks and worker/Studio acceptance remain pending. Browser/theme gates were
+    not rerun for this native-only API.
+  - [x] Add native template dependency-inspection fixtures for transitive relative
+    imports, resolver provenance/hashes, missing imports, cycles/depth limits and
+    dynamic import declarations; reuse runtime preflight without executing bodies.
+  - Native template dependency inspection now reuses recursive runtime preflight
+    through the caller's resolver/policy. Results retain import provenance, hashes,
+    alias scopes and diagnostics; caller depth caps only tighten existing limits.
+    Missing/cyclic/over-depth imports and expression-valued declarations produce
+    no partial preflight. No template body, query or output is executed.
+  - Evidence: fixtures first; 3 `template_dependency_inspection` cases and all
+    42 `template_module` regression cases pass via `cargo test -p cem-ml --lib`.
+    `git diff --check` passes. The relative-import fixture uses a supplied in-memory
+    resolver and checks nested parent ownership plus acquired URI/policy/hash fields.
+  - CEM review: static import ownership stays in native execution preflight instead
+    of app parsing. No UI, CSS or token changes. Every visited body remains explicitly
+    listed for analysis, including templates without imports; data-dependent document
+    loads and general document dependencies remain open. Snapshot-only hosts must
+    supply a snapshot resolver. Studio admission and browser/theme gates remain
+    pending; the inspection key does not authorize rendering or mutation.
+  - [x] Add native XPath dependency fixtures for literal/computed document loads,
+    nested calls, namespace identity, higher-order/extension blockers and bounded
+    traversal; attach findings to template inspections without evaluating expressions.
+  - Native XPath resource-use inspection now traverses retained typed syntax and
+    attaches findings to root/imported template slots. Standard resource functions
+    are namespace-aware; literal URI candidates retain source ranges and resolution
+    blockers, while computed/higher-order/extension/unsupported forms remain blocked.
+    Iterative traversal has a 10,000-node per-slot budget. No expression or candidate
+    document is evaluated/acquired; every template body still requires analysis.
+  - Evidence: 8 `template_dep` native cases pass, including 4 XPath fixtures and a
+    template integration fixture proving an unavailable document is only reported.
+    `git diff --check` passes. CEM review: native semantic ownership, bounded work and
+    explicit unresolved states are preserved; no app UI/CSS/token changes were made.
+    Browser/theme checks remain pending for host adoption. General documents and
+    non-XPath CEM/runtime loads remain outside this static inspection contract.
+  - [x] Add native wire-contract, real-worker and repository fixtures for bounded
+    planning, unchanged bytes on blockers, referenced deletion and exact-byte undo.
+  - [x] Add a native binary graph-publication regression fixture and preserve
+    retained primary bytes instead of publishing their descriptive JSON.
+  - [x] Expose proven bounded run-config/opaque-graph plans through the worker and
+    adopt them in atomic Studio edits, retaining unsupported-dependency blockers;
+    verify deployed run-after-rebind, revision guards and exact-byte undo.
+  - Studio now sends supplied configuration snapshots through the existing worker's
+    native planner and commits matching run-config/opaque-graph bytes, hashes and
+    revisions with resource paths in one guarded transaction. Unsupported roles,
+    transitive/schema-package references, missing targets, configuration relocation,
+    non-local resources and ambiguous/outside/query/fragment outputs remain blocked.
+    Referenced deletion uses native inventories; undo restores exact original bytes
+    while advancing revisions. No source-text search/replacement was introduced.
+  - Deployed execution exposed an existing native graph-publication defect: retained
+    opaque bytes were ignored in favor of their descriptive JSON. A non-UTF-8 fixture
+    reproduced it before the one-line publication fix. Real-worker execution now
+    rebinds an opaque graph, acquires only its renamed input and reads exact binary
+    artifact bytes; deployed Studio additionally verifies exact SVG output and undo.
+  - Evidence: 16 native `rebind` tests and 8 `command_execution` tests pass, including
+    the binary regression. CLI lint and real-worker browser verification pass.
+    `@epa-wg/cem-studio:check` passes all 51 tasks (25 cached), including 20 repository
+    and 55 workbench tests, two deterministic clean builds, deployed lifecycle,
+    release evidence and clean consumer verification. `nativeRebinding` is now a
+    required release-evidence flag. `git diff --check` passes.
+  - CEM review: all editing remains in the existing shared CEM resource controls;
+    new JavaScript is worker/repository transport and transaction coordination.
+    Native code owns dependency slots and source-byte edits. No UI behavior,
+    component CSS, theme defaults or token aliases were added. Inherited overrides,
+    forced colors, reflow, automated accessibility and offline acceptance pass.
+    Physical device/browser/AT acceptance and broader dependency closure remain open.
+  - [x] Add native configuration-base fixtures covering literal input/inputRef and
+    schema-package keys, file-base module-map/output normalization, virtual bases
+    and initial command input lookup without implicit config-relative joining.
+  - [x] Add native relocation fixtures for preserved graph input/output bindings,
+    same-directory no-op bytes, execution-provider parity, source preservation and
+    blocked self/transitive/pattern/base-override cases; retain absolute-only run-config
+    admission and test exact bytes plus unresolved relative keys.
+  - [x] Define execution-aligned relative run-config bases and configuration
+    relocation, starting with native fixtures before widening Studio admission.
+    Contract: [relative bases and safe relocation](cem-studio.md#relative-configuration-bases-and-safe-relocation).
+    Initial run-config keys remain literal; file-base module maps/destinations and
+    graph acquisition-relative input/output keys keep their distinct native rules.
+    Native relocation candidates retain exact admitted run-config bytes and preserve
+    graph resolved bindings with native literal-range edits. Self/target references,
+    ambiguous bases, patterns, unknown fields and unproven dependencies are blocked.
+    Candidate plans do not authorize mutation or clear host dependency obligations.
+  - Verification: seven configuration fixtures pass, plus native rebinding (21),
+    transform-graph (45), run-config (58) and command preparation (8) suites.
+    These filters overlap. Rebuilt WASM and the Nx CLI browser-worker regression
+    pass, including existing native resource rebinding and opaque-byte publication.
+    `git diff --check` passes. CEM review: execution semantics/source preservation stay
+    native; no UI behavior, component styling or token ownership changed. Physical
+    AT acceptance remains open. At this native-only milestone, Studio relocation
+    remained blocked; the integration below enables the bounded contract.
+  - [x] Add relocation control-wire, real-worker, repository and deployed fixtures
+    covering explicit mode, binding preservation, command/page links, collision and
+    revision guards, cancellation and exact-byte undo.
+  - [x] Wire the bounded native relocation contract through the worker and Studio's
+    atomic repository transaction; add real-worker and deployed fixtures for incoming
+    command/page references, output ownership, stale revisions and exact-byte undo.
+    Bound command invocation defaults and graph dependency closure to the existing
+    scalar reporting options and native opaque-input subset. Relative run-config
+    keys and configuration deletion remain blocked.
+  - Integration result: the existing worker action accepts explicit native relocation
+    mode, requiring its source to equal the acquired configuration URI. Studio updates
+    command references, graph source slots, hashes, paths and revisions atomically;
+    page IDs remain stable. A path plus byte change increments the resource once.
+    Output collisions, blockers, cancellation and stale revisions leave storage
+    unchanged. No-byte-edit configs retain exact bytes; undo restores exact graph,
+    command and config bytes and paths while advancing revisions.
+  - Verification: native rebinding/relocation tests (22), rebuilt WASM real-worker
+    regression, CLI lint and the full Studio check pass (51 tasks; 16 cached).
+    Repository tests pass 22 cases; workbench tests pass 55. Two clean builds match
+    across 260 files (sha256
+    `e49eafd0b30e0aa3b8433794e60aa47c11200d11f3ee8fbf683e326834bb751b`).
+    Deployed relocation execution/undo, accessibility, inherited themes/forced colors,
+    offline delivery, synchronized release evidence and clean-consumer packaging pass.
+    `configurationRelocation` is required release evidence. `git diff --check` passes.
+  - CEM review: native code owns configuration semantics and literal source edits;
+    JavaScript changes remain worker/repository services using the shared CLI parser.
+    Existing shared CEM controls retain UI ownership; no component CSS, token aliases
+    or theme defaults were introduced. Physical device/browser/AT acceptance remains
+    independently open.
+  - [x] Add native source-map rewrite ownership fixtures for v3 asset rebinding,
+    map relocation, declared cycles, exact asset bytes/hashes, no-op map bytes,
+    duplicate/unknown fields, collisions and unresolved source mechanisms.
+  - [x] Implement a snapshot-bound native source-map candidate planner that changes
+    owned path slots only and re-verifies declared edges after the proposed edit;
+    retain explicit runtime/document follow-ups and keep Studio admission bounded.
+    Delivered `source_module_map_rebind::plan_source_module_map_edit`: source-map v3
+    asset rebinding/map relocation owns only path fields. It reuses execution's
+    declared-edge verifier before/after, preserving identities, specifiers, cycles,
+    content types and asset bytes/hashes. Duplicate owners, unknown fields, metadata
+    conflicts, missing assets, collisions and known unresolved mechanisms fail without
+    a partial plan. No-op maps retain exact bytes; changed explicit JSON controls may
+    be reformatted. Every asset still requires runtime/document analysis; hosts own
+    metadata/revision guards, incoming references and atomic commit/undo. No source-map
+    worker or Studio admission was added.
+    Contract: [native source-map rewrite ownership](cem-studio.md#native-source-map-rewrite-ownership).
+  - Verification: six new native fixtures pass; related module-map (34), rebinding
+    (28) and transform-graph (45) suites pass (overlapping filters). Rebuilt WASM and
+    the Nx CLI browser-worker regression pass. `git diff --check` passes.
+    CEM review: native code owns semantics and explicit control-document edits; no
+    UI, JavaScript document interpreter, component CSS or theme defaults changed.
+    Physical AT acceptance and complete transitive dependency closure remain open.
+  - [x] Add native non-XPath CEM-QL dependency fixtures for resource reads versus
+    content parsing, module URL resolution, pipelines, nested branches, dynamic calls,
+    bounded inspection and retained template expression provenance.
+  - [x] Inspect compiled CEM-QL/template expression IR without evaluation; preserve
+    resource candidates and source maps while retaining unresolved body/policy work.
+  - [x] Add retained-document dependency fixtures for namespace-owned HTML/SVG
+    references, decoded values/source ownership, navigation versus resource candidates,
+    foreign vocabularies, embedded runtime/CSS work and bounded traversal.
+  - [x] Reuse native HTML/SVG direct-resource policy classification in a retained-tree
+    inventory without URI guessing, fetching or document-object handoff.
+  - Delivered bounded native inventories for retained HTML/SVG attributes and compiled
+    CEM-QL/template expressions. Candidates preserve native ownership and source
+    provenance; resolved calls distinguish acquisition, URL resolution and content
+    parsing. Budget exhaustion, dynamic behavior and unresolved base/policy work
+    stay explicit. Every result retains `body_analysis_required`; Studio/worker
+    source-map edit admission remains unchanged.
+    Contract: [native reference inventory](cem-studio.md#native-document-and-expression-reference-inventory).
+    CEM review: native semantics and retained data ownership, with no app-local
+    document interpreter, UI behavior, styling or theme ownership change. Theme and
+    forced-color checks are not applicable to these native-only additions;
+    physical AT acceptance remains open.
+  - Verification: eight expression-inspection and four document-inventory fixtures
+    pass; full CEM-QL library suite passes (132 passed, four ignored), as do 307
+    native validation tests. CEM-QL WASM build and rebuilt CEM-ML/CLI Chromium
+    worker regression pass through Nx. `git diff --check` passes.
+  - [x] Add preflight-integration fixtures for hash-bound body ownership, imported
+    expression slots, bounded traversal, rejected preflight and explicit resolver context.
+  - [x] Consume immutable native-preflight bodies in CEM-QL, verify all byte hashes
+    before inspection, and inventory compiled template slots under explicit limits.
+    Direct literal module-URL resolution uses the supplied execution capability and
+    current context; it preserves native policy evidence and never guesses a base.
+    Six fixtures cover root/import ownership, stale/failed preflight, bounded work,
+    explicit context/referrer forwarding and policy denial without acquisition.
+    Contract: [preflight body inventory](cem-studio.md#native-preflight-body-inventory-and-explicit-resolution-context).
+    CEM review: native semantics, no UI/component/theme changes. Authored templates
+    are not rendered document trees; output reference ownership, stylesheet/module-map
+    contexts and runtime closure remain open. No Studio/worker admission expansion.
+  - Verification: six new integration fixtures pass; the full CEM-QL library suite
+    passes (138 passed, four ignored). Nx CEM-QL WASM build and `git diff --check`
+    pass. No browser-facing API or UI changed in this step.
+  - [x] Add native stylesheet-dependency fixtures for retained document ownership,
+    decoded inline CSS, explicit final URL bases, module-map policy, unresolved bases,
+    bounded traversal and preflight stylesheet provenance.
+  - [x] Connect retained document CSS and preflight stylesheet owners to the shared
+    native CSS resolver without fetching, rendering or claiming runtime closure.
+    Delivered native inline CSS inventory for retained HTML/SVG documents, preserving
+    document owners and CSS-local maps. Resolution uses the explicit final document
+    URL and execution capability; truncated scans and unresolved bases block calls.
+    Preflight bodies retain stylesheet trees/module maps and resolve exact sheet
+    occurrences against their final body URI. Native policy failures remain evidence;
+    no imports are fetched, no template is rendered and no project edit is admitted.
+    Contract: [stylesheet dependency ownership](cem-studio.md#document-and-template-stylesheet-dependency-ownership).
+    CEM review: shared native import/resolution, no UI/component/theme changes;
+    inherited theme and forced-color behavior are unaffected. Generated-output edit
+    ownership, document base chains, SVG presentation CSS and runtime closure stay open.
+  - Verification: five new stylesheet-ownership fixtures pass; full CEM-QL library
+    suite passes (139 passed, four ignored). Related CSS import-closure (23) and
+    resource-resolution (four) suites pass. Nx CEM-QL WASM and rebuilt CEM-ML/CLI
+    Chromium worker checks pass; `git diff --check` passes.
+  - [x] Add native XML reference-provenance fixtures for nested/absolute bases,
+    decoded values, source selection ownership, malformed bases and bounded scans;
+    test exact native source binding and rejection of changed or absent provenance.
+  - [x] Resolve XML-imported reference and inline-CSS candidates using import-owned
+    base chains while retaining source keys and explicit edit/policy blockers.
+    Delivered XML-specific native reference provenance and inline-CSS base resolution.
+    Both reuse imported per-node base chains; HTML base behavior stays blocked.
+    Native source binding requires matching source key/URI, attribute name and value;
+    missing or changed provenance fails. Source correspondence is not a lexical edit
+    range or mutation authorization. No Studio/worker admission was widened.
+    Contract: [XML base/source correspondence](cem-studio.md#xml-base-chains-and-native-source-correspondence).
+    CEM review: shared native import and retained source ownership; UI, accessibility
+    behavior and theme token ownership are unchanged. Generated-output edit ownership,
+    safe rewriting, HTML base rules and runtime closure remain open.
+  - Verification: four new XML/source-binding fixtures pass within 73 XML-related
+    native tests; four existing document-stylesheet regressions also pass. Rebuilt
+    CEM-ML WASM/CLI and the Nx Chromium worker regression pass. `git diff --check`
+    passes. Physical AT acceptance remains independently open.
+  - [x] Add XML lexical-edit fixtures for quote/entity preservation, exact no-ops,
+    source-key staleness, inherited bases and unchanged neighboring references.
+  - [x] Plan one source-bound XML reference value edit at the native import boundary,
+    reimport and verify targets, retaining explicit mutation/runtime blockers.
+    Delivered native import-owned lexical value planning with source-key selection,
+    exact no-op preservation, XML escaping and reimported before/after target checks.
+    A retained-occurrence entry point requires native source correspondence first.
+    Four fixtures cover lexical preservation, inherited bases, no-ops, stale keys,
+    malformed bases, bounds and occurrence binding. Candidates keep runtime/shared
+    occurrence/host-transaction blockers; no worker or Studio admission was widened.
+    Contract: [native XML value edits](cem-studio.md#native-xml-reference-value-edit-candidates).
+    CEM review: syntax stays at native import; UI, theme and accessibility behavior
+    are unaffected. Shared/generated occurrence ownership and runtime closure remain open.
+  - Verification: all 77 XML-related tests pass, including four new edit-planning
+    fixtures. Rebuilt CEM-ML WASM/CLI and the Nx Chromium worker regression pass;
+    `git diff --check` passes. Physical AT acceptance remains independently open.
+  - [x] Add native shared-occurrence transaction fixtures for single/source-wide
+    scope, stale source/output revisions, output membership/owners and policy drift.
+  - [x] Prepare immutable XML edit evidence bound to an explicit occurrence scope
+    and revalidate the host read set without authorizing incomplete dependency edits.
+    Delivered explicit single-occurrence/source-wide scope over a supplied native
+    output set. Private prepared evidence retains original/candidate bytes and all
+    output owners. Revalidation rejects source byte/revision, policy, output set,
+    output revision and native-owner drift; order-only changes are accepted.
+    Unknown provenance, stale source correspondence and opaque references block
+    preparation. The host still owns output-set completeness and atomic admission;
+    runtime closure remains required. No Studio/worker edit admission was added.
+    Contract: [shared occurrences and transaction evidence](cem-studio.md#shared-xml-occurrences-and-prepared-transaction-evidence).
+    CEM review: native semantics and retained owners; no UI/accessibility/theme change.
+  - Verification: all 81 XML-related tests pass, including four transaction fixtures;
+    the focused transaction suite passes after final duplicate-node hardening.
+    Rebuilt CEM-ML WASM/CLI and the Nx Chromium worker regression pass, as does
+    `git diff --check`. Physical AT acceptance remains independently open.
+  - [x] Add native HTML base-resolution fixtures for first-href ordering, explicit
+    fallback contexts, policy denial, source ownership and incomplete scans;
+    compare the shared bounded fixture corpus with Chromium document.baseURI.
+  - [x] Implement bounded UTF-8 HTML snapshot base resolution over retained CEM
+    trees, retaining selected source and host policy evidence without widening
+    dependency completeness or Studio edit admission.
+    Delivered explicit ordinary/srcdoc/about:blank fallback contexts, first-href
+    selection, standard URL resolution and host policy decisions. Results retain
+    native owners/source maps/keys; incomplete scans, unevaluated values, ambiguous
+    template content and unsupported encodings fail. No general text/html importer
+    or live frozen-base history reconstruction is claimed.
+    Contract: [bounded native HTML base resolution](cem-studio.md#bounded-native-html-base-resolution).
+    Chromium 148.0.7778.96 differs on invalid-first-href and empty-href-with-fragment;
+    the parity gate asserts exact version/values and records divergence explicitly.
+    Those cases remain outside execution/edit admission. CEM review: native semantic
+    ownership and bounded host policy; no UI/accessibility/theme changes, no app-local
+    document interpreter. Theme/forced-color checks do not apply to this native API;
+    physical AT acceptance remains independently open.
+  - Verification: nine HTML-base-related native library tests and both integration
+    tests pass, including the shared 24-case corpus and unevaluated-attribute
+    regression. Rebuilt CEM-ML WASM/CLI Chromium checks and CLI lint pass through Nx;
+    the browser report records 22 matches and two exact, version-pinned divergences.
+    `git diff --check` passes. No dependency-completeness or edit grant was added.
+  - [x] Define browser compatibility admission for the measured invalid/empty-href
+    base divergences and bind fallback/policy to actual freeze-time evidence before
+    consuming HTML base results in browser reference or stylesheet inventories.
+    Delivered explicit standard-agreement and pinned Chromium profiles, with private
+    preparation/confirmation evidence retaining original fallback, policy decision,
+    native source owner and execution epoch. Browser observations must match the
+    selected profile; read-set validation rejects owner, revision, epoch, selected
+    slot, browser, observed-URL or policy drift without recomputing the freeze.
+    The two known static divergences are admitted only as explicit base evidence.
+    A newly measured stale fallback after CSP denial/removal/history is rejected;
+    it is outside this bounded compatibility profile. General resource/edit admission
+    remains blocked on host observation completeness, runtime closure and transactions.
+    Contract: [captured HTML base evidence](cem-studio.md#captured-html-base-evidence-and-browser-compatibility).
+    CEM review: explicit bounded compatibility, native semantic/source ownership;
+    no UI, accessibility, theme-token or inherited-style changes. Physical AT remains open.
+  - [x] Add native HTML freeze-evidence fixtures for explicit compatibility profiles,
+    captured fallback/policy, stale document/epoch/owner/selection rejection and
+    missing observations; verify actual history, href and CSP transitions in Chromium.
+  - Verification: seven native freeze-evidence tests and both HTML base integration
+    tests pass. The Nx browser gate confirms all 24 static observations under the
+    explicit Chromium profile, retaining the two standard divergences. Eight actual
+    browser transitions verify five captures, two stale read-set rejections and one
+    unsupported stale-fallback rejection. Rebuilt CEM-ML WASM/CLI, Chromium worker
+    regression, CLI lint and `git diff --check` pass.
+  - [x] Add native execution-host fixtures for complete bounded slot correspondence,
+    host-owned epochs, same-value freezes, stale/foreign evidence and revocation;
+    verify the shared browser adapter against real DOM mutation and history events.
+  - [x] Connect captured HTML base evidence to a bounded exclusive execution-host
+    adapter with native/DOM document-slot correspondence and controlled
+    revision/epoch invalidation. Delivered a native retained session, WASM predicate
+    bridge and shared `@epa-wg/cem-ml-cli/browser` adapter. Complete document
+    correspondence precedes policy; explicit href re-freezing, synchronous
+    invalidation, pending mutation records and read-time identity checks prevent
+    stale admission. Inert template content stays outside document topology.
+    Unowned DOM changes, failed confirmation, callback reentry/errors and document
+    replacement revoke the session. No JavaScript AST reconstruction was added.
+    The initial profile requires exclusive UTF-8 HTTP(S) context ownership;
+    arbitrary page writers, unreported same-task history A-B-A, embedded-document
+    hosts and a general native HTML snapshot producer remain outside this scope.
+    A newly measured Chromium same-value href/CSP mismatch is rejected explicitly,
+    without broadening compatibility. Resource closure and transaction admission
+    remain blocked. Contract: [exclusive HTML base execution host](cem-studio.md#exclusive-html-base-execution-host).
+  - Verification: five native host tests, seven freeze-evidence tests and both
+    base integration tests pass. The rebuilt Nx WASM/browser gate passes 17 new
+    packaged host cases, the 24 static base confirmations, eight historical
+    transitions and existing worker/command regressions. CLI lint and
+    `git diff --check` pass. CEM review: native semantic/source ownership and shared
+    bounded browser services; no UI, token, inherited-style or accessibility change.
+    Theme/forced-color checks are inapplicable; physical AT acceptance stays open.
+  - [x] Add native HTML execution-inventory fixtures for confirmed base consumption,
+    retained document/CSS source owners, resolver denial and drift, bounds, and
+    stale/foreign host evidence; verify shared Chromium reference/CSS candidates.
+  - [x] Consume validated execution-host evidence in native reference and
+    stylesheet inventories, preserving the exclusive-context boundary and
+    revalidating the same retained owner before consumption.
+    Delivered private `HtmlExecutionInventory` ownership through the native host's
+    `inspect_dependencies`/`validate_dependencies` APIs. Direct references use the
+    confirmed execution base; inline CSS retains the actual resolver capability,
+    mapping/denial evidence, document source frames and native CSS owners. Full
+    scans precede resolution; stale/foreign/replaced read sets, missing resolver
+    fingerprints and resolver/DOM drift prevent publication or consumption.
+    Generic/XML stylesheet guards remain unchanged. Candidate coverage, resource
+    policy, stylesheet execution history, runtime closure and edit transactions
+    remain explicit blockers; no browser/worker edit admission was added.
+    Contract: [HTML execution inventories](cem-studio.md#html-execution-reference-and-stylesheet-inventories).
+  - Verification: all seven new inventory tests, 14 existing base/host integration
+    tests and 210 document regression tests pass. The rebuilt Nx WASM/Chromium gate
+    passes 18 host cases, including native/browser image, navigation and inline-CSS
+    URL parity, plus 24 static base confirmations, eight transition cases and
+    existing worker/command checks. CLI lint and `git diff --check` pass.
+    CEM review: native semantics/source ownership, bounded shared host services and
+    explicit authority; no UI, accessibility, theme-token or inherited-style change.
+    Theme/forced-color verification is inapplicable; physical AT remains open.
+  - [x] Integrate retained document/expression inventories with native template
+    preflight and execution-owned base/resolver policy before producing edit evidence.
+    - [x] Add native preparation fixtures covering retained preflight imports and
+      expression owners, distinct document/template/execution bases, explicit
+      referrers and denied resolutions, stale/replaced authorities, callback drift,
+      missing body contexts and bounded expression/stylesheet analysis without
+      runtime acquisition.
+    Delivered the private native `HtmlTemplateDependencyPreparation`: construction
+    runs execution's native preflight once, retains imported bytes/hashes and compiled
+    expression/CSS owners, and joins them with a current HTML inventory. Every body
+    requires its explicit execution capability; complete bounded scans precede
+    resolution. Native root/engine/capability identity and resolver fingerprints are
+    checked with the HTML host around callbacks and at later consumption. Template
+    CSS, document references and expression calls preserve their distinct bases;
+    denied mappings retain native policy evidence. Public preflight DTOs cannot mint
+    this preparation. Runtime reads and rendering are never executed by inspection.
+    Template/output correspondence, effective module maps, acquisition freshness,
+    document coverage/policy, runtime closure and transaction admission remain
+    blockers. This native API does not widen browser/worker or Studio edit admission.
+    Contract: [native template/HTML preparation](cem-studio.md#native-template-and-html-dependency-preparation).
+    Verification: seven native integration tests and 15 existing dependency inspection
+    regressions pass; `cem_ql:build:wasm` succeeds. New Rust files pass `rustfmt --check`
+    and `git diff --check` is clean. No browser behavior or admission path changed.
+    CEM review: shared native semantics, explicit authority and retained sources;
+    no app-local parser, UI behavior, token, inherited-style or accessibility change.
+    Theme/forced-color checks are inapplicable; physical AT remains independently open.
+  - [ ] Complete execution-aligned general document references, non-XPath template
+    loads and runtime-load closure for source-map assets; combine those findings
+    with native map rewrite ownership before widening configured-project admission.
+    - [ ] Bind template/output correspondence, effective body contexts/module maps
+      and acquisition freshness to native execution and immutable snapshot records.
+      Use those records to discharge preparation blockers before edit evidence.
+  - [ ] Establish execution-owned lookup provenance for relative run-config inputs,
+    including invocation/default origins, before widening relocation admission.
+- [ ] **Grouped operation and graph authoring** — extend native-backed configuration
+  editing and persistence, using shared CEM controls before app composition.
+
+Next, bind the native template/HTML preparation to actual execution and acquisition
+snapshot records, including output correspondence and effective body contexts/maps.
+Connect the prepared native read set to host transaction admission only after complete
+dependency evidence. Complete CSS/srcset/runtime dependency
+closure and combine it with map rewrite ownership before widening Studio admission.
+Relative run-config input provenance and grouped operation/graph authoring follow.
+Expanded/resizable panes and larger-data controls must follow the same library-first
+rule. Physical device/browser/AT
+acceptance remains independently open above. Presentation preparation stays deferred
+and its existing checklist/resume context is preserved.

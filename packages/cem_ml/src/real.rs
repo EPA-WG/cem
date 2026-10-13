@@ -5589,6 +5589,90 @@ fn find_preflight_import<'a>(
         .find(|module| module.parent_uri.as_deref() == parent_uri && module.alias == alias)
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeTemplateDependencyInspection {
+    pub root_uri: String,
+    pub root_content_hash: String,
+    pub preflight: Option<TransformTemplateModulePreflight>,
+    pub diagnostics: Vec<Diagnostic>,
+    /// Every discovered body still needs analysis for runtime/data-dependent loads.
+    /// Absence of module imports does not make a template a dependency leaf.
+    pub body_analysis_required: Vec<String>,
+    pub xpath_resource_uses: Vec<crate::template_dependencies::TemplateXPathResourceInspection>,
+}
+
+/// Inspect native CEM template module imports through execution's preflight path.
+/// Reads use the caller's EngineContext resolver, grants, module-map policy and
+/// operation controls. Hosts wanting snapshot-only inspection must supply only
+/// their immutable snapshot resolver; this API does not install a network resolver.
+/// No body, XPath invocation, function, renderer or output publication is executed.
+///
+/// This establishes the static module-import graph only. Body analysis remains an
+/// explicit blocker for every visited template. Failures expose diagnostics without
+/// a partial preflight. The inspection cache key is purpose-specific and does not
+/// authorize execution or project mutation. Hosts must compare hashes and revisions.
+pub fn inspect_native_template_dependencies(
+    context: &EngineContext,
+    template: &TemplateInput,
+    max_import_depth: u32,
+) -> NativeTemplateDependencyInspection {
+    let mut parsed =
+        parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+            template: template.clone(),
+        });
+    let mut result = NativeTemplateDependencyInspection {
+        root_uri: template.uri.clone(),
+        root_content_hash: content_hash(&template.bytes),
+        preflight: None,
+        diagnostics: parsed.diagnostics,
+        body_analysis_required: vec![template.uri.clone()],
+        xpath_resource_uses: crate::template_dependencies::inspect_template_xpath_slots(&template.uri, &parsed.module_options),
+    };
+    if result
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return result;
+    }
+    // A caller may tighten the declared/default bound, never silently relax it.
+    parsed.module_options.limits.max_import_depth = parsed
+        .module_options
+        .limits
+        .max_import_depth
+        .min(max_import_depth);
+    let preflight = preflight_transform_template_modules(
+        context,
+        "cem-native-dependency-inspection",
+        template,
+        &TransformTemplateEntrypoint::implicit(),
+        &parsed.module_options,
+        TransformExecutionPolicy::default(),
+        &mut result.diagnostics,
+    );
+    if result
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return result;
+    }
+    if let Some(preflight) = &preflight {
+        for module in &preflight.resolved_imports {
+            let imported = parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: TemplateInput { uri: module.uri.clone(), bytes: module.bytes.clone(), identity: module.identity.clone(), root_scope: ScopeConfig::default() },
+            });
+            result.xpath_resource_uses.extend(crate::template_dependencies::inspect_template_xpath_slots(&module.uri, &imported.module_options));
+            if !result.body_analysis_required.contains(&module.uri) {
+                result.body_analysis_required.push(module.uri.clone());
+            }
+        }
+    }
+    result.preflight = preflight;
+    result
+}
+
 fn preflight_transform_template_modules(
     context: &EngineContext,
     adapter_id: &str,
@@ -16545,6 +16629,128 @@ mod tests {
             }),
             root_scope: ScopeConfig::default(),
         }
+    }
+
+    #[test]
+    fn template_dependency_inspection_reports_xpath_document_load_without_acquisition() {
+        let mut root = template("cem+vfs://templates/main.cem", br#"{module |
+            {function @name="app.load" @returns="any" | {body |
+                {xpath @sequence-type="node()*" | {expression | doc('missing.xml') }}
+            }}
+        }"#);
+        root.identity.as_mut().unwrap().schema = Some(CEM_TRANSFORM_SCHEMA_URI.into());
+        let result = inspect_native_template_dependencies(&ctx(), &root, 8);
+        assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+        assert!(result.preflight.is_some());
+        assert_eq!(result.xpath_resource_uses.len(), 1);
+        let slot = &result.xpath_resource_uses[0];
+        assert_eq!(slot.template_uri, root.uri);
+        assert_eq!(slot.inspection.loads[0].literal_uri.as_deref(), Some("missing.xml"));
+        assert!(slot.inspection.blockers.contains(&"resource-resolution-required".into()));
+        assert_eq!(result.body_analysis_required, vec![root.uri]);
+    }
+
+    #[test]
+    fn template_dependency_inspection_retains_transitive_provenance_without_body_execution() {
+        let context = context_with_resolver(
+            "cem+vfs",
+            ResolvePurpose::Template,
+            MapReadResolver {
+                entries: vec![
+                    (
+                        "cem+vfs://templates/lib/a.cem",
+                        b"{module | {import @as=b @src=b.cem} {template @name=card | {span | A}}}",
+                        Some("text/cem-ml"),
+                    ),
+                    (
+                        "cem+vfs://templates/lib/b.cem",
+                        b"{module | {template @name=card | {span | B}}}",
+                        Some("text/cem-ml"),
+                    ),
+                ],
+            },
+        );
+        let root = template(
+            "cem+vfs://templates/main.cem",
+            b"{module | {import @as=a @src=lib/a.cem} {template @name=card | {span | Root}}}",
+        );
+        let result = inspect_native_template_dependencies(&context, &root, 8);
+        assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+        let preflight = result.preflight.unwrap();
+        assert_eq!(preflight.resolved_imports.len(), 2);
+        assert!(preflight
+            .resolved_imports
+            .iter()
+            .all(|module| !module.content_hash.is_empty() && module.resolver_policy_stamp.is_some()));
+        let nested = preflight
+            .resolved_imports
+            .iter()
+            .find(|module| module.alias == "b")
+            .unwrap();
+        assert_eq!(nested.uri, "cem+vfs://templates/lib/b.cem");
+        assert_eq!(
+            nested.parent_uri.as_deref(),
+            Some("cem+vfs://templates/lib/a.cem")
+        );
+        assert_eq!(result.body_analysis_required.len(), 3);
+        assert!(result.body_analysis_required.contains(&root.uri));
+    }
+
+    #[test]
+    fn template_dependency_inspection_rejects_cycles_missing_sources_and_depth_overflow() {
+        let root = template(
+            "cem+vfs://templates/main.cem",
+            b"{module | {import @as=a @src=a.cem}}",
+        );
+        for (entries, depth) in [
+            (vec![], 8),
+            (
+                vec![
+                    (
+                        "cem+vfs://templates/a.cem",
+                        b"{module | {import @as=root @src=main.cem}}".as_slice(),
+                        Some("text/cem-ml"),
+                    ),
+                    (
+                        "cem+vfs://templates/main.cem",
+                        b"{module}".as_slice(),
+                        Some("text/cem-ml"),
+                    ),
+                ],
+                8,
+            ),
+            (
+                vec![(
+                    "cem+vfs://templates/a.cem",
+                    b"{module}".as_slice(),
+                    Some("text/cem-ml"),
+                )],
+                0,
+            ),
+        ] {
+            let context = context_with_resolver(
+                "cem+vfs",
+                ResolvePurpose::Template,
+                MapReadResolver { entries },
+            );
+            let result = inspect_native_template_dependencies(&context, &root, depth);
+            assert!(result.preflight.is_none());
+            assert!(result
+                .diagnostics
+                .iter()
+                .any(|diag| diag.severity.is_hard_violation()));
+        }
+    }
+
+    #[test]
+    fn template_dependency_inspection_does_not_evaluate_dynamic_import_declarations() {
+        let root = template(
+            "cem+vfs://templates/main.cem",
+            b"{module | {import @as=a @src={concat('a', '.cem')}}}",
+        );
+        let result = inspect_native_template_dependencies(&ctx(), &root, 8);
+        assert!(result.preflight.is_none());
+        assert!(!result.diagnostics.is_empty());
     }
 
     #[test]

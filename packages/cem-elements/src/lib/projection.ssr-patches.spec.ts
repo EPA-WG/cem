@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { diffRenderPlansToPatchFrames, type RenderPlan, type RenderPlanNode } from './projection.js';
+import { edgeContentAddress, diffRenderPlansToPatchFrames, type RenderPlan, type RenderPlanNode } from './projection.js';
 
 const text = (value: string): RenderPlanNode => ({ kind: 'text', text: value, renderNodeId: 'text-1' });
 const element = (children: RenderPlanNode[]): RenderPlanNode => ({ kind: 'element', namespace: null,
@@ -34,4 +34,20 @@ it.each(['text', 'comment'] as const)('falls back to the owned range for changed
     const after = plan([{ kind, text: 'After', renderNodeId: 'root' }, element([text('Kept')])]);
     expect(ops(before, after).map(op => op.op)).toEqual(['replaceScope', 'replaceScope']);
     expect(ops(before, before)).toEqual([]);
+});
+
+it('bounds repeated native binary hashing and preserves content identity independently of buffer sharing', () => {
+    const bytes = new Uint8Array(512 * 1024); bytes[0] = 23;
+    expect(edgeContentAddress('render-plan', { bytes: bytes.buffer }).algorithm).toBe('stable-json-fnv1a64-binary-v2');
+    const shared = { first: bytes.buffer, second: bytes.buffer };
+    const cloned = { first: bytes.buffer.slice(0), second: bytes.buffer.slice(0) };
+    const original = edgeContentAddress('render-plan', shared);
+    expect(edgeContentAddress('render-plan', cloned)).toEqual(original);
+    const repeated = Array.from({ length: 1024 }, () => ({ artifact: bytes.buffer, contentHash: 'untrusted-metadata' }));
+    expect(edgeContentAddress('render-plan', repeated).digest).toMatch(/^[0-9a-f]{16}$/);
+    bytes[bytes.length - 1] = 42;
+    expect(edgeContentAddress('render-plan', shared)).not.toEqual(original);
+    const plain = edgeContentAddress('render-plan', { name: 'plain', enabled: true });
+    expect(plain.algorithm).toBe('stable-json-fnv1a64-v1');
+    expect(edgeContentAddress('render-plan', { enabled: true, name: 'plain' })).toEqual(plain);
 });

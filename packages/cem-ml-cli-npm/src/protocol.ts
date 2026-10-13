@@ -190,6 +190,7 @@ export interface BrowserCommandCapabilityResponse {
 }
 
 export type BrowserCommandWorkerRequest =
+    | BrowserResourceRebindRequest
     | BrowserCommandExecuteRequest
     | BrowserCommandCancelRequest
     | BrowserCommandArtifactReadRequest
@@ -323,3 +324,25 @@ export type ResumableOperationEvent =
           readonly operationId: string;
           readonly terminal: ResumableOperationTerminal;
       };
+
+/** Candidate plan only: hosts retain responsibility for dependency closure and commit guards. */
+export interface ResourceRebindRequest {
+    readonly kind: 'run-config' | 'transform-graph';
+    /** Defaults to rebind. Relocation requires fromUri === baseUri. */
+    readonly mode?: 'rebind' | 'relocate';
+    readonly bytes: readonly number[];
+    readonly identity: { readonly contentType: string; readonly schema?: string };
+    readonly baseUri: string;
+    readonly fromUri: string;
+    readonly toUri: string;
+}
+export interface ResourceRebindPlan {
+    readonly references: readonly { readonly uri: string; readonly kind: 'input' | 'inputLink' | 'schemaPackage' | 'output' }[];
+    readonly blockers: readonly string[];
+    readonly rewrittenBytes: readonly number[] | null;
+}
+export interface BrowserResourceRebindRequest {
+    readonly type: 'cem-resource-rebind';
+    readonly actionId: number;
+    readonly request: ResourceRebindRequest;
+}

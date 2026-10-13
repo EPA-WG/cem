@@ -1,0 +1,256 @@
+[
+  {
+    "name": "no-base",
+    "markup": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head></head><body></body></html>",
+    "context": "document",
+    "url": "https://example.test/docs/page.html?old=1#original",
+    "policy": "allow",
+    "expected": "https://example.test/docs/page.html?old=1#original",
+    "outcome": "NoHrefBase",
+    "selected_href": null
+  },
+  {
+    "name": "target-only",
+    "markup": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><base target=\"_blank\"/></head><body></body></html>",
+    "context": "document",
+    "url": "https://example.test/docs/page.html?old=1#original",
+    "policy": "allow",
+    "expected": "https://example.test/docs/page.html?old=1#original",
+    "outcome": "NoHrefBase",
+    "selected_href": null
+  },
+  {
+    "name": "relative",
+    "markup": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><base href=\"../assets/\"/></head><body></body></html>",
+    "context": "document",
+    "url": "https://example.test/docs/page.html?old=1#original",
+    "policy": "allow",
+    "expected": "https://example.test/assets/",
+    "outcome": "Resolved",
+    "selected_href": "../assets/"
+  },
+  {
+    "name": "first-href",
+    "markup": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><base target=\"_blank\"/><base href=\"first/\"/><base href=\"https://later.test/\"/></head><body></body></html>",
+    "context": "document",
+    "url": "https://example.test/docs/page.html?old=1#original",
+    "policy": "allow",
+    "expected": "https://example.test/docs/first/",
+    "outcome": "Resolved",
+    "selected_href": "first/"
+  },
+  {
+    "name": "invalid-first",
+    "markup": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><base href=\"http://[\"/><base href=\"https://later.test/\"/></head><body></body></html>",
+    "context": "document",
+    "url": "https://example.test/docs/page.html?old=1#original",
+    "policy": "allow",
+    "expected": "https://example.test/docs/page.html?old=1#original",
+    "outcome": "InvalidHref",
+    "selected_href": "http://[",
+    "chromium_divergence": {
+      "version": "148.0.7778.96",
+      "effective_url": "about:blank",
+      "reason": "Chromium uses about:blank for the first invalid href; the HTML frozen-base algorithm uses the document fallback."
+    }
+  },
+  {
+    "name": "data-first",
+    "markup": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><base href=\"DaTa:text/plain,base\"/><base href=\"https://later.test/\"/></head><body></body></html>",
+    "context": "document",
+    "url": "https://example.test/docs/page.html?old=1#original",
+    "policy": "allow",
+    "expected": "https://example.test/docs/page.html?old=1#original",
+    "outcome": "ForbiddenScheme",
+    "selected_href": "DaTa:text/plain,base"
+  },
+  {
+    "name": "javascript-control",
+    "markup": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><base href=\"java&#x9;script:alert(1)\"/></head><body></body></html>",
+    "context": "document",
+    "url": "https://example.test/docs/page.html?old=1#original",
+    "policy": "allow",
+    "expected": "https://example.test/docs/page.html?old=1#original",
+    "outcome": "ForbiddenScheme",
+    "selected_href": "java\tscript:alert(1)"
+  },
+  {
+    "name": "empty-href",
+    "markup": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><base href=\"\"/></head><body></body></html>",
+    "context": "document",
+    "url": "https://example.test/docs/page.html?old=1#original",
+    "policy": "allow",
+    "expected": "https://example.test/docs/page.html?old=1",
+    "outcome": "Resolved",
+    "selected_href": "",
+    "chromium_divergence": {
+      "version": "148.0.7778.96",
+      "effective_url": "https://example.test/docs/page.html?old=1#original",
+      "reason": "Chromium preserves the fallback fragment for an empty href; standard URL resolution removes it."
+    }
+  },
+  {
+    "name": "fragment",
+    "markup": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><base href=\"#new\"/></head><body></body></html>",
+    "context": "document",
+    "url": "https://example.test/docs/page.html?old=1#original",
+    "policy": "allow",
+    "expected": "https://example.test/docs/page.html?old=1#new",
+    "outcome": "Resolved",
+    "selected_href": "#new"
+  },
+  {
+    "name": "decoded-query",
+    "markup": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><base href=\"?a=1&amp;b=2\"/></head><body></body></html>",
+    "context": "document",
+    "url": "https://example.test/docs/page.html?old=1#original",
+    "policy": "allow",
+    "expected": "https://example.test/docs/page.html?a=1&b=2",
+    "outcome": "Resolved",
+    "selected_href": "?a=1&b=2"
+  },
+  {
+    "name": "ascii-whitespace",
+    "markup": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><base href=\"&#x9; ../assets/&#xA; \"/></head><body></body></html>",
+    "context": "document",
+    "url": "https://example.test/docs/page.html?old=1#original",
+    "policy": "allow",
+    "expected": "https://example.test/assets/",
+    "outcome": "Resolved",
+    "selected_href": "\t ../assets/\n "
+  },
+  {
+    "name": "non-ascii-space",
+    "markup": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><base href=\"&#xA0;path&#xA0;\"/></head><body></body></html>",
+    "context": "document",
+    "url": "https://example.test/docs/page.html?old=1#original",
+    "policy": "allow",
+    "expected": "https://example.test/docs/%C2%A0path%C2%A0",
+    "outcome": "Resolved",
+    "selected_href": " path "
+  },
+  {
+    "name": "utf8-query",
+    "markup": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><base href=\"?q=é\"/></head><body></body></html>",
+    "context": "document",
+    "url": "https://example.test/docs/page.html?old=1#original",
+    "policy": "allow",
+    "expected": "https://example.test/docs/page.html?q=%C3%A9",
+    "outcome": "Resolved",
+    "selected_href": "?q=é"
+  },
+  {
+    "name": "body-base",
+    "markup": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head></head><body><div>before</div><base href=\"late/\"/></body></html>",
+    "context": "document",
+    "url": "https://example.test/docs/page.html?old=1#original",
+    "policy": "allow",
+    "expected": "https://example.test/docs/late/",
+    "outcome": "Resolved",
+    "selected_href": "late/"
+  },
+  {
+    "name": "xml-base-ignored",
+    "markup": "<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:base=\"https://wrong.test/\"><head><base href=\"relative/\"/></head><body></body></html>",
+    "context": "document",
+    "url": "https://example.test/docs/page.html?old=1#original",
+    "policy": "allow",
+    "expected": "https://example.test/docs/relative/",
+    "outcome": "Resolved",
+    "selected_href": "relative/"
+  },
+  {
+    "name": "svg-namespace",
+    "markup": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head></head><body><svg xmlns=\"http://www.w3.org/2000/svg\"><base href=\"https://foreign.test/\"/></svg><base href=\"actual/\"/></body></html>",
+    "context": "document",
+    "url": "https://example.test/docs/page.html?old=1#original",
+    "policy": "allow",
+    "expected": "https://example.test/docs/actual/",
+    "outcome": "Resolved",
+    "selected_href": "actual/"
+  },
+  {
+    "name": "qualified-href",
+    "markup": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><base xmlns:xlink=\"http://www.w3.org/1999/xlink\" xlink:href=\"https://wrong.test/\"/><base href=\"actual/\"/></head><body></body></html>",
+    "context": "document",
+    "url": "https://example.test/docs/page.html?old=1#original",
+    "policy": "allow",
+    "expected": "https://example.test/docs/actual/",
+    "outcome": "Resolved",
+    "selected_href": "actual/"
+  },
+  {
+    "name": "inert-template",
+    "markup": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><template><base href=\"https://inert.test/\"/></template><base href=\"actual/\"/></head><body></body></html>",
+    "context": "document",
+    "url": "https://example.test/docs/page.html?old=1#original",
+    "policy": "allow",
+    "expected": "https://example.test/docs/actual/",
+    "outcome": "Resolved",
+    "selected_href": "actual/",
+    "native_snapshot": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><template></template><base href=\"actual/\"/></head><body></body></html>"
+  },
+  {
+    "name": "policy-denied",
+    "markup": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><base href=\"https://cdn.test/\"/><base href=\"https://later.test/\"/></head><body></body></html>",
+    "context": "document",
+    "url": "https://example.test/docs/page.html?old=1#original",
+    "policy": "deny",
+    "expected": "https://example.test/docs/page.html?old=1#original",
+    "outcome": "PolicyDenied",
+    "selected_href": "https://cdn.test/"
+  },
+  {
+    "name": "srcdoc-relative",
+    "markup": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><base href=\"child/\"/></head><body></body></html>",
+    "context": "srcdoc",
+    "url": "about:srcdoc",
+    "policy": "allow",
+    "expected": "https://parent.test/assets/child/",
+    "outcome": "Resolved",
+    "selected_href": "child/",
+    "about_base_url": "https://parent.test/assets/"
+  },
+  {
+    "name": "srcdoc-fallback",
+    "markup": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head></head><body></body></html>",
+    "context": "srcdoc",
+    "url": "about:srcdoc",
+    "policy": "allow",
+    "expected": "https://parent.test/assets/",
+    "outcome": "NoHrefBase",
+    "selected_href": null,
+    "about_base_url": "https://parent.test/assets/"
+  },
+  {
+    "name": "blank-inherited",
+    "markup": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><base href=\"../child/\"/></head><body></body></html>",
+    "context": "blank",
+    "url": "about:blank",
+    "policy": "allow",
+    "expected": "https://parent.test/child/",
+    "outcome": "Resolved",
+    "selected_href": "../child/",
+    "about_base_url": "https://parent.test/assets/"
+  },
+  {
+    "name": "blank-no-creator",
+    "markup": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head></head><body></body></html>",
+    "context": "blank",
+    "url": "about:blank",
+    "policy": "allow",
+    "expected": "about:blank",
+    "outcome": "NoHrefBase",
+    "selected_href": null
+  },
+  {
+    "name": "blank-invalid-relative",
+    "markup": "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><base href=\"relative/\"/></head><body></body></html>",
+    "context": "blank",
+    "url": "about:blank",
+    "policy": "allow",
+    "expected": "about:blank",
+    "outcome": "InvalidHref",
+    "selected_href": "relative/"
+  }
+]

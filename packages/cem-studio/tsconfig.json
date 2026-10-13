@@ -21,7 +21,9 @@
         "src/shell.js",
         "src/bootstrap.d.ts",
         "src/repository.d.ts",
-        "src/shell.d.ts"
+        "src/shell.d.ts",
+        "src/project-session.js",
+        "src/project-session.d.ts"
     ],
     "references": [
         {

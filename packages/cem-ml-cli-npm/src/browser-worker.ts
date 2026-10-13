@@ -1,6 +1,7 @@
 import * as runtime from '@epa-wg/cem-ml/wasm';
 
 import type {
+    BrowserResourceRebindRequest,
     BrowserCommandActionResultMessage,
     BrowserCommandArtifactDisposeRequest,
     BrowserCommandArtifactReadRequest,
@@ -176,11 +177,20 @@ async function executeCommand(message: BrowserCommandExecuteRequest): Promise<vo
 
 function executeCommandAction(
     message:
-        | BrowserCommandCancelRequest
+        | BrowserResourceRebindRequest
+    | BrowserCommandCancelRequest
         | BrowserCommandArtifactReadRequest
         | BrowserCommandArtifactDisposeRequest
         | BrowserCommandArtifactsDisposeRequest,
 ): void {
+    if (message.type === 'cem-resource-rebind') {
+        const response: BrowserCommandActionResultMessage = {
+            type: 'cem-command-action-result', actionId: message.actionId,
+            result: JSON.parse(runtime.planResourceRebind(JSON.stringify(message.request))),
+        };
+        workerScope.postMessage(response);
+        return;
+    }
     if (message.type === 'cem-command-artifact-read') {
         const read = runtime.readCommandArtifactV1(
             message.requestId,
@@ -285,20 +295,20 @@ function isCommandExecuteRequest(value: unknown): value is BrowserCommandExecute
 function isCommandActionRequest(
     value: unknown,
 ): value is
+    | BrowserResourceRebindRequest
     | BrowserCommandCancelRequest
     | BrowserCommandArtifactReadRequest
     | BrowserCommandArtifactDisposeRequest
     | BrowserCommandArtifactsDisposeRequest {
     return (
         isRecord(value) &&
-        [
+        ((value.type === 'cem-resource-rebind' && isRecord(value.request)) || ([
             'cem-command-cancel',
             'cem-command-artifact-read',
             'cem-command-artifact-dispose',
             'cem-command-artifacts-dispose',
-        ].includes(String(value.type)) &&
-        isPositiveInteger(value.actionId) &&
-        typeof value.requestId === 'string'
+        ].includes(String(value.type)) && typeof value.requestId === 'string')) &&
+        isPositiveInteger(value.actionId)
     );
 }
 

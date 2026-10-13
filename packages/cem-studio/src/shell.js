@@ -142,6 +142,7 @@ export function createCemStudioUpdateCoordinator(options = {}) {
     let waitingWorker = registration?.waiting;
     let activeRequestCount = 0;
     let dirty = false;
+    let dirtyVersion = 0;
     let state = waitingWorker ? 'ready' : 'current';
     let reason;
     let activationRequested = false;
@@ -187,6 +188,7 @@ export function createCemStudioUpdateCoordinator(options = {}) {
 
     function setDirty(nextDirty) {
         dirty = Boolean(nextDirty);
+        dirtyVersion += 1;
         publish();
     }
 
@@ -199,16 +201,20 @@ export function createCemStudioUpdateCoordinator(options = {}) {
             return status();
         }
         if (dirty) {
+            const version = dirtyVersion;
             state = 'persisting';
             reason = undefined;
             publish();
             try {
                 await persistState();
-            } catch {
+            } catch (error) {
                 state = 'blocked';
-                reason = 'persistence-failed';
+                reason = error?.code === 'unsaved-work' ? 'unsaved-work' : 'persistence-failed';
                 publish();
                 return status();
+            }
+            if (dirty && version !== dirtyVersion) {
+                state = 'blocked'; reason = 'persistence-failed'; publish(); return status();
             }
             dirty = false;
         }
@@ -274,6 +280,9 @@ export function createCemStudioFileSystemController(options = {}) {
         : 'No local file or project directory is connected.';
     let lastResult;
     let lastError;
+    let targetVersion = 0;
+    let refreshVersion = 0;
+    let disposed = false;
 
     function status() {
         return Object.freeze({
@@ -301,7 +310,10 @@ export function createCemStudioFileSystemController(options = {}) {
     }
 
     async function perform(nextOperation, action) {
-        if (operation) return status();
+        if (disposed || operation) return status();
+        const version = targetVersion;
+        const target = Object.freeze({ projectId, resourceId });
+        ++refreshVersion;
         operation = nextOperation;
         state = 'working';
         message = fileSystemWorkingLabel(nextOperation);
@@ -309,42 +321,53 @@ export function createCemStudioFileSystemController(options = {}) {
         lastError = undefined;
         publish();
         try {
-            const result = await action();
-            lastResult = result;
-            if (result?.projectId) projectId = result.projectId;
-            if (nextOperation === 'reconnect' && typeof result?.state === 'string') {
-                state = result.state;
-                message = fileSystemProviderLabel(result);
-            } else {
-                state = 'ready';
-                message = fileSystemSuccessLabel(nextOperation, result);
+            const result = await action(target);
+            if (!disposed && version === targetVersion) {
+                lastResult = result;
+                // Imported projects enter through guarded Studio navigation.
+                // Provider results never retarget the active session.
+                if (nextOperation === 'reconnect' && typeof result?.state === 'string') {
+                    state = result.state;
+                    message = fileSystemProviderLabel(result);
+                } else {
+                    state = 'ready';
+                    message = fileSystemSuccessLabel(nextOperation, result);
+                }
             }
         } catch (error) {
-            lastError = Object.freeze({
-                code: error?.code ?? 'cem.studio.file_system.failed',
-                message: error instanceof Error ? error.message : String(error),
-                details: error?.details,
-            });
-            state = fileSystemErrorState(lastError.code);
-            message = `${lastError.message} IndexedDB import/export remains available.`;
+            if (!disposed && version === targetVersion) {
+                lastError = Object.freeze({
+                    code: typeof error?.code === 'string' ? error.code : error?.name === 'AbortError' ? 'cem.studio.file_system.cancelled' : 'cem.studio.file_system.failed',
+                    message: error instanceof Error ? error.message : String(error),
+                    details: error?.details,
+                });
+                state = fileSystemErrorState(lastError.code);
+                message = `${lastError.message} IndexedDB import/export remains available.`;
+            }
         } finally {
             operation = undefined;
+            if (!disposed && version !== targetVersion) await refresh();
         }
-        return publish();
+        return disposed ? status() : publish();
     }
 
     async function refresh() {
-        if (!provider) return publish();
+        const version = ++refreshVersion;
+        const target = targetVersion;
+        if (disposed || !provider) return status();
         if (!projectId) {
             state = provider.capabilities().available ? 'unbound' : 'unsupported';
+            message = 'Choose a project to connect local files; archive import remains available.';
             return publish();
         }
         try {
             const result = await provider.status({ projectId });
+            if (disposed || version !== refreshVersion || target !== targetVersion || operation) return status();
             lastResult = result;
             state = result.state;
             message = fileSystemProviderLabel(result);
         } catch (error) {
+            if (disposed || version !== refreshVersion || target !== targetVersion || operation) return status();
             if (error?.code !== 'cem.studio.file_system.binding_not_found') throw error;
             state = provider.capabilities().available ? 'unbound' : 'unsupported';
             message = 'No local project directory is connected; IndexedDB remains authoritative.';
@@ -356,19 +379,23 @@ export function createCemStudioFileSystemController(options = {}) {
         status,
         refresh,
         setProject(nextProjectId, nextResourceId) {
+            ++targetVersion;
+            lastResult = undefined; lastError = undefined;
             projectId = nextProjectId;
             resourceId = nextResourceId;
+            if (!operation) { state = 'unbound'; message = 'Checking the active project connection.'; }
+            publish();
             return refresh();
         },
         openProjectDirectory: () => perform('open-project', () => provider.openProjectDirectory()),
-        bindProjectDirectory: () => perform('bind-project', () => provider.bindProjectDirectory({ projectId })),
-        openResource: () => perform('open-resource', () => provider.openResource({ projectId, resourceId })),
-        reconnect: () => perform('reconnect', () => provider.reconnect({
-            projectId,
+        bindProjectDirectory: () => perform('bind-project', target => provider.bindProjectDirectory({ projectId: target.projectId })),
+        openResource: () => perform('open-resource', target => provider.openResource(target)),
+        reconnect: () => perform('reconnect', target => provider.reconnect({
+            projectId: target.projectId,
             requestPermission: true,
         })),
-        writeBack: () => perform('write-project', () => provider.writeProjectDirectory({
-            projectId,
+        writeBack: () => perform('write-project', target => provider.writeProjectDirectory({
+            projectId: target.projectId,
             requestPermission: true,
         })),
         importFallback: () => perform('import-fallback', async () => {
@@ -376,9 +403,9 @@ export function createCemStudioFileSystemController(options = {}) {
             const archive = await options.selectImport();
             return provider.importFallback({ archive });
         }),
-        exportFallback: () => perform('export-fallback', async () => {
+        exportFallback: () => perform('export-fallback', async target => {
             if (typeof options.downloadExport !== 'function') throw new Error('Project archive download is unavailable.');
-            const result = await provider.exportFallback({ projectId });
+            const result = await provider.exportFallback({ projectId: target.projectId });
             await options.downloadExport(result.archive);
             return result;
         }),
@@ -388,6 +415,7 @@ export function createCemStudioFileSystemController(options = {}) {
             return () => subscribers.delete(notify);
         },
         dispose() {
+            disposed = true; ++targetVersion; ++refreshVersion;
             subscribers.clear();
         },
     });
@@ -472,12 +500,12 @@ async function installComponents() {
     const runtime = new CemElementRuntime({ declarationTag: 'cem-studio-component-declaration' });
     const source = import.meta.resolve('@epa-wg/cem-components/components.xhtml');
     const registered = [], diagnostics = [];
-    for (const tag of ['cem-action', 'cem-alert', 'cem-app-bar', 'cem-badge', 'cem-card', 'cem-media-preview', 'cem-select', 'cem-dialog', 'cem-list', 'cem-tab', 'cem-table', 'cem-tabs', 'cem-text-field', 'cem-textarea']) {
+    for (const tag of ['cem-action', 'cem-alert', 'cem-app-bar', 'cem-badge', 'cem-card', 'cem-media-preview', 'cem-select', 'cem-dialog', 'cem-list', 'cem-tab', 'cem-table', 'cem-tree', 'cem-tabs', 'cem-text-field', 'cem-textarea']) {
         if (customElements.get(tag)) continue;
         const declaration = document.createElement(runtime.declarationTag);
         declaration.setAttribute('tag', tag);
         declaration.setAttribute('src', `${source}#${tag}`);
-        const capability = { 'cem-action': 'action-command', 'cem-select': 'choice-select', 'cem-dialog': 'native-surface', 'cem-list': 'native-list', 'cem-tabs': 'tab-panels', 'cem-text-field': 'form-control', 'cem-textarea': 'form-control' }[tag];
+        const capability = { 'cem-action': 'action-command', 'cem-select': 'choice-select', 'cem-dialog': 'native-surface', 'cem-list': 'native-list', 'cem-tree': 'tree-view', 'cem-tabs': 'tab-panels', 'cem-text-field': 'form-control', 'cem-textarea': 'form-control' }[tag];
         if (capability) declaration.setAttribute('capability', capability);
         document.head.append(declaration);
         runtime.registerDeclaration(declaration);
@@ -490,6 +518,7 @@ async function installComponents() {
     }
     for (const [tag, source] of [
         ['cem-studio-shell', './shell.xhtml#cem-studio-shell'],
+        ['cem-studio-workbench-navigation', './workbench-navigation.xhtml#cem-studio-workbench-navigation'],
         ['cem-studio-workbench-controls', './workbench-controls.xhtml#cem-studio-workbench-controls'],
         ['cem-studio-workbench-command', './workbench-command.xhtml#cem-studio-workbench-command'],
         ['cem-studio-workbench-layout', './workbench-layout.xhtml#cem-studio-workbench-layout'],

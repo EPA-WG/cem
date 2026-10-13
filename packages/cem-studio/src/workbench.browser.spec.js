@@ -1,11 +1,17 @@
+import { parseCemMlCommandText } from '@epa-wg/cem-ml-cli/browser';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { describeCemStudioOperationFields, editCemStudioOperationField, createCemStudioBrowserValidator } from './feature-tour.js';
+import { createCemStudioFileSystemProvider, serializeCemStudioProjectBundle } from './file-system-provider.js';
 import { createCemStudioProjectRepository } from './repository.js';
+import { createCemStudioProjectSession } from './project-session.js';
 import { mountCemStudioApplicationShell } from './shell.js';
 import {
     CEM_STUDIO_INSPECT_VIEWS,
     CEM_STUDIO_PARSE_PROJECTIONS,
     createCemStudioFeatureTourWorkbench,
+    createCemStudioProjectWorkbench,
+    createCemStudioSessionWorkbench,
     mountCemStudioFeatureTourWorkbench,
 } from './workbench.js';
 
@@ -34,6 +40,52 @@ afterEach(async () => {
 });
 
 describe('CEM Studio Feature Tour workbench', () => {
+    it('uses native metadata to edit enum, boolean and literal fields without dropping other options', () => {
+        const text = 'cem-ml parse studio://alpha/source.cem --namespace a=urn:a --namespace b=urn:b';
+        const fields = describeCemStudioOperationFields(text);
+        expect(fields.find(field => field.id === 'format')).toMatchObject({ type: 'enum', value: 'ast', defaultValue: 'ast' });
+        expect(fields.find(field => field.id === 'preserve_source_offsets').type).toBe('boolean');
+        let edited = editCemStudioOperationField(text, 'format', 'events');
+        edited = editCemStudioOperationField(edited, 'preserve_source_offsets', 'true');
+        const parsed = parseCemMlCommandText(edited);
+        expect(parsed.options).toMatchObject({ format: 'events', preserve_source_offsets: true, namespaces: ['a=urn:a', 'b=urn:b'] });
+        expect(parseCemMlCommandText(editCemStudioOperationField(edited, 'format', '', true)).options.format).toBe('ast');
+        expect(() => editCemStudioOperationField(text, 'format', 'invented')).toThrow('Choose a value');
+        expect(() => editCemStudioOperationField(text, 'input', 'file:///elsewhere')).toThrow('not available');
+        expect(() => editCemStudioOperationField(text, 'preserve_source_offsets', 'yes')).toThrow('true or false');
+        const expression = 'concat("café", "\\", "$(literal)")';
+        const query = editCemStudioOperationField('cem-ml query studio://alpha/source.cem --query . --query-content-type application/vnd.cem.query-expression+xpath', 'query', expression);
+        expect(parseCemMlCommandText(query).options.query).toBe(expression);
+        for (const operation of ['parse', 'inspect', 'convert', 'query', 'transform', 'trace']) {
+            const argv = operation === 'query' ? '--query . --query-content-type application/vnd.cem.query-expression+xpath' : operation === 'transform' ? '--template-expression .' : '';
+            expect(describeCemStudioOperationFields(`cem-ml ${operation} studio://alpha/source.cem ${argv}`).length).toBeGreaterThan(0);
+        }
+    });
+
+    it('guards typed field versions and edits drafts without Save, Apply or Run', async () => {
+        const validator = validatorFor(validResult());
+        const repository = await repositoryWithSource('original');
+        const workbench = await createWorkbench(repository, validator);
+        const before = (await repository.query(request('export-project', { projectId: 'feature-tour' }))).value;
+        const other = await createWorkbench(repository, validator);
+        await workbench.updateCommandField('format', 'events', other.snapshot().command.formVersion);
+        expect(workbench.snapshot().command.formError.message).toContain('command changed');
+        const version = workbench.snapshot().command.formVersion;
+        await workbench.updateCommandField('format', 'events', version);
+        expect(parseCemMlCommandText(workbench.snapshot().command.draftText).options.format).toBe('events');
+        const edited = workbench.snapshot().command.draftText;
+        await workbench.updateCommandField('format', 'ast', version);
+        expect(workbench.snapshot().command.formError.message).toContain('command changed');
+        expect(workbench.snapshot().command.draftText).toBe(edited);
+        await workbench.updateCommandField('format', 'invalid', workbench.snapshot().command.formVersion);
+        expect(workbench.snapshot().command.draftText).toBe(edited);
+        await workbench.updateCommandField('format', '', workbench.snapshot().command.formVersion, true);
+        expect(parseCemMlCommandText(workbench.snapshot().command.draftText).options.format).toBe('ast');
+        expect((await repository.query(request('export-project', { projectId: 'feature-tour' }))).value).toEqual(before);
+        expect(validator.executeAuthoredResourceCommand).not.toHaveBeenCalled();
+        expect(validator.validateResource).not.toHaveBeenCalled();
+    });
+
     it('saves and reloads exact revisions, retains native validation data, and navigates with CEM controls', async () => {
         const invalid = '@doc cem-ml 1\n\n{article |\n    {h1 | Missing article close}\n';
         const rangeStart = new TextEncoder().encode(invalid.slice(0, invalid.indexOf('{article'))).byteLength;
@@ -98,7 +150,18 @@ describe('CEM Studio Feature Tour workbench', () => {
             root.querySelectorAll('button:not(cem-action button):not(cem-select button):not(cem-tabs button)'),
         ).toHaveLength(0);
 
+        const paneTabs = [...root.querySelector('cem-tabs[label="Workbench panes"]').querySelectorAll('[role="tab"]')]
+            .filter(tab => tab.closest('cem-tabs').getAttribute('label') === 'Workbench panes');
         const diagnostics = root.querySelector('cem-list[data-diagnostic-list] select');
+        for (let attempt = 0; attempt < 2; attempt++) {
+            paneTabs.find(tab => tab.textContent === 'Results').click(); await view.whenSettled();
+            expect(editor.closest('[role="tabpanel"]').hidden).toBe(true);
+            diagnostics.value = '0'; diagnostics.dispatchEvent(new Event('change', { bubbles: true }));
+            await view.whenSettled();
+            expect(editor.closest('[role="tabpanel"]').hidden).toBe(false);
+            expect(document.activeElement).toBe(editor);
+            expect(editor.selectionStart).toBe(workbench.snapshot().selection.start);
+        }
         diagnostics.value = '0';
         diagnostics.dispatchEvent(new Event('change', { bubbles: true }));
         await view.whenSettled();
@@ -304,6 +367,7 @@ describe('CEM Studio Feature Tour workbench', () => {
         expect(root.querySelector('cem-studio-workbench-results')).not.toBeNull();
         expect(root.querySelector('[data-cem-studio-preview] cem-alert').getAttribute('tone')).toBe('info');
         await workbench.parsePersisted('events'); await view.whenSettled();
+        root.querySelector('cem-tabs[label="Workbench panes"]').selectedIndex = 1; await view.whenSettled();
         const output = root.querySelector('[data-cem-studio-preview] cem-media-preview pre');
         expect(output.textContent).toBe(workbench.snapshot().projection.output.text);
         output.focus(); workbench.updateDraft('a newer draft'); await view.whenSettled();
@@ -806,6 +870,943 @@ describe('CEM Studio Feature Tour workbench', () => {
         });
     });
 });
+
+describe('Project-owned workbench loading', () => {
+    async function fixture(id = 'alpha', empty = false, extra = false) {
+        const repository = await repositoryWithSource('project source');
+        const bundle = (await repository.query(request('export-project', { projectId: 'feature-tour' }))).value;
+        bundle.project.id = id;
+        bundle.project.name = id;
+        bundle.project.rootUri = `studio://${id}/`;
+        if (empty) { bundle.project.entries = []; bundle.project.resources = []; bundle.contents = {}; }
+        if (extra) {
+            const bytes = new TextEncoder().encode('additional text');
+            bundle.project.resources.push({ ...bundle.project.resources.find(item => item.id === 'source'), id: 'extra', role: 'data', path: 'extra.cem', sha256: await digest(bytes) });
+            bundle.contents.extra = bytes;
+        }
+        await repository.execute(request('import-project', { bundle }));
+        return repository;
+    }
+
+    it('edits structure with bounded undo/redo and guards drafts and divergent revisions', async () => {
+        const repository = await fixture();
+        const validator = validatorFor(validResult());
+        const session = createCemStudioProjectSession({ openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator, selection }) });
+        workbenches.push(session);
+        await session.select({ projectId: 'alpha', resourceId: 'source' });
+        const workbench = await createCemStudioSessionWorkbench({ repository, session }); workbenches.push(workbench);
+        workbench.updateDraft('retained draft');
+        await workbench.editStructure({ kind: 'rename-project', name: 'Must not commit' });
+        expect(workbench.snapshot().structure.error.message).toContain('Save/Apply');
+        expect((await repository.query(request('get-project', { projectId: 'alpha' }))).value.name).toBe('alpha');
+        for (const kind of ['rename-resource', 'delete-resource']) {
+            await workbench.editStructure({ kind, id: 'source', path: 'moved.cem' });
+            expect(workbench.snapshot().structure.error.message).toContain('Save/Apply');
+            expect(workbench.snapshot().draft).toBe('retained draft');
+        }
+        expect((await repository.query(request('get-project', { projectId: 'alpha' }))).value.revision).toBe(1);
+        await workbench.reload();
+        await workbench.editStructure({ kind: 'rename-project', name: 'Edited Alpha' });
+        expect(workbench.snapshot().structure).toMatchObject({ name: 'Edited Alpha', canUndo: true });
+        expect(workbench.snapshot().projectRevision).toBe(2);
+        await workbench.editStructure({ kind: 'create-resource', path: 'data/new.cem', content: '{p | New source}' });
+        expect(workbench.snapshot().structure.resources.some(resource => resource.path === 'data/new.cem')).toBe(true);
+        await workbench.editStructure({ kind: 'undo' });
+        expect(workbench.snapshot().structure.resources.some(resource => resource.path === 'data/new.cem')).toBe(false);
+        await workbench.editStructure({ kind: 'redo' });
+        expect(workbench.snapshot().structure.resources.some(resource => resource.path === 'data/new.cem')).toBe(true);
+        const selection = workbench.snapshot().workbenches.find(item => item.selection.projectId === 'feature-tour' && item.selection.resourceId === 'source');
+        await workbench.selectWorkbench(selection.id);
+        expect(workbench.snapshot().structure.canUndo).toBe(false);
+        await workbench.selectWorkbench(JSON.stringify({ projectId: 'alpha', resourceId: 'source' }));
+        expect(workbench.snapshot().structure.canUndo).toBe(true);
+        workbench.updateDraft('new durable content'); await workbench.saveSource();
+        expect(workbench.snapshot().structure.canUndo).toBe(false);
+        await workbench.editStructure({ kind: 'undo' });
+        expect(workbench.snapshot().structure.error.message).toContain('History is unavailable');
+        expect(workbench.snapshot().persistedText).toBe('new durable content');
+    });
+
+    it('retains edits made during a structural commit and bounds undo history to twenty revisions', async () => {
+        const repository = await fixture();
+        const validator = validatorFor(validResult());
+        const session = createCemStudioProjectSession({ openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator, selection }) });
+        workbenches.push(session);
+        await session.select({ projectId: 'alpha', resourceId: 'source' });
+        const workbench = await createCemStudioSessionWorkbench({ repository, session }); workbenches.push(workbench);
+        const execute = repository.execute.bind(repository);
+        const spy = vi.spyOn(repository, 'execute').mockImplementationOnce(async request => {
+            const result = await execute(request);
+            workbench.updateDraft('typed during commit');
+            return result;
+        });
+        await workbench.editStructure({ kind: 'rename-project', name: 'Committed name' });
+        expect(session.snapshot().transition.stage).toBe('source');
+        expect(workbench.snapshot().draft).toBe('typed during commit');
+        await workbench.resolveNavigation('cancel');
+        expect(workbench.snapshot().draft).toBe('typed during commit');
+        spy.mockRestore();
+        await workbench.reload();
+        for (let index = 0; index < 21; index++) await workbench.editStructure({ kind: 'rename-project', name: `Name ${index}` });
+        for (let index = 0; index < 20; index++) await workbench.editStructure({ kind: 'undo' });
+        expect(workbench.snapshot().structure).toMatchObject({ name: 'Name 0', canUndo: false, canRedo: true });
+    });
+
+    it('recovers admitted identities and exact bytes, retaining drafts through external trash and restore', async () => {
+        const repository = await fixture();
+        const validator = validatorFor(validResult());
+        const records = new Map();
+        const storage = { getItem: key => records.get(key) ?? null, setItem: (key, value) => { records.set(key, value); } };
+        const openWorkbench = selection => createCemStudioProjectWorkbench({ repository, validator, selection });
+        const session = createCemStudioProjectSession({ openWorkbench, storage }); workbenches.push(session);
+        await session.recover({ projectId: 'alpha', resourceId: 'source' });
+        const workbench = await createCemStudioSessionWorkbench({ repository, session }); workbenches.push(workbench);
+        const exact = 'saved bytes\r\n{div | café}\n';
+        workbench.updateDraft(exact); await workbench.saveSource();
+        workbench.updateDraft('uncommitted');
+        await session.select({ projectId: 'feature-tour', resourceId: 'source' });
+        session.cancelTransition(session.snapshot().transition.id);
+        expect(JSON.parse(records.get('cem-studio-selection-v1'))).toEqual({ projectId: 'alpha', resourceId: 'source' });
+        const restored = createCemStudioProjectSession({ openWorkbench, storage }); workbenches.push(restored);
+        await restored.recover();
+        expect(restored.activeWorkbench().snapshot().persistedText).toBe(exact);
+        expect(restored.activeWorkbench().snapshot()).toMatchObject({ dirty: true, draft: 'uncommitted' });
+        await workbench.searchProjects('alpha');
+        expect(workbench.snapshot().explorer.search.results.length).toBeGreaterThan(0);
+        const remote = createCemStudioProjectRepository({ databaseName: repository.databaseName, validateProject: async bundle => bundle });
+        repositories.push(remote); await remote.open();
+        const revision = workbench.snapshot().projectRevision;
+        await remote.execute(request('trash-project', { projectId: 'alpha', expectedRevision: revision }));
+        await vi.waitFor(() => expect(workbench.snapshot().navigationError?.code).toBe('cem.studio.selection.unavailable'));
+        await vi.waitFor(() => expect(workbench.snapshot().explorer.search.status).toBe('ready'));
+        expect(workbench.snapshot().draft).toBe('uncommitted');
+        expect(workbench.snapshot().navigationError.code).toBe('cem.studio.selection.unavailable');
+        expect(workbench.snapshot().explorer.search.results).toHaveLength(0);
+        await expect(workbench.saveSource()).rejects.toMatchObject({ code: 'cem.studio.repository.project_trashed' });
+        const fallback = createCemStudioProjectSession({ openWorkbench, storage }); workbenches.push(fallback);
+        await fallback.recover({ projectId: 'feature-tour', resourceId: 'source' });
+        expect(fallback.snapshot().selection.projectId).toBe('feature-tour');
+        expect(fallback.snapshot().recoveryError.message).toContain('Trash');
+        await workbench.setProjectTrashed('alpha', false);
+        expect(workbench.snapshot().draft).toBe('uncommitted');
+        expect(workbench.snapshot().explorer.search.results.length).toBeGreaterThan(0);
+        await expect(workbench.saveSource()).rejects.toMatchObject({ code: 'cem.studio.repository.revision_conflict' });
+        expect(workbench.snapshot().draft).toBe('uncommitted');
+        const exported = (await repository.query(request('export-project', { projectId: 'alpha' }))).value;
+        expect(new TextDecoder().decode(exported.contents.source)).toBe(exact);
+        records.set('cem-studio-selection-v1', JSON.stringify({ projectId: 'missing', resourceId: 'source' }));
+        const missing = createCemStudioProjectSession({ openWorkbench, storage }); workbenches.push(missing);
+        await missing.recover({ projectId: 'alpha', resourceId: 'source' });
+        expect(missing.snapshot().selection.projectId).toBe('alpha');
+    });
+
+    it('composes Home creation and archive import with guarded project admission', async () => {
+        const repository = await fixture();
+        const starter = (await repository.query(request('export-project', { projectId: 'alpha' }))).value;
+        starter.project.entries = [];
+        const archive = structuredClone(starter); archive.project.id = 'imported'; archive.project.rootUri = 'studio://imported/';
+        const selectImport = vi.fn(async () => serializeCemStudioProjectBundle(archive));
+        const provider = createCemStudioFileSystemProvider({ repository });
+        const validator = validatorFor(validResult());
+        const session = createCemStudioProjectSession({ openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator, selection }) });
+        workbenches.push(session);
+        await session.select({ projectId: 'alpha', resourceId: 'source' });
+        const workbench = await createCemStudioSessionWorkbench({ repository, session, home: { starter, provider, selectImport } });
+        workbenches.push(workbench);
+        const root = document.createElement('main'); document.body.append(root);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
+        const name = root.querySelector('cem-text-field[name="name"] input');
+        name.value = 'My project'; name.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        root.querySelector('form[host-command="home-create"]').requestSubmit(); await view.whenSettled();
+        expect(workbench.snapshot().home.error).toBeUndefined();
+        const created = workbench.snapshot().home.projects.find(item => item.name === 'My project');
+        expect(created).toBeDefined();
+        expect(JSON.parse(created.id).projectId).not.toBe('alpha');
+        selectValue(root.querySelector('form[host-command="home-trash"]'), '[name="project"]', created.id);
+        root.querySelector('form[host-command="home-trash"]').requestSubmit(); await view.whenSettled();
+        expect(workbench.snapshot().home.trash.some(item => item.id === JSON.parse(created.id).projectId)).toBe(true);
+        root.querySelector('form[host-command="home-restore"]').requestSubmit(); await view.whenSettled();
+        expect(workbench.snapshot().home.trash).toHaveLength(0);
+        expect(workbench.snapshot().home.projects.some(item => item.id === created.id)).toBe(true);
+        workbench.updateDraft('keep this draft');
+        selectValue(root, '[name="project"]', created.id);
+        root.querySelector('form[host-command="home-open"]').requestSubmit(); await view.whenSettled();
+        expect(session.snapshot().transition.stage).toBe('source');
+        dialogAction(root, 'Cancel navigation').click(); await view.whenSettled();
+        expect(workbench.snapshot().draft).toBe('keep this draft');
+        await workbench.importProject(); await view.whenSettled();
+        expect(workbench.snapshot().home.projects.some(item => JSON.parse(item.id).projectId === 'imported')).toBe(true);
+        const before = (await repository.query(request('export-project', { projectId: 'alpha' }))).value;
+        await workbench.importProject();
+        expect(workbench.snapshot().home.error).toBeDefined();
+        await workbench.createProject('  ');
+        expect(workbench.snapshot().home.error.message).toContain('project name');
+        const execute = vi.spyOn(repository, 'execute').mockRejectedValueOnce(new DOMException('Storage quota exceeded', 'QuotaExceededError'));
+        await workbench.createProject('Quota failure'); execute.mockRestore();
+        expect(workbench.snapshot().home.error.message).toContain('quota');
+        expect((await repository.query(request('export-project', { projectId: 'alpha' }))).value).toEqual(before);
+        selectImport.mockResolvedValueOnce(new TextEncoder().encode('invalid archive'));
+        await workbench.importProject(); expect(workbench.snapshot().home.error).toBeDefined();
+        selectImport.mockRejectedValueOnce(new DOMException('Cancelled', 'AbortError'));
+        await workbench.importProject(); expect(workbench.snapshot().home.error).toBeUndefined();
+        expect(workbench.snapshot().draft).toBe('keep this draft');
+        const imported = workbench.snapshot().home.projects.find(item => JSON.parse(item.id).projectId === 'imported');
+        await workbench.selectWorkbench(imported.id);
+        await workbench.resolveNavigation('discard');
+        expect(session.snapshot().selection.projectId).toBe('imported');
+    });
+
+    it('presents an empty Home and unavailable storage without requiring an active project', async () => {
+        const repository = createCemStudioProjectRepository({ databaseName: `cem-home-${crypto.randomUUID()}`, validateProject: async bundle => bundle });
+        repositories.push(repository);
+        const session = createCemStudioProjectSession({ openWorkbench: async () => { throw new Error('unused'); } });
+        workbenches.push(session);
+        const workbench = await createCemStudioSessionWorkbench({ repository, session, home: {} });
+        workbenches.push(workbench);
+        const root = document.createElement('main'); document.body.append(root);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
+        expect(root.textContent).toContain('No projects yet');
+        const query = vi.spyOn(repository, 'query').mockRejectedValueOnce(new Error('Storage unavailable'));
+        await expect(workbench.refreshNavigation()).rejects.toThrow('Storage unavailable'); query.mockRestore();
+        await view.whenSettled(); expect(root.textContent).toContain('Storage unavailable');
+    });
+
+    it('retains editor panes and admits recursive explorer activation independently of focus and expansion', async () => {
+        const repository = await fixture('project with spaces', false, true);
+        const validator = validatorFor(validResult());
+        const session = createCemStudioProjectSession({ openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator, selection }) });
+        workbenches.push(session);
+        await session.select({ projectId: 'project with spaces', resourceId: 'source' });
+        const workbench = await createCemStudioSessionWorkbench({ repository, session }); workbenches.push(workbench);
+        const root = document.createElement('main'); document.body.append(root);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
+        const tree = root.querySelector('cem-tree');
+        const node = key => [...tree.querySelectorAll('[role="treeitem"]')].find(item => item.dataset.treeValue === key);
+        const key = selection => encodeURIComponent(JSON.stringify(selection));
+        const current = key({ projectId: 'project with spaces', resourceId: 'source' });
+        const target = key({ projectId: 'project with spaces', resourceId: 'extra' });
+        const project = node(`project:${key({ projectId: 'project with spaces' })}`);
+        project.focus(); project.click(); await view.whenSettled();
+        expect(project.getAttribute('aria-expanded')).toBe('true');
+        expect(session.snapshot().transition).toBeUndefined();
+        const { userEvent } = await import('vitest/browser');
+        await userEvent.keyboard('{ArrowRight}');
+        expect(document.activeElement).not.toBe(project);
+        expect(tree.getAttribute('selected-values')).toBe(current);
+        const folder = node(`branch:${key({ projectId: 'project with spaces', entryId: 'schema-package-examples' })}`);
+        folder.click(); await view.whenSettled();
+        const page = node(key({ projectId: 'project with spaces', entryId: 'validate-cem-ml' }));
+        expect(page.getAttribute('aria-level')).toBe('3');
+        node(`resources:${key({ projectId: 'project with spaces' })}`).click(); await view.whenSettled();
+        workbench.updateDraft('draft with retained selection'); await view.whenSettled();
+        const editor = root.querySelector('[data-cem-studio-editor] textarea');
+        editor.focus(); editor.setSelectionRange(2, 7);
+        const tabs = root.querySelector('cem-tabs[label="Workbench panes"]');
+        const buttons = [...tabs.querySelectorAll(':scope > [role="tablist"] [role="tab"], :scope > div > [role="tablist"] [role="tab"]')];
+        const paneButtons = buttons.length ? buttons : [...tabs.querySelectorAll('[role="tab"]')].filter(item => item.closest('cem-tabs') === tabs);
+        paneButtons.find(item => item.textContent === 'Results').click(); await view.whenSettled();
+        expect(editor.closest('[role="tabpanel"]').hidden).toBe(true);
+        paneButtons.find(item => item.textContent === 'Source and command').click(); await view.whenSettled();
+        expect(root.querySelector('[data-cem-studio-editor] textarea')).toBe(editor);
+        expect([editor.selectionStart, editor.selectionEnd]).toEqual([2, 7]);
+        const launcher = node(target); launcher.focus(); launcher.click(); await view.whenSettled();
+        expect(session.snapshot().transition.stage).toBe('source');
+        expect(tree.getAttribute('selected-values')).toBe(current);
+        dialogAction(root, 'Cancel navigation').click(); await view.whenSettled();
+        expect(workbench.snapshot().draft).toBe('draft with retained selection');
+        expect(node(target)).toBe(launcher);
+        expect(document.activeElement).toBe(launcher);
+        launcher.click(); await view.whenSettled();
+        dialogAction(root, 'Discard draft').click(); await view.whenSettled();
+        expect(session.snapshot().selection.resourceId).toBe('extra');
+        expect(tree.getAttribute('selected-values')).toBe(target);
+        expect([...tree.querySelectorAll('[role="treeitem"]')].every(item => !/\s/.test(item.dataset.treeValue))).toBe(true);
+    }, 30000);
+
+    it('searches repository records deterministically, ignores stale completions and guards result activation', async () => {
+        const repository = await fixture('beta', false, true);
+        const validator = validatorFor(validResult());
+        const session = createCemStudioProjectSession({ openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator, selection }) }); workbenches.push(session);
+        await session.select({ projectId: 'beta', resourceId: 'source' });
+        const workbench = await createCemStudioSessionWorkbench({ repository, session }); workbenches.push(workbench);
+        const root = document.createElement('main'); document.body.append(root);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
+        const query = root.querySelector('cem-text-field[name="query"] input');
+        query.value = 'additional'; query.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        root.querySelector('form[host-command="search-projects"]').requestSubmit(); await view.whenSettled();
+        const found = workbench.snapshot().explorer.search.results;
+        expect(found).toHaveLength(1); expect(found[0].entityId).toBe('extra');
+        await workbench.searchProjects('additional'); expect(workbench.snapshot().explorer.search.results).toEqual(found);
+        workbench.updateDraft('search keeps draft'); await view.whenSettled();
+        selectValue(root, '[name="result"]', found[0].key);
+        root.querySelector('form[host-command="open-search"]').requestSubmit(); await view.whenSettled();
+        expect(session.snapshot().transition.stage).toBe('source');
+        dialogAction(root, 'Cancel navigation').click(); await view.whenSettled();
+        let resolveOld;
+        const original = repository.query.bind(repository);
+        const spy = vi.spyOn(repository, 'query').mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; }));
+        const old = workbench.searchProjects('old');
+        await workbench.searchProjects('additional');
+        resolveOld({ value: [] }); await old;
+        expect(workbench.snapshot().explorer.search.results).toEqual(found);
+        spy.mockRestore();
+        await workbench.searchProjects('zzzznotfound'); await view.whenSettled();
+        expect(root.textContent).toContain('No matching projects');
+        const failure = vi.spyOn(repository, 'query').mockRejectedValueOnce(new Error('Search unavailable'));
+        await workbench.searchProjects('additional'); failure.mockRestore(); await view.whenSettled();
+        expect(root.textContent).toContain('Search unavailable');
+        expect(workbench.snapshot().draft).toBe('search keeps draft');
+        expect((await original(request('get-project', { projectId: 'beta' }))).value.id).toBe('beta');
+    }, 30000);
+
+    it('refreshes explorer and search after a native command creates a durable page', async () => {
+        const repository = await fixture();
+        const validator = await createCemStudioBrowserValidator();
+        try {
+            const session = createCemStudioProjectSession({ openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator, selection }) }); workbenches.push(session);
+            await session.select({ projectId: 'alpha', resourceId: 'source' });
+            const workbench = await createCemStudioSessionWorkbench({ repository, session }); workbenches.push(workbench);
+            await workbench.searchProjects('New inspection');
+            await workbench.parsePersisted('events');
+            workbench.setCommandTarget({ mode: 'new', name: 'New inspection', parentId: 'schema-package-examples' });
+            await workbench.applyCommand();
+            const entryId = workbench.snapshot().command.application.result.entry.id;
+            const key = encodeURIComponent(JSON.stringify({ projectId: 'alpha', entryId }));
+            const flatten = nodes => nodes.flatMap(node => [node, ...flatten(node.children)]);
+            expect(flatten(workbench.snapshot().explorer.nodes).some(node => node.key === key)).toBe(true);
+            expect(workbench.snapshot().explorer.search.results.some(result => result.key === key)).toBe(true);
+            await workbench.openEntity(key);
+            expect(workbench.snapshot()).toMatchObject({ entryId, resourceId: 'source', runnable: true });
+        } finally { await validator.close(); }
+    }, 30000);
+
+    it('loads nested durable identities without a catalog and never infers a missing command', async () => {
+        const repository = await fixture();
+        const validator = validatorFor(validResult());
+        const workbench = await createCemStudioProjectWorkbench({ repository, validator,
+            selection: { projectId: 'alpha', entryId: 'validate-cem-ml', resourceId: 'source' } });
+        workbenches.push(workbench);
+        expect(workbench.snapshot()).toMatchObject({ projectId: 'alpha', entryId: 'validate-cem-ml',
+            resourceId: 'source', draft: 'project source', editable: true });
+        expect(workbench.snapshot().command).toBeUndefined();
+        expect(validator.previewResourceCommand).not.toHaveBeenCalled();
+        await expect(workbench.runPersistedOperation()).rejects.toThrow(/command/i);
+        workbench.updateDraft('saved independently');
+        await workbench.saveSource();
+        expect(workbench.snapshot()).toMatchObject({ dirty: false, persistedText: 'saved independently' });
+        await expect(createCemStudioProjectWorkbench({ repository, validator,
+            selection: { projectId: 'alpha', entryId: 'missing' } })).rejects.toThrow(/missing/);
+    });
+
+    it('reopens a native command-created page from repository bytes and runs its exact command', async () => {
+        const repository = await fixture('alpha', false, true);
+        const validator = await createCemStudioBrowserValidator();
+        try {
+            const source = await createCemStudioProjectWorkbench({ repository, validator, selection: { projectId: 'alpha', resourceId: 'source' } });
+            workbenches.push(source);
+            await source.parsePersisted('events');
+            source.setCommandTarget({ mode: 'new', name: 'Native events', parentId: 'schema-package-examples' });
+            await source.applyCommand();
+            const entryId = source.snapshot().command.application.result.entry.id;
+            const reopened = await createCemStudioProjectWorkbench({ repository, validator, selection: { projectId: 'alpha', entryId } });
+            workbenches.push(reopened);
+            expect(reopened.snapshot()).toMatchObject({ entryId, resourceId: 'source', runnable: true });
+            expect(reopened.snapshot().command.parsed.options.format).toBe('events');
+            await reopened.runPersistedOperation();
+            expect(reopened.snapshot().projection).toMatchObject({ kind: 'parse', mode: 'events', stale: false });
+            const reordered = await repository.execute(request('apply-command-page', {
+                projectId: 'alpha', expectedProjectRevision: reopened.snapshot().projectRevision,
+                target: { mode: 'new', name: 'Reordered resources' },
+                commandResource: validator.serializeResourceCommand(reopened.snapshot().command.parsed),
+                referencedResourceIds: ['extra', 'source'],
+            }));
+            const ordered = await createCemStudioProjectWorkbench({ repository, validator,
+                selection: { projectId: 'alpha', entryId: reordered.value.entry.id } });
+            workbenches.push(ordered);
+            expect(ordered.snapshot().resourceId).toBe('source');
+        } finally { await validator.close(); }
+    }, 30000);
+
+    it('uses page-owned dependency identities and preserves binary downloads exactly', async () => {
+        const repository = await fixture();
+        const bundle = (await repository.query(request('export-project', { projectId: 'alpha' }))).value;
+        bundle.project.id = 'gamma'; bundle.project.rootUri = 'studio://gamma/';
+        const bytes = new Uint8Array([0, 255, 1, 2]);
+        bundle.project.resources.push({ id: 'binary', role: 'data', sourceKind: 'project-file', path: 'assets/picture.bin',
+            contentType: 'application/octet-stream', schema: 'https://cem.dev/ns/data/xml/1', revision: 1, sha256: await digest(bytes) });
+        bundle.contents.binary = bytes;
+        bundle.project.entries.find(item => item.id === 'validate-cem-ml').resourceIds.push('binary');
+        await repository.execute(request('import-project', { bundle }));
+        const validator = validatorFor(validResult());
+        const source = await createCemStudioProjectWorkbench({ repository, validator, selection: { projectId: 'gamma', entryId: 'validate-cem-ml' } });
+        workbenches.push(source);
+        await source.parsePersisted();
+        expect(validator.parseResource.mock.calls[0][0].dependencies).toEqual([expect.objectContaining({ resourceId: 'binary', path: 'studio://gamma/assets/picture.bin', bytes })]);
+        const binary = await createCemStudioProjectWorkbench({ repository, validator, selection: { projectId: 'gamma', resourceId: 'binary' } });
+        workbenches.push(binary);
+        expect(binary.snapshot()).toMatchObject({ status: 'read-only', editable: false, resourceId: 'binary', byteLength: 4 });
+        let downloaded; await binary.downloadSource(async value => { downloaded = value; });
+        expect(downloaded.bytes).toEqual(bytes);
+    });
+
+    it('keeps both drafts on failed Save and stale Apply through the mounted guard', async () => {
+        const repository = await fixture('beta', true);
+        const validator = validatorFor(validResult());
+        const session = createCemStudioProjectSession({ openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator, selection }) });
+        workbenches.push(session);
+        await session.select({ projectId: 'feature-tour', resourceId: 'source' });
+        const workbench = await createCemStudioSessionWorkbench({ repository, session });
+        await workbench.parsePersisted();
+        workbench.updateDraft('saved source');
+        await workbench.updateCommandDraft(workbench.snapshot().command.current.text.replace('--format ast', '--format events'));
+        const root = document.createElement('main'); document.body.append(root);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
+        const target = workbench.snapshot().workbenches.find(item => item.selection.projectId === 'beta');
+        selectValue(root, '[data-cem-studio-workbench-select]', target.id); await view.whenSettled();
+        const execute = vi.spyOn(repository, 'execute'); execute.mockRejectedValueOnce(new Error('Save unavailable'));
+        dialogAction(root, 'Save source').click(); await view.whenSettled();
+        expect(session.snapshot()).toMatchObject({ status: 'failed', transition: { stage: 'source' }, workbench: { dirty: true } });
+        expect(root.textContent).toContain('Save unavailable');
+        dialogAction(root, 'Save source').click(); await view.whenSettled();
+        expect(session.snapshot().transition.stage).toBe('command');
+        const loaded = workbench.snapshot();
+        await repository.execute(request('save-resource', { projectId: loaded.projectId, resourceId: loaded.resourceId,
+            expectedProjectRevision: loaded.projectRevision, expectedResourceRevision: loaded.resourceRevision, content: 'external change' }));
+        dialogAction(root, 'Apply command').click(); await view.whenSettled();
+        expect(session.snapshot().selection.projectId).toBe('feature-tour');
+        expect(session.snapshot().transition.error).toBeDefined();
+        expect(workbench.snapshot().command.draftText).toContain('--format events');
+        dialogAction(root, 'Cancel navigation').click(); await view.whenSettled();
+        expect(session.snapshot().transition).toBeUndefined();
+    });
+
+    it('persists both drafts through the dialog, then admits the requested project', async () => {
+        const repository = await fixture('beta', true);
+        const validator = validatorFor(validResult());
+        const session = createCemStudioProjectSession({ openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator, selection }) });
+        workbenches.push(session);
+        await session.select({ projectId: 'feature-tour', resourceId: 'source' });
+        const workbench = await createCemStudioSessionWorkbench({ repository, session });
+        await workbench.parsePersisted();
+        workbench.updateDraft('durable source');
+        await workbench.updateCommandDraft(workbench.snapshot().command.current.text.replace('--format ast', '--format events'));
+        workbench.setCommandTarget({ mode: 'existing', entryId: 'validate-cem-ml' });
+        const root = document.createElement('main'); document.body.append(root);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
+        const target = workbench.snapshot().workbenches.find(item => item.selection.projectId === 'beta');
+        selectValue(root, '[data-cem-studio-workbench-select]', target.id); await view.whenSettled();
+        dialogAction(root, 'Save source').click(); await view.whenSettled();
+        expect(session.snapshot().transition.stage).toBe('command');
+        dialogAction(root, 'Apply command').click(); await view.whenSettled();
+        expect(session.snapshot().transition.stage).toBe('confirmation');
+        expect(root.querySelectorAll('dialog[open]')).toHaveLength(1);
+        dialogAction(root, 'Replace page').click(); await view.whenSettled();
+        expect(session.snapshot().selection.projectId).toBe('beta');
+        const bundle = (await repository.query(request('export-project', { projectId: 'feature-tour' }))).value;
+        expect(new TextDecoder().decode(bundle.contents.source)).toBe('durable source');
+        expect(bundle.project.entries.some(item => item.kind === 'inspection')).toBe(true);
+        await workbench.refreshNavigation();
+        expect(workbench.snapshot().workbenches.some(item => item.operation === 'inspection')).toBe(true);
+    });
+
+    it('cancels a late candidate from the native dialog without discarding the active draft', async () => {
+        const repository = await fixture('beta', true);
+        const validator = validatorFor(validResult());
+        const gate = deferred();
+        const session = createCemStudioProjectSession({ openWorkbench: async selection => {
+            const candidate = await createCemStudioProjectWorkbench({ repository, validator, selection });
+            if (selection.projectId === 'beta') await gate.promise;
+            return candidate;
+        } });
+        workbenches.push(session);
+        await session.select({ projectId: 'feature-tour', resourceId: 'source' });
+        const workbench = await createCemStudioSessionWorkbench({ repository, session });
+        const root = document.createElement('main'); document.body.append(root);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
+        workbench.updateDraft('retain late draft');
+        const target = workbench.snapshot().workbenches.find(item => item.selection.projectId === 'beta');
+        selectValue(root, '[data-cem-studio-workbench-select]', target.id); await view.whenSettled();
+        dialogAction(root, 'Discard draft').click();
+        await vi.waitFor(() => expect(session.snapshot().status).toBe('opening'));
+        dialogAction(root, 'Cancel navigation').click();
+        gate.resolve(); await view.whenSettled();
+        expect(session.snapshot()).toMatchObject({ selection: { projectId: 'feature-tour' }, workbench: { draft: 'retain late draft', dirty: true } });
+        expect(root.querySelector('dialog[open]')).toBeNull();
+    });
+
+    it('admits an empty second project and guards mounted source navigation with native dialogs', async () => {
+        const repository = await fixture('beta', true);
+        const validator = validatorFor(validResult());
+        const session = createCemStudioProjectSession({ openWorkbench: selection =>
+            createCemStudioProjectWorkbench({ repository, validator, selection }) });
+        workbenches.push(session);
+        await session.select({ projectId: 'feature-tour', resourceId: 'source' });
+        const workbench = await createCemStudioSessionWorkbench({ repository, session });
+        const root = document.createElement('main'); document.body.append(root);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
+        workbench.updateDraft('retain me');
+        const target = workbench.snapshot().workbenches.find(item => item.selection.projectId === 'beta');
+        selectValue(root, '[data-cem-studio-workbench-select]', target.id);
+        await view.whenSettled();
+        expect(root.querySelector('dialog[open]')).not.toBeNull();
+        dialogAction(root, 'Cancel navigation').click(); await view.whenSettled();
+        expect(session.snapshot().workbench.draft).toBe('retain me');
+        expect(root.querySelector('cem-select[data-cem-studio-workbench-select]').value).toBe(workbench.snapshot().workbenchId);
+        const selector = root.querySelector('cem-select[data-cem-studio-workbench-select] button');
+        selector.focus();
+        await vi.waitFor(() => expect(document.activeElement).toBe(selector));
+        selectValue(root, '[data-cem-studio-workbench-select]', target.id); await view.whenSettled();
+        const dialog = root.querySelector('dialog[open]');
+        dialog.requestClose(); await view.whenSettled();
+        expect(session.snapshot().transition).toBeUndefined();
+        await vi.waitFor(() => expect(document.activeElement).toBe(selector));
+        selectValue(root, '[data-cem-studio-workbench-select]', target.id); await view.whenSettled();
+        dialogAction(root, 'Discard draft').click(); await view.whenSettled();
+        expect(session.snapshot()).toMatchObject({ status: 'ready', selection: { projectId: 'beta' },
+            workbench: { status: 'empty', editable: false } });
+        expect(root.querySelector('dialog[open]')).toBeNull();
+        expect(root.textContent).toContain('This project has no resources');
+    });
+});
+
+describe('Studio project session admission', () => {
+    const first = { projectId: 'feature-tour', entryId: 'validate-cem-ml', resourceId: 'source' };
+    const second = { ...first, projectId: 'user-project' };
+
+    async function fixture(storage) {
+        const validator = validatorFor(validResult());
+        const repository = await repositoryWithSource('original');
+        const exported = await repository.query(request('export-project', { projectId: first.projectId }));
+        await repository.execute(request('import-project', { bundle: {
+            ...exported.value,
+            project: { ...exported.value.project, id: second.projectId, rootUri: 'studio://user-project/' },
+        } }));
+        const openWorkbench = vi.fn(async selection => {
+            const workbench = await createCemStudioFeatureTourWorkbench({
+                repository, validator, seed: featureTourSeed(), projectId: selection.projectId,
+            });
+            workbenches.push(workbench);
+            return workbench;
+        });
+        const session = createCemStudioProjectSession({ openWorkbench, storage });
+        workbenches.push(session);
+        await session.select(first);
+        return { repository, validator, session, openWorkbench, workbench: session.activeWorkbench() };
+    }
+
+    async function commandDraft(workbench, mode = 'events') {
+        await workbench.updateCommandDraft(workbench.snapshot().command.current.text.replace('--format ast', `--format ${mode}`));
+    }
+
+    async function resolve(session, decision) {
+        return session.resolveTransition(session.snapshot().transition.id, decision);
+    }
+
+    function draftStorage() {
+        const records = new Map();
+        return { records, getItem: key => records.get(key) ?? null,
+            setItem: vi.fn((key, value) => records.set(key, value)) };
+    }
+
+    async function reopen(openWorkbench, storage, selection = first) {
+        const session = createCemStudioProjectSession({ openWorkbench, storage });
+        workbenches.push(session);
+        await session.select(selection);
+        return session;
+    }
+
+    it.each(['', 'draft 🙂\nsecond line'])('recovers exact source and command drafts without Save, Apply or Run: %s', async draft => {
+        const storage = draftStorage();
+        const { session, workbench, openWorkbench, repository, validator } = await fixture(storage);
+        const before = await repository.query(request('export-project', { projectId: first.projectId }));
+        workbench.updateDraft(draft);
+        await commandDraft(workbench);
+        const expected = workbench.snapshot().command.draftText;
+        expect(session.snapshot().draftRecovery.status).toBe('saved');
+        session.dispose();
+        const restored = await reopen(openWorkbench, storage);
+        expect(restored.snapshot().workbench).toMatchObject({ draft, dirty: true, command: { draftText: expected } });
+        expect(restored.snapshot().draftRecovery.status).toBe('recovered');
+        const after = await repository.query(request('export-project', { projectId: first.projectId }));
+        expect(after.value).toEqual(before.value);
+        expect(validator.executeAuthoredResourceCommand).not.toHaveBeenCalled();
+        await restored.activeWorkbench().saveSource();
+        restored.dispose();
+        const commandOnly = await reopen(openWorkbench, storage);
+        expect(commandOnly.activeWorkbench().snapshot()).toMatchObject({ draft, dirty: false, command: { draftText: expected } });
+        await commandOnly.activeWorkbench().resetCommandDraft();
+        expect(commandOnly.draftBackup()).toBe('');
+    });
+
+    it('retains conflicting and corrupt records for download until explicit clearing', async () => {
+        const storage = draftStorage();
+        const { session, workbench, openWorkbench } = await fixture(storage);
+        workbench.updateDraft('recover me');
+        session.dispose();
+        const other = await openWorkbench(first);
+        other.updateDraft('new durable source');
+        await other.saveSource();
+        const restored = await reopen(openWorkbench, storage);
+        expect(restored.snapshot().draftRecovery).toMatchObject({ status: 'conflict', blocked: true });
+        expect(restored.activeWorkbench().snapshot().draft).toBe('new durable source');
+        expect(restored.draftBackup()).toContain('recover me');
+        restored.clearDraftRecovery();
+        expect(restored.draftBackup()).toBe('');
+        restored.dispose();
+        const key = [...storage.records.keys()].find(key => key.includes(':draft-v1:'));
+        storage.records.set(key, '{broken');
+        const corrupt = await reopen(openWorkbench, storage);
+        expect(corrupt.snapshot().draftRecovery.status).toBe('error');
+        expect(corrupt.draftBackup()).toContain('{broken');
+        expect(storage.records.get(key)).toBe('{broken');
+    });
+
+    it('retains latest in-memory text after quota failure and protects changed journal records', async () => {
+        const storage = draftStorage();
+        const { session, workbench, openWorkbench } = await fixture(storage);
+        storage.setItem.mockImplementation(() => { throw new DOMException('Quota exceeded', 'QuotaExceededError'); });
+        workbench.updateDraft('first draft');
+        workbench.updateDraft('latest draft');
+        expect(session.snapshot().draftRecovery.status).toBe('error');
+        expect(JSON.parse(session.draftBackup()).current.draft).toBe('latest draft');
+        storage.setItem.mockImplementation((key, value) => storage.records.set(key, value));
+        session.clearDraftRecovery();
+        const competitor = await reopen(openWorkbench, storage);
+        competitor.activeWorkbench().updateDraft('other tab draft');
+        workbench.updateDraft('local draft');
+        expect(session.snapshot().draftRecovery.blocked).toBe(true);
+        expect(session.draftBackup()).toContain('other tab draft');
+        expect(JSON.parse(session.draftBackup()).current.draft).toBe('local draft');
+    });
+
+    it('clears discarded drafts only on admission and isolates project journals', async () => {
+        const storage = draftStorage();
+        const { session, workbench, openWorkbench } = await fixture(storage);
+        workbench.updateDraft('alpha draft');
+        await session.select(second);
+        session.cancelTransition(session.snapshot().transition.id);
+        expect(session.draftBackup()).toContain('alpha draft');
+        openWorkbench.mockRejectedValueOnce(new Error('Unavailable destination'));
+        await session.select(second);
+        await resolve(session, 'discard');
+        expect(session.snapshot().status).toBe('failed');
+        expect(session.draftBackup()).toContain('alpha draft');
+        await resolve(session, 'retry');
+        session.activeWorkbench().updateDraft('beta draft');
+        session.dispose();
+        const alpha = await reopen(openWorkbench, storage);
+        expect(alpha.activeWorkbench().snapshot().draft).toBe('original');
+        const beta = await reopen(openWorkbench, storage, second);
+        expect(beta.activeWorkbench().snapshot().draft).toBe('beta draft');
+    });
+
+    it('retries an initial open failure without committing a selection', async () => {
+        const { openWorkbench } = await fixture();
+        const opener = vi.fn(openWorkbench).mockRejectedValueOnce(new Error('Project temporarily unavailable'));
+        const session = createCemStudioProjectSession({ openWorkbench: opener });
+        workbenches.push(session);
+        await session.select(second);
+        expect(session.snapshot()).toMatchObject({ status: 'failed', selection: undefined, workbench: undefined });
+        await resolve(session, 'retry');
+        expect(session.snapshot()).toMatchObject({ status: 'ready', selection: second });
+    });
+
+    it.each(['projectId', 'entryId', 'resourceId'])('rejects a candidate with the wrong %s', async field => {
+        const { session, openWorkbench } = await fixture();
+        const realOpen = openWorkbench.getMockImplementation();
+        let candidate;
+        openWorkbench.mockImplementationOnce(async selection => {
+            const actual = await realOpen(selection);
+            const snapshot = actual.snapshot();
+            const wrong = field === 'entryId'
+                ? { ...snapshot, command: { ...snapshot.command,
+                    application: { ...snapshot.command.application, currentEntryId: 'wrong-entry' } } }
+                : { ...snapshot, [field]: 'wrong-identity' };
+            candidate = { ...actual, snapshot: () => wrong, dispose: vi.fn(actual.dispose) };
+            return candidate;
+        });
+        await session.select(second);
+        expect(session.snapshot()).toMatchObject({ status: 'failed', selection: first });
+        expect(candidate.dispose).toHaveBeenCalledTimes(1);
+    });
+
+    it('requires both draft decisions and saves before Apply without running validation', async () => {
+        const { repository, validator, session, workbench } = await fixture();
+        workbench.updateDraft('saved source');
+        await commandDraft(workbench);
+        await session.select(second);
+        expect(session.snapshot()).toMatchObject({ selection: first, transition: { stage: 'source' } });
+        const id = session.snapshot().transition.id;
+        await session.select(second);
+        expect(session.snapshot().transition.id).toBe(id);
+        await resolve(session, 'discard');
+        expect(session.snapshot().transition.stage).toBe('command');
+        session.cancelTransition(id);
+        expect(session.snapshot()).toMatchObject({ selection: first, transition: undefined });
+        expect(workbench.snapshot()).toMatchObject({ draft: 'saved source', dirty: true });
+        expect(workbench.snapshot().command.draftText).toContain('--format events');
+
+        await session.select(second);
+        await resolve(session, 'save');
+        expect(session.snapshot()).toMatchObject({ selection: first, transition: { stage: 'command' } });
+        expect(workbench.snapshot().dirty).toBe(false);
+        expect(validator.validateResource).not.toHaveBeenCalled();
+        await resolve(session, 'apply');
+        expect(session.snapshot()).toMatchObject({ status: 'ready', selection: second, transition: undefined });
+        const saved = await repository.query(request('export-project', { projectId: first.projectId }));
+        expect(new TextDecoder().decode(saved.value.contents.source)).toBe('saved source');
+        expect(saved.value.project.revision).toBe(3);
+        expect(saved.value.project.entries).toHaveLength(3);
+        expect(workbench.snapshot().command).toMatchObject({ status: 'current', application: { status: 'applied' } });
+        expect(workbench.snapshot().command.draftText).toBe(workbench.snapshot().command.current.text);
+        expect(validator.executeAuthoredResourceCommand).not.toHaveBeenCalled();
+        expect(saved.value.project).not.toHaveProperty('selection');
+    });
+
+    it('defers both discards until a candidate opens, retaining drafts after failure or cancellation', async () => {
+        const { session, workbench, openWorkbench } = await fixture();
+        workbench.updateDraft('unsaved');
+        await commandDraft(workbench);
+        await session.select(second);
+        await resolve(session, 'discard');
+        openWorkbench.mockRejectedValueOnce(new Error('Project unavailable'));
+        await resolve(session, 'discard');
+        expect(session.snapshot()).toMatchObject({ status: 'failed', selection: first });
+        expect(workbench.snapshot()).toMatchObject({ draft: 'unsaved', dirty: true });
+        expect(workbench.snapshot().command.draftText).toContain('--format events');
+        session.cancelTransition(session.snapshot().transition.id);
+        await session.select(second);
+        await resolve(session, 'discard');
+        await resolve(session, 'discard');
+        expect(session.snapshot().selection).toEqual(second);
+    });
+
+    it('persists source independently of native command preview availability', async () => {
+        const { session, workbench, validator } = await fixture();
+        workbench.updateDraft('durable without a native result');
+        await commandDraft(workbench);
+        await session.select(second);
+        validator.previewResourceCommand.mockRejectedValueOnce(new Error('Worker unavailable'));
+        await resolve(session, 'save');
+        expect(workbench.snapshot()).toMatchObject({ dirty: false, persistedText: 'durable without a native result' });
+        expect(workbench.snapshot().command.draftText).toContain('--format events');
+        expect(session.snapshot()).toMatchObject({ selection: first, transition: { stage: 'command' } });
+        expect(validator.validateResource).not.toHaveBeenCalled();
+        await workbench.updateCommandDraft(workbench.snapshot().command.draftText);
+        await resolve(session, 'apply');
+        expect(session.snapshot()).toMatchObject({ status: 'ready', selection: second });
+    });
+
+    it('retains the applied baseline when an older projection finishes', async () => {
+        const { workbench, validator } = await fixture();
+        await commandDraft(workbench);
+        const projection = deferred();
+        validator.parseResource.mockImplementation(() => projection.promise);
+        const projecting = workbench.parsePersisted('ast');
+        await vi.waitFor(() => expect(validator.parseResource).toHaveBeenCalledTimes(1));
+        await workbench.applyCommand();
+        projection.resolve(projectionOutcome('parse', 'ast'));
+        await projecting;
+        expect(workbench.snapshot().command.current.text).toContain('--format events');
+        expect(workbench.snapshot().command.draftText).toBe(workbench.snapshot().command.current.text);
+        expect(workbench.snapshot().command.application.status).toBe('applied');
+    });
+
+    it('retains command edits when a background native projection completes', async () => {
+        const { session, workbench, validator } = await fixture();
+        const projection = deferred();
+        validator.parseResource.mockImplementation(() => projection.promise);
+        const projecting = workbench.parsePersisted('ast');
+        await vi.waitFor(() => expect(validator.parseResource).toHaveBeenCalledTimes(1));
+        await commandDraft(workbench);
+        await session.select(second);
+        projection.resolve(projectionOutcome('parse', 'ast'));
+        await projecting;
+        expect(workbench.snapshot().command.draftText).toContain('--format events');
+        expect(session.snapshot()).toMatchObject({ selection: first, transition: { stage: 'command' } });
+    });
+
+    it('retains the newest command edit through a delayed validation preview refresh', async () => {
+        const { workbench, validator } = await fixture();
+        const preview = deferred();
+        validator.previewResourceCommand.mockImplementationOnce(() => preview.promise);
+        const validating = workbench.validatePersisted();
+        await vi.waitFor(() => expect(validator.previewResourceCommand).toHaveBeenCalledTimes(2));
+        await commandDraft(workbench);
+        preview.resolve(commandPreviewOutcome({ operation: 'parse', projection: 'ast', uri: 'data/cem-ml/basic.cem',
+            projectId: first.projectId, contentType: 'application/cem', schema: 'https://cem.dev/ns/cem-ml/1',
+            projectRevision: 1, resourceRevision: 1 }));
+        await validating;
+        expect(workbench.snapshot().command.draftText).toContain('--format events');
+    });
+
+    it('rechecks admission after both drafts are reverted', async () => {
+        const { session, workbench, repository } = await fixture();
+        workbench.updateDraft('unsaved');
+        await commandDraft(workbench);
+        await session.select(second);
+        workbench.updateDraft('original');
+        await workbench.resetCommandDraft();
+        await resolve(session, 'discard');
+        expect(session.snapshot()).toMatchObject({ status: 'ready', selection: second });
+        const saved = await repository.query(request('export-project', { projectId: first.projectId }));
+        expect(saved.value.project.revision).toBe(1);
+    });
+
+    it('keeps drafts and the original selection on a failed source save', async () => {
+        const { session, workbench, repository } = await fixture();
+        workbench.updateDraft('not durable');
+        await commandDraft(workbench);
+        vi.spyOn(repository, 'execute').mockRejectedValueOnce(new Error('Quota exceeded'));
+        await session.select(second);
+        await resolve(session, 'save');
+        expect(session.snapshot()).toMatchObject({ status: 'failed', selection: first,
+            transition: { stage: 'source', error: { message: 'Quota exceeded' } } });
+        expect(workbench.snapshot()).toMatchObject({ draft: 'not durable', persistedText: 'original', dirty: true });
+        expect(workbench.snapshot().command.draftText).toContain('--format events');
+    });
+
+    it('deduplicates Save, ignores cancelled admission, and preserves edits made during persistence', async () => {
+        const { session, workbench, repository } = await fixture();
+        const gate = deferred();
+        const execute = repository.execute.bind(repository);
+        const spy = vi.spyOn(repository, 'execute').mockImplementation(async (...args) => {
+            await gate.promise;
+            // Persistence can complete despite cancellation; admission must still be revoked.
+            return execute(args[0]);
+        });
+        workbench.updateDraft('committing');
+        await session.select(second);
+        const id = session.snapshot().transition.id;
+        const saving = session.resolveTransition(id, 'save');
+        await vi.waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+        const duplicate = session.resolveTransition(id, 'save');
+        workbench.updateDraft('newer draft');
+        session.cancelTransition(id);
+        await session.select(second);
+        expect(session.snapshot().selection).toEqual(first);
+        gate.resolve();
+        await Promise.all([saving, duplicate]);
+        expect(spy).toHaveBeenCalledTimes(1);
+        expect(session.snapshot()).toMatchObject({ selection: first, transition: undefined });
+        expect(workbench.snapshot()).toMatchObject({ persistedText: 'committing', draft: 'newer draft', dirty: true });
+        await session.select(second);
+        expect(session.snapshot().transition.stage).toBe('source');
+        await session.resolveTransition(id, 'discard');
+        expect(session.snapshot().selection).toEqual(first);
+    });
+
+    it('retains a newer command edit when Apply completes and asks again', async () => {
+        const { session, workbench, repository } = await fixture();
+        await commandDraft(workbench);
+        const gate = deferred();
+        const execute = repository.execute.bind(repository);
+        const spy = vi.spyOn(repository, 'execute').mockImplementation(async (...args) => {
+            await gate.promise;
+            return execute(...args);
+        });
+        await session.select(second);
+        const applying = resolve(session, 'apply');
+        await vi.waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+        const duplicate = resolve(session, 'apply');
+        await workbench.updateCommandDraft(workbench.snapshot().command.draftText.replace('--format events', '--format ast'));
+        gate.resolve();
+        await Promise.all([applying, duplicate]);
+        expect(spy).toHaveBeenCalledTimes(1);
+        expect(session.snapshot()).toMatchObject({ selection: first, transition: { stage: 'command' } });
+        expect(workbench.snapshot().command).toMatchObject({ application: { status: 'stale' } });
+        expect(workbench.snapshot().command.current.text).toContain('--format events');
+        expect(workbench.snapshot().command.draftText).toContain('--format ast');
+    });
+
+    it('keeps stale Apply conflicts and explicit replacement confirmation inside the guard', async () => {
+        const { session, workbench, repository } = await fixture();
+        await commandDraft(workbench);
+        workbench.setCommandTarget({ mode: 'existing', entryId: first.entryId });
+        await session.select(second);
+        await resolve(session, 'apply');
+        expect(session.snapshot()).toMatchObject({ selection: first, transition: { stage: 'confirmation' } });
+        session.cancelTransition(session.snapshot().transition.id);
+        expect(workbench.snapshot().command.draftText).toContain('--format events');
+        await session.select(second);
+        await resolve(session, 'apply');
+        await repository.execute(request('save-resource', { projectId: first.projectId, resourceId: first.resourceId,
+            expectedProjectRevision: 1, expectedResourceRevision: 1, content: 'concurrent save' }));
+        await resolve(session, 'confirm-replacement');
+        expect(session.snapshot()).toMatchObject({ status: 'failed', selection: first,
+            transition: { stage: 'command', error: { code: 'cem.studio.repository.revision_conflict' } } });
+        expect(workbench.snapshot().command.draftText).toContain('--format events');
+    });
+
+    it('admits an explicitly confirmed compatible replacement after Apply', async () => {
+        const { session, workbench } = await fixture();
+        await commandDraft(workbench);
+        workbench.setCommandTarget({ mode: 'existing', entryId: first.entryId });
+        await session.select(second);
+        await resolve(session, 'apply');
+        expect(session.snapshot().transition.stage).toBe('confirmation');
+        await resolve(session, 'confirm-replacement');
+        expect(session.snapshot().selection).toEqual(second);
+        expect(workbench.snapshot().command.application.result.entry.id).toBe(first.entryId);
+    });
+
+    it('disposes a cancelled candidate and ignores late results from the former active workbench', async () => {
+        const { session, workbench, openWorkbench, validator } = await fixture();
+        const projection = deferred();
+        validator.parseResource.mockImplementation(() => projection.promise);
+        const projecting = workbench.parsePersisted('ast');
+        await vi.waitFor(() => expect(validator.parseResource).toHaveBeenCalledTimes(1));
+        const opening = deferred();
+        const realOpen = openWorkbench.getMockImplementation();
+        let candidate;
+        openWorkbench.mockImplementationOnce(async selection => {
+            candidate = await realOpen(selection);
+            candidate = { ...candidate, dispose: vi.fn(candidate.dispose) };
+            await opening.promise;
+            return candidate;
+        });
+        const selecting = session.select(second);
+        await vi.waitFor(() => expect(candidate).toBeDefined());
+        const id = session.snapshot().transition.id;
+        session.cancelTransition(id);
+        await session.select(second);
+        expect(session.snapshot().selection).toEqual(second);
+        const admitted = session.snapshot().workbench;
+        opening.resolve();
+        await selecting;
+        projection.resolve(projectionOutcome('parse', 'ast'));
+        await projecting;
+        expect(session.snapshot().selection).toEqual(second);
+        expect(session.snapshot().workbench).toBe(admitted);
+        expect(candidate.dispose).toHaveBeenCalledTimes(1);
+    });
+
+    it('rechecks discard consent if a draft changes while the candidate is opening', async () => {
+        const { session, workbench, openWorkbench } = await fixture();
+        workbench.updateDraft('discarded version');
+        const opening = deferred();
+        const realOpen = openWorkbench.getMockImplementation();
+        openWorkbench.mockImplementationOnce(async selection => {
+            const candidate = await realOpen(selection);
+            await opening.promise;
+            return candidate;
+        });
+        await session.select(second);
+        const selecting = resolve(session, 'discard');
+        await vi.waitFor(() => expect(openWorkbench).toHaveBeenCalledTimes(2));
+        workbench.updateDraft('keep this version');
+        opening.resolve();
+        await selecting;
+        expect(session.snapshot()).toMatchObject({ selection: first, transition: { stage: 'source' } });
+        expect(workbench.snapshot().draft).toBe('keep this version');
+    });
+});
+
+function deferred() {
+    let resolve;
+    const promise = new Promise(complete => { resolve = complete; });
+    return { promise, resolve };
+}
 
 function selectValue(root, selector, value) {
     const select = root.querySelector(`cem-select${selector}`);

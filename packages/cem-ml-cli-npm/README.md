@@ -94,6 +94,23 @@ The browser host falls back from the bounded pool to one dedicated worker and
 then to one main-thread WASM runtime when workers cannot initialize; it does not
 require shared-memory WASM or cross-origin isolation.
 
+The browser export also provides `createBrowserHtmlBaseHost(document, options)`
+for a bounded, exclusively controlled UTF-8 HTTP(S) execution document. It consumes
+a retained native execution-snapshot handle, compares the complete live document
+topology and keeps native source/DOM slot identity through WASM. `capture(handle,
+policy)` explicitly reassigns the first base href to confirm a fresh freeze;
+`read()` synchronously revalidates the evidence. Route every document, history and
+policy write through `changeContext(() => { ... })`, then supply the resulting
+native snapshot for a new capture. Unexpected DOM changes and unsupported browser
+observations revoke the session; call `dispose()` when finished.
+
+This API requires `contextOwnership: 'exclusive'`, an explicit `profile`
+(`standard-agreement` or `chromium-148`) and `{ engine, version }` browser identity.
+It does not infer historical freezes or observe unreported history/policy changes,
+parse HTML into a JavaScript AST, or grant resource/edit admission. See the
+[execution-host contract](../../docs/cem-studio.md#exclusive-html-base-execution-host)
+for topology limits, policy ownership and measured compatibility rejections.
+
 The browser command-service API is a separate strict boundary: it always owns
 exactly one dedicated worker and never falls back to pool scheduling or
 main-thread execution. Callers provide explicit asynchronous revision, read,

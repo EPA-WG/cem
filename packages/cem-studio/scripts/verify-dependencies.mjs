@@ -53,8 +53,35 @@ assert.equal(
     'Studio must receive @epa-wg/cem-ml transitively through the CLI package',
 );
 
-const runtimePaths = uniquePaths(pathsBetween(graph.dependencies, '@epa-wg/cem-studio', '@epa-wg/cem-ml'));
-assert.deepEqual(runtimePaths, [['@epa-wg/cem-studio', '@epa-wg/cem-ml-cli', '@epa-wg/cem-ml']]);
+// Nx also tracks story imports and build prerequisites. Audit the published
+// dependency routes separately; the installed consumer must still have exactly
+// one physical runtime, even though the public component gallery also uses it.
+const workspacePaths = uniquePaths(pathsBetween(graph.dependencies, '@epa-wg/cem-studio', '@epa-wg/cem-ml'));
+const galleryPrefixes = [
+    ['@epa-wg/cem-studio', '@epa-wg/cem-components', '@epa-wg/cem-demo-element'],
+    ['@epa-wg/cem-studio', '@epa-wg/cem-components', 'cem-elements', '@epa-wg/cem-demo-element'],
+    ['@epa-wg/cem-studio', '@epa-wg/custom-element', 'cem-elements', '@epa-wg/cem-demo-element'],
+    ['@epa-wg/cem-studio', 'cem-elements', '@epa-wg/cem-demo-element'],
+];
+assert.deepEqual(workspacePaths, uniquePaths([
+    ['@epa-wg/cem-studio', '@epa-wg/cem-ml-cli', '@epa-wg/cem-ml'],
+    ...galleryPrefixes.flatMap(prefix => [
+        [...prefix, '@epa-wg/cem-ml'], [...prefix, '@epa-wg/cem-ml-cli', '@epa-wg/cem-ml'],
+    ]),
+]));
+const manifests = new Map(await Promise.all([...new Set(workspacePaths.flat())].map(async project => [
+    project, await readJson(resolve(workspaceRoot, graph.nodes[project].data.root, 'package.json')),
+])));
+const publishedDependencies = Object.fromEntries([...manifests].map(([project, manifest]) => {
+    const names = new Set(Object.keys({ ...manifest.dependencies, ...manifest.optionalDependencies, ...manifest.peerDependencies }));
+    return [project, (graph.dependencies[project] ?? []).filter(({ target }) => names.has(manifests.get(target)?.name))];
+}));
+const runtimePaths = uniquePaths(pathsBetween(publishedDependencies, '@epa-wg/cem-studio', '@epa-wg/cem-ml'));
+assert.deepEqual(runtimePaths, uniquePaths([
+    ['@epa-wg/cem-studio', '@epa-wg/cem-ml-cli', '@epa-wg/cem-ml'],
+    ['@epa-wg/cem-studio', '@epa-wg/cem-components', '@epa-wg/cem-demo-element', '@epa-wg/cem-ml'],
+    ['@epa-wg/cem-studio', '@epa-wg/cem-components', '@epa-wg/cem-demo-element', '@epa-wg/cem-ml-cli', '@epa-wg/cem-ml'],
+]));
 
 const report = {
     schemaVersion: 1,
@@ -62,11 +89,12 @@ const report = {
     commonVersion,
     exactCliDependency: studio.dependencies['@epa-wg/cem-ml-cli'],
     runtimePaths,
+    workspacePaths,
     directDependencies: [...directDependencies].sort(),
 };
 await mkdir(dirname(reportPath), { recursive: true });
 await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
-console.log(`Verified ${studio.name}@${commonVersion}: exact CLI dependency and one transitive runtime path.`);
+console.log(`Verified ${studio.name}@${commonVersion}: exact CLI dependency and ${runtimePaths.length} published runtime paths (${workspacePaths.length} workspace paths).`);
 
 function pathsBetween(dependencies, source, target, visited = new Set()) {
     if (source === target) return [[target]];

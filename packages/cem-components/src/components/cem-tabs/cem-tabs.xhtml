@@ -50,6 +50,7 @@
     background-color: var(--cem-palette-comfort);
     color: var(--cem-palette-comfort-text);
     display: block;
+    min-inline-size: 0;
     font-family: var(--cem-typography-ui-font-family);
     font-size: var(--cem-typography-ui-font-size);
     line-height: var(--cem-typography-ui-line-height);
@@ -63,6 +64,7 @@
 
 :scope > :where([part~="list"]) {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--cem-gap-related);
 }
 
@@ -80,6 +82,8 @@
     font-weight: var(--cem-typography-ui-font-weight);
     letter-spacing: var(--cem-typography-ui-letter-spacing);
     margin: var(--cem-stroke-none);
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
     min-block-size: var(--cem-coupling-zone-min);
     padding-block: var(--cem-control-padding-y);
     padding-inline: var(--cem-control-padding-x);

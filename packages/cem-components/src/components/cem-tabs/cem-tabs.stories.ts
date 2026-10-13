@@ -57,6 +57,25 @@ export const NativeOwners = meta.story({
  },
 });
 
+export const NarrowContainer = meta.story({
+ name: "wraps long tab labels within a narrow container while preserving selection",
+ render: () => '<div style="inline-size: 240px"><cem-tabs label="Command views"><cem-tab value="command" label="Studio command"><p>Command</p></cem-tab><cem-tab value="form" label="Operation form"><p>Form</p></cem-tab><cem-tab value="changes" label="Semantic changes"><p>Changes</p></cem-tab></cem-tabs></div>',
+ play: async ({ canvasElement }) => {
+  const host = requiredElement<TestCemTabs>(canvasElement, 'cem-tabs');
+  await whenCemRendered(host);
+  const parts = tabsParts(canvasElement, 'cem-tabs');
+  expect(parts.list.scrollWidth).toBeLessThanOrEqual(parts.host.clientWidth);
+  for (const tab of parts.tabs) {
+   expect(tab.getBoundingClientRect().right).toBeLessThanOrEqual(parts.host.getBoundingClientRect().right + 1);
+  }
+  expect(parts.tabs[2]!.offsetTop).toBeGreaterThan(parts.tabs[0]!.offsetTop);
+  parts.tabs[2]!.click();
+  await waitForSelection(host, 2);
+  expect(parts.panels[2]!.hidden).toBe(false);
+  assertAriaReferenceIntegrity(canvasElement);
+ },
+});
+
 export const NativeActivation = meta.story({
  name: "commits pointer and native keyboard activation once while current and disabled paths stay silent",
  render: () => tabsContractFixture,

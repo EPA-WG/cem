@@ -152,6 +152,7 @@
                 },
                 "{projectRoot}/src/shell.xhtml",
                 "{projectRoot}/src/workbench-controls.xhtml",
+                "{projectRoot}/src/workbench-navigation.xhtml",
                 "{projectRoot}/src/workbench-command.xhtml",
                 "{projectRoot}/src/workbench-layout.xhtml",
                 "{projectRoot}/src/workbench-results.xhtml"
@@ -223,9 +224,12 @@
                 },
                 "{projectRoot}/src/shell.xhtml",
                 "{projectRoot}/src/workbench-controls.xhtml",
+                "{projectRoot}/src/workbench-navigation.xhtml",
                 "{projectRoot}/src/workbench-command.xhtml",
                 "{projectRoot}/src/workbench-layout.xhtml",
-                "{projectRoot}/src/workbench-results.xhtml"
+                "{projectRoot}/src/workbench-results.xhtml",
+                "{projectRoot}/src/project-session.js",
+                "{projectRoot}/src/project-session.d.ts"
             ],
             "outputs": []
         },
@@ -373,7 +377,12 @@
                 "{workspaceRoot}/packages/cem-ml-cli-npm/package.json",
                 "{workspaceRoot}/packages/cem-ml-npm/package.json",
                 "{workspaceRoot}/nx.json",
-                "{workspaceRoot}/yarn.lock"
+                "{workspaceRoot}/yarn.lock",
+                "{projectRoot}/scripts/verify-dependencies.mjs",
+                "{workspaceRoot}/packages/cem-components/package.json",
+                "{workspaceRoot}/packages/cem-elements/package.json",
+                "{workspaceRoot}/packages/cem-demo-element/package.json",
+                "{workspaceRoot}/packages/custom-element/package.json"
             ],
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/dependencies.json"
@@ -531,7 +540,8 @@
                 "verify:output",
                 "verify:static-worker",
                 "verify:determinism",
-                "verify:shell-delivery"
+                "verify:shell-delivery",
+                "verify:workspace-delivery"
             ],
             "options": {
                 "command": "node -e \"console.log('CEM Studio bootstrap package verification passed.')\"",
@@ -543,7 +553,8 @@
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
-                "verify"
+                "verify",
+                "build"
             ],
             "options": {
                 "command": "node scripts/package.mjs",
@@ -564,7 +575,8 @@
                 {
                     "dependentTasksOutputFiles": "**/*",
                     "transitive": false
-                }
+                },
+                "{projectRoot}/src/project-session.d.ts"
             ],
             "outputs": [
                 "{workspaceRoot}/dist/packages/cem-studio"
@@ -604,6 +616,12 @@
                         "@epa-wg/cem-theme"
                     ],
                     "target": "build"
+                },
+                {
+                    "projects": [
+                        "@epa-wg/cem-demo-element"
+                    ],
+                    "target": "build"
                 }
             ],
             "options": {
@@ -639,7 +657,8 @@
                 "{workspaceRoot}/dist/packages/cem-studio/**/*",
                 "{workspaceRoot}/dist/reports/cem-studio/{consumer,dependencies,determinism}.json",
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml",
-                "{workspaceRoot}/nx.json"
+                "{workspaceRoot}/nx.json",
+                "{workspaceRoot}/dist/reports/cem-studio/workspace-delivery.json"
             ],
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/release-evidence.json"
@@ -669,7 +688,7 @@
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
-                "verify:output"
+                "verify:determinism"
             ],
             "options": {
                 "command": "node scripts/verify-static-worker.mjs --shell-only",
@@ -685,6 +704,28 @@
             ],
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/shell-delivery.json"
+            ]
+        },
+        "verify:workspace-delivery": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "verify:determinism"
+            ],
+            "options": {
+                "command": "node scripts/verify-static-worker.mjs --lifecycle-only",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-static-worker.mjs",
+                "{projectRoot}/dist/static/**/*",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/workspace-delivery.json"
             ]
         }
     },

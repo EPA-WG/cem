@@ -5,6 +5,7 @@ import {
     parseCemMlCommand,
     projectBrowserCommandPresentation,
 } from '../dist/browser.js';
+import './html-base-host.fixture.mjs';
 import parseRunPlan from './browser-command-run-plan.fixture.json' with { type: 'json' };
 import {
     commandCases,
@@ -139,6 +140,45 @@ async function runCommandAllOperationsFixture() {
         },
     });
     try {
+        const source = '{run | {import @src="../old.svg" @opaque=true @content-type=image/svg+xml | {export @out="../output.svg"}}}';
+        const rebind = { kind: 'transform-graph', bytes: [...encoder.encode(source)], identity: { contentType: 'text/cem-ml' }, baseUri: 'studio://project/graphs/run.cem', fromUri: 'studio://project/old.svg', toUri: 'studio://project/new.svg' };
+        const planned = await client.planResourceRebind(rebind);
+        if (planned.blockers.length || new TextDecoder().decode(new Uint8Array(planned.rewrittenBytes)) !== source.replace('../old.svg', 'studio://project/new.svg')) throw new Error('worker lost native graph candidate bytes');
+        const blocked = await client.planResourceRebind({ ...rebind, bytes: [...encoder.encode(source.replace('@opaque=true', '@opaque=false'))] });
+        if (!blocked.blockers.length || blocked.rewrittenBytes !== null) throw new Error('worker lost native dependency blockers');
+        const runPlan = await client.planResourceRebind({ ...rebind, kind: 'run-config', identity: { contentType: 'application/json', schema: 'https://cem.dev/ns/cli/run-config/1' }, bytes: [...encoder.encode('{"inputs":[{"uri":"studio://project/old.svg"}]}')] });
+        if (runPlan.references[0]?.uri !== rebind.fromUri || runPlan.blockers.length || !runPlan.rewrittenBytes) throw new Error('worker lost native run-config inventory');
+        let rejected = false;
+        try { await client.planResourceRebind({ ...rebind, kind: 'unknown' }); } catch { rejected = true; }
+        if (!rejected) throw new Error('worker accepted an invalid planner kind');
+        const movedUri = 'studio://project/moved/deep/run.cem';
+        const relocation = await client.planResourceRebind({ ...rebind, mode: 'relocate', fromUri: rebind.baseUri, toUri: movedUri });
+        if (relocation.blockers.length || new TextDecoder().decode(new Uint8Array(relocation.rewrittenBytes)) !== source
+            .replace('../old.svg', 'studio://project/old.svg').replace('../output.svg', 'studio://project/output.svg')) throw new Error('worker lost relocated input/output bindings');
+        const sameDirectory = await client.planResourceRebind({ ...rebind, mode: 'relocate', fromUri: rebind.baseUri, toUri: 'studio://project/graphs/renamed.cem' });
+        if (sameDirectory.blockers.length || sameDirectory.rewrittenBytes !== null) throw new Error('same-directory move changed source bytes');
+        let mismatchRejected = false;
+        try { await client.planResourceRebind({ ...rebind, mode: 'relocate', toUri: movedUri }); } catch { mismatchRejected = true; }
+        if (!mismatchRejected) throw new Error('worker accepted mismatched relocation source');
+        const opaqueBytes = new Uint8Array([0, 255, 10, 195, 169]);
+        for (const execution of [
+            { id: 'browser-rebound-graph', uri: rebind.baseUri, input: rebind.toUri, bytes: planned.rewrittenBytes },
+            { id: 'browser-relocated-graph', uri: movedUri, input: rebind.fromUri, bytes: relocation.rewrittenBytes },
+        ]) {
+            const reboundInvocation = await buildBrowserCommandInvocation(
+                parseCemMlCommand(['transform', '--config', execution.uri], { runtime: 'wasm-browser-worker' }),
+                async () => [{ uri: execution.uri, bytes: new Uint8Array(execution.bytes) }, { uri: execution.input, bytes: opaqueBytes }],
+                { requestId: execution.id, projectId: 'project', projectRevision: 2, resourceRevision: 2, cwd: '/project' },
+            );
+            ledgers.set(execution.id, { project: reboundInvocation.request.project, resourceVersions: reboundInvocation.request.resourceVersions });
+            const reboundHandle = client.execute(reboundInvocation.request);
+            const reboundResult = await reboundHandle;
+            const exported = reboundResult.artifacts.items.find(item => item.uri === 'studio://project/output.svg');
+            if (reboundResult.exitCode !== 0 || !exported || exported.sha256 !== await sha256(opaqueBytes)) throw new Error(`native rebound graph did not publish exact opaque bytes: ${JSON.stringify(reboundResult)}`);
+            const copied = await reboundHandle.readArtifact(exported, { offset: 0, maxBytes: opaqueBytes.byteLength });
+            if (String([...copied.bytes]) !== String([...opaqueBytes])) throw new Error('native graph artifact bytes changed');
+            await reboundHandle.dispose();
+        }
         const summaries = [];
         for (const fixtureCase of commandCases) {
             const requestId = `browser-all-${fixtureCase.name}`;

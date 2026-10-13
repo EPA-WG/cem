@@ -66,6 +66,13 @@ offscreen select preserves the document and ancestor scroll positions.
 User commits dispatch bubbling `input`, then `change`. Programmatic setters,
 reset, and state restoration dispatch neither event.
 
+For declarative controlled selection, changing a nonempty `value-request` token
+reapplies the authored `value`, including the same value after a rejected user
+selection. Reusing the token or unrelated updates preserves the current choice.
+An explicit replay closes a pending popup preview, retains the control and focus,
+and dispatches no input/change events. Omitting the token preserves the normal
+form-control behavior; the token is not a selected value or a portable identity.
+
 ## Public form surface
 
 `cem-select` is a form-associated custom element. It exposes the focused
@@ -120,3 +127,11 @@ stacking. Removing an override restores the inherited theme value. It is an
 integer stacking value, separate from elevation/shadow tokens, and cannot escape
 ancestor clipping or stacking contexts. The canonical component no longer owns
 the private `--_cem-choice-popup-z-index` default.
+
+## Narrow containers
+
+The internal grid uses a zero-minimum flexible column; controls may shrink to
+their assigned inline size. Long selected resource labels retain their full text
+and accessible name while the existing value ellipsis contains visual overflow.
+The `NarrowContainer` fixture verifies 240px containment, option access and focus
+return without changing theme-owned geometry or adding consumer CSS.

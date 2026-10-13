@@ -10,7 +10,7 @@ const reportRoot = resolve(workspaceRoot, 'dist/reports/cem-studio');
 const reportPath = resolve(reportRoot, 'release-evidence.json');
 const packageRoot = resolve(workspaceRoot, 'dist/packages/cem-studio');
 
-const [metadata, build, deterministic, dependencies, consumer, packageReport, nx, cargo, archive] = await Promise.all([
+const [metadata, build, deterministic, dependencies, consumer, packageReport, nx, cargo, archive, workspaceDelivery] = await Promise.all([
     readJson(resolve(projectRoot, 'package.json')),
     readJson(resolve(projectRoot, 'dist/static/build.json')),
     readJson(resolve(reportRoot, 'determinism.json')),
@@ -20,7 +20,12 @@ const [metadata, build, deterministic, dependencies, consumer, packageReport, nx
     readJson(resolve(workspaceRoot, 'nx.json')),
     readFile(resolve(workspaceRoot, 'packages/cem_ml/Cargo.toml'), 'utf8'),
     readFile(resolve(packageRoot, 'package.tgz')),
+    readJson(resolve(reportRoot, 'workspace-delivery.json')),
 ]);
+
+assert.equal(workspaceDelivery.source, 'graph-emitted-static-output');
+for (const key of ['onlineCreateAndImport', 'offlineSaveApplyRun', 'guardedDraftAndFocusRetained', 'exportedExactBytes', 'trashRestore', 'offlineReopen', 'draftRecovery', 'structuralEditing', 'typedOperationForms', 'resourcePathEditing', 'nativeRebinding', 'configurationRelocation']) assert.equal(workspaceDelivery.lifecycle[key], true);
+assert.equal(workspaceDelivery.lifecycle.accessibility.validRelationships, true);
 
 const releaseGroup = nx.release.groups['cem-ml-platform'];
 const cargoVersion = /^version\s*=\s*"([^"]+)"/m.exec(cargo)?.[1];
@@ -110,6 +115,8 @@ const report = {
     verification: {
         dependencyAudit: relative(workspaceRoot, resolve(reportRoot, 'dependencies.json')),
         cleanConsumer: relative(workspaceRoot, resolve(reportRoot, 'consumer.json')),
+        workspaceDelivery: relative(workspaceRoot, resolve(reportRoot, 'workspace-delivery.json')),
+        accessibilityScope: workspaceDelivery.lifecycle.accessibility.scope,
         deterministicOutput: relative(workspaceRoot, resolve(reportRoot, 'determinism.json')),
         packageInstallVerified: consumer.staticBootstrap && consumer.importSideEffects === false,
         runtimeCopies: consumer.runtimeCopies,

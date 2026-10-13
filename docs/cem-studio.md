@@ -231,7 +231,8 @@ a concrete workflow requires them.
 The [shared project-navigation workflow](../packages/cem-components/docs/project-navigation-contract.md)
 proves tree activation, guarded selection, dialog dismissal/focus return and
 retained panes before Studio adoption. Its services are bounded test stubs;
-production project/draft authority remains the next implementation step.
+the production session admission service below now provides draft authority.
+Repository-owned workbench resolution and navigation wiring remain open.
 Any missing reusable interaction belongs in `cem-elements`,
 with its styled declaration and public examples in `cem-components` before app
 use. Do not create a Studio-specific widget for functionality already owned by
@@ -239,6 +240,69 @@ the general library. Studio services own repository identities, draft decisions,
 search, navigation, workers and browser APIs; XHTML/CEM-ML owns presentation and
 interaction bindings. Normalized repository records remain an explicit host API
 projection; document/command semantics continue through the native CEM boundary.
+
+### Project session admission service
+
+`createCemStudioProjectSession({ openWorkbench })` is a non-UI service exported
+from the package root and `@epa-wg/cem-studio/project-session`. Its resolver must
+return a fresh workbench for each requested `{ projectId, entryId?, resourceId? }`.
+The session checks the loaded identity, keeps the candidate separate from the
+active workbench, and commits selection only after loading and draft admission.
+Project workbench snapshots expose `entryId` independently of command state;
+the legacy adapter can still supply `command.application.currentEntryId`.
+Selection remains local session state;
+it is never added to a portable project.
+
+`select(identity)` starts one transition. `resolveTransition(id, decision)`
+accepts `save`, `apply`, `discard`, `cancel`, `confirm-replacement`, or `retry`.
+Source and command decisions are independent, with source resolved first.
+The snapshot exposes the pending target, transition id, stage and error while
+retaining the committed selection and workbench. Native dialog dismissal must
+call `cancelTransition(id)`; an old id cannot resolve a newer request.
+Incompatible command replacement requires its existing explicit confirmation.
+
+Discard records consent for the exact draft and its baseline. It removes
+neither draft until the destination is admitted. Cancel, a failed open, or a
+new edit during opening preserves the original workbench. Save uses
+`saveSource()` to verify exact committed bytes and revisions independently of
+native preview/validation availability. Apply establishes the committed command
+as its new baseline and retains/rechecks any newer edit. An already-started
+transaction can commit after cancellation, but its completion cannot admit
+the cancelled destination.
+
+Repeated decisions share the pending operation. A different pending target
+requires cancellation first. After cancelling a write, `pendingWrite` and
+`status: settling` keep further admission blocked until the write settles;
+the caller then requests navigation again. Failed candidate loading supports
+`retry`, including the initial open. Candidate cancellation/disposal and
+unsubscribing the former workbench prevent late results from replacing the
+active projection. Native command previews and background projections also
+retain newer command drafts within the workbench.
+
+`createCemStudioProjectWorkbench({ repository, validator, selection, signal })`
+loads project-owned resources, page identity and dependencies from IndexedDB.
+Persisted CLI command resources are decoded by the shared CLI grammar, previewed
+without execution, and run from their exact bytes. The command input identity
+chooses the source independently of resource order. Legacy run configurations
+alone do not imply an executable operation. Explicit Parse/Inspect prepares a
+command that can subsequently be applied. Optional sample metadata supplies
+Feature Tour expectations and portable examples without replacing project records.
+
+Empty projects and folders remain selectable. Local UTF-8 text within the source
+limit is editable; binary, unsupported and oversized resources expose a read-only
+identity and download of original local bytes. No resource is implicitly fetched.
+Missing identities fail admission and retain the previous workbench.
+
+`createCemStudioSessionWorkbench({ repository, session })` supplies the mounted
+workbench with a project/page/resource selector and explicit project refresh.
+The selector routes every request through admission; nested page labels retain
+their parent context. The production startup now uses this adapter. Existing
+`cem-select`, `cem-dialog`, `cem-action`, editor and status declarations own all
+UI behavior. One navigation dialog resolves source, command and incompatible
+replacement in sequence, including native dismissal and focus return. Provider
+selection follows admitted identities. Home, automatic recovery of local selection,
+search/explorer panes and full provider coordination remain later milestone items.
+No application UI listeners, CSS, token defaults or new variation families are added.
 
 ### Completion evidence and limits
 
@@ -265,9 +329,9 @@ reduced motion, inherited overrides and compact layouts. Record actual browser
 and device coverage; broader physical touch/pen/IME and browser/AT acceptance
 remain open until measured, independently of this bounded milestone.
 
-Explicit Save/Apply is the initial durability boundary: unfinished drafts are
-not promised across reload. Debounced autosave/draft recovery, structural
-rename/copy/reorder/resource creation, general undo/redo, graphical authoring,
+Explicit Save/Apply remains the project durability boundary. Local draft recovery
+now protects unfinished text separately (see Local draft recovery below). Bounded
+structural editing and undo/redo are implemented below. Graphical authoring,
 new command-specific forms, simultaneous/resizable panes, virtualized large
 trees, remote providers and AI assistance remain later slices of the broader
 contract. Project creation from a starter and existing command-created pages
@@ -2126,3 +2190,1139 @@ Studio proposal.
 - [GitHub: REST API for Gists](https://docs.github.com/en/rest/gists/gists)
 - [GitHub: REST API for repository contents](https://docs.github.com/en/rest/repos/contents)
 - [AWS: Uploading S3 objects with presigned URLs](https://docs.aws.amazon.com/AmazonS3/latest/userguide/PresignedUrlUploadObject.html)
+
+### Home, creation and archive import
+
+Home is a persistent shared-control card above the retained workbench. It lists
+live projects, opens them through session admission, and exposes explicit refresh,
+creation and archive import. Creating or importing persists a project without
+leaving the active draft; Open project requests the guarded transition separately.
+The workbench selector then exposes that project's pages and resources.
+
+Creation copies the integrity-checked bundled CEM-ML source into a fresh UUID
+project with a user-supplied name. It carries one source resource and no implicit
+command pages. The repository validates the normalized project through the native
+boundary before its atomic create transaction. Import uses the existing archive
+codec and the same create-only transaction: an existing identity is never replaced.
+Boot continues to preserve existing Feature Tour copies.
+
+Home reports empty, storage, operation-success and failure states. Picker cancellation
+is silent and leaves drafts unchanged; file-read failures are reported. Creation
+and import are serialized by the service. Failed or cancelled navigation does not
+remove a successfully created/imported project. Recovery of the last admitted selection and active-provider coordination follow
+the contract below.
+
+### Explorer, search and retained panes
+
+Studio composes the canonical `cem-tree` with project, nested page and resource
+records. Stable URI-encoded record identities contain no whitespace or display
+labels. Parent activation only expands the hierarchy; an explicit child opens a
+branch's own record. Focus movement never selects or navigates. Selected state
+follows committed session admission, so Save/Apply failures and Cancel retain the
+previous selection and draft. Missing destinations report a navigation error.
+
+Search submits at most 500 characters to the existing repository index and shows
+up to 50 results in its deterministic score/key order. Result activation resolves
+project/page/resource identity through the same guarded session. Empty, pending
+and failed search states are declarative; newer searches supersede older results.
+Successful saves and command Apply refresh navigation and any active search.
+
+Navigation remains available above the retained Source and command / Results
+panes at compact and expanded widths. The shared host-view service can now bind
+to already-authored view elements, preserving declaration ownership and editor
+identity/caret through tab reconciliation. Validated tab values cross the shared
+host bridge; diagnostic and provenance commands reveal Source before applying
+its range/focus request. No application event handlers, DOM
+rendering, local CSS or new theme tokens implement these interactions.
+
+The 128-resource shared tree fixture exposed repeated native binary expansion in
+render-plan hashing. Binary-bearing addresses now use the versioned shared hash
+contract documented in `cem-elements`; native typed artifacts remain intact.
+Resizable simultaneous panes and broader device/AT acceptance remain separate work.
+
+
+### Recovery and active-project providers
+
+The session stores only its last admitted project/page/resource identity in local
+browser storage (`cem-studio-selection-v1`). Admission, rather than a highlighted
+row or pending transition, commits this preference. Reload reopens the exact
+IndexedDB bytes through the ordinary project resolver. Missing/trashed destinations
+fall back to the bundled starting page with an explanation; corrupt or unavailable
+selection storage does not prevent opening projects. No draft or local preference
+is embedded in exported project data. Unsaved text uses the separate local recovery journal described below.
+
+Repository change notifications, including other tabs, refresh Home, explorer and
+active search. They never overwrite a source or command draft. Changed revisions
+and missing selections are reported; Save/Apply retain their optimistic revision
+checks. Home moves a selected project to recoverable Trash and restores it using
+its current revision. Trashing the active project keeps its drafts available;
+resource writes are rejected until restore. Export remains an exact persisted
+backup and does not silently save drafts.
+
+The file provider follows the admitted project/resource. Each explicit operation
+captures that target before invoking the browser API. Late status/picker results
+cannot replace a newer target. Imported projects appear in Home; opening them uses
+guarded navigation. Permissions are requested only by explicit actions, and
+cancellation/denial leave archive import/export available.
+
+Studio update activation waits for navigation, provider work and running/saving
+operations. Unresolved source or command drafts block activation with instructions
+to Save/Apply or reset explicitly. Update does not implicitly apply a command or
+save a draft. The reusable update coordinator also detects new dirty state during
+asynchronous persistence. Durable save status and validation results remain distinct.
+
+
+### Deployed workspace acceptance
+
+`@epa-wg/cem-studio:verify:workspace-delivery` runs the graph-emitted application
+in Chromium and participates in Studio `check` and package verification. It uses
+production CEM controls, a native file chooser and a browser download to create
+one project and import a second, save source, create native command pages, search
+and run them, cancel/discard guarded navigation, export exact UTF-8 bytes, and
+Trash/Restore. The second project's save/Apply/run, export and reload run offline;
+the first project's saved source remains unchanged.
+
+Acceptance inspects exposed Chromium accessibility names and DOM ID references,
+modal background inertness, Escape return focus, retained editor identity/caret,
+visible keyboard focus, and page reflow at 320, 390 and 1280 CSS pixels. Native
+Tab navigation may visit browser chrome while a modal is open; it must never
+focus the inert page behind the modal. Existing delivery checks retain all five
+themes, inherited overrides, forced colors and reduced motion.
+
+The narrow viewport audit identified a shared select grid minimum-size defect.
+`cem-select` now constrains its flexible grid column and control minimum inline
+size so long selected labels use their existing ellipsis. The full option text
+and accessible name remain intact. No Studio CSS or theme-token overrides are
+needed. The shared `NarrowContainer` story protects option access and focus return.
+
+`workspace-delivery.json` records the browser version, platform, lifecycle and
+accessibility evidence. Release evidence references this report and its scope.
+These are automated Chromium checks, not a WCAG conformance certification or
+spoken screen-reader/physical-device acceptance. The independent device/AT matrix
+in TODO remains open. Structural editing is implemented in the next section.
+
+
+### Local draft recovery
+
+The admitted workbench synchronously journals changed source and command text in
+browser local storage, separately from IndexedDB project records. Keys use the
+`cem-studio-selection-v1:draft-v1:` prefix and resolved project, page and resource
+identities. This is an explicit versioned JSON storage/backup boundary, never an
+AST representation or part of project export. No timer or unload callback is
+required for durability after an editor update reaches the session. Each serialized
+record is bounded to 1,000,000 UTF-16 code units, including its baseline text.
+Browser quota and retention still apply; project exports do not include drafts.
+
+Recovery requires exact project/resource revisions, source baseline and command
+baseline matches. It restores text and the pending command target through the
+ordinary workbench draft APIs, including native command validation. It never
+saves source, applies commands, runs operations or restores replacement consent.
+Command targets without a changed command text are not independently journaled.
+Save/Apply and explicit reload/reset retire the corresponding clean drafts.
+Navigation discard removes recovery only when the replacement workbench is admitted;
+cancellation or a failed open retains it. Missing/trashed projects retain their
+journals while selection recovery falls back to another project.
+
+A changed baseline or corrupt record blocks automatic recovery. The shared CEM
+alert explains the condition, and shared actions download a recovery backup or
+explicitly clear the stored record while keeping current editor drafts. Backups
+for blocked records include stored data and current text with baseline metadata;
+there is no automatic merge or backup-import workflow in this slice. Storage
+failure retains a downloadable in-memory snapshot of the latest editor text and
+never advertises it as saved. Clearing resumes journaling of any current drafts.
+Changed stored values are detected before writes/clears to avoid overwriting
+observed changes from other tabs; localStorage is not a cross-tab transactional
+store and simultaneous writes are outside this bounded guarantee.
+
+The UI adds no styles, tokens, listeners or widgets: declarative CEM alerts/actions
+retain native names, focus, inherited theme tokens and forced-color behavior.
+The deployed two-project gate verifies an offline reload and a real recovery
+backup download while persisted source bytes remain unchanged.
+
+
+### Structural project editing and history
+
+Studio exposes project and page display-name changes, subproject creation, subtree
+copying, moves between subprojects/root, up/down sibling reordering, and CEM-ML
+resource creation or byte-exact resource copies. These forms use existing shared
+CEM cards, fields, selects, textareas, alerts and actions. Hidden native inputs carry
+form command metadata only. No new component, stylesheet, theme token or app DOM
+behavior is needed. The shared runtime reads form identity through attributes,
+so a legitimate field named `id` cannot clobber form capture.
+
+The existing native project model already preserves entry-array order. IndexedDB
+now retains that order as private project metadata and reconstructs the ordered
+portable array on export; it does not add a manifest field or schema version.
+Old databases without order metadata retain their existing lexical order until
+edited. Applying a command appends new pages without reordering existing pages.
+Subtree copies allocate new stable page identities but keep resource references;
+existing Apply copy-on-write isolates shared command resources when edited.
+Resource copies allocate a new stable identity and path, preserving bytes and
+content type, and become local project files. New resources begin as CEM-ML data.
+Resource path rename/deletion and automatic authored-reference rebinding are not
+part of these operations; display-name changes never rewrite command text.
+
+`edit-project` reads a complete bundle, applies one bounded structural operation,
+validates it through the native project import boundary and commits all records,
+blobs, search documents and change notifications in one transaction. Expected
+project revision is checked both before preparation and inside the transaction;
+missing or trashed projects cannot be recreated or restored by a structural edit.
+A stale revision, cyclic move, duplicate/escaping resource path or native validation
+failure leaves the previous revision intact. Resource hashes remain byte-derived.
+The replace path uses value cursors when deleting records by index.
+
+Undo/redo holds at most 20 snapshots and 8 MiB of retained metadata/source bytes
+per project in the current workbench adapter session. Snapshots never enter a
+project export or local draft journal. Replay is native-validated and creates a
+new monotonically increasing project revision; restored resource revisions also
+advance. New edits clear redo; Save/Apply, another tab or another provider revision
+invalidates history rather than overwriting that work. Reload starts fresh history.
+
+Structural actions require clean source and command drafts and no pending
+navigation/execution. After a commit the active identity reopens through normal
+guarded session admission, or returns to its project if undo removed that identity.
+Typing while the commit is pending triggers the existing draft guard, preserving
+the new text. Explorer, project choices, search and active providers follow ordinary
+repository notifications. Service-worker activation counts structural writes as
+active work. The deployed two-project acceptance gate records `structuralEditing`
+for shared-control rename/create/reorder, undo/redo, native invalid-path rejection
+and offline reload persistence; physical-device/spoken AT coverage stays separate.
+
+
+### Typed operation forms
+
+The Command pane has an Operation form section for parse, inspect, convert, query,
+transform and trace. Studio selects operation-specific options; the generated
+shared CLI command schema supplies their labels, help, defaults, required flags,
+boolean actions and enum choices. No grammar or enum vocabulary is copied into
+Studio. Shared CEM selects expose enumerations and boolean values; text fields
+and textareas retain scalar text, including multiline query/template expressions.
+An option chooser exposes one active editor at a time, bounding the number of
+rendered controls and keeping background projection work within the shared
+scheduler budget. Switching options discards unsubmitted field input; Set commits
+it to the command draft. Existing shared tabs, alerts and actions own layout,
+keyboard behavior and styling.
+
+Set edits exactly one option in the current literal command, then the shared
+parser and serializer validate and canonicalize its draft. Reset removes that
+option so native defaults apply, and required options cannot be reset. Positional
+inputs, global options, repeated options and all other option values are retained.
+Conflicting or required option groups are rejected rather than silently removing
+another option; edit coupled groups together in the literal editor. Hidden,
+unsupported, positional and infrastructure options are not exposed as fields.
+Invalid literal commands stay repairable in the editor. Forms edit an already
+prepared operation; they do not select a new operation or generate a new page.
+
+Each form submission carries the workbench instance and draft revision it was
+rendered from. A stale submission, including one from a different workbench, is
+rejected with a CEM alert and leaves command bytes unchanged. Successful edits use
+the existing preview, semantic-change, draft-recovery and guarded-navigation
+pipeline. Preview resolves the same retained resources and applies the same
+browser capability checks as literal editing. Setting a field never saves source,
+applies a command or runs it. Existing Apply support remains parse/inspect;
+other portable workbenches keep their existing execution and persistence limits.
+
+The deployed lifecycle gate edits and resets format, sets source-offset retention,
+checks unchanged project revision before Apply, and runs the explicit saved
+command afterward. It audits accessible names, relationships, keyboard focus and
+320/390/1280px reflow while the typed form is visible. The result is required in
+release evidence as `typedOperationForms`; physical-device and spoken AT coverage
+remain separately open.
+
+
+### Resource path editing and dependency rebinding
+
+The shared Project structure resource form supports rename and delete. Rename
+preserves stable resource IDs and page references, advances the project/resource
+revisions and rebinds every supported authored command input in the same transaction.
+The shared CLI parser/serializer owns command decoding and quoting. Unchanged data
+bytes remain exact; matching command and run-config records are canonicalized and
+rehashed, while graph edits preserve bytes outside native input value ranges.
+Deleting a resource requires no page or other command to reference it. Deletion
+never silently removes pages, detaches dependencies or cascades to other resources.
+
+The admitted contract remains conservative: projects may contain data sets,
+subprojects, inspection and bounded opaque transformation-graph pages, with local
+data/expected assets, native CLI parse/inspect or transform-with-config command
+resources, explicit JSON run-configs and native transform-config graphs. Every command, including orphan command resources, must have an exact
+absolute project resource URI in its input/config slot. Unsupported page kinds, configuration
+formats, executable resource roles, resolver/configuration/output options,
+relative/unresolved inputs and project URI values
+in non-input options block the entire path edit. Data and expected payloads are
+opaque leaf documents in these operations: embedded text is not searched or rewritten.
+This is not an automatic refactoring of hyperlinks, schema imports or arbitrary
+source text. Template/query/validation dependency rebinding and graphs with transitive loads
+need additional native contracts before those projects can use path edits.
+
+Only local project files may be renamed/deleted. Native whole-project validation
+rejects invalid paths; collisions and stale revisions fail before commit. The
+existing draft/navigation guard, active-provider refresh and bounded session undo/redo
+apply. Undo restores prior paths and exact authored command bytes with new revisions.
+The deployed gate verifies rename of an active input, blocked referenced deletion,
+unreferenced deletion/undo, successful execution through the rebound command and
+offline reload. Release evidence requires `resourcePathEditing`.
+
+The first native dependency-planning layer is
+`cem_ml::run_config_rebind::plan_run_config_rebind`. It accepts the existing
+`RunConfigParseRequest` plus exact old/new resource URLs and returns typed reference
+roles, JSON-pointer blockers, and optional replacement bytes. This is a native
+library contract, exposed through the worker and used by Studio within the bounded
+admission rules below.
+
+Its admitted slots are `inputs[].uri`, `schemaPackages[].uri` and
+`outputs[].inputRef`. The last is a link to a declared input and changes with that
+input. Native validation runs before and after rewriting, including duplicate URI
+and dangling input-link checks. Schema/namespace identifiers, policy, budgets and
+other scalar metadata retain their values. The JSON representation is the explicit
+run-configuration control format, not a document AST or a rendering handoff.
+Changed configurations preserve authored field presence and canonicalize whitespace;
+no-op configurations return no replacement so hosts retain the exact original bytes.
+
+Planning fails closed for unknown fields and non-object records, relative or
+noncanonical URLs, query/fragment/glob references, scope base overrides, resolver
+bindings, module maps, custom formatter/colorizer settings and output destinations.
+A blocker anywhere suppresses all replacement bytes, including otherwise valid
+matches. Blocked reference inventories are incomplete for dependency admission and
+must never authorize deletion. Planning does not fetch, execute, save or establish
+that an entire project is safe to rename.
+
+Relative resolution must be aligned with execution before extending this boundary.
+Run configuration input URIs are retained by native normalization, while module-map
+and output paths have file-base normalization; graph references have a separate
+config-relative resolver. Studio sample run-config inputs also use project-root
+paths despite living in a configuration subdirectory. A universal config-relative
+URL join would therefore be incorrect. The next contract must carry execution's
+actual acquisition base, scope overrides and resolver/map provenance, distinguish
+read references from output destinations and node/format identities, and discover
+transitive dependencies without executing templates. Host adoption then needs
+revision-checked atomic replacement, collision checks, native whole-project validation,
+exact-byte undo and deployed run-after-rebind coverage.
+
+Graph discovery now has its own native entry point,
+`cem_ml::transform_graph_dependencies::discover_transform_graph_dependencies`.
+It parses the original CEM-ML graph and returns the acquired graph URI, diagnostics
+and immediate references identified by node ID and native attribute name. It uses
+`resolve_transform_graph_reference`, the same resolver as
+`ManifestTransformGraphResourceProvider`, so `../data/input.xml` in
+`studio://project/graphs/run.cem` resolves to `studio://project/data/input.xml`.
+A native fixture checks this against actual manifest-provider acquisition and output
+resolution. This contract targets virtual command-service execution; it does not
+substitute URL joining for the CLI filesystem/resolver provider.
+
+Reference roles distinguish import inputs, transformation templates, source/target
+module maps and export destinations. Each reference retains its authored spelling.
+Node links, schemas and parameter values are not treated as resource attributes.
+Ordinary imported documents require document dependency inspection; templates and
+module maps require their respective transitive scans. Explicit opaque imports are
+leaves. Output destinations require ownership/collision checks. Globs and captured
+binding patterns have no single resolved target and require resource-set expansion.
+Graph errors return diagnostics without a partial inventory; callers must inspect
+all diagnostics before relying on results.
+
+This inventory performs no fetching, execution or rewriting and does not establish
+a complete dependency closure. A graph edit still needs source-preserving native
+rewrite locations, transitive scans, resolver provenance, output conflict checks
+and host revision validation. The run-config and graph contracts remain separate:
+the graph acquisition base does not establish a base for relative run-config inputs.
+
+The bounded native source rewrite is
+`cem_ml::transform_graph_rebind::plan_transform_graph_rebind`. It admits unqualified
+native graph declarations with explicitly opaque inputs, exact non-pattern reads
+and non-conflicting output destinations. It returns the original dependency
+inventory, blockers, and optional candidate bytes. Ordinary documents, templates,
+module maps and patterns block the entire rewrite; follow-ups are not silently
+cleared. Unknown or duplicate attributes and graph diagnostics also block edits.
+This is not a complete transitive dependency implementation.
+
+Matches use the executor-resolved input URI. A matching relative input becomes an
+absolute URI; the graph acquisition URI stays fixed. Moving/replacing the graph
+itself needs a separate base-rebinding contract and is rejected. Output references
+to either rename endpoint block the edit. Other output ownership and project-wide
+collision checks remain the host's responsibility.
+
+The rewrite binds AST attribute ownership to tokenizer-provided value byte ranges.
+It preserves quoted values' quote style, quotes rewritten bare values, and preserves
+all bytes outside those ranges, including comments, Unicode, whitespace and other
+attributes. Multiple edits apply in reverse byte order. No-op and blocked plans
+supply no replacement bytes. Native reparsing must produce exactly the original
+typed graph with only the selected input values replaced; otherwise no candidate is
+returned. A fixture also verifies acquisition through the manifest provider using
+only the new resource URI. The worker and Studio adopt this bounded planner as
+described below; transitive scans remain separate follow-up work.
+
+Source module-map discovery is now available through
+`cem_ml::transform_graph_request::discover_source_module_map_dependencies`.
+Discovery and graph execution share the same module-map parser. Given acquired map
+bytes and their canonical URI, discovery accepts explicitly declared v1/v2/v3 maps
+and returns import/resource identities, authored paths, resolved source URIs,
+validated content types and v3 `moduleImports` edges. Paths resolve relative to the
+acquired source map using the manifest provider's resolver. Destination maps are
+outside this API because their paths belong to publication, not source acquisition.
+
+Declared edges identify both the target asset and its resolved URI. Cycles remain
+explicit graph edges without recursive fetching. Missing/ambiguous targets and
+non-module edge targets fail; unknown top-level fields such as import-map scopes
+also fail. Identity keys and module specifiers retain their semantic roles instead
+of being interpreted as file paths. The stricter discovery admission does not change
+the existing execution parser's format compatibility.
+
+This discovers declared map edges, not verified content dependencies. It does not
+acquire asset bytes, validate JavaScript declarations against source imports, inspect
+relative/dynamic imports, inspect document/template dependencies or authorize edits.
+An empty edge set never proves an asset is a leaf. Those source checks and project
+snapshot/revision validation must precede Studio admission for transitive rewrites.
+
+V3 source maps can now be checked against supplied immutable asset snapshots with
+`verify_source_module_map_declared_edges`. The native verifier reuses execution's
+bare-module checks to reject undeclared, unused, escaped or invalid declared edges.
+Every declared asset must be present; supplied content-type metadata must agree with
+the map. Failure returns no partial evidence. Successful evidence contains the map
+URI/hash, each asset's exact-byte hash and byte length, and its declared dependency
+inventory. Candidate rewrite bytes are discarded; input maps and assets remain exact.
+
+Known unresolved source mechanisms are reported per asset: non-bare imports,
+dynamic import calls, template literals, and non-JavaScript contents. These checks
+share the executor's lexical scanner; they do not constitute JavaScript syntax
+validation or comprehensive runtime-load analysis. An empty follow-up list does not
+prove dependency closure or authorize rename/delete. Document/template inspection,
+runtime loader policy, host revision checks and comparison of evidence hashes with
+the current snapshot remain required before broader Studio admission.
+
+Native CEM template imports can now be inspected through
+`cem_ml::real::inspect_native_template_dependencies`. The API reuses runtime module
+parsing and recursive preflight, including alias/depth/cycle checks, resolver grants,
+module-map policy, requested/normalized/substituted/acquired URI provenance and
+content hashes. A caller-supplied import-depth cap can tighten the declared/default
+limit. Reads use the supplied `EngineContext`; snapshot-only hosts must provide an
+immutable snapshot resolver. The API does not install another resolver or execute
+bodies, XPath invocations, functions, renderers or publication.
+
+Results retain root identity/hash, diagnostics and successful native preflight.
+Import failures return no partial preflight. Expression-valued import declarations
+are rejected by native declaration parsing rather than evaluated. Every discovered
+template, including the root and modules with no imports, remains listed in
+`bodyAnalysisRequired`: data-dependent document loads and other body/runtime behavior
+are outside module-import discovery. This is not a full document/template dependency
+closure, and its inspection-purpose cache key is not execution or mutation approval.
+Host snapshot/revision checks and body/document analysis remain required for Studio.
+
+Template inspection now attaches `xpathResourceUses` for native parsed XPath slots
+in the root and successfully acquired modules. Findings identify the template,
+invocation and native function-name source range. The inspector traverses the typed
+XPath syntax, including conditional branches, predicates, maps, arrays and nested
+calls, without evaluating them. Function namespace identity distinguishes standard
+resource functions from extension functions. Direct string arguments are retained
+as literal URI candidates; computed arguments remain unresolved. Literal candidates
+also retain a resolution blocker because base URI and resolver policy have not been
+applied. No candidate document is acquired by expression inspection.
+
+Dynamic function calls, inline functions, extension functions, unsupported syntax,
+invalid syntax and exhausted traversal budgets produce explicit blockers. Traversal
+is iterative with a 10,000-node budget per template XPath slot. Findings cover those
+parsed slots only: other CEM expressions, generated document references and runtime
+loads remain outside this contract. `bodyAnalysisRequired` is never cleared merely
+because no XPath load was found. General document dependency inspection and Studio
+admission remain open.
+
+
+### Bounded native planning in Studio edits
+
+`BrowserCommandServiceClient.planResourceRebind` carries supplied configuration
+bytes, explicit identity, acquired base and rename endpoints to the existing worker.
+The native `planResourceRebind` WASM export dispatches to the run-config or graph
+planner and returns reference roles, blockers and optional candidate bytes. It
+performs no acquisition, execution or mutation. Invalid control requests return the
+shared worker action error envelope. No worker-local project or cached permission is
+introduced.
+
+The repository plans every declared configuration, including orphan records, against
+one copied bundle before changing any stored bytes. Every non-output reference must
+resolve to a local data/expected resource. Schema packages and transitive resource
+roles remain blocked. Graph outputs must stay inside the project, be distinct across
+all graphs, and avoid existing resources and both rename endpoints. Configuration
+relocation uses the explicit native mode described below; configuration deletion
+remains blocked. Ordinary command
+resources continue to use the shared CLI parser, with transform admitted only through
+an exact local transform-config reference and no additional transform options.
+
+A successful edit updates matching configurations, content hashes and resource
+revisions together with the path and project revision. Native project validation and
+the existing transaction revision check still run after planning; a concurrent edit
+invalidates the candidate. Deletion checks the native reference inventories as well
+as page and command ownership. Undo restores exact prior config/data/command bytes
+and paths while advancing revisions. Planner errors, blockers and cancellation before
+commit leave storage untouched. The deployed `nativeRebinding` evidence covers an
+opaque graph execution using the renamed input and exact exported bytes, run-config
+rebinding, revision and
+deletion guards, and exact-byte undo.
+
+CEM review: the existing shared resource form and semantic feedback remain the UI;
+JavaScript additions are repository and worker transport services. No component
+behavior, CSS, theme defaults or public token ownership changed. Broader template,
+document, module-map and relative-base admission remains explicitly unsupported.
+
+
+Graph command publication preserves retained `primary_bytes` when present, matching
+the existing direct-operation publication path. Previously, opaque graph exports
+published their descriptive resource record as JSON and lost the asset payload. A
+native non-UTF-8 regression and a real-worker artifact read cover the retained-byte
+path; Studio's deployed fixture also checks the exact copied SVG content.
+
+
+### Relative configuration bases and safe relocation
+
+Configuration acquisition, initial input lookup and later resolver reads have
+distinct bases. Native execution is authoritative; a host must not apply one
+generic URL join to every configuration string.
+
+| Slot | Current native execution rule |
+| --- | --- |
+| Run-config input `uri` and schema-package `uri` | Retained as declared lookup keys during normalization; initial command input acquisition uses the exact snapshot key. |
+| Run-config output `inputRef` | Matches an input declaration key to obtain its input ID; it is not a separately resolved path. |
+| Run-config scope `moduleMap` and output `destination` | Relative path-like values join the configuration's local filesystem/file-URI directory. A virtual `studio://` base does not perform this filesystem normalization. |
+| Root-scope `baseUri` and invocation defaults | Separate execution context, requiring explicit provenance before admission. |
+| Graph import `src` and export `out` | Both use `resolve_transform_graph_reference` against the acquired graph URI, exactly as the manifest execution provider does. |
+| Later resolver reads and CLI positionals | Use their own resolver-request base or host working directory; these rules do not implicitly rebase run-config input declarations. |
+
+A normalized output destination may still contain its authored relative value for a
+virtual base. A field named `resolvedDestination` therefore does not prove an
+absolute resource identity. File path normalization uses native path joining; hosts
+must not substitute browser URL canonicalization.
+
+The native `plan_run_config_relocation` and
+`plan_transform_graph_relocation` functions produce candidates without fetching,
+executing or storing anything. Both require canonical absolute configuration
+endpoints and reject an identity base that conflicts with the acquired base.
+An absent identity base remains absent; a matching explicit identity base must move
+with the acquisition URI.
+
+Run-config relocation retains exact bytes and admits absolute input/input-link
+keys only. Relative keys, schema packages, resolver declarations, scope base/module
+maps, pipeline dependencies, output destinations and unknown fields remain blocked.
+Native normalized settings before and after the move must match under empty
+invocation defaults. This does not prove external document dependency closure or
+nonempty invocation defaults; those remain host admission obligations. Widening
+relative inputs requires execution-owned lookup provenance, not an inferred
+project-root or configuration-directory rule.
+
+Graph relocation admits bounded opaque imports and literal outputs. It compares
+each binding at the old and new acquisition URI. If the binding would change, it
+replaces only that native literal value range with the original absolute key;
+otherwise it retains the authored bytes. Output destinations are preserved along
+with inputs. Same-directory moves and already absolute references normally need no
+byte edit. Comments, Unicode, line endings and unaffected quotes remain exact.
+Native reparsing checks the expected typed graph and the complete resolved binding
+inventory at the new base. Patterns, selectors, transitive documents/templates/maps,
+unknown or duplicate slots, and references to either configuration endpoint block
+the candidate. Ordinary resource rebinding continues to reject graph relocation.
+
+Repository adoption must plan against one immutable project snapshot, discover and
+update incoming page/command/configuration references through their native owners,
+check destination/resource/output collisions and local ownership, validate the
+whole candidate project natively, and compare all affected revisions in the atomic
+commit. A blocked plan must never partially rewrite storage. Undo must restore
+exact prior bytes, paths and identities while advancing revisions. An empty
+`rewritten_bytes` means retain source bytes; hosts must inspect blockers separately.
+The worker's existing `planResourceRebind` control API now accepts optional
+`mode: "rebind" | "relocate"` (default `rebind`). Relocation requires `fromUri` to
+equal `baseUri`; mismatches and unknown modes fail at the native boundary.
+
+Studio selects relocation only for the configuration being renamed. Other
+configurations still receive ordinary rebinding plans against the same copied
+snapshot. Incoming transform command `--config` slots use the existing shared CLI
+parser and serializer. Page links retain stable resource IDs. The repository checks
+the complete output inventory against existing resources and the proposed target,
+then commits rewritten bytes, hashes, paths and revisions together. A moved resource
+whose bytes also change advances its revision once. No-op candidates retain exact
+bytes and still advance the moved resource revision. Configuration deletion remains
+blocked.
+
+The admitted command vocabulary has no custom resolver, module-map or global
+run-config/default overrides. Graph commands permit only the existing bounded
+reporting options; native graph planning requires opaque inputs without transitive
+loads. Absolute run-config files retain their settings and input identities;
+schema packages, scope-base overrides, module maps and destinations remain blocked.
+This integration does not establish execution provenance for relative run-config
+keys or admit general document/template dependency rewriting.
+
+Real-worker fixtures execute both rebound and relocated graphs against exact
+non-UTF-8 input bytes and verify the original output URI and payload. Repository
+fixtures cover cancellation, stale revisions during planning, command/page links,
+output collisions, no-byte-edit config moves and exact undo. Deployed acceptance
+moves a graph between directories, runs its rewritten command, moves an absolute
+run-config without changing its bytes, and restores both moves exactly.
+`configurationRelocation` is a required lifecycle release-evidence flag.
+
+CEM review: semantics and source edits remain native, with no JavaScript path
+interpreter or document-object handoff. No UI, component behavior, styling or theme
+ownership changes are required by this contract.
+
+
+### Native source-map rewrite ownership
+
+`cem_ml::source_module_map_rebind::plan_source_module_map_edit` plans v3 source-map
+asset rebinding or relocation of the source map itself against a supplied immutable
+asset snapshot. It uses the existing execution-aligned map inventory and declared
+JavaScript edge verifier before and after the candidate change. No resource is
+fetched, executed or stored.
+
+Only `imports/<identity>/path` and `resources/<identity>/path` are owned edit slots.
+Map relocation preserves resolved source locations; asset rebinding replaces each
+path that resolved to the old asset URI. Changed slots use absolute URIs. Module
+identities, bare specifiers, declared edge identities, cycles and asset payloads
+remain unchanged. Candidate verification compares the entire expected inventory,
+including resolved edge targets, content types, asset hashes and byte lengths.
+
+The planner rejects duplicate keys at every ownership level, unknown fields,
+non-v3 maps, conflicting identity metadata, nonliteral or self references, missing
+assets, destination collisions in the supplied snapshot and known unresolved source
+mechanisms. Non-bare imports, dynamic imports, template literals and non-JavaScript
+assets still need their own analysis. A custom explicit base on a renamed asset is
+also blocked. A matching explicit acquisition base must move with its resource URI;
+hosts must preserve that metadata obligation as well as the path change.
+
+These maps are an explicit JSON control boundary. Changed maps may be reformatted;
+no-op maps retain their exact bytes. Before/after evidence binds map and asset bytes
+to hashes. It does not bind resolver policy, resource identity metadata or revisions,
+which hosts must guard separately.
+
+Every successful candidate still lists all assets in `runtime_analysis_required`.
+The lexical declared-edge check does not prove absence of `fetch`, workers, computed
+URLs, generated loads or other runtime behavior. Candidates do not authorize a
+project edit. Incoming graph/map references, document/template analysis, complete
+snapshot ownership, identity/revision checks, atomic commit and undo remain separate
+requirements. Destination maps retain publication semantics and are outside this
+source-map API. Studio and the worker edit protocol do not admit source-map editing
+yet.
+
+CEM review: this step adds native control-document planning only. Document data
+remains at the native import boundary; no JavaScript parser, UI behavior, component
+style or theme definition was added.
+
+### Native document and expression reference inventory
+
+`cem_ml::document_dependencies::inspect_document_dependencies` inventories
+namespace-owned HTML/SVG direct URI attributes from the retained semantic tree.
+It shares native validation's direct-resource policy classification, preserves
+native decoded values and attribute source maps, and retains the tree owner with
+its node identities. HTML navigation links and base declarations have distinct
+roles. Fragment-only and data URI values follow the existing policy exclusions.
+This inventory does not resolve or acquire referenced resources; ordinary document
+conversion does not itself dereference these attributes.
+
+`cem_ql::dependency_inspection::inspect_query_resources` inspects compiled IR
+without evaluation. Resolved standard-library identities distinguish `ct:read`
+resource acquisition, `module:module_url` resolution and `data:read` content parsing.
+Imported aliases follow their resolved module. Reserved calls follow the compiler's
+existing dispatch precedence even when a declaration uses the same QName. The scan
+covers the whole arena, including potential uses in unexecuted branches and function
+bodies. A pipeline's first stage receives its source as the implicit argument;
+later stages cannot assume that source remains unchanged. The current evaluator
+rejects content-read and module-URL pipeline steps; their IR entries are conservative
+candidates, not evidence that those steps execute. Only direct string
+literals are recorded as candidate arguments, without folding or URI joining.
+
+`inspect_template_expression_resources` additionally retains the template URI,
+embedding byte offset and host source map separately from expression-local IR
+provenance. Uncompiled expressions remain blocked instead of being reparsed.
+Inspection budgets count tree nodes/attributes or IR nodes/pipeline stages;
+truncation produces an explicit blocker.
+
+Both APIs always retain `body_analysis_required`. An empty candidate inventory is
+not dependency closure. Base and resolver policy, computed calls, unknown
+vocabularies, CSS/presentation values, srcset, embedded documents and runtime loads
+still require analysis. Integration with native template preflight, retained CSS
+resolution and immutable project snapshots remains follow-up work. These APIs do
+not authorize source-map edits or widen worker/Studio edit admission.
+
+CEM review: reference semantics and source ownership remain native. This step adds
+no UI behavior, component styling, theme definitions or JavaScript document parser.
+
+### Native preflight body inventory and explicit resolution context
+
+`cem_ql::template_dependency_inspection::inspect_preflighted_bodies` consumes the
+native template preflight result and its immutable imported bytes. It checks the
+root URI/hash and every imported hash, rejecting stale bytes, absent/failed
+preflight, unsupported source encoding and an exceeded body limit before returning
+any body inventory. It does not reacquire imports, render templates or run queries.
+Hashes establish byte correspondence; callers still own policy and revision guards.
+The public preflight record is not a sealed authorization grant.
+
+Each body is compiled independently under the supplied native compile options so
+its expression inventory retains its own URI and hash. The bounded walk visits
+attribute expressions/interpolation, body expressions, conditions, all choice
+branches, loops, variables and payload selections. Expressions retain embedding
+and query source maps. The per-body limit bounds traversal and each expression's
+IR inspection separately; it is not a compilation memory or wall-time limit.
+Skipped function bodies and compilation diagnostics remain explicit blockers.
+This is body inspection, not linked-module execution validation.
+
+`inspect_query_module_resolutions` resolves direct literal `module:module_url`
+candidates through the execution capability with an explicit current context,
+the CEM-QL purpose and the optional authored string referrer. It retains native
+resolution results and policy errors. It does not substitute a template URI or
+synthetic source URI for the execution context. Computed referrers, unsupported
+pipeline steps, invalid arity and content reads cause no resolution call. Successful
+resolution authorizes neither acquisition nor mutation; analysis blockers remain.
+
+Authored CEM template source is not a rendered HTML/SVG document. The external-data
+importer does not supply a CEM-template retained document, so this integration does
+not route template bytes through that importer. Connecting output/document reference
+ownership, stylesheet contexts, module-map contexts and runtime loads remains open.
+Both the aggregate and its expression inventories retain body-analysis requirements;
+worker and Studio edit admission is unchanged.
+
+CEM review: analysis remains native and does not add app-local document parsing,
+component behavior, CSS defaults or alternate theme ownership.
+
+### Document and template stylesheet dependency ownership
+
+`cem_ml::document_stylesheet_dependencies::inspect_document_stylesheets` combines
+retained document reference inspection with native CSS import and URL resolution.
+It inventories HTML/SVG `<style>` text and unqualified `style` attributes, preserving
+the document owner, source-node identity and host source map. The CSS resource plan
+retains its own imported tree and local source coordinates. Decoded document values
+flow directly into the shared CSS importer; no HTML serialization, JavaScript
+parser or string search for `url()` participates.
+
+The host supplies the effective final document URL and execution resolution
+capability. Relative CSS URLs use that explicit document URL; bare resource keys
+use native module-map policy. Synthetic source URIs identify CSS coordinates only.
+Native resolution errors and policy stamps remain attached to each candidate.
+Imports are recorded with their native conditions without loading their targets.
+Unknown style content types, structural/non-text style content and hard CSS import
+diagnostics produce occurrence errors.
+
+The complete bounded document inventory precedes every CSS resolution call. An
+incomplete scan, import diagnostics or unresolved HTML/XML base ownership blocks
+resolution, including when a `<base>` follows a style element. The API does not
+infer browser base-element behavior or resolve XML base chains. CSS import/parser
+limits remain separate from the document traversal budget. The resulting inventory
+still requires import/runtime closure and retains the document's body-analysis flag.
+
+Preflight body inventories now retain compiled stylesheet owners and authored module
+maps. `TemplateBodyInventory::resolve_stylesheet_resources` uses the exact retained
+sheet and the body's final preflight URI with the host's explicit execution
+capability. The host must include the effective module maps in that capability;
+retaining an authored map does not install it. Compilation errors and unknown
+stylesheet indices reject analysis. Template source bytes are never treated as a
+rendered document or reparsed to recover CSS.
+
+These are context-specific inspection results, not live loader leases or mutation
+proofs. Hosts must revalidate policy/revisions before use. Connecting generated
+output references to source edit slots, resolving document base chains, SVG
+presentation CSS, srcset and runtime loads remain open. Studio/worker edit admission
+is unchanged. CEM review: native source ownership and resolver policy remain shared;
+this step introduces no component behavior, CSS defaults or theme definitions.
+
+### XML base chains and native source correspondence
+
+`cem_ml::document_reference_provenance::inspect_xml_reference_provenance` imports
+exact XML bytes at the final acquired document URL. Direct reference candidates
+reuse `RetainedCemTree::node_base_uri`, including inherited and absolute `xml:base`
+values computed by native import. Results retain the original document owner,
+attribute identity, effective base, source URI and opaque native source key.
+Decoded attribute values are joined using the native URL implementation. This is
+URL candidate resolution; resource policy and acquisition remain separate.
+
+A complete bounded document inspection precedes resolution. Truncation, hard
+import diagnostics and HTML `<base>` declarations prevent candidate results.
+Malformed imported bases produce per-reference errors without fallback to the
+acquisition URL. This explicit XML path does not emulate HTML browser base rules.
+
+`bind_reference_source` correlates a retained attribute with an imported reference
+slot only when native source key, source URI, expanded name and decoded value agree.
+Missing, changed or ambiguous provenance rejects binding. The original source owner
+is rechecked against its inventory. Returned indices identify native source slots;
+they are not lexical replacement offsets. They do not establish exclusive ownership
+of shared occurrences, a current project revision or a mutation authorization.
+Generated output without preserved provenance cannot be edited through this API.
+
+`inspect_xml_document_stylesheets` likewise imports XML bytes at the final document
+URL and resolves inline CSS against each owner's imported base. The general retained
+document stylesheet API remains conservative about unresolved XML bases, because
+it does not own the original acquisition context. Both paths reject HTML base
+semantics and preserve CSS policy results without fetching imports.
+
+Safe lexical rewriting, generated-output mutation ownership, HTML base behavior
+and full runtime dependency closure remain open. All body-analysis requirements and
+Studio/worker admission guards remain in place. CEM review: native import owns base
+semantics and source identity; no app-local parser, UI behavior or theme changes.
+
+### Native XML reference value edit candidates
+
+`cem_ml::import::xml_reference_edit::plan_xml_reference_edit` plans one original
+XML reference occurrence selected by its native source key. Exact input bytes are
+imported at the acquired document URL; stale keys, ambiguous selection, incomplete
+inventories, unresolved neighboring targets and HTML base semantics reject the plan.
+The new target must be an absolute URL. It is a candidate under outstanding host
+resource policy, not a permission to acquire that URL.
+
+Lexical ownership stays in the native import layer. The planner uses the retained
+XML parser's attribute-value range and import-owned attribute correspondence,
+checks the original lexical bytes against the retained semantic value, and replaces
+only the quoted value's contents. Both quote characters and XML delimiters are
+escaped; surrounding bytes and the enclosing quote style remain unchanged.
+A target already resolving to the requested URL is an exact byte-preserving no-op.
+
+The candidate is reimported at the same document URL. Reference count, native
+attribute identities and inherited bases must remain stable; the selected target
+must equal the requested URL and all other reference targets must remain unchanged.
+Plans carry before/after content hashes and the original source key.
+
+`plan_bound_xml_reference_edit` first binds a retained output/reference attribute
+to that original source slot using the existing native correspondence check.
+Missing or changed provenance fails. This does not establish that one generated
+occurrence exclusively owns a shared source attribute. Plans retain explicit
+runtime-closure, generated-occurrence ownership and host policy/revision/transaction
+blockers. No file is written, no resource is fetched and Studio/worker edit admission
+is unchanged. CSS references and other computed or embedded values are outside this
+single direct-attribute editing contract.
+
+CEM review: XML lexical work remains at native import; no application parser,
+component behavior, styling or theme-token ownership changes were introduced.
+
+### Shared XML occurrences and prepared transaction evidence
+
+`cem_ml::xml_reference_transaction::prepare_xml_edit_transaction` binds a native
+XML edit candidate to an explicit source snapshot, supplied output set and policy
+identity. `Occurrence` scope admits exactly one matching output/attribute; if the
+source attribute appears elsewhere in that set, it requires an explicit
+`SourceWide` request. Source-wide plans list every affected supplied occurrence.
+Zero matches, duplicate output IDs, absent revisions, unknown attribute provenance,
+changed source correspondence and opaque reference nodes reject preparation.
+The traversal budget covers the source and all supplied output nodes/attributes.
+
+The prepared object has private state and retains immutable native output owners,
+original source bytes for undo, candidate bytes and affected-occurrence evidence.
+`validate_current` checks the source URI/revision/exact bytes, policy stamp and the
+entire output membership, revisions and native owner identities. Reordering the
+output list is harmless; adding/removing an output or replacing its native owner
+invalidates the evidence even when the caller reuses a revision string.
+
+This API proves correspondence within a host-supplied snapshot, not completeness
+of all project outputs. The host must provide the complete relevant output set and
+perform validation inside its atomic commit boundary. Policy stamps are host-owned
+identities, not new grants. Prepared evidence continues to block on runtime
+closure, output-membership completeness and the host transaction. It performs no
+repository write and adds no worker/Studio edit admission. Generated attributes
+without original native provenance require a separate derivation contract.
+
+CEM review: occurrence ownership, value inspection and edit planning remain native;
+no serialized document handoff, application parser, UI behavior or theme definition
+was introduced.
+
+### Bounded native HTML base resolution
+
+`cem_ml::html_base::resolve_html_base_snapshot` resolves a fresh HTML base freeze
+over a retained CEM document. The host supplies an explicit UTF-8 execution profile,
+fallback context and policy identity. Ordinary documents supply their final URL;
+`srcdoc` supplies its about-base URL; `about:blank` supplies its document URL and
+optional about-base URL. Source-map/import URIs never supply execution bases.
+
+The first HTML-namespace `base` with an unqualified `href` in document-tree order
+selects the slot, including empty values. Its decoded value resolves against the
+explicit fallback. Invalid URLs, `data:`/`javascript:` schemes and host policy denial
+use that fallback; a later base cannot replace the selected slot. Target-only bases
+do not select a URL base. XML `xml:base` chains are ignored in this HTML profile.
+These rules follow the [HTML base-element contract](https://html.spec.whatwg.org/multipage/semantics.html#the-base-element)
+and [document fallback rules](https://html.spec.whatwg.org/multipage/urls-and-fetching.html#document-base-urls).
+
+Policy is a host callback, called once for a parseable, scheme-eligible candidate
+after complete inspection. The request includes candidate/fallback URLs, selected
+native slot and policy stamp. Hosts own CSP `base-uri` and other execution-policy
+decisions. Unavailable policy returns an error; it cannot become an implicit allow.
+The result retains the document owner, fallback context, policy identity, outcome,
+effective URL and selected element/attribute, decoded value, source map, source URI
+and optional native source key. Absent source provenance remains absent.
+
+Node/attribute/diagnostic and URL-byte limits reject incomplete work. Hard import
+diagnostics, opaque references, unevaluated attribute value nodes, unsupported encodings and ambiguous template
+children also reject resolution before policy. The current retained representation
+does not distinguish template content fragments from ordinary children. A host must
+supply document topology with inert template contents excluded; a populated
+`template` in the supplied snapshot fails rather than guessing that distinction.
+
+This API consumes retained semantics; it adds no general `text/html` importer or
+HTML tree-repair implementation. The shared parity corpus uses well-formed XML
+imports as DOM-equivalent native snapshots and serves the original fixture markup
+as UTF-8 `text/html` in Chromium. Its inert-template case explicitly supplies the
+document-only native snapshot. The named JSON fixture/evidence boundary transports
+test inputs and scalar results, never a parsed document AST. The CLI's Nx
+`test:browser` gate compares native output directly with `document.baseURI`, including
+CSP denial and real `srcdoc`/`about:blank` browsing contexts.
+
+Chromium 148.0.7778.96 matches 22 of the 24 cases. Two explicitly version-pinned
+differences remain: a first invalid href produces `about:blank` in Chromium instead
+of the document fallback, and an empty href preserves the fallback's fragment
+instead of removing it. Native resolution keeps the standard algorithm. The gate
+asserts each exact browser value and version, reports those cases as divergences,
+and requires review when either changes. These remain differences from the standard.
+The explicit compatibility profile below can confirm their observed execution URL
+as base evidence; general dependency completeness and edit admission remain blocked.
+
+For a previously frozen live base, the host must preserve fallback and policy from
+the actual freeze point. Supplying today's location after history or other runtime
+changes does not reconstruct that history. Base resolution also does not prove
+which resources were loaded earlier. All results retain `body_analysis_required`;
+reference/CSS integration, runtime closure and atomic host admission remain open.
+Existing XML and general stylesheet guards still reject HTML base declarations.
+
+CEM review: semantics and source ownership stay native, with explicit host policy
+and bounded work. No app-local document interpreter, UI interaction, accessibility
+behavior, CSS default or theme-token ownership changed. Theme/forced-color checks
+are inapplicable to this native-only API; physical AT acceptance remains separate.
+
+### Captured HTML base evidence and browser compatibility
+
+`cem_ml::html_base_evidence::prepare_html_base_freeze` captures an immutable native
+resolution, its original fallback context, policy stamp and actual host policy
+decision. Preparation accepts a retained execution snapshot, explicit compatibility
+profile and a host-owned document lifetime ID, revision and nonzero base epoch.
+`HrefFreeze` requires a selected href slot; `FallbackSnapshot` requires its absence.
+The latter captures the current fallback without claiming that it is frozen.
+The policy callback runs only when native resolution requires it, at most once;
+its error prevents preparation. All existing UTF-8, topology and inspection limits
+continue to apply, including rejection of unevaluated attribute values.
+
+Preparation alone is not confirmed execution evidence. `PreparedHtmlBaseFreeze::confirm`
+requires a scalar browser observation for the same document/revision/epoch, selected
+native attribute and freeze policy. Browser identity and the exact serialized base
+URL are checked. Private `CapturedHtmlBaseEvidence` retains both the standard native
+result and the confirmed execution URL, the compatibility classification, source
+owner/provenance, policy decision and observation. Confirmation never rewrites the
+standard algorithm or accepts an arbitrary observed URL as an override.
+
+Callers must explicitly select one of these profiles:
+
+| Profile | Confirmation rule |
+| --- | --- |
+| `StandardAgreement` | Observed URL must exactly equal the native standard result; browser engine/version must be supplied and are retained. |
+| `Chromium148` | Requires engine `chromium` and exact version `148.0.7778.96`. For ordinary HTTP(S) documents, an invalid first href expects `about:blank`; an exactly empty href that would discard a fragment expects the original fallback instead. Other cases require the standard result. |
+
+The Chromium exceptions are limited to their native outcome and input predicates.
+They do not generalize to other versions, whitespace-only hrefs, embedded-document
+fallbacks or arbitrary URL mismatches. Unsupported versions and unexpected browser
+values fail confirmation. The original 24-case corpus still reports 22 standard
+matches and two standard divergences, while all 24 must match the explicitly chosen
+Chromium profile. Actual browser observations are returned to native confirmation;
+the gate does not simply compare two hardcoded expected strings.
+
+The transition corpus also pins an unsupported Chromium behavior: after a CSP-denied
+base is removed, a subsequent history change can leave the browser's base URL at
+the old fallback despite having no base element. The native fallback snapshot uses
+the current document URL, so confirmation rejects that observation and returns no
+captured evidence. This stateful discrepancy is not included in the two bounded
+compatibility exceptions. Browser updates must trigger fixture review, not silently
+turn this mismatch into an execution base.
+
+The execution host must capture fallback and policy at each real base freeze—when
+a base becomes first or its href is set, including a same-value assignment. A URL
+history change or later CSP change cannot replace those captured inputs. The
+Chromium transition fixture records the old frozen URL after a history change,
+re-resolution after resetting the same href, retained freeze policy after adding
+CSP, denial at the next href assignment, selection of the next base after removal,
+and current fallback after removing all bases. These tests use the
+[HTML freeze triggers](https://html.spec.whatwg.org/multipage/semantics.html#the-base-element)
+and [document base rules](https://html.spec.whatwg.org/multipage/urls-and-fetching.html#document-base-urls).
+
+`CapturedHtmlBaseEvidence::validate_current` checks exact native owner identity,
+document/revision/epoch, selected slot, browser identity, observed URL and current
+policy stamp. It never reevaluates policy or substitutes today's document URL.
+Changed read sets invalidate consumption even when the base URL string stayed the
+same. Original freeze evidence remains available for inspection. The host must
+advance revisions for relevant execution-context changes and epochs for new freezes
+or fallback captures, and discard evidence if it missed events. Document IDs must
+identify document lifetimes, not reusable URLs; a history A-B-A sequence or a new
+document at the same URL must not reuse an old read set.
+
+This API validates trusted host inputs; it does not authenticate an arbitrary
+browser report or discover unobserved events. The historical transition driver is
+a fixture. The bounded exclusive execution-host adapter below adds live native/DOM
+correspondence and controlled event ownership; reference/CSS integration remains
+separate. Test JSON is an explicit scalar
+control boundary; source bytes enter native import, and no document AST is exported
+to JavaScript. Runtime-load closure and the atomic host transaction remain blockers;
+no resource is fetched and no Studio/worker edit admission is added.
+
+CEM review: compatibility is explicit and bounded, semantic/source ownership remains
+native, and both standard and browser results stay inspectable. No UI behavior,
+theme token or inherited style changed. Physical AT acceptance remains independent.
+
+### Exclusive HTML base execution host
+
+`cem_ml::html_base_host::HtmlBaseExecutionHost` owns session identity, monotonic
+revision/epoch counters, retained native source ownership, DOM slot identities and
+pending/confirmed evidence. The shared `@epa-wg/cem-ml-cli/browser` export
+`createBrowserHtmlBaseHost` connects that session through WASM to an exclusively
+controlled browser document. This is browser execution infrastructure, with no
+Studio-local parser, UI behavior or component styling.
+
+The first profile accepts ordinary UTF-8 `text/html` HTTP(S) documents, explicit
+browser identity/compatibility, and a retained native **execution snapshot** handle.
+The snapshot must already describe the materialized document topology. The adapter
+does not parse arbitrary HTML, derive native nodes from DOM, or export a JSON AST.
+Native code asks synchronous predicates against its existing nodes; JavaScript
+compares live DOM kind, expanded name, decoded value, parent/order and child/attribute
+counts, retaining only DOM references and stable identities. Full bounded traversal
+must succeed before the execution policy callback runs. Both preparation and reads
+reject missing/extra/replaced slots, even in the body and even when base URLs agree.
+
+Document topology excludes template-content and shadow fragments. Native templates
+must therefore have no document children. The standard `html` doctype with empty
+public/system identifiers and the root's exact inert HTML `xmlns` attribute are the
+only DOM metadata omissions admitted by this initial correspondence profile, matching
+native semantic import. Other parser repairs, namespace/attribute-order differences,
+unsupported node kinds or ambiguous template ownership fail rather than being
+silently reconstructed. Inert subtree dependencies remain outside this evidence.
+
+`capture(nativeDocumentHandle, policy)` first checks correspondence and prepares the
+native resolution using the current document URL and host-owned policy stamp/decision.
+It then sets the selected href attribute to its current value, causing an actual new
+freeze, and confirms the observed browser URL. With no selected base it captures a
+fallback snapshot. This explicitly mutating operation must be used only where the
+execution host owns base changes; attaching to an existing document does not certify
+its previous frozen history. No policy is rerun by `read()`. The adapter revalidates
+all native/DOM identities after the freeze and on each read, retaining the established
+standard-versus-browser distinction and rejecting unsupported observations.
+The packaged Chromium fixture also measures retention of the old allowed base after
+adding a denying CSP and assigning the same href at the same fallback URL. Native
+preparation expects the new policy to deny that freeze, so confirmation rejects and
+revokes the session. This discrepancy does not expand the compatibility profile or
+cause a hidden temporary href rewrite to force browser agreement.
+
+The owner must route **every** history, policy and document change through the
+synchronous `changeContext(() => { ... })` boundary. It invalidates before invoking
+the callback, including changes restored to their original values. Supply the new
+native execution snapshot at the next capture. Exceptions, asynchronous callbacks,
+policy mutation/reentry, document replacement, page hiding and unexpected DOM
+mutations revoke the session. Pending mutation records are checked synchronously
+before consumption as well as at observer delivery; a DOM A-B-A sequence cannot
+revive evidence. Disposal removes observation and releases the native owner.
+The explicit scope follows the [DOM mutation observer contract](https://dom.spec.whatwg.org/#interface-mutationobserver)
+and [HTML base freeze triggers](https://html.spec.whatwg.org/multipage/semantics.html#the-base-element).
+
+Exclusive context ownership is a trusted host contract, not a sandbox or a claim
+that MutationObserver observes history APIs. Uncoordinated same-task history A-B-A,
+unreported policy changes, arbitrary scripts and other writers are outside this
+profile. A changed live document URL is detected, but that check cannot reconstruct
+missing historical transitions. Do not use this adapter to certify arbitrary live
+pages. Embedded `srcdoc`/`about:blank` hosts and a general native HTML execution
+snapshot producer still need their own integration. Existing observation-completeness,
+runtime-load closure and atomic-transaction blockers remain; no Studio edit admission
+or resource fetch is enabled by a confirmed URL alone.
+
+CEM review: document interpretation and source identity stay native; shared browser
+services own DOM access and bounded lifecycle control. No UI, accessibility, token,
+inherited style or forced-color behavior changes; physical AT acceptance remains open.
+
+### HTML execution reference and stylesheet inventories
+
+`HtmlBaseExecutionHost::inspect_dependencies` now consumes a current captured base,
+the actual native CSS resolution capability, an inspection budget and live DOM slot
+predicates. It validates the host read set before inspecting the retained document
+and again after resolution. The resulting private `HtmlExecutionInventory` retains
+the exact captured base, document tree, CSS trees, reference/source identities and
+resolver authority. `validate_dependencies` is required before later consumption;
+an equal base URL, newly imported equal source, another host or equal resolver labels
+cannot restore a stale inventory.
+
+Direct HTML/SVG candidates from the existing document inventory resolve against the
+**confirmed execution URL**. The standard base result remains inspectable through
+`base()`, including any explicit Chromium compatibility difference. Neither the
+document's source URI nor XML bases carried by the imported snapshot replace the
+HTML execution base. Native decoded reference values pass directly to the URL
+parser, preserving non-ASCII whitespace. Base declarations supply context and are
+excluded from the resulting resource/navigation candidate list. Source URI, native
+source key, owner/attribute IDs and original source frames remain attached.
+
+Inline style elements and attributes reuse native CSS import and the execution
+resolution capability, with the confirmed URL as their explicit referrer. Module-map
+selection, blocked mappings, resolver errors and resource-policy stamps are retained
+without fallback. CSS-local source coordinates remain owned by the retained CSS tree;
+the occurrence also retains its document owner and host source frames. The general
+stylesheet API and XML-specific API keep their existing rejection of HTML base
+declarations. Only the host-validated HTML path can consume a captured base.
+
+The complete document scan must fit the budget before any CSS resolution begins.
+Resolver fingerprints must cover all resolution inputs and be nonempty; capabilities
+without that guarantee cannot produce a retained inventory. The inventory binds both
+the fingerprint and the exact native resolver owner/context, and checks them again
+before returning or validating results. A changed DOM or resolver during analysis
+prevents publication. Resolver replacement or policy drift later invalidates
+consumption even if all resulting URL strings happen to agree.
+
+These inventories remain bounded candidate analysis. The direct-slot collector's
+existing coverage omits empty, fragment-only and data URI values and does not prove
+every element-specific loading/navigation rule. Its raw document diagnostics remain
+available; the consolidated `blockers()` discharges only the captured base requirement,
+retaining resource policy, general-reference coverage, embedded/runtime content,
+CSS imports, execution history and transaction requirements. Per-reference parse
+errors and per-stylesheet import/resolution failures also remain explicit.
+
+A current candidate plan does not establish which resources were previously loaded,
+when CSSOM stylesheets captured their bases, or how fragment references are consumed
+by a particular CSS property. Those remain execution/closure work; the
+[CSS URL processing rules](https://drafts.csswg.org/css-values-4/#relative-urls)
+distinguish relative and fragment URL handling. The shared Chromium fixture compares
+native image/navigation candidates and inline style URLs with actual DOM properties
+and computed styles after validating the live document through the packaged host.
+Its cross-process JSON contains only named scalar test evidence, never a document AST.
+Production native callers must provide their execution capability and revalidate the
+inventory; fixture URL observations are not a browser/worker edit-admission protocol.
+
+CEM review: source semantics, CSS parsing and resolution remain native; shared host
+services own observation and invalidation. No application-local parser, UI behavior,
+theme token, inherited-style or accessibility contract changed. Physical AT remains
+independent and configured-project edit admission stays guarded.
+
+### Native template and HTML dependency preparation
+
+`cem_ql::html_template_dependencies::prepare_html_template_dependencies` combines
+an existing host-validated HTML inventory with native template preflight and retained
+compiled expression/CSS inventories. Construction runs the native preflight path with
+an `Arc<EngineContext>` and `Arc<TemplateInput>`; caller-edited preflight reports cannot
+construct the private preparation. Imported bodies retain their acquired bytes, final
+URIs, hashes and native policy provenance. The root and engine owners remain retained.
+Analysis does not render templates, evaluate expressions, execute content reads or
+reacquire imports when validating the preparation.
+
+The host supplies a native resolution capability for every final body URI, including
+the root. Missing, extra or uncacheable contexts fail closed; duplicate body URIs with
+conflicting content also fail. Capability selection is an explicit trusted execution
+host input. It does not prove effective template module-map installation or historical
+render context, and those requirements stay visible. Document candidates retain their
+confirmed HTML base; template stylesheets use each body's final URI; expression
+`module_url` calls use the supplied capability's execution context and explicit authored
+referrer, when present. Source coordinates never substitute for these bases.
+
+Expression reports retain their native compiled queries in addition to host source
+frames and resource-use locations. Literal module calls resolve through the native
+execution capability, retaining denied mappings and policy errors. Computed arguments,
+pipeline calls, content reads and other unknown calls remain blockers. XPath findings
+from native preflight remain attached and contribute their unresolved requirements.
+The preparation retains distinct template and document owners; their coexistence is
+not evidence that this template produced this particular document.
+
+Every body must pass compilation and bounded traversal before expression/CSS resolution.
+Per-body budgets cover template traversal, each compiled expression inspection and the
+body's retained stylesheet trees. Native preflight uses its import-depth bound and
+engine operation controls; the body-count limit applies after preflight and is not an
+acquisition-count limit. Snapshot-only hosts must supply an immutable snapshot resolver.
+Fingerprints are captured before preflight callbacks, checked before body resolution
+and checked again with the live HTML host before publication. Later consumption requires
+`validate`, which checks exact root/engine/capability owners, complete context membership,
+resolver fingerprints and the current document inventory. Equal source bytes or labels
+cannot replace a retained authority. Validation performs no resource reads.
+
+This API is native candidate preparation, with immutable inspection access and no edit
+or browser/worker admission grant. It preserves document coverage/policy, stylesheet
+execution history, template output correspondence, loader freshness, runtime closure
+and atomic host transaction blockers. An engine owner and source hash establish the
+retained configuration and bytes, not the freshness of a mutable resolver's backing
+store. Execution records and a complete dependency read set must establish those facts
+before map rewriting or configuration relocation can consume edit evidence.
+
+CEM review: parsing, expression semantics, source ownership and policy stay in shared
+native libraries. No application UI behavior, theme token, inherited style, accessibility
+or forced-color contract changes. Physical AT acceptance remains independently open.

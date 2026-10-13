@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 
 import { chromium } from 'playwright';
 import { build } from 'vite';
+import { verifyHtmlBaseParity, emitNativeHtmlBaseEvidence } from './verify-html-base.mjs';
+import { verifyHtmlBaseFreezeEvidence } from './verify-html-base-evidence.mjs';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workspaceRoot = resolve(projectRoot, '../..');
@@ -41,6 +43,16 @@ try {
 
     server = createServer((request, response) => {
         const pathname = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
+        if (pathname === '/a/html-base-host.html') {
+            response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+            response.end(`<!doctype html>${readFileSync(resolve(workspaceRoot, 'packages/cem_ml/tests/fixtures/html-base-host.xhtml'), 'utf8').trim()}`);
+            return;
+        }
+        if (pathname === '/docs/html-execution-inventory.html') {
+            response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+            response.end(`<!doctype html>${readFileSync(resolve(workspaceRoot, 'packages/cem_ml/tests/fixtures/html-execution-inventory.xhtml'), 'utf8').trim()}`);
+            return;
+        }
         if (pathname === '/') {
             response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
             response.end('<!doctype html><script type="module" src="/entry.js"></script>');
@@ -277,6 +289,13 @@ try {
         callbacks: 0,
     });
 
+    const htmlBase = await verifyHtmlBaseParity(browser, workspaceRoot);
+    const htmlBaseFreeze = await verifyHtmlBaseFreezeEvidence(browser, workspaceRoot);
+    const htmlBaseHost = await page.evaluate((version) => globalThis.runHtmlBaseHostFixture(version), browser.version());
+    assert.equal(htmlBaseHost.cases.length, 18);
+    const htmlExecutionInventory = await emitNativeHtmlBaseEvidence(workspaceRoot, '--verify-execution-inventory', [htmlBaseHost.inventoryObservation]);
+    assert.equal(htmlExecutionInventory[0].body_analysis_required, true);
+    console.log(`Verified ${htmlBaseHost.cases.length} packaged native HTML base host cases.`);
     const parityReport = resolve(workspaceRoot, 'dist/reports/cem-ml-platform-parity.browser.json');
     mkdirSync(dirname(parityReport), { recursive: true });
     writeFileSync(
@@ -290,6 +309,10 @@ try {
                 successProgress: command.progress,
                 operations: allOperations.summaries,
                 cancellation,
+                htmlBase,
+                htmlBaseFreeze,
+                htmlBaseHost,
+                htmlExecutionInventory,
             },
             null,
             2,

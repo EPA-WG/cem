@@ -5,18 +5,20 @@
     {slice @name=selectionRequest}
     {slice @name=pending | false}
     {body |
+        {cem-stack |
         {cem:variable @name=state @select=datadom.slices.state}
-        {cem:variable @name=busy
-            @select='datadom.slices.pending || (state.status == "saving") || (state.status == "validating") || (state.status == "projecting") || (state.command.application.status == "applying") || (state.command.application.status == "running")'}
-        {cem-select @data-cem-studio-workbench-select="" @disabled={if busy { true } else { null }} @host-command=select-workbench
-            @host-command-event=change @name=operation-workbench @value={state.workbenchId} |
-            {span @slot=label | Workbench}
-            {cem:for-each @as=workbench @select=state.workbenches |
-                {option @value={workbench.id} |
-                    {$ | str:concat((workbench.name, " — ", workbench.operation), "")}
-        }   }   }
-        {cem-card @label="Feature Tour editor" |
-            {span @slot=title | Feature Tour operation workbenches}
+        {cem:variable @name=working
+            @select='(state.status == "saving") || (state.status == "validating") || (state.status == "projecting") || (state.command.application.status == "applying") || (state.command.application.status == "running")'}
+        {cem:variable @name=busy @select='datadom.slices.pending || working'}
+        {cem:if @test='state.status == "empty"' | {cem-alert @label="This project has no resources selected. Choose a page or resource."}}
+        {cem:if @test='state.status == "read-only"' |
+            {cem-alert @label="This resource is read-only. Download its original bytes to use it elsewhere."}
+            {cem-action @host-command=download-source @disabled={if state.resourceAvailable { null } else { true }} | Download resource}
+        }
+        {cem:if @test=state.editable |
+        {cem:if @test='!state.runnable' | {cem-alert @label="No executable command is stored for this page. Parse or inspect the resource to prepare a command."}}
+        {cem-card @label="Resource editor" |
+            {span @slot=title | Project workbench}
             {div @data-cem-studio-workbench-content="" |
                 {div @aria-atomic=true @aria-live=polite @role=status |
                     {cem-badge @data-cem-studio-workbench-status="" @label={if state.status == "loading" { "Loading resource" } else { if state.status == "loaded" { "Persisted revision loaded" } else { if state.status == "dirty" { "Unsaved changes" } else { if state.status == "saving" { "Saving revision" } else { if state.status == "saved" { "Revision saved" } else { if state.status == "validating" { "Validating saved revision" } else { if state.status == "projecting" { "Projecting saved revision" } else { if state.status == "projected" { "Saved revision projected" } else { if state.status == "projection-invalid" { "Projection has diagnostics" } else { if state.status == "projection-stale" { "Projection result stale" } else { if state.status == "valid" { "Saved revision valid" } else { if state.status == "invalid" { "Saved revision has diagnostics" } else { if state.status == "stale" { "Validation result stale" } else { if state.status == "conflict" { "Revision conflict" } else { if state.status == "failed" { "Workbench failed" } else { state.status } } } } } } } } } } } } } } }} @tone={if (state.status == "valid") || (state.status == "saved") || (state.status == "loaded") || (state.status == "projected") { "success" } else { if (state.status == "invalid") || (state.status == "failed") || (state.status == "conflict") || (state.status == "projection-invalid") { "danger" } else { if (state.status == "dirty") || (state.status == "stale") || (state.status == "projection-stale") { "warning" } else { "info" } } }}}
@@ -36,7 +38,7 @@
                 {cem-alert @data-cem-studio-workbench-alert="" @label={if state.error { str:concat((state.error.code, ": ", state.error.message), "") } else { if state.validation.stale { "This result belongs to an older draft or durable revision." } else { if state.validation { str:concat((seq:count(state.validation.diagnostics.code), " diagnostics; ", state.validation.hardViolationCount, " hard violations."), "") } else { str:concat((state.path, "; ", state.contentType), "") } } }} @tone={if state.error || (state.status == "invalid") || (state.status == "conflict") { "danger" } else { "info" }}}
         }   }
         {section @aria-label="CEM-ML projections" |
-            {cem-action @data-cem-studio-operation-run="" @disabled={if busy { true } else { null }} @host-command=run
+            {cem-action @data-cem-studio-operation-run="" @disabled={if busy || !state.runnable { true } else { null }} @host-command=run
                 @host-command-event=click @loading={if state.status == "projecting" { true } else { null }} @variant=primary | Run configured workbench}
             {form @host-command=parse @host-command-event=submit |
                 {cem-select @data-cem-studio-parse-projection="" @name=mode @value=ast |
@@ -59,6 +61,7 @@
                 }
                 {cem-action @data-cem-studio-inspect="" @disabled={if busy { true } else { null }} @loading={if state.status == "projecting" { true } else { null }} @type=submit
                     @variant=alternate | Inspect persisted revision}
-}   }   }   }
+}   }   }
+}   }   }
   </template>
 </cem-element>

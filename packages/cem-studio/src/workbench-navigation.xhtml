@@ -1,0 +1,196 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-studio-workbench-navigation">
+  <template id="cem-studio-workbench-navigation" type="text/cem-ml">
+{module |
+    {slice @name=state}
+    {slice @name=selectionRequest}
+    {slice @name=pending | false}
+    {template @name=entity |
+        {param @name=item}
+        {body | {cem-tree-item @value={item.key} @label={item.name} |
+            {cem:for-each @as=child @select=item.children | {call @template=entity @with:item={child}}}
+        }}
+    }
+    {body |
+        {cem-stack |
+        {cem:variable @name=state @select=datadom.slices.state}
+        {cem:variable @name=working
+            @select='(state.status == "saving") || (state.status == "validating") || (state.status == "projecting") || (state.command.application.status == "applying") || (state.command.application.status == "running")'}
+        {cem:variable @name=busy @select='datadom.slices.pending || working'}
+        {cem:if @test=state.home |
+            {cem-card @label="Studio Home" |
+                {span @slot=title | Home}
+                {cem-alert @label={state.home.storage ?? "Storage information unavailable"}}
+                {cem:if @test=state.home.error | {cem-alert @tone=danger @label={state.home.error.message}}}
+                {cem:if @test=state.home.message | {cem-alert @tone=success @label={state.home.message}}}
+                {cem:if @test='seq:count(state.home.projects.id) == 0' | {cem-alert @label="No projects yet. Create a project or import an archive."}}
+                {form @host-command=home-open @host-command-event=submit |
+                    {cem-select @name=project |
+                        {span @slot=label | Projects}
+                        {cem:for-each @as=project @select=state.home.projects | {option @value={project.id} | {$ | project.name}}}
+                    }
+                    {cem-action @type=submit @variant=primary @disabled={if busy || (seq:count(state.home.projects.id) == 0) { true } else { null }} | Open project}
+                }
+                {form @host-command=home-trash @host-command-event=submit |
+                    {cem-select @name=project | {span @slot=label | Move project to Trash}
+                        {cem:for-each @as=project @select=state.home.projects | {option @value={project.id} | {$ | project.name}}}
+                    }
+                    {cem-action @type=submit @variant=destructive @disabled={if busy || (seq:count(state.home.projects.id) == 0) { true } else { null }} | Move to Trash}
+                }
+                {cem:if @test='seq:count(state.home.trash.id) > 0' |
+                    {form @host-command=home-restore @host-command-event=submit |
+                        {cem-select @name=project | {span @slot=label | Projects in Trash}
+                            {cem:for-each @as=project @select=state.home.trash | {option @value={project.id} | {$ | project.name}}}
+                        }
+                        {cem-action @type=submit @disabled={if busy { true } else { null }} | Restore project}
+                    }
+                }
+                {form @host-command=home-create @host-command-event=submit |
+                    {cem-text-field @name=name @label="Project name" @required=true @maxlength=120}
+                    {cem-action @type=submit @disabled={if busy { true } else { null }} | Create CEM-ML project}
+                }
+                {cem-action @host-command=home-import @disabled={if busy { true } else { null }} | Import project archive}
+            }
+        }
+        {cem-select @data-cem-studio-workbench-select="" @disabled={if working { true } else { null }} @host-command=select-workbench
+            @host-command-event=change @name=operation-workbench @value={state.workbenchId}
+            @value-request={if state.sessionStatus { str:concat((state.sessionStatus, state.transition.id ?? "", state.workbenchId), "|") } else { null }} |
+            {span @slot=label | Workbench}
+            {cem:for-each @as=workbench @select=state.workbenches |
+                {option @value={workbench.id} |
+                    {$ | str:concat((workbench.name, " — ", workbench.operation), "")}
+        }   }   }
+        {cem:if @test=state.draftRecovery |
+            {cem-alert @tone={if state.draftRecovery.blocked { "danger" } else { "info" }} @label={state.draftRecovery.message}}
+            {cem:if @test=state.draftRecovery.available |
+                {cem-action @host-command=recovery-download @disabled={if busy { true } else { null }} | Download draft recovery backup}
+            }
+            {cem:if @test=state.draftRecovery.blocked |
+                {cem-action @host-command=recovery-clear @variant=destructive @disabled={if busy { true } else { null }} | Clear stored recovery and keep current editor drafts}
+            }
+        }
+        {cem:if @test=state.navigationError | {cem-alert @tone=danger @label={state.navigationError.message}}}
+        {cem:if @test=state.sessionStatus |
+            {cem-action @host-command=refresh-navigation @disabled={if busy { true } else { null }} @variant=contextual | Refresh projects}
+        }
+        {cem:if @test=state.structure |
+            {cem-card @label="Project structure" |
+                {span @slot=title | Project structure}
+                {cem-alert @label="Copied pages share resource references. Resource copies create independent files. Save or reset drafts before editing structure."}
+                {cem:if @test=state.structure.message | {cem-alert @tone=success @label={state.structure.message}}}
+                {cem:if @test=state.structure.error | {cem-alert @tone=danger @label={state.structure.error.message}}}
+                {form @host-command=structure-edit @host-command-event=submit |
+                    {input @type=hidden @name=kind @value=rename-project}
+                    {cem-text-field @name=name @label="Project display name" @value={state.structure.name} @required=true @maxlength=120}
+                    {cem-action @type=submit @disabled={if busy || state.structure.busy { true } else { null }} | Rename project}
+                }
+                {form @host-command=structure-edit @host-command-event=submit |
+                    {input @type=hidden @name=kind @value=create-subproject}
+                    {cem-text-field @name=name @label="New subproject name" @required=true @maxlength=120}
+                    {cem-select @name=parent | {span @slot=label | New subproject parent}
+                        {option @value="" | Project root}
+                        {cem:for-each @as=entry @select=state.structure.parents | {option @value={entry.id} | {$ | entry.name}}}
+                    }
+                    {cem-action @type=submit @disabled={if busy || state.structure.busy { true } else { null }} | Create subproject}
+                }
+                {cem:if @test='seq:count(state.structure.entries.id) > 0' |
+                    {form @host-command=structure-edit @host-command-event=submit |
+                        {cem-select @name=id | {span @slot=label | Page to edit}
+                            {cem:for-each @as=entry @select=state.structure.entries | {option @value={entry.id} | {$ | entry.name}}}
+                        }
+                        {cem-select @name=kind | {span @slot=label | Page edit}
+                            {option @value=rename-entry | Rename page}
+                            {option @value=copy-entry | Copy page and descendants}
+                            {option @value=move-entry | Move page}
+                            {option @value=reorder-entry | Reorder among siblings}
+                        }
+                        {cem-text-field @name=name @label="Page name for rename or copy" @maxlength=120}
+                        {cem-select @name=parent | {span @slot=label | Move destination}
+                            {option @value="" | Project root}
+                            {cem:for-each @as=entry @select=state.structure.parents | {option @value={entry.id} | {$ | entry.name}}}
+                        }
+                        {cem-select @name=direction | {span @slot=label | Reorder direction}
+                            {option @value=up | Up}{option @value=down | Down}
+                        }
+                        {cem-action @type=submit @disabled={if busy || state.structure.busy { true } else { null }} | Edit page}
+                    }
+                }
+                {cem-alert @label="Rename and delete support data, parse/inspect and bounded opaque graph projects. Referenced deletion and unsupported dependency formats are blocked. Set a new path for create, copy or rename; Undo uses bounded session history."}
+                {form @host-command=structure-edit @host-command-event=submit |
+                    {cem-select @name=kind | {span @slot=label | Resource edit}
+                        {option @value=create-resource | Create CEM-ML resource}
+                        {option @value=copy-resource | Copy resource}
+                        {option @value=rename-resource | Rename path and rebind commands}
+                    }
+                    {cem-select @name=id | {span @slot=label | Resource to edit}
+                        {cem:for-each @as=resource @select=state.structure.resources | {option @value={resource.id} | {$ | resource.path}}}
+                    }
+                    {cem-text-field @name=path @label="New resource path"}
+                    {cem-textarea @name=content @label="Initial CEM-ML source"}
+                    {cem-action @type=submit @disabled={if busy || state.structure.busy { true } else { null }} | Apply resource edit}
+                    {cem-action @type=submit @name=action @value=delete-resource @variant=destructive @disabled={if busy || state.structure.busy { true } else { null }} | Delete unreferenced resource}
+                }
+                {cem-action @host-command=structure-undo @disabled={if busy || state.structure.busy || !state.structure.canUndo { true } else { null }} | Undo structure edit}
+                {cem-action @host-command=structure-redo @disabled={if busy || state.structure.busy || !state.structure.canRedo { true } else { null }} | Redo structure edit}
+            }
+        }
+        {cem:if @test=state.explorer |
+            {cem-card @label="Project explorer" |
+                {span @slot=title | Explorer}
+                {cem:if @test='seq:count(state.explorer.nodes.key) > 0' |
+                    {cem-tree @label="Projects and resources" @selection=single @selected-values={state.explorer.selected}
+                        @host-command=open-entity @host-command-event=cem-tree-activate |
+                        {cem:for-each @as=item @select=state.explorer.nodes | {call @template=entity @with:item={item}}}
+                    }
+                }
+                {form @host-command=search-projects @host-command-event=submit |
+                    {cem-text-field @name=query @label="Search projects" @maxlength=500}
+                    {cem-action @type=submit @disabled={if busy { true } else { null }} | Search}
+                }
+                {cem:if @test='state.explorer.search.status == "searching"' | {cem-alert @label="Searching projects…"}}
+                {cem:if @test=state.explorer.search.error | {cem-alert @tone=danger @label={state.explorer.search.error.message}}}
+                {cem:if @test='state.explorer.search.status == "ready"' |
+                    {cem:choose |
+                        {cem:when @test='seq:count(state.explorer.search.results.key) == 0' | {cem-alert @label="No matching projects, pages or resources."}}
+                        {cem:otherwise |
+                            {form @host-command=open-search @host-command-event=submit |
+                                {cem-select @name=result @required=true |
+                                    {span @slot=label | Search results (up to 50)}
+                                    {cem:for-each @as=result @select=state.explorer.search.results |
+                                        {option @value={result.key} | {$ | str:concat((result.title, result.kind, result.path), " — ")}}
+                                    }
+                                }
+                                {cem-action @type=submit @variant=primary @disabled={if busy { true } else { null }} | Open result}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        {cem:if @test=state.transition |
+            {cem-dialog @label="Resolve drafts before navigation" @mode=modal @default-open=true
+                @closedby=closerequest @host-command=navigation-cancel @host-command-event=cem-close |
+                {p | {$ | if state.transition.stage == "source" { "Save or discard the source draft before leaving." } else { if state.transition.stage == "command" { "Apply or discard the command draft before leaving." } else { if state.transition.stage == "confirmation" { "Applying this command replaces the selected page. Confirm replacement or keep the draft." } else { "Opening the requested workbench…" } } } }}
+                {cem:if @test=state.transition.error | {cem-alert @tone=danger @label={state.transition.error.message}}}
+                {cem-stack |
+                    {cem:if @test='state.transition.stage == "source"' |
+                        {cem-action @host-command=navigation-save @variant=primary @disabled={if busy { true } else { null }} | Save source}
+                    }
+                    {cem:if @test='state.transition.stage == "command"' |
+                        {cem-action @host-command=navigation-apply @variant=primary @disabled={if busy { true } else { null }} | Apply command}
+                    }
+                    {cem:if @test='state.transition.stage == "confirmation"' |
+                        {cem-action @host-command=navigation-confirm @variant=destructive @disabled={if busy { true } else { null }} | Replace page}
+                    }
+                    {cem:if @test='(state.transition.stage == "source") || (state.transition.stage == "command") || (state.transition.stage == "confirmation")' |
+                        {cem-action @host-command=navigation-discard @variant=destructive @disabled={if busy { true } else { null }} | Discard draft}
+                    }
+                    {cem:if @test='state.transition.error &amp;&amp; (state.transition.stage == "opening")' |
+                        {cem-action @host-command=navigation-retry @variant=primary | Retry navigation}
+                    }
+                    {cem-action @host-command=navigation-cancel @variant=contextual | Cancel navigation}
+                }
+            }
+        }
+}   }   }
+  </template>
+</cem-element>

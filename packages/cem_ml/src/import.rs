@@ -18,6 +18,7 @@ use crate::{
 use std::sync::Arc;
 
 pub mod documents;
+pub mod xml_reference_edit;
 mod css;
 mod expression_sources;
 mod xml_attribute_expressions;

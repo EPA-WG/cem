@@ -550,3 +550,16 @@ function assertAriaReferenceIntegrity(root: ParentNode): void {
 }
 
 const treeContractFixture = "<section class=\"cem-theme-light\" data-tree-contract-fixture aria-label=\"Tree contract fixture\">\n<button type=\"button\" data-tree-focus-start>Before tree</button>\n\n<cem-tree\n    id=\"project-tree\"\n    label=\"Project files\"\n    selection=\"single\"\n    selected-values=\"readme web\"\n    expanded-values=\"apps source async\"\n    loading-label=\"Loading children\"\n>\n    <cem-tree-item value=\"apps\" label=\"Applications\">\n        <cem-tree-item value=\"web\" label=\"Web application\"></cem-tree-item>\n        <cem-tree-item value=\"api\" label=\"API service\" disabled></cem-tree-item>\n    </cem-tree-item>\n    <cem-tree-item value=\"source\" label=\"Source\">\n        <cem-tree-item value=\"components\" label=\"Components\">\n            <cem-tree-item value=\"button\" label=\"Button\"></cem-tree-item>\n        </cem-tree-item>\n        <cem-tree-item value=\"async\" label=\"Async resources\" expandable loading></cem-tree-item>\n    </cem-tree-item>\n    <cem-tree-item value=\"readme\" label=\"README\"></cem-tree-item>\n    <cem-tree-item value=\"archived\" label=\"Archived\" disabled>\n        <cem-tree-item value=\"old\" label=\"Old release\"></cem-tree-item>\n    </cem-tree-item>\n</cem-tree>\n\n<cem-tree\n    id=\"multi-tree\"\n    label=\"Multiple selection\"\n    selection=\"multiple\"\n    selected-values=\"alpha gamma\"\n    expanded-values=\"alpha\"\n>\n    <cem-tree-item value=\"alpha\" label=\"Alpha\">\n        <cem-tree-item value=\"beta\" label=\"Beta\"></cem-tree-item>\n    </cem-tree-item>\n    <cem-tree-item value=\"gamma\" label=\"Gamma\"></cem-tree-item>\n</cem-tree>\n\n<cem-tree id=\"plain-tree\" label=\"Unselectable hierarchy\">\n    <cem-tree-item value=\"plain\" label=\"Plain item\"></cem-tree-item>\n</cem-tree>\n\n<cem-tree id=\"disabled-tree\" label=\"Disabled hierarchy\" disabled expanded-values=\"locked\">\n    <cem-tree-item value=\"locked\" label=\"Locked branch\">\n        <cem-tree-item value=\"locked-child\" label=\"Locked child\"></cem-tree-item>\n    </cem-tree-item>\n</cem-tree>\n\n<cem-tree id=\"malformed-tree\" label=\"Malformed hierarchy\">\n    <cem-tree-item value=\"duplicate\" label=\"First\">\n        <cem-tree-item value=\"duplicate\" label=\"Duplicate\"></cem-tree-item>\n    </cem-tree-item>\n</cem-tree>\n\n<button type=\"button\" data-tree-focus-end>After tree</button>\n</section>\n";
+
+export const ProjectScale = meta.story({
+    render: () => `<cem-tree label="Project scale" selection="single"><cem-tree-item value="project" label="Project">${Array.from({ length: 128 }, (_, index) => `<cem-tree-item value="resource-${index}" label="Resource ${index}"></cem-tree-item>`).join('')}</cem-tree-item></cem-tree>`,
+    play: async ({ canvasElement }) => {
+        const host = requiredElement<HTMLElement>(canvasElement, 'cem-tree');
+        await whenCemRendered(host);
+        expect(host.querySelectorAll('[role="treeitem"]')).toHaveLength(129);
+        const parent = requiredElement<HTMLButtonElement>(host, '[data-tree-value="project"]');
+        parent.click();
+        await waitFor(() => parent.getAttribute('aria-expanded') === 'true');
+        expect(host.querySelectorAll('[role="treeitem"]')).toHaveLength(129);
+    },
+});

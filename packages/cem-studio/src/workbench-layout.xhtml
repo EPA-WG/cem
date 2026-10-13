@@ -1,10 +1,21 @@
 <cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-studio-workbench-layout">
   <template id="cem-studio-workbench-layout" type="text/cem-ml">
-{section @aria-label="Feature Tour workbench" @data-cem-studio-workbench="" |
- {div @data-cem-studio-workbench-controls-mount=""}
- {div @data-cem-studio-workbench-command-mount=""}
- {div @data-cem-studio-workbench-results-mount=""}
+{module |
+ {slice @name=pane | source}
+ {body |
+{section @aria-label="Project workbench" @data-cem-studio-workbench="" |
+ {div @data-cem-studio-workbench-navigation-mount="" | {cem-studio-workbench-navigation}}
+ {cem-tabs @label="Workbench panes" @selected-index={if datadom.slices.pane == "results" { 1 } else { 0 }}
+    @host-command=select-pane @host-command-event=cem-tab |
+  {cem-tab @value=source @label="Source and command" |
+   {div @data-cem-studio-workbench-controls-mount="" | {cem-studio-workbench-controls}}
+   {div @data-cem-studio-workbench-command-mount="" | {cem-studio-workbench-command}}
+  }
+  {cem-tab @value=results @label=Results |
+   {div @data-cem-studio-workbench-results-mount="" | {cem-studio-workbench-results}}
+  }
+ }
 }
-
+}}
   </template>
 </cem-element>

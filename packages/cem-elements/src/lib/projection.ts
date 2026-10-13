@@ -396,7 +396,7 @@ export type EdgeContentKind = 'template-artifact' | 'render-plan' | 'rendered-ht
 
 export interface EdgeContentAddress {
     kind: EdgeContentKind;
-    algorithm: 'stable-json-fnv1a64-v1';
+    algorithm: 'stable-json-fnv1a64-v1' | 'stable-json-fnv1a64-binary-v2';
     digest: string;
     key: string;
 }
@@ -688,8 +688,9 @@ export function renderPlansHaveDomChanges(previous: RenderPlan | null, next: Ren
 
 export function edgeContentAddress(kind: EdgeContentKind, value: unknown): EdgeContentAddress {
     assertProcessingBoundaryValue(value, `${kind} content`);
-    const digest = stableJsonDigest(value);
-    const algorithm = 'stable-json-fnv1a64-v1';
+    const binaries = new Map<ArrayBuffer, string>();
+    const digest = stableJsonDigest(value, binaries);
+    const algorithm = binaries.size ? 'stable-json-fnv1a64-binary-v2' : 'stable-json-fnv1a64-v1';
     return {
         kind,
         algorithm,
@@ -3598,8 +3599,8 @@ function stableTextHash(text: string): string {
     return hash.toString(16);
 }
 
-function stableJsonDigest(value: unknown): string {
-    const canonical = stableJsonStringify(value);
+function stableJsonDigest(value: unknown, binaries = new Map<ArrayBuffer, string>()): string {
+    const canonical = stableJsonStringify(value, binaries);
     let hash = 0xcbf29ce484222325n;
     const prime = 0x100000001b3n;
     const mask = 0xffffffffffffffffn;
@@ -3615,24 +3616,31 @@ function cloneStableJsonValue(value: unknown): unknown {
     return structuredClone(value);
 }
 
-function stableJsonStringify(value: unknown): string {
+function stableJsonStringify(value: unknown, binaries: Map<ArrayBuffer, string>): string {
     if (value instanceof ArrayBuffer) {
-        let hex = '';
-        for (const byte of new Uint8Array(value)) hex += byte.toString(16).padStart(2, '0');
-        return `{"$cemBinary":"${hex}"}`;
+        let digest = binaries.get(value);
+        if (digest === undefined) {
+            // Native attributes share an immutable artifact. Hash actual bytes once
+            // per call; never trust supplied contentHash metadata or cache across mutations.
+            let hash = 0xcbf29ce484222325n;
+            for (const byte of new Uint8Array(value)) hash = ((hash ^ BigInt(byte)) * 0x100000001b3n) & 0xffffffffffffffffn;
+            digest = hash.toString(16).padStart(16, '0');
+            binaries.set(value, digest);
+        }
+        return `{"$cemBinaryDigest":{"bytes":${value.byteLength},"fnv1a64":"${digest}"}}`;
     }
     if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
         return JSON.stringify(value);
     }
     if (Array.isArray(value)) {
-        return `[${value.map((item) => stableJsonStringify(item === undefined ? null : item)).join(',')}]`;
+        return `[${value.map((item) => stableJsonStringify(item === undefined ? null : item, binaries)).join(',')}]`;
     }
     if (value && typeof value === 'object') {
         const record = value as Record<string, unknown>;
         const entries = Object.keys(record)
             .filter((key) => record[key] !== undefined)
             .sort()
-            .map((key) => `${JSON.stringify(key)}:${stableJsonStringify(record[key])}`);
+            .map((key) => `${JSON.stringify(key)}:${stableJsonStringify(record[key], binaries)}`);
         return `{${entries.join(',')}}`;
     }
     throw new TypeError(`Edge render-state content is not JSON-serializable: ${String(value)}`);

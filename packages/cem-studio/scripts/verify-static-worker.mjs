@@ -8,12 +8,14 @@ import { chromium } from 'playwright';
 const projectRoot = resolve(import.meta.dirname, '..');
 const workspaceRoot = resolve(projectRoot, '../..');
 const outputRoot = resolve(projectRoot, 'dist/static');
+const lifecycleOnly = process.argv.includes('--lifecycle-only');
 const shellOnly = process.argv.includes('--shell-only');
-const reportPath = resolve(workspaceRoot, `dist/reports/cem-studio/${shellOnly ? 'shell-delivery' : 'static-worker'}.json`);
+const reportPath = resolve(workspaceRoot, `dist/reports/cem-studio/${lifecycleOnly ? 'workspace-delivery' : shellOnly ? 'shell-delivery' : 'static-worker'}.json`);
 const server = await startStaticServer(outputRoot);
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ serviceWorkers: 'allow' });
 const page = await context.newPage();
+page.setDefaultTimeout(30_000);
 const browserErrors = [];
 const httpFailures = [];
 const serviceWorkerErrors = [];
@@ -78,6 +80,7 @@ try {
     assert.equal(shell.controlsOnly, true);
     assert.equal(shell.componentsInstalled, true);
     assert.equal(shell.fileSystemControlsInstalled, true);
+    assert.equal(shell.explorerStyled, true);
     assert.equal(shell.themesStyled, true, JSON.stringify({ themeStyles: shell.themeStyles, styleDiagnostics: shell.styleDiagnostics, styles: shell.styles, browserErrors, httpFailures }));
     assert.equal(shell.workbenchStyled, true, JSON.stringify(shell.workbenchStyles));
     assert.equal(shell.workbenchOverrides, true, JSON.stringify(shell.overrideStyles));
@@ -89,8 +92,43 @@ try {
     assert.deepEqual(shell.errors, []);
     assert.ok(['unbound', 'unsupported'].includes(shell.fileSystemState));
     console.log('[cem-studio:static-worker] shell verified');
+    const retainedEditor = await page.locator('[data-cem-studio-editor] textarea').elementHandle();
+    const retainedCommand = await page.locator('[data-cem-studio-command-editor] textarea').elementHandle();
+    for (const width of [390, 1280]) {
+        await page.setViewportSize({ width, height: 900 });
+        await retainedEditor.evaluate(element => { element.focus(); element.setSelectionRange(1, 4); });
+        await page.getByRole('tab', { name: 'Results', exact: true }).click();
+        await page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
+        assert.equal(await retainedEditor.evaluate(element => element.isConnected && element.closest('[role="tabpanel"]').hidden), true);
+        await page.getByRole('tab', { name: 'Source and command', exact: true }).click();
+        await page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
+        assert.deepEqual(await retainedEditor.evaluate(element => [element === document.querySelector('[data-cem-studio-editor] textarea'), element.selectionStart, element.selectionEnd]), [true, 1, 4]);
+        assert.equal(await retainedCommand.evaluate(element => element === document.querySelector('[data-cem-studio-command-editor] textarea')), true);
+    }
+    await retainedEditor.dispose(); await retainedCommand.dispose();
+    if (!shellOnly && !lifecycleOnly) {
+        await page.getByRole('textbox', { name: 'Project name', exact: true }).fill('Deployed starter');
+        await page.getByRole('button', { name: 'Create CEM-ML project', exact: true }).click();
+        await page.waitForFunction(() => globalThis.__cemStudioApplication.workbench.snapshot().home.projects.some(project => project.name === 'Deployed starter'));
+        const starter = await page.evaluate(async () => {
+            const app = globalThis.__cemStudioApplication;
+            const choice = app.workbench.snapshot().home.projects.find(project => project.name === 'Deployed starter');
+            const projectId = JSON.parse(choice.id).projectId;
+            const response = await app.repository.query({ protocolVersion: 1, repository: 'studio-projects', operation: 'export-project', requestRevision: 1, parameters: { projectId } });
+            return { id: projectId, resources: response.value.project.resources.length, entries: response.value.project.entries.length };
+        });
+        assert.ok(starter.id.startsWith('project-'));
+        assert.equal(starter.resources, 1);
+        assert.equal(starter.entries, 0);
+    }
 
-    if (shellOnly) {
+    if (lifecycleOnly) {
+        const lifecycle = await exerciseProjectLifecycle(page, context);
+        assert.deepEqual(browserErrors, []); assert.deepEqual(httpFailures, []);
+        await mkdir(dirname(reportPath), { recursive: true });
+        await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, source: 'graph-emitted-static-output', browser: { engine: 'chromium', version: browser.version(), platform: process.platform }, shell, lifecycle }, null, 2)}\n`, 'utf8');
+        console.log('Verified deployed two-project lifecycle and automated accessibility acceptance.');
+    } else if (shellOnly) {
         const hardening = await inspectHardening(page, initialResponse);
         assert.equal(hardening.shellForcedColors, true);
         assert.equal(hardening.cspDefaultDeny, true);
@@ -181,7 +219,7 @@ try {
     assert.ok(portableOperations.results.every(({ stale }) => !stale));
     assert.ok(portableOperations.results.every(({ copiedExact, downloadedExact }) => copiedExact && downloadedExact));
     assert.ok(portableOperations.results.every(({ traceRows, traceCount, graphRows, graphCount }) =>
-        traceRows === Math.min(100, traceCount) && graphRows === Math.min(100, graphCount)));
+        traceRows === Math.min(100, traceCount) && graphRows === Math.min(100, graphCount)), JSON.stringify(portableOperations.results));
     assert.ok(portableOperations.results.find(({ mode }) => mode === 'graph').graphCount > 0);
     assert.ok(portableOperations.results.find(({ kind }) => kind === 'trace').traceCount > 0);
     assert.equal(portableOperations.componentsOnly, true);
@@ -249,6 +287,13 @@ try {
     assert.equal(online.runtime, 'wasm-browser-worker');
     assert.equal(online.executorTopology, 'browser-worker-pool');
 
+    const recoveredSelection = { projectId: 'offline-project', resourceId: 'source' };
+    await page.evaluate(async selection => {
+        const app = globalThis.__cemStudioApplication;
+        await app.session.select(selection);
+        if (app.session.snapshot().transition) throw new Error('Recovery fixture navigation was not admitted');
+        await app.workbenchView.whenSettled();
+    }, recoveredSelection);
     await context.setOffline(true);
     await page.goto(`${server.url}/projects/offline-project`, { waitUntil: 'load' });
     await waitForApplication(page, browserErrors, httpFailures);
@@ -257,6 +302,16 @@ try {
     const recovered = await exportOfflineProject(page);
     assert.equal(recovered.content, '{main | Offline project bytes}\n');
     assert.equal(recovered.projectId, 'offline-project');
+    assert.deepEqual(await page.evaluate(() => globalThis.__cemStudioApplication.session.snapshot().selection), recoveredSelection);
+    assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().persistedText), '{main | Offline project bytes}\n');
+    assert.deepEqual(await page.evaluate(() => {
+        const status = globalThis.__cemStudioApplication.shell.fileSystem.status();
+        return { projectId: status.projectId, resourceId: status.resourceId };
+    }), recoveredSelection);
+    await page.evaluate(async selection => {
+        const app = globalThis.__cemStudioApplication;
+        await app.session.select(selection); await app.workbenchView.whenSettled();
+    }, updateBarrier.selection);
     const recoveredWorkbench = await recoverWorkbenchOffline(page, updateBarrier.persistedContent);
     assert.equal(recoveredWorkbench.status, 'invalid');
     assert.equal(recoveredWorkbench.projectRevision, updateBarrier.projectRevisionAfter);
@@ -339,6 +394,331 @@ try {
     await server.close();
 }
 
+async function exerciseProjectLifecycle(page, context) {
+    const settle = () => page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
+    const snapshot = () => page.evaluate(() => {
+        const state = globalThis.__cemStudioApplication.workbench.snapshot();
+        return { projectId: state.projectId, entryId: state.entryId, resourceId: state.resourceId, draft: state.draft, persistedText: state.persistedText,
+            navigationError: state.navigationError, projection: state.projection && { stale: state.projection.stale },
+            command: state.command && { application: { status: state.command.application.status, result: state.command.application.result && { entry: state.command.application.result.entry } } } };
+    });
+    const choose = async (selector, name) => {
+        const host = page.locator(selector);
+        await host.getByRole('combobox').click();
+        await host.getByRole('option', { name, exact: true }).click();
+        await settle();
+    };
+    const click = async name => { console.log(`[cem-studio:lifecycle] ${name}`); await page.getByRole('button', { name, exact: true }).click(); await settle(); };
+    const source = page.getByRole('textbox', { name: 'CEM source', exact: true });
+    const names = ['Acceptance Alpha', 'Acceptance Beta'];
+    await context.setOffline(false);
+    await page.getByRole('textbox', { name: 'Project name', exact: true }).fill(names[0]);
+    await click('Create CEM-ML project');
+    const alpha = await page.evaluate(async name => {
+        const app = globalThis.__cemStudioApplication;
+        const id = JSON.parse(app.workbench.snapshot().home.projects.find(project => project.name === name).id).projectId;
+        return (await app.repository.query({ protocolVersion: 1, repository: 'studio-projects', operation: 'export-project', requestRevision: 1, parameters: { projectId: id } })).value;
+    }, names[0]);
+    const betaId = 'acceptance-beta';
+    const archive = await page.evaluate(async ({ alpha, betaId, name }) => {
+        const app = globalThis.__cemStudioApplication;
+        const bundle = (await app.repository.query({ protocolVersion: 1, repository: 'studio-projects', operation: 'export-project', requestRevision: 1, parameters: { projectId: alpha } })).value;
+        bundle.project = { ...bundle.project, id: betaId, name, rootUri: `studio://${betaId}/` };
+        const { serializeCemStudioProjectBundle } = await import('@epa-wg/cem-studio/file-system-provider');
+        return Array.from(serializeCemStudioProjectBundle(bundle));
+    }, { alpha: alpha.project.id, betaId, name: names[1] });
+    const chooser = page.waitForEvent('filechooser');
+    await page.getByRole('button', { name: 'Import project archive', exact: true }).click();
+    await (await chooser).setFiles({ name: 'acceptance.cem-studio.json', mimeType: 'application/vnd.cem.studio-project-bundle+json', buffer: Buffer.from(archive) });
+    await page.waitForFunction(name => globalThis.__cemStudioApplication.workbench.snapshot().home.projects.some(project => project.name === name), names[1]);
+    await settle();
+    const resource = alpha.project.resources[0];
+    const openResource = name => choose('[data-cem-studio-workbench-select]', `${name} / ${resource.path} —`);
+    await choose('form[host-command="home-open"] cem-select', names[0]); await click('Open project');
+    assert.equal((await snapshot()).projectId, alpha.project.id);
+    await openResource(names[0]);
+    const texts = ['{article | {h1 | Alpha saved} {p | Café α}}\n', '{article | {h1 | Beta saved offline} {p | Café β}}\n'];
+    const entries = [];
+    const createPage = async (name, text) => {
+        await source.fill(text); await settle(); await click('Save and validate');
+        assert.equal((await snapshot()).persistedText, text);
+        await click('Parse persisted revision');
+        if (name === 'Alpha inspection') {
+            const revision = await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().projectRevision);
+            await page.getByRole('combobox', { name: 'Operation option', exact: true }).click();
+            await page.getByRole('option', { name: 'format', exact: true }).click(); await settle();
+            assert.equal(await page.locator('form[host-command="edit-field"]').count(), 1);
+            await page.getByRole('combobox', { name: 'format', exact: true }).click();
+            await page.getByRole('option', { name: 'events', exact: true }).click();
+            await click('Set format');
+            assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().command.parsed.options.format), 'events');
+            await click('Reset format');
+            assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().command.parsed.options.format), 'ast');
+            await page.getByRole('combobox', { name: 'Operation option', exact: true }).click();
+            await page.getByRole('option', { name: 'preserve-source-offsets', exact: true }).click(); await settle();
+            await page.getByRole('combobox', { name: 'preserve-source-offsets', exact: true }).click();
+            await page.getByRole('option', { name: 'True', exact: true }).click();
+            await click('Set preserve-source-offsets');
+            assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().command.parsed.options.preserve_source_offsets), true);
+            assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().projectRevision), revision);
+            await inspectWorkspaceAccessibility(page, context);
+            await page.getByRole('tab', { name: 'Studio command', exact: true }).click(); await settle();
+        }
+        await choose('[data-cem-studio-command-target-mode]', 'New page (recommended when incompatible)');
+        await page.getByRole('textbox', { name: 'New page name', exact: true }).fill(name);
+        await settle(); await click('Apply');
+        const state = await snapshot();
+        assert.equal(state.command.application.status, 'applied');
+        return state.command.application.result.entry.id;
+    };
+    entries.push(await createPage('Alpha inspection', texts[0]));
+    // Open the command-created page through the public search form.
+    await page.getByRole('textbox', { name: 'Search projects', exact: true }).fill('Alpha inspection');
+    await click('Search'); await click('Open result');
+    assert.equal((await snapshot()).entryId, entries[0]);
+    await click('Run configured workbench');
+    assert.equal((await snapshot()).projection.stale, false);
+    const editor = await source.elementHandle();
+    await source.fill(`${texts[0]}unsaved`); await settle();
+    await source.evaluate(element => element.setSelectionRange(2, 7));
+    await openResource(names[1]);
+    const dialog = page.getByRole('dialog', { name: 'Resolve drafts before navigation', exact: true });
+    await dialog.waitFor({ state: 'visible' });
+    for (let index = 0; index < 8; index += 1) {
+        await page.keyboard.press('Tab');
+        const focus = await dialog.evaluate(element => ({ contained: element.contains(document.activeElement), modal: element.matches(':modal'), documentFocused: document.hasFocus(), browserChrome: document.activeElement === document.body }));
+        assert.equal(focus.modal && (focus.contained || (!focus.documentFocused && focus.browserChrome)), true, `modal admitted background focus at Tab ${index}: ${JSON.stringify(focus)}`);
+    }
+    assert.equal(await source.evaluate(element => { element.focus(); return document.activeElement === element; }), false, 'modal background must be inert');
+    await page.keyboard.press('Escape'); await settle();
+    assert.equal(await dialog.count(), 0);
+    assert.equal(await editor.evaluate(element => element === document.querySelector('[data-cem-studio-editor] textarea')), true);
+    assert.deepEqual(await editor.evaluate(element => [element.selectionStart, element.selectionEnd]), [2, 7]);
+    assert.equal((await snapshot()).draft, `${texts[0]}unsaved`);
+    assert.equal(await page.locator('[data-cem-studio-workbench-select] [role="combobox"]').evaluate(element => document.activeElement === element), true);
+    await openResource(names[1]); await click('Discard draft');
+    assert.equal((await snapshot()).projectId, betaId);
+    await context.setOffline(true);
+    entries.push(await createPage('Beta inspection', texts[1]));
+    // Browser downloads and file-picker import exercise the real archive boundary.
+    const downloadEvent = page.waitForEvent('download');
+    await click('Export project backup');
+    const download = await downloadEvent;
+    const backup = await readFile(await download.path());
+    const exported = await page.evaluate(async ({ bytes, resourceId }) => {
+        const { parseCemStudioProjectBundle } = await import('@epa-wg/cem-studio/file-system-provider');
+        const bundle = parseCemStudioProjectBundle(new Uint8Array(bytes));
+        return { id: bundle.project.id, entries: bundle.project.entries.map(entry => entry.id), text: new TextDecoder().decode(bundle.contents[resourceId]) };
+    }, { bytes: Array.from(backup), resourceId: resource.id });
+    assert.equal(exported.id, betaId); assert.ok(exported.entries.includes(entries[1])); assert.equal(exported.text, texts[1]);
+    await choose('form[host-command="home-trash"] cem-select', names[1]); await click('Move to Trash');
+    assert.equal((await snapshot()).navigationError.code, 'cem.studio.selection.unavailable');
+    await choose('form[host-command="home-restore"] cem-select', names[1]); await click('Restore project');
+    await click('Reload persisted revision');
+    assert.equal((await snapshot()).persistedText, texts[1]);
+    await page.reload({ waitUntil: 'load' }); await waitForApplication(page, browserErrors, httpFailures); await settle();
+    assert.equal((await snapshot()).projectId, betaId); assert.equal((await snapshot()).persistedText, texts[1]);
+    await page.getByRole('textbox', { name: 'Search projects', exact: true }).fill('Beta inspection');
+    await click('Search'); await click('Open result'); await click('Run configured workbench');
+    assert.equal((await snapshot()).entryId, entries[1]); assert.equal((await snapshot()).projection.stale, false);
+    const accessibility = await inspectWorkspaceAccessibility(page, context);
+    await openResource(names[0]); assert.equal((await snapshot()).persistedText, texts[0]);
+    const recoveryText = '{article | Recovery 🙂 remains a draft}\n';
+    await source.fill(recoveryText); await settle();
+    const recoveryDownload = page.waitForEvent('download');
+    await click('Download draft recovery backup');
+    const recoveryFile = await recoveryDownload;
+    assert.equal(JSON.parse(await readFile(await recoveryFile.path(), 'utf8')).draft, recoveryText);
+    await page.reload({ waitUntil: 'load' }); await waitForApplication(page, browserErrors, httpFailures); await settle();
+    assert.equal((await snapshot()).draft, recoveryText);
+    assert.equal((await snapshot()).persistedText, texts[0]);
+    assert.equal(await source.inputValue(), recoveryText);
+    assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.session.snapshot().draftRecovery.status), 'recovered');
+    // Corrupt only the explicit local recovery boundary; persisted data is untouched.
+    await page.evaluate(() => {
+        const key = Object.keys(localStorage).find(key => key.includes(':draft-v1:') && localStorage.getItem(key)?.includes('Recovery 🙂'));
+        const record = JSON.parse(localStorage.getItem(key));
+        record.persistedText = 'outdated baseline';
+        localStorage.setItem(key, JSON.stringify(record));
+    });
+    await page.reload({ waitUntil: 'load' }); await waitForApplication(page, browserErrors, httpFailures); await settle();
+    assert.equal((await snapshot()).draft, texts[0]);
+    assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.session.snapshot().draftRecovery.status), 'conflict');
+    await click('Clear stored recovery and keep current editor drafts');
+    assert.equal((await snapshot()).draft, texts[0]);
+    assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.session.draftBackup()), '');
+    const structure = () => page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().structure);
+    const pick = async (label, option) => {
+        await page.getByRole('combobox', { name: label, exact: true }).click();
+        await page.getByRole('option', { name: option, exact: true }).click();
+        await settle();
+    };
+    await page.getByRole('textbox', { name: 'Project display name', exact: true }).fill('Acceptance Alpha edited');
+    await click('Rename project');
+    assert.equal((await structure()).name, 'Acceptance Alpha edited');
+    await page.getByRole('textbox', { name: 'New subproject name', exact: true }).fill('Acceptance section');
+    await click('Create subproject');
+    assert.ok((await structure()).entries.some(entry => entry.name === 'Acceptance section'));
+    await pick('Page to edit', 'Acceptance section');
+    await pick('Page edit', 'Reorder among siblings');
+    await click('Edit page');
+    assert.equal((await structure()).entries[0].name, 'Acceptance section');
+    await click('Undo structure edit');
+    assert.equal((await structure()).entries[0].name, 'Alpha inspection');
+    await click('Redo structure edit');
+    assert.equal((await structure()).entries[0].name, 'Acceptance section');
+    await page.getByRole('textbox', { name: 'New resource path', exact: true }).fill('../escaping.cem');
+    await click('Apply resource edit');
+    assert.ok((await structure()).error);
+    await page.getByRole('textbox', { name: 'New resource path', exact: true }).fill('data/structure-source.cem');
+    await page.getByRole('textbox', { name: 'Initial CEM-ML source', exact: true }).fill('{p | Created offline}');
+    await click('Apply resource edit');
+    assert.ok((await structure()).resources.some(resource => resource.path === 'data/structure-source.cem'));
+    await click('Undo structure edit');
+    assert.ok(!(await structure()).resources.some(resource => resource.path === 'data/structure-source.cem'));
+    await click('Redo structure edit');
+    assert.ok((await structure()).resources.some(resource => resource.path === 'data/structure-source.cem'));
+    assert.equal((await snapshot()).persistedText, texts[0]);
+    const activeResource = (await snapshot()).resourceId;
+    const oldPath = (await structure()).resources.find(item => item.id === activeResource).path;
+    await pick('Resource edit', 'Rename path and rebind commands');
+    await pick('Resource to edit', oldPath);
+    await page.getByRole('textbox', { name: 'New resource path', exact: true }).fill('data/renamed-active.cem');
+    await click('Apply resource edit');
+    assert.equal((await structure()).error, undefined);
+    assert.equal((await structure()).resources.find(item => item.id === activeResource).path, 'data/renamed-active.cem');
+    assert.equal((await snapshot()).persistedText, texts[0]);
+    await click('Delete unreferenced resource');
+    assert.match((await structure()).error.message, /referenced/);
+    await pick('Resource to edit', 'data/structure-source.cem');
+    await click('Delete unreferenced resource');
+    assert.equal((await structure()).error, undefined);
+    assert.ok(!(await structure()).resources.some(item => item.path === 'data/structure-source.cem'));
+    await click('Undo structure edit');
+    assert.ok((await structure()).resources.some(item => item.path === 'data/structure-source.cem'));
+    await page.getByRole('textbox', { name: 'Search projects', exact: true }).fill('Alpha inspection');
+    await click('Search'); await click('Open result'); await click('Run configured workbench');
+    assert.equal((await snapshot()).projection.stale, false);
+    assert.equal((await snapshot()).entryId, entries[0]);
+    await page.reload({ waitUntil: 'load' }); await waitForApplication(page, browserErrors, httpFailures); await settle();
+    assert.equal((await structure()).resources.find(item => item.id === activeResource).path, 'data/renamed-active.cem');
+    assert.equal((await structure()).entries[0].name, 'Acceptance section');
+    assert.equal((await structure()).canUndo, false);
+    const nativeRebinding = await page.evaluate(async template => {
+        const { repository, validator } = globalThis.__cemStudioApplication;
+        const { parseCemMlCommandText, parseCemMlCommandResource, serializeCemMlCommandResource, CEM_ML_CLI_COMMAND_CONTENT_TYPE, CEM_ML_CLI_COMMAND_SCHEMA } = await import('@epa-wg/cem-ml-cli/browser');
+        const root = 'studio://acceptance-rebinding/';
+        const encoder = new TextEncoder(), decoder = new TextDecoder();
+        const graph = '// café native graph\n{run | {import @src="../assets/old.svg" @opaque=true @content-type=image/svg+xml | {export @out="../output/result.svg"}}}\n';
+        const contents = { asset: encoder.encode('<svg xmlns="http://www.w3.org/2000/svg"><title>Exact café</title></svg>'), graph: encoder.encode(graph),
+            config: encoder.encode(`{ "inputs": [{"uri":"${root}assets/old.svg"}] }\n`),
+            command: encoder.encode(serializeCemMlCommandResource(parseCemMlCommandText(`cem-ml transform --config ${root}graphs/run.cem`))) };
+        const specs = [ ['asset', 'data', 'assets/old.svg', 'image/svg+xml', 'http://www.w3.org/2000/svg'],
+            ['graph', 'transform-config', 'graphs/run.cem', 'text/cem-ml', 'https://cem.dev/ns/cli/transform-config/1'],
+            ['config', 'run-config', 'run.json', 'application/json', 'https://cem.dev/ns/cli/run-config/1'],
+            ['command', 'run-config', 'command.json', CEM_ML_CLI_COMMAND_CONTENT_TYPE, CEM_ML_CLI_COMMAND_SCHEMA] ];
+        const resources = await Promise.all(specs.map(async ([id, role, path, contentType, schema]) => ({ id, role, path, contentType, schema, sourceKind: 'project-file', revision: 1,
+            sha256: [...new Uint8Array(await crypto.subtle.digest('SHA-256', contents[id]))].map(x => x.toString(16).padStart(2, '0')).join('') })));
+        const project = { ...template, id: 'acceptance-rebinding', name: 'Native rebinding acceptance', rootUri: root, revision: 1, resources,
+            entries: [{ id: 'graph-page', kind: 'transformation-graph', name: 'Opaque copy', runConfigResourceId: 'command', resourceIds: ['asset', 'graph', 'command'] }] };
+        const request = (operation, parameters) => ({ protocolVersion: 1, repository: 'studio-projects', requestRevision: 1, operation, parameters });
+        const edit = (revision, edit) => repository.execute(request('edit-project', { projectId: project.id, expectedRevision: revision, edit }));
+        const read = async () => (await repository.query(request('export-project', { projectId: project.id }))).value;
+        const ensure = (condition, message) => { if (!condition) throw new Error(message); };
+        await repository.execute(request('import-project', { bundle: { project, contents } }));
+        const changed = await edit(1, { kind: 'rename-resource', id: 'asset', path: 'assets/new.svg' });
+        const rebound = await read();
+        ensure(decoder.decode(rebound.contents.graph) === graph.replace('../assets/old.svg', root + 'assets/new.svg'), 'graph bytes were not preserved around the native slot');
+        ensure(JSON.parse(decoder.decode(rebound.contents.config)).inputs[0].uri === root + 'assets/new.svg', 'run-config input was not rebound');
+        ensure(rebound.project.resources.find(x => x.id === 'graph').revision === 2, 'graph revision did not advance');
+        let stale = false, referenced = false;
+        try { await edit(1, { kind: 'rename-resource', id: 'asset', path: 'stale.svg' }); } catch (error) { stale = error.code === 'cem.studio.repository.revision_conflict'; }
+        try { await edit(2, { kind: 'delete-resource', id: 'asset' }); } catch (error) { referenced = error.message.includes('referenced'); }
+        ensure(stale && referenced, 'native edit guards failed');
+        const outcome = await validator.executeAuthoredResourceCommand({ bytes: new Uint8Array(rebound.contents.graph), contentType: 'text/cem-ml', schema: 'https://cem.dev/ns/cli/transform-config/1', uri: root + 'graphs/run.cem', projectId: project.id, projectRevision: rebound.project.revision, resourceRevision: 2,
+            commandResource: new Uint8Array(rebound.contents.command), dependencies: [{ bytes: new Uint8Array(rebound.contents.asset), contentType: 'image/svg+xml', schema: 'http://www.w3.org/2000/svg', path: root + 'assets/new.svg' }] });
+        ensure(outcome.result?.exitCode === 0, 'graph execution after native rebinding failed');
+        ensure(outcome.output.text === decoder.decode(contents.asset), 'graph output lost exact asset bytes');
+        await edit(2, { kind: 'restore', bundle: changed.value.before });
+        const restored = await read();
+        for (const id of ['asset', 'graph', 'config', 'command']) ensure(decoder.decode(restored.contents[id]) === decoder.decode(contents[id]), `undo changed ${id} bytes`);
+        ensure(restored.project.resources.find(x => x.id === 'graph').revision === 3, 'undo rewound revisions');
+        let collision = false;
+        try { await edit(3, { kind: 'rename-resource', id: 'graph', path: 'output/result.svg' }); } catch { collision = true; }
+        ensure(collision && (await read()).project.revision === 3, 'configuration/output collision was committed');
+        const relocated = await edit(3, { kind: 'rename-resource', id: 'graph', path: 'moved/deep/run.cem' });
+        const moved = await read();
+        const movedUri = root + 'moved/deep/run.cem';
+        ensure(decoder.decode(moved.contents.graph) === graph.replace('../assets/old.svg', root + 'assets/old.svg')
+            .replace('../output/result.svg', root + 'output/result.svg'), 'graph relocation changed resolved bindings or unaffected bytes');
+        ensure(moved.project.resources.find(x => x.id === 'graph').revision === 4, 'graph relocation incremented revision more than once');
+        ensure(JSON.stringify(moved.project.entries) === JSON.stringify(project.entries), 'graph relocation changed stable page links');
+        ensure(parseCemMlCommandResource(new Uint8Array(moved.contents.command)).command.options.config === movedUri, 'incoming transform command was not relocated');
+        let staleMove = false, deletion = false;
+        try { await edit(3, { kind: 'rename-resource', id: 'graph', path: 'stale.cem' }); } catch (error) { staleMove = error.code === 'cem.studio.repository.revision_conflict'; }
+        try { await edit(4, { kind: 'delete-resource', id: 'graph' }); } catch { deletion = true; }
+        ensure(staleMove && deletion, 'relocation stale/deletion guards failed');
+        const movedOutcome = await validator.executeAuthoredResourceCommand({ bytes: new Uint8Array(moved.contents.graph),
+            contentType: 'text/cem-ml', schema: 'https://cem.dev/ns/cli/transform-config/1', uri: movedUri, projectId: project.id,
+            projectRevision: moved.project.revision, resourceRevision: 4, commandResource: new Uint8Array(moved.contents.command),
+            dependencies: [{ bytes: new Uint8Array(moved.contents.asset), contentType: 'image/svg+xml', schema: 'http://www.w3.org/2000/svg', path: root + 'assets/old.svg' }] });
+        ensure(movedOutcome.result?.exitCode === 0 && movedOutcome.output.text === decoder.decode(contents.asset), 'relocated graph execution lost exact bytes');
+        const configMove = await edit(4, { kind: 'rename-resource', id: 'config', path: 'moved/run.json' });
+        ensure(decoder.decode((await read()).contents.config) === decoder.decode(contents.config), 'absolute run-config relocation changed bytes');
+        await edit(5, { kind: 'restore', bundle: configMove.value.before });
+        await edit(6, { kind: 'restore', bundle: relocated.value.before });
+        const undone = await read();
+        for (const id of ['asset', 'graph', 'config', 'command']) ensure(decoder.decode(undone.contents[id]) === decoder.decode(contents[id]), `relocation undo changed ${id} bytes`);
+        ensure(undone.project.resources.find(x => x.id === 'graph').path === 'graphs/run.cem', 'relocation undo lost original graph path');
+
+        return true;
+    }, alpha.project);
+    assert.equal(nativeRebinding, true);
+    await editor.dispose();
+    return { nativeRebinding, configurationRelocation: nativeRebinding, resourcePathEditing: true, typedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
+        guardedDraftAndFocusRetained: true, exportedExactBytes: true, trashRestore: true, offlineReopen: true, accessibility };
+}
+
+async function inspectWorkspaceAccessibility(page, context) {
+    const cdp = await context.newCDPSession(page);
+    const { nodes } = await cdp.send('Accessibility.getFullAXTree');
+    const interactiveRoles = ['button', 'combobox', 'textbox', 'tab', 'treeitem'];
+    const exposed = nodes.filter(node => !node.ignored && interactiveRoles.includes(node.role?.value));
+    assert.ok(exposed.length > 15);
+    assert.deepEqual(exposed.filter(node => !node.name?.value?.trim()).map(node => node.role.value), [], 'unnamed accessible control');
+    const relationships = await page.evaluate(() => {
+        const ids = Array.from(document.querySelectorAll('[id]'), element => element.id);
+        const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
+        const missing = [];
+        for (const element of document.querySelectorAll('[aria-labelledby], [aria-describedby], [aria-controls], [aria-activedescendant], [for]')) {
+            for (const name of ['aria-labelledby', 'aria-describedby', 'aria-controls', 'aria-activedescendant', 'for']) {
+                for (const id of (element.getAttribute(name) ?? '').split(/\s+/).filter(Boolean)) if (!document.getElementById(id)) missing.push({ name, id });
+            }
+        }
+        return { duplicates, missing };
+    });
+    assert.deepEqual(relationships, { duplicates: [], missing: [] });
+    const layouts = [];
+    for (const width of [320, 390, 1280]) {
+        await page.setViewportSize({ width, height: 900 });
+        const layout = await page.evaluate(() => ({ viewport: innerWidth, content: document.documentElement.scrollWidth,
+            overflow: Array.from(document.querySelectorAll('body *')).filter(element => element.getBoundingClientRect().right > innerWidth + 1 && element.getBoundingClientRect().width > 0).slice(-12).map(element => ({ tag: element.localName, part: element.getAttribute('part'), text: element.textContent.slice(0, 90), right: element.getBoundingClientRect().right })) }));
+        assert.ok(layout.content <= layout.viewport + 1, `horizontal page overflow at ${width}: ${JSON.stringify(layout)}`);
+        layouts.push(layout);
+    }
+    const field = page.getByRole('textbox', { name: 'Project name', exact: true });
+    await field.focus(); await page.keyboard.press('Tab');
+    assert.equal(await page.getByRole('button', { name: 'Create CEM-ML project', exact: true }).evaluate(element => document.activeElement === element), true);
+    const focus = await page.evaluate(() => {
+        const style = getComputedStyle(document.activeElement);
+        return { width: parseFloat(style.outlineWidth), style: style.outlineStyle, color: style.outlineColor, shadow: style.boxShadow };
+    });
+    assert.ok(focus.width > 0 && focus.style !== 'none' && (focus.color !== 'rgba(0, 0, 0, 0)' || focus.shadow !== 'none'), 'keyboard focus must be visible');
+    await cdp.detach();
+    return { namedControls: exposed.length, validRelationships: true, layouts, keyboardFocus: focus,
+        scope: 'Automated Chromium accessibility tree and keyboard checks; physical devices and spoken assistive technology remain separately open.' };
+}
+
 async function waitForApplication(page, browserErrors, httpFailures) {
     try {
         await page.waitForFunction(() => Boolean(globalThis.__cemStudioApplication), undefined, { timeout: 30_000 });
@@ -371,6 +751,9 @@ async function inspectHardening(page, initialResponse) {
     await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
     await page.setViewportSize({ width: 360, height: 800 });
     await page.evaluate(async () => {
+        const application = globalThis.__cemStudioApplication;
+        await application.workbench.parsePersisted('ast');
+        await application.workbenchView.whenSettled();
         const previewApi = await import('@epa-wg/cem-studio/preview');
         const previewRoot = document.createElement('section');
         previewRoot.setAttribute('data-cem-studio-preview', '');
@@ -438,7 +821,9 @@ async function inspectHardening(page, initialResponse) {
             system.style.cssText = 'background: Canvas; color: CanvasText';
             document.body.append(system);
             const systemColors = getComputedStyle(system);
-            const shellForcedColors = header.backgroundColor === systemColors.backgroundColor &&
+            const treePaint = getComputedStyle(document.querySelector('cem-tree [role="treeitem"]'));
+            const panePaint = getComputedStyle(document.querySelector('cem-tabs[label="Workbench panes"] [role="tab"]'));
+            const shellForcedColors = treePaint.forcedColorAdjust === 'auto' && treePaint.color !== treePaint.backgroundColor && panePaint.forcedColorAdjust === 'auto' && panePaint.color !== panePaint.backgroundColor && header.backgroundColor === systemColors.backgroundColor &&
                 header.color === systemColors.color && header.borderTopStyle === 'solid' &&
                 action.borderTopStyle === 'solid' && action.forcedColorAdjust === 'auto';
             system.remove();
@@ -489,6 +874,16 @@ async function exerciseUpdateBarrier(page) {
         const draft = `${workbench.snapshot().draft}\n{p | Persisted before update}\n`;
         workbench.updateDraft(draft);
         const dirtyBeforeActivation = update.status().dirty;
+        const dirtyBlocked = await update.activateUpdate();
+        if (dirtyBlocked.reason !== 'unsaved-work' || messages.length) throw new Error('Update crossed an unresolved draft');
+        await workbench.saveSource();
+        if (workbench.snapshot().command) {
+            const command = workbench.snapshot().command.current.text;
+            await workbench.updateCommandDraft(`${command}\n`);
+            const commandBlocked = await update.activateUpdate();
+            if (commandBlocked.reason !== 'unsaved-work' || messages.length) throw new Error('Update crossed a command draft');
+            await workbench.resetCommandDraft();
+        }
         await update.activateUpdate();
         const after = await application.repository.query({
             protocolVersion: 1,
@@ -505,6 +900,7 @@ async function exerciseUpdateBarrier(page) {
             persistedExactDraft: new TextDecoder().decode(bytes) === draft,
             revisionAdvanced: after.value.project.revision === before.value.project.revision + 1,
             persistedContent: draft,
+            selection: application.session.snapshot().selection,
             projectRevisionAfter: after.value.project.revision,
             resourceRevisionAfter: resource.revision,
             repositoryRevisionAfter: after.repositoryRevision,
@@ -597,7 +993,7 @@ async function exerciseWorkbench(page) {
             provenanceSelection,
             componentsOnly:
                 document.querySelectorAll(
-                    '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
+                    '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button):not(cem-tree button)',
                 ).length === 0,
             reportVisible: Boolean(document.querySelector('[data-cem-studio-workbench] cem-table [role="table"]')),
         };
@@ -662,7 +1058,7 @@ async function exerciseProjections(page) {
             inspect,
             componentsOnly:
                 document.querySelectorAll(
-                    '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
+                    '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button):not(cem-tree button)',
                 ).length === 0,
             controlsInstalled: Boolean(
                 document.querySelector('[data-cem-studio-workbench] cem-select .cem-select__control') &&
@@ -681,7 +1077,10 @@ async function exercisePortableOperations(page) {
         const initialWorkbenchId = application.workbench.snapshot().workbenchId;
         const results = [];
         for (const scenario of application.seed.catalog.workbenches) {
-            await application.workbench.selectWorkbench(scenario.id);
+            const project = (await application.repository.query({ protocolVersion: 1, repository: 'studio-projects', operation: 'get-project', requestRevision: 1, parameters: { projectId: application.featureTour.projectId } })).value;
+            const entry = project.entries.find(item => item.runConfigResourceId === scenario.runConfigResourceId);
+            await application.session.select({ projectId: project.id, entryId: entry.id });
+            if (application.session.snapshot().transition) throw new Error('Portable scenario navigation was not admitted');
             const snapshot = await application.workbench.runPersistedOperation();
             const projection = snapshot.projection;
             await application.workbenchView.whenSettled();
@@ -725,7 +1124,7 @@ async function exercisePortableOperations(page) {
             results,
             componentsOnly:
                 document.querySelectorAll(
-                    '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
+                    '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button):not(cem-tree button)',
                 ).length === 0,
             controlsInstalled: Boolean(
                 document.querySelector('[data-cem-studio-workbench-select] .cem-select__control') &&
@@ -813,7 +1212,7 @@ async function exerciseCommandView(page) {
                 before.value.project.revision === after.value.project.revision,
             componentsOnly:
                 document.querySelectorAll(
-                    '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
+                    '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button):not(cem-tree button)',
                 ).length === 0,
             controlsInstalled: Boolean(
                 document.querySelector('cem-textarea[data-cem-studio-command-editor] textarea') &&
@@ -894,7 +1293,7 @@ async function exerciseCommandApplyAndRun(page) {
                 runtime: ran.projection.executionIdentity.runtime,
                 componentsOnly:
                     document.querySelectorAll(
-                        '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
+                        '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button):not(cem-tree button)',
                     ).length === 0,
                 controlsInstalled: Boolean(
                     document.querySelector('[data-cem-studio-workbench] cem-text-field input') &&
@@ -913,6 +1312,7 @@ async function exerciseCommandApplyAndRun(page) {
 async function exerciseOfflineCommandView(page) {
     return page.evaluate(async () => {
         const application = globalThis.__cemStudioApplication;
+        await application.workbench.parsePersisted('ast');
         const initial = application.workbench.snapshot().command;
         const changedText = initial.current.text.replace('--format ast', '--format events');
         const changed = await application.workbench.updateCommandDraft(changedText);
@@ -967,11 +1367,16 @@ async function projectOfflineResource(page) {
 async function inspectShell(page) {
     return page.evaluate(async () => {
         const application = globalThis.__cemStudioApplication;
+        // A page without a persisted command does not synthesize one at load.
+        // Exercise the enabled command editor through an explicit native action.
+        await application.workbench.parsePersisted('ast');
+        await application.workbenchView.whenSettled();
         const components = await (await import('@epa-wg/cem-studio/shell')).installCemStudioShellComponents();
         let themesStyled = true;
         const themeStyles = [];
         let workbenchStyled = true;
         const workbenchStyles = [];
+        let explorerStyled = true;
         let commandStyled = true;
         const commandStyles = [];
         const previewProbe = document.createElement('cem-media-preview');
@@ -988,6 +1393,9 @@ async function inspectShell(page) {
             themeStyles.push({ mode, background: style.backgroundColor, color: style.color, padding: style.paddingInlineStart });
             themesStyled &&= style.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
                 style.color !== style.backgroundColor && parseFloat(style.paddingInlineStart) > 0;
+            const treeStyle = getComputedStyle(document.querySelector('cem-tree [role="treeitem"]'));
+            const paneStyle = getComputedStyle(document.querySelector('cem-tabs[label="Workbench panes"] [role="tab"]'));
+            explorerStyled &&= treeStyle.backgroundColor === 'rgba(0, 0, 0, 0)' && treeStyle.color !== treeStyle.backgroundColor && parseFloat(treeStyle.minBlockSize) > 0 && paneStyle.color !== paneStyle.backgroundColor;
             const editor = getComputedStyle(document.querySelector('[data-cem-studio-editor] textarea'));
             const action = getComputedStyle(document.querySelector('[data-cem-studio-reload] button'));
             workbenchStyles.push({ mode, background: editor.backgroundColor, color: editor.color,
@@ -1011,13 +1419,14 @@ async function inspectShell(page) {
 
         }
         const shellHost = application.shell.view.element;
+        shellHost.style.setProperty('--cem-content-interaction-default-background', 'rgb(12, 34, 56)');
         shellHost.style.setProperty('--cem-inset-container', '19px');
         shellHost.style.setProperty('--cem-typography-script-font-size', '21px');
         shellHost.style.setProperty('--cem-bend-media', '11px');
         shellHost.style.setProperty('--cem-action-border-radius', '13px');
         shellHost.style.setProperty('--cem-input-background-color', 'rgb(31, 47, 63)');
         const actionStyle = getComputedStyle(document.querySelector('[data-cem-studio-install] button'));
-        const overrideStyles = { padding: getComputedStyle(header).paddingInlineStart,
+        const overrideStyles = { treeBackground: getComputedStyle(document.querySelector('cem-tree [role="treeitem"]')).backgroundColor, padding: getComputedStyle(header).paddingInlineStart,
             radius: actionStyle.borderTopLeftRadius, couplingBorder: actionStyle.borderTopWidth,
             editorBackground: getComputedStyle(document.querySelector('[data-cem-studio-editor] textarea')).backgroundColor,
             workbenchRadius: getComputedStyle(document.querySelector('[data-cem-studio-reload] button')).borderTopLeftRadius,
@@ -1034,8 +1443,9 @@ async function inspectShell(page) {
             parseFloat(overrideStyles.commandRadius) === 13 + parseFloat(overrideStyles.commandBorder);
         const workbenchOverrides = overrideStyles.editorBackground === 'rgb(31, 47, 63)' &&
             parseFloat(overrideStyles.workbenchRadius) === 13 + parseFloat(overrideStyles.workbenchBorder);
-        const inheritedOverrides = overrideStyles.padding === '19px' &&
+        const inheritedOverrides = overrideStyles.treeBackground === 'rgb(12, 34, 56)' && overrideStyles.padding === '19px' &&
             parseFloat(overrideStyles.radius) === 13 + parseFloat(overrideStyles.couplingBorder);
+        shellHost.style.removeProperty('--cem-content-interaction-default-background');
         shellHost.style.removeProperty('--cem-inset-container');
         shellHost.style.removeProperty('--cem-typography-script-font-size');
         shellHost.style.removeProperty('--cem-bend-media');
@@ -1058,7 +1468,7 @@ async function inspectShell(page) {
             ].map((tag) => customElements.whenDefined(tag)),
         );
         return {
-            themesStyled,
+            themesStyled, explorerStyled,
             previewStyled,
             previewStyles,
             previewOverrides,
@@ -1077,7 +1487,7 @@ async function inspectShell(page) {
             state: document.querySelector('[data-cem-studio-shell]')?.getAttribute('data-cem-studio-state'),
             theme: document.querySelector('[data-cem-studio-shell]')?.getAttribute('data-theme'),
             controlsOnly:
-                document.querySelectorAll('button:not(cem-action button):not(cem-select button):not(cem-tabs button)')
+                document.querySelectorAll('button:not(cem-action button):not(cem-select button):not(cem-tabs button):not(cem-tree button)')
                     .length === 0,
             componentsInstalled: Boolean(
                 document.querySelector('cem-app-bar header') &&

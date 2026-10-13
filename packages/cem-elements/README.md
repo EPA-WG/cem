@@ -1060,6 +1060,16 @@ the same preparation. Native linear progress can instead retain browser normaliz
 
 ### Declarative host-service views
 
+For a service view inside retained declarative panes, pass `element` with the
+already-authored direct child of `root`. Its tag and runtime declaration must
+match, and it must not already have a host-view boundary. Binding initializes
+slices and command authority without replacing the child or its siblings. The
+parent declaration continues to own its DOM lifecycle; disposing the binding
+revokes commands and updates but leaves the authored element in place. A disposed
+boundary remains isolated from ancestor commands and cannot be rebound. Default
+mounts without `element` retain their existing replace/remove ownership contract.
+
+
 `mountCemView(runtime, { root, tag, state, commands })` mounts a registered
 XHTML/CEM-ML view. Host JavaScript supplies non-UI services and explicitly named
 state slices; the declaration owns visible markup, status mapping, disabled
@@ -1075,7 +1085,7 @@ commands supplied by this mounted host are callable. The shared runtime invokes
 the service synchronously on the event stack, preserving browser user-gesture
 requirements. The service receives a frozen `{ command, eventType, value,
 isTrusted }` record, with the current string value of a native or form-associated
-control, a validated tree activation value, or null; it receives no DOM node.
+control, a validated tree/tab activation value, or null; it receives no DOM node.
 Submit bindings prevent native
 submission for an authorized command. Declare submit commands on native forms;
 the request additionally includes frozen `fields` mapping names to arrays of
@@ -1117,3 +1127,21 @@ reconciliation. Synchronous failures and rejected promises are available through
 commands, stops state updates and removes only that view. Applications project
 user-visible failure state through their own service-state contract. This is a
 host adapter, not a serialized source of authority or a component behavior hook.
+
+Binary-bearing edge content addresses use `stable-json-fnv1a64-binary-v2`.
+Their canonical representation includes each buffer's actual byte length and
+FNV-1a byte digest; repeated references reuse the digest within that call. Copied
+and shared buffers therefore have identical content identity, and later mutations
+are rehashed. Supplied native `contentHash` labels never substitute for checking
+bytes. Nonbinary values keep the existing `stable-json-fnv1a64-v1` addresses.
+Older binary-bearing v1 addresses fail current content verification and require
+fresh publication; they are not silently reinterpreted. These hashes are cache
+identities, not cryptographic authentication or authorization evidence.
+
+Tab-local service routing may bind `host-command-event="cem-tab"` on the tab
+owner. Only that owner's own event is accepted. The bridge reads an own nonempty
+string `value` and discards indices and other event detail; inherited properties,
+accessors and nested owners cannot acquire command authority. Unlike tree token
+identities, tab values may contain whitespace. Services can project admitted pane
+state through declaration slices, including revealing a retained editor before a
+source-range request; no tab DOM methods or app event listeners are needed.

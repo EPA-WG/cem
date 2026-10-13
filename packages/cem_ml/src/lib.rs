@@ -19,6 +19,14 @@ pub mod dap;
 #[cfg(feature = "debug-control")]
 pub mod debug_control;
 pub mod diagnostics;
+pub mod document_dependencies;
+pub mod html_base;
+pub mod html_base_evidence;
+pub mod html_base_host;
+pub mod html_execution_inventory;
+pub mod document_reference_provenance;
+pub mod xml_reference_transaction;
+pub mod document_stylesheet_dependencies;
 pub mod engine;
 pub mod report;
 pub mod report_projection;
@@ -54,7 +62,9 @@ pub mod real;
 pub mod registry;
 pub mod resolver;
 pub mod resource_integrity;
+pub mod source_module_map_rebind;
 pub mod run_config;
+pub mod run_config_rebind;
 pub mod run_context;
 pub mod scheduler;
 pub mod schema;
@@ -65,8 +75,11 @@ pub mod syntax;
 pub mod tokenizer;
 pub mod transform_artifact;
 pub mod transform_config;
+pub mod transform_graph_dependencies;
+pub mod transform_graph_rebind;
 pub mod transform_graph_request;
 pub mod transform_template;
+pub mod template_dependencies;
 #[cfg(feature = "typescript-projections")]
 pub mod typescript;
 pub mod validation;
@@ -432,3 +445,5 @@ mod tests {
         );
     }
 }
+
+pub mod resource_rebind;

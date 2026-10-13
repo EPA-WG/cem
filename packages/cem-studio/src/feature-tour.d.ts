@@ -66,6 +66,7 @@ export interface CemStudioResourceCommandPreview {
 }
 
 export interface CemStudioResourceCommandPreviewOptions extends CemStudioResourceCommandOptions {
+    readonly commandResource?: Uint8Array;
     readonly operation?: CemStudioPortableOperation | 'validate';
     readonly projection?: CemStudioParseProjection;
     readonly view?: CemStudioInspectView;
@@ -96,6 +97,7 @@ export interface CemStudioBrowserValidator {
             readonly parsed: Readonly<Record<string, unknown>>;
         }
     >;
+    decodeResourceCommand(bytes: Uint8Array): Readonly<Record<string, unknown>>;
     previewResourceCommand(options: CemStudioResourceCommandPreviewOptions): Promise<CemStudioResourceCommandPreview>;
     serializeResourceCommand(command: Readonly<Record<string, unknown>>): string;
     validateResource(options: CemStudioResourceCommandOptions): Promise<CemStudioBrowserCommandOutcome>;
@@ -107,6 +109,7 @@ export interface CemStudioBrowserValidator {
         project: Readonly<Record<string, unknown>>,
         options?: { signal?: AbortSignal },
     ): Promise<Uint8Array>;
+    planResourceRebind(request: import('@epa-wg/cem-ml-cli/browser').ResourceRebindRequest): Promise<import('@epa-wg/cem-ml-cli/browser').ResourceRebindPlan>;
     validateProject(bundle: unknown, options?: { signal?: AbortSignal }): Promise<unknown>;
     assertCatalog(catalog: unknown): void;
     close(): Promise<void>;
@@ -134,3 +137,11 @@ export declare function createCemStudioFeatureTourCopy(
     seed: CemStudioFeatureTourSeed,
     options: { projectId: string; now: string },
 ): CemStudioFeatureTourSeed['bundle'];
+
+export interface CemStudioOperationField {
+    id: string; label: string; multiline: boolean; help: string; required: boolean;
+    type: 'boolean' | 'enum' | 'text'; choices: { value: string }[];
+    value: string; defaultValue: string;
+}
+export declare function describeCemStudioOperationFields(text: string): CemStudioOperationField[];
+export declare function editCemStudioOperationField(text: string, id: string, value: string, reset?: boolean): string;

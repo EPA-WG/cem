@@ -732,7 +732,7 @@ function previousRenderPlanIdentityFailure(previous: CemEdgeSsrPreviousRenderPla
         || typeof previous.expectedEtag !== 'string'
         || previous.expectedEtag.length === 0
         || previous.address.kind !== 'render-plan'
-        || previous.address.algorithm !== 'stable-json-fnv1a64-v1'
+        || !['stable-json-fnv1a64-v1', 'stable-json-fnv1a64-binary-v2'].includes(previous.address.algorithm as string)
         || typeof previous.address.digest !== 'string'
         || typeof previous.address.key !== 'string'
         || !isRenderPlanIdentity(previous.identity)

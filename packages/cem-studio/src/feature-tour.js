@@ -1,3 +1,4 @@
+import { commandSchema, parseCemMlCommandText, serializeCemMlCommandText } from '@epa-wg/cem-ml-cli/browser';
 import {
     CEM_STUDIO_LIMITS,
     assertCemStudioResourceUri,
@@ -297,8 +298,9 @@ export async function createCemStudioBrowserValidator() {
             options.projectId ?? 'cem-studio-command',
             'studio',
         );
-        const parsed =
-            options.text === undefined
+        const parsed = options.commandResource !== undefined
+            ? parseCemMlCommandResource(options.commandResource, { runtime: 'wasm-browser-worker' }).command
+            : options.text === undefined
                 ? parseCemMlCommand(
                       options.argv ?? resourceCommandArguments(options.operation ?? 'parse', options, inputResourceUri),
                       { runtime: 'wasm-browser-worker' },
@@ -321,6 +323,8 @@ export async function createCemStudioBrowserValidator() {
             semantic: projectCommandSemanticPreview(invocation),
         });
     };
+
+    const decodeResourceCommand = (bytes) => parseCemMlCommandResource(bytes, { runtime: 'wasm-browser-worker' }).command;
 
     const serializeResourceCommand = (parsed) => serializeCemMlCommandResource(parsed);
 
@@ -361,6 +365,7 @@ export async function createCemStudioBrowserValidator() {
         executeAuthoredResourceCommand,
         previewResourceCommand,
         serializeResourceCommand,
+        decodeResourceCommand,
         validateResource,
         async decodeProjectManifest(bytes, { signal } = {}) {
             const converted = await convertProjectManifest(
@@ -379,6 +384,7 @@ export async function createCemStudioBrowserValidator() {
                 signal,
             );
         },
+        planResourceRebind: request => client.planResourceRebind(request),
         async validateProject(bundle, { signal } = {}) {
             if (!bundle?.project) throw new TypeError('CEM Studio project bundle is missing project metadata');
             await validateResource({
@@ -740,4 +746,52 @@ async function fetchBytes(url, fetchResource) {
 async function sha256(bytes) {
     const digest = await crypto.subtle.digest('SHA-256', bytes);
     return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+
+// Studio selects editable operation concerns; argument grammar stays native-owned.
+const OPERATION_FORM_OPTIONS = Object.freeze({
+    parse: ['format', 'from_format', 'fail_level', 'preserve_source_offsets'],
+    inspect: ['show', 'format', 'from_format'],
+    convert: ['from_format', 'to_format', 'to_content_type', 'to_schema', 'output_color_type', 'tabular', 'cemt_formatter', 'cemt_formatter_profile', 'cemt_colorizer', 'cemt_color_profile', 'preserve_source_offsets'],
+    query: ['query', 'query_file', 'query_content_type', 'query_schema', 'output'],
+    transform: ['template', 'template_expression', 'template_content_type', 'template_schema', 'template_entrypoint', 'to_content_type', 'to_schema', 'output_color_type', 'source_map_summary', 'module_asset_cache_key'],
+    trace: ['format', 'from_format'],
+});
+
+export function describeCemStudioOperationFields(text) {
+    const parsed = parseCemMlCommandText(text, { runtime: 'wasm-browser-worker' });
+    if (parsed.commandPath.length !== 1) return [];
+    const operation = parsed.commandPath[0];
+    const allowed = OPERATION_FORM_OPTIONS[operation];
+    if (!allowed) return [];
+    const descriptor = commandSchema.commands.find(item => item.name === operation);
+    return descriptor.arguments.filter(argument => allowed.includes(argument.id) && !argument.hidden &&
+        (argument.action === 'set-true' || argument.action === 'set-false' ||
+            (argument.action === 'set' && argument.maxValues === 1))).map(argument => ({
+        id: argument.id, label: argument.long ?? argument.id,
+        multiline: ['query', 'template_expression'].includes(argument.id) || String(parsed.options[argument.id] ?? '').includes('\n'),
+        help: argument.help ?? '', required: argument.required,
+        type: ['set-true', 'set-false'].includes(argument.action) ? 'boolean' : argument.possibleValues.length ? 'enum' : 'text',
+        choices: argument.possibleValues.map(value => ({ value })),
+        value: parsed.options[argument.id] === undefined ? '' : String(parsed.options[argument.id]),
+        defaultValue: argument.defaultValues.join(', '),
+    }));
+}
+
+/** Edit only one scalar option, retaining positional, global and repeated values. */
+export function editCemStudioOperationField(text, id, value, reset = false) {
+    const field = describeCemStudioOperationFields(text).find(field => field.id === id);
+    if (!field) throw new Error('This option is not available in the operation form');
+    if (typeof value !== 'string') throw new TypeError('An option value must be text');
+    if (reset && field.required) throw new Error('A required option cannot be reset');
+    if (!reset && field.type === 'enum' && !field.choices.some(choice => choice.value === value)) throw new Error('Choose a value from the native command options');
+    if (!reset && field.type === 'boolean' && !['true', 'false'].includes(value)) throw new Error('Choose true or false');
+    const parsed = parseCemMlCommandText(text, { runtime: 'wasm-browser-worker' });
+    const options = { ...parsed.options };
+    if (reset) delete options[id];
+    else options[id] = field.type === 'boolean' ? value === 'true' : value;
+    const serialized = serializeCemMlCommandText({ ...parsed, options });
+    // Parsing applies native defaults, conflicts and value constraints before delivery.
+    return serializeCemMlCommandText(parseCemMlCommandText(serialized, { runtime: 'wasm-browser-worker' }));
 }

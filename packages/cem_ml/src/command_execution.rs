@@ -730,7 +730,7 @@ fn graph_product(
                 uri,
                 CommandArtifactKindV1::Output,
                 ResolvePurpose::Output,
-                None,
+                artifact.primary_bytes.as_ref(),
                 artifact.identity.as_ref(),
                 &artifact.primary,
             )?);
@@ -1218,6 +1218,47 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+
+    #[test]
+    fn graph_publication_preserves_retained_opaque_bytes() {
+        let bytes = vec![0, 255, 10, 195, 169];
+        let product = graph_product(
+            TransformGraphResponse {
+                artifacts: vec![TransformGraphArtifact {
+                    export_id: "asset".into(),
+                    input: "opaque".into(),
+                    destination: Some("studio://project/output.bin".into()),
+                    identity: Some(FormatIdentity {
+                        content_type: Some("application/octet-stream".into()),
+                        ..Default::default()
+                    }),
+                    primary: json!({"kind":"resource", "byteLength":bytes.len()}),
+                    primary_bytes: Some(PrimaryBytes {
+                        content_type: "application/octet-stream".into(),
+                        schema: None,
+                        format_version: "raw-resource/1".into(),
+                        hash_scheme: "sha256".into(),
+                        hash: crate::command_service::sha256_hex(&bytes),
+                        bytes: bytes.clone(),
+                    }),
+                    source_map: None,
+                    output_spans: Vec::new(),
+                }],
+                module_asset_manifest: Default::default(),
+                diagnostics: Vec::new(),
+                scheduler_trace: Default::default(),
+            },
+            None,
+        )
+        .unwrap_or_else(|_| panic!("graph publication preparation failed"));
+        assert_eq!(product.publication_items.len(), 1);
+        assert_eq!(product.publication_items[0].bytes, bytes);
+        assert_eq!(
+            product.publication_items[0].content_type,
+            "application/octet-stream"
+        );
+    }
+
     use crate::capability::{capability_manifest, product_version, CapabilityRequest, RuntimeKind};
     use crate::command_host::CommandHostFuture;
     use crate::command_operation::{PreparedCommandQueryV1, PreparedCommandTransformGraphV1};

@@ -817,7 +817,7 @@ export const CEM_DECLARATIVE_CAPABILITIES = Object.freeze({
     },
     'choice-select': {
         behavior: CEM_CHOICE_SELECT_CAPABILITY,
-        behaviorIdentity: 'cem-elements-choice-select-v1',
+        behaviorIdentity: 'cem-elements-choice-select-v2',
     },
 } as const satisfies Readonly<Record<string, Required<CemDeclarationRegistrationOptions>>>);
 
@@ -9034,7 +9034,7 @@ function renderedFormKey(form: HTMLFormElement, sliceNames: string[] | undefined
         firstSliceName ??
         form.getAttribute('slice')?.trim() ??
         form.getAttribute('name')?.trim() ??
-        form.id.trim() ??
+        (form.getAttribute('id') ?? '').trim() ??
         `form${index + 1}`
     );
 }

@@ -3,7 +3,7 @@ import type { CemElementRuntime } from './cem-elements.js';
 export interface CemHostCommandRequest {
     readonly command: string;
     readonly eventType: string;
-    /** Native control value or validated tree activation identity; never arbitrary event detail. */
+    /** Native control value or validated tree/tab activation identity; never arbitrary event detail. */
     readonly value: string | null;
     readonly isTrusted: boolean;
     /** Native successful string controls, captured only for a form submit command. */
@@ -13,6 +13,8 @@ export interface CemHostCommandRequest {
 export interface CemHostViewOptions {
     readonly root: Element;
     readonly tag: string;
+    /** Bind an authored direct child instead of replacing the root contents. */
+    readonly element?: HTMLElement;
     readonly state?: Readonly<Record<string, unknown>>;
     readonly commands?: Readonly<Record<string, (request: CemHostCommandRequest) => unknown>>;
 }
@@ -27,7 +29,7 @@ export interface CemHostView {
 
 const boundaries = new WeakSet<Element>();
 const mounts = new WeakMap<Element, CemHostView>();
-const events = ['click', 'input', 'change', 'submit', 'cem-close', 'cem-tree-activate'] as const;
+const events = ['click', 'input', 'change', 'submit', 'cem-close', 'cem-tree-activate', 'cem-tab'] as const;
 
 /** Mount declarative UI with an explicit, revocable set of non-UI host services. */
 export function mountCemView(runtime: CemElementRuntime, options: CemHostViewOptions): CemHostView {
@@ -36,7 +38,10 @@ export function mountCemView(runtime: CemElementRuntime, options: CemHostViewOpt
     if (!tag.includes('-') || !document.defaultView?.customElements.get(tag)) {
         throw new TypeError(`Register the declarative view before mounting ${tag}`);
     }
-    const element = document.createElement(tag);
+    const element = options.element ?? document.createElement(tag);
+    if (options.element && (element.ownerDocument !== document || element.parentElement !== root || element.localName !== tag || boundaries.has(element))) {
+        throw new TypeError('An authored view must be an unowned direct child with the requested tag');
+    }
     if (!runtime.hasDeclarationFor(element)) throw new TypeError(`No declaration in this runtime for ${tag}`);
     const commands = new Map(Object.entries(options.commands ?? {}));
     const errors: Error[] = [];
@@ -59,7 +64,7 @@ export function mountCemView(runtime: CemElementRuntime, options: CemHostViewOpt
         if (!control || !element.contains(control)) return;
         // Component events report their bound owner's state. A nested owner
         // must never invoke an ancestor's command through a bubbling event.
-        if ((event.type === 'cem-close' || event.type === 'cem-tree-activate') && event.target !== control) return;
+        if ((event.type === 'cem-close' || event.type === 'cem-tree-activate' || event.type === 'cem-tab') && event.target !== control) return;
         const command = control.getAttribute('host-command') ?? '';
         if ((control.getAttribute('host-command-event') ?? 'click') !== event.type) return;
         const handler = commands.get(command);
@@ -67,7 +72,7 @@ export function mountCemView(runtime: CemElementRuntime, options: CemHostViewOpt
         if (event.type === 'submit') event.preventDefault();
         try {
             const fields = event.type === 'submit' ? formFields(event, control, element) : undefined;
-            const value = event.type === 'cem-tree-activate' ? treeActivationValue(event) : controlValue(event.target);
+            const value = event.type === 'cem-tree-activate' || event.type === 'cem-tab' ? activationValue(event) : controlValue(event.target);
             // Input capture (FormData listeners, custom control getters or
             // payload proxy traps) can revoke authority before delivery.
             if (!active || !element.isConnected || !runtime.hasDeclarationFor(element) || !element.contains(control)
@@ -116,27 +121,27 @@ export function mountCemView(runtime: CemElementRuntime, options: CemHostViewOpt
             commands.clear();
             // Preserve the boundary on a retained detached node so it cannot
             // acquire a parent's command authority if reinserted after disposal.
-            element.remove();
+            if (!options.element) element.remove();
             if (mounts.get(root) === view) mounts.delete(root);
         },
     });
-    runtime.setInstanceSlices(element, options.state ?? {}, { render: false });
+    runtime.setInstanceSlices(element, options.state ?? {}, { render: Boolean(options.element) });
     mounts.get(root)?.dispose();
     boundaries.add(element);
     events.forEach(name => element.addEventListener(name, invoke));
     mounts.set(root, view);
-    root.replaceChildren(element);
+    if (!options.element) root.replaceChildren(element);
     return view;
 }
 
-function treeActivationValue(event: Event): string {
+function activationValue(event: Event): string {
     const detail: unknown = event instanceof CustomEvent ? event.detail : undefined;
     // Read only an own data property: never evaluate accessors, stringify live
     // objects or forward arbitrary event detail across the host-service boundary.
     const value: unknown = detail && typeof detail === 'object' && !Array.isArray(detail)
         ? Object.getOwnPropertyDescriptor(detail, 'value')?.value : undefined;
-    if (typeof value !== 'string' || !value || /\s/u.test(value)) {
-        throw new TypeError('Tree activation commands require an own non-empty string value without whitespace');
+    if (typeof value !== 'string' || !value || (event.type === 'cem-tree-activate' && /\s/u.test(value))) {
+        throw new TypeError('Activation commands require an own non-empty string value; tree values cannot contain whitespace');
     }
     return value;
 }

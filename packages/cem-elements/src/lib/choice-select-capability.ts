@@ -36,6 +36,7 @@ interface SelectState {
     mode: SelectMode;
     payloadSignature: string;
     authoredValue: string | null;
+    valueRequest: string | null;
     initialized: boolean;
     formDisabled: boolean;
     pendingValues?: string[];
@@ -192,6 +193,7 @@ function stateFor(instance: HTMLElement): SelectState {
         mode: 'dropdown',
         payloadSignature: '',
         authoredValue: null,
+        valueRequest: null,
         initialized: false,
         formDisabled: false,
         typeahead: '',
@@ -212,6 +214,9 @@ function synchronizeModel(instance: HTMLElement, state: SelectState): void {
     if (!snapshot) return;
     const mode = selectMode(instance);
     const authoredValue = instance.getAttribute('value');
+    const valueRequest = instance.getAttribute('value-request');
+    const valueRequested = Boolean(valueRequest && valueRequest !== state.valueRequest && authoredValue !== null);
+    state.valueRequest = valueRequest;
     const signature = JSON.stringify(snapshot.payload.nodes);
     const payloadChanged = signature !== state.payloadSignature;
     const modeChanged = mode !== state.mode;
@@ -231,10 +236,11 @@ function synchronizeModel(instance: HTMLElement, state: SelectState): void {
     state.mode = mode;
     const authoredValueChanged = authoredValue !== state.authoredValue;
     state.authoredValue = authoredValue;
-    if (!state.initialized || payloadChanged || modeChanged || authoredValueChanged) {
-        const requested = state.pendingValues
+    if (!state.initialized || payloadChanged || modeChanged || authoredValueChanged || valueRequested) {
+        const requested = (valueRequested && authoredValue !== null ? [authoredValue] : state.pendingValues)
             ?? (authoredValue !== null ? [authoredValue] : state.initialized ? [...state.selection] : state.defaultValues);
         state.pendingValues = undefined;
+        if (valueRequested) { state.expanded = false; state.previewSelection = []; }
         state.selection = normalizedSelection(state, requested, !state.initialized);
         state.activeIndex = firstSelectedOrEnabledIndex(state);
         state.rangeAnchor = state.activeIndex;

@@ -22,6 +22,7 @@ async function contract(canvasElement: HTMLElement, fallback: boolean) {
     {input @name=mode @value=ast}
     {input @name=mode @value=events}
     {input @name=ignored @value=disabled @disabled}
+    {input @name=id @value=selected-page}
     {input @name=__proto__ @value=safe}
     {button @type=submit @name=action @value=run | Submit}}
 {form @host-command=missing @host-command-event=submit}
@@ -88,9 +89,9 @@ async function contract(canvasElement: HTMLElement, fallback: boolean) {
         expect(submit.defaultPrevented).toBe(true);
         expect(calls).toHaveLength(3);
         const form = view.element.querySelector('form') as HTMLFormElement;
-        expect(calls[2]).toMatchObject({ fields: { mode: ['ast', 'events'], ['__proto__']: ['safe'] } });
+        expect(calls[2]).toMatchObject({ fields: { mode: ['ast', 'events'], id: ['selected-page'], ['__proto__']: ['safe'] } });
         const fields = (calls[2] as { fields: Record<string, string[]> }).fields;
-        expect(Object.keys(fields)).toEqual(['mode', '__proto__']);
+        expect(Object.keys(fields)).toEqual(['mode', 'id', '__proto__']);
         expect(Object.isFrozen(fields)).toBe(true);
         expect(Object.isFrozen(fields.mode)).toBe(true);
         form.querySelector<HTMLButtonElement>('button')?.click();
@@ -98,7 +99,7 @@ async function contract(canvasElement: HTMLElement, fallback: boolean) {
         expect(calls[3]).toMatchObject({ fields: { action: ['run'] } });
         const foreign = document.createElement('input');
         form.id = `host-command-form-${fallback}`;
-        foreign.setAttribute('form', form.id); foreign.name = 'foreign'; foreign.value = 'private';
+        foreign.setAttribute('form', form.getAttribute('id')!); foreign.name = 'foreign'; foreign.value = 'private';
         canvasElement.append(foreign);
         form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
         expect(calls).toHaveLength(4);
@@ -352,3 +353,54 @@ async function treeContract(canvasElement: HTMLElement, fallback: boolean) {
 const treeParameters = { docs: { description: { story: 'Native pointer/Enter/Space and trust checks run in the browser test runner; ordinary Storybook uses programmatic activation.' } } };
 export const TreeWorker = meta.story({ render: () => '<section></section>', parameters: treeParameters, play: async ({ canvasElement }) => treeContract(canvasElement, false) });
 export const TreeFallback = meta.story({ render: () => '<section></section>', parameters: treeParameters, play: async ({ canvasElement }) => treeContract(canvasElement, true) });
+
+async function authoredContract(canvasElement: HTMLElement, fallback: boolean) {
+    const { runtime, scope } = createCemStoryRuntime(canvasElement, fallback);
+    const tag = `authored-child-${fallback ? 'fallback' : 'worker'}`;
+    const parentTag = `authored-parent-${fallback ? 'fallback' : 'worker'}`;
+    const register = async (name: string, source: string) => {
+        const declaration = document.createElement('div'); declaration.setAttribute('tag', name);
+        const template = document.createElement('template'); template.type = 'text/cem-ml'; template.textContent = source;
+        declaration.append(template); expect(runtime.registerDeclaration(declaration)).toBe(true);
+        await runtime.whenDeclarationSettled(declaration);
+    };
+    await register(tag, '{input @value=initial @aria-label=Draft}{button @host-command=save | Save}{output | {$datadom.slices.status}}');
+    await register(parentTag, `{section @host-command=pane @host-command-event=cem-tab @hidden={if datadom.slices.hidden { true } else { null }} | {${tag}}}`);
+    const root = canvasElement.querySelector('section') as HTMLElement;
+    const calls: string[] = [];
+    const parent = mountCemView(runtime, { root, tag: parentTag, commands: { save: () => calls.push('parent'), pane: request => calls.push(`pane:${request.value}`) } });
+    try {
+        await parent.whenSettled();
+        const element = parent.element.querySelector(tag) as HTMLElement;
+        const container = element.parentElement as HTMLElement;
+        const input = element.querySelector('input') as HTMLInputElement;
+        container.dispatchEvent(new CustomEvent('cem-tab', { bubbles: true, detail: { value: 'result pane', index: 1, previousIndex: 0 } }));
+        expect(calls.splice(0)).toEqual(['pane:result pane']);
+        element.dispatchEvent(new CustomEvent('cem-tab', { bubbles: true, detail: { value: 'nested' } }));
+        expect(calls).toEqual([]);
+        container.dispatchEvent(new CustomEvent('cem-tab', { bubbles: true, detail: Object.create({ value: 'inherited' }) }));
+        expect(parent.errors).toHaveLength(1);
+
+        input.value = 'retained draft'; input.setSelectionRange(2, 6);
+        expect(() => mountCemView(runtime, { root, tag, element })).toThrow(/direct child/);
+        expect(() => mountCemView(runtime, { root: container, tag: parentTag, element })).toThrow(/requested tag/);
+        const child = mountCemView(runtime, { root: container, tag, element, state: { status: 'Ready' }, commands: { save: () => calls.push('child') } });
+        try {
+            await child.whenSettled();
+            expect(element.querySelector('output')?.textContent).toBe('Ready');
+            expect(() => mountCemView(runtime, { root: container, tag, element })).toThrow(/unowned/);
+            parent.update({ hidden: true }); await parent.whenSettled();
+            parent.update({ hidden: false }); await parent.whenSettled();
+            expect(parent.element.querySelector(tag)).toBe(element);
+            expect(element.querySelector('input')).toBe(input);
+            expect(input.value).toBe('retained draft');
+            expect([input.selectionStart, input.selectionEnd]).toEqual([2, 6]);
+            (element.querySelector('button') as HTMLButtonElement).click(); expect(calls).toEqual(['child']);
+            child.dispose(); expect(element.isConnected).toBe(true);
+            (element.querySelector('button') as HTMLButtonElement).click(); expect(calls).toEqual(['child']);
+            expect(child.update({ status: 'Revoked' })).toBe(false);
+        } finally { child.dispose(); }
+    } finally { parent.dispose(); scope.dispose(); }
+}
+export const AuthoredWorker = meta.story({ render: () => '<section></section>', play: async ({ canvasElement }) => authoredContract(canvasElement, false) });
+export const AuthoredFallback = meta.story({ render: () => '<section></section>', play: async ({ canvasElement }) => authoredContract(canvasElement, true) });

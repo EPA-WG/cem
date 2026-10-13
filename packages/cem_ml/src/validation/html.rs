@@ -1609,18 +1609,25 @@ fn html_start_tag_requires_resource_policy(
     })
 }
 
+/// Direct URI slots shared by validation and retained-tree dependency inspection.
+pub(crate) fn html_direct_resource_slot(local_name: &str, attribute: &str) -> bool {
+    matches!(attribute, "src" | "poster" | "action")
+        || (attribute == "href" && matches!(local_name, "link" | "base"))
+}
+
 fn html_attribute_requires_resource_policy(local_name: &str, attribute: &HtmlAttributeAst) -> bool {
     let value = attribute.value.as_deref().unwrap_or_default();
+    if html_direct_resource_slot(local_name, &attribute.local_name) {
+        return html_uri_requires_policy(value);
+    }
     match attribute.local_name.as_str() {
-        "src" | "poster" | "action" => html_uri_requires_policy(value),
         "srcset" => html_srcset_requires_policy(value),
-        "href" if matches!(local_name, "link" | "base") => html_uri_requires_policy(value),
         "style" => html_css_url_reference_requires_policy(value),
         _ => false,
     }
 }
 
-fn html_uri_requires_policy(value: &str) -> bool {
+pub(crate) fn html_uri_requires_policy(value: &str) -> bool {
     let trimmed = value.trim().trim_matches('"').trim_matches('\'');
     !(trimmed.is_empty()
         || trimmed.starts_with('#')

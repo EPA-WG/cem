@@ -536,3 +536,49 @@ export const NativeMouseSelection = meta.story({
         await expect(events).toEqual(['input', 'change']);
     },
 });
+
+export const ControlledValueReplay = meta.story({
+    render: () => '<cem-select value="alpha" value-request="initial"><span slot="label">Controlled choice</span><option value="alpha">Alpha</option><option value="beta">Beta</option></cem-select>',
+    play: async ({ canvasElement }) => {
+        const host = canvasElement.querySelector<CemSelectElement>('cem-select')!;
+        await whenCemRendered(host);
+        const control = host.querySelector<HTMLButtonElement>('[role=combobox]')!;
+        const events: string[] = [];
+        host.addEventListener('input', () => events.push('input'));
+        host.addEventListener('change', () => events.push('change'));
+        control.focus(); host.value = 'beta'; await whenCemRendered(host);
+        host.setAttribute('value-request', 'initial'); host.setAttribute('aria-description', 'Unrelated update');
+        await whenCemRendered(host); await expect(host.value).toBe('beta');
+        await userEvent.click(control); await whenCemRendered(host);
+        await expect(control.getAttribute('aria-expanded')).toBe('true');
+        host.setAttribute('value-request', 'cancelled-1'); await whenCemRendered(host);
+        await expect(host.value).toBe('alpha');
+        await expect(control.getAttribute('aria-expanded')).toBe('false');
+        await expect(host.querySelector('[role=combobox]')).toBe(control);
+        await expect(document.activeElement).toBe(control);
+        await expect(events).toEqual([]);
+        host.value = 'beta'; host.removeAttribute('value-request'); await whenCemRendered(host);
+        await expect(host.value).toBe('beta');
+        host.setAttribute('value-request', 'cancelled-2'); await whenCemRendered(host);
+        await expect(host.value).toBe('alpha');
+    },
+});
+
+export const NarrowContainer = meta.story({
+    render: () => '<section class="cem-theme-light" style="inline-size:240px"><cem-select label="Project resource"><option value="long">Project / deeply/nested/resources/very-long-resource-identity-without-breaks.cem — validation</option><option value="short">Short</option></cem-select></section>',
+    play: async ({ canvasElement }) => {
+        const container = canvasElement.querySelector<HTMLElement>('section')!;
+        const host = container.querySelector<CemSelectElement>('cem-select')!;
+        await whenCemRendered(host);
+        const control = host.querySelector<HTMLButtonElement>('[role=combobox]')!;
+        await expect(host.getBoundingClientRect().width).toBeLessThanOrEqual(240);
+        await expect(container.scrollWidth).toBeLessThanOrEqual(240);
+        await expect(control).toHaveAccessibleName('Project resource');
+        await userEvent.click(control); await whenCemRendered(host);
+        await expect(within(host).getByRole('option', { name: /deeply\/nested/ })).toBeVisible();
+        await userEvent.click(within(host).getByRole('option', { name: 'Short' }));
+        await whenCemRendered(host); await expect(host.value).toBe('short');
+        await expect(document.activeElement).toBe(control);
+        await expect(container.scrollWidth).toBeLessThanOrEqual(240);
+    },
+});

@@ -123,11 +123,18 @@ const workbenchControls = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem
 assert.match(workbenchModule, /mountCemView/);
 assert.doesNotMatch(workbenchModule, /editor\.focus\(|editor\.setSelectionRange\(|function statusLabel|function statusTone/);
 assert.match(workbenchControls, /<template id="cem-studio-workbench-controls" type="text\/cem-ml">/);
-for (const command of ['edit', 'save', 'reload', 'run', 'select-workbench', 'parse', 'inspect']) {
+for (const command of ['edit', 'save', 'reload', 'run', 'parse', 'inspect']) {
     assert.match(workbenchControls, new RegExp(`host-command=${command}(?:\\s|$)`));
 }
 assert.match(workbenchControls, /selection-request=/);
 assert.doesNotMatch(workbenchControls, /@variant=(?:quiet|secondary)|<script|\son[a-z]+=|javascript:/i);
+
+const navigationView = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/workbench-navigation.xhtml'), 'utf8');
+for (const command of ['select-workbench', 'open-entity', 'search-projects', 'open-search', 'navigation-cancel']) {
+    assert.ok(navigationView.includes(`host-command=${command}`));
+}
+assert.match(navigationView, /host-command-event=cem-tree-activate/);
+assert.doesNotMatch(navigationView, /<script|\son[a-z]+=|javascript:/i);
 
 const commandView = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/workbench-command.xhtml'), 'utf8');
 assert.match(commandView, /<template id="cem-studio-workbench-command" type="text\/cem-ml">/);

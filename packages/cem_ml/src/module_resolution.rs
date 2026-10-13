@@ -168,6 +168,14 @@ impl CemModuleUrlResolutionCapability {
         &self.context
     }
 
+    /// Exact native authority, in addition to a resolver's semantic fingerprint.
+    /// Equal labels on independently constructed resolvers are not ownership.
+    pub fn same_owner(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.resolver, &other.resolver)
+            && self.context == other.context
+            && self.node_contexts == other.node_contexts
+    }
+
     pub fn with_node_context(
         mut self,
         node_identity: impl Into<String>,

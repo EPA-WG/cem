@@ -47,7 +47,12 @@
         },
         "./manifest.webmanifest": "./dist/static/manifest.webmanifest",
         "./static/*": "./dist/static/*",
-        "./package.json": "./package.json"
+        "./package.json": "./package.json",
+        "./project-session": {
+            "types": "./src/project-session.d.ts",
+            "import": "./dist/static/assets/@epa-wg/cem-studio/project-session.js",
+            "default": "./dist/static/assets/@epa-wg/cem-studio/project-session.js"
+        }
     },
     "files": [
         "dist",
@@ -58,6 +63,7 @@
         "src/preview.d.ts",
         "src/shell.d.ts",
         "src/workbench.d.ts",
+        "src/project-session.d.ts",
         "README.md",
         "LICENSE"
     ],

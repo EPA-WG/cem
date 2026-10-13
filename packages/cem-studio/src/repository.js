@@ -3,6 +3,7 @@ import {
     CEM_ML_CLI_COMMAND_CONTENT_TYPE,
     CEM_ML_CLI_COMMAND_SCHEMA,
     parseCemMlCommandResource,
+    serializeCemMlCommandResource,
 } from '@epa-wg/cem-ml-cli/browser';
 
 export const CEM_STUDIO_REPOSITORY_ID = 'studio-projects';
@@ -20,6 +21,7 @@ const MAX_SEARCH_TERMS = 2_048;
  * @property {StorageManager} [storage]
  * @property {typeof BroadcastChannel} [BroadcastChannel]
  * @property {(bundle: unknown, options: {signal?: AbortSignal, operation: 'import' | 'export'}) => unknown | Promise<unknown>} validateProject
+ * @property {import('./feature-tour.js').CemStudioBrowserValidator['planResourceRebind']} [planResourceRebind]
  * @property {() => string} [now]
  */
 
@@ -69,6 +71,7 @@ export class CemStudioIndexedDbRepository {
         this.storage = options.storage ?? globalThis.navigator?.storage;
         this.BroadcastChannel = options.BroadcastChannel ?? globalThis.BroadcastChannel;
         this.validateProject = options.validateProject;
+        this.planResourceRebind = options.planResourceRebind;
         this.now = options.now ?? (() => new Date().toISOString());
         this.lifecycleState = this.indexedDB ? 'idle' : 'unavailable';
         this.repositoryRevision = 0;
@@ -195,6 +198,9 @@ export class CemStudioIndexedDbRepository {
         switch (request.operation) {
             case 'import-project':
                 mutation = await this.importProject(database, request, signal);
+                break;
+            case 'edit-project':
+                mutation = await this.editProject(database, request, signal);
                 break;
             case 'save-resource':
                 mutation = await this.saveResource(database, request, signal);
@@ -386,6 +392,9 @@ export class CemStudioIndexedDbRepository {
             async (transaction) => {
                 const projects = transaction.objectStore('projects');
                 const existing = await requestValue(projects.get(bundle.project.id));
+                if (request.operation === 'edit-project' && (!existing || existing.trashedAt)) {
+                    throw new CemStudioRepositoryError('cem.studio.repository.project_unavailable', 'Restore the project before editing its structure');
+                }
                 if (existing && mode === 'create') {
                     throw conflict('project', bundle.project.id, undefined, existing.revision, undefined, undefined);
                 }
@@ -421,7 +430,7 @@ export class CemStudioIndexedDbRepository {
                 const changeCursor = await appendChange(transaction, {
                     repositoryRevision,
                     projectId: bundle.project.id,
-                    operation: 'import-project',
+                    operation: request.operation,
                     projectRevision: bundle.project.revision,
                     committedAt: this.now(),
                 });
@@ -437,6 +446,140 @@ export class CemStudioIndexedDbRepository {
             },
             'strict',
         );
+    }
+
+    /** @param {IDBDatabase} database @param {CemStudioRepositoryRequest} request @param {AbortSignal} [signal] */
+    async editProject(database, request, signal) {
+        const input = parameters(request);
+        const projectId = stringParameter(request, 'projectId');
+        const before = await this.getProject(database, projectId, true);
+        if (!before) throw new CemStudioRepositoryError('cem.studio.repository.project_unavailable', 'Project is unavailable');
+        assertExpectedRevision('project', projectId, input.expectedRevision, before.project.revision);
+        const bundle = structuredClone(input.edit?.kind === 'restore' ? input.edit.bundle : before);
+        if (!bundle?.project || bundle.project.id !== projectId) throw new Error('History belongs to another project');
+        const project = bundle.project;
+        const edit = input.edit ?? {};
+        const named = () => {
+            if (typeof edit.name !== 'string' || !edit.name.trim() || edit.name.trim().length > 120) throw new Error('Enter a name of 1–120 characters');
+            return edit.name.trim();
+        };
+        const entry = () => {
+            const value = project.entries.find(item => item.id === edit.id);
+            if (!value) throw new Error('Choose an existing page');
+            return value;
+        };
+        const parent = () => {
+            if (edit.parentId && !project.entries.some(item => item.id === edit.parentId && item.kind === 'subproject')) throw new Error('Choose an existing subproject parent');
+            return edit.parentId || undefined;
+        };
+        switch (edit.kind) {
+            case 'rename-project': project.name = named(); break;
+            case 'rename-entry': entry().name = named(); break;
+            case 'create-subproject':
+                project.entries.push({ id: `page-${this.crypto.randomUUID()}`, kind: 'subproject', name: named(), ...(parent() ? { parentId: parent() } : {}) });
+                break;
+            case 'copy-entry': {
+                const original = entry();
+                const ids = new Set([original.id]);
+                let changed = true;
+                while (changed) { changed = false; for (const item of project.entries) if (ids.has(item.parentId) && !ids.has(item.id)) { ids.add(item.id); changed = true; } }
+                const mapping = new Map([...ids].map(id => [id, `page-${this.crypto.randomUUID()}`]));
+                const copies = project.entries.filter(item => ids.has(item.id)).map(item => ({ ...item, id: mapping.get(item.id),
+                    ...(item.id === original.id ? { name: named() } : { parentId: mapping.get(item.parentId) }) }));
+                project.entries.push(...copies);
+                break;
+            }
+            case 'move-entry': {
+                const item = entry();
+                const target = parent();
+                let ancestor = target;
+                const seen = new Set([item.id]);
+                while (ancestor) {
+                    if (seen.has(ancestor)) throw new Error('A page cannot be moved into its own subtree');
+                    seen.add(ancestor); ancestor = project.entries.find(value => value.id === ancestor)?.parentId;
+                }
+                if (target) item.parentId = target; else delete item.parentId;
+                break;
+            }
+            case 'reorder-entry': {
+                const item = entry();
+                if (edit.direction !== 'up' && edit.direction !== 'down') throw new Error('Choose up or down');
+                const siblings = project.entries.filter(value => value.parentId === item.parentId);
+                const index = siblings.indexOf(item);
+                const other = siblings[index + (edit.direction === 'up' ? -1 : 1)];
+                if (!other) throw new Error('This page is already at that end of its sibling list');
+                const a = project.entries.indexOf(item), b = project.entries.indexOf(other);
+                [project.entries[a], project.entries[b]] = [project.entries[b], project.entries[a]];
+                break;
+            }
+            case 'create-resource':
+            case 'copy-resource': {
+                if (typeof edit.path !== 'string' || !edit.path || project.resources.some(item => item.path === edit.path)) throw new Error('Choose a new project-relative resource path');
+                const original = edit.kind === 'copy-resource' ? project.resources.find(item => item.id === edit.id) : undefined;
+                if (edit.kind === 'copy-resource' && !original) throw new Error('Choose an existing resource');
+                const bytes = original ? toBytes(bundle.contents[original.id]) : toBytes(edit.content ?? '');
+                const id = `resource-${this.crypto.randomUUID()}`;
+                const resource = { ...(original ?? { role: 'data', contentType: 'application/cem', schema: 'https://cem.dev/ns/cem-ml/1' }),
+                    id, sourceKind: 'project-file', path: edit.path, revision: 1, sha256: await sha256Hex(this.crypto, bytes) };
+                delete resource.url;
+                project.resources.push(resource); bundle.contents[id] = bytes;
+                break;
+            }
+            case 'rename-resource':
+            case 'delete-resource': {
+                const resource = project.resources.find(item => item.id === edit.id);
+                if (!resource || resource.sourceKind !== 'project-file') throw new Error('Choose a local project resource');
+                const oldUri = project.rootUri + resource.path;
+                if (edit.kind === 'rename-resource' && (typeof edit.path !== 'string' || !edit.path || project.resources.some(item => item.path === edit.path))) throw new Error('Choose a new project-relative resource path');
+                const { commands, plans } = await resourcePathCommands(bundle, this.planResourceRebind, oldUri,
+                    edit.kind === 'rename-resource' ? project.rootUri + edit.path : oldUri);
+                assertNotAborted(signal);
+                if (edit.kind === 'delete-resource') {
+                    const dependents = project.entries.filter(item => item.runConfigResourceId === resource.id || item.resourceIds?.includes(resource.id));
+                    const commandDependents = commands.filter(item => item.resource.id !== resource.id && item.input === oldUri);
+                    const nativeDependents = plans.filter(item => item.resource.id !== resource.id && item.plan.references.some(ref => ref.uri === oldUri));
+                    if (nativeDependents.length) throw new Error(`Resource is referenced by ${nativeDependents.map(item => item.resource.path).join(', ')}`);
+                    if (dependents.length || commandDependents.length) throw new Error(`Resource is referenced by ${[...dependents.map(item => item.name), ...commandDependents.map(item => item.resource.path)].join(', ')}`);
+                    project.resources = project.resources.filter(item => item.id !== resource.id);
+                    delete bundle.contents[resource.id];
+                } else {
+                    if (typeof edit.path !== 'string' || !edit.path || project.resources.some(item => item.path === edit.path)) throw new Error('Choose a new project-relative resource path');
+                    const newUri = project.rootUri + edit.path;
+                    for (const item of commands) {
+                        if (item.input !== oldUri) continue;
+                        const text = serializeCemMlCommandResource({ ...item.command, [item.slot]: { ...item.command[item.slot], [item.key]: newUri } });
+                        parseCemMlCommandResource(text, { runtime: 'wasm-browser-worker' });
+                        const bytes = toBytes(text);
+                        bundle.contents[item.resource.id] = bytes;
+                        item.resource.sha256 = await sha256Hex(this.crypto, bytes);
+                        item.resource.revision++;
+                    }
+                    for (const item of plans) {
+                        if (item.plan.rewrittenBytes === null) continue;
+                        const bytes = new Uint8Array(item.plan.rewrittenBytes);
+                        bundle.contents[item.resource.id] = bytes;
+                        item.resource.sha256 = await sha256Hex(this.crypto, bytes);
+                        item.resource.revision++;
+                    }
+                    resource.path = edit.path;
+                    if (!commands.some(item => item.resource === resource && item.input === oldUri) &&
+                        !plans.some(item => item.resource === resource && item.plan.rewrittenBytes !== null)) resource.revision++;
+                }
+                break;
+            }
+            case 'restore':
+                // Undo is a new commit, never a rewind of optimistic revision tokens.
+                for (const resource of project.resources) {
+                    const current = before.project.resources.find(item => item.id === resource.id);
+                    resource.revision = Math.max(resource.revision, current?.revision ?? 0) + 1;
+                }
+                break;
+            default: throw new Error('Unsupported project structure edit');
+        }
+        project.revision = before.project.revision + 1;
+        project.updatedAt = this.now();
+        const mutation = await this.importProject(database, { ...request, parameters: { bundle, mode: 'replace', expectedRevision: input.expectedRevision } }, signal);
+        return { ...mutation, value: { project: mutation.value, before } };
     }
 
     /** @param {IDBDatabase} database @param {CemStudioRepositoryRequest} request @param {AbortSignal} [signal] */
@@ -461,6 +604,9 @@ export class CemStudioIndexedDbRepository {
                         'cem.studio.repository.resource_not_found',
                         `resource \`${resourceId}\` was not found in project \`${projectId}\``,
                     );
+                }
+                if (project.trashedAt) {
+                    throw new CemStudioRepositoryError('cem.studio.repository.project_trashed', 'Restore the project before saving resources');
                 }
                 assertExpectedRevision('project', projectId, input.expectedProjectRevision, project.revision);
                 assertExpectedRevision(
@@ -1007,7 +1153,7 @@ async function listProjects(database, includeTrash) {
         return projects
             .filter((project) => includeTrash || !project.trashedAt)
             .sort((left, right) => left.id.localeCompare(right.id))
-            .map(({ commitRevision: _commitRevision, ...project }) => structuredClone(project));
+            .map(({ commitRevision: _commitRevision, entryOrder: _entryOrder, ...project }) => structuredClone(project));
     });
 }
 
@@ -1493,9 +1639,8 @@ function prepareCommandPageProposal(input) {
         revision: project.revision + 1,
         updatedAt: input.committedAt,
         entries: disposition === 'created'
-            ? [...entries, entry].sort((left, right) => left.id.localeCompare(right.id))
-            : entries.map((candidate) => candidate.id === entry.id ? entry : candidate)
-                .sort((left, right) => left.id.localeCompare(right.id)),
+            ? [...entries, entry]
+            : entries.map((candidate) => candidate.id === entry.id ? entry : candidate),
         resources: commandResourceCreated
             ? [...resources, commandResource].sort((left, right) => left.id.localeCompare(right.id))
             : resources.map((candidate) => candidate.id === commandResource.id ? commandResource : candidate)
@@ -1681,7 +1826,7 @@ function equalBytes(left, right) {
 /** @param {Record<string, any>} project */
 function projectStorageRecord(project) {
     const { entries: _entries, resources: _resources, ...metadata } = project;
-    return { ...structuredClone(metadata), commitRevision: project.revision, trashedAt: null };
+    return { ...structuredClone(metadata), entryOrder: project.entries.map(entry => entry.id), commitRevision: project.revision, trashedAt: null };
 }
 
 /** @param {string} projectId @param {Record<string, any>} entry */
@@ -1696,12 +1841,13 @@ function resourceStorageRecord(projectId, resource) {
 
 /** @param {Record<string, any>} project @param {Record<string, any>[]} entries @param {Record<string, any>[]} resources */
 function portableProject(project, entries, resources) {
-    const { commitRevision: _commitRevision, trashedAt: _trashedAt, ...metadata } = project;
+    const { commitRevision: _commitRevision, trashedAt: _trashedAt, entryOrder = [], ...metadata } = project;
+    const order = new Map(entryOrder.map((id, index) => [id, index]));
     return {
         ...structuredClone(metadata),
         entries: entries
             .map(({ key: _key, projectId: _projectId, ...entry }) => structuredClone(entry))
-            .sort((left, right) => left.id.localeCompare(right.id)),
+            .sort((left, right) => (order.get(left.id) ?? Infinity) - (order.get(right.id) ?? Infinity) || left.id.localeCompare(right.id)),
         resources: resources
             .map(({ key: _key, projectId: _projectId, blobHash: _blobHash, ...resource }) => structuredClone(resource))
             .sort((left, right) => left.id.localeCompare(right.id)),
@@ -1797,7 +1943,7 @@ function searchableText(contentType, bytes) {
 
 /** @param {IDBIndex} index @param {IDBValidKey} key */
 function deleteByIndex(index, key) {
-    return cursorMutation(index.openKeyCursor(IDBKeyRange.only(key)), (cursor) => cursor.delete());
+    return cursorMutation(index.openCursor(IDBKeyRange.only(key)), (cursor) => cursor.delete());
 }
 
 /** @param {IDBIndex} index @param {string} projectId @param {boolean} trashed @param {number} projectRevision */
@@ -1821,8 +1967,7 @@ function cursorMutation(request, mutate) {
                 resolve(undefined);
                 return;
             }
-            mutate(cursor);
-            cursor.continue();
+            try { mutate(cursor); cursor.continue(); } catch (error) { reject(error); }
         };
     });
 }
@@ -2077,4 +2222,59 @@ function searchSnippet(text, terms) {
     const start = Math.max(0, offset - 60);
     const end = Math.min(text.length, start + 180);
     return `${start > 0 ? '…' : ''}${text.slice(start, end)}${end < text.length ? '…' : ''}`;
+}
+
+/** Bound path edits to dependency vocabularies whose complete inputs we understand. */
+async function resourcePathCommands(bundle, planner, fromUri, toUri) {
+    const { project } = bundle;
+    const blocked = message => { throw new Error(`Resource path edit blocked: ${message}`); };
+    if (project.entries.some(entry => !['subproject', 'data-set', 'inspection', 'transformation-graph'].includes(entry.kind))) blocked('only data, parse/inspect and bounded opaque graph pages currently support dependency rebinding');
+    const commands = [];
+    const plans = [];
+    const outputs = new Set();
+    for (const resource of project.resources) {
+        if (resource.sourceKind !== 'project-file') blocked(`non-local resource at ${resource.path}`);
+        if (['data', 'expected'].includes(resource.role)) continue;
+        const kind = resource.role === 'run-config' && resource.schema === 'https://cem.dev/ns/cli/run-config/1' ? 'run-config'
+            : resource.role === 'transform-config' && resource.schema === 'https://cem.dev/ns/cli/transform-config/1' ? 'transform-graph' : undefined;
+        if (kind) {
+            if (!planner) blocked('native dependency planner unavailable');
+            const relocating = project.rootUri + resource.path === fromUri;
+            if (relocating && fromUri === toUri) blocked('configuration deletion needs a separate dependency contract');
+            const plan = await planner({ kind, mode: relocating ? 'relocate' : 'rebind', bytes: [...toBytes(bundle.contents[resource.id])],
+                identity: { contentType: resource.contentType, schema: resource.schema },
+                baseUri: project.rootUri + resource.path, fromUri, toUri });
+            if (plan.blockers.length) blocked(`${resource.path}: ${plan.blockers.join('; ')}`);
+            for (const ref of plan.references) {
+                if (ref.kind === 'output') {
+                    const uri = new URL(ref.uri);
+                    if (uri.href !== ref.uri || uri.search || uri.hash) blocked(`output ownership at ${resource.path}`);
+                    if (ref.uri === toUri || outputs.has(ref.uri) || !ref.uri.startsWith(project.rootUri) || project.resources.some(item => project.rootUri + item.path === ref.uri)) blocked(`output ownership at ${resource.path}`);
+                    outputs.add(ref.uri);
+                    continue;
+                }
+                if (ref.kind === 'schemaPackage' || !project.resources.some(item => ['data', 'expected'].includes(item.role) && project.rootUri + item.path === ref.uri)) blocked(`unresolved or transitive dependency at ${resource.path}`);
+            }
+            plans.push({ resource, plan });
+            continue;
+        }
+        if (resource.role !== 'run-config' || resource.schema !== CEM_ML_CLI_COMMAND_SCHEMA || resource.contentType !== CEM_ML_CLI_COMMAND_CONTENT_TYPE) blocked(`unsupported dependency format at ${resource.path}`);
+        const { command } = parseCemMlCommandResource(toBytes(bundle.contents[resource.id]), { runtime: 'wasm-browser-worker' });
+        if (command.commandPath.length !== 1 || !['parse', 'inspect', 'transform'].includes(command.commandPath[0])) blocked(`unsupported operation at ${resource.path}`);
+        const graph = command.commandPath[0] === 'transform';
+        const scalarOptions = graph ? new Set(['config', 'source_map_summary', 'module_asset_cache_key', 'report_format']) : new Set(['format', 'show', 'from_format', 'fail_level', 'preserve_source_offsets',
+            'schema', 'content_type', 'default_namespace', 'namespaces', 'report_format']);
+        if (Object.keys(command.options).some(key => !scalarOptions.has(key)) ||
+            Object.keys(command.globalOptions).some(key => !['quiet', 'verbose', 'no_color'].includes(key))) blocked(`resolver, configuration or output options at ${resource.path} need a separate rebinding contract`);
+        if (graph && ['source_map_summary', 'module_asset_cache_key'].some(key => command.options[key] !== undefined && ![false, 'false'].includes(command.options[key]))) blocked(`transform reporting options at ${resource.path} need a separate contract`);
+        const input = graph ? command.options.config : command.positionals.input;
+        if (graph && (Object.keys(command.positionals).length || !project.resources.some(item => item.role === 'transform-config' && project.rootUri + item.path === input))) blocked(`transform command requires a local graph at ${resource.path}`);
+        if (typeof input !== 'string' || !project.resources.some(item => project.rootUri + item.path === input)) blocked(`command input at ${resource.path} must be an exact absolute project resource URI`);
+        // Other option slots have no rebinding contract. Reject project URI values
+        // there, rather than guessing that they are plain labels or dependencies.
+        const values = [...Object.entries(command.options).filter(([key]) => !(graph && key === 'config')).map(([,value]) => value), ...Object.values(command.globalOptions ?? {})].flat();
+        if (values.some(value => typeof value === 'string' && value.includes(project.rootUri))) blocked(`a non-input option at ${resource.path} contains a project URI`);
+        commands.push({ resource, command, input, slot: graph ? 'options' : 'positionals', key: graph ? 'config' : 'input' });
+    }
+    return { commands, plans };
 }

@@ -21,6 +21,7 @@ export interface CemStudioRepositoryOptions {
     crypto?: Crypto;
     storage?: StorageManager;
     BroadcastChannel?: typeof globalThis.BroadcastChannel;
+    planResourceRebind?(request: import('@epa-wg/cem-ml-cli/browser').ResourceRebindRequest): Promise<import('@epa-wg/cem-ml-cli/browser').ResourceRebindPlan>;
     validateProject(bundle: unknown, options: CemStudioProjectValidationOptions): unknown | Promise<unknown>;
     now?: () => string;
 }
@@ -128,3 +129,15 @@ export declare function createCemStudioProjectRepository(
 ): CemStudioIndexedDbRepository;
 
 export declare function normalizeRepositoryError(error: unknown, operation: string): CemStudioRepositoryError;
+
+/** Structural commits validate the complete native project and use expectedRevision. */
+export type CemStudioStructureEdit =
+    | { kind: 'rename-project'; name: string }
+    | { kind: 'create-subproject'; name: string; parentId?: string }
+    | { kind: 'rename-entry' | 'copy-entry'; id: string; name: string }
+    | { kind: 'move-entry'; id: string; parentId?: string }
+    | { kind: 'reorder-entry'; id: string; direction: 'up' | 'down' }
+    | { kind: 'create-resource'; path: string; content?: string }
+    | { kind: 'copy-resource' | 'rename-resource'; id: string; path: string }
+    | { kind: 'delete-resource'; id: string }
+    | { kind: 'restore'; bundle: { project: Record<string, unknown>; contents: Record<string, ArrayBuffer | Uint8Array> } };

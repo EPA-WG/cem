@@ -1,3 +1,4 @@
+import { describeCemStudioOperationFields, editCemStudioOperationField } from './feature-tour.js';
 import { CEM_STUDIO_REPOSITORY_ID } from './repository.js';
 import { CEM_STUDIO_LIMITS, createCemStudioPreview, redactCemStudioSecrets } from './preview.js';
 import { installCemStudioShellComponents } from './shell.js';
@@ -15,6 +16,317 @@ export const CEM_STUDIO_INSPECT_VIEWS = Object.freeze([
     'source-offsets',
     'tree',
 ]);
+
+/** Resolve durable project records. A catalog is never required to open a project. */
+export async function createCemStudioProjectWorkbench({ repository, validator, selection, signal, sample }) {
+    signal?.throwIfAborted();
+    const projects = await repository.query(repositoryRequest('list-projects', {}), signal);
+    if (!projects.value.some(project => project.id === selection.projectId)) throw new Error('Selected project is missing or in Trash. Restore it from Home.');
+    const response = await repository.query(repositoryRequest('export-project', { projectId: selection.projectId }), signal);
+    const bundle = response.value;
+    if (!bundle?.project) throw new Error(`Project ${selection.projectId} is unavailable`);
+    const project = bundle.project;
+    const entry = selection.entryId === undefined ? undefined : project.entries.find(item => item.id === selection.entryId);
+    if (selection.entryId !== undefined && !entry) throw new Error(`Page ${selection.entryId} is missing`);
+    const commandRecord = project.resources.find(item => item.id === entry?.runConfigResourceId);
+    let inputResourceId;
+    if (selection.resourceId === undefined && commandRecord?.schema === 'https://cem.dev/ns/cli/command/1') {
+        const parsed = validator.decodeResourceCommand(toBytes(bundle.contents[commandRecord.id]));
+        const inputs = parsed.positionals?.input ?? parsed.positionals?.inputs ?? parsed.options?.config;
+        const input = Array.isArray(inputs) ? inputs[0] : inputs;
+        if (typeof input === 'string') {
+            inputResourceId = project.resources.find(item => resourceUri(item.path, project.id) === resourceUri(input, project.id))?.id;
+            if (!inputResourceId || !entry.resourceIds?.includes(inputResourceId)) throw new Error(`Command input ${input} is not owned by this page`);
+        }
+    }
+    const resourceId = selection.resourceId ?? inputResourceId ?? entry?.resourceIds?.find(id => id !== entry.runConfigResourceId);
+    const resource = resourceId === undefined ? undefined : project.resources.find(item => item.id === resourceId);
+    if (resourceId !== undefined && !resource) throw new Error(`Resource ${resourceId} is missing`);
+    if (entry && resource && !entry.resourceIds?.includes(resource.id) && entry.runConfigResourceId !== resource.id) {
+        throw new Error(`Resource ${resource.id} does not belong to page ${entry.id}`);
+    }
+    const available = Boolean(resource && bundle.contents[resource.id] !== undefined);
+    const bytes = available ? toBytes(bundle.contents[resource.id]) : new Uint8Array();
+    let text;
+    const mediaType = resource?.contentType?.split(';')[0].trim().toLowerCase();
+    const supported = available && ['inline', 'project-file'].includes(resource.sourceKind)
+        && (mediaType.startsWith('text/') || mediaType.startsWith('application/vnd.cem.') || ['application/cem', 'application/json', 'application/xml', 'application/yaml', 'application/xhtml+xml', 'image/svg+xml'].includes(mediaType))
+        && bytes.byteLength <= CEM_STUDIO_LIMITS.sourceBytes;
+    if (supported) {
+        try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch { /* binary stays read-only */ }
+    }
+    if (text === undefined) {
+        const state = Object.freeze({ status: resource ? 'read-only' : 'empty', projectId: project.id,
+            entryId: entry?.id, resourceId: resource?.id ?? '', path: resource?.path ?? '',
+            contentType: resource?.contentType ?? '', schema: resource?.schema ?? '',
+            projectRevision: project.revision, resourceRevision: resource?.revision ?? 0,
+            repositoryRevision: response.repositoryRevision, draft: '', persistedText: '', dirty: false,
+            editable: false, runnable: false, workbenchId: '', workbenches: [], operation: '',
+            resourceAvailable: available, byteLength: bytes.byteLength });
+        return Object.freeze({ snapshot: () => state, subscribe(notify) { notify(state); return () => { /* Immutable snapshot has no live subscription. */ }; },
+            dispose() { /* No requests or subscriptions are retained. */ }, async downloadSource(download = browserDownload) {
+                if (!available) throw new Error('No local resource bytes are available');
+                await download({ filename: resource.path?.split('/').pop() ?? resource.id, contentType: resource.contentType, bytes: bytes.slice() });
+            } });
+    }
+    const example = { ...sample, id: entry?.id ?? resource.id, name: entry?.name ?? resource.path,
+        resourceId: resource.id, path: resource.path, contentType: resource.contentType, schema: resource.schema,
+        entryId: entry?.id, runConfigResourceId: entry?.runConfigResourceId, kind: entry?.kind,
+        dependencies: (entry?.resourceIds ?? []).filter(id => id !== resource.id && id !== entry.runConfigResourceId).map(resourceId => ({ resourceId, path: resourceUri(project.resources.find(item => item.id === resourceId)?.path ?? '', project.id) })), projectOwned: true };
+    const workbench = await createCemStudioFeatureTourWorkbench({ repository, validator, projectId: project.id,
+        example, seed: undefined });
+    if (signal?.aborted) { workbench.dispose(); signal.throwIfAborted(); }
+    return workbench;
+}
+
+/** A stable service adapter; all selection requests go through guarded admission. */
+export async function createCemStudioSessionWorkbench({ repository, session, home }) {
+    let choices = [];
+    let navigationError;
+    let records = [];
+    let searchState = { query: '', status: 'idle', results: [] };
+    let searchVersion = 0;
+    let navigationVersion = 0;
+    let disposed = false;
+    let homeState = home ? { projects: [], status: 'ready' } : undefined;
+    let homePending = false;
+    let structurePending = false;
+    let structureMessage;
+    let structureError;
+    let projectRecords = new Map();
+    const histories = new Map();
+    const subscribers = new Set();
+    const identity = selection => JSON.stringify(selection);
+    function snapshot() {
+        const current = session.snapshot();
+        const record = projectRecords.get(current.selection?.projectId);
+        const history = histories.get(current.selection?.projectId);
+        const structure = record && { projectId: record.id, name: record.name, revision: record.revision,
+            entries: record.entries, resources: record.resources,
+            parents: record.entries.filter(entry => entry.kind === 'subproject'),
+            busy: structurePending, message: structureMessage, error: structureError,
+            canUndo: Boolean(history?.undo.length && history.revision === record.revision),
+            canRedo: Boolean(history?.redo.length && history.revision === record.revision) };
+        return Object.freeze({ status: 'empty', editable: false, runnable: false, ...current.workbench, transition: current.transition, sessionStatus: current.status, draftRecovery: current.draftRecovery, structure, navigationError, home: homeState, explorer: { nodes: records, selected: current.selection ? encodeURIComponent(identity(current.selection)) : '', search: searchState },
+            workbenchId: current.selection ? identity(current.selection) : '', workbenches: choices });
+    }
+    function publish() { for (const notify of subscribers) notify(snapshot()); }
+    async function refreshNavigation() {
+        const version = ++navigationVersion;
+        try {
+            const response = await repository.query(repositoryRequest('list-projects', {}));
+            const projects = response.value;
+            const next = [];
+            const trees = [];
+            const loadedProjects = new Map();
+            for (const project of projects) {
+                const loaded = await repository.query(repositoryRequest('get-project', { projectId: project.id }));
+                if (!loaded.value) continue;
+                const record = loaded.value;
+                loadedProjects.set(project.id, record);
+                const key = selection => encodeURIComponent(identity(selection));
+                const entries = new Map(record.entries.map(entry => [entry.id, { key: key({ projectId: project.id, entryId: entry.id }), name: entry.name, children: [] }]));
+                const roots = [];
+                for (const entry of record.entries) {
+                    const node = entries.get(entry.id);
+                    const parent = entries.get(entry.parentId);
+                    if (parent) parent.children.push(node); else roots.push(node);
+                }
+                // Branch activation belongs to expansion; a branch's own page is an explicit leaf.
+                for (const node of entries.values()) {
+                    if (node.children.length) {
+                        node.children.unshift({ key: node.key, name: node.name, children: [] });
+                        node.key = `branch:${node.key}`;
+                    }
+                }
+                if (record.resources.length) roots.push({ key: `resources:${key({ projectId: project.id })}`, name: 'Resources', children: record.resources.map(resource => ({ key: key({ projectId: project.id, resourceId: resource.id }), name: resource.path ?? resource.id, children: [] })) });
+                trees.push({ key: `project:${key({ projectId: project.id })}`, name: project.name, children: [{ key: key({ projectId: project.id }), name: project.name, children: [] }, ...roots] });
+                const add = (selection, name, operation = '') => next.push(Object.freeze({ id: identity(selection), selection: Object.freeze(selection), name, operation }));
+                add({ projectId: project.id }, project.name);
+                for (const entry of record.entries) {
+                    const names = [entry.name];
+                    const seen = new Set([entry.id]);
+                    let parent = record.entries.find(item => item.id === entry.parentId);
+                    while (parent && !seen.has(parent.id)) {
+                        seen.add(parent.id); names.unshift(parent.name);
+                        parent = record.entries.find(item => item.id === parent.parentId);
+                    }
+                    add({ projectId: project.id, entryId: entry.id }, `${project.name} / ${names.join(' / ')}`, entry.kind);
+                }
+                for (const resource of record.resources) {
+                    add({ projectId: project.id, resourceId: resource.id }, `${project.name} / ${resource.path ?? resource.id}`);
+                }
+            }
+            const all = homeState ? (await repository.query(repositoryRequest('list-projects', { includeTrash: true }))).value : [];
+            const storage = homeState ? await repository.status() : undefined;
+            if (disposed || version !== navigationVersion) return;
+            records = trees;
+            projectRecords = loadedProjects;
+            choices = Object.freeze(next);
+            const current = session.snapshot();
+            const available = !current.selection || choices.some(item => item.id === identity(current.selection));
+            navigationError = !available ? { code: 'cem.studio.selection.unavailable', message: 'The active selection is missing or in Trash. Your drafts are retained; restore the project or choose another workbench.' }
+                : current.workbench && projects.find(project => project.id === current.selection?.projectId)?.revision > current.workbench.projectRevision
+                    ? { code: 'cem.studio.selection.changed', message: 'The project changed in another operation or tab. Your drafts are retained; saving checks the original revision. Reload explicitly to use persisted bytes.' }
+                    : current.recoveryError;
+            if (homeState && storage) {
+                homeState = { ...homeState, trash: all.filter(project => project.trashedAt).map(project => ({ id: project.id, name: project.name, revision: project.revision })), projects: projects.map(project => ({ id: identity({ projectId: project.id }), name: project.name })),
+                    storage: storage.persisted ? 'Persistent browser storage' : 'Browser storage may be cleared; export projects to keep a backup.',
+                    usage: storage.usage, quota: storage.quota };
+            }
+            publish();
+        } catch (error) { if (!disposed && version === navigationVersion) { navigationError = normalizedError(error); publish(); } throw error; }
+    }
+    async function searchProjects(query) {
+        const version = ++searchVersion;
+        const text = String(query ?? '').trim().slice(0, 500);
+        searchState = { query: text, status: text ? 'searching' : 'idle', results: [] }; publish();
+        if (!text) return;
+        try {
+            const response = await repository.query(repositoryRequest('search', { query: text, limit: 50 }));
+            if (disposed || version !== searchVersion) return;
+            searchState = { query: text, status: 'ready', results: response.value.map(result => ({ ...result,
+                key: encodeURIComponent(identity({ projectId: result.projectId, ...(result.kind === 'entry' ? { entryId: result.entityId } : result.kind === 'resource' ? { resourceId: result.entityId } : {}) })) })) };
+        } catch (error) {
+            if (disposed || version !== searchVersion) return;
+            searchState = { query: text, status: 'failed', results: [], error: normalizedError(error) };
+        }
+        publish();
+    }
+    const unsubscribe = session.subscribe(publish);
+    const unsubscribeRepository = repository.subscribe?.(0, () => {
+        void refreshNavigation().catch(() => undefined);
+        if (searchState.query) void searchProjects(searchState.query);
+    });
+    await refreshNavigation().catch(() => undefined);
+    async function homeOperation(operation) {
+        if (!home || homePending) return;
+        homePending = true;
+        homeState = { ...homeState, status: 'working', error: undefined, message: undefined }; publish();
+        try {
+            const project = await operation();
+            homeState = { ...homeState, status: 'ready', message: `Added ${project.name}. Choose Open project to enter it.` };
+            await refreshNavigation();
+        } catch (error) {
+            homeState = { ...homeState, status: 'ready', ...(error?.name === 'AbortError' ? {} : { error: normalizedError(error) }) };
+        } finally { homePending = false; publish(); }
+    }
+    async function editStructure(edit) {
+        if (structurePending) return snapshot();
+        const current = session.snapshot();
+        const selection = current.selection;
+        const loaded = current.workbench;
+        const record = projectRecords.get(selection?.projectId);
+        const dirty = loaded?.dirty || (loaded?.command && loaded.command.draftText !== loaded.command.current.text);
+        structureError = undefined; structureMessage = undefined;
+        if (!record || current.transition || current.pendingWrite || dirty || workbenchBusy(loaded ?? {})) {
+            structureError = { message: 'Finish pending work and Save/Apply or reset drafts before editing project structure.' };
+            publish(); return snapshot();
+        }
+        structurePending = true; publish();
+        const projectId = record.id;
+        const oldHistory = histories.get(projectId);
+        const history = oldHistory?.revision === record.revision ? oldHistory : { revision: record.revision, undo: [], redo: [] };
+        try {
+            const replay = edit.kind === 'undo' || edit.kind === 'redo';
+            const from = edit.kind === 'undo' ? history.undo : history.redo;
+            if (replay && !from.length) throw new Error('History is unavailable after a new revision or reload.');
+            const response = await repository.execute(repositoryRequest('edit-project', { projectId, expectedRevision: record.revision,
+                edit: replay ? { kind: 'restore', bundle: from.at(-1) } : edit }));
+            const before = response.value.before;
+            if (replay) { from.pop(); (edit.kind === 'undo' ? history.redo : history.undo).push(before); }
+            else { history.undo.push(before); history.redo = []; }
+            // Bound history by count and actual retained source bytes plus metadata.
+            const size = bundle => JSON.stringify(bundle.project).length * 2 + Object.values(bundle.contents).reduce((sum, bytes) => sum + bytes.byteLength, 0);
+            while (history.undo.length + history.redo.length > 20 || [...history.undo, ...history.redo].reduce((sum, bundle) => sum + size(bundle), 0) > 8 * 1024 * 1024) {
+                if (history.undo.length) history.undo.shift(); else history.redo.shift();
+            }
+            history.revision = response.value.project.revision;
+            histories.set(projectId, history);
+            structureMessage = 'Project structure saved. Undo history is local to this session.';
+            await refreshNavigation();
+            if (searchState.query) await searchProjects(searchState.query);
+            if (session.snapshot().selection === selection) {
+                const next = response.value.project;
+                if ((selection.entryId && !next.entries.some(entry => entry.id === selection.entryId)) ||
+                    (selection.resourceId && !next.resources.some(resource => resource.id === selection.resourceId))) await session.select({ projectId });
+                else await session.refresh();
+            }
+        } catch (error) { structureError = normalizedError(error); }
+        finally { structurePending = false; publish(); }
+        return snapshot();
+    }
+    const adapter = { snapshot, subscribe(notify) { subscribers.add(notify); notify(snapshot()); return () => subscribers.delete(notify); },
+        async selectWorkbench(id) {
+            const target = choices.find(item => item.id === id);
+            if (!target) throw new Error('The selected workbench is unavailable');
+            await session.select(target.selection);
+            return snapshot();
+        },
+        searchProjects,
+        editStructure,
+        clearDraftRecovery() { session.clearDraftRecovery(); return snapshot(); },
+        async downloadDraftRecovery(save) {
+            const text = session.draftBackup();
+            if (text) await save({ filename: 'cem-studio-draft-recovery.json', contentType: 'application/json', bytes: new TextEncoder().encode(text) });
+        },
+        async openEntity(key) {
+            const target = choices.find(item => encodeURIComponent(item.id) === key);
+            if (!target) { navigationError = normalizedError(new Error('The requested entity is unavailable. Refresh projects.')); publish(); return snapshot(); }
+            await session.select(target.selection);
+            return snapshot();
+        },
+        async resolveNavigation(decision) {
+            const transition = session.snapshot().transition;
+            if (transition) await session.resolveTransition(transition.id, decision);
+            await refreshNavigation().catch(() => undefined);
+            return session.snapshot();
+        },
+        createProject(name) {
+            return homeOperation(async () => {
+                if (typeof name !== 'string' || !name.trim() || name.trim().length > 120) throw new Error('Enter a project name of 1–120 characters.');
+                const bundle = structuredClone(home.starter);
+                const id = `project-${crypto.randomUUID()}`;
+                const now = new Date().toISOString();
+                bundle.project = { ...bundle.project, id, name: name.trim(), rootUri: `studio://${id}/`, revision: 1, createdAt: now, updatedAt: now };
+                return (await repository.execute(repositoryRequest('import-project', { bundle, mode: 'create' }))).value;
+            });
+        },
+        importProject() {
+            return homeOperation(async () => (await home.provider.importFallback({ archive: await home.selectImport(), mode: 'create' })).project);
+        },
+        async setProjectTrashed(id, trashed) {
+            if (homePending) return;
+            homePending = true;
+            if (homeState) homeState = { ...homeState, status: 'working' };
+            publish();
+            try {
+                const all = (await repository.query(repositoryRequest('list-projects', { includeTrash: true }))).value;
+                const project = all.find(project => project.id === id);
+                if (!project) throw new Error('Project is unavailable');
+                await repository.execute(repositoryRequest(trashed ? 'trash-project' : 'restore-project', { projectId: id, expectedRevision: project.revision }));
+                await refreshNavigation();
+                if (searchState.query) await searchProjects(searchState.query);
+            } catch (error) { navigationError = normalizedError(error); publish(); throw error; }
+            finally { homePending = false; if (homeState) homeState = { ...homeState, status: 'ready' }; publish(); }
+        },
+        refreshNavigation, dispose() { unsubscribeRepository?.(); disposed = true; ++searchVersion; ++navigationVersion; unsubscribe(); subscribers.clear(); } };
+    for (const method of ['updateDraft', 'reload', 'saveSource', 'saveAndValidate', 'validatePersisted', 'parsePersisted',
+        'inspectPersisted', 'runPersistedOperation', 'updateCommandDraft', 'updateCommandField', 'resetCommandDraft', 'copyCommand',
+        'copyProjection', 'downloadProjection', 'downloadSource', 'setCommandTarget', 'applyCommand', 'applyAndRun',
+        'confirmCommandReplacement', 'useNewCommandTarget', 'cancelCommandReplacement', 'navigateDiagnostic', 'navigateProvenance']) {
+        adapter[method] = (...args) => {
+            const active = session.activeWorkbench();
+            if (typeof active?.[method] !== 'function') throw new Error('This resource does not support that operation');
+            const result = active[method](...args);
+            if (['saveSource', 'saveAndValidate', 'applyCommand', 'applyAndRun', 'confirmCommandReplacement'].includes(method)) {
+                return Promise.resolve(result).then(async value => { await refreshNavigation().catch(() => undefined); if (searchState.query) await searchProjects(searchState.query); return value; });
+            }
+            return result;
+        };
+    }
+    return Object.freeze(adapter);
+}
 
 /**
  * Own one editable Feature Tour resource and its durable validation revision.
@@ -48,9 +360,14 @@ export async function createCemStudioFeatureTourWorkbench(options) {
     const subscribers = new Set();
     let editVersion = 0;
     let commandEditVersion = 0;
+    const commandFormId = crypto.randomUUID();
+    let commandTargetVersion = 0;
     let state = freezeState({
         status: 'loading',
         projectId,
+        entryId: example.entryId,
+        editable: true,
+        runnable: !example.projectOwned,
         resourceId: example.resourceId,
         path: example.path,
         contentType: example.contentType,
@@ -77,6 +394,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
     }
 
     function publish(next) {
+        if (next.command) next = { ...next, command: { ...next.command, formVersion: `${commandFormId}:${commandEditVersion}` } };
         state = freezeState(next);
         for (const notify of subscribers) notify(state);
         return state;
@@ -96,7 +414,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         const resource = bundle.project.resources?.find(({ id }) => id === example.resourceId);
         if (!resource) throw new Error(`Feature Tour resource ${example.resourceId} is unavailable`);
         const currentEntries = bundle.project.entries.filter(
-            ({ runConfigResourceId, resourceIds }) =>
+            ({ id, runConfigResourceId, resourceIds }) => example.projectOwned ? id === example.entryId :
                 runConfigResourceId === example.runConfigResourceId ||
                 (!example.runConfigResourceId && resourceIds?.includes(example.resourceId)),
         );
@@ -104,7 +422,12 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             throw new Error(`Feature Tour resource ${example.resourceId} resolves to more than one current page`);
         }
         const bytes = toBytes(bundle.contents[example.resourceId]);
-        const dependencies = example.dependencies.map((dependency) => {
+        if (example.projectOwned && example.entryId && currentEntries.length !== 1) throw new Error(`Page ${example.entryId} is missing`);
+        const dependencyDescriptors = example.projectOwned
+            ? (currentEntries[0]?.resourceIds ?? []).filter(id => id !== example.resourceId && id !== currentEntries[0]?.runConfigResourceId)
+                .map(resourceId => ({ resourceId, path: resourceUri(bundle.project.resources.find(item => item.id === resourceId)?.path ?? '', projectId) }))
+            : example.dependencies;
+        const dependencies = dependencyDescriptors.map((dependency) => {
             const dependencyResource = bundle.project.resources.find(({ id }) => id === dependency.resourceId);
             if (!dependencyResource) throw new Error(`Feature Tour dependency ${dependency.resourceId} is unavailable`);
             return {
@@ -121,7 +444,9 @@ export async function createCemStudioFeatureTourWorkbench(options) {
                     ? JSON.parse(textDecoder.decode(toBytes(bundle.contents[example.expectedResourceId])))
                     : undefined),
         );
+        const commandRecord = example.projectOwned && bundle.project.resources.find(item => item.id === currentEntries[0]?.runConfigResourceId);
         return {
+            commandBytes: commandRecord?.schema === 'https://cem.dev/ns/cli/command/1' ? toBytes(bundle.contents[commandRecord.id]) : undefined,
             bytes,
             text: textDecoder.decode(bytes),
             dependencies,
@@ -137,7 +462,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             pageKind: example.kind ?? 'inspection',
             referencedResourceIds: Object.freeze([
                 example.resourceId,
-                ...example.dependencies.map(({ resourceId }) => resourceId),
+                ...dependencyDescriptors.map(({ resourceId }) => resourceId),
             ]),
         };
     }
@@ -145,11 +470,12 @@ export async function createCemStudioFeatureTourWorkbench(options) {
     async function reload() {
         commandEditVersion += 1;
         const persisted = await readPersisted();
-        const command = await commandForPersisted(persisted);
+        const command = await commandForPersisted(persisted, true);
         editVersion += 1;
         return publish({
             ...state,
             status: 'loaded',
+            runnable: !example.projectOwned || Boolean(persisted.commandBytes) || Boolean(example.commandArguments),
             projectRevision: persisted.projectRevision,
             resourceRevision: persisted.resourceRevision,
             repositoryRevision: persisted.repositoryRevision,
@@ -162,7 +488,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             selection: undefined,
             error: undefined,
             workbenchId: example.id,
-            operation: persisted.operation,
+            operation: command?.parsed?.commandPath?.[0] ?? persisted.operation,
             expected: persisted.expected,
         });
     }
@@ -207,7 +533,15 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         });
     }
 
+    async function saveSource(options = {}) {
+        return persistSource(options, false);
+    }
+
     async function saveAndValidate(options = {}) {
+        return persistSource(options, true);
+    }
+
+    async function persistSource(options, validate) {
         const captured = {
             draft: state.draft,
             editVersion,
@@ -249,23 +583,39 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             publish({ ...state, status: 'failed', error: normalizedError(error) });
             throw error;
         }
+        const capturedCommandVersion = commandEditVersion;
+        let command;
+        try {
+            command = await commandForPersisted(persisted);
+        } catch (error) {
+            // Saving source is a repository transaction. A failed native preview
+            // must not hide its durable revision or erase either draft.
+            command = state.command && freezeCommand({
+                ...state.command,
+                status: 'invalid',
+                parsed: undefined,
+                preview: undefined,
+                diagnostic: normalizedError(error),
+            });
+        }
         const changedDuringSave = editVersion !== captured.editVersion;
-        const command = await commandForPersisted(persisted);
+        const dirty = changedDuringSave && state.draft !== persisted.text;
         publish({
             ...state,
-            status: changedDuringSave ? 'dirty' : 'saved',
+            status: dirty ? 'dirty' : 'saved',
             projectRevision: persisted.projectRevision,
             resourceRevision: persisted.resourceRevision,
             repositoryRevision: persisted.repositoryRevision,
             persistedText: persisted.text,
             draft: changedDuringSave ? state.draft : persisted.text,
-            dirty: changedDuringSave,
+            dirty,
             validation: undefined,
             projection: state.projection ? freezeProjection({ ...state.projection, stale: true }) : undefined,
-            command,
+            command: capturedCommandVersion === commandEditVersion ? command : state.command,
             selection: undefined,
             error: undefined,
         });
+        if (!validate) return state;
         return validateRevision(
             { ...persisted, editVersion: captured.editVersion, draftMatches: true },
             options.signal,
@@ -273,6 +623,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
     }
 
     async function validatePersisted(options = {}) {
+        const capturedCommandVersion = commandEditVersion;
         const persisted = await readPersisted();
         const command = await commandForPersisted(persisted);
         const capturedVersion = editVersion;
@@ -283,7 +634,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             resourceRevision: persisted.resourceRevision,
             repositoryRevision: persisted.repositoryRevision,
             persistedText: persisted.text,
-            command,
+            command: capturedCommandVersion === commandEditVersion ? command : state.command,
             error: undefined,
         });
         return validateRevision(
@@ -355,9 +706,35 @@ export async function createCemStudioFeatureTourWorkbench(options) {
     }
 
     async function runPersistedOperation(options = {}) {
+        if (example.projectOwned) {
+            const persisted = await readPersisted();
+            if (persisted.commandBytes) {
+                const version = editVersion;
+                const commandVersion = commandEditVersion;
+                publish({ ...state, status: 'projecting', error: undefined });
+                try {
+                    let outcome;
+                    try {
+                        outcome = await validator.executeAuthoredResourceCommand({ ...commandResourceOptions(persisted), commandResource: persisted.commandBytes, signal: options.signal });
+                    } catch (error) {
+                        if (!error?.result || !error?.output || !error?.parsed) throw error;
+                        outcome = { result: error.result, presentation: error.presentation, output: error.output, parsed: error.parsed };
+                    }
+                    const latest = await readPersisted();
+                    const operation = outcome.parsed.commandPath[0];
+                    const stale = version !== editVersion || commandVersion !== commandEditVersion || state.dirty
+                        || latest.projectRevision !== persisted.projectRevision || latest.resourceRevision !== persisted.resourceRevision || Boolean(outcome.result.stale);
+                    const projection = freezeProjection({ ...projectCommandProjection(operation, commandProjectionMode(outcome.parsed, operation), outcome,
+                        persisted.text, { projectRevision: persisted.projectRevision, resourceRevision: persisted.resourceRevision, sha256: persisted.sha256 }, persisted.expected), stale });
+                    return publish({ ...state, status: stale ? 'projection-stale' : projection.exitCode === 0 ? 'projected' : 'projection-invalid', projection, operation });
+                } catch (error) { publish({ ...state, status: 'failed', error: normalizedError(error) }); throw error; }
+            }
+            if (!example.commandArguments) throw new Error('This page has no persisted executable command');
+        }
         const operation = workbenchOperation(example);
         if (operation === 'parse') return parsePersisted('ast', options);
         if (operation === 'inspect') return inspectPersisted('summary', options);
+        const capturedCommandVersion = commandEditVersion;
         const persisted = await readPersisted();
         const capturedVersion = editVersion;
         const draftMatches = state.draft === persisted.text;
@@ -398,6 +775,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             },
             persisted.expected,
         );
+        const command = await commandForUneditedProjection(persisted, operation, mode, capturedCommandVersion);
         const stale =
             editVersion !== capturedVersion ||
             !draftMatches ||
@@ -405,13 +783,11 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             state.resourceRevision !== persisted.resourceRevision ||
             Boolean(outcome.result.stale);
         const projection = freezeProjection({ ...projected, stale });
-        commandEditVersion += 1;
-        const command = await commandForProjection(persisted, operation, mode);
         publish({
             ...state,
             status: stale ? 'projection-stale' : projected.exitCode === 0 ? 'projected' : 'projection-invalid',
             projection,
-            command,
+            command: command ?? state.command,
             selection: undefined,
             error: undefined,
         });
@@ -419,6 +795,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
     }
 
     async function projectPersisted(kind, mode, options) {
+        const capturedCommandVersion = commandEditVersion;
         const persisted = await readPersisted();
         const capturedVersion = editVersion;
         const draftMatches = state.draft === persisted.text;
@@ -464,6 +841,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             },
             persisted.expected,
         );
+        const command = await commandForUneditedProjection(persisted, kind, mode, capturedCommandVersion);
         const stale =
             editVersion !== capturedVersion ||
             !draftMatches ||
@@ -471,13 +849,11 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             state.resourceRevision !== persisted.resourceRevision ||
             Boolean(outcome.result.stale);
         const projection = freezeProjection({ ...projected, stale });
-        commandEditVersion += 1;
-        const command = await commandForProjection(persisted, kind, mode);
         publish({
             ...state,
             status: stale ? 'projection-stale' : projected.exitCode === 0 ? 'projected' : 'projection-invalid',
             projection,
-            command,
+            command: command ?? state.command,
             selection: undefined,
             error: undefined,
         });
@@ -494,6 +870,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             command: freezeCommand({
                 ...state.command,
                 status: 'checking',
+                formError: undefined,
                 draftText: text,
                 diagnostic: undefined,
                 copy: undefined,
@@ -522,6 +899,11 @@ export async function createCemStudioFeatureTourWorkbench(options) {
                     parsed: preview.parsed,
                     preview,
                     changes,
+                    // Recheck against a source revision saved by this workbench.
+                    // A concurrently advanced repository still requires reload.
+                    revision: state.projectRevision === persisted.projectRevision &&
+                        state.resourceRevision === persisted.resourceRevision
+                        ? commandRevision(persisted) : state.command.revision,
                     diagnostic: undefined,
                     copy: undefined,
                     application: commandApplicationState(persisted, state.command.application, preview.parsed),
@@ -544,6 +926,17 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             });
         }
         return state;
+    }
+
+    async function updateCommandField(id, value, version, reset = false) {
+        if (!state.command) return state;
+        try {
+            if (`${commandFormId}:${commandEditVersion}` !== String(version) || state.command.status === 'checking') throw new Error('The command changed. Review the current operation form and retry.');
+            const text = editCemStudioOperationField(state.command.draftText, id, value, reset);
+            return await updateCommandDraft(text);
+        } catch (error) {
+            return publish({ ...state, command: { ...state.command, formError: normalizedError(error) } });
+        }
     }
 
     async function resetCommandDraft() {
@@ -653,6 +1046,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
     function setCommandTarget(target) {
         if (!state.command) throw new Error('CEM Studio command view is unavailable');
         const application = configureCommandApplication(state.command.application, target);
+        commandTargetVersion += 1;
         publish({
             ...state,
             command: freezeCommand({ ...state.command, application }),
@@ -712,6 +1106,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             throw new Error('A valid checked Studio command is required before Apply');
         }
         const capturedVersion = commandEditVersion;
+        const capturedTargetVersion = commandTargetVersion;
         const application = command.application;
         const target = confirmedTarget ?? application.target;
         const commandResource = validator.serializeResourceCommand(command.preview.parsed);
@@ -769,8 +1164,12 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             publishCommandApplicationFailure(error);
             throw error;
         }
-        const refreshedCommand = await commandForPersisted(persisted);
-        const changedDuringApply = capturedVersion !== commandEditVersion;
+        const appliedPreview = await validator.previewResourceCommand({
+            ...commandResourceOptions(persisted),
+            text: command.preview.text,
+        });
+        const refreshedCommand = commandState(appliedPreview, persisted, command.application);
+        const changedDuringApply = capturedVersion !== commandEditVersion || capturedTargetVersion !== commandTargetVersion;
         const selectedApplication = commandApplicationState(persisted, {
             ...refreshedCommand.application,
             currentEntryId: applied.value.entry.id,
@@ -783,6 +1182,8 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             confirmation: undefined,
             error: undefined,
         });
+        // The committed baseline revokes older command previews/projections.
+        const appliedVersion = ++commandEditVersion;
         publish({
             ...state,
             status: state.dirty ? 'dirty' : state.validation ? 'stale' : 'loaded',
@@ -790,13 +1191,27 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             resourceRevision: persisted.resourceRevision,
             repositoryRevision: persisted.repositoryRevision,
             persistedText: persisted.text,
-            command: freezeCommand({ ...refreshedCommand, application: appliedApplication }),
+            command: freezeCommand({
+                ...(changedDuringApply ? {
+                    ...state.command,
+                    current: appliedPreview,
+                    revision: commandRevision(persisted),
+                    changes: state.command.preview ? semanticChanges(appliedPreview.semantic, state.command.preview.semantic) : [],
+                } : refreshedCommand),
+                application: changedDuringApply ? freezeCommandApplication({
+                    ...appliedApplication,
+                    target: state.command.application.target,
+                    newPageName: state.command.application.newPageName,
+                    newPageParentId: state.command.application.newPageParentId,
+                }) : appliedApplication,
+            }),
             validation: state.validation ? freezeValidation({ ...state.validation, stale: true }) : undefined,
             projection: state.projection ? freezeProjection({ ...state.projection, stale: true }) : undefined,
             error: undefined,
         });
+        if (changedDuringApply) return updateCommandDraft(state.command.draftText);
         if (!runAfterApply) return state;
-        return runAppliedCommand(persisted, applied.value, commandBytes, capturedVersion, options.signal);
+        return runAppliedCommand(persisted, applied.value, commandBytes, appliedVersion, options.signal);
     }
 
     async function runAppliedCommand(persisted, applied, commandBytes, capturedVersion, signal) {
@@ -894,23 +1309,24 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         });
     }
 
-    async function commandForPersisted(persisted) {
-        if (state.command?.current?.text) {
+    async function commandForPersisted(persisted, reload = false) {
+        const command = reload && example.projectOwned ? undefined : state.command;
+        if (command?.current?.text) {
             const current = await validator.previewResourceCommand({
                 ...commandResourceOptions(persisted),
-                text: state.command.current.text,
+                text: command.current.text,
             });
-            if (state.command.draftText === state.command.current.text) {
-                return commandState(current, persisted, state.command.application);
+            if (command.draftText === command.current.text) {
+                return commandState(current, persisted, command.application);
             }
             try {
                 const preview = await validator.previewResourceCommand({
                     ...commandResourceOptions(persisted),
-                    text: state.command.draftText,
+                    text: command.draftText,
                 });
                 const changes = semanticChanges(current.semantic, preview.semantic);
                 return freezeCommand({
-                    ...state.command,
+                    ...command,
                     status: changes.length === 0 ? 'current' : 'changed',
                     current,
                     parsed: preview.parsed,
@@ -919,11 +1335,11 @@ export async function createCemStudioFeatureTourWorkbench(options) {
                     diagnostic: undefined,
                     revision: commandRevision(persisted),
                     copy: undefined,
-                    application: commandApplicationState(persisted, state.command.application, preview.parsed),
+                    application: commandApplicationState(persisted, command.application, preview.parsed),
                 });
             } catch (error) {
                 return freezeCommand({
-                    ...state.command,
+                    ...command,
                     status: 'invalid',
                     current,
                     parsed: undefined,
@@ -932,9 +1348,16 @@ export async function createCemStudioFeatureTourWorkbench(options) {
                     diagnostic: normalizedError(error),
                     revision: commandRevision(persisted),
                     copy: undefined,
-                    application: commandApplicationState(persisted, state.command.application),
+                    application: commandApplicationState(persisted, command.application),
                 });
             }
+        }
+        if (example.projectOwned) {
+            if (persisted.commandBytes) {
+                const preview = await validator.previewResourceCommand({ ...commandResourceOptions(persisted), commandResource: persisted.commandBytes });
+                return commandState(preview, persisted, state.command?.application);
+            }
+            if (!example.commandArguments) return undefined;
         }
         const operation = persisted.operation ?? 'parse';
         return commandForProjection(
@@ -942,6 +1365,14 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             operation,
             operation === 'parse' ? 'ast' : operation === 'inspect' ? 'summary' : example.kind,
         );
+    }
+
+    async function commandForUneditedProjection(persisted, kind, mode, version) {
+        if (version !== commandEditVersion || state.command?.draftText !== state.command?.current.text) return undefined;
+        const command = await commandForProjection(persisted, kind, mode);
+        if (version !== commandEditVersion) return undefined;
+        commandEditVersion += 1;
+        return command;
     }
 
     async function commandForProjection(persisted, kind, mode) {
@@ -1002,16 +1433,22 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         updateDraft,
         reload,
         selectWorkbench,
+        saveSource,
         saveAndValidate,
         validatePersisted,
         parsePersisted,
         inspectPersisted,
         runPersistedOperation,
         updateCommandDraft,
+        updateCommandField,
         resetCommandDraft,
         copyCommand,
         copyProjection,
         downloadProjection,
+        async downloadSource(download = browserDownload) {
+            const persisted = await readPersisted();
+            await download({ filename: example.path.split('/').pop(), contentType: example.contentType, bytes: persisted.bytes.slice() });
+        },
         setCommandTarget,
         applyCommand,
         applyAndRun,
@@ -1038,7 +1475,8 @@ export async function mountCemStudioFeatureTourWorkbench({
     // This empty container is only a mount boundary; the declaration owns UI.
     const mount = document.createElement('div');
     (root.querySelector('[data-cem-studio-shell]') ?? root).append(mount);
-    const layout = mountCemView(components.runtime, { root: mount, tag: 'cem-studio-workbench-layout' });
+    const layout = mountCemView(components.runtime, { root: mount, tag: 'cem-studio-workbench-layout',
+        state: { pane: 'source' }, commands: { 'select-pane': ({ value }) => layout.update({ pane: value === 'results' ? 'results' : 'source' }) } });
     await layout.whenSettled();
     const host = layout.element;
 
@@ -1052,6 +1490,7 @@ export async function mountCemStudioFeatureTourWorkbench({
     const perform = (operation) => {
         if (pending || !active || workbenchBusy(workbench.snapshot())) return;
         pending = true;
+        navigation.update({ pending });
         controls.update({ pending });
         commandView.update({ pending });
         results.update({ pending });
@@ -1061,6 +1500,7 @@ export async function mountCemStudioFeatureTourWorkbench({
             catch { /* Workbench services publish their structured failure. */ }
             finally {
                 pending = false;
+                navigation.update({ pending });
                 controls.update({ pending });
                 commandView.update({ pending });
                 results.update({ pending });
@@ -1068,18 +1508,50 @@ export async function mountCemStudioFeatureTourWorkbench({
         })();
         return controlPromise;
     };
+    const navigation = mountCemView(components.runtime, {
+        root: host.querySelector('[data-cem-studio-workbench-navigation-mount]'),
+        element: host.querySelector('cem-studio-workbench-navigation'),
+        tag: 'cem-studio-workbench-navigation',
+        state: { state: workbenchControlState(workbench.snapshot()), pending },
+        commands: {
+            'home-create': ({ fields }) => perform(() => workbench.createProject(fields.name?.[0] ?? '')),
+            'home-trash': ({ fields }) => perform(() => workbench.setProjectTrashed(JSON.parse(fields.project?.[0]).projectId, true)),
+            'home-restore': ({ fields }) => perform(() => workbench.setProjectTrashed(fields.project?.[0], false)),
+            'home-import': () => perform(() => workbench.importProject()),
+            'home-open': ({ fields }) => perform(() => workbench.selectWorkbench(fields.project?.[0])),
+            'refresh-navigation': () => perform(() => workbench.refreshNavigation?.()),
+            'download-source': () => perform(() => workbench.downloadSource(download)),
+            'structure-edit': ({ fields }) => perform(() => workbench.editStructure({ kind: fields.action?.[0] ?? fields.kind?.[0], id: fields.id?.[0],
+                name: fields.name?.[0], parentId: fields.parent?.[0], path: fields.path?.[0], content: fields.content?.[0], direction: fields.direction?.[0] })),
+            'structure-undo': () => perform(() => workbench.editStructure({ kind: 'undo' })),
+            'structure-redo': () => perform(() => workbench.editStructure({ kind: 'redo' })),
+            'recovery-download': () => perform(() => workbench.downloadDraftRecovery(download)),
+            'recovery-clear': () => perform(() => workbench.clearDraftRecovery()),
+            'navigation-save': () => perform(() => workbench.resolveNavigation('save')),
+            'navigation-apply': () => perform(() => workbench.resolveNavigation('apply')),
+            'navigation-confirm': () => perform(() => workbench.resolveNavigation('confirm-replacement')),
+            'navigation-discard': () => perform(() => workbench.resolveNavigation('discard')),
+            'navigation-retry': () => perform(() => workbench.resolveNavigation('retry')),
+            'navigation-cancel': () => workbench.resolveNavigation('cancel'),
+            'select-workbench': ({ value }) => perform(() => workbench.selectWorkbench(value)),
+            'open-entity': ({ value }) => perform(() => workbench.openEntity(value)),
+            'search-projects': ({ fields }) => perform(() => workbench.searchProjects(fields.query?.[0])),
+            'open-search': ({ fields }) => perform(() => workbench.openEntity(fields.result?.[0])),
+        },
+    });
     const controls = mountCemView(components.runtime, {
         root: host.querySelector('[data-cem-studio-workbench-controls-mount]'),
+        element: host.querySelector('cem-studio-workbench-controls'),
         tag: 'cem-studio-workbench-controls',
         state: { state: workbenchControlState(workbench.snapshot()), selectionRequest: '', pending },
         commands: {
             edit: ({ value }) => workbench.updateDraft(value ?? ''),
             save: () => perform(() => workbench.saveAndValidate()),
             reload: () => perform(() => workbench.reload()),
+            'download-source': () => perform(() => workbench.downloadSource(download)),
             parse: ({ fields }) => perform(() => workbench.parsePersisted(fields.mode[0])),
             inspect: ({ fields }) => perform(() => workbench.inspectPersisted(fields.mode[0])),
             run: () => perform(() => workbench.runPersistedOperation()),
-            'select-workbench': ({ value }) => perform(() => workbench.selectWorkbench(value)),
         },
     });
 
@@ -1095,8 +1567,9 @@ export async function mountCemStudioFeatureTourWorkbench({
     };
     const commandView = mountCemView(components.runtime, {
         root: host.querySelector('[data-cem-studio-workbench-command-mount]'),
+        element: host.querySelector('cem-studio-workbench-command'),
         tag: 'cem-studio-workbench-command',
-        state: { command: workbenchCommandState(workbench.snapshot().command), pending, busy: workbenchBusy(workbench.snapshot()) },
+        state: { command: workbenchCommandState(workbench.snapshot().command, workbench.snapshot().transition), pending, busy: workbenchBusy(workbench.snapshot()) },
         commands: {
             edit: ({ value }) => {
                 const edit = workbench.updateCommandDraft(value ?? '').catch(() => undefined);
@@ -1105,6 +1578,7 @@ export async function mountCemStudioFeatureTourWorkbench({
             },
             copy: () => perform(() => workbench.copyCommand(typeof clipboard?.writeText === 'function'
                 ? text => clipboard.writeText(text) : undefined)),
+            'edit-field': ({ fields }) => perform(() => workbench.updateCommandField(fields.option?.[0], fields.value?.[0] ?? '', fields.version?.[0], fields.mode?.[0] === 'reset')),
             reset: () => perform(() => workbench.resetCommandDraft()),
             'target-name': ({ value }) => newTarget({ name: value ?? '' }),
             'target-parent': ({ value }) => newTarget({ parentId: value || undefined }),
@@ -1127,14 +1601,15 @@ export async function mountCemStudioFeatureTourWorkbench({
     });
     const results = mountCemView(components.runtime, {
         root: host.querySelector('[data-cem-studio-workbench-results-mount]'),
+        element: host.querySelector('cem-studio-workbench-results'),
         tag: 'cem-studio-workbench-results',
         state: { state: workbenchResultState(workbench.snapshot()), pending },
         commands: {
             'copy-output': () => perform(() => workbench.copyProjection(typeof clipboard?.writeText === 'function'
                 ? text => clipboard.writeText(text) : undefined)),
             'download-output': () => perform(() => workbench.downloadProjection(download)),
-            diagnostic: ({ value }) => workbench.navigateDiagnostic(Number(value)),
-            provenance: ({ value }) => workbench.navigateProvenance(Number(value)),
+            diagnostic: ({ value }) => perform(async () => { layout.update({ pane: 'source' }); await layout.whenSettled(); workbench.navigateDiagnostic(Number(value)); }),
+            provenance: ({ value }) => perform(async () => { layout.update({ pane: 'source' }); await layout.whenSettled(); workbench.navigateProvenance(Number(value)); }),
         },
     });
     let latestSnapshot;
@@ -1145,10 +1620,11 @@ export async function mountCemStudioFeatureTourWorkbench({
             const current = latestSnapshot;
             if (current.selection && current.selection !== selection) selectionRequest++;
             selection = current.selection;
+            navigation.update({ state: workbenchControlState(current), pending });
             controls.update({ state: workbenchControlState(current), selectionRequest: selection ? String(selectionRequest) : '', pending });
-            commandView.update({ command: workbenchCommandState(current.command), pending, busy: workbenchBusy(current) });
+            commandView.update({ command: workbenchCommandState(current.command, current.transition), pending, busy: workbenchBusy(current) });
             results.update({ state: workbenchResultState(current), pending });
-            await Promise.all([controls.whenSettled(), commandView.whenSettled(), results.whenSettled()]);
+            await Promise.all([layout.whenSettled(), navigation.whenSettled(), controls.whenSettled(), commandView.whenSettled(), results.whenSettled()]);
         });
     };
     const unsubscribe = workbench.subscribe(render);
@@ -1165,13 +1641,14 @@ export async function mountCemStudioFeatureTourWorkbench({
                 await edits;
                 const renders = renderPromise;
                 await renders;
-                await Promise.all([controls.whenSettled(), commandView.whenSettled(), results.whenSettled()]);
+                await Promise.all([layout.whenSettled(), navigation.whenSettled(), controls.whenSettled(), commandView.whenSettled(), results.whenSettled()]);
                 if (controlAction === controlPromise && edits === editPromise && renders === renderPromise) return;
             }
         },
         dispose() {
             active = false;
             unsubscribe();
+            navigation.dispose();
             controls.dispose();
             commandView.dispose();
             results.dispose();
@@ -1820,20 +2297,26 @@ function workbenchBusy(state) {
 function workbenchControlState(state) {
     const { status, workbenchId, workbenches, draft, dirty, projectRevision,
         resourceRevision, selection, error, path, contentType, validation } = state;
-    return { status, workbenchId, workbenches, draft, dirty, projectRevision,
+    return { structure: state.structure, home: state.home, explorer: state.explorer, status, workbenchId, workbenches, draft, dirty, projectRevision,
         resourceRevision, selection, error, path, contentType, validation,
+        editable: state.editable !== false, runnable: state.runnable !== false, transition: state.transition,
+        sessionStatus: state.sessionStatus, draftRecovery: state.draftRecovery, navigationError: state.navigationError, resourceAvailable: state.resourceAvailable ?? Boolean(state.resourceId),
         command: { application: { status: state.command?.application?.status } } };
 }
 
-function workbenchCommandState(command) {
+function workbenchCommandState(command, transition) {
     if (!command) return null;
     const { status, draftText, copy, diagnostic, revision, current, changes, application } = command;
     const { result, execution: _execution, ...targeting } = application ?? {};
     const text = value => typeof value === 'string' ? value : JSON.stringify(value);
-    return { status, draftText, copy, diagnostic, revision, current: { commonVersion: current.commonVersion },
+    let fields = [];
+    if (status !== 'invalid') {
+        try { fields = describeCemStudioOperationFields(draftText); } catch { /* Invalid literal text stays repairable in the command editor. */ }
+    }
+    return { fields, formVersion: command.formVersion, formError: command.formError, status, draftText, copy, diagnostic, revision, current: { commonVersion: current.commonVersion },
         changes: changes.map(({ category, path, kind, before, after }) => ({ category, path, kind,
             beforeText: text(before), afterText: text(after) })),
-        application: application ? { ...targeting, result: result && {
+        application: application ? { ...targeting, navigationPending: Boolean(transition), result: result && {
             projectRevision: result.projectRevision, resourceRevision: result.resourceRevision } } : null };
 }
 

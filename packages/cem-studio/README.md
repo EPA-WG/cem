@@ -51,6 +51,10 @@ that complete user flow.
   retained-handle permission requests require an explicit caller action.
 - `@epa-wg/cem-studio/shell` exposes the production CEM-component shell, five
   theme modes, browser install state, and explicit safe-update coordinator.
+- `@epa-wg/cem-studio/project-session` exposes `createCemStudioProjectSession`.
+  It admits durable identities through an injected workbench resolver after
+  independent source Save/Discard/Cancel and command Apply/Discard/Cancel
+  decisions. See the [session contract](../../docs/cem-studio.md#project-session-admission-service).
 - `@epa-wg/cem-studio/preview` exposes the bounded result policy for the shared
   `cem-media-preview` declaration. Text remains literal; HTML, XHTML, and SVG
   use an empty opaque-origin iframe sandbox plus a deny-all preview CSP;
@@ -235,14 +239,37 @@ lets users create/import, open, navigate, edit, save, reopen and export their ow
 projects with guarded source/command drafts, deterministic search, recoverable
 trash and an active-project file provider. The shared tree-to-host scalar command
 bridge and [shared navigation workflows](../cem-components/docs/project-navigation-contract.md)
-are implemented and browser-verified. Generalizing the seed-bound project session
-and guarding source/command drafts comes next.
+are implemented and browser-verified. The session admission service now guards
+source and command drafts, retains them after failed/cancelled transitions, and
+isolates late workbench results. Project-owned workbenches now load durable pages,
+resources, dependencies and native command resources without requiring a catalog.
+Startup uses guarded project navigation with shared CEM dialogs; Feature Tour
+metadata is optional. Empty/read-only resources remain selectable, and failed
+Save/Apply or cancelled navigation retains the active workbench. Home now lists projects, creates a fresh bounded CEM-ML starter and imports archives
+through create-only validated transactions. Open project uses the session guards.
+Explorer and bounded repository search now use guarded record identities.
+Source/command and result panes retain their declared view elements and editor
+selection through shared tabs. Reload restores the last admitted identity and saved
+bytes. Repository changes refresh navigation/search without replacing drafts; Home
+provides recoverable Trash/Restore. Provider operations retain their admitted target,
+and updates wait for explicit Save/Apply or draft reset. Deployed lifecycle acceptance
+now has a dedicated `verify:workspace-delivery` gate covering two user projects,
+offline Save/Apply/run and recovery, actual archive import/export, Trash/Restore,
+accessible names, keyboard focus and 320/390/1280px reflow. Its versioned browser
+evidence joins Studio `check`; physical-device/spoken AT coverage remains separate.
 Reuse existing CEM list, tree, tabs, dialog, editor and
 result controls; add missing reusable behavior in `cem-elements` and its styled
 declaration in `cem-components` before Studio adoption.
 
 The [ordered checklist](../../docs/todo.md#cem-studio-delivery-planning) owns
-execution. Explicit Save/Apply is this slice's durability boundary; autosave,
-general structural editing and simultaneous/resizable panes remain follow-ups.
+execution. Source and command drafts now autosave to a bounded local recovery
+journal, with baseline checks, visible failures and downloadable backups. Save/Apply
+remain explicit project operations. Shared CEM forms now support project/page rename,
+subproject creation, subtree copy/move/reorder and resource creation/copy, with
+revision-checked session undo/redo. The Operation form section now edits native-metadata
+scalar, enum and boolean command options through shared CEM controls, with stale
+submission checks and explicit Apply/Run. Parse/inspect projects also support
+resource-path rename with authored command rebinding and unreferenced deletion,
+using revision checks and undo/redo. Broader dependency formats, grouped option editing and simultaneous/resizable panes remain follow-ups.
 Broader browser/device/AT acceptance remains independently open, and presentation
 preparation stays deferred.

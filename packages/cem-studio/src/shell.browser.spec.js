@@ -216,6 +216,50 @@ describe('CEM Studio installable application shell', () => {
         rejected.dispose();
     });
 
+    it('ignores stale provider completions and preserves explicit permission and archive targets', async () => {
+        let finishStatus, finishPicker;
+        const provider = {
+            capabilities: () => ({ available: true }),
+            status: vi.fn(({ projectId }) => projectId === 'alpha'
+                ? new Promise(resolve => { finishStatus = resolve; }) : Promise.resolve({ state: 'ready', name: projectId })),
+            openResource: vi.fn(() => new Promise(resolve => { finishPicker = resolve; })),
+            exportFallback: vi.fn(async ({ projectId }) => ({ archive: { filename: projectId, bytes: new Uint8Array([1]) } })),
+            reconnect: vi.fn(async () => { throw Object.assign(new Error('denied'), { code: 'cem.studio.file_system.permission_denied' }); }),
+        };
+        const controller = createCemStudioFileSystemController({ provider, downloadExport: vi.fn(async () => undefined) });
+        const first = controller.setProject('alpha', 'a');
+        await controller.setProject('beta', 'b');
+        finishStatus({ state: 'denied-permission', name: 'alpha' }); await first;
+        expect(controller.status()).toMatchObject({ projectId: 'beta', resourceId: 'b', state: 'ready' });
+        const picker = controller.openResource();
+        expect(provider.openResource).toHaveBeenCalledWith({ projectId: 'beta', resourceId: 'b' });
+        await controller.setProject('gamma', 'c');
+        finishPicker({ projectId: 'beta', state: 'ready' });
+        await expect(picker).resolves.toMatchObject({ projectId: 'gamma', state: 'ready', operation: undefined });
+        expect(controller.status()).toMatchObject({ projectId: 'gamma', resourceId: 'c', state: 'ready' });
+        await controller.reconnect();
+        expect(provider.reconnect).toHaveBeenCalledWith({ projectId: 'gamma', requestPermission: true });
+        await controller.exportFallback();
+        expect(provider.exportFallback).toHaveBeenCalledWith({ projectId: 'gamma' });
+        const cancelled = controller.openResource(); finishPicker(Promise.reject(new DOMException('cancelled', 'AbortError'))); await cancelled;
+        expect(controller.status().projectId).toBe('gamma');
+        controller.dispose();
+    });
+
+    it('does not activate an update over edits made while persistence is pending', async () => {
+        let finish;
+        const waiting = { postMessage: vi.fn() };
+        const coordinator = createCemStudioUpdateCoordinator({ persistState: () => new Promise(resolve => { finish = resolve; }) });
+        coordinator.setWaitingWorker(waiting); coordinator.setDirty(true);
+        const activation = coordinator.activateUpdate();
+        coordinator.setDirty(true); finish();
+        await expect(activation).resolves.toMatchObject({ state: 'blocked', dirty: true });
+        expect(waiting.postMessage).not.toHaveBeenCalled();
+        coordinator.setDirty(false);
+        await expect(coordinator.activateUpdate()).resolves.toMatchObject({ state: 'activating' });
+        coordinator.dispose();
+    });
+
     it('reopens and exports identical project bytes from IndexedDB', async () => {
         const databaseName = `cem-studio-shell-${crypto.randomUUID()}`;
         const first = createRepository(databaseName);

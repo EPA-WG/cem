@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { commandSchema } from '@epa-wg/cem-ml-cli/browser';
+import { commandSchema, parseCemMlCommandText, parseCemMlCommandResource, serializeCemMlCommandResource, CEM_ML_CLI_COMMAND_CONTENT_TYPE, CEM_ML_CLI_COMMAND_SCHEMA } from '@epa-wg/cem-ml-cli/browser';
 
 import {
     CEM_STUDIO_DATABASE_VERSION,
@@ -17,6 +17,256 @@ afterEach(async () => {
 });
 
 describe('CemStudioIndexedDbRepository', () => {
+    it('commits structure, preserves portable order, copies exact bytes and restores with increasing revisions', async () => {
+        const repository = createRepository();
+        const bundle = await projectBundle('exact café 🙂\r\n');
+        bundle.project.entries = [
+            { id: 'z-parent', kind: 'subproject', name: 'Parent' },
+            { id: 'a-child', kind: 'data-set', name: 'Child', parentId: 'z-parent', resourceIds: ['tour-source'] },
+            { id: 'b-root', kind: 'subproject', name: 'Second' },
+        ];
+        await repository.execute(command('import-project', { bundle }));
+        let revision = 1;
+        const edit = async value => {
+            const result = await repository.execute(command('edit-project', { projectId: 'feature-tour', expectedRevision: revision, edit: value }));
+            revision = result.value.project.revision;
+            return result.value;
+        };
+        const renamed = await edit({ kind: 'rename-project', name: 'Renamed project' });
+        expect(renamed.project.entries.map(entry => entry.id)).toEqual(['z-parent', 'a-child', 'b-root']);
+        expect(renamed.project).not.toHaveProperty('entryOrder');
+        await edit({ kind: 'reorder-entry', id: 'b-root', direction: 'up' });
+        const copied = await edit({ kind: 'copy-entry', id: 'z-parent', name: 'Copied parent' });
+        const parent = copied.project.entries.find(entry => entry.name === 'Copied parent');
+        expect(copied.project.entries.find(entry => entry.parentId === parent.id).resourceIds).toEqual(['tour-source']);
+        const resourceCopy = await edit({ kind: 'copy-resource', id: 'tour-source', path: 'data/copied.cem' });
+        const copy = resourceCopy.project.resources.find(resource => resource.path === 'data/copied.cem');
+        const exported = (await repository.query(query('export-project', { projectId: 'feature-tour' }))).value;
+        expect(new Uint8Array(exported.contents[copy.id])).toEqual(new Uint8Array(exported.contents['tour-source']));
+        expect(exported.project.entries[0].id).toBe('b-root');
+        const undone = await edit({ kind: 'restore', bundle: resourceCopy.before });
+        expect(undone.project.resources).toHaveLength(1);
+        expect(undone.project.resources[0].revision).toBeGreaterThan(1);
+        expect(undone.project.revision).toBe(6);
+        const redone = await edit({ kind: 'restore', bundle: exported });
+        expect(redone.project.resources).toHaveLength(2);
+        expect(redone.project.revision).toBe(7);
+        await expect(repository.execute(command('edit-project', { projectId: 'feature-tour', expectedRevision: 1, edit: { kind: 'rename-project', name: 'Stale' } }))).rejects.toMatchObject({ code: 'cem.studio.repository.revision_conflict' });
+        await expect(edit({ kind: 'move-entry', id: 'z-parent', parentId: 'a-child' })).rejects.toThrow();
+        await expect(edit({ kind: 'move-entry', id: 'z-parent', parentId: 'z-parent' })).rejects.toThrow('own subtree');
+        await expect(edit({ kind: 'copy-resource', id: 'tour-source', path: 'data/copied.cem' })).rejects.toThrow('new project-relative');
+        await repository.execute(command('trash-project', { projectId: 'feature-tour', expectedRevision: revision }));
+        const trashed = (await repository.query(query('get-project', { projectId: 'feature-tour' }))).value;
+        await expect(repository.execute(command('edit-project', { projectId: 'feature-tour', expectedRevision: trashed.revision, edit: { kind: 'rename-project', name: 'Hidden' } }))).rejects.toMatchObject({ code: 'cem.studio.repository.project_unavailable' });
+    });
+
+    it('rechecks structural revision inside the commit after native validation', async () => {
+        const repository = createRepository();
+        await repository.execute(command('import-project', { bundle: await projectBundle('unchanged') }));
+        const results = await Promise.allSettled(['First', 'Second'].map(name => repository.execute(command('edit-project', {
+            projectId: 'feature-tour', expectedRevision: 1, edit: { kind: 'rename-project', name },
+        }))));
+        expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+        expect(results.filter(result => result.status === 'rejected')).toHaveLength(1);
+        expect((await repository.query(query('get-project', { projectId: 'feature-tour' }))).value.revision).toBe(2);
+    });
+
+    it('rebinds native authored inputs atomically, blocks unsafe deletion and restores exact prior bytes', async () => {
+        const repository = createRepository();
+        const bundle = await projectBundle('exact café 🙂\r\n');
+        const commandText = serializeCemMlCommandResource(parseCemMlCommandText('cem-ml inspect studio://feature-tour/data/tour.cem --show tree --namespace a=urn:a --namespace b=urn:b'));
+        const bytes = new TextEncoder().encode(commandText);
+        bundle.project.resources.push({ id: 'command', role: 'run-config', sourceKind: 'project-file', path: 'commands/inspect.json', contentType: CEM_ML_CLI_COMMAND_CONTENT_TYPE, schema: CEM_ML_CLI_COMMAND_SCHEMA, revision: 1, sha256: await digest(bytes) });
+        bundle.contents.command = bytes;
+        bundle.project.entries = [{ id: 'inspection', kind: 'inspection', name: 'Inspect source', runConfigResourceId: 'command', resourceIds: ['tour-source', 'command'] }];
+        await repository.execute(command('import-project', { bundle }));
+        const edit = (revision, value) => repository.execute(command('edit-project', { projectId: 'feature-tour', expectedRevision: revision, edit: value }));
+        const moved = await edit(1, { kind: 'rename-resource', id: 'tour-source', path: 'data/renamed.cem' });
+        const exported = (await repository.query(query('export-project', { projectId: 'feature-tour' }))).value;
+        expect(exported.project.entries).toEqual(bundle.project.entries);
+        expect(new Uint8Array(exported.contents['tour-source'])).toEqual(bundle.contents['tour-source']);
+        expect(exported.project.resources.find(item => item.id === 'tour-source')).toMatchObject({ path: 'data/renamed.cem', revision: 2, sha256: bundle.project.resources[0].sha256 });
+        const parsed = parseCemMlCommandResource(new Uint8Array(exported.contents.command)).command;
+        expect(parsed.positionals.input).toBe('studio://feature-tour/data/renamed.cem');
+        expect(parsed.options).toMatchObject({ show: 'tree', namespaces: ['a=urn:a', 'b=urn:b'] });
+        expect(exported.project.resources.find(item => item.id === 'command').revision).toBe(2);
+        await expect(edit(1, { kind: 'rename-resource', id: 'tour-source', path: 'stale.cem' })).rejects.toMatchObject({ code: 'cem.studio.repository.revision_conflict' });
+        await expect(edit(2, { kind: 'delete-resource', id: 'tour-source' })).rejects.toThrow('referenced');
+        await expect(edit(2, { kind: 'delete-resource', id: 'command' })).rejects.toThrow('referenced');
+        await expect(edit(2, { kind: 'rename-resource', id: 'tour-source', path: 'commands/inspect.json' })).rejects.toThrow('new project-relative');
+        expect((await repository.query(query('get-project', { projectId: 'feature-tour' }))).value.revision).toBe(2);
+        await edit(2, { kind: 'restore', bundle: moved.value.before });
+        const restored = (await repository.query(query('export-project', { projectId: 'feature-tour' }))).value;
+        expect(new Uint8Array(restored.contents.command)).toEqual(bytes);
+        expect(restored.project.resources.find(item => item.id === 'tour-source').path).toBe('data/tour.cem');
+        await edit(3, { kind: 'copy-resource', id: 'tour-source', path: 'unused.cem' });
+        const copy = (await repository.query(query('get-project', { projectId: 'feature-tour' }))).value.resources.find(item => item.path === 'unused.cem');
+        const removed = await edit(4, { kind: 'delete-resource', id: copy.id });
+        expect(removed.value.project.resources.some(item => item.id === copy.id)).toBe(false);
+        await edit(5, { kind: 'restore', bundle: removed.value.before });
+        expect((await repository.query(query('get-project', { projectId: 'feature-tour' }))).value.resources.some(item => item.id === copy.id)).toBe(true);
+    });
+
+    it('commits native candidate bytes together and restores exact configs through undo', async () => {
+        const original = new TextEncoder().encode('original config café\r\n');
+        const replacement = new TextEncoder().encode('native candidate');
+        const planner = vi.fn(async () => ({ references: [{ uri: 'studio://feature-tour/data/tour.cem', kind: 'input' }], blockers: [], rewrittenBytes: [...replacement] }));
+        const repository = createRepository({ planResourceRebind: planner });
+        const bundle = await projectBundle('source');
+        bundle.project.entries = [];
+        bundle.project.resources.push({ id: 'config', role: 'run-config', sourceKind: 'project-file', path: 'run.json', contentType: 'application/json', schema: 'https://cem.dev/ns/cli/run-config/1', revision: 1, sha256: await digest(original) });
+        bundle.contents.config = original;
+        await repository.execute(command('import-project', { bundle }));
+        const edit = (revision, edit) => repository.execute(command('edit-project', { projectId: 'feature-tour', expectedRevision: revision, edit }));
+        await expect(edit(1, { kind: 'delete-resource', id: 'tour-source' })).rejects.toThrow('referenced');
+        const moved = await edit(1, { kind: 'rename-resource', id: 'tour-source', path: 'new.cem' });
+        expect(planner).toHaveBeenLastCalledWith(expect.objectContaining({ bytes: [...original], fromUri: 'studio://feature-tour/data/tour.cem', toUri: 'studio://feature-tour/new.cem', baseUri: 'studio://feature-tour/run.json' }));
+        const exported = (await repository.query(query('export-project', { projectId: 'feature-tour' }))).value;
+        expect(new Uint8Array(exported.contents.config)).toEqual(replacement);
+        expect(exported.project.resources.find(item => item.id === 'config').revision).toBe(2);
+        await edit(2, { kind: 'restore', bundle: moved.value.before });
+        const restored = (await repository.query(query('export-project', { projectId: 'feature-tour' }))).value;
+        expect(new Uint8Array(restored.contents.config)).toEqual(original);
+        expect(restored.project.resources.find(item => item.id === 'config').revision).toBe(3);
+    });
+
+    it('relocates configurations atomically with command links, page IDs and exact undo', async () => {
+        const encoder = new TextEncoder();
+        const original = encoder.encode('// original graph café\r\n');
+        const candidate = encoder.encode('// native relocation candidate café\r\n');
+        const commandBytes = encoder.encode(serializeCemMlCommandResource(
+            parseCemMlCommandText('cem-ml transform --config studio://feature-tour/graphs/run.cem')));
+        const planner = vi.fn(async () => ({ references: [{ uri: 'studio://feature-tour/data/tour.cem', kind: 'input' }],
+            blockers: [], rewrittenBytes: [...candidate] }));
+        const repository = createRepository({ planResourceRebind: planner });
+        const bundle = await projectBundle('source');
+        bundle.project.resources.push(
+            { id: 'graph', role: 'transform-config', sourceKind: 'project-file', path: 'graphs/run.cem', contentType: 'text/cem-ml',
+                schema: 'https://cem.dev/ns/cli/transform-config/1', revision: 1, sha256: await digest(original) },
+            { id: 'command', role: 'run-config', sourceKind: 'project-file', path: 'command.json', contentType: CEM_ML_CLI_COMMAND_CONTENT_TYPE,
+                schema: CEM_ML_CLI_COMMAND_SCHEMA, revision: 1, sha256: await digest(commandBytes) });
+        bundle.contents.graph = original; bundle.contents.command = commandBytes;
+        bundle.project.entries = [{ id: 'graph-page', kind: 'transformation-graph', name: 'Copy', runConfigResourceId: 'command',
+            resourceIds: ['tour-source', 'graph', 'command'] }];
+        await repository.execute(command('import-project', { bundle }));
+        const edit = (revision, edit, signal) => repository.execute(command('edit-project', { projectId: 'feature-tour', expectedRevision: revision, edit }), signal);
+        const read = async () => (await repository.query(query('export-project', { projectId: 'feature-tour' }))).value;
+        planner.mockResolvedValueOnce({ references: [{ uri: 'studio://feature-tour/moved/run.cem', kind: 'output' }], blockers: [], rewrittenBytes: [...candidate] });
+        await expect(edit(1, { kind: 'rename-resource', id: 'graph', path: 'moved/run.cem' })).rejects.toThrow('output ownership');
+        expect(new Uint8Array((await read()).contents.graph)).toEqual(original);
+        const moved = await edit(1, { kind: 'rename-resource', id: 'graph', path: 'moved/run.cem' });
+        expect(planner).toHaveBeenLastCalledWith(expect.objectContaining({ mode: 'relocate', baseUri: 'studio://feature-tour/graphs/run.cem',
+            fromUri: 'studio://feature-tour/graphs/run.cem', toUri: 'studio://feature-tour/moved/run.cem' }));
+        const after = await read();
+        expect(after.project.entries).toEqual(bundle.project.entries);
+        expect(new Uint8Array(after.contents.graph)).toEqual(candidate);
+        expect(after.project.resources.find(x => x.id === 'graph')).toMatchObject({ path: 'moved/run.cem', revision: 2, sha256: await digest(candidate) });
+        expect(after.project.resources.find(x => x.id === 'command').revision).toBe(2);
+        expect(parseCemMlCommandResource(new Uint8Array(after.contents.command)).command.options.config).toBe('studio://feature-tour/moved/run.cem');
+        await expect(edit(1, { kind: 'rename-resource', id: 'graph', path: 'stale.cem' })).rejects.toMatchObject({ code: 'cem.studio.repository.revision_conflict' });
+        await expect(edit(2, { kind: 'delete-resource', id: 'graph' })).rejects.toThrow('configuration deletion');
+        await edit(2, { kind: 'restore', bundle: moved.value.before });
+        const restored = await read();
+        expect(new Uint8Array(restored.contents.graph)).toEqual(original);
+        expect(new Uint8Array(restored.contents.command)).toEqual(commandBytes);
+        expect(restored.project.resources.find(x => x.id === 'graph')).toMatchObject({ path: 'graphs/run.cem', revision: 3 });
+        // Cancellation during native planning must not publish any candidate bytes.
+        const abort = new AbortController();
+        planner.mockImplementationOnce(async () => { abort.abort(); return { references: [], blockers: [], rewrittenBytes: [...candidate] }; });
+        await expect(edit(3, { kind: 'rename-resource', id: 'graph', path: 'cancelled.cem' }, abort.signal)).rejects.toThrow();
+        expect((await read()).project.revision).toBe(3);
+        expect(new Uint8Array((await read()).contents.graph)).toEqual(original);
+    });
+
+    it('retains exact absolute run-config bytes when relocation needs no rewrite', async () => {
+        const bytes = new TextEncoder().encode('{ "inputs": [] }\r\n');
+        const planner = vi.fn(async () => ({ references: [], blockers: [], rewrittenBytes: null }));
+        const repository = createRepository({ planResourceRebind: planner });
+        const bundle = await projectBundle('source');
+        bundle.project.entries = [];
+        bundle.project.resources.push({ id: 'config', role: 'run-config', sourceKind: 'project-file', path: 'run.json',
+            contentType: 'application/json', schema: 'https://cem.dev/ns/cli/run-config/1', revision: 1, sha256: await digest(bytes) });
+        bundle.contents.config = bytes;
+        await repository.execute(command('import-project', { bundle }));
+        await repository.execute(command('edit-project', { projectId: 'feature-tour', expectedRevision: 1,
+            edit: { kind: 'rename-resource', id: 'config', path: 'moved/run.json' } }));
+        const after = (await repository.query(query('export-project', { projectId: 'feature-tour' }))).value;
+        expect(planner).toHaveBeenLastCalledWith(expect.objectContaining({ mode: 'relocate', kind: 'run-config' }));
+        expect(new Uint8Array(after.contents.config)).toEqual(bytes);
+        expect(after.project.resources.find(x => x.id === 'config')).toMatchObject({ path: 'moved/run.json', revision: 2, sha256: await digest(bytes) });
+    });
+
+    it('rejects blockers and a revision changed while the native planner is pending', async () => {
+        const bytes = new TextEncoder().encode('{}');
+        let complete;
+        let started;
+        const began = new Promise(resolve => { started = resolve; });
+        const planner = vi.fn(async () => { started(); return new Promise(resolve => { complete = resolve; }); });
+        const repository = createRepository({ planResourceRebind: planner });
+        const bundle = await projectBundle('unchanged');
+        bundle.project.entries = [];
+        bundle.project.resources.push({ id: 'config', role: 'run-config', sourceKind: 'project-file', path: 'run.json', contentType: 'application/json', schema: 'https://cem.dev/ns/cli/run-config/1', revision: 1, sha256: await digest(bytes) });
+        bundle.contents.config = bytes;
+        await repository.execute(command('import-project', { bundle }));
+        const edit = () => repository.execute(command('edit-project', { projectId: 'feature-tour', expectedRevision: 1, edit: { kind: 'rename-resource', id: 'config', path: 'changed.json' } }));
+        planner.mockResolvedValueOnce({ references: [], blockers: ['unresolved template'], rewrittenBytes: [1] });
+        await expect(edit()).rejects.toThrow('unresolved template');
+        for (const reference of [
+            { kind: 'input', uri: 'studio://feature-tour/missing.cem' },
+            { kind: 'schemaPackage', uri: 'studio://feature-tour/data/tour.cem' },
+            { kind: 'output', uri: 'studio://feature-tour/data/tour.cem' },
+            { kind: 'output', uri: 'https://example.test/result.svg' },
+            { kind: 'output', uri: 'studio://feature-tour/result.svg?version=1' },
+            { kind: 'output', uri: 'studio://feature-tour/result.svg#fragment' },
+        ]) {
+            planner.mockResolvedValueOnce({ references: [reference], blockers: [], rewrittenBytes: [1] });
+            await expect(edit()).rejects.toThrow('Resource path edit blocked');
+        }
+        const pending = edit();
+        const rejected = expect(pending).rejects.toMatchObject({ code: 'cem.studio.repository.revision_conflict' });
+        await began;
+        await repository.execute(command('edit-project', { projectId: 'feature-tour', expectedRevision: 1, edit: { kind: 'rename-project', name: 'Concurrent' } }));
+        complete({ references: [], blockers: [], rewrittenBytes: [1] });
+        await rejected;
+        const result = (await repository.query(query('export-project', { projectId: 'feature-tour' }))).value;
+        expect(new Uint8Array(result.contents.config)).toEqual(bytes);
+        expect(result.project.resources.find(item => item.id === 'tour-source').path).toBe('data/tour.cem');
+        expect(result.project.resources.find(item => item.id === 'config').path).toBe('run.json');
+        expect(result.project.revision).toBe(2);
+    });
+
+    it('fails closed for unsupported dependency vocabularies without changing the project', async () => {
+        const repository = createRepository();
+        const bundle = await projectBundle('unchanged');
+        await repository.execute(command('import-project', { bundle }));
+        for (const kind of ['rename-resource', 'delete-resource']) {
+            await expect(repository.execute(command('edit-project', { projectId: 'feature-tour', expectedRevision: 1, edit: { kind, id: 'tour-source', path: 'new.cem' } }))).rejects.toThrow('dependency rebinding');
+        }
+        expect((await repository.query(query('get-project', { projectId: 'feature-tour' }))).value.revision).toBe(1);
+    });
+
+    it('discovers orphan command references and blocks relative inputs and unsupported resource roles', async () => {
+        for (const input of ['studio://feature-tour/data/tour.cem', 'data/tour.cem', 'studio://feature-tour/data/tour.cem --module-map maps/local.json']) {
+            const repository = createRepository();
+            const bundle = await projectBundle('source');
+            bundle.project.entries = [];
+            const text = serializeCemMlCommandResource(parseCemMlCommandText(`cem-ml parse ${input}`));
+            const bytes = new TextEncoder().encode(text);
+            bundle.project.resources.push({ id: 'orphan-command', role: 'run-config', sourceKind: 'project-file', path: 'commands/orphan.json', contentType: CEM_ML_CLI_COMMAND_CONTENT_TYPE, schema: CEM_ML_CLI_COMMAND_SCHEMA, revision: 1, sha256: await digest(bytes) });
+            bundle.contents['orphan-command'] = bytes;
+            await repository.execute(command('import-project', { bundle }));
+            await expect(repository.execute(command('edit-project', { projectId: 'feature-tour', expectedRevision: 1,
+                edit: { kind: 'delete-resource', id: 'tour-source' } }))).rejects.toThrow(input.includes('--module-map') ? 'separate rebinding contract' : input.startsWith('studio:') ? 'referenced' : 'absolute');
+            expect((await repository.query(query('get-project', { projectId: 'feature-tour' }))).value.revision).toBe(1);
+        }
+        const repository = createRepository();
+        const bundle = await projectBundle('source'); bundle.project.entries = [];
+        bundle.project.resources[0].role = 'template';
+        await repository.execute(command('import-project', { bundle }));
+        await expect(repository.execute(command('edit-project', { projectId: 'feature-tour', expectedRevision: 1,
+            edit: { kind: 'rename-resource', id: 'tour-source', path: 'changed.cem' } }))).rejects.toThrow('unsupported dependency format');
+    });
+
     it('creates the complete v1 schema and reports browser storage health', async () => {
         const storage = {
             estimate: vi.fn(async () => ({ usage: 1024, quota: 4096 })),
@@ -593,6 +843,7 @@ function createRepository(overrides = {}) {
         databaseName: overrides.databaseName ?? uniqueDatabaseName(),
         validateProject: overrides.validateProject ?? (async (bundle) => bundle),
         storage: overrides.storage,
+        planResourceRebind: overrides.planResourceRebind,
         now: () => '2026-08-21T00:00:00Z',
     });
     repositories.push(repository);
