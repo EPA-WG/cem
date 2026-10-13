@@ -1,5 +1,6 @@
 export * from './lib/cem-elements.js';
 export * from './lib/repository.js';
+export { mountCemView, type CemHostCommandRequest, type CemHostViewOptions, type CemHostView } from './lib/host-view.js';
 export {
     CemDeclarationScopeError,
     createCemDeclarationScope,
@@ -33,3 +34,10 @@ export type { CemElementPlacementUse, CemElementPlacementSnapshot } from './lib/
 export { CemSsrPlacementCoordinator, type CemSsrPlacementStage, type CemSsrPlacementPublication, type CemPlacementResumeHints } from './lib/element-placement-ssr.js';
 
 export { createCemPlatformCloseCoordinator, type CemPlatformCloseCoordinator, type CemPlatformCloseAuthority, type CemPlatformCloseContext, type CemPlatformCloseLease } from './lib/platform-close.js';
+
+export type { CemTabDetail } from './lib/tab-panels-capability.js';
+export type { CemStepDetail } from './lib/workflow-panels-capability.js';
+export type { CemTreeActivateDetail, CemTreeToggleDetail } from './lib/tree-view-capability.js';
+
+export type { CemSortDirection, CemSortDetail } from './lib/sort-action-capability.js';
+export type { CemPageDetail } from './lib/pagination-capability.js';

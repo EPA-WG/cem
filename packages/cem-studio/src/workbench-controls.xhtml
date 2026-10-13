@@ -1,0 +1,64 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-studio-workbench-controls">
+  <template id="cem-studio-workbench-controls" type="text/cem-ml">
+{module |
+    {slice @name=state}
+    {slice @name=selectionRequest}
+    {slice @name=pending | false}
+    {body |
+        {cem:variable @name=state @select=datadom.slices.state}
+        {cem:variable @name=busy
+            @select='datadom.slices.pending || (state.status == "saving") || (state.status == "validating") || (state.status == "projecting") || (state.command.application.status == "applying") || (state.command.application.status == "running")'}
+        {cem-select @data-cem-studio-workbench-select="" @disabled={if busy { true } else { null }} @host-command=select-workbench
+            @host-command-event=change @name=operation-workbench @value={state.workbenchId} |
+            {span @slot=label | Workbench}
+            {cem:for-each @as=workbench @select=state.workbenches |
+                {option @value={workbench.id} |
+                    {$ | str:concat((workbench.name, " — ", workbench.operation), "")}
+        }   }   }
+        {cem-card @label="Feature Tour editor" |
+            {span @slot=title | Feature Tour operation workbenches}
+            {div @data-cem-studio-workbench-content="" |
+                {div @aria-atomic=true @aria-live=polite @role=status |
+                    {cem-badge @data-cem-studio-workbench-status="" @label={if state.status == "loading" { "Loading resource" } else { if state.status == "loaded" { "Persisted revision loaded" } else { if state.status == "dirty" { "Unsaved changes" } else { if state.status == "saving" { "Saving revision" } else { if state.status == "saved" { "Revision saved" } else { if state.status == "validating" { "Validating saved revision" } else { if state.status == "projecting" { "Projecting saved revision" } else { if state.status == "projected" { "Saved revision projected" } else { if state.status == "projection-invalid" { "Projection has diagnostics" } else { if state.status == "projection-stale" { "Projection result stale" } else { if state.status == "valid" { "Saved revision valid" } else { if state.status == "invalid" { "Saved revision has diagnostics" } else { if state.status == "stale" { "Validation result stale" } else { if state.status == "conflict" { "Revision conflict" } else { if state.status == "failed" { "Workbench failed" } else { state.status } } } } } } } } } } } } } } }} @tone={if (state.status == "valid") || (state.status == "saved") || (state.status == "loaded") || (state.status == "projected") { "success" } else { if (state.status == "invalid") || (state.status == "failed") || (state.status == "conflict") || (state.status == "projection-invalid") { "danger" } else { if (state.status == "dirty") || (state.status == "stale") || (state.status == "projection-stale") { "warning" } else { "info" } } }}}
+                    {cem-badge @data-cem-studio-workbench-revision="" @label={str:concat(("Project ", state.projectRevision, "; resource ", state.resourceRevision), "")} @tone=info}
+                }
+                {cem-textarea @data-cem-studio-editor="" @host-command=edit
+                    @host-command-event=input @label="CEM source" @name=feature-tour-source
+                    @selection-end={state.selection.end ?? null} @selection-focus={if state.selection { true } else { null }} @selection-request={datadom.slices.selectionRequest} @selection-start={state.selection.start ?? null} @value={state.draft} |
+                    {span @slot=help | Changes remain local and are checked against the loaded revision.}
+                }
+                {div |
+                    {cem-action @data-cem-studio-save="" @disabled={if busy || !state.dirty { true } else { null }} @host-command=save
+                        @host-command-event=click @loading={if busy { true } else { null }} @variant=primary | Save and validate}
+                    {cem-action @data-cem-studio-reload="" @disabled={if busy { true } else { null }} @host-command=reload
+                        @host-command-event=click @variant=contextual | Reload persisted revision}
+                }
+                {cem-alert @data-cem-studio-workbench-alert="" @label={if state.error { str:concat((state.error.code, ": ", state.error.message), "") } else { if state.validation.stale { "This result belongs to an older draft or durable revision." } else { if state.validation { str:concat((seq:count(state.validation.diagnostics.code), " diagnostics; ", state.validation.hardViolationCount, " hard violations."), "") } else { str:concat((state.path, "; ", state.contentType), "") } } }} @tone={if state.error || (state.status == "invalid") || (state.status == "conflict") { "danger" } else { "info" }}}
+        }   }
+        {section @aria-label="CEM-ML projections" |
+            {cem-action @data-cem-studio-operation-run="" @disabled={if busy { true } else { null }} @host-command=run
+                @host-command-event=click @loading={if state.status == "projecting" { true } else { null }} @variant=primary | Run configured workbench}
+            {form @host-command=parse @host-command-event=submit |
+                {cem-select @data-cem-studio-parse-projection="" @name=mode @value=ast |
+                    {span @slot=label | Parse projection}
+                    {option @value=ast | AST}
+                    {option @value=events | Events}
+                }
+                {cem-action @data-cem-studio-parse="" @disabled={if busy { true } else { null }} @loading={if state.status == "projecting" { true } else { null }} @type=submit
+                    @variant=alternate | Parse persisted revision}
+            }
+            {form @host-command=inspect @host-command-event=submit |
+                {cem-select @data-cem-studio-inspect-view="" @name=mode @value=summary |
+                    {span @slot=label | Inspect view}
+                    {option @value=summary | Summary}
+                    {option @value=ast | AST}
+                    {option @value=events | Events}
+                    {option @value=diagnostics | Diagnostics}
+                    {option @value=source-offsets | Source offsets}
+                    {option @value=tree | Tree}
+                }
+                {cem-action @data-cem-studio-inspect="" @disabled={if busy { true } else { null }} @loading={if state.status == "projecting" { true } else { null }} @type=submit
+                    @variant=alternate | Inspect persisted revision}
+}   }   }   }
+  </template>
+</cem-element>

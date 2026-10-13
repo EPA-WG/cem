@@ -103,6 +103,19 @@ yarn build:css      # generate CSS only
 yarn build:theme    # build theme package
 ```
 
+## CEM principles govern decisions and completion
+
+Apply the [canonical CEM theme principles](packages/cem-theme/src/lib/tokens/index.md#core-cem-principles)
+in every design and implementation decision: semantic intent first, bounded
+variation, accessibility by construction, cross-dimension harmony, theme
+survivability and public token ownership. Read the relevant dimension contracts;
+a token with a convenient value is not necessarily a semantic match.
+Before marking work complete, audit the implemented behavior and styling against
+those contracts, fix mismatches, and record verification and remaining limits in
+`docs/todo.md`. Verify inherited overrides and applicable theme/forced-color
+behavior. Keep theme definitions in canonical source tables; no component-local
+defaults, parallel token families or weakened assertions to bypass a principle.
+
 ## Public CSS property ownership
 
 Follow [component CSS ownership](packages/cem-components/docs/conventions.md#14-public-css-property-ownership)
@@ -184,12 +197,11 @@ conventions, and accessibility documents. The cached
 generated state-matrix report, then emits the public beta
 `packages/cem-components/dist/catalog/cem.components.catalog.json` artifact.
 
-The migration-era `CEM_COMPONENT_PRIMITIVES` declaration, behavior modules, and
-separate TypeScript specs are frozen debt recorded in
-`packages/cem-components/declarative-migration.json`; they are not an authoring
-contract or a valid location for new work. The
-`@epa-wg/cem-components:verify-declarative` gate must pass before component
-build/catalog/test gates.
+The legacy component registry, behavior modules, installers and separate specs
+are retired. `packages/cem-components/declarative-migration.json` records a
+closed zero inventory. The `@epa-wg/cem-components:verify-declarative` gate must
+pass before component build/catalog/test gates. Workspace-owned component
+build and package tooling lives in `tools/cem-components/`.
 
 The catalog contains semantic component rows, token families, category-level
 state coverage, GitHub source links for package examples, and the separately
@@ -208,8 +220,11 @@ search/query state, workers, browser APIs, and other non-UI services, but it mus
 not render or mutate visible UI, attach app-local UI behavior, or replace an
 available shared CEM control with a native one-off widget.
 
-Add or finish the reusable declarative CEM component first when an app needs a
-missing control. If the component cannot be expressed cleanly in CEM-ML, stop
+Use Studio/Site needs to polish the shared library against the pinned Angular
+Material functionality contract. Add or finish the reusable declarative CEM
+component first when an app needs a missing control. Reusable JavaScript behavior
+belongs in `cem-elements`; its CEM-theme-styled declarative counterpart belongs
+in `cem-components`. If the component cannot be expressed cleanly in CEM-ML, stop
 and add the missing generic capability to `cem-elements` before resuming. There
 is no application-local UI exception to that hard stop.
 

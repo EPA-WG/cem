@@ -1,0 +1,11 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-progress">
+  <template id="cem-progress" type="text/cem-ml">
+    {style @type=text/css |```
+:scope { display: block; }
+[part~='root'] { box-sizing: border-box; }
+:scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
+[part~='root'] { inline-size: 100%; accent-color: var(--cem-progress-indicator-color); }
+    ```}
+    {attribute @name=label | Progress}{attribute @name=max | 100}{progress @part=root @class=cem-progress @aria-label="{$label}" @max="{$max}" | {cem:if @test="seq:count(datadom.attributes.value) > 0" | {attribute @name=value @value="{$datadom.attributes.value}"}} {$label}}
+  </template>
+</cem-element>

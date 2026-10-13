@@ -16,6 +16,19 @@ Live host capabilities such as controllers, listeners, streams, and DOM or
 storage handles are not AST data. Hydration recreates them from portable
 semantic state under the current resolver and security policies.
 
+Native validation accepts the package schema URI or content type, loads its
+structural model, and admits only that model's declared namespace claims.
+Element, attribute, value and child allow-list checks remain active. Foreign
+namespaces remain subject to normal disposition, and embedded HTML retains its
+open-content checks, including the public `slot` attribute. Source AST names
+and source maps are retained; namespace ownership uses captured lexical metadata.
+
+These are package namespace claims and local-name structural contracts. This
+slice does not enforce per-element domain pairing or execute the named lifecycle
+policies for part order/cardinality, dataset projection, portable host state or
+payload schema delegation. Their diagnostic declarations bind to the shared field-contract
+reporting behavior; that binding alone does not implement those policies.
+
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the

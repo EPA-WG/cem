@@ -10,6 +10,17 @@ CSV source is not CEM-ML syntax. The schema package and this manifest are
 authored in CEM-ML, but resources with the `text/csv` content type are parsed
 by a CSV parser or adapter.
 
+## CEM-ML and XML export
+
+CSV can export to `application/cem` and `application/xml` through the shared
+typed import projection and the corresponding formatter/writer. XML output
+binds the data vocabulary with `xmlns:data="cem:generic-data"` and escapes cell
+text using the XML writer. Without `header=present`, rows are arrays of
+string cells; with it, header names supply mapping keys. Numeric-looking and
+boolean-looking cells remain strings. Invalid CSV or import-limit failures
+produce diagnostics without an output artifact. Formatter profiles, including
+`tabular`, use the standard CEM-ML output pipeline.
+
 ## Owned Identities
 
 - Schema URI: `https://cem.dev/ns/data/csv/1`

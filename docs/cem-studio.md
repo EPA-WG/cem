@@ -146,6 +146,135 @@ the bytes after close, and advance the binding base only after all declared
 writes succeed. Unsupported or denied access keeps the IndexedDB working copy
 available and exposes a deterministic, validated download/upload archive.
 
+## Next delivery milestone: user-owned project workspace
+
+Defined 2026-10-12 after completion of the Studio/Site declarative UI migration.
+This is the next bounded delivery slice of the accepted product contract;
+implementation and fixture status belong to
+[the active checklist](todo.md#cem-studio-delivery-planning). It is planned,
+not an implemented capability or completion of the broader Phase 6.5 contract.
+
+### Current implementation and the delivery gap
+
+| Existing implementation | Work required for this milestone |
+| --- | --- |
+| [Repository](../packages/cem-studio/src/repository.js): validated import/export, resource saves, transactional command Apply, project trash/restore, deterministic search and revision invalidation. | Compose these services into a usable project lifecycle; retain their transaction and conflict authority. |
+| [Application entry](../packages/cem-studio/src/main.js) and [workbench](../packages/cem-studio/src/workbench.js): startup selects the Feature Tour project; page descriptors and dependencies come from its seed catalog. | Select projects, pages and resources from durable repository records. Keep the Feature Tour as a starter and regression fixture. |
+| [File-provider controller](../packages/cem-studio/src/shell.js): imports can change its project identity and it exposes `setProject`. | Coordinate accepted project changes with the workbench, export and provider targets; a successful import must become openable in the app. |
+| [Tree](../packages/cem-components/docs/tree-contract.md): leaf activation emits `{ value }`; selection belongs to the application. The [host view](../packages/cem-elements/src/lib/host-view.ts) now delivers that scalar through an explicit tree command binding. | Prove guarded navigation and dialog/pane workflows in the shared library before explorer UI work. |
+
+### User-visible acceptance
+
+1. Open Home, see existing projects and storage state, and create an editable
+   project from a validated bundled starter or import a valid portable archive.
+   Creation allocates a fresh project identity and preserves project-local
+   references. Import identity collisions produce a recoverable conflict;
+   this slice does not silently replace or remap an existing project.
+2. Open any admitted project and navigate its existing subprojects, pages and
+   resources by stable identity. A project without executable pages still opens
+   with an explicit empty state and its available resources. Inline/project-file
+   text within the existing limits can be edited; unsupported or binary content
+   retains its identity and a bounded read-only/download presentation.
+3. Save and validate source, run parse/inspect, and execute supported persisted
+   conversion/query/transformation/trace/graph pages through the existing CLI
+   worker. Resolve commands, inputs and dependencies from the selected project,
+   including pages created by command Apply. Ordinary projects require no seed
+   catalog or expected-result sidecar; Feature Tour comparisons remain optional
+   sample metadata. Unavailable commands or unresolved resources explain why
+   execution is unavailable without guessing another operation or fetching data.
+4. Navigate between projects/pages/resources without silently losing source or
+   command drafts. Source drafts offer Save/Discard/Cancel; command drafts use
+   the existing Apply preview/confirmation or Discard/Cancel. Both must be
+   resolved when both are dirty. Failed persistence or rejected Apply keeps the
+   draft and original selection. Saving bytes and reporting validation results
+   remain distinct outcomes. Service guards prevent duplicate pending changes
+   and stale asynchronous completions from switching the active project.
+5. Search the repository's deterministic index and open a result through the
+   same navigation guard. Reload online or offline to restore the last committed
+   project/page/resource selection and exact saved bytes. Missing or trashed
+   selections recover to Home; startup never overwrites an existing user copy.
+   Selection preferences are local application state, outside portable exports.
+6. Export the active project, move it to recoverable trash, and restore the same
+   identity and bytes. The optional file provider follows the admitted active
+   project/resource, preserves explicit permission/write actions and revision/hash
+   checks, and retains archive fallback. Picker cancellation, denied permission,
+   conflicts and quota failures leave the current working copy usable.
+
+### Shared controls before Studio composition
+
+Reuse the canonical controls within their documented subsets. The
+[pinned Angular Material comparison](../packages/cem-components/docs/angular-material-parity.md)
+is the functionality benchmark; this milestone does not promote partial rows to
+full parity merely by composing them into Studio.
+
+| User need | Shared CEM owner and boundary |
+| --- | --- |
+| Project list and search results | Passive `cem-list` with named `cem-action` controls; native form submission and `cem-text-field` for explicit search. Repository ranking and navigation stay in Studio services. |
+| Nested explorer | `cem-tree`/`cem-tree-item`, with opaque stable keys mapped to project entities. Parent activation expands; leaf activation requests navigation. Focus alone never navigates. Only admitted navigation changes `selected-values`. Empty projects use a separate empty state. |
+| Source, command and identity fields | Existing `cem-textarea`, `cem-text-field`, `cem-select` and `cem-field` contracts; preserve exact source text, caret and focus during unrelated updates. |
+| Draft decisions and recoverable removal | Named `cem-dialog` with `cem-action` decisions and native-surface dismissal/focus return. Keep `cem-sheet` a focus-neutral region. |
+| Pane navigation and layout | `cem-tabs`, `cem-stack`, `cem-grid` and existing surfaces. Initially use local-view tabs at compact and expanded widths, retaining pane nodes and selection. Simultaneous three-pane layout and resizing remain later work. |
+| Storage, operation and result feedback | Existing `cem-alert`, `cem-badge`, `cem-progress`, `cem-table` and `cem-media-preview`; loading, empty, failure, conflict and stale states must remain understandable without color. |
+
+The first shared slice implements `mountCemView` receiving an explicitly bound
+`cem-tree-activate` command from its exact component owner, with worker/fallback
+fixtures. The bridge validates the documented string `value` and delivers it
+through the existing frozen scalar request. Arbitrary event-detail
+objects, DOM nodes and undeclared event names must not become service input.
+Preserve command allowlisting, nested-view isolation, disabled/cancelled-event
+suppression, declaration revocation and disposal. Custom events retain their
+actual trust metadata; they do not create browser permission authority. Native
+file/install actions keep synchronous delivery on their own activation stack.
+Additional component events need their own explicit contract and fixture when
+a concrete workflow requires them.
+
+The [shared project-navigation workflow](../packages/cem-components/docs/project-navigation-contract.md)
+proves tree activation, guarded selection, dialog dismissal/focus return and
+retained panes before Studio adoption. Its services are bounded test stubs;
+production project/draft authority remains the next implementation step.
+Any missing reusable interaction belongs in `cem-elements`,
+with its styled declaration and public examples in `cem-components` before app
+use. Do not create a Studio-specific widget for functionality already owned by
+the general library. Studio services own repository identities, draft decisions,
+search, navigation, workers and browser APIs; XHTML/CEM-ML owns presentation and
+interaction bindings. Normalized repository records remain an explicit host API
+projection; document/command semantics continue through the native CEM boundary.
+
+### Completion evidence and limits
+
+Add actionable fixture items to `todo.md` before or with every new fixture.
+Deliver in this order: shared event bridge, shared workflow evidence, general
+project session/workbench, Home/create/import, explorer/search, recovery/provider
+coordination, and deployed acceptance. Keep the existing Feature Tour command,
+artifact, source-map, offline and exact-revision checks as regressions.
+
+The deployed acceptance fixture must exercise two independent user projects,
+nested entries and a command-created page; source and command draft decisions;
+failed saves and concurrent-tab conflicts; search after save/trash/restore;
+active-project import/export/provider targeting; cancelled pickers; and exact
+saved-byte recovery after offline reload and safe update. Build/package checks
+must include new declarations and their graph-owned deployment dependencies in
+an isolated consumer. Run the existing Studio `check` gate after the focused
+runtime, component, repository and browser checks.
+
+Audit against the [CEM principles](../packages/cem-theme/src/lib/tokens/index.md#core-cem-principles):
+semantic action/content intent, bounded control variants, native keyboard and
+accessible names, independent focus/selection, coherent spacing/shape/type, and
+theme-owned inherited tokens. Verify all five themes, forced colors, applicable
+reduced motion, inherited overrides and compact layouts. Record actual browser
+and device coverage; broader physical touch/pen/IME and browser/AT acceptance
+remain open until measured, independently of this bounded milestone.
+
+Explicit Save/Apply is the initial durability boundary: unfinished drafts are
+not promised across reload. Debounced autosave/draft recovery, structural
+rename/copy/reorder/resource creation, general undo/redo, graphical authoring,
+new command-specific forms, simultaneous/resizable panes, virtualized large
+trees, remote providers and AI assistance remain later slices of the broader
+contract. Project creation from a starter and existing command-created pages
+are included here; a general project structure editor is not required to close
+this milestone. Presentation work remains deferred with its resume context in
+the active todo file.
+
 ## Goals
 
 - Let a user learn and exercise CEM-ML without installing a native executable.

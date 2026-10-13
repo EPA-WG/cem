@@ -1,0 +1,165 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-paginator" capability="pagination">
+<template id="cem-paginator" type="text/cem-ml">
+{style @type=text/css |```
+:scope {
+    display: block;
+}
+
+:scope > :where([part~="root"]) {
+    align-items: center;
+    background-color: var(--cem-palette-comfort);
+    color: var(--cem-palette-comfort-text);
+    display: flex;
+    flex-wrap: wrap;
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    font-weight: var(--cem-typography-ui-font-weight);
+    gap: max(var(--cem-gap-group), var(--cem-coupling-guard-min));
+    justify-content: flex-end;
+    letter-spacing: var(--cem-typography-ui-letter-spacing);
+    line-height: var(--cem-typography-ui-line-height);
+    padding: var(--cem-inset-container);
+}
+
+:scope :where([part~="page-size"]),
+:scope :where([part~="range-actions"]) {
+    align-items: center;
+    display: flex;
+    gap: max(var(--cem-gap-related), var(--cem-coupling-guard-min));
+}
+
+:scope :where([part~="page-size-control"]) {
+    background-color: var(--cem-select-popup-background);
+    border: var(--cem-stroke-boundary) solid var(--cem-input-indicator-anchor-color);
+    border-radius: var(--cem-bend-field);
+    box-sizing: border-box;
+    color: var(--cem-select-popup-text);
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    font-weight: var(--cem-typography-ui-font-weight);
+    letter-spacing: var(--cem-typography-ui-letter-spacing);
+    line-height: var(--cem-typography-ui-line-height);
+    min-block-size: max(var(--cem-control-height), var(--cem-coupling-zone-min));
+    min-inline-size: var(--cem-coupling-zone-min);
+    padding-block: var(--cem-control-padding-y);
+    padding-inline: var(--cem-control-padding-x);
+}
+
+:scope :where([part~="page-size-control"]:enabled:hover) {
+    border-color: var(--cem-input-indicator-anchor-hover-color);
+}
+
+:scope :where([part~="page-size-control"]:disabled) {
+    background-color: var(--cem-select-option-disabled-background);
+    border-color: var(--cem-input-indicator-anchor-disabled-color);
+    color: var(--cem-select-option-disabled-text);
+}
+
+:scope :where([part~="page-size-control"]:focus-visible) {
+    outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1);
+    outline-offset: var(--cem-stroke-indicator-offset);
+}
+
+:scope :where([part~="range"]) {
+    font-family: var(--cem-typography-data-font-family);
+    font-size: var(--cem-typography-data-font-size);
+    font-variant-numeric: var(--cem-typography-data-font-variant-numeric);
+    font-weight: var(--cem-typography-data-font-weight);
+    letter-spacing: var(--cem-typography-data-letter-spacing);
+    line-height: var(--cem-typography-data-line-height);
+}
+
+:scope :where([part~="action"]) {
+    align-items: center;
+    appearance: none;
+    background-color: var(--cem-action-contextual-default-background);
+    block-size: max(var(--cem-icon-button-size), var(--cem-coupling-zone-min));
+    border: var(--cem-stroke-none) solid transparent;
+    border-radius: var(--cem-bend-control);
+    box-sizing: border-box;
+    color: var(--cem-action-contextual-default-text);
+    display: inline-flex;
+    flex: 0 0 max(var(--cem-icon-button-size), var(--cem-coupling-zone-min));
+    inline-size: max(var(--cem-icon-button-size), var(--cem-coupling-zone-min));
+    justify-content: center;
+    margin: var(--cem-stroke-none);
+    padding: var(--cem-stroke-none);
+}
+
+:scope :where([part~="action"]:enabled:not([aria-disabled='true']):hover) {
+    background-color: var(--cem-action-contextual-hover-background);
+    color: var(--cem-action-contextual-hover-text);
+}
+
+:scope :where([part~="action"]:enabled:not([aria-disabled='true']):active) {
+    background-color: var(--cem-action-contextual-active-background);
+    color: var(--cem-action-contextual-active-text);
+}
+
+:scope :where([part~="action"]:is(:disabled, [aria-disabled='true'])) {
+    background-color: var(--cem-action-contextual-disabled-background);
+    color: var(--cem-action-contextual-disabled-text);
+}
+
+:scope :where([part~="action"]:focus-visible) {
+    outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1);
+    outline-offset: var(--cem-stroke-indicator-offset);
+}
+
+:scope :where([part~="icon"]) {
+    align-items: center;
+    block-size: var(--cem-icon-button-icon-size);
+    display: inline-flex;
+    flex: 0 0 var(--cem-icon-button-icon-size);
+    inline-size: var(--cem-icon-button-icon-size);
+    justify-content: center;
+}
+@media (forced-colors: active) {
+:scope > :where([part~="root"]) {
+        background-color: Canvas;
+        color: CanvasText;
+    }
+
+:scope :where([part~="page-size-control"]) {
+        background-color: Canvas;
+        border-color: CanvasText;
+        color: CanvasText;
+    }
+
+:scope :where([part~="action"]) {
+        background-color: Canvas;
+        color: CanvasText;
+    }
+
+:scope :where([part~="page-size-control"]:enabled:hover) {
+        border-color: Highlight;
+    }
+
+:scope :where([part~="page-size-control"]:disabled) {
+        background-color: Canvas;
+        border-color: GrayText;
+        color: GrayText;
+    }
+
+:scope :where([part~="action"]:enabled:not([aria-disabled='true']):hover),
+:scope :where([part~="action"]:enabled:not([aria-disabled='true']):active) {
+        background-color: Highlight;
+        color: HighlightText;
+    }
+
+:scope :where([part~="action"]:is(:disabled, [aria-disabled='true'])) {
+        background-color: Canvas;
+        color: GrayText;
+    }
+
+:scope :where([part~="page-size-control"]:focus-visible),
+:scope :where([part~="action"]:focus-visible) {
+        outline: var(--cem-stroke-focus) solid CanvasText;
+        outline-offset: var(--cem-stroke-indicator-offset);
+    }
+}
+:scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
+```}
+{attribute @name=label | Pagination}{attribute @name=items-per-page-label | Items per page}{attribute @name=first-page-label | First page}{attribute @name=previous-page-label | Previous page}{attribute @name=next-page-label | Next page}{attribute @name=last-page-label | Last page}{attribute @name=of-label | of}{nav @class=cem-paginator @part=root @aria-label="{$label}" | {cem:if @test="seq:count(datadom.attributes.hide-page-size) == 0" |  {label @class=cem-paginator__page-size @part=page-size |   {span @class=cem-paginator__page-size-label @part=page-size-label | {$datadom.slices.itemsPerPageLabel}}   {select @class=cem-paginator__page-size-control @part=page-size-control @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} |    {cem:for-each @select=datadom.slices.pageSizeOptions @as=option |     {option @value="{$option.value}" @selected={if option.selected { true } else { null }} | {$option.label}}}}}} {div @class=cem-paginator__range-actions @part=range-actions |  {span @class=cem-paginator__range @part=range @role=status @aria-live=polite @aria-atomic=true | {$datadom.slices.rangeLabel}}  {cem:if @test="seq:count(datadom.attributes.show-first-last) > 0" |   {button @type=button @class=cem-paginator__action @part=action @data-page-action=first @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @aria-disabled={if datadom.slices.previousDisabled { true } else { null }} @tabindex={if datadom.slices.previousDisabled { -1 } else { null }} @aria-label="{$datadom.slices.firstPageLabel}" | {span @class=cem-paginator__icon @part=icon @aria-hidden=true | «}}}  {button @type=button @class=cem-paginator__action @part=action @data-page-action=previous @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @aria-disabled={if datadom.slices.previousDisabled { true } else { null }} @tabindex={if datadom.slices.previousDisabled { -1 } else { null }} @aria-label="{$datadom.slices.previousPageLabel}" | {span @class=cem-paginator__icon @part=icon @aria-hidden=true | ‹}}  {button @type=button @class=cem-paginator__action @part=action @data-page-action=next @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @aria-disabled={if datadom.slices.nextDisabled { true } else { null }} @tabindex={if datadom.slices.nextDisabled { -1 } else { null }} @aria-label="{$datadom.slices.nextPageLabel}" | {span @class=cem-paginator__icon @part=icon @aria-hidden=true | ›}}  {cem:if @test="seq:count(datadom.attributes.show-first-last) > 0" |   {button @type=button @class=cem-paginator__action @part=action @data-page-action=last @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @aria-disabled={if datadom.slices.nextDisabled { true } else { null }} @tabindex={if datadom.slices.nextDisabled { -1 } else { null }} @aria-label="{$datadom.slices.lastPageLabel}" | {span @class=cem-paginator__icon @part=icon @aria-hidden=true | »}}}}}
+</template>
+</cem-element>

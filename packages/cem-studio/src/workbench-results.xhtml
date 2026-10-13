@@ -1,0 +1,262 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-studio-workbench-results">
+  <template id="cem-studio-workbench-results" type="text/cem-ml">
+{module |
+ {slice @name=state}
+ {slice @name=pending | false}
+ {template @name=result-row |
+  {param @name=label}
+  {param @name=value}
+  {body |
+   {div @role=row |
+    {span @role=cell |
+     {$ | label}
+    }
+    {span @role=cell |
+     {$ | value}
+ }}}}
+ {template @name=operation-details |
+  {param @name=state}
+  {body |
+   {cem:variable @name=argv
+    @select='if state.command.current.argv { str:concat(state.command.current.argv, " ") } else { "loading" }'}
+   {cem:variable @name=pinnedKind @select='state.expected.kind ?? "none"'}
+   {cem-table @label="Operation identities and configuration" |
+    {div @role=row |
+     {strong @role=columnheader | Field}
+     {strong @role=columnheader | Value}
+    }
+    {call @template=result-row @with:label=Operation @with:value="{$state.operation}"}
+    {call @template=result-row @with:label="Input path" @with:value="{$state.path}"}
+    {call @template=result-row @with:label="Input content type" @with:value="{$state.contentType}"}
+    {call @template=result-row @with:label="Input schema" @with:value="{$state.schema}"}
+    {call @template=result-row @with:label="Literal argv" @with:value="{$argv}"}
+    {call @template=result-row @with:label="Pinned expectation" @with:value="{$pinnedKind}"}
+ }}}
+ {template @name=projection-metadata |
+  {param @name=projection}
+  {body |
+   {cem:choose |
+    {cem:when @test=projection |
+     {cem:variable @name=runtime @select='projection.executionIdentity.runtime ?? "unknown"'}
+     {cem:variable @name=diagnosticCount @select="seq:count(projection.diagnostics.code)"}
+     {cem:variable @name=provenanceCount @select="seq:count(projection.provenance.range.start)"}
+     {cem:variable @name=expectation
+      @select='if projection.expectedMatches == true { "matched" } else { if projection.expectedMatches == false { "different" } else { "not pinned" } }'}
+     {cem:variable @name=freshness @select='if projection.stale { "stale" } else { "current" }'}
+     {cem-table @label="Projection execution" |
+      {div @role=row |
+       {strong @role=columnheader | Measure}
+       {strong @role=columnheader | Value}
+      }
+      {call @template=result-row @with:label=Operation @with:value="{$projection.kind}"}
+      {call @template=result-row @with:label=Projection @with:value="{$projection.mode}"}
+      {call @template=result-row @with:label=Runtime @with:value="{$runtime}"}
+      {call @template=result-row @with:label="Project revision"
+       @with:value="{$projection.revision.projectRevision}"}
+      {call @template=result-row @with:label="Resource revision"
+       @with:value="{$projection.revision.resourceRevision}"}
+      {call @template=result-row @with:label="Output content type"
+       @with:value="{$projection.output.contentType}"}
+      {call @template=result-row @with:label="Output bytes"
+       @with:value="{$projection.output.byteLength}"}
+      {call @template=result-row @with:label=Diagnostics @with:value="{$diagnosticCount}"}
+      {call @template=result-row @with:label="Source-map frames" @with:value="{$provenanceCount}"}
+      {call @template=result-row @with:label="Expected result" @with:value="{$expectation}"}
+      {call @template=result-row @with:label=Freshness @with:value="{$freshness}"}
+    }}
+    {cem:otherwise |
+     {cem-alert @label="No parse or inspect result yet" @tone=info}
+ }}}}
+ {template @name=projection-expected |
+  {param @name=state}
+  {param @name=projection}
+  {body |
+   {cem:variable @name=pinned @select="projection.expected ?? state.expected"}
+   {cem:choose |
+    {cem:when @test=pinned |
+     {cem:variable @name=label
+      @select='if projection.expectedMatches == true { "Native result matches the pinned expectation." } else { if projection.expectedMatches == false { "Native result differs from the pinned expectation." } else { "Run the operation to compare its native summary." } }'}
+     {cem-alert @label={label} @tone={if projection.expectedMatches == false { "danger" } else { if projection.expectedMatches == true { "success" } else { "info" } }}}
+     {cem-table @label="Pinned expected result" |
+      {div @role=row |
+       {strong @role=columnheader | Measure}
+       {strong @role=columnheader | Expected}
+       {strong @role=columnheader | Actual}
+      }
+      {cem:for-each @as=row @select=state.expectedRows |
+       {cem:variable @name=expectedText @select='row.expectedText ?? "—"'}
+       {cem:variable @name=actualText @select='row.actualText ?? "—"'}
+       {div @role=row |
+        {span @role=cell |
+         {$ | row.key}
+        }
+        {span @role=cell |
+         {$ | expectedText}
+        }
+        {span @role=cell |
+         {$ | actualText}
+    }}}}}
+    {cem:otherwise |
+     {cem-alert @label="No pinned expected result for this workbench" @tone=info}
+ }}}}
+ {template @name=operation-records |
+  {param @name=records}
+  {param @name=label}
+  {param @name=emptyLabel}
+  {body |
+   {cem:choose |
+    {cem:when @test="seq:count(records.path) &gt; 0" |
+     {cem-table @label={label} |
+      {div @role=row |
+       {strong @role=columnheader | Path}
+       {strong @role=columnheader | Record}
+      }
+      {cem:for-each @as=record @select=records |
+       {cem:variable @name=text @select='record.text ?? "—"'}
+       {cem:variable @name=display
+        @select='if str:length(text) &gt; 240 { str:concat((str:slice(text, 0, 239), "…"), "") } else { text }'}
+       {div @role=row |
+        {span @role=cell |
+         {$ | record.path}
+        }
+        {span @role=cell |
+         {$ | display}
+    }}}}}
+    {cem:otherwise |
+     {cem-alert @label={emptyLabel} @tone=info}
+ }}}}
+ {template @name=result-preview |
+  {param @name=preview}
+  {body |
+   {section @aria-label={preview.label ?? "Result preview"} @data-cem-studio-preview="" @data-cem-studio-preview-kind={preview.kind ?? null} |
+    {cem:choose |
+     {cem:when @test=preview |
+      {cem:variable @name=mode
+       @select='if preview.kind == "text" { "text" } else { if preview.kind == "sandboxed-html" { "document" } else { "message" } }'}
+      {cem:variable @name=value
+       @select='if preview.kind == "text" { preview.text } else { if preview.kind == "sandboxed-html" { preview.source } else { preview.reason } }'}
+      {cem-media-preview @label={preview.label} @mode={mode} @truncated={if preview.truncated { true } else { null }} @value={value}}
+     }
+     {cem:otherwise |
+      {cem-alert @label="Run an operation to preview its bounded result" @tone=info}
+ }}}}}
+ {template @name=result-diagnostics |
+  {param @name=diagnostics}
+  {body |
+   {cem:choose |
+    {cem:when @test="seq:count(diagnostics.code) &gt; 0" |
+     {cem-list @data-diagnostic-list="" @host-command=diagnostic @host-command-event=change
+      @label=Diagnostics @selectable=true @size={if seq:count(diagnostics.code) &gt; 8 { 8 } else { seq:count(diagnostics.code) }} |
+      {cem:for-each @as=diagnostic @select=diagnostics |
+       {cem:variable @name=label
+        @select='str:concat((diagnostic.severity, ": ", diagnostic.code, ": ", diagnostic.message), "")'}
+       {cem-list-option @value={position - 1} |
+        {$ | label}
+    }}}}
+    {cem:otherwise |
+     {cem-alert @label="No diagnostics" @tone=success}
+ }}}}
+ {template @name=result-provenance |
+  {param @name=provenance}
+  {body |
+   {cem:choose |
+    {cem:when @test="seq:count(provenance.range.start) &gt; 0" |
+     {cem-list @data-provenance-list="" @host-command=provenance @host-command-event=change
+      @label="Source-map provenance" @selectable=true @size={if seq:count(provenance.range.start) &gt; 8 { 8 } else { seq:count(provenance.range.start) }} |
+      {cem:for-each @as=frame @select=provenance |
+       {cem:variable @name=label
+        @select='str:concat(("Source ", frame.sourceId ?? "unknown", ": ", frame.transform, "; bytes ", frame.range.start, "–", frame.range.start + frame.range.len), "")'}
+       {cem-list-option @value={position - 1} |
+        {$ | label}
+    }}}}
+    {cem:otherwise |
+     {cem-alert @label="No source-map provenance" @tone=info}
+ }}}}
+ {template @name=validation-report |
+  {param @name=summary}
+  {body |
+   {cem:choose |
+    {cem:when @test=summary |
+     {cem:variable @name=inputCount @select="summary.inputCount ?? 0"}
+     {cem:variable @name=infoCount @select="summary.infoCount ?? 0"}
+     {cem:variable @name=warningCount @select="summary.warningCount ?? 0"}
+     {cem:variable @name=errorCount @select="summary.errorCount ?? 0"}
+     {cem:variable @name=fatalCount @select="summary.fatalCount ?? 0"}
+     {cem:variable @name=hardViolationCount @select="summary.hardViolationCount ?? 0"}
+     {cem-table @label="Validation report" |
+      {div @role=row |
+       {strong @role=columnheader | Measure}
+       {strong @role=columnheader | Count}
+      }
+      {call @template=result-row @with:label=Inputs @with:value="{$inputCount}"}
+      {call @template=result-row @with:label=Information @with:value="{$infoCount}"}
+      {call @template=result-row @with:label=Warnings @with:value="{$warningCount}"}
+      {call @template=result-row @with:label=Errors @with:value="{$errorCount}"}
+      {call @template=result-row @with:label=Fatal @with:value="{$fatalCount}"}
+      {call @template=result-row @with:label="Hard violations" @with:value="{$hardViolationCount}"}
+    }}
+    {cem:otherwise |
+     {cem-alert @label="No validation report yet" @tone=info}
+ }}}}
+ {body |
+  {cem:variable @name=state @select=datadom.slices.state}
+  {cem:variable @name=projection @select=state.projection}
+  {cem:variable @name=busy
+   @select='datadom.slices.pending || (state.status == "saving") || (state.status == "validating") || (state.status == "projecting") || (state.command.application.status == "applying") || (state.command.application.status == "running")'}
+  {cem:variable @name=freshness @select='if projection.stale { "stale" } else { "current" }'}
+  {cem:variable @name=expectedMessage
+   @select='if projection.expectedMatches == true { "; pinned expectation matched" } else { if projection.expectedMatches == false { "; pinned expectation differed" } else { "" } }'}
+  {cem:variable @name=projectionLabel
+   @select='if projection { str:concat((projection.kind, " ", projection.mode, "; ", projection.output.byteLength, " output bytes; ", freshness, " revision", expectedMessage, "."), "") } else { str:concat(("Run ", state.operation, " against the persisted revision."), "") }'}
+  {cem-alert @data-cem-studio-projection-alert="" @label={projectionLabel} @tone={if (state.status == "projection-invalid") || state.error || (projection.expectedMatches == false) { "danger" } else { if projection.stale { "warning" } else { "info" } }}}
+  {div @data-cem-studio-operation-details="" |
+   {call @template=operation-details @with:state="{$state}"}
+  }
+  {cem-tabs @label="Projection results" @value=output |
+   {cem-tab @label="Operation output" @value=output |
+    {call @template=result-preview @with:preview="{$projection.preview}"}
+    {div |
+     {cem-action @data-cem-studio-projection-copy="" @disabled={if busy || !projection.output || (projection.preview.kind == "download") { true } else { null }} @host-command=copy-output
+      @host-command-event=click @variant=alternate | Copy exact output}
+     {cem-action @data-cem-studio-projection-download="" @disabled={if busy || !projection.output { true } else { null }} @host-command=download-output
+      @host-command-event=click @variant=contextual | Download exact output}
+    }
+    {cem-alert @data-cem-studio-projection-transfer="" @label={projection.transfer.message ?? "Copy or download the exact verified operation output."} @tone={if projection.transfer.status == "failed" { "danger" } else { "info" }}}
+   }
+   {cem-tab @label=Execution @value=metadata |
+    {div @data-cem-studio-projection-metadata="" |
+     {call @template=projection-metadata @with:projection="{$projection}"}
+   }}
+   {cem-tab @label=Expected @value=expected |
+    {div @data-cem-studio-projection-expected="" |
+     {call @template=projection-expected @with:projection="{$projection}" @with:state="{$state}"}
+   }}
+   {cem-tab @label=Trace @value=trace |
+    {div @data-cem-studio-projection-trace="" |
+     {call @template=operation-records @with:emptyLabel="No operation trace records"
+      @with:label="Operation trace" @with:records="{$projection.trace}"}
+   }}
+   {cem-tab @label=Graph @value=graph |
+    {div @data-cem-studio-projection-graph="" |
+     {call @template=operation-records
+      @with:emptyLabel="No transformation graph execution overlay records"
+      @with:label="Transformation graph execution overlay" @with:records="{$projection.graph}"}
+  }}}
+  {cem:variable @name=diagnostics @select="projection.diagnostics ?? state.validation.diagnostics"}
+  {cem:variable @name=provenance @select="projection.provenance ?? state.validation.provenance"}
+  {cem-tabs @label="Validation results" @value=diagnostics |
+   {cem-tab @label=Diagnostics @value=diagnostics |
+    {div @data-cem-studio-diagnostics="" |
+     {call @template=result-diagnostics @with:diagnostics="{$diagnostics}"}
+   }}
+   {cem-tab @label=Report @value=report |
+    {div @data-cem-studio-report="" |
+     {call @template=validation-report @with:summary="{$state.validation.reportSummary}"}
+   }}
+   {cem-tab @label=Provenance @value=provenance |
+    {div @data-cem-studio-provenance="" |
+     {call @template=result-provenance @with:provenance="{$provenance}"}
+}}}}}
+
+  </template>
+</cem-element>

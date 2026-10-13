@@ -1,0 +1,38 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-site-search">
+  <template id="cem-site-search" type="text/cem-ml">
+{module @cem:whitespace=layout |
+ {slice @name=state}
+ {body |
+  {cem:variable @name=query @select='datadom.slices.state.query ?? ""'}
+  {cem:variable @name=matches @select=datadom.slices.state.matches}
+  {cem:variable @name=count @select="seq:count(matches.route)"}
+  {cem:variable @name=status
+   @select='if query == "" { str:concat((count, " searchable documents"), "") } else { str:concat((count, if count == 1 { " result" } else { " results" }, " for “", query, "”"), "") }'}
+  {h1 @id=site-search | Search CEM Site}
+  {form @action=/search/ @host-command=submit-search @host-command-event=submit @method=get |
+   {cem-field @data-search-field="" @host-command=search @host-command-event=input
+    @label="Search routes and headings" @name=q @type=search @value={datadom.slices.state.rawQuery ?? ""}}
+   {cem-action @aria-controls=search-results @data-search-action="" @label=Search @type=submit | Search}
+  }
+  {p @aria-live=polite @data-search-status="" @role=status |
+   {$ | status}
+  }
+  {ol @data-search-results="" @id=search-results |
+   {cem:for-each @as=document @select=matches |
+    {li @data-search-document={document.route} |
+     {a @href={if document.primaryHeading.id { str:concat((document.route, "#", document.primaryHeading.id), "") } else { document.route }} |
+      {$ | document.title}
+     }
+     {p |
+      {$ | document.summary}
+     }
+     {cem:if @test="seq:count(document.headings.id) &gt; 0" |
+      {ul |
+       {cem:for-each @as=heading @select=document.headings |
+        {li |
+         {a @href={str:concat((document.route, "#", heading.id), "")} |
+          {$ | heading.text}
+}}}}}}}}}}
+
+  </template>
+</cem-element>

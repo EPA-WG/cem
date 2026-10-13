@@ -675,8 +675,13 @@ Feature Tour, and five portable-operation workbenches are verified online and
 offline. The File System Access provider retains file/directory handles only in
 host-owned bindings, uses explicit permission actions, detects external changes
 before write-back, and falls back to IndexedDB plus a deterministic validated
-import/export archive. The next work item is the final bounded-preview,
-accessibility, offline/update/security, and release-evidence closure gate.
+import/export archive. Following the completed Studio/Site declarative migration,
+the next delivery milestone is the
+[user-owned project workspace](docs/cem-studio.md#next-delivery-milestone-user-owned-project-workspace):
+shared CEM navigation/host-command evidence first, then general project selection,
+create/import, guarded editing and save/reopen/export recovery. The
+[active checklist](docs/todo.md#cem-studio-delivery-planning) owns implementation
+and verification; broader browser/device/AT acceptance remains independently open.
 
 Exit criteria:
 

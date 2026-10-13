@@ -1,0 +1,164 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-tree" capability="tree-view">
+<template id="cem-tree" type="text/cem-ml">
+{module | {attribute @name=label | }
+ {slice @name=items}
+ {template @name=tree-item |  {param @name=item}  {body |   {div @class=cem-tree__item @part="item" @role=none |    {button @id="{$item.id}" @type=button @class=cem-tree__node @part="node" @role=treeitem @data-tree-value="{$item.value}" @data-expanded="{$item.expanded}" @data-selected="{$item.selected}" @data-loading="{$item.loading}" @tabindex="{$item.tabIndex}" @aria-label="{$item.label}" @aria-level="{$item.level}" @aria-posinset="{$item.position}" @aria-setsize="{$item.setSize}" @aria-expanded={if item.branch { item.expanded } else { null }} @aria-selected={if item.selectionEnabled { item.selected } else { null }} @aria-disabled={if item.disabled { true } else { null }} @aria-busy={if item.loading { true } else { null }} @aria-owns={if item.hasGroup { item.groupId } else { null }} |     {span @class=cem-tree__marker @part="marker" @aria-hidden=true | {$item.marker}}     {span @class=cem-tree__label @part="label" | {$item.label}}     {cem:if @test=item.selectedMarker | {span @class=cem-tree__selection @part="selection" @aria-hidden=true | {$item.selectedMarker}}}     {span @class=cem-tree__status @part="status" @hidden={if item.loading { null } else { true }} | {$item.loadingLabel}}}    {div @id="{$item.groupId}" @class=cem-tree__group @part="group" @role={if item.hasGroup { "group" } else { null }} @hidden={if item.hasGroup &amp;&amp; item.expanded { null } else { true }} |     {cem:for-each @select=item.children @as=child | {call @template=tree-item @with:item="{$child}"}}}}}}
+ {body | {style @type=text/css |```
+:scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
+:scope {
+    display: block;
+}
+
+:scope > :where([part~="root"]) {
+    background-color: var(--cem-palette-comfort);
+    color: var(--cem-palette-comfort-text);
+    display: grid;
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    gap: var(--cem-gap-related);
+    line-height: var(--cem-typography-ui-line-height);
+}
+
+:scope :where([part~="item"]),
+:scope :where([part~="group"]) {
+    display: grid;
+    gap: var(--cem-gap-related);
+}
+
+:scope :where([part~="group"]) {
+    margin-inline-start: var(--cem-control-padding-x);
+}
+
+:scope :where([part~="group"])[hidden] {
+    display: none;
+}
+
+:scope :where([part~="node"]) {
+    appearance: none;
+    background-color: var(--cem-content-interaction-default-background);
+    border: var(--cem-stroke-boundary) solid transparent;
+    border-radius: var(--cem-bend-control);
+    box-sizing: border-box;
+    color: var(--cem-content-interaction-default-text);
+    display: grid;
+    font: inherit;
+    font-weight: var(--cem-typography-ui-font-weight);
+    gap: var(--cem-gap-related);
+    grid-template-areas: 'marker label selection' 'marker status selection';
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    inline-size: 100%;
+    letter-spacing: var(--cem-typography-ui-letter-spacing);
+    margin: var(--cem-stroke-none);
+    min-block-size: var(--cem-coupling-zone-min);
+    padding-block: var(--cem-control-padding-y);
+    padding-inline: var(--cem-control-padding-x);
+    text-align: start;
+}
+
+:scope :where([part~="node"]:not([aria-disabled='true'])):hover {
+    background-color: var(--cem-content-interaction-hover-background);
+    color: var(--cem-content-interaction-hover-text);
+}
+
+:scope :where([part~="node"]:not([aria-disabled='true'])):active {
+    background-color: var(--cem-content-interaction-active-background);
+    color: var(--cem-content-interaction-active-text);
+}
+
+:scope :where([part~="node"])[aria-selected='true'] {
+    background-color: var(--cem-content-interaction-selected-background);
+    color: var(--cem-content-interaction-selected-text);
+}
+
+:scope :where([part~="node"])[aria-selected='true']:where(:not([aria-disabled='true']):hover) {
+    background-color: var(--cem-content-interaction-selected-hover-background);
+    color: var(--cem-content-interaction-selected-hover-text);
+}
+
+:scope :where([part~="node"])[aria-selected='true']:where(:not([aria-disabled='true']):active) {
+    background-color: var(--cem-content-interaction-selected-active-background);
+    color: var(--cem-content-interaction-selected-active-text);
+}
+
+:scope :where([part~="node"])[aria-disabled='true'] {
+    background-color: var(--cem-content-interaction-disabled-background);
+    color: var(--cem-content-interaction-disabled-text);
+}
+
+:scope :where([part~="node"]:not([aria-disabled='true'])):focus-visible {
+    outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1);
+    outline-offset: var(--cem-stroke-indicator-offset);
+}
+
+:scope :where([part~="marker"]) {
+    align-items: center;
+    align-self: center;
+    block-size: var(--cem-icon-button-icon-size);
+    display: inline-flex;
+    grid-area: marker;
+    inline-size: var(--cem-icon-button-icon-size);
+    justify-content: center;
+}
+
+:scope :where([part~="label"]) {
+    align-self: end;
+    grid-area: label;
+}
+
+:scope :where([part~="selection"]) {
+    align-self: center;
+    grid-area: selection;
+}
+
+:scope :where([part~="status"]) {
+    font-family: var(--cem-typography-tag-font-family);
+    font-size: var(--cem-typography-tag-font-size);
+    font-weight: var(--cem-typography-tag-font-weight);
+    grid-area: status;
+    letter-spacing: var(--cem-typography-tag-letter-spacing);
+    line-height: var(--cem-typography-tag-line-height);
+}
+
+@media (forced-colors: active) {
+
+    :scope > :where([part~="root"]) {
+        background-color: Canvas;
+        color: CanvasText;
+    }
+
+    :scope :where([part~="node"]) {
+        background-color: ButtonFace;
+        border-color: ButtonText;
+        color: ButtonText;
+    }
+
+    :scope :where([part~="node"])[aria-selected='true'] {
+        background-color: SelectedItem;
+        border-color: SelectedItemText;
+        color: SelectedItemText;
+    }
+
+    :scope :where([part~="node"]:not([aria-disabled='true'])):hover,
+:scope :where([part~="node"]:not([aria-disabled='true'])):active,
+:scope :where([part~="node"])[aria-selected='true']:where(:not([aria-disabled='true']):hover),
+:scope :where([part~="node"])[aria-selected='true']:where(:not([aria-disabled='true']):active) {
+        background-color: Highlight;
+        border-color: HighlightText;
+        color: HighlightText;
+    }
+
+    :scope :where([part~="node"])[aria-disabled='true'],
+:scope :where([part~="node"])[aria-selected='true']:where([aria-disabled='true']) {
+        background-color: ButtonFace;
+        border-color: GrayText;
+        color: GrayText;
+    }
+
+    :scope :where([part~="node"]:not([aria-disabled='true'])):focus-visible {
+        outline: var(--cem-stroke-focus) solid CanvasText;
+        outline-offset: var(--cem-stroke-indicator-offset);
+    }
+}
+```}  {cem:choose |   {cem:when @test=datadom.slices.authoringValid |    {div @class=cem-tree @part="root" @role=tree @aria-label={datadom.attributes.aria-label ?? label} @aria-multiselectable={if datadom.slices.multiple { true } else { null }} |     {cem:for-each @select=datadom.slices.items @as=item | {call @template=tree-item @with:item="{$item}"}}}}   {cem:otherwise | {span @class="cem-tree cem-tree--invalid" @part="root" @hidden=true | }}}}}
+</template>
+</cem-element>

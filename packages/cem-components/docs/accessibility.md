@@ -241,7 +241,7 @@ patterns below are the contract for the Phase 3 primitive set.
 | `cem-app-shell` | Skip-link target MUST be focusable (`tabindex="-1"`). |
 | `cem-top-bar` | Native focus order; primary actions follow `cem-button` rules. |
 | `cem-form` | `Enter` in any text field submits if the form has exactly one submit button; otherwise activates the default submit per WHATWG. |
-| `cem-alert` | If interactive (dismissible), Tab reaches dismiss control; `Escape` dismisses when the alert has been acknowledged. |
+| `cem-alert` | No owned keyboard or dismissal behavior. Tab reaches authored native action descendants. |
 | `cem-badge` | Non-interactive; no keyboard handling. |
 | `cem-card` | Non-interactive by default. When the card is a link, native anchor keyboard behavior applies. |
 
@@ -257,8 +257,9 @@ so the catalog can verify there is exactly one entrypoint per composite.
   navigation region. The label MUST be either a slotted heading or `aria-label`.
 - `cem-message-thread` MUST use `role="log"` (or `role="feed"` when the message
   count exceeds the documented threshold) with `aria-live` per §8.
-- `cem-alert` MUST use `role="alert"` (assertive) for error/destructive intent or
-  `role="status"` (polite) for info/success intent.
+- Authors explicitly choose `cem-alert[role="alert"]` for urgent feedback.
+  Routine updates keep the default `role="status"`. Visual tone alone does not
+  change urgency or infer an announcement policy.
 - `cem-dialog` and `cem-dialog-shell` always render a native dialog. Do not
   add redundant `role`, `aria-modal` or `tabindex`; the browser owns modality.
   The visible heading names it unless explicit ARIA naming is supplied.
@@ -296,14 +297,18 @@ so the catalog can verify there is exactly one entrypoint per composite.
 - `cem-tooltip` renders no competing trigger role. Its one non-interactive
   `role="tooltip"` Popover supplements the trigger through `aria-describedby`.
 
+Skeleton payload is decorative and inert, so descendants cannot become keyboard
+stops inside its `aria-hidden` subtree. Pair placeholders with visible task
+context; skeletons create no live region.
+
 ## 8. Live regions
 
 Components that announce updates use ARIA live regions with the following rules:
 
 | Component | Live region | Politeness |
 | --- | --- | --- |
-| `cem-alert` (info, success) | `role="status"` | polite |
-| `cem-alert` (error, destructive) | `role="alert"` | assertive |
+| `cem-alert` default or `role="status"` | `role="status"` | polite |
+| `cem-alert[role="alert"]` for explicitly urgent feedback | `role="alert"` | assertive |
 | `cem-message-thread` incoming message | `role="log"` (or `role="feed"`) | polite |
 | Form field `cem-invalid` event | `aria-live="polite"` on the linked error region | polite |
 | Loading state for long async ops (>1s) | `aria-busy` flips; no extra live region | n/a |
@@ -428,3 +433,55 @@ and [shared runtime plays](../../cem-elements/src/lib/editable-choice.stories.ts
 cover those behaviors, accessible names/references, required validation, reset,
 restore and event ordering. The focused forced-colors check uses the declaration's
 embedded stylesheet; source and packed galleries exercise the real component.
+
+## Declarative calendar ownership
+
+The canonical [datepicker declaration](../src/components/cem-datepicker/cem-datepicker.xhtml)
+uses shared `calendar-input` behavior with exact authored native input/toggle
+owners. Composition and modified editor keys pass through; fieldset-disabled
+and readonly inputs cannot open the calendar. Reset and reconnect discard modal
+drafts silently. Apply restores input focus before its native input/change
+pair. Closed calendars omit day rows; open calendars expose 42 positions with
+inert blanks outside years 0001–9999. These boundaries are exercised in the
+[colocated stories](../src/components/cem-datepicker/cem-datepicker.stories.ts)
+and [worker/fallback lifecycle plays](../../cem-elements/src/lib/calendar-input.stories.ts).
+
+The canonical [timepicker declaration](../src/components/cem-timepicker/cem-timepicker.xhtml)
+and [slider declaration](../src/components/cem-slider/cem-slider.xhtml) use shared
+native-input capabilities. Timepicker keeps composition-ending and modified keys
+with the editor, suppresses opening for native readonly/fieldset-disabled, and
+closes before the input/change pair. Slider projects inputs in authored order,
+retains trusted events and native reset, and honors fieldset-disabled paint. Its
+native thumb pseudo-elements remain inside the declaration scope; projected
+content descendants and nested component interiors remain outside. The automated
+stories and source/packed galleries do not establish spoken AT or device coverage.
+
+### Navigation and content migration
+
+Navigation landmarks, tabs, workflow panels, trees, selectable lists and chips
+now use canonical declarations. Native link/button/select ownership and stable
+public parts replace legacy behavior selectors. Disclosure/pressed state toggles
+retain the focused button. Tabs and steppers move focus to the selected header
+when a programmatic update hides the focused panel; unrelated outside focus is
+preserved. Tree collapse returns a hidden descendant's focus to a visible enabled
+ancestor and cancels that recovery when the user moves outside. Modified and
+composition keyboard events are left to the browser.
+
+`collapsible`, `expanded`, `selectable`, `checkable`, `checked` and `disabled`
+use attribute presence, including `="false"`. Passive lists/chips add no tab stop
+or selection owner. Selectable lists normalize only direct option payload and
+retain native select change events. Checkable chips use a native button and a
+local checked slice, without an extra form submission owner.
+
+
+The canonical surface/card declarations keep the same section and projected
+native controls while busy/empty attributes change, including false-valued
+presence. Colocated worker/fallback stories verify focus and edited-value
+retention. Text heading variants are visual treatments only; authors supply
+native headings for document structure. Stack/grid add no role, focus owner or
+inferred loading state. Divider decorative presence removes its role and
+orientation while retaining one aria-hidden line.
+
+The canonical disclosure/data owners preserve exact native focus and ARIA
+ownership; see the [principle audit](disclosure-data-contract.md). Table wrappers
+remain passive; applications order rows and announce completed sort results.

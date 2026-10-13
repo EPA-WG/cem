@@ -160,7 +160,7 @@ Use this as a normative annotation target for component recipes.
 .gallery {
   display: grid;
   gap: var(--cem-gap-related);
-  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--cem-layout-grid-min)), 1fr));
 }
 ```
 
@@ -190,7 +190,7 @@ component: CardGallery
 cem:
   responsiveStrategy: intrinsic
   queryContext: container
-  minItemInlineSize: 14rem
+  minItemInlineSize: var(--cem-layout-grid-min)
 ```
 
 Adapters MAY use these annotations to:

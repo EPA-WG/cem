@@ -62,11 +62,13 @@ class NativeSurface implements CemNativeSurfaceController {
     private activation?: { source: HTMLElement; invocation: CemSurfaceInvocation };
     private phase = 'closed';
     private wasOpen = false;
+    private focusWithin = false;
     private closeReason = 'native';
     private restore = false;
     private prepared = false;
     private sessionId = '';
     private disposed = false;
+    private disconnecting = false;
     private timer?: ReturnType<typeof setTimeout>;
     private readonly body: CemSurfaceBody;
     readonly controls: CemSurfaceControls;
@@ -85,6 +87,9 @@ class NativeSurface implements CemNativeSurfaceController {
         try { this.releaseVisibility = registerCemSurfaceOwner(host, owner, this.registeredKind ?? 'invalid', () => { this.sync(); this.bindTooltipSources(); }); }
         catch (error) { this.geometry.release(); throw error; }
         this.releaseReferences = observeInteractionReferences(host, () => { this.sync(); this.bindTooltipSources(); this.reposition(); });
+        root.addEventListener('focusin', event => {
+            if (visible(owner)) this.focusWithin = event.target instanceof Node && owner.contains(event.target);
+        }, options);
         owner.addEventListener('command', e => this.command(e as CommandEvent), options);
         if (host !== owner) host.addEventListener('command', e => { if (e.target === host) this.command(e as CommandEvent); }, options);
         owner.addEventListener('beforetoggle', e => {
@@ -212,9 +217,12 @@ class NativeSurface implements CemNativeSurfaceController {
         reportInteractionReference(this.host, undefined, 'context');
         this.invalidatePreparation();
         this.relay = relay;
+        const active = this.owner.ownerDocument.activeElement;
+        const entry = this.kind() === 'dialog' && active instanceof HTMLElement && !this.owner.contains(active)
+            && active !== this.owner.ownerDocument.body ? active : undefined;
         this.invocation = retainInvocation({ ...invocation, logicalParent: invocation.logicalParent ?? relay?.logicalParent,
-            returnDestination: invocation.returnDestination ?? relay?.returnDestination }); this.closeReason = 'native'; this.restore = false;
-        if (!visible(this.owner)) { this.phase = 'preparing'; this.sessionId = `cem-native-session-${++sessions}`; }
+            returnDestination: invocation.returnDestination ?? relay?.returnDestination ?? invocation.source ?? entry }); this.closeReason = 'native'; this.restore = false;
+        if (!visible(this.owner)) { this.focusWithin = false; this.phase = 'preparing'; this.sessionId = `cem-native-session-${++sessions}`; }
         this.prepared = true; this.reflect(); return true;
     }
     private invalidatePreparation(): void {
@@ -344,6 +352,7 @@ class NativeSurface implements CemNativeSurfaceController {
     }
     private sync(): void {
         if (this.disposed) return;
+        if (!this.disconnecting && (!this.host.isConnected || !this.owner.isConnected)) { this.disconnect(); return; }
         this.controls.refresh(this.kind() === 'dialog', visible(this.owner));
         if (this.preparation && this.relay && !this.relay.current()) { this.cancelPreparation(); return; }
         if (visible(this.owner) && this.wasOpen && !this.profile()) {
@@ -365,6 +374,9 @@ class NativeSurface implements CemNativeSurfaceController {
             else this.describe(this.invocation?.source);
             this.emit('cem-open', false, 'activate');
         } else if (!open && this.wasOpen) {
+            // A hidden top-layer surface no longer owns pointer interest, even
+            // when the browser does not dispatch pointerleave during dismissal.
+            this.tooltipPointer = false;
             this.wasOpen = false; this.phase = 'closing'; this.prepared = false; this.geometry.reset(); this.reflect();
             this.closeNested();
             if (this.kind() === 'dialog' && this.restore) restoreSurfaceFocus(this.host, this.invocation?.returnDestination ?? this.invocation?.source);
@@ -522,7 +534,13 @@ class NativeSurface implements CemNativeSurfaceController {
         else if (!this.tooltipAvailable(this.invocation?.source)) this.requestClose('outside');
     }
     disconnect(): void {
-        if (this.disposed) return;
+        if (this.disposed || this.disconnecting) return;
+        this.disconnecting = true;
+        const active = this.owner.ownerDocument.activeElement;
+        const returnTo = this.invocation?.returnDestination ?? this.invocation?.source;
+        const returnOnRemoval = this.kind() === 'dialog' && this.wasOpen && this.focusWithin
+            && (!this.host.isConnected || !this.owner.isConnected)
+            && (active === this.owner.ownerDocument.body || !!active && this.owner.contains(active));
         this.cancelTimer(); this.invalidatePreparation(); this.closeNested(); this.closeReason = 'disconnect'; this.restore = false;
         if (visible(this.owner)) { if (this.owner.hasAttribute('popover')) this.owner.hidePopover(); else if (nativeDialog(this.owner)) this.owner.close(); this.sync(); }
         this.body.close(); this.phase = 'closed'; this.reflect();
@@ -531,6 +549,7 @@ class NativeSurface implements CemNativeSurfaceController {
         for (const state of this.tooltipSources.values()) state.abort.abort(); this.tooltipSources.clear();
         for (const source of this.describedSources.keys()) this.forgetDescription(source);
         this.describedSources.clear(); this.invocation = undefined; this.activation = undefined; controllers.delete(this.owner);
+        if (returnOnRemoval) restoreSurfaceFocus(this.host, returnTo);
     }
 }
 export function connectCemNativeSurface(owner: HTMLElement, options: CemNativeSurfaceOptions = {}): CemNativeSurfaceController {

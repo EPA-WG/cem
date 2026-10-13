@@ -3,7 +3,7 @@
 **Status:** Implemented Phase 4 contract. This contract is promoted by
 [`docs/todo.md`](../../../docs/todo.md) and is exercised by the focused
 `content:selected` browser fixture in
-[`states.browser.spec.ts`](../src/lib/states.browser.spec.ts).
+[`cem-list.stories.ts`](../src/components/cem-list/cem-list.stories.ts).
 
 ## Scope
 

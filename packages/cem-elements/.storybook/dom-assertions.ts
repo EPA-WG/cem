@@ -1,0 +1,334 @@
+import { computeAccessibleName } from 'dom-accessibility-api';
+import type { CemElementRuntime } from '../src/index.js';
+// Shared DOM assertions retained from the legacy harness.
+export interface VisualSnapshot {
+    html: string;
+    rect: {
+        height: number;
+        width: number;
+    };
+    styles: Record<string, string>;
+    tagName: string;
+    text: string;
+}
+
+const ARIA_IDREF_ATTRIBUTES = [
+    'aria-activedescendant',
+    'aria-controls',
+    'aria-describedby',
+    'aria-details',
+    'aria-errormessage',
+    'aria-flowto',
+    'aria-labelledby',
+    'aria-owns',
+    'for',
+] as const;
+
+const DEFAULT_VISUAL_STYLE_PROPERTIES = [
+    'background-color',
+    'border-bottom-color',
+    'border-left-color',
+    'border-right-color',
+    'border-top-color',
+    'color',
+    'display',
+    'font-size',
+    'height',
+    'line-height',
+    'outline-color',
+    'outline-style',
+    'outline-width',
+    'visibility',
+    'width',
+] as const;
+
+const VOLATILE_RUNTIME_ATTRIBUTES = [
+    'data-cem-data-revision',
+    'data-cem-hydration',
+    'data-cem-render-node-id',
+    'data-cem-render-scope',
+    'data-cem-source-fidelity',
+    'data-cem-source-frame',
+    'data-cem-template-artifact-id',
+] as const;
+
+export function assertLightDomRendered(host: HTMLElement): void {
+    if (host.shadowRoot) {
+        throw new Error(`${host.tagName.toLowerCase()} must render without shadow DOM`);
+    }
+
+    const visibleNodes = Array.from(host.childNodes).filter((node) => {
+        if (node instanceof HTMLTemplateElement) {
+            return false;
+        }
+
+        return node.textContent?.trim() || node instanceof Element;
+    });
+
+    if (visibleNodes.length === 0) {
+        throw new Error(`${host.tagName.toLowerCase()} must expose light-DOM output`);
+    }
+}
+
+export function accessibleName(element: Element): string {
+    return computeAccessibleName(element);
+}
+
+export function assertAccessibleName(element: Element, expected?: string): string {
+    const name = accessibleName(element);
+
+    if (!name) {
+        throw new Error(`${element.tagName.toLowerCase()} must resolve an accessible name`);
+    }
+
+    if (expected !== undefined && name !== expected) {
+        throw new Error(`Expected accessible name "${expected}", received "${name}"`);
+    }
+
+    return name;
+}
+
+export function assertAriaReferenceIntegrity(root: ParentNode): void {
+    const document = ownerDocumentFor(root);
+    const brokenReferences: string[] = [];
+
+    for (const element of elementsUnder(root)) {
+        for (const attribute of ARIA_IDREF_ATTRIBUTES) {
+            const value = element.getAttribute(attribute);
+
+            for (const id of splitIdRefs(value)) {
+                if (!document.getElementById(id)) {
+                    brokenReferences.push(`${element.tagName.toLowerCase()}[${attribute}="${id}"]`);
+                }
+            }
+        }
+    }
+
+    if (brokenReferences.length > 0) {
+        throw new Error(`Broken ARIA/reference targets: ${brokenReferences.join(', ')}`);
+    }
+}
+
+export async function assertFocusVisible(element: HTMLElement): Promise<void> {
+    element.focus();
+    await nextRenderFrame();
+
+    if (element.ownerDocument.activeElement !== element) {
+        throw new Error(`${element.tagName.toLowerCase()} must receive focus`);
+    }
+
+    const styles = getComputedStyle(element);
+    const hasOutline = styles.outlineStyle !== 'none' && styles.outlineWidth !== '0px';
+    const hasBoxShadow = styles.boxShadow !== 'none';
+
+    if (!hasOutline && !hasBoxShadow) {
+        throw new Error(`${element.tagName.toLowerCase()} must expose a visible focus indicator`);
+    }
+}
+
+export function captureVisualSnapshot(
+    element: HTMLElement,
+    styleProperties: readonly string[] = DEFAULT_VISUAL_STYLE_PROPERTIES,
+): VisualSnapshot {
+    const rect = element.getBoundingClientRect();
+    const computed = getComputedStyle(element);
+    const styles: Record<string, string> = {};
+
+    for (const property of styleProperties) {
+        styles[property] = computed.getPropertyValue(property);
+    }
+
+    return {
+        html: normalizeVisualHtml(element),
+        rect: {
+            height: round(rect.height),
+            width: round(rect.width),
+        },
+        styles,
+        tagName: element.tagName.toLowerCase(),
+        text: normalizeText(element.textContent ?? ''),
+    };
+}
+
+function elementsUnder(root: ParentNode): Element[] {
+    const elements = Array.from(root.querySelectorAll('*'));
+
+    if (root instanceof Element) {
+        elements.unshift(root);
+    }
+
+    return elements;
+}
+
+function normalizeVisualHtml(element: HTMLElement): string {
+    const clone = element.cloneNode(true) as HTMLElement;
+
+    for (const current of elementsUnder(clone)) {
+        for (const attribute of VOLATILE_RUNTIME_ATTRIBUTES) {
+            current.removeAttribute(attribute);
+        }
+    }
+    for (const template of clone.querySelectorAll('template[data-cem-island]')) {
+        template.remove();
+    }
+
+    return clone.outerHTML.replace(/\s+/g, ' ').replace(/> </g, '><').trim();
+}
+
+function normalizeText(text: string): string {
+    return text.replace(/\s+/g, ' ').trim();
+}
+
+function ownerDocumentFor(root: ParentNode): Document {
+    if (root instanceof Document) {
+        return root;
+    }
+
+    const document = (root as Node).ownerDocument;
+
+    if (!document) {
+        throw new Error('Expected reference root to be attached to a document');
+    }
+
+    return document;
+}
+
+function round(value: number): number {
+    return Math.round(value * 100) / 100;
+}
+
+function splitIdRefs(value: string | null): string[] {
+    return value?.trim().split(/\s+/).filter(Boolean) ?? [];
+}
+
+let storyRuntime: (() => CemElementRuntime) | undefined;
+export function setDomAssertionRuntime(read: () => CemElementRuntime): void { storyRuntime = read; }
+export async function nextRenderFrame(): Promise<void> {
+    let previousCount = -1;
+    for (let pass = 0; pass < 8; pass++) {
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+        const hosts = [...document.querySelectorAll<HTMLTemplateElement>('template[data-cem-island="instance"]')].map(node => node.parentElement).filter((host): host is HTMLElement => !!host);
+        if (storyRuntime) await Promise.all(hosts.map(host => storyRuntime?.().whenRenderSettled(host)));
+        if (hosts.length === previousCount) return;
+        previousCount = hosts.length;
+    }
+    throw new Error('Story did not reach a stable nested runtime instance set');
+}
+
+export interface CapturedFormFile {
+    kind: 'file';
+    lastModified: number;
+    name: string;
+    size: number;
+    type: string;
+}
+
+export type CapturedFormValue = string | CapturedFormFile;
+
+export interface FormSnapshot {
+    entries: Array<[string, CapturedFormValue]>;
+    valid: boolean;
+}
+
+
+export interface ComponentEventOptions<TDetail> {
+    detail?: TDetail;
+    requireBubbles?: boolean;
+    requireComposed?: boolean;
+    timeoutMs?: number;
+}
+
+
+export async function expectComponentEvent<TDetail>(
+    target: EventTarget,
+    eventName: string,
+    action: () => Promise<void> | void,
+    options: ComponentEventOptions<TDetail> = {},
+): Promise<CustomEvent<TDetail>> {
+    const { timeoutMs = 250, requireBubbles = true, requireComposed = true } = options;
+
+    const event = await new Promise<CustomEvent<TDetail>>((resolve, reject) => {
+        const timer = setTimeout(() => {
+            target.removeEventListener(eventName, listener);
+            reject(new Error(`Expected ${eventName} to be dispatched within ${timeoutMs}ms`));
+        }, timeoutMs);
+
+        const listener = (rawEvent: Event) => {
+            clearTimeout(timer);
+            target.removeEventListener(eventName, listener);
+
+            if (!(rawEvent instanceof CustomEvent)) {
+                reject(new Error(`Expected ${eventName} to be a CustomEvent`));
+                return;
+            }
+
+            resolve(rawEvent as CustomEvent<TDetail>);
+        };
+
+        target.addEventListener(eventName, listener, { once: true });
+
+        try {
+            void Promise.resolve(action()).catch(reject);
+        } catch (error) {
+            reject(error);
+        }
+    });
+
+    if (requireBubbles && !event.bubbles) {
+        throw new Error(`${eventName} must bubble`);
+    }
+
+    if (requireComposed && !event.composed) {
+        throw new Error(`${eventName} must be composed`);
+    }
+
+    assertJsonSerializable(event.detail, `${eventName}.detail`);
+
+    if (options.detail !== undefined && stableStringify(event.detail) !== stableStringify(options.detail)) {
+        throw new Error(
+            `Expected ${eventName} detail ${stableStringify(options.detail)}, received ${stableStringify(event.detail)}`,
+        );
+    }
+
+    return event;
+}
+
+
+/** Capture the browser-owned successful-controls and constraint-validity view. */
+export function captureFormSnapshot(form: HTMLFormElement): FormSnapshot {
+    return {
+        entries: Array.from(new FormData(form).entries(), ([name, value]) => [
+            name,
+            typeof value === 'string'
+                ? value
+                : {
+                    kind: 'file' as const,
+                    lastModified: value.lastModified,
+                    name: value.name,
+                    size: value.size,
+                    type: value.type,
+                },
+        ]),
+        valid: form.checkValidity(),
+    };
+}
+
+
+function assertJsonSerializable(value: unknown, label: string): void {
+    try {
+        JSON.stringify(value);
+    } catch (error) {
+        throw new Error(`${label} must be JSON-serializable: ${String(error)}`, { cause: error });
+    }
+}
+
+
+function stableStringify(value: unknown): string {
+    return JSON.stringify(value, (_key, child) => {
+        if (!child || typeof child !== 'object' || Array.isArray(child)) {
+            return child;
+        }
+
+        return Object.fromEntries(Object.entries(child).sort(([left], [right]) => left.localeCompare(right)));
+    });
+}

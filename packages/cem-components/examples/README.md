@@ -2,7 +2,7 @@
 
 These package-local examples show how the MVP declarations compose into workflow-shaped UI. Executable workflow
 fixtures live in `../tests/workflows/` and are covered by `src/lib/workflows.browser.spec.ts`; primitive-family browser
-coverage remains in `src/lib/primitives.browser.spec.ts`.
+coverage lives in the colocated component stories. The seven workflow plays are owned by `cem-card`, `cem-avatar`, `cem-app-bar` and `cem-sheet`.
 
 | Example | Purpose |
 | --- | --- |

@@ -52,6 +52,7 @@ interface FormControlState {
     validityClaims: Map<object, string>;
     generation: number;
     checkpoint?: { control: Control; revision: number; value: string };
+    selectionRequest?: string;
 }
 const states = new WeakMap<HTMLElement, FormControlState>();
 const providerEvents = new WeakSet<Event>();
@@ -205,6 +206,7 @@ export const CEM_FORM_CONTROL_CAPABILITY: CemProducedElementBehavior = {
             publish(instance, state, 'rebind', true);
         }
         synchronize(instance, state);
+        applySelectionRequest(instance, state, control);
         publish(instance, state, 'availability');
     },
     preserveRenderedAttribute(instance, current, desired, attribute) {
@@ -229,6 +231,23 @@ export const CEM_FORM_CONTROL_CAPABILITY: CemProducedElementBehavior = {
         }
     },
 };
+
+function applySelectionRequest(instance: HTMLElement, state: FormControlState, control: Control | null): void {
+    const request = instance.getAttribute('selection-request');
+    if (!request || request === state.selectionRequest) return;
+    // Consume once, including unavailable/invalid requests. A later unrelated
+    // render or reconnection must never steal focus or replay old navigation.
+    state.selectionRequest = request;
+    const start = instance.getAttribute('selection-start'), end = instance.getAttribute('selection-end');
+    const direction = instance.getAttribute('selection-direction') ?? 'none';
+    if (!control || !instance.isConnected || state.composing || state.formDisabled || instance.hasAttribute('disabled')
+        || control.matches(':disabled') || control.selectionStart === null
+        || start === null || end === null || !/^\d+$/.test(start) || !/^\d+$/.test(end)
+        || !Number.isSafeInteger(Number(start)) || !Number.isSafeInteger(Number(end))
+        || !['none', 'forward', 'backward'].includes(direction)) return;
+    control.setSelectionRange(Math.min(Number(start), control.value.length), Math.min(Number(end), control.value.length), direction as 'none' | 'forward' | 'backward');
+    if (instance.hasAttribute('selection-focus')) control.focus();
+}
 
 function stateFor(instance: HTMLElement): FormControlState {
     const state = states.get(instance);

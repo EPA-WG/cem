@@ -1,0 +1,13 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-avatar">
+  <template id="cem-avatar" type="text/cem-ml">
+    {style @type=text/css |```
+:scope { display: inline; }
+:scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
+[part~='root'] { box-sizing: border-box; font-family: var(--cem-typography-initialism-font-family); font-size: var(--cem-typography-initialism-font-size); font-weight: var(--cem-typography-initialism-font-weight); line-height: var(--cem-typography-initialism-line-height); letter-spacing: var(--cem-typography-initialism-letter-spacing); }
+[part~='root'] { display: inline-block; background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); border-radius: var(--cem-bend-avatar); }
+@media (forced-colors: active) { [part~='root'] { background-color: Canvas; color: CanvasText; border-color: CanvasText; forced-color-adjust: auto; } }
+    ```}
+    {attribute @name=label | Avatar}{attribute @name=initials | }
+    {span @part=root @class=cem-avatar @role=img @aria-label="{$label}" | {slot | {$initials}}}
+  </template>
+</cem-element>

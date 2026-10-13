@@ -1,0 +1,18 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-app-bar">
+  <template id="cem-app-bar" type="text/cem-ml">
+    {style @type=text/css |```
+:scope { display: block; }
+:scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
+[part~='root'] { box-sizing: border-box; font-family: var(--cem-typography-ui-font-family); font-size: var(--cem-typography-ui-font-size); font-weight: var(--cem-typography-ui-font-weight); line-height: var(--cem-typography-ui-line-height); letter-spacing: var(--cem-typography-ui-letter-spacing); }
+[part~='root'] { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cem-gap-group); padding: var(--cem-inset-container); background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); border: var(--cem-stroke-boundary) solid currentColor; }
+[part~='title'] { flex: 1; min-inline-size: 0; }
+[part~='actions'] { display: flex; flex-wrap: wrap; gap: var(--cem-gap-group); }
+@media (forced-colors: active) { [part~='root'] { background-color: Canvas; color: CanvasText; border-color: CanvasText; forced-color-adjust: auto; } }
+    ```}
+    {attribute @name=label | Application}
+    {header @part=root @class=cem-app-bar @role=banner @aria-label="{$label}" |
+      {div @part=title @class=cem-app-bar__title | {slot @name=title | {$label}}}
+      {div @part=actions @class=cem-app-bar__actions | {slot}}
+    }
+  </template>
+</cem-element>

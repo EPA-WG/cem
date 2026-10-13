@@ -15,6 +15,7 @@ use crate::source::{BytesSource, SourceId};
 use crate::tokenizer::cem::CemTokenizer;
 
 pub const CEM_ML_SCHEMA_URI: &str = "https://cem.dev/ns/cem-ml/1";
+pub const CEM_DATA_ISLAND_SCHEMA_URI: &str = "https://cem.dev/ns/runtime/data-island";
 pub const CEM_SCHEMA_URI: &str = "https://cem.dev/ns/schema/1";
 pub const CEM_SCHEMA_PACKAGE_URI: &str = "https://cem.dev/ns/schema-package/1";
 pub const CEM_NATIVE_TEMPLATE_SCHEMA_URI: &str = "https://cem.dev/ns/template/cem-native/1";
@@ -55,6 +56,7 @@ pub const CEM_EVENTS_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projectio
 pub const AI_CONTEXT_SCHEMA_URI: &str = "https://cem.dev/ns/ai-context/1";
 
 pub const CEM_ML_CONTENT_TYPE: &str = "application/cem";
+pub const CEM_DATA_ISLAND_CONTENT_TYPE: &str = "application/vnd.cem.data-island+cem";
 pub const CEM_SCHEMA_CONTENT_TYPE: &str = "application/vnd.cem.schema+cem";
 pub const CEM_SCHEMA_PACKAGE_CONTENT_TYPE: &str = "application/vnd.cem.schema-package+cem";
 pub const CEM_NATIVE_TEMPLATE_CONTENT_TYPE: &str = "application/vnd.cem.template+cem";

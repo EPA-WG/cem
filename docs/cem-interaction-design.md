@@ -106,6 +106,8 @@ disposable template bodies. Component migration remains separate actionable work
 Implemented 2026-10-07 for eager native owners, extended 2026-10-09 with body
 preparation and materialization and 2026-10-10 with menu handoff and control
 conveniences, heading naming and slotted/native-editor tooltip interest (v5).
+The 2026-10-12 v6 contract adds focused-entry capture for source-free dialog
+opening and eligible focus return when a conditional dialog is removed.
 Canonical `cem-dialog`, `cem-dialog-shell` and `cem-tooltip` now consume it. A declaration selects
 `capability="native-surface"` and produces exactly one direct `part="surface"`
 owner. Host code may instead call `connectCemNativeSurface(owner, { host })` for
@@ -147,6 +149,12 @@ rebinding and disconnect release them. Native visibility drives read-only
 `data-state`. Rerender preserves the native owner and active session; default-open
 initializes once. Disconnect closes native owners and releases listeners, geometry
 observers, timers, owned styles and transient metadata.
+Source-free dialog opening retains the focused entry control as a return
+destination without treating it as an invoker or geometry source. Conditional
+removal restores that available destination only while the dialog still owned
+focus, honoring `return-focus="none"` and focus moved elsewhere. DOM reconciliation
+preserves the resulting focus decision and resolves replacement control identity
+only within its original produced owner.
 
 A direct `template[slot="body"]` inside the native owner is its designated body.
 It defaults to `materialize="retain"`; without a template, authored children default

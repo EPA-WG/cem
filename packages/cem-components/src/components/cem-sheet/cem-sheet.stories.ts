@@ -1,5 +1,5 @@
 import { expect, userEvent } from 'storybook/test';
-import preview, { loadCemDeclaration, whenCemRendered, createCemStoryRuntime } from '../../../../cem-elements/.storybook/preview.js';
+import preview, { assertLightDomRendered, assertAriaReferenceIntegrity, assertAccessibleName, nextRenderFrame, loadCemWorkflowDependencies, loadCemDeclaration, whenCemRendered, createCemStoryRuntime } from '../../../../cem-elements/.storybook/preview.js';
 import declarationSource from './cem-sheet.xhtml?raw';
 
 const meta = preview.meta({ component: 'cem-sheet', title: 'CEM Components/cem-sheet', loaders: [async () => { await loadCemDeclaration('cem-sheet', declarationSource); return {}; }] });
@@ -92,3 +92,92 @@ export const PresenceFormsAndReconnectWorkerAndFallback = meta.story({
         }
     },
 });
+
+const settingsWorkflowMarkup = `<cem-card label="Notification settings">
+  <span slot="title">Notification settings</span>
+  <cem-switch name="email-notifications">Email notifications</cem-switch>
+  <cem-radio name="frequency" value="daily">Daily summary</cem-radio>
+  <cem-radio name="frequency" value="weekly">Weekly summary</cem-radio>
+  <cem-action variant="primary">Save settings</cem-action>
+</cem-card>
+
+<cem-alert tone="warning" role="alert">Review required notification preferences.</cem-alert>
+<cem-toast>Settings saved</cem-toast>
+<cem-progress label="Sync progress" value="40" max="100"></cem-progress>
+<cem-skeleton label="Loading settings"></cem-skeleton>
+
+<cem-dialog label="Confirm changes" trigger="Review changes" close-label="Done">
+  <p>Apply these settings to all devices?</p>
+  <cem-action variant="primary">Apply</cem-action>
+</cem-dialog>
+
+<cem-sheet label="Advanced filters">
+  <cem-checkbox name="include-archived" value="yes">Include archived assets</cem-checkbox>
+</cem-sheet>
+`;
+export const SettingsWorkflow = meta.story({
+    name: 'renders the settings workflow without app JavaScript',
+    loaders: [async () => { await loadCemWorkflowDependencies(); return {}; }],
+    render: () => `<section aria-label="workflow fixture">${settingsWorkflowMarkup}</section>`,
+    play: async ({ canvasElement }) => {
+        expect(settingsWorkflowMarkup).not.toMatch(/<script\b/i);
+        expect(settingsWorkflowMarkup).not.toMatch(/\son[a-z]+\s*=/i);
+        expect(settingsWorkflowMarkup).toMatch(/<cem-[a-z-]+/);
+        await nextRenderFrame();
+        await waitForWorkflowSelector(canvasElement, 'cem-sheet aside');
+
+        const card = workflowQuery<HTMLElement>(canvasElement, 'cem-card section');
+        const email = workflowQuery<HTMLInputElement>(canvasElement, 'cem-switch input[name="email-notifications"]');
+        const radios = Array.from(canvasElement.querySelectorAll<HTMLInputElement>('cem-radio input[name="frequency"]'));
+        const alert = workflowQuery<HTMLElement>(canvasElement, 'cem-alert [role="alert"]');
+        const toast = workflowQuery<HTMLElement>(canvasElement, 'cem-toast [role="status"]');
+        const progress = workflowQuery<HTMLProgressElement>(canvasElement, 'cem-progress progress');
+        const skeleton = workflowQuery<HTMLElement>(canvasElement, 'cem-skeleton .cem-skeleton');
+        const dialog = workflowQuery<HTMLElement>(canvasElement, 'cem-dialog dialog');
+        const sheet = workflowQuery<HTMLElement>(canvasElement, 'cem-sheet aside');
+        const archived = workflowQuery<HTMLInputElement>(canvasElement, 'cem-sheet cem-checkbox input[name="include-archived"]');
+
+        expect(assertAccessibleName(card, 'Notification settings')).toBe('Notification settings');
+        expect(email.getAttribute('role')).toBe('switch');
+        expect(assertAccessibleName(email, 'Email notifications')).toBe('Email notifications');
+        expect(radios).toHaveLength(2);
+        expect(radios.map((radio) => assertAccessibleName(radio)).join('|')).toBe('Daily summary|Weekly summary');
+        expect(alert.textContent?.trim()).toBe('Review required notification preferences.');
+        expect(toast.textContent?.trim()).toBe('Settings saved');
+        expect(assertAccessibleName(progress, 'Sync progress')).toBe('Sync progress');
+        expect(progress.getAttribute('value')).toBe('40');
+        expect(skeleton.getAttribute('aria-hidden')).toBe('true');
+        workflowQuery<HTMLButtonElement>(canvasElement, 'cem-dialog [part=trigger]').click();
+        await nextRenderFrame();
+        expect(assertAccessibleName(dialog, 'Confirm changes')).toBe('Confirm changes');
+        expect(assertAccessibleName(sheet, 'Advanced filters')).toBe('Advanced filters');
+        expect(assertAccessibleName(archived, 'Include archived assets')).toBe('Include archived assets');
+        assertWorkflowIntegrity(canvasElement);
+    },
+});
+
+const WORKFLOW_RENDER_TIMEOUT_MS = 3000;
+function workflowQuery<T extends Element = Element>(root: ParentNode, selector: string): T {
+    const element = root.querySelector<T>(selector);
+    if (!element) throw new Error(`Expected workflow fixture to contain ${selector}`);
+    return element;
+}
+async function waitForWorkflowSelector(root: ParentNode, selector: string): Promise<Element> {
+    const deadline = Date.now() + WORKFLOW_RENDER_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+        const found = root.querySelector(selector);
+        if (found) {
+            return found;
+        }
+        await nextRenderFrame();
+    }
+    throw new Error(`Expected workflow render output matching ${selector}`);
+}
+
+function assertWorkflowIntegrity(root: ParentNode): void {
+    for (const host of Array.from(root.querySelectorAll<HTMLElement>('cem-card, cem-list, cem-action, cem-text-field, cem-textarea, cem-checkbox, cem-radio, cem-switch, cem-app-bar, cem-tabs, cem-table, cem-media-preview, cem-alert, cem-toast, cem-progress, cem-skeleton, cem-dialog, cem-sheet, cem-avatar, cem-icon-button, cem-chip, cem-badge'))) {
+        assertLightDomRendered(host);
+        expect(host.shadowRoot).toBeNull();
+    }
+    expect(() => assertAriaReferenceIntegrity(root)).not.toThrow();
+}

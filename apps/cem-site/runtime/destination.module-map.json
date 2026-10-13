@@ -5,169 +5,359 @@
             "path": "./assets/cem-site/components-runtime.js",
             "contentType": "text/javascript",
             "moduleImports": {
-                "@epa-wg/custom-element": "@epa-wg/custom-element",
-                "@epa-wg/cem-components/primitives": "@epa-wg/cem-components/primitives"
+                "@epa-wg/cem-elements": "@epa-wg/cem-elements"
             }
         },
         "@epa-wg/cem-site/runtime": {
-            "path": "./assets/cem-site/runtime.js",
+            "path": "./assets/cem-site/site-runtime.js",
             "contentType": "text/javascript",
             "moduleImports": {
-                "@epa-wg/custom-element": "@epa-wg/custom-element",
                 "@epa-wg/cem-site/components-runtime": "@epa-wg/cem-site/components-runtime"
             }
         },
         "@epa-wg/cem-site/search": {
-            "path": "./assets/cem-site/search.js",
+            "path": "./assets/cem-site/search-runtime.js",
             "contentType": "text/javascript",
             "moduleImports": {
                 "@epa-wg/cem-site/components-runtime": "@epa-wg/cem-site/components-runtime"
             }
         },
-        "@epa-wg/custom-element": {
-            "path": "./assets/custom-element/custom-element.js",
-            "contentType": "text/javascript"
-        },
-        "@epa-wg/cem-components/primitives": {
-            "path": "./assets/cem-components/primitives.js",
+        "@epa-wg/cem-elements": {
+            "path": "./assets/cem-elements/index.js",
             "contentType": "text/javascript"
         }
     },
     "resources": {
-        "@epa-wg/custom-element/vendor/cem-elements/index": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/index.js",
+        "@epa-wg/cem-elements/cem-elements": {
+            "path": "./assets/cem-elements/lib/cem-elements.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/custom-element/vendor/cem-elements/cem-elements": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/cem-elements.js",
+        "@epa-wg/cem-elements/repository": {
+            "path": "./assets/cem-elements/lib/repository.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/custom-element/vendor/cem-elements/declaration-scope": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/declaration-scope.js",
+        "@epa-wg/cem-elements/declaration-scope": {
+            "path": "./assets/cem-elements/lib/declaration-scope.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/custom-element/vendor/cem-elements/disposition": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/disposition.js",
+        "@epa-wg/cem-elements/disposition": {
+            "path": "./assets/cem-elements/lib/disposition.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/custom-element/vendor/cem-elements/edge-ssr-host": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/edge-ssr-host.js",
+        "@epa-wg/cem-elements/edge-ssr-host": {
+            "path": "./assets/cem-elements/lib/edge-ssr-host.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/custom-element/vendor/cem-elements/projection": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/projection.js",
+        "@epa-wg/cem-elements/projection": {
+            "path": "./assets/cem-elements/lib/projection.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/custom-element/vendor/cem-elements/repository": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/repository.js",
+        "@epa-wg/cem-elements/legacy-contract": {
+            "path": "./assets/cem-elements/lib/legacy-xslt/contract.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/custom-element/vendor/cem-elements/legacy-contract": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/legacy-xslt/contract.js",
+        "@epa-wg/cem-elements/template-language": {
+            "path": "./assets/cem-elements/lib/legacy-xslt/template-language.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/custom-element/vendor/cem-elements/template-language": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/legacy-xslt/template-language.js",
+        "@epa-wg/cem-elements/cem-ql-render": {
+            "path": "./assets/cem-elements/lib/internal/runtime-support/cem-ql-render.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/custom-element/vendor/cem-elements/cem-ql-render": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/cem-ql-render.js",
+        "@epa-wg/cem-elements/processing-cache": {
+            "path": "./assets/cem-elements/lib/internal/runtime-support/processing-cache.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/custom-element/vendor/cem-elements/processing-cache": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-cache.js",
+        "@epa-wg/cem-elements/processing-engine": {
+            "path": "./assets/cem-elements/lib/internal/runtime-support/processing-engine.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/custom-element/vendor/cem-elements/processing-engine": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-engine.js",
+        "@epa-wg/cem-elements/processing-host": {
+            "path": "./assets/cem-elements/lib/internal/runtime-support/processing-host.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/custom-element/vendor/cem-elements/processing-host": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-host.js",
+        "@epa-wg/cem-elements/processing-host-runtime": {
+            "path": "./assets/cem-elements/lib/internal/runtime-support/processing-host-runtime.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/custom-element/vendor/cem-elements/processing-host-runtime": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-host-runtime.js",
+        "@epa-wg/cem-elements/processing-scheduler": {
+            "path": "./assets/cem-elements/lib/internal/runtime-support/processing-scheduler.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/custom-element/vendor/cem-elements/processing-scheduler": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-scheduler.js",
+        "@epa-wg/cem-elements/processing-worker": {
+            "path": "./assets/cem-elements/lib/internal/runtime-support/processing-worker.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/custom-element/vendor/cem-elements/processing-worker": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-worker.js",
+        "@epa-wg/cem-elements/cem-ql": {
+            "path": "./assets/cem-elements/lib/internal/runtime-support/vendor/cem_ql.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/custom-element/vendor/cem-elements/cem-ql": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql.js",
-            "contentType": "text/javascript"
-        },
-        "@epa-wg/custom-element/vendor/cem-elements/cem-ql-wasm": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
+        "@epa-wg/cem-elements/cem-ql-wasm": {
+            "path": "./assets/cem-elements/lib/internal/runtime-support/vendor/cem_ql_bg.wasm",
             "contentType": "application/wasm"
         },
-        "@epa-wg/cem-components/autocomplete-behavior": {
-            "path": "./assets/cem-components/autocomplete-behavior.js",
+        "@epa-wg/cem-elements/host-view": {
+            "path": "./assets/cem-elements/lib/host-view.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/cem-components/choice-options": {
-            "path": "./assets/cem-components/choice-options.js",
+        "@epa-wg/cem-elements/dist/lib/native-values.js": {
+            "path": "./assets/cem-elements/lib/native-values.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/cem-components/datepicker-behavior": {
-            "path": "./assets/cem-components/datepicker-behavior.js",
+        "@epa-wg/cem-elements/dist/lib/edge-css-publication.js": {
+            "path": "./assets/cem-elements/lib/edge-css-publication.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/cem-components/expansion-behavior": {
-            "path": "./assets/cem-components/expansion-behavior.js",
+        "@epa-wg/cem-elements/dist/lib/declaration-style-ownership.js": {
+            "path": "./assets/cem-elements/lib/declaration-style-ownership.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/cem-components/feedback-behavior": {
-            "path": "./assets/cem-components/feedback-behavior.js",
+        "@epa-wg/cem-elements/dist/lib/action-command-capability.js": {
+            "path": "./assets/cem-elements/lib/action-command-capability.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/cem-components/navigation-behavior": {
-            "path": "./assets/cem-components/navigation-behavior.js",
+        "@epa-wg/cem-elements/dist/lib/native-surface.js": {
+            "path": "./assets/cem-elements/lib/native-surface.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/cem-components/paginator-behavior": {
-            "path": "./assets/cem-components/paginator-behavior.js",
+        "@epa-wg/cem-elements/dist/lib/surface-invocation.js": {
+            "path": "./assets/cem-elements/lib/surface-invocation.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/cem-components/progress-spinner-behavior": {
-            "path": "./assets/cem-components/progress-spinner-behavior.js",
+        "@epa-wg/cem-elements/dist/lib/aria-reference-profile.js": {
+            "path": "./assets/cem-elements/lib/aria-reference-profile.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/cem-components/select-behavior": {
-            "path": "./assets/cem-components/select-behavior.js",
+        "@epa-wg/cem-elements/dist/lib/element-placement-coordinator.js": {
+            "path": "./assets/cem-elements/lib/element-placement-coordinator.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/cem-components/slider-behavior": {
-            "path": "./assets/cem-components/slider-behavior.js",
+        "@epa-wg/cem-elements/dist/lib/element-placement-ssr.js": {
+            "path": "./assets/cem-elements/lib/element-placement-ssr.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/cem-components/sort-header-behavior": {
-            "path": "./assets/cem-components/sort-header-behavior.js",
+        "@epa-wg/cem-elements/dist/lib/platform-close.js": {
+            "path": "./assets/cem-elements/lib/platform-close.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/cem-components/stepper-behavior": {
-            "path": "./assets/cem-components/stepper-behavior.js",
+        "@epa-wg/cem-elements/dist/lib/native-suggestions-publication.js": {
+            "path": "./assets/cem-elements/lib/native-suggestions-publication.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/cem-components/tabs-behavior": {
-            "path": "./assets/cem-components/tabs-behavior.js",
+        "@epa-wg/cem-elements/dist/lib/element-placement-plans.js": {
+            "path": "./assets/cem-elements/lib/element-placement-plans.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/cem-components/timepicker-behavior": {
-            "path": "./assets/cem-components/timepicker-behavior.js",
+        "@epa-wg/cem-elements/dist/lib/internal/runtime-support/xpath-function-library.js": {
+            "path": "./assets/cem-elements/lib/internal/runtime-support/xpath-function-library.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/cem-components/tooltip-behavior": {
-            "path": "./assets/cem-components/tooltip-behavior.js",
+        "@epa-wg/cem-elements/dist/lib/internal/runtime-support/module-url-resolution.js": {
+            "path": "./assets/cem-elements/lib/internal/runtime-support/module-url-resolution.js",
             "contentType": "text/javascript"
         },
-        "@epa-wg/cem-components/tree-behavior": {
-            "path": "./assets/cem-components/tree-behavior.js",
+        "@epa-wg/cem-elements/dist/lib/external-declaration-source.js": {
+            "path": "./assets/cem-elements/lib/external-declaration-source.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/internal/runtime-support/stylesheet-registry.js": {
+            "path": "./assets/cem-elements/lib/internal/runtime-support/stylesheet-registry.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/internal/runtime-support/instance-stylesheet-installation.js": {
+            "path": "./assets/cem-elements/lib/internal/runtime-support/instance-stylesheet-installation.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/internal/runtime-support/css-dom-publication-queue.js": {
+            "path": "./assets/cem-elements/lib/internal/runtime-support/css-dom-publication-queue.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/internal/runtime-support/stylesheet-reader.js": {
+            "path": "./assets/cem-elements/lib/internal/runtime-support/stylesheet-reader.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/form-control-capability.js": {
+            "path": "./assets/cem-elements/lib/form-control-capability.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/navigation-landmark-capability.js": {
+            "path": "./assets/cem-elements/lib/navigation-landmark-capability.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/disclosure-panel-capability.js": {
+            "path": "./assets/cem-elements/lib/disclosure-panel-capability.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/sort-action-capability.js": {
+            "path": "./assets/cem-elements/lib/sort-action-capability.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/progress-status-capability.js": {
+            "path": "./assets/cem-elements/lib/progress-status-capability.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/pagination-capability.js": {
+            "path": "./assets/cem-elements/lib/pagination-capability.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/native-list-capability.js": {
+            "path": "./assets/cem-elements/lib/native-list-capability.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/tab-panels-capability.js": {
+            "path": "./assets/cem-elements/lib/tab-panels-capability.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/workflow-panels-capability.js": {
+            "path": "./assets/cem-elements/lib/workflow-panels-capability.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/tree-view-capability.js": {
+            "path": "./assets/cem-elements/lib/tree-view-capability.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/time-input-capability.js": {
+            "path": "./assets/cem-elements/lib/time-input-capability.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/range-input-capability.js": {
+            "path": "./assets/cem-elements/lib/range-input-capability.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/calendar-input-capability.js": {
+            "path": "./assets/cem-elements/lib/calendar-input-capability.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/editable-choice-capability.js": {
+            "path": "./assets/cem-elements/lib/editable-choice-capability.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/checkable-control.js": {
+            "path": "./assets/cem-elements/lib/checkable-control.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/suggestions-capability.js": {
+            "path": "./assets/cem-elements/lib/suggestions-capability.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/popup-capability.js": {
+            "path": "./assets/cem-elements/lib/popup-capability.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/action-control-capability.js": {
+            "path": "./assets/cem-elements/lib/action-control-capability.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/composite-menu-capability.js": {
+            "path": "./assets/cem-elements/lib/composite-menu-capability.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/choice-select-capability.js": {
+            "path": "./assets/cem-elements/lib/choice-select-capability.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/internal/runtime-support/location-write-trigger.js": {
+            "path": "./assets/cem-elements/lib/internal/runtime-support/location-write-trigger.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/element-reference-inputs.js": {
+            "path": "./assets/cem-elements/lib/element-reference-inputs.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/declaration-style-markup.js": {
+            "path": "./assets/cem-elements/lib/declaration-style-markup.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/internal/runtime-support/stylesheet-notifications.js": {
+            "path": "./assets/cem-elements/lib/internal/runtime-support/stylesheet-notifications.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/interaction-reference.js": {
+            "path": "./assets/cem-elements/lib/interaction-reference.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/menu-task-relay.js": {
+            "path": "./assets/cem-elements/lib/menu-task-relay.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/popup-controller.js": {
+            "path": "./assets/cem-elements/lib/popup-controller.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/surface-references.js": {
+            "path": "./assets/cem-elements/lib/surface-references.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/surface-body.js": {
+            "path": "./assets/cem-elements/lib/surface-body.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/surface-session.js": {
+            "path": "./assets/cem-elements/lib/surface-session.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/surface-controls.js": {
+            "path": "./assets/cem-elements/lib/surface-controls.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/element-placement-authority.js": {
+            "path": "./assets/cem-elements/lib/element-placement-authority.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/internal/runtime-support/stylesheet-installation.js": {
+            "path": "./assets/cem-elements/lib/internal/runtime-support/stylesheet-installation.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/editor-attributes.js": {
+            "path": "./assets/cem-elements/lib/editor-attributes.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/editor-datalist.js": {
+            "path": "./assets/cem-elements/lib/editor-datalist.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/choice-options.js": {
+            "path": "./assets/cem-elements/lib/choice-options.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/native-datalist-attachment.js": {
+            "path": "./assets/cem-elements/lib/native-datalist-attachment.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/local-suggestions-capture.js": {
+            "path": "./assets/cem-elements/lib/local-suggestions-capture.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/suggestions-controller.js": {
+            "path": "./assets/cem-elements/lib/suggestions-controller.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/suggestions-editor.js": {
+            "path": "./assets/cem-elements/lib/suggestions-editor.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/native-capability-session.js": {
+            "path": "./assets/cem-elements/lib/native-capability-session.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/suggestions-placements.js": {
+            "path": "./assets/cem-elements/lib/suggestions-placements.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/composite-navigation.js": {
+            "path": "./assets/cem-elements/lib/composite-navigation.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/surface-position.js": {
+            "path": "./assets/cem-elements/lib/surface-position.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/surface-geometry.js": {
+            "path": "./assets/cem-elements/lib/surface-geometry.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/manual-listbox.js": {
+            "path": "./assets/cem-elements/lib/manual-listbox.js",
             "contentType": "text/javascript"
         },
         "@epa-wg/cem-theme/styles": {
@@ -178,76 +368,32 @@
             "path": "./assets/cem-components/styles.css",
             "contentType": "text/css"
         },
-        "@epa-wg/custom-element/vendor/cem-elements/lib/native-values": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/native-values.js",
-            "contentType": "text/javascript"
+        "@epa-wg/cem-components/components/cem-action": {
+            "path": "./assets/cem-components/cem-action.xhtml",
+            "contentType": "application/xhtml+xml"
         },
-        "@epa-wg/custom-element/vendor/cem-elements/lib/edge-css-publication": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/edge-css-publication.js",
-            "contentType": "text/javascript"
-        },
-        "@epa-wg/custom-element/vendor/cem-elements/lib/declaration-style-ownership": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/declaration-style-ownership.js",
-            "contentType": "text/javascript"
-        },
-        "@epa-wg/custom-element/vendor/cem-elements/lib/internal/runtime-support/xpath-function-library": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/xpath-function-library.js",
-            "contentType": "text/javascript"
-        },
-        "@epa-wg/custom-element/vendor/cem-elements/lib/internal/runtime-support/module-url-resolution": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/module-url-resolution.js",
-            "contentType": "text/javascript"
-        },
-        "@epa-wg/custom-element/vendor/cem-elements/lib/external-declaration-source": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/external-declaration-source.js",
-            "contentType": "text/javascript"
-        },
-        "@epa-wg/custom-element/vendor/cem-elements/lib/internal/runtime-support/stylesheet-registry": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/stylesheet-registry.js",
-            "contentType": "text/javascript"
-        },
-        "@epa-wg/custom-element/vendor/cem-elements/lib/internal/runtime-support/instance-stylesheet-installation": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/instance-stylesheet-installation.js",
-            "contentType": "text/javascript"
-        },
-        "@epa-wg/custom-element/vendor/cem-elements/lib/internal/runtime-support/css-dom-publication-queue": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/css-dom-publication-queue.js",
-            "contentType": "text/javascript"
-        },
-        "@epa-wg/custom-element/vendor/cem-elements/lib/internal/runtime-support/stylesheet-reader": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/stylesheet-reader.js",
-            "contentType": "text/javascript"
-        },
-        "@epa-wg/custom-element/vendor/cem-elements/lib/choice-select-capability": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/choice-select-capability.js",
-            "contentType": "text/javascript"
-        },
-        "@epa-wg/custom-element/vendor/cem-elements/lib/internal/runtime-support/location-write-trigger": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/location-write-trigger.js",
-            "contentType": "text/javascript"
-        },
-        "@epa-wg/custom-element/vendor/cem-elements/lib/declaration-style-markup": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/declaration-style-markup.js",
-            "contentType": "text/javascript"
-        },
-        "@epa-wg/custom-element/vendor/cem-elements/lib/internal/runtime-support/stylesheet-notifications": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/stylesheet-notifications.js",
-            "contentType": "text/javascript"
-        },
-        "@epa-wg/custom-element/vendor/cem-elements/lib/internal/runtime-support/stylesheet-installation": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/stylesheet-installation.js",
-            "contentType": "text/javascript"
-        },
-        "@epa-wg/custom-element/vendor/cem-elements/lib/choice-options": {
-            "path": "./assets/custom-element/vendor/@epa-wg/cem-elements/dist/lib/choice-options.js",
-            "contentType": "text/javascript"
+        "@epa-wg/cem-components/components/cem-field": {
+            "path": "./assets/cem-components/cem-field.xhtml",
+            "contentType": "application/xhtml+xml"
         },
         "@epa-wg/cem-components/components/cem-select": {
             "path": "./assets/cem-components/cem-select.xhtml",
             "contentType": "application/xhtml+xml"
         },
-        "@epa-wg/cem-components/components/cem-action": {
-            "path": "./assets/cem-components/cem-action.xhtml",
+        "@epa-wg/cem-components/components/cem-surface": {
+            "path": "./assets/cem-components/cem-surface.xhtml",
+            "contentType": "application/xhtml+xml"
+        },
+        "@epa-wg/cem-components/components/cem-media-preview": {
+            "path": "./assets/cem-components/cem-media-preview.xhtml",
+            "contentType": "application/xhtml+xml"
+        },
+        "@epa-wg/cem-site/examples-view": {
+            "path": "./assets/cem-site/examples-view.xhtml",
+            "contentType": "application/xhtml+xml"
+        },
+        "@epa-wg/cem-site/search-view": {
+            "path": "./assets/cem-site/search-view.xhtml",
             "contentType": "application/xhtml+xml"
         }
     }

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
+import ts from 'typescript';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const workspaceRoot = resolve(projectRoot, '../..');
@@ -94,6 +95,61 @@ for (const asset of declaredAssets) {
     }
 }
 
+const declaredPaths = new Set(declaredAssets.map(asset => resolve(outputRoot, asset.target)));
+// This metadata is an explicit graph export in studio.cem, outside its module map.
+declaredPaths.add(resolve(outputRoot, 'assets/@epa-wg/cem-theme/package.json'));
+for (const asset of declaredAssets.filter(asset => asset.contentType === 'text/javascript')) {
+    const filename = resolve(outputRoot, asset.target);
+    const text = await readFile(filename, 'utf8');
+    for (const { fileName } of ts.preProcessFile(text, true, true).importedFiles) {
+        if (!fileName.startsWith('.')) continue;
+        assert.ok(declaredPaths.has(resolve(dirname(filename), fileName)),
+            `${asset.identity} imports undeclared deployed module ${fileName}`);
+    }
+}
+
+const shellModule = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/shell.js'), 'utf8');
+const shellView = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/shell.xhtml'), 'utf8');
+assert.match(shellModule, /mountCemView/);
+assert.doesNotMatch(shellModule, /shellMarkup|innerHTML|textContent|querySelector|toggleAttribute|classList/);
+assert.match(shellView, /<template id="cem-studio-shell" type="text\/cem-ml">/);
+assert.match(shellView, /host-command=theme/);
+assert.match(shellView, /host-command=install/);
+assert.match(shellView, /host-command=update/);
+assert.match(shellView, /\{slot\}/);
+assert.doesNotMatch(shellView, /<script|\son[a-z]+=|javascript:/i);
+const workbenchModule = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/workbench.js'), 'utf8');
+const workbenchControls = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/workbench-controls.xhtml'), 'utf8');
+assert.match(workbenchModule, /mountCemView/);
+assert.doesNotMatch(workbenchModule, /editor\.focus\(|editor\.setSelectionRange\(|function statusLabel|function statusTone/);
+assert.match(workbenchControls, /<template id="cem-studio-workbench-controls" type="text\/cem-ml">/);
+for (const command of ['edit', 'save', 'reload', 'run', 'select-workbench', 'parse', 'inspect']) {
+    assert.match(workbenchControls, new RegExp(`host-command=${command}(?:\\s|$)`));
+}
+assert.match(workbenchControls, /selection-request=/);
+assert.doesNotMatch(workbenchControls, /@variant=(?:quiet|secondary)|<script|\son[a-z]+=|javascript:/i);
+
+const commandView = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/workbench-command.xhtml'), 'utf8');
+assert.match(commandView, /<template id="cem-studio-workbench-command" type="text\/cem-ml">/);
+for (const command of ['edit', 'copy', 'reset', 'target-mode', 'target-existing', 'target-name', 'target-parent',
+    'apply', 'apply-run', 'confirm-replacement', 'use-new', 'cancel-replacement', 'dismiss-replacement']) {
+    assert.match(commandView, new RegExp(`host-command=${command}(?:\\s|$)`));
+}
+assert.match(commandView, /host-command-event=cem-close/);
+assert.doesNotMatch(commandView, /@variant=(?:quiet|secondary)|<script|\son[a-z]+=|javascript:/i);
+assert.doesNotMatch(workbenchModule, /commandApplicationMarkup|renderCommandApplication|commandAlertLabel|commandChangesMarkup|commandEditor\.value|commandTargetName\.value/);
+
+const resultsView = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/workbench-results.xhtml'), 'utf8');
+const layoutView = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/workbench-layout.xhtml'), 'utf8');
+assert.match(layoutView, /<template id="cem-studio-workbench-layout" type="text\/cem-ml">/);
+assert.match(resultsView, /<template id="cem-studio-workbench-results" type="text\/cem-ml">/);
+for (const command of ['copy-output', 'download-output', 'diagnostic', 'provenance']) {
+    assert.match(resultsView, new RegExp(`host-command=${command}(?:\\s|$)`));
+}
+assert.match(resultsView, /cem-media-preview/);
+assert.doesNotMatch(resultsView, /@variant=(?:quiet|secondary)|<script|\son[a-z]+=|javascript:/i);
+assert.doesNotMatch(workbenchModule, /innerHTML|textContent|addEventListener|removeEventListener|workbenchMarkup|renderWorkbench|Markup\(/);
+
 const html = await readFile(resolve(outputRoot, 'index.html'), 'utf8');
 for (const [specifier, entry] of Object.entries(destinationMap.imports)) {
     assert.match(html, new RegExp(`${escapeRegex(specifier)}[^<]+${escapeRegex(entry.path)}`, 's'));
@@ -102,7 +158,7 @@ assert.doesNotMatch(html, /node_modules/);
 assert.match(html, /import '@epa-wg\/cem-studio\/main'/);
 assert.match(html, /data-cem-studio-root/);
 assert.match(html, /<base href="\.\/" data-cem-studio-scope\s*\/?>/);
-assert.match(html, /assets\/@epa-wg\/cem-studio\/preview\.css/);
+assert.doesNotMatch(html, /preview\.css/);
 
 const [
     manifest,
@@ -154,9 +210,11 @@ assert.equal(sampleIndex.commonVersion, packageMetadata.version);
 assert.equal(sampleIndex.samples.length, 1);
 assert.equal(sampleIndex.samples[0].id, 'cem-ml-feature-tour-seed');
 assert.equal(featureTourCatalog.commonVersion, packageMetadata.version);
-assert.equal(featureTourCatalog.packageCount, 31);
-assert.equal(featureTourCatalog.exampleCount, 31);
-assert.equal(featureTourCatalog.examples.length, 31);
+// The tour includes one passing example per canonical runtime schema package.
+assert.ok(runtimeMetadata.schemaPackages.manifestCount > 0);
+assert.equal(featureTourCatalog.packageCount, runtimeMetadata.schemaPackages.manifestCount);
+assert.equal(featureTourCatalog.exampleCount, featureTourCatalog.packageCount);
+assert.equal(featureTourCatalog.examples.length, featureTourCatalog.exampleCount);
 assert.equal(featureTourCatalog.workbenchCount, 5);
 assert.equal(featureTourCatalog.workbenches.length, 5);
 assert.equal(featureTourProject.id, featureTourCatalog.seed.id);
@@ -171,7 +229,12 @@ assert.equal(sampleIndex.cacheUrls.length, featureTourCatalog.cacheUrlCount);
 assert.match(serviceWorker, /event\.data\?\.type === 'cem-studio-activate-update'/);
 assert.match(serviceWorker, /event\.waitUntil\(self\.skipWaiting\(\)\)/);
 const contentSecurityPolicy = securityHeaders.headers['Content-Security-Policy'];
-assert.doesNotMatch(contentSecurityPolicy, /'unsafe-inline'|'unsafe-eval'/);
+const scriptPolicy = contentSecurityPolicy.split(';').map(part => part.trim()).find(part => part.startsWith('script-src '));
+assert.ok(scriptPolicy);
+assert.doesNotMatch(scriptPolicy, /'unsafe-inline'|'unsafe-eval'/);
+assert.match(contentSecurityPolicy, /(?:^|;)\s*style-src 'self';/);
+assert.match(contentSecurityPolicy, /(?:^|;)\s*style-src-elem 'self' 'unsafe-inline';/);
+assert.match(contentSecurityPolicy, /(?:^|;)\s*style-src-attr 'none';/);
 assert.match(contentSecurityPolicy, /'wasm-unsafe-eval'/);
 assert.match(contentSecurityPolicy, /default-src 'none'/);
 assert.match(contentSecurityPolicy, /frame-ancestors 'none'/);
@@ -180,9 +243,13 @@ const inlineScriptHashes = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S
 );
 assert.equal(inlineScriptHashes.length, 2);
 for (const hash of inlineScriptHashes) assert.ok(contentSecurityPolicy.includes(hash), `app CSP is missing ${hash}`);
-assert.match(previewModule, /default-src 'none'/);
-assert.match(previewModule, /frame\.setAttribute\('sandbox', ''\)/);
-assert.doesNotMatch(previewModule, /allow-scripts|allow-same-origin/);
+assert.doesNotMatch(previewModule, /createElement|innerHTML|textContent|srcdoc|mountCemStudioPreview/);
+const componentBundle = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-components/dist/components.xhtml'), 'utf8');
+const mediaPreview = componentBundle.match(/<cem-element\b[^>]*\btag="cem-media-preview"[\s\S]*?<\/cem-element>/)?.[0];
+assert.ok(mediaPreview, 'canonical media-preview declaration is missing');
+assert.match(mediaPreview, /default-src 'none'/);
+assert.match(mediaPreview, /@sandbox=""/);
+assert.doesNotMatch(mediaPreview, /allow-scripts|allow-same-origin/);
 assert.equal(packageMetadata.exports['.'].import, './dist/static/assets/@epa-wg/cem-studio/bootstrap.js');
 assert.equal(packageMetadata.exports['./shell'].import, './dist/static/assets/@epa-wg/cem-studio/shell.js');
 assert.equal(

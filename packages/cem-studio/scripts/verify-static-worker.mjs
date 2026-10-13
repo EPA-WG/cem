@@ -8,7 +8,8 @@ import { chromium } from 'playwright';
 const projectRoot = resolve(import.meta.dirname, '..');
 const workspaceRoot = resolve(projectRoot, '../..');
 const outputRoot = resolve(projectRoot, 'dist/static');
-const reportPath = resolve(workspaceRoot, 'dist/reports/cem-studio/static-worker.json');
+const shellOnly = process.argv.includes('--shell-only');
+const reportPath = resolve(workspaceRoot, `dist/reports/cem-studio/${shellOnly ? 'shell-delivery' : 'static-worker'}.json`);
 const server = await startStaticServer(outputRoot);
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ serviceWorkers: 'allow' });
@@ -77,9 +78,40 @@ try {
     assert.equal(shell.controlsOnly, true);
     assert.equal(shell.componentsInstalled, true);
     assert.equal(shell.fileSystemControlsInstalled, true);
+    assert.equal(shell.themesStyled, true, JSON.stringify({ themeStyles: shell.themeStyles, styleDiagnostics: shell.styleDiagnostics, styles: shell.styles, browserErrors, httpFailures }));
+    assert.equal(shell.workbenchStyled, true, JSON.stringify(shell.workbenchStyles));
+    assert.equal(shell.workbenchOverrides, true, JSON.stringify(shell.overrideStyles));
+    assert.equal(shell.commandStyled, true, JSON.stringify(shell.commandStyles));
+    assert.equal(shell.commandOverrides, true, JSON.stringify(shell.overrideStyles));
+    assert.equal(shell.previewStyled, true, JSON.stringify(shell.previewStyles));
+    assert.equal(shell.previewOverrides, true, JSON.stringify(shell.overrideStyles));
+    assert.equal(shell.inheritedOverrides, true, JSON.stringify(shell.overrideStyles));
+    assert.deepEqual(shell.errors, []);
     assert.ok(['unbound', 'unsupported'].includes(shell.fileSystemState));
     console.log('[cem-studio:static-worker] shell verified');
 
+    if (shellOnly) {
+        const hardening = await inspectHardening(page, initialResponse);
+        assert.equal(hardening.shellForcedColors, true);
+        assert.equal(hardening.cspDefaultDeny, true);
+        assert.equal(hardening.cspNoUnsafeScript, true);
+        assert.equal(hardening.cspStyleAttributesBlocked, true);
+        await context.setOffline(true);
+        await page.reload({ waitUntil: 'load' });
+        await waitForApplication(page, browserErrors, httpFailures);
+        assert.equal(await page.getAttribute('[data-cem-studio-shell]', 'data-theme'), 'cem-theme-contrast-dark');
+        const offline = await inspectShell(page);
+        assert.equal(offline.state, 'ready');
+        assert.equal(offline.componentsInstalled, true);
+        assert.equal(offline.themesStyled, true);
+        assert.equal(offline.inheritedOverrides, true);
+        assert.deepEqual(offline.errors, []);
+        assert.deepEqual(browserErrors, []);
+        assert.deepEqual(httpFailures, []);
+        await mkdir(dirname(reportPath), { recursive: true });
+        await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, shell, hardening, offline }, null, 2)}\n`, 'utf8');
+        console.log('Verified declarative shell delivery, CEM theme inheritance, forced colors and offline reload.');
+    } else {
     const caches = await page.evaluate(() => globalThis.caches.keys());
     assert.deepEqual(caches.sort(), ['cem-studio:0.1.0:runtime', 'cem-studio:0.1.0:samples', 'cem-studio:0.1.0:shell']);
     console.log('[cem-studio:static-worker] deployment caches verified');
@@ -148,6 +180,8 @@ try {
     assert.ok(portableOperations.results.every(({ runtime }) => runtime === 'wasm-browser-worker'));
     assert.ok(portableOperations.results.every(({ stale }) => !stale));
     assert.ok(portableOperations.results.every(({ copiedExact, downloadedExact }) => copiedExact && downloadedExact));
+    assert.ok(portableOperations.results.every(({ traceRows, traceCount, graphRows, graphCount }) =>
+        traceRows === Math.min(100, traceCount) && graphRows === Math.min(100, graphCount)));
     assert.ok(portableOperations.results.find(({ mode }) => mode === 'graph').graphCount > 0);
     assert.ok(portableOperations.results.find(({ kind }) => kind === 'trace').traceCount > 0);
     assert.equal(portableOperations.componentsOnly, true);
@@ -158,7 +192,7 @@ try {
     assert.ok(['installed', 'preserved'].includes(featureTour.status));
     assert.equal(featureTour.seedId, 'cem-ml-feature-tour-seed');
     assert.equal(featureTour.projectId, 'feature-tour');
-    assert.equal(featureTour.exampleCount, 31);
+    assert.equal(featureTour.exampleCount, 32);
     assert.equal(featureTour.validatedCount, featureTour.exampleCount);
     assert.equal(featureTour.cachedSampleResponses, featureTour.cacheUrlCount);
 
@@ -180,7 +214,11 @@ try {
     const hardening = await inspectHardening(page, initialResponse);
     assert.equal(hardening.cspDefaultDeny, true);
     assert.equal(hardening.cspNoUnsafeScript, true);
+    assert.equal(hardening.cspStyleAttributesBlocked, true);
     assert.equal(hardening.forcedColors, true);
+    assert.equal(hardening.workbenchForcedColors, true);
+    assert.equal(hardening.commandForcedColors, true);
+    assert.equal(hardening.shellForcedColors, true);
     assert.equal(hardening.reducedMotion, true);
     assert.equal(hardening.previewReflows, true);
     assert.equal(hardening.liveStatusNamed, true);
@@ -215,7 +253,7 @@ try {
     await page.goto(`${server.url}/projects/offline-project`, { waitUntil: 'load' });
     await waitForApplication(page, browserErrors, httpFailures);
     assert.ok(await page.evaluate(() => navigator.serviceWorker.controller !== null));
-    assert.equal(await page.getAttribute('[data-cem-studio-root]', 'data-theme'), 'cem-theme-contrast-dark');
+    assert.equal(await page.getAttribute('[data-cem-studio-shell]', 'data-theme'), 'cem-theme-contrast-dark');
     const recovered = await exportOfflineProject(page);
     assert.equal(recovered.content, '{main | Offline project bytes}\n');
     assert.equal(recovered.projectId, 'offline-project');
@@ -285,6 +323,7 @@ try {
     await mkdir(dirname(reportPath), { recursive: true });
     await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
     console.log('Verified graph-emitted CEM-ML CLI worker and WASM command online and offline.');
+    }
 } finally {
     await context.setOffline(false).catch(() => undefined);
     await page
@@ -337,13 +376,15 @@ async function inspectHardening(page, initialResponse) {
         previewRoot.setAttribute('data-cem-studio-preview', '');
         previewRoot.setAttribute('data-cem-studio-hardening-preview', '');
         document.body.append(previewRoot);
-        const output = previewApi.mountCemStudioPreview(
-            previewRoot,
-            previewApi.createCemStudioPreview({
-                bytes: new TextEncoder().encode('Keyboard and reflow preview'),
-                contentType: 'text/plain',
-            }),
-        );
+        const components = await (await import('@epa-wg/cem-studio/shell')).installCemStudioShellComponents();
+        const preview = previewApi.createCemStudioPreview({
+            bytes: new TextEncoder().encode('Keyboard and reflow preview'), contentType: 'text/plain',
+        });
+        const viewer = document.createElement('cem-media-preview');
+        viewer.setAttribute('mode', 'text'); viewer.setAttribute('label', preview.label);
+        viewer.setAttribute('value', preview.text); previewRoot.append(viewer);
+        await components.runtime.whenRenderSettled(viewer);
+        const output = viewer.querySelector('pre');
         const probe = document.createElement('span');
         probe.tabIndex = 0;
         probe.setAttribute('data-cem-studio-keyboard-probe', '');
@@ -367,25 +408,51 @@ async function inspectHardening(page, initialResponse) {
             const frameRoot = document.createElement('section');
             frameRoot.setAttribute('data-cem-studio-preview', '');
             document.body.append(frameRoot);
-            const frame = previewApi.mountCemStudioPreview(
-                frameRoot,
-                previewApi.createCemStudioPreview({
-                    bytes: new TextEncoder().encode('<p>Forced color preview</p>'),
-                    contentType: 'text/html',
-                }),
-            );
+            const components = await (await import('@epa-wg/cem-studio/shell')).installCemStudioShellComponents();
+            const model = previewApi.createCemStudioPreview({
+                bytes: new TextEncoder().encode('<p>Forced color preview</p>'), contentType: 'text/html',
+            });
+            const viewer = document.createElement('cem-media-preview');
+            viewer.setAttribute('mode', 'document'); viewer.setAttribute('label', model.label);
+            viewer.setAttribute('value', model.source); frameRoot.append(viewer);
+            await components.runtime.whenRenderSettled(viewer);
+            const frame = viewer.querySelector('iframe');
             const frameStyles = getComputedStyle(frame);
             const forcedColors =
                 matchMedia('(forced-colors: active)').matches &&
                 frameStyles.borderTopStyle === 'solid' &&
                 frame.getAttribute('sandbox') === '';
+            const header = getComputedStyle(document.querySelector('cem-app-bar header'));
+            const action = getComputedStyle(document.querySelector('[data-cem-studio-install] button'));
+            const editor = getComputedStyle(document.querySelector('[data-cem-studio-editor] textarea'));
+            const workbenchAction = getComputedStyle(document.querySelector('[data-cem-studio-reload] button'));
+            const workbenchForcedColors = editor.outlineStyle === 'solid' && parseFloat(editor.outlineWidth) > 0 &&
+                editor.forcedColorAdjust === 'auto' && workbenchAction.borderTopStyle === 'solid' &&
+                workbenchAction.forcedColorAdjust === 'auto';
+            const commandEditor = getComputedStyle(document.querySelector('[data-cem-studio-command-editor] textarea'));
+            const commandAction = getComputedStyle(document.querySelector('[data-cem-studio-command-copy] button'));
+            const commandForcedColors = commandEditor.outlineStyle === 'solid' && parseFloat(commandEditor.outlineWidth) > 0 &&
+                commandEditor.forcedColorAdjust === 'auto' && commandAction.borderTopStyle === 'solid' &&
+                commandAction.forcedColorAdjust === 'auto';
+            const system = document.createElement('span');
+            system.style.cssText = 'background: Canvas; color: CanvasText';
+            document.body.append(system);
+            const systemColors = getComputedStyle(system);
+            const shellForcedColors = header.backgroundColor === systemColors.backgroundColor &&
+                header.color === systemColors.color && header.borderTopStyle === 'solid' &&
+                action.borderTopStyle === 'solid' && action.forcedColorAdjust === 'auto';
+            system.remove();
             frameRoot.remove();
             return {
                 cspDefaultDeny: contentSecurityPolicy.includes("default-src 'none'"),
                 cspNoUnsafeScript:
-                    !contentSecurityPolicy.includes("'unsafe-inline'") &&
-                    !contentSecurityPolicy.includes("'unsafe-eval'"),
+                    contentSecurityPolicy.split(';').some(part => part.trim().startsWith('script-src ') &&
+                        !part.includes("'unsafe-inline'") && !part.includes("'unsafe-eval'")),
+                cspStyleAttributesBlocked: contentSecurityPolicy.includes("style-src-attr 'none'"),
                 forcedColors,
+                workbenchForcedColors,
+                commandForcedColors,
+                shellForcedColors,
                 reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
                 previewReflows: Boolean(previewRect && previewRect.left >= 0 && previewRect.right <= innerWidth),
                 liveStatusNamed:
@@ -617,6 +684,9 @@ async function exercisePortableOperations(page) {
             await application.workbench.selectWorkbench(scenario.id);
             const snapshot = await application.workbench.runPersistedOperation();
             const projection = snapshot.projection;
+            await application.workbenchView.whenSettled();
+            const recordRows = selector => [...document.querySelectorAll(`${selector} [role="row"]`)]
+                .filter(row => row.querySelector('[role="cell"]')).length;
             let copied;
             let downloaded;
             await application.workbench.copyProjection(async (text) => {
@@ -640,6 +710,8 @@ async function exercisePortableOperations(page) {
                 sha256: projection.output.sha256,
                 traceCount: projection.trace.length,
                 graphCount: projection.graph.length,
+                traceRows: recordRows('[data-cem-studio-projection-trace]'),
+                graphRows: recordRows('[data-cem-studio-projection-graph]'),
                 copiedExact: copied === projection.output.text,
                 downloadedExact:
                     downloaded?.contentType === projection.output.contentType &&
@@ -895,7 +967,83 @@ async function projectOfflineResource(page) {
 async function inspectShell(page) {
     return page.evaluate(async () => {
         const application = globalThis.__cemStudioApplication;
+        const components = await (await import('@epa-wg/cem-studio/shell')).installCemStudioShellComponents();
+        let themesStyled = true;
+        const themeStyles = [];
+        let workbenchStyled = true;
+        const workbenchStyles = [];
+        let commandStyled = true;
+        const commandStyles = [];
+        const previewProbe = document.createElement('cem-media-preview');
+        previewProbe.setAttribute('mode', 'text'); previewProbe.setAttribute('label', 'Theme verification');
+        previewProbe.setAttribute('value', 'Exact output'); application.shell.view.element.append(previewProbe);
+        await components.runtime.whenRenderSettled(previewProbe);
+        let previewStyled = true;
+        const previewStyles = [];
+        const header = document.querySelector('cem-app-bar header');
+        for (const mode of ['cem-theme-light', 'cem-theme-dark', 'cem-theme-contrast-light', 'cem-theme-contrast-dark', 'cem-theme-native']) {
+            application.shell.theme.setMode(mode);
+            await application.shell.whenSettled();
+            const style = getComputedStyle(header);
+            themeStyles.push({ mode, background: style.backgroundColor, color: style.color, padding: style.paddingInlineStart });
+            themesStyled &&= style.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+                style.color !== style.backgroundColor && parseFloat(style.paddingInlineStart) > 0;
+            const editor = getComputedStyle(document.querySelector('[data-cem-studio-editor] textarea'));
+            const action = getComputedStyle(document.querySelector('[data-cem-studio-reload] button'));
+            workbenchStyles.push({ mode, background: editor.backgroundColor, color: editor.color,
+                indicator: editor.boxShadow, actionBorder: action.borderTopWidth });
+            workbenchStyled &&= editor.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+                editor.color !== editor.backgroundColor && editor.boxShadow !== 'none' && parseFloat(action.borderTopWidth) > 0;
+            const commandEditor = getComputedStyle(document.querySelector('[data-cem-studio-command-editor] textarea'));
+            const commandAction = getComputedStyle(document.querySelector('[data-cem-studio-command-copy] button'));
+            commandStyles.push({ mode, background: commandEditor.backgroundColor, color: commandEditor.color,
+                indicator: commandEditor.boxShadow, actionBorder: commandAction.borderTopWidth });
+            commandStyled &&= commandEditor.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+                commandEditor.color !== commandEditor.backgroundColor && commandEditor.boxShadow !== 'none' &&
+                parseFloat(commandAction.borderTopWidth) > 0;
+            const figure = getComputedStyle(previewProbe.querySelector('figure'));
+            const text = getComputedStyle(previewProbe.querySelector('pre'));
+            previewStyles.push({ mode, background: figure.backgroundColor, color: figure.color,
+                font: text.fontFamily, size: text.fontSize, border: figure.borderTopWidth });
+            previewStyled &&= figure.backgroundColor !== 'rgba(0, 0, 0, 0)' && figure.color !== figure.backgroundColor &&
+                parseFloat(figure.borderTopWidth) > 0 && parseFloat(text.fontSize) > 0;
+
+
+        }
+        const shellHost = application.shell.view.element;
+        shellHost.style.setProperty('--cem-inset-container', '19px');
+        shellHost.style.setProperty('--cem-typography-script-font-size', '21px');
+        shellHost.style.setProperty('--cem-bend-media', '11px');
+        shellHost.style.setProperty('--cem-action-border-radius', '13px');
+        shellHost.style.setProperty('--cem-input-background-color', 'rgb(31, 47, 63)');
+        const actionStyle = getComputedStyle(document.querySelector('[data-cem-studio-install] button'));
+        const overrideStyles = { padding: getComputedStyle(header).paddingInlineStart,
+            radius: actionStyle.borderTopLeftRadius, couplingBorder: actionStyle.borderTopWidth,
+            editorBackground: getComputedStyle(document.querySelector('[data-cem-studio-editor] textarea')).backgroundColor,
+            workbenchRadius: getComputedStyle(document.querySelector('[data-cem-studio-reload] button')).borderTopLeftRadius,
+            workbenchBorder: getComputedStyle(document.querySelector('[data-cem-studio-reload] button')).borderTopWidth,
+            commandBackground: getComputedStyle(document.querySelector('[data-cem-studio-command-editor] textarea')).backgroundColor,
+            commandRadius: getComputedStyle(document.querySelector('[data-cem-studio-command-copy] button')).borderTopLeftRadius,
+            commandBorder: getComputedStyle(document.querySelector('[data-cem-studio-command-copy] button')).borderTopWidth,
+            previewInset: getComputedStyle(previewProbe.querySelector('pre')).paddingInlineStart,
+            previewFontSize: getComputedStyle(previewProbe.querySelector('pre')).fontSize,
+            previewBend: getComputedStyle(previewProbe.querySelector('figure')).borderTopLeftRadius };
+        const previewOverrides = overrideStyles.previewInset === '19px' && overrideStyles.previewFontSize === '21px' &&
+            overrideStyles.previewBend === '11px';
+        const commandOverrides = overrideStyles.commandBackground === 'rgb(31, 47, 63)' &&
+            parseFloat(overrideStyles.commandRadius) === 13 + parseFloat(overrideStyles.commandBorder);
+        const workbenchOverrides = overrideStyles.editorBackground === 'rgb(31, 47, 63)' &&
+            parseFloat(overrideStyles.workbenchRadius) === 13 + parseFloat(overrideStyles.workbenchBorder);
+        const inheritedOverrides = overrideStyles.padding === '19px' &&
+            parseFloat(overrideStyles.radius) === 13 + parseFloat(overrideStyles.couplingBorder);
+        shellHost.style.removeProperty('--cem-inset-container');
+        shellHost.style.removeProperty('--cem-typography-script-font-size');
+        shellHost.style.removeProperty('--cem-bend-media');
+        previewProbe.remove();
+        shellHost.style.removeProperty('--cem-action-border-radius');
+        shellHost.style.removeProperty('--cem-input-background-color');
         application.shell.theme.setMode('cem-theme-contrast-dark');
+        await application.shell.whenSettled();
         await Promise.all(
             [
                 'cem-app-bar',
@@ -910,8 +1058,24 @@ async function inspectShell(page) {
             ].map((tag) => customElements.whenDefined(tag)),
         );
         return {
-            state: document.querySelector('[data-cem-studio-root]')?.getAttribute('data-cem-studio-state'),
-            theme: document.querySelector('[data-cem-studio-root]')?.getAttribute('data-theme'),
+            themesStyled,
+            previewStyled,
+            previewStyles,
+            previewOverrides,
+            commandStyled,
+            commandStyles,
+            commandOverrides,
+            workbenchStyled,
+            workbenchStyles,
+            workbenchOverrides,
+            themeStyles,
+            inheritedOverrides,
+            overrideStyles,
+            errors: application.shell.view.errors.map(error => error.message),
+            styleDiagnostics: [...components.result.diagnostics, ...components.runtime.diagnosticsFor(document.querySelector('cem-app-bar'))],
+            styles: [...document.querySelectorAll('style')].map(style => style.textContent.slice(0, 180)),
+            state: document.querySelector('[data-cem-studio-shell]')?.getAttribute('data-cem-studio-state'),
+            theme: document.querySelector('[data-cem-studio-shell]')?.getAttribute('data-theme'),
             controlsOnly:
                 document.querySelectorAll('button:not(cem-action button):not(cem-select button):not(cem-tabs button)')
                     .length === 0,

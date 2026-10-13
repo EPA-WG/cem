@@ -39,7 +39,7 @@ const PAYLOAD_RENDER_NODE_ID_PREFIX = 'payload-';
 const PAYLOAD_STYLESHEET_RENDER_NODE_ID_PREFIX = 'payload-style-';
 const CEM_SCOPE_LOWER_LIMIT = [
     ':scope :has(> template[data-cem-island="instance"]) > *',
-    '[slot] > *',
+    '[slot]:not(input) > *',
 ].join(',\n');
 const KEYFRAMES_AT_RULE = /@(-webkit-)?keyframes\s+([A-Za-z_][\w-]*)/g;
 const UNSUPPORTED_SCOPED_CSS_AT_RULES = [
@@ -103,6 +103,25 @@ export const RENDER_ENGINE_VERSION = '1.6.0';
 export const EDGE_RENDER_STATE_VERSION = '1.1.0';
 
 const renderedAttributeValues = new WeakMap<Element, Map<string, string>>();
+// An explicit payload template is an authored boundary even after capture moves
+// its content into the child's inert data island. Keep its patch identity and
+// route its children to that canonical container, never to the child's output.
+const capturedPayloadEnvelopes = new WeakMap<Node, HTMLTemplateElement>();
+const capturedEnvelopeContents = new WeakMap<Element, Node>();
+export function retainCapturedPayloadEnvelope(payload: Element, envelope: HTMLTemplateElement): void {
+    capturedPayloadEnvelopes.set(payload, envelope);
+    capturedEnvelopeContents.set(envelope, payload);
+}
+
+function authoredPlanChildren(container: Node, children: readonly RenderPlanNode[]): readonly RenderPlanNode[] {
+    const envelope = capturedPayloadEnvelopes.get(container);
+    const meaningful = children.filter(node => node.kind !== 'text' || node.text.trim());
+    const desired = meaningful[0];
+    if (!envelope || meaningful.length !== 1 || desired?.kind !== 'element' || desired.tag !== 'template') return children;
+    mirrorRenderIdentity(envelope, desired.renderNodeId);
+    return desired.children;
+}
+
 // Authored light-DOM inputs and a custom element's rendered output have different owners.
 const renderedChildren = new WeakMap<Element, { plan?: readonly RenderPlanNode[]; nodes: ChildNode[] }>();
 function isRegisteredCustomElement(element: Element): boolean {
@@ -177,7 +196,48 @@ export interface RenderPlanDomRange {
     end: Comment;
 }
 
+const nativeCheckedEdits = new WeakMap<HTMLInputElement, number>();
+const observedCheckedDocuments = new WeakSet<Document>();
+let nativeCheckedRevision = 0;
+/** Capture native edits separately from asynchronous authored/default state. */
+export function captureNativeCheckedEdits(document: Document): (element: Element) => boolean {
+    if (!observedCheckedDocuments.has(document)) {
+        observedCheckedDocuments.add(document);
+        document.addEventListener('input', event => {
+            const input = event.target;
+            if (!(input instanceof HTMLInputElement) || !['checkbox', 'radio'].includes(input.type)) return;
+            const revision = ++nativeCheckedRevision;
+            nativeCheckedEdits.set(input, revision);
+            if (input.type === 'radio' && input.name) {
+                for (const peer of (input.getRootNode() as ParentNode).querySelectorAll<HTMLInputElement>('input[type=radio]')) {
+                    if (peer.name === input.name && peer.form === input.form) nativeCheckedEdits.set(peer, revision);
+                }
+            }
+        }, true);
+    }
+    const revision = nativeCheckedRevision;
+    return element => (nativeCheckedEdits.get(element as HTMLInputElement) ?? 0) > revision;
+}
+
+let preserveNativeCheckedState: ((element: Element) => boolean) | undefined;
+function beginNativeCheckedRefresh(options: RenderedFragmentMergeOptions): () => void {
+    const previous = preserveNativeCheckedState;
+    preserveNativeCheckedState = options.preserveNativeCheckedState;
+    return () => { preserveNativeCheckedState = previous; };
+}
+function protectNativeCheckedEdit(element: Element, name: string): boolean {
+    if (name !== 'checked' || element.localName !== 'input' || !preserveNativeCheckedState?.(element)) return false;
+    // Mark the live state dirty before changing its default so the browser's
+    // radio group algorithm cannot select an older authored default either.
+    const input = element as HTMLInputElement;
+    const checked = input.checked;
+    input.checked = checked;
+    return true;
+}
+
 export interface RenderedFragmentMergeOptions {
+    /** A native user edit newer than the authored render snapshot keeps its live checked state. */
+    preserveNativeCheckedState?: (element: Element) => boolean;
     /**
      * Retain an attribute that exists on the current DOM element but is absent
      * from the desired render output. The predicate claims only the exact
@@ -187,6 +247,8 @@ export interface RenderedFragmentMergeOptions {
      */
     preserveElementAttribute?: (current: Element, desired: Element, attribute: Attr) => boolean;
     preserveElementChildren?: (current: Element, desired: Element) => boolean;
+    /** Parent-owned inert input container behind a preserved child component. */
+    authoredChildContainer?: (current: Element) => Node | undefined;
     /** Exact runtime-owned nodes excluded from authored reconciliation and patch lookup. */
     preserveNode?: (current: Node) => boolean;
 }
@@ -1974,6 +2036,7 @@ export function mergeRenderedFragmentIntoRange(
     }
     const focus = captureRenderRangeFocus(bounds);
     const finishSelectRefresh = beginSelectRefresh();
+    const finishCheckedRefresh = beginNativeCheckedRefresh(options);
     try {
         mergeChildNodes(
             parent,
@@ -1983,6 +2046,7 @@ export function mergeRenderedFragmentIntoRange(
             options,
         );
     } finally {
+        finishCheckedRefresh();
         finishSelectRefresh();
         refreshControlledSelectsInRange(bounds, options);
         restoreRenderRangeFocus(focus);
@@ -2002,6 +2066,7 @@ export function applyRenderPlanToRange(
 
     const focus = captureRenderRangeFocus(bounds);
     const finishSelectRefresh = beginSelectRefresh();
+    const finishCheckedRefresh = beginNativeCheckedRefresh(options);
     try {
         const recovery = renderScopeRecoveryReason(bounds, plan, options);
         if (recovery) {
@@ -2029,6 +2094,7 @@ export function applyRenderPlanToRange(
         );
         return { mode: 'patch', diagnostics: [] };
     } finally {
+        finishCheckedRefresh();
         finishSelectRefresh();
         refreshControlledSelectsInRange(bounds, options);
         restoreRenderRangeFocus(focus);
@@ -2059,6 +2125,7 @@ export function applyPatchFramesToRange(
     }
     const focus = captureRenderRangeFocus(bounds);
     const finishSelectRefresh = beginSelectRefresh();
+    const finishCheckedRefresh = beginNativeCheckedRefresh(options);
     const previousCheckboxBindings = new Map<Element, string>();
     try {
         for (const { operation, target } of resolved) {
@@ -2095,9 +2162,9 @@ export function applyPatchFramesToRange(
                 renderedAttributeValues.set(element, attributes);
             } else if (operation.op === 'reconcileChildren') {
                 const element = target as Element;
-                const childContainer = renderPlanElementChildContainer(element);
-                const children = operation.children.map(({ node }) => deserializePatchNode(node));
-                const plan: RenderPlan = { ...parsed.commit.nextRenderPlan, nodes: children };
+                const childContainer = options.authoredChildContainer?.(element) ?? renderPlanElementChildContainer(element);
+                const children = authoredPlanChildren(childContainer, operation.children.map(({ node }) => deserializePatchNode(node)));
+                const plan: RenderPlan = { ...parsed.commit.nextRenderPlan, nodes: [...children] };
                 mergeRenderPlanChildNodes(childContainer, childContainer.firstChild as ChildNode | null, null, children, {
                     plan,
                     document,
@@ -2120,6 +2187,7 @@ export function applyPatchFramesToRange(
             updateCommittedRenderMetadata(bounds, parsed.commit.nextRenderPlan, options);
         }
     } finally {
+        finishCheckedRefresh();
         finishSelectRefresh();
         refreshControlledSelectsInRange(bounds, options);
         restoreRenderRangeFocus(focus);
@@ -2425,6 +2493,7 @@ interface RenderRangeFocusSnapshot {
     bounds: RenderPlanDomRange;
     element: Element;
     renderId: string | null;
+    owner: Element | null;
     selection?: TextControlSelectionSnapshot;
 }
 
@@ -2694,15 +2763,16 @@ function mergeRenderPlanNode(
     );
     syncNativeAttributes(element, desired.attributes);
     syncReboundCheckedControl(element, previousSlice, renderedAttributeValues.get(element));
-    if (desiredElement && preserveElementChildren?.(element, desiredElement)) {
-        return;
-    }
-    const childContainer = renderPlanElementChildContainer(element);
+    const preserveChildren = desiredElement && preserveElementChildren?.(element, desiredElement);
+    const childContainer = preserveChildren
+        ? context.options.authoredChildContainer?.(element)
+        : renderPlanElementChildContainer(element);
+    if (!childContainer) return;
     mergeRenderPlanChildNodes(
         childContainer,
         childContainer.firstChild as ChildNode | null,
         null,
-        desired.children,
+        authoredPlanChildren(childContainer, desired.children),
         context,
     );
 }
@@ -2780,9 +2850,9 @@ function createRenderPlanElement(
 }
 
 function renderPlanElementChildContainer(element: Element): Node {
-    return element.localName === 'template' && 'content' in element
+    return capturedEnvelopeContents.get(element) ?? (element.localName === 'template' && 'content' in element
         ? (element as HTMLTemplateElement).content
-        : element;
+        : element);
 }
 
 function renderPlanElementAttributes(
@@ -2931,14 +3001,18 @@ function mergeNode(current: Node, desired: Node, options: RenderedFragmentMergeO
         desiredElement,
         (attribute) => options.preserveElementAttribute?.(currentElement, desiredElement, attribute) ?? false,
     );
-    if (options.preserveElementChildren?.(currentElement, desiredElement)) {
-        return;
-    }
+    const childContainer = options.preserveElementChildren?.(currentElement, desiredElement)
+        ? options.authoredChildContainer?.(currentElement)
+        : currentElement;
+    if (!childContainer) return;
     mergeChildNodes(
-        currentElement,
-        currentElement.firstChild as ChildNode | null,
+        childContainer,
+        childContainer.firstChild as ChildNode | null,
         null,
-        Array.from(desiredElement.childNodes),
+        capturedPayloadEnvelopes.has(childContainer) && desiredElement.children.length === 1
+            && desiredElement.firstElementChild instanceof HTMLTemplateElement
+            ? Array.from(desiredElement.firstElementChild.content.childNodes)
+            : Array.from(desiredElement.childNodes),
         options,
     );
 }
@@ -2974,11 +3048,12 @@ export function setRenderPlanAttribute(element: Element, name: string, value: st
         return;
     }
     const addedSelected = name === 'selected' && !element.hasAttribute(name);
+    const preserveChecked = protectNativeCheckedEdit(element, name);
     const addedChecked = name === 'checked' && !element.hasAttribute(name);
     const changedValue = name === 'value' && element.getAttribute(name) !== value;
     element.setAttribute(name, value);
     if (addedSelected) queueSelectRefresh(element);
-    if (addedChecked) syncRenderedCheckedPresence(element, true);
+    if (addedChecked && !preserveChecked) syncRenderedCheckedPresence(element, true);
     if (changedValue) syncRenderedInputValue(element, value);
 }
 
@@ -3117,11 +3192,12 @@ function removeRenderPlanAttribute(element: Element, name: string): void {
         element.removeAttributeNS(XLINK_NAMESPACE, xlinkLocalName);
     }
     const removedSelected = name === 'selected' && element.hasAttribute(name);
+    const preserveChecked = protectNativeCheckedEdit(element, name);
     const removedChecked = name === 'checked' && element.hasAttribute(name);
     const removedValue = name === 'value' && element.hasAttribute(name);
     element.removeAttribute(name);
     if (removedSelected) queueSelectRefresh(element);
-    if (removedChecked) syncRenderedCheckedPresence(element, false);
+    if (removedChecked && !preserveChecked) syncRenderedCheckedPresence(element, false);
     if (removedValue) {
         syncRenderedInputValue(element, '');
         if (element.localName === 'select') queueSelectRefresh(element);
@@ -3147,6 +3223,7 @@ function captureRenderRangeFocus(bounds: RenderPlanDomRange): RenderRangeFocusSn
         bounds,
         element: active,
         renderId: renderIdentity(active),
+        owner: producedFocusOwner(active),
         selection: captureTextControlSelection(active),
     };
 }
@@ -3155,6 +3232,10 @@ function restoreRenderRangeFocus(snapshot: RenderRangeFocusSnapshot | null): voi
     if (!snapshot) {
         return;
     }
+    const active = snapshot.element.ownerDocument.activeElement;
+    // A capability may deliberately transfer focus while its owner is removed.
+    // Reconciliation must not undo that newer decision.
+    if (active && active !== snapshot.element && active !== snapshot.element.ownerDocument.body) return;
     const element = focusRestorationElement(snapshot);
     if (!element) {
         return;
@@ -3170,7 +3251,14 @@ function focusRestorationElement(snapshot: RenderRangeFocusSnapshot): Element | 
     if (snapshot.element.isConnected) {
         return snapshot.element;
     }
-    return snapshot.renderId ? findElementByRenderIdentityInRange(snapshot.bounds, snapshot.renderId) : null;
+    return snapshot.renderId ? findElementByRenderIdentityInRange(snapshot.bounds, snapshot.renderId, snapshot.owner) : null;
+}
+
+function producedFocusOwner(element: Element): Element | null {
+    for (let owner: Element | null = element; owner; owner = owner.parentElement) {
+        if ([...owner.children].some(child => child.localName === 'template' && child.getAttribute('data-cem-island') === 'instance')) return owner;
+    }
+    return null;
 }
 
 function focusElement(element: Element): void {
@@ -3246,10 +3334,10 @@ function isNodeInsideRenderRange(node: Node, bounds: RenderPlanDomRange): boolea
     return false;
 }
 
-function findElementByRenderIdentityInRange(bounds: RenderPlanDomRange, id: string): Element | null {
+function findElementByRenderIdentityInRange(bounds: RenderPlanDomRange, id: string, owner: Element | null): Element | null {
     let current = bounds.start.nextSibling;
     while (current && current !== bounds.end) {
-        const found = findElementByRenderIdentity(current, id);
+        const found = findElementByRenderIdentity(current, id, owner);
         if (found) {
             return found;
         }
@@ -3278,7 +3366,10 @@ function findNodeByRenderIdentity(node: Node, id: string, options: RenderPlanApp
     if (identity === id) {
         return node;
     }
-    const container = node.nodeType === 1 ? renderPlanElementChildContainer(node as Element) : node;
+    const authored = node.nodeType === 1 ? options.authoredChildContainer?.(node as Element) : undefined;
+    const container = authored ?? (node.nodeType === 1 ? renderPlanElementChildContainer(node as Element) : node);
+    const envelope = authored && capturedPayloadEnvelopes.get(authored);
+    if (envelope && renderIdentity(envelope) === id) return envelope;
     for (let child = container.firstChild; child; child = child.nextSibling) {
         const found = findNodeByRenderIdentity(child, id, options);
         if (found) {
@@ -3288,12 +3379,12 @@ function findNodeByRenderIdentity(node: Node, id: string, options: RenderPlanApp
     return null;
 }
 
-function findElementByRenderIdentity(node: Node, id: string): Element | null {
-    if (node.nodeType === 1 && renderIdentity(node) === id) {
+function findElementByRenderIdentity(node: Node, id: string, owner: Element | null): Element | null {
+    if (node.nodeType === 1 && renderIdentity(node) === id && producedFocusOwner(node as Element) === owner) {
         return node as Element;
     }
     for (let child = node.firstChild; child; child = child.nextSibling) {
-        const found = findElementByRenderIdentity(child, id);
+        const found = findElementByRenderIdentity(child, id, owner);
         if (found) {
             return found;
         }

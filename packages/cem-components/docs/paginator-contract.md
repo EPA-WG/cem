@@ -125,7 +125,12 @@ The pre-CSS audit found complete existing semantic coverage:
 | Target floors and padding | D2/D2c | `--cem-coupling-zone-min`, `--cem-control-*`, `--cem-icon-button-*` |
 | Control shape | D3 | `--cem-bend-control`, `--cem-bend-field` |
 | Boundary and focus strokes | D5 | `--cem-stroke-boundary`, `--cem-stroke-focus`, `--cem-stroke-indicator-offset` |
-| Labels and range text | D6 UI typography | `--cem-typography-ui-*` |
+| Control labels | D6 UI typography | `--cem-typography-ui-*` |
+| Numeric range | D6 data typography | `--cem-typography-data-*`, including numeral features |
+
+Operable dimensions clamp D2c visual sizes to `--cem-coupling-zone-min`; gaps
+between controls clamp D1 spacing to `--cem-coupling-guard-min`. Theme overrides
+may enlarge targets but cannot shrink them below those inherited safety floors.
 
 No new theme semantic and no `components-css-exceptions.md` entry are
 required. The page-size control is in-flow, so it does not require popup
@@ -164,3 +169,10 @@ forced-colors gate must prove:
 - [Angular Material paginator overview](https://material.angular.dev/components/paginator/overview)
 - [Pinned Angular Material paginator contract](https://github.com/angular/components/blob/v22.1.1/src/material/paginator/paginator.md)
 - [WAI-ARIA APG landmark regions](https://www.w3.org/WAI/ARIA/apg/practices/landmark-regions/)
+
+## Canonical delivery
+
+The canonical owner is `src/components/cem-paginator/cem-paginator.xhtml`;
+all component assertions live in its colocated `.stories.ts` plays. See the
+[declarative migration and CEM principle audit](disclosure-data-contract.md).
+The static HTML contract fixture remains reference material, not a second owner.

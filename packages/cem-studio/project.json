@@ -52,11 +52,15 @@
             "executor": "nx:run-commands",
             "dependsOn": [
                 {
-                    "projects": ["cem-elements"],
+                    "projects": [
+                        "cem-elements"
+                    ],
                     "target": "build"
                 },
                 {
-                    "projects": ["@epa-wg/cem-ml-cli"],
+                    "projects": [
+                        "@epa-wg/cem-ml-cli"
+                    ],
                     "target": "build"
                 }
             ],
@@ -83,11 +87,15 @@
             "executor": "nx:run-commands",
             "dependsOn": [
                 {
-                    "projects": ["cem-elements"],
+                    "projects": [
+                        "cem-elements"
+                    ],
                     "target": "build"
                 },
                 {
-                    "projects": ["@epa-wg/cem-ml-cli"],
+                    "projects": [
+                        "@epa-wg/cem-ml-cli"
+                    ],
                     "target": "build"
                 }
             ],
@@ -115,11 +123,15 @@
             "executor": "nx:run-commands",
             "dependsOn": [
                 {
-                    "projects": ["cem-elements"],
+                    "projects": [
+                        "cem-elements"
+                    ],
                     "target": "build"
                 },
                 {
-                    "projects": ["@epa-wg/cem-components"],
+                    "projects": [
+                        "@epa-wg/cem-components"
+                    ],
                     "target": "build"
                 }
             ],
@@ -137,7 +149,12 @@
                 {
                     "dependentTasksOutputFiles": "**/*.{js,d.ts}",
                     "transitive": false
-                }
+                },
+                "{projectRoot}/src/shell.xhtml",
+                "{projectRoot}/src/workbench-controls.xhtml",
+                "{projectRoot}/src/workbench-command.xhtml",
+                "{projectRoot}/src/workbench-layout.xhtml",
+                "{projectRoot}/src/workbench-results.xhtml"
             ],
             "outputs": []
         },
@@ -146,7 +163,9 @@
             "executor": "nx:run-commands",
             "dependsOn": [
                 {
-                    "projects": ["cem-elements"],
+                    "projects": [
+                        "cem-elements"
+                    ],
                     "target": "build"
                 }
             ],
@@ -173,11 +192,15 @@
             "executor": "nx:run-commands",
             "dependsOn": [
                 {
-                    "projects": ["cem-elements"],
+                    "projects": [
+                        "cem-elements"
+                    ],
                     "target": "build"
                 },
                 {
-                    "projects": ["@epa-wg/cem-components"],
+                    "projects": [
+                        "@epa-wg/cem-components"
+                    ],
                     "target": "build"
                 }
             ],
@@ -197,7 +220,12 @@
                 {
                     "dependentTasksOutputFiles": "**/*.{js,d.ts}",
                     "transitive": false
-                }
+                },
+                "{projectRoot}/src/shell.xhtml",
+                "{projectRoot}/src/workbench-controls.xhtml",
+                "{projectRoot}/src/workbench-command.xhtml",
+                "{projectRoot}/src/workbench-layout.xhtml",
+                "{projectRoot}/src/workbench-results.xhtml"
             ],
             "outputs": []
         },
@@ -214,16 +242,33 @@
                 "{projectRoot}/src/preview.browser.spec.js",
                 "{projectRoot}/vitest.config.mts",
                 "{workspaceRoot}/package.json",
-                "{workspaceRoot}/yarn.lock"
+                "{workspaceRoot}/yarn.lock",
+                "{projectRoot}/src/shell.js",
+                "{projectRoot}/src/*.xhtml",
+                {
+                    "dependentTasksOutputFiles": "**/*.{js,d.ts,xhtml}",
+                    "transitive": false
+                }
             ],
-            "outputs": []
+            "outputs": [],
+            "dependsOn": [
+                {
+                    "projects": [
+                        "cem-elements",
+                        "@epa-wg/cem-components"
+                    ],
+                    "target": "build"
+                }
+            ]
         },
         "generate:feature-tour": {
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
                 {
-                    "projects": ["@epa-wg/cem-ml"],
+                    "projects": [
+                        "@epa-wg/cem-ml"
+                    ],
                     "target": "build"
                 }
             ],
@@ -242,7 +287,9 @@
                     "transitive": false
                 }
             ],
-            "outputs": ["{projectRoot}/generated/feature-tour"]
+            "outputs": [
+                "{projectRoot}/generated/feature-tour"
+            ]
         },
         "build": {
             "cache": true,
@@ -250,27 +297,39 @@
             "dependsOn": [
                 "generate:feature-tour",
                 {
-                    "projects": ["cem_ml_cli"],
+                    "projects": [
+                        "cem_ml_cli"
+                    ],
                     "target": "build"
                 },
                 {
-                    "projects": ["@epa-wg/cem-ml-cli"],
+                    "projects": [
+                        "@epa-wg/cem-ml-cli"
+                    ],
                     "target": "build"
                 },
                 {
-                    "projects": ["cem-elements"],
+                    "projects": [
+                        "cem-elements"
+                    ],
                     "target": "build"
                 },
                 {
-                    "projects": ["@epa-wg/cem-components"],
+                    "projects": [
+                        "@epa-wg/cem-components"
+                    ],
                     "target": "build"
                 },
                 {
-                    "projects": ["@epa-wg/cem-theme"],
+                    "projects": [
+                        "@epa-wg/cem-theme"
+                    ],
                     "target": "build"
                 },
                 {
-                    "projects": ["@epa-wg/custom-element"],
+                    "projects": [
+                        "@epa-wg/custom-element"
+                    ],
                     "target": "build"
                 }
             ],
@@ -299,7 +358,9 @@
         "verify:dependencies": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": ["build"],
+            "dependsOn": [
+                "build"
+            ],
             "options": {
                 "command": "node scripts/verify-dependencies.mjs",
                 "cwd": "{projectRoot}"
@@ -314,12 +375,16 @@
                 "{workspaceRoot}/nx.json",
                 "{workspaceRoot}/yarn.lock"
             ],
-            "outputs": ["{workspaceRoot}/dist/reports/cem-studio/dependencies.json"]
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/dependencies.json"
+            ]
         },
         "verify:feature-tour": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": ["build"],
+            "dependsOn": [
+                "build"
+            ],
             "options": {
                 "command": "node scripts/verify-feature-tour.mjs",
                 "cwd": "{projectRoot}"
@@ -334,18 +399,24 @@
                     "transitive": false
                 }
             ],
-            "outputs": ["{workspaceRoot}/dist/reports/cem-studio/feature-tour.json"]
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/feature-tour.json"
+            ]
         },
         "verify:ui-classification": {
             "cache": true,
             "executor": "nx:run-commands",
             "dependsOn": [
                 {
-                    "projects": ["@epa-wg/cem-components"],
+                    "projects": [
+                        "@epa-wg/cem-components"
+                    ],
                     "target": "verify-material-parity"
                 },
                 {
-                    "projects": ["@epa-wg/cem-components"],
+                    "projects": [
+                        "@epa-wg/cem-components"
+                    ],
                     "target": "verify-state-matrix"
                 }
             ],
@@ -361,14 +432,18 @@
                 "{workspaceRoot}/docs/component-mvp.md",
                 "{workspaceRoot}/packages/cem-components/tests/angular-material-parity.json",
                 "{workspaceRoot}/packages/cem-components/tests/state-matrix-coverage.json",
-                "{workspaceRoot}/packages/cem-components/src/lib/primitives.ts"
+                "{workspaceRoot}/packages/cem-components/src/components/**/*.xhtml"
             ],
-            "outputs": ["{workspaceRoot}/dist/reports/cem-studio/ui-classification.{json,md}"]
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/ui-classification.{json,md}"
+            ]
         },
         "verify:output": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": ["build"],
+            "dependsOn": [
+                "build"
+            ],
             "options": {
                 "command": "node scripts/verify-output.mjs",
                 "cwd": "{projectRoot}"
@@ -386,12 +461,16 @@
                     "transitive": false
                 }
             ],
-            "outputs": ["{workspaceRoot}/dist/reports/cem-studio/output.json"]
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/output.json"
+            ]
         },
         "verify:static-worker": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": ["verify:determinism"],
+            "dependsOn": [
+                "verify:determinism"
+            ],
             "options": {
                 "command": "node scripts/verify-static-worker.mjs",
                 "cwd": "{projectRoot}"
@@ -404,12 +483,17 @@
                     "transitive": false
                 }
             ],
-            "outputs": ["{workspaceRoot}/dist/reports/cem-studio/static-worker.json"]
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/static-worker.json"
+            ]
         },
         "verify:determinism": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": ["verify:output", "verify:feature-tour"],
+            "dependsOn": [
+                "verify:output",
+                "verify:feature-tour"
+            ],
             "options": {
                 "command": "node scripts/verify-determinism.mjs",
                 "cwd": "{projectRoot}"
@@ -425,7 +509,9 @@
                     "transitive": false
                 }
             ],
-            "outputs": ["{workspaceRoot}/dist/reports/cem-studio/determinism.json"]
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/determinism.json"
+            ]
         },
         "verify": {
             "cache": true,
@@ -444,7 +530,8 @@
                 "verify:ui-classification",
                 "verify:output",
                 "verify:static-worker",
-                "verify:determinism"
+                "verify:determinism",
+                "verify:shell-delivery"
             ],
             "options": {
                 "command": "node -e \"console.log('CEM Studio bootstrap package verification passed.')\"",
@@ -455,7 +542,9 @@
         "package": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": ["verify"],
+            "dependsOn": [
+                "verify"
+            ],
             "options": {
                 "command": "node scripts/package.mjs",
                 "cwd": "{projectRoot}"
@@ -477,7 +566,9 @@
                     "transitive": false
                 }
             ],
-            "outputs": ["{workspaceRoot}/dist/packages/cem-studio"]
+            "outputs": [
+                "{workspaceRoot}/dist/packages/cem-studio"
+            ]
         },
         "verify:consumer": {
             "cache": true,
@@ -485,23 +576,33 @@
             "dependsOn": [
                 "package",
                 {
-                    "projects": ["@epa-wg/cem-ml"],
+                    "projects": [
+                        "@epa-wg/cem-ml"
+                    ],
                     "target": "package"
                 },
                 {
-                    "projects": ["@epa-wg/cem-ml-cli"],
+                    "projects": [
+                        "@epa-wg/cem-ml-cli"
+                    ],
                     "target": "package"
                 },
                 {
-                    "projects": ["cem-elements"],
+                    "projects": [
+                        "cem-elements"
+                    ],
                     "target": "build"
                 },
                 {
-                    "projects": ["@epa-wg/cem-components"],
+                    "projects": [
+                        "@epa-wg/cem-components"
+                    ],
                     "target": "build"
                 },
                 {
-                    "projects": ["@epa-wg/cem-theme"],
+                    "projects": [
+                        "@epa-wg/cem-theme"
+                    ],
                     "target": "build"
                 }
             ],
@@ -517,12 +618,16 @@
                     "transitive": false
                 }
             ],
-            "outputs": ["{workspaceRoot}/dist/reports/cem-studio/consumer.json"]
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/consumer.json"
+            ]
         },
         "verify:release-evidence": {
             "cache": false,
             "executor": "nx:run-commands",
-            "dependsOn": ["verify:consumer"],
+            "dependsOn": [
+                "verify:consumer"
+            ],
             "options": {
                 "command": "node scripts/verify-release-evidence.mjs",
                 "cwd": "{projectRoot}"
@@ -536,11 +641,15 @@
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml",
                 "{workspaceRoot}/nx.json"
             ],
-            "outputs": ["{workspaceRoot}/dist/reports/cem-studio/release-evidence.json"]
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/release-evidence.json"
+            ]
         },
         "check": {
             "executor": "nx:run-commands",
-            "dependsOn": ["verify:release-evidence"],
+            "dependsOn": [
+                "verify:release-evidence"
+            ],
             "options": {
                 "command": "node -e \"console.log('CEM Studio package, deterministic deployment, and clean consumer checks passed.')\"",
                 "cwd": "{workspaceRoot}"
@@ -549,11 +658,40 @@
         },
         "nx-release-publish": {
             "executor": "@nx/js:release-publish",
-            "dependsOn": ["package"],
+            "dependsOn": [
+                "package"
+            ],
             "options": {
                 "access": "public"
             }
+        },
+        "verify:shell-delivery": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "verify:output"
+            ],
+            "options": {
+                "command": "node scripts/verify-static-worker.mjs --shell-only",
+                "cwd": "packages/cem-studio"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-static-worker.mjs",
+                "{projectRoot}/dist/static/**/*",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/shell-delivery.json"
+            ]
         }
     },
-    "tags": ["npm:public", "scope:cem-studio", "type:application", "lang:cem"]
+    "tags": [
+        "npm:public",
+        "scope:cem-studio",
+        "type:application",
+        "lang:cem"
+    ]
 }

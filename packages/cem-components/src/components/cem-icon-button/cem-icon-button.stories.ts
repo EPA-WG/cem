@@ -583,7 +583,7 @@ export const Hover = meta.story({
         if (import.meta.env.MODE !== 'test') return;
         const { userEvent } = await import('vitest/browser');
         const runtime = storybookCemRuntime();
-        await Promise.all(Array.from(canvasElement.querySelectorAll<HTMLElement>('cem-icon-button'), whenCemRendered));
+        await Promise.all(Array.from(canvasElement.querySelectorAll<HTMLElement>('cem-icon-button'), whenIconButtonRendered));
         const harness = {
             root: canvasElement,
             query<T extends Element>(selector: string): T {
@@ -711,7 +711,7 @@ export const Active = meta.story({
         if (import.meta.env.MODE !== 'test') return;
         const { userEvent } = await import('vitest/browser');
         const runtime = storybookCemRuntime();
-        await Promise.all(Array.from(canvasElement.querySelectorAll<HTMLElement>('cem-icon-button'), whenCemRendered));
+        await Promise.all(Array.from(canvasElement.querySelectorAll<HTMLElement>('cem-icon-button'), whenIconButtonRendered));
         const harness = {
             root: canvasElement,
             query<T extends Element>(selector: string): T {

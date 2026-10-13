@@ -10,21 +10,6 @@ export const CEM_STUDIO_LIMITS = Object.freeze({
     structuredRows: 100,
 });
 
-export const CEM_STUDIO_PREVIEW_CSP = [
-    "default-src 'none'",
-    "base-uri 'none'",
-    "connect-src 'none'",
-    "font-src 'none'",
-    "form-action 'none'",
-    "frame-src 'none'",
-    "img-src 'none'",
-    "media-src 'none'",
-    "object-src 'none'",
-    "script-src 'none'",
-    "style-src 'none'",
-    "worker-src 'none'",
-].join('; ');
-
 export class CemStudioLimitError extends Error {
     constructor(code, message, details) {
         super(message);
@@ -132,36 +117,6 @@ export function createCemStudioPreview({ bytes, contentType = 'application/octet
     });
 }
 
-export function mountCemStudioPreview(root, preview) {
-    if (!(root instanceof Element)) throw new TypeError('CEM Studio preview root must be an Element');
-    root.replaceChildren();
-    root.setAttribute('data-cem-studio-preview-kind', preview.kind);
-    root.setAttribute('aria-label', preview.label);
-    if (preview.kind === 'sandboxed-html') {
-        const frame = root.ownerDocument.createElement('iframe');
-        frame.setAttribute('sandbox', '');
-        frame.setAttribute('allow', '');
-        frame.setAttribute('referrerpolicy', 'no-referrer');
-        frame.setAttribute('loading', 'lazy');
-        frame.setAttribute('title', preview.label);
-        frame.srcdoc = previewDocument(preview.source);
-        root.append(frame);
-        return frame;
-    }
-    if (preview.kind === 'text') {
-        const output = root.ownerDocument.createElement('pre');
-        output.tabIndex = 0;
-        output.setAttribute('aria-label', `${preview.label}${preview.truncated ? ' (truncated)' : ''}`);
-        output.textContent = preview.text;
-        root.append(output);
-        return output;
-    }
-    const message = root.ownerDocument.createElement('p');
-    message.textContent = preview.reason;
-    root.append(message);
-    return message;
-}
-
 export function redactCemStudioSecrets(value) {
     return String(value)
         .replace(/(https?:\/\/)[^\s/@:]+:[^\s/@]+@/giu, '$1[redacted]@')
@@ -228,8 +183,4 @@ function decodeUtf8(bytes, mayEndMidSequence) {
         }
     }
     return textDecoder.decode(bytes);
-}
-
-function previewDocument(source) {
-    return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${CEM_STUDIO_PREVIEW_CSP}"><meta name="referrer" content="no-referrer"><title>Sandboxed CEM Studio preview</title></head><body>${source}</body></html>`;
 }

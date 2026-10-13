@@ -1,0 +1,55 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-site-examples">
+  <template id="cem-site-examples" type="text/cem-ml">
+{module @cem:whitespace=layout |
+ {slice @name=state}
+ {slice @name=count | 0}
+ {slice @name=query}
+ {body |
+  {cem:variable @name=state @select=datadom.slices.state}
+  {cem:variable @name=query @select='str:lower(str:trim(datadom.slices.query ?? ""))'}
+  {cem:variable @name=tokenNames
+   @select="seq:where(state.tokens.name, fn(name) =&gt; str:contains(str:lower(name), query))"}
+  {cem:variable @name=tokenStatus
+   @select='str:concat((seq:count(tokenNames), if seq:count(tokenNames) == 1 { " token example" } else { " token examples" }), "")'}
+  {h1 @id=interactive-examples |
+   {$ | state.title}
+  }
+  {p | Explore theme colors, try the controls, and inspect their rendered output.}
+  {section @aria-labelledby=token-example-heading |
+   {h2 @id=token-example-heading | Interactive token filter}
+   {cem-field @aria-describedby=token-filter-status @data-token-filter=""
+    @describedby=token-filter-status @label="Filter token examples" @slice=query @slice-event=input
+    @slice-value="$target.value" @type=search @value={datadom.slices.query ?? ""}}
+   {output @data-token-status="" @id=token-filter-status @role=status |
+    {$ | tokenStatus}
+   }
+   {ul @data-token-list="" |
+    {cem:for-each @as=token @select=state.tokens |
+     {cem:if @test="str:contains(str:lower(token.name), query)" |
+      {li @data-token-example={token.name} @data-token-tone={token.tone} |
+       {cem-surface @tone={token.tone} |
+        {strong |
+         {$ | token.label}
+        }
+        {code |
+         {$ | token.name}
+  }}}}}}}
+  {section @aria-labelledby=component-example-heading |
+   {h2 @id=component-example-heading | Production component examples}
+   {cem-action @data-component-example=action @label={state.actionLabel} @slice=count @slice-event=click
+    @slice-value="$count + 1"}
+   {cem-field @data-component-example=field @label={state.fieldLabel}}
+   {output @data-action-count="" @role=status |
+    {$ | str:concat(("Action count: ", datadom.slices.count ?? 0), "")}
+  }}
+  {section @aria-labelledby=cem-fixture-heading |
+   {h2 @id=cem-fixture-heading | CEM fixture and native light-DOM output}
+   {cem-site-greeting @data-cem-fixture-instance="" @name={state.name}}
+   {h3 @id=cem-source | CEM source}
+   {cem-media-preview @data-cem-source="" @label="CEM source" @mode=text @value={state.source}}
+   {h3 @id=native-output | Native output}
+   {cem-media-preview @data-native-output="" @label="Rendered HTML" @mode=text @value={state.nativeOutput}}
+}}}
+
+  </template>
+</cem-element>

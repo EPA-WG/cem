@@ -1,0 +1,152 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-tabs" capability="tab-panels">
+<template id="cem-tabs" type="text/cem-ml">
+{module | {attribute @name=label | Tabs}
+ {slice @name=tabs}
+ {template @name=tab-header |  {param @name=tab}  {body |   {button @id="{$tab.buttonId}" @type=button @class=cem-tabs__tab @part="tab" @role=tab @data-tab-index="{$tab.index}" @tabindex="{$tab.tabIndex}" @disabled={if tab.disabled { true } else { null }} @aria-selected="{$tab.selected}" @aria-controls="{$tab.panelId}" | {$tab.label}}}}
+ {template @name=tab-panel |  {param @name=tab}  {body |   {div @id="{$tab.panelId}" @class=cem-tabs__panel @part="panel" @role=tabpanel @data-tab-index="{$tab.index}" @tabindex=0 @aria-labelledby="{$tab.buttonId}" @hidden={if tab.selected { null } else { true }} |    {cem:project-payload @select="tab.children" | }}}}
+ {body | {style @type=text/css |```
+:scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
+:scope > :where([role='tablist']) > :where(button[role='tab']) {
+    background-color: var(--cem-navigation-item-default-background);
+    color: var(--cem-navigation-item-default-text);
+}
+
+:scope > :where([role='tablist']) > :where(button[role='tab']):enabled:where(:not([aria-disabled='true']):hover) {
+    background-color: var(--cem-navigation-item-hover-background);
+    color: var(--cem-navigation-item-hover-text);
+}
+
+:scope > :where([role='tablist']) > :where(button[role='tab']):enabled:where(:not([aria-disabled='true']):active) {
+    background-color: var(--cem-navigation-item-active-background);
+    color: var(--cem-navigation-item-active-text);
+}
+
+:scope > :where([role='tablist']) > :where(button[role='tab'])[aria-selected='true'] {
+    background-color: var(--cem-navigation-item-current-background);
+    color: var(--cem-navigation-item-current-text);
+}
+
+:scope > :where([role='tablist']) > :where(button[role='tab'])[aria-selected='true']:where(:enabled:not([aria-disabled='true']):hover) {
+    background-color: var(--cem-navigation-item-current-hover-background);
+    color: var(--cem-navigation-item-current-hover-text);
+}
+
+:scope > :where([role='tablist']) > :where(button[role='tab'])[aria-selected='true']:where(:enabled:not([aria-disabled='true']):active) {
+    background-color: var(--cem-navigation-item-current-active-background);
+    color: var(--cem-navigation-item-current-active-text);
+}
+
+:scope > :where([role='tablist']) > :where(button[role='tab']:is(:disabled, [aria-disabled='true'])), :scope > :where([role='tablist']) > :where(button[role='tab'])[aria-selected='true']:where(:is(:disabled, [aria-disabled='true'])) {
+    background-color: var(--cem-navigation-item-disabled-background);
+    color: var(--cem-navigation-item-disabled-text);
+}
+
+:scope > :where([role='tablist']) > :where(button[role='tab']):enabled:where(:focus-visible) {
+    outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1);
+    outline-offset: var(--cem-stroke-indicator-offset);
+}
+
+:scope {
+    background-color: var(--cem-palette-comfort);
+    color: var(--cem-palette-comfort-text);
+    display: block;
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    line-height: var(--cem-typography-ui-line-height);
+}
+
+:scope[orientation='vertical'] {
+    display: grid;
+    gap: var(--cem-gap-group);
+    grid-template-columns: auto minmax(0, 1fr);
+}
+
+:scope > :where([part~="list"]) {
+    display: flex;
+    gap: var(--cem-gap-related);
+}
+
+:scope > :where([part~="list"])[aria-orientation='vertical'] {
+    display: grid;
+}
+
+:scope > :where([part~="list"]) > :where([part~="tab"]) {
+    appearance: none;
+    border: var(--cem-stroke-none) solid transparent;
+    border-block-end-width: var(--cem-stroke-divider);
+    border-radius: var(--cem-bend-control);
+    box-sizing: border-box;
+    font: inherit;
+    font-weight: var(--cem-typography-ui-font-weight);
+    letter-spacing: var(--cem-typography-ui-letter-spacing);
+    margin: var(--cem-stroke-none);
+    min-block-size: var(--cem-coupling-zone-min);
+    padding-block: var(--cem-control-padding-y);
+    padding-inline: var(--cem-control-padding-x);
+}
+
+:scope > :where([part~="list"]) > :where([part~="tab"])[aria-selected='true'] {
+    border-block-end-color: currentColor;
+}
+
+:scope > :where([part~="list"])[aria-orientation='vertical'] > :where([part~="tab"]) {
+    border-block-end-width: var(--cem-stroke-none);
+    border-inline-end-width: var(--cem-stroke-divider);
+    text-align: start;
+}
+
+:scope > :where([part~="list"])[aria-orientation='vertical'] > :where([part~="tab"][aria-selected='true']) {
+    border-inline-end-color: currentColor;
+}
+
+:scope > :where([part~="panels"]) > :where([part~="panel"]) {
+    background-color: var(--cem-palette-comfort);
+    color: var(--cem-palette-comfort-text);
+    padding: var(--cem-inset-container);
+}
+
+@media (forced-colors: active) {
+
+    :scope > :where([role='tablist']) > :where(button[role='tab'])[aria-selected='true'] {
+        background-color: SelectedItem;
+        color: SelectedItemText;
+    }
+
+    :scope > :where([role='tablist']) > :where(button[role='tab']):enabled:where(:not([aria-disabled='true']):hover), :scope > :where([role='tablist']) > :where(button[role='tab'])[aria-selected='true']:where(:enabled:not([aria-disabled='true']):hover) {
+        background-color: Highlight;
+        color: HighlightText;
+    }
+
+    :scope > :where([role='tablist']) > :where(button[role='tab']):enabled:where(:not([aria-disabled='true']):active), :scope > :where([role='tablist']) > :where(button[role='tab'])[aria-selected='true']:where(:enabled:not([aria-disabled='true']):active) {
+        background-color: Highlight;
+        color: HighlightText;
+    }
+
+    :scope > :where([role='tablist']) > :where(button[role='tab']:is(:disabled, [aria-disabled='true'])), :scope > :where([role='tablist']) > :where(button[role='tab'])[aria-selected='true']:where(:is(:disabled, [aria-disabled='true'])) {
+        background-color: Canvas;
+        color: GrayText;
+    }
+
+    :scope > :where([role='tablist']) > :where(button[role='tab']):enabled:where(:focus-visible) {
+        outline: var(--cem-stroke-focus) solid CanvasText;
+        outline-offset: var(--cem-stroke-indicator-offset);
+    }
+
+    :scope,
+:scope > :where([part~="panels"]) > :where([part~="panel"]) {
+        background-color: Canvas;
+        color: CanvasText;
+    }
+
+    :scope > :where([part~="list"]) > :where([part~="tab"])[aria-selected='true'] {
+        border-block-end-color: Highlight;
+    }
+
+    :scope > :where([part~="list"])[aria-orientation='vertical'] > :where([part~="tab"][aria-selected='true']) {
+        border-block-end-color: transparent;
+        border-inline-end-color: Highlight;
+    }
+}
+```}  {cem:choose |   {cem:when @test=datadom.slices.authoringValid |    {div @class=cem-tabs__list @part="list" @role=tablist @aria-label={datadom.attributes.aria-label ?? label} @aria-orientation="{$datadom.slices.orientation}" |     {cem:for-each @select=datadom.slices.tabs @as=tab | {call @template=tab-header @with:tab="{$tab}"}}}    {div @class=cem-tabs__panels @part="panels" |     {cem:for-each @select=datadom.slices.tabs @as=tab | {call @template=tab-panel @with:tab="{$tab}"}}}}   {cem:otherwise | {span @class="cem-tabs cem-tabs--invalid" @part="root" @hidden=true | }}}}}
+</template>
+</cem-element>

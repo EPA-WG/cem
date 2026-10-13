@@ -611,7 +611,16 @@ class RootCemProcessingHost implements CemProcessingHost {
         input = { ...input, consumer: JSON.stringify([this.stylesheetOwner, input.consumer]) };
         const key = JSON.stringify([input.artifact, input.consumer]);
         if (input.action !== 'release') this.stylesheetConsumers.set(key, { artifact: input.artifact, consumer: input.consumer });
-        const job = this.submit('stylesheet', input);
+        // Like render-diff, a new load may begin after the bounded worker cache
+        // evicted its artifact. Reacquire only at begin; delivery/release must
+        // keep their original generation and reject stale load handles.
+        const compileInput = input.action === 'begin'
+            ? this.compileInputs.get(compileInputKey(input.artifact.scopePolicyStamp, input.artifact.artifactId))
+            : undefined;
+        const preflight = compileInput
+            ? createCemProcessingRequestEnvelope(this.sequence, 'compile', compileInput)
+            : undefined;
+        const job = this.submit('stylesheet', input, false, preflight);
         const result = job.result.then((result) => {
             if (input.action === 'release' && input.loadId === undefined) this.stylesheetConsumers.delete(key);
             return result;

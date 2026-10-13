@@ -1,16 +1,35 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import {
     CEM_STUDIO_LIMITS,
-    CEM_STUDIO_PREVIEW_CSP,
     CemStudioLimitError,
     assertCemStudioResourceUri,
     assertCemStudioResultSize,
     assertCemStudioSourceSet,
     createCemStudioPreview,
-    mountCemStudioPreview,
     redactCemStudioSecrets,
 } from './preview.js';
+import { installCemStudioShellComponents } from './shell.js';
+
+let runtime;
+beforeAll(async () => {
+    const map = document.createElement('script'); map.type = 'importmap';
+    map.textContent = JSON.stringify({ imports: {
+        '@epa-wg/cem-components/components.xhtml': new URL('../../cem-components/dist/components.xhtml', import.meta.url).href,
+    } });
+    document.head.append(map);
+    ({ runtime } = await installCemStudioShellComponents());
+});
+
+async function renderPreview(root, preview) {
+    const host = document.createElement('cem-media-preview');
+    host.setAttribute('mode', preview.kind === 'text' ? 'text' : preview.kind === 'sandboxed-html' ? 'document' : 'message');
+    host.setAttribute('label', preview.label);
+    host.setAttribute('value', preview.text ?? preview.source ?? preview.reason);
+    host.toggleAttribute('truncated', Boolean(preview.truncated));
+    root.append(host); await runtime.whenRenderSettled(host);
+    return host.querySelector('pre, iframe, [part=message]');
+}
 
 afterEach(() => {
     document.body.replaceChildren();
@@ -45,7 +64,7 @@ describe('CEM Studio bounded preview boundary', () => {
         expect(() => assertCemStudioResultSize(CEM_STUDIO_LIMITS.resultBytes + 1)).toThrowError(CemStudioLimitError);
     });
 
-    it('renders declared text only as text and bounds its focusable DOM projection', () => {
+    it('renders declared text only as text and bounds its focusable DOM projection', async () => {
         const attack = '<img src=x onerror="globalThis.__cemStudioPreviewAttack=true"><script>attack()</script>';
         const preview = createCemStudioPreview({
             bytes: new TextEncoder().encode(attack),
@@ -53,7 +72,7 @@ describe('CEM Studio bounded preview boundary', () => {
         });
         const root = document.createElement('section');
         document.body.append(root);
-        const output = mountCemStudioPreview(root, preview);
+        const output = await renderPreview(root, preview);
 
         expect(preview).toMatchObject({ kind: 'text', truncated: false });
         expect(output.tagName).toBe('PRE');
@@ -75,11 +94,11 @@ describe('CEM Studio bounded preview boundary', () => {
         });
         const root = document.createElement('section');
         document.body.append(root);
-        const frame = mountCemStudioPreview(root, preview);
-        await new Promise((resolve) => frame.addEventListener('load', resolve, { once: true }));
+        const frame = await renderPreview(root, preview);
+        await expect.poll(() => frame.contentDocument).toBeNull();
 
         expect(preview).toMatchObject({ kind: 'sandboxed-html', truncated: false });
-        expect(frame.srcdoc.indexOf(CEM_STUDIO_PREVIEW_CSP)).toBeLessThan(frame.srcdoc.indexOf(attack));
+        expect(frame.srcdoc.indexOf("default-src 'none'")).toBeLessThan(frame.srcdoc.indexOf(attack));
         expect(frame.getAttribute('sandbox')).toBe('');
         expect(frame.getAttribute('allow')).toBe('');
         expect(frame.getAttribute('referrerpolicy')).toBe('no-referrer');

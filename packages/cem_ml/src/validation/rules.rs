@@ -22,8 +22,6 @@ use crate::engine::{
     FormatIdentity, TemplateInput, TransformExecutionPolicy, TransformTemplateEntrypoint,
 };
 use crate::events::cem::CemEventNormalizer;
-use crate::parser::builder::CemAstBuilder;
-use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
 use crate::resolver::{has_uri_scheme, is_windows_drive_path, parse_local_file_uri};
 use crate::run_config::ScopeConfig;
@@ -40,6 +38,7 @@ use crate::schema::reference_resolution::{
     ReferenceValue, ReferenceValueCardinality,
 };
 use crate::schema::registry::{
+    CEM_DATA_ISLAND_CONTENT_TYPE, CEM_DATA_ISLAND_SCHEMA_URI,
     content_type_essence, SchemaDescriptor, SchemaRegistry, CEM_AST_JSON_PROJECTION_CONTENT_TYPE,
     CEM_AST_PROJECTION_CONTENT_TYPE, CEM_AST_PROJECTION_SCHEMA_URI,
     CEM_DOM_JSON_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_CONTENT_TYPE,
@@ -2781,7 +2780,7 @@ fn validate_schema_package_example_source_bytes(
     resource_reader: Option<&crate::validation::RuleResourceReader<'_>>,
     schema_behavior_evaluator: Option<&dyn crate::schema::document_model::SchemaBehaviorEvaluator>,
 ) -> Option<Vec<Diagnostic>> {
-    let document = match schema_package_example_tokenizer(content_type, schema_uri)? {
+    let captured = match schema_package_example_tokenizer(content_type, schema_uri)? {
         SchemaPackageExampleTokenizer::CemAstProjection => {
             return Some(validate_cem_ast_projection_source_bytes(
                 CemAstProjectionSourceValidationRequest {
@@ -2809,7 +2808,7 @@ fn validate_schema_package_example_source_bytes(
                 },
             ));
         }
-        SchemaPackageExampleTokenizer::Cem => parse_example_cem_document(bytes),
+        SchemaPackageExampleTokenizer::Cem => parse_example_cem_document(bytes, content_type, schema_uri),
         SchemaPackageExampleTokenizer::Markdown => {
             let (_, diagnostics) =
                 markdown_document_ast_from_source_bytes(MarkdownSourceValidationRequest {
@@ -2888,6 +2887,7 @@ fn validate_schema_package_example_source_bytes(
             }));
         }
     };
+    let document = captured.document();
     let upstream_diagnostics = document.diagnostics.clone();
     let mut diagnostics = document.diagnostics.clone();
     if schema_uri == CEM_SCHEMA_PACKAGE_URI
@@ -2901,7 +2901,7 @@ fn validate_schema_package_example_source_bytes(
         }
     }
     diagnostics.extend(RuleRegistry::with_tier_a_rules().run(&RuleContext {
-        lexical_scopes: None,
+        lexical_scopes: Some(&captured),
         document: &document,
         schema_uri: Some(schema_uri),
         content_type: Some(content_type),
@@ -3023,6 +3023,7 @@ fn schema_package_example_tokenizer(
     if matches!(
         content_type.as_str(),
         CEM_ML_CONTENT_TYPE
+            | CEM_DATA_ISLAND_CONTENT_TYPE
             | CEM_SCHEMA_CONTENT_TYPE
             | CEM_SCHEMA_PACKAGE_CONTENT_TYPE
             | CEM_NATIVE_TEMPLATE_CONTENT_TYPE
@@ -3031,6 +3032,7 @@ fn schema_package_example_tokenizer(
     ) || matches!(
         schema_uri,
         CEM_ML_SCHEMA_URI
+            | CEM_DATA_ISLAND_SCHEMA_URI
             | CEM_SCHEMA_URI
             | CEM_SCHEMA_PACKAGE_URI
             | CEM_NATIVE_TEMPLATE_SCHEMA_URI
@@ -3042,24 +3044,29 @@ fn schema_package_example_tokenizer(
     None
 }
 
-fn parse_example_cem_document(bytes: &[u8]) -> CemDocument {
-    let schema_machine_diagnostics = {
-        let src = BytesSource::new(SourceId(1), bytes.to_vec());
-        let tok = CemTokenizer::from_source(src);
-        let normalizer = CemEventNormalizer::new(tok);
-        CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer)
-            .run()
-            .diagnostics
-    };
-
+fn parse_example_cem_document(
+    bytes: &[u8],
+    content_type: &str,
+    schema_uri: &str,
+) -> crate::schema::machine::LexicallyScopedDocument {
     let src = BytesSource::new(SourceId(1), bytes.to_vec());
     let mut tok = CemTokenizer::from_source(src);
     let tok_diags = tok.take_diagnostics();
     let normalizer = CemEventNormalizer::new(tok);
-    let mut document = CemAstBuilder::new(normalizer).build();
-    document.diagnostics.extend(tok_diags);
-    document.diagnostics.extend(schema_machine_diagnostics);
-    document
+    let mut captured = CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer)
+        .with_root_schema_namespaces(
+            crate::schema::document_model::document_model_namespace_claims(
+                Some(schema_uri),
+                Some(content_type),
+                None,
+                None,
+            ),
+        )
+        .build_with_lexical_scopes();
+    let machine_diags = captured.diagnostics().to_vec();
+    captured.document_mut().diagnostics.extend(tok_diags);
+    captured.document_mut().diagnostics.extend(machine_diags);
+    captured
 }
 
 fn schema_package_example_schema_content_type_failed_diag(
@@ -3246,10 +3253,48 @@ impl SemanticRule for OpenContentPolicyRule {
             return Vec::new();
         }
 
+        let model_namespaces = crate::schema::document_model::document_model_namespace_claims(
+            ctx.schema_uri,
+            ctx.content_type,
+            ctx.schema_registry,
+            ctx.schema_document_models,
+        );
+        let captured = ctx
+            .lexical_scopes
+            .filter(|captured| std::ptr::eq(ctx.document, captured.document().as_ref()));
+        // CEM keeps lexical names in the original AST. Resolve model ownership
+        // from this owner's captured names, without rewriting those source nodes.
+        // Unqualified attributes belong to their element's model; embedded HTML
+        // and foreign content retain the ordinary open-content policy.
+        let mut model_nodes = BTreeSet::new();
+        for node in ctx.document.iter() {
+            if let CemAstNode::Element {
+                node_id,
+                expanded_name,
+                attributes,
+                ..
+            } = node
+            {
+                let name = captured
+                    .and_then(|c| c.expanded_name(c.document(), *node_id))
+                    .unwrap_or(expanded_name);
+                if model_namespaces.contains(&name.namespace_uri) {
+                    model_nodes.insert(*node_id);
+                    model_nodes.extend(attributes.iter().copied());
+                }
+            }
+        }
         let mut out = Vec::new();
         for node in ctx.document.iter() {
             match node {
-                CemAstNode::Element { expanded_name, .. } => {
+                CemAstNode::Element {
+                    node_id,
+                    expanded_name,
+                    ..
+                } => {
+                    if model_nodes.contains(node_id) {
+                        continue;
+                    }
                     let ns = expanded_name.namespace_uri.as_str();
                     let local = expanded_name.local_name.as_str();
                     if local.is_empty() || local == "$" || local.starts_with('@') {
@@ -3283,7 +3328,14 @@ impl SemanticRule for OpenContentPolicyRule {
                         ));
                     }
                 }
-                CemAstNode::Attribute { expanded_name, .. } => {
+                CemAstNode::Attribute {
+                    node_id,
+                    expanded_name,
+                    ..
+                } => {
+                    if model_nodes.contains(node_id) {
+                        continue;
+                    }
                     let ns = expanded_name.namespace_uri.as_str();
                     let local = expanded_name.local_name.as_str();
                     if is_schema_language_namespace(ns) {
@@ -3460,6 +3512,7 @@ const KNOWN_HTML_SVG_ATTRIBUTES: &[&str] = &[
     "required",
     "role",
     "rows",
+    "slot",
     "src",
     "srcdoc",
     "title",
@@ -4737,6 +4790,23 @@ mod tests {
             }),
             "declared CEM schema-package identity should validate the .html source as CEM and match expected diagnostics: {diags:?}"
         );
+    }
+
+    #[test]
+    fn schema_package_example_contract_validates_data_island_source() {
+        let source = include_str!("../../schema-packages/cem-data-island/v1/examples/complete-instance.cem");
+        let diagnostics = validate_schema_package_example_source_bytes(
+            source.as_bytes(), CEM_DATA_ISLAND_CONTENT_TYPE, CEM_DATA_ISLAND_SCHEMA_URI,
+            "complete-instance.cem", None, None,
+        ).expect("data-island CEM example must be supported");
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+
+        let invalid = source.replace("@version=\"0.1.2\"", "");
+        let diagnostics = validate_schema_package_example_source_bytes(
+            invalid.as_bytes(), CEM_DATA_ISLAND_CONTENT_TYPE, CEM_DATA_ISLAND_SCHEMA_URI,
+            "invalid-instance.cem", None, None,
+        ).unwrap();
+        assert!(diagnostics.iter().any(|d| d.code == "cem.schema_model.missing_required_attribute"), "{diagnostics:?}");
     }
 
     #[test]

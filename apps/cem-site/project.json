@@ -33,7 +33,7 @@
                     "target": "build"
                 },
                 {
-                    "projects": ["@epa-wg/custom-element"],
+                    "projects": ["cem-elements"],
                     "target": "build"
                 }
             ],
@@ -68,7 +68,6 @@
                 "{workspaceRoot}/packages/cem-components/docs/component-reference.md",
                 "{workspaceRoot}/packages/cem-components/docs/angular-material-parity.md",
                 "{workspaceRoot}/packages/cem-components/declarative-migration.json",
-                "{workspaceRoot}/packages/cem-components/src/lib/primitives.ts",
                 "{workspaceRoot}/packages/cem-components/src/components/**/*.xhtml",
                 "{workspaceRoot}/packages/cem-components/tests/angular-material-parity.json",
                 "{workspaceRoot}/CHANGELOG.md",
@@ -122,6 +121,7 @@
                 "{projectRoot}/site.routes.json",
                 "{projectRoot}/scripts/verify-interactive.mjs",
                 "{projectRoot}/scripts/verify-xhtml.mjs",
+                "{projectRoot}/scripts/verify-themes.mjs",
                 {
                     "dependentTasksOutputFiles": "**/*",
                     "transitive": false
@@ -141,6 +141,7 @@
                 "{projectRoot}/site.routes.json",
                 "{projectRoot}/scripts/verify-search.mjs",
                 "{projectRoot}/scripts/verify-xhtml.mjs",
+                "{projectRoot}/scripts/verify-themes.mjs",
                 {
                     "dependentTasksOutputFiles": "**/*",
                     "transitive": false

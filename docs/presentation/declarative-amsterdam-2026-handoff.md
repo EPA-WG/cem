@@ -2,15 +2,18 @@
 
 Started 2026-10-10 before clearing chat context; updated 2026-10-11 after agenda
 alignment. The user requested a temporary switch from implementation to preparing
-the CEM presentation for Declarative Amsterdam 2026. The current priority order
-is presentation, CEM Studio, then the preserved implementation queue.
+the CEM presentation for Declarative Amsterdam 2026. The user changed priority
+on 2026-10-11: resume CEM components now, starting
+with cem-datepicker. Presentation and Studio work are deferred with their
+materials and unfinished actions preserved.
 
 ## Resume after clearing context
 
-Read the repository's [CLAUDE.md](../../CLAUDE.md), then the current presentation
-section in [docs/todo.md](../todo.md#current-work-declarative-amsterdam-2026-cem-presentation).
-That file remains the sole execution checklist. Work on its first unfinished
-presentation action; do not start datepicker migration while this set is active.
+Read the repository's [CLAUDE.md](../../CLAUDE.md), then [docs/todo.md](../todo.md).
+That file remains the sole execution checklist. Its component implementation
+queue is active; presentation preparation resumes only when requested. The
+[deferred presentation actions](../todo.md#deferred-work-declarative-amsterdam-2026-cem-presentation)
+retain the remaining deck, tutorial, release and rehearsal work.
 
 The user requested an adoption-focused platform pitch on October 10 and
 alignment with the published agenda on October 11. Read the
@@ -137,9 +140,13 @@ deadline as completion of the remaining component migration or device coverage.
 
 ## Return to implementation
 
+Priority update 2026-10-11: the user has resumed component implementation before
+presentation completion. The earlier presentation → Studio → components sequence
+below is historical; use the active TODO order and preserve unfinished work.
+
 When the presentation, supporting demo/setup files and rehearsal evidence are
 ready, record their paths and status here, close/archive that presentation set
-in the TODO, and continue with [CEM Studio](../todo.md#next-priority-cem-studio).
+in the TODO, and continue with [CEM Studio](../todo.md#deferred-priority-cem-studio).
 Preserve any implementation changes actually made during preparation and update
 their evidence individually. The earlier queue's 16 actions remain open until
 their own acceptance requirements are met.

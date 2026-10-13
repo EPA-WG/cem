@@ -306,8 +306,8 @@
                 },
                 {
                     "component": "cem-timepicker",
-                    "owner": "packages/cem-components/src/lib/timepicker.browser.spec.ts",
-                    "test": "keeps one direct native text input and optional native toggle as the exact owners",
+                    "owner": "packages/cem-components/src/components/cem-timepicker/cem-timepicker.stories.ts",
+                    "test": "NativeOwners",
                     "assertions": [
                         "expect(parts.input.getAttribute('role')).toBe('combobox');",
                         "expect(new FormData(requiredElement<HTMLFormElement>(root, '#timepicker-form')).get('meeting-time')).toBe('09:30');"
@@ -315,8 +315,8 @@
                 },
                 {
                     "component": "cem-datepicker",
-                    "owner": "packages/cem-components/src/lib/datepicker.browser.spec.ts",
-                    "test": "keeps one direct native text input and optional native toggle as the exact owners",
+                    "owner": "packages/cem-components/src/components/cem-datepicker/cem-datepicker.stories.ts",
+                    "test": "NativeOwners",
                     "assertions": [
                         "expect(parts.input.getAttribute('role')).toBe('combobox');",
                         "expect(new FormData(requiredElement<HTMLFormElement>(root, '#datepicker-form')).get('arrival-date')).toBe('2026-08-11');"
@@ -324,8 +324,8 @@
                 },
                 {
                     "component": "cem-slider",
-                    "owner": "packages/cem-components/src/lib/slider.browser.spec.ts",
-                    "test": "keeps exact native single and range inputs as the accessible form owners",
+                    "owner": "packages/cem-components/src/components/cem-slider/cem-slider.stories.ts",
+                    "test": "NativeOwners",
                     "assertions": [
                         "expect(single.owner.dataset.mode).toBe('single');",
                         "expect(range.owner.dataset.mode).toBe('range');"
@@ -428,8 +428,8 @@
                 },
                 {
                     "component": "cem-timepicker",
-                    "owner": "packages/cem-components/src/lib/timepicker.browser.spec.ts",
-                    "test": "keeps hover, focus-visible, expanded, active, selected, and disabled paint independent and geometry-stable",
+                    "owner": "packages/cem-components/src/components/cem-timepicker/cem-timepicker.stories.ts",
+                    "test": "StatePaintAndGeometry",
                     "assertions": [
                         "expect(parts.input.matches(':hover')).toBe(true);",
                         "expect(geometry(parts.input)).toEqual(baselineGeometry);",
@@ -438,8 +438,8 @@
                 },
                 {
                     "component": "cem-datepicker",
-                    "owner": "packages/cem-components/src/lib/datepicker.browser.spec.ts",
-                    "test": "keeps today, selected, focus, hover, and disabled paint independent and geometry-stable",
+                    "owner": "packages/cem-components/src/components/cem-datepicker/cem-datepicker.stories.ts",
+                    "test": "IndependentPaintAndGeometry",
                     "assertions": [
                         "expect(parts.input.matches(':hover')).toBe(true);",
                         "expect(geometry(parts.input)).toEqual(baselineInputGeometry);",
@@ -448,8 +448,8 @@
                 },
                 {
                     "component": "cem-slider",
-                    "owner": "packages/cem-components/src/lib/slider.browser.spec.ts",
-                    "test": "keeps pointer enter/leave, hover, active, and focus-visible on the native thumb with stable state",
+                    "owner": "packages/cem-components/src/components/cem-slider/cem-slider.stories.ts",
+                    "test": "PointerStateAndGeometry",
                     "assertions": [
                         "expect(input.matches(':hover')).toBe(true);",
                         "expect(mutations).toEqual([]);"
@@ -546,8 +546,8 @@
                 },
                 {
                     "component": "cem-timepicker",
-                    "owner": "packages/cem-components/src/lib/timepicker.browser.spec.ts",
-                    "test": "keeps hover, focus-visible, expanded, active, selected, and disabled paint independent and geometry-stable",
+                    "owner": "packages/cem-components/src/components/cem-timepicker/cem-timepicker.stories.ts",
+                    "test": "StatePaintAndGeometry",
                     "assertions": [
                         "expect(document.activeElement).toBe(parts.input);",
                         "expect(parts.input.matches(':focus-visible')).toBe(true);"
@@ -555,16 +555,16 @@
                 },
                 {
                     "component": "cem-datepicker",
-                    "owner": "packages/cem-components/src/lib/datepicker.browser.spec.ts",
-                    "test": "keeps today, selected, focus, hover, and disabled paint independent and geometry-stable",
+                    "owner": "packages/cem-components/src/components/cem-datepicker/cem-datepicker.stories.ts",
+                    "test": "IndependentPaintAndGeometry",
                     "assertions": [
                         "expect(currentSelected.matches(':focus-visible')).toBe(true);"
                     ]
                 },
                 {
                     "component": "cem-slider",
-                    "owner": "packages/cem-components/src/lib/slider.browser.spec.ts",
-                    "test": "keeps pointer enter/leave, hover, active, and focus-visible on the native thumb with stable state",
+                    "owner": "packages/cem-components/src/components/cem-slider/cem-slider.stories.ts",
+                    "test": "PointerStateAndGeometry",
                     "assertions": [
                         "expect(document.activeElement).toBe(input);",
                         "expect(input.matches(':focus-visible')).toBe(true);"
@@ -650,8 +650,8 @@
                 },
                 {
                     "component": "cem-timepicker",
-                    "owner": "packages/cem-components/src/lib/timepicker.browser.spec.ts",
-                    "test": "suppresses every disabled route and rejects malformed owner vocabulary without substitution",
+                    "owner": "packages/cem-components/src/components/cem-timepicker/cem-timepicker.stories.ts",
+                    "test": "DisabledAndMalformed",
                     "assertions": [
                         "expect(disabled.input.disabled).toBe(true);",
                         "expect(disabled.popup.matches(':popover-open')).toBe(false);"
@@ -659,8 +659,8 @@
                 },
                 {
                     "component": "cem-datepicker",
-                    "owner": "packages/cem-components/src/lib/datepicker.browser.spec.ts",
-                    "test": "suppresses every disabled route and rejects malformed owner vocabulary without substitution",
+                    "owner": "packages/cem-components/src/components/cem-datepicker/cem-datepicker.stories.ts",
+                    "test": "DisabledAndMalformedOwners",
                     "assertions": [
                         "expect(disabled.input.disabled).toBe(true);",
                         "expect(disabled.dialog.open).toBe(false);"
@@ -668,8 +668,8 @@
                 },
                 {
                     "component": "cem-slider",
-                    "owner": "packages/cem-components/src/lib/slider.browser.spec.ts",
-                    "test": "projects global disabled suppression and skips the disabled native owner",
+                    "owner": "packages/cem-components/src/components/cem-slider/cem-slider.stories.ts",
+                    "test": "DisabledOwners",
                     "assertions": [
                         "expect(input.disabled).toBe(true);",
                         "expect(events).toEqual([]);"
@@ -811,7 +811,12 @@
             "id": "input:expanded",
             "category": "Input",
             "state": "expanded",
-            "components": ["cem-autocomplete", "cem-timepicker", "cem-datepicker", "cem-select"],
+            "components": [
+                "cem-autocomplete",
+                "cem-timepicker",
+                "cem-datepicker",
+                "cem-select"
+            ],
             "interaction": "Open and close a select-like disclosure and mirror its expanded state.",
             "status": "covered",
             "owner": "packages/cem-components/src/components/cem-select/cem-select.stories.ts",
@@ -833,8 +838,8 @@
                 },
                 {
                     "component": "cem-timepicker",
-                    "owner": "packages/cem-components/src/lib/timepicker.browser.spec.ts",
-                    "test": "supports a silent expanded property while live range changes update validity and option suppression",
+                    "owner": "packages/cem-components/src/components/cem-timepicker/cem-timepicker.stories.ts",
+                    "test": "LiveBoundsAndExpansion",
                     "assertions": [
                         "expect(host.expanded).toBe(true);",
                         "expect(host.hasAttribute('expanded')).toBe(false);"
@@ -842,8 +847,8 @@
                 },
                 {
                     "component": "cem-datepicker",
-                    "owner": "packages/cem-components/src/lib/datepicker.browser.spec.ts",
-                    "test": "supports a silent expanded property while live bounds update validity and calendar suppression",
+                    "owner": "packages/cem-components/src/components/cem-datepicker/cem-datepicker.stories.ts",
+                    "test": "LiveBoundsAndExpanded",
                     "assertions": [
                         "expect(host.expanded).toBe(true);",
                         "expect(host.hasAttribute('expanded')).toBe(false);"
@@ -902,8 +907,8 @@
                 },
                 {
                     "component": "cem-timepicker",
-                    "owner": "packages/cem-components/src/lib/timepicker.browser.spec.ts",
-                    "test": "normalizes generated and authored choices while native value, validation, and reset stay on the input",
+                    "owner": "packages/cem-components/src/components/cem-timepicker/cem-timepicker.stories.ts",
+                    "test": "ValueValidationAndReset",
                     "assertions": [
                         "expect(meeting.input.validity.customError).toBe(true);",
                         "expect(meeting.input.getAttribute('aria-invalid')).toBe('true');"
@@ -911,8 +916,8 @@
                 },
                 {
                     "component": "cem-datepicker",
-                    "owner": "packages/cem-components/src/lib/datepicker.browser.spec.ts",
-                    "test": "keeps canonical value, locale calendar, validation, form, and reset ownership on the input",
+                    "owner": "packages/cem-components/src/components/cem-datepicker/cem-datepicker.stories.ts",
+                    "test": "ValueValidationAndReset",
                     "assertions": [
                         "expect(arrival.input.validity.customError).toBe(true);",
                         "expect(arrival.input.getAttribute('aria-invalid')).toBe('true');"
@@ -1003,16 +1008,16 @@
                 },
                 {
                     "component": "cem-timepicker",
-                    "owner": "packages/cem-components/src/lib/timepicker.browser.spec.ts",
-                    "test": "normalizes generated and authored choices while native value, validation, and reset stay on the input",
+                    "owner": "packages/cem-components/src/components/cem-timepicker/cem-timepicker.stories.ts",
+                    "test": "ValueValidationAndReset",
                     "assertions": [
                         "expect(meeting.input.validity.valueMissing).toBe(true);"
                     ]
                 },
                 {
                     "component": "cem-datepicker",
-                    "owner": "packages/cem-components/src/lib/datepicker.browser.spec.ts",
-                    "test": "keeps canonical value, locale calendar, validation, form, and reset ownership on the input",
+                    "owner": "packages/cem-components/src/components/cem-datepicker/cem-datepicker.stories.ts",
+                    "test": "ValueValidationAndReset",
                     "assertions": [
                         "expect(arrival.input.validity.valueMissing).toBe(true);"
                     ]
@@ -1057,12 +1062,18 @@
             "id": "input:readonly",
             "category": "Input",
             "state": "readonly",
-            "components": ["cem-text-field", "cem-textarea", "cem-autocomplete"],
+            "components": [
+                "cem-text-field",
+                "cem-textarea",
+                "cem-autocomplete"
+            ],
             "interaction": "Keep a readonly field focusable and submittable while preventing edits.",
             "status": "covered",
             "owner": "packages/cem-components/src/components/cem-textarea/cem-textarea.stories.ts",
             "test": "AllAttributes",
-            "assertions": ["expect(input.hasAttribute(attribute)).toBe(true);"],
+            "assertions": [
+                "expect(input.hasAttribute(attribute)).toBe(true);"
+            ],
             "componentEvidence": [
                 {
                     "component": "cem-text-field",
@@ -1165,11 +1176,17 @@
             "id": "navigation:default",
             "category": "Navigation",
             "state": "default",
-            "components": ["cem-app-bar", "cem-nav", "cem-tabs", "cem-stepper", "cem-paginator"],
+            "components": [
+                "cem-app-bar",
+                "cem-nav",
+                "cem-tabs",
+                "cem-stepper",
+                "cem-paginator"
+            ],
             "interaction": "Render navigation landmarks and a labeled tablist with native roles.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/primitives.browser.spec.ts",
-            "test": "renders navigation-family MVP primitives as accessible landmarks and tablists",
+            "owner": "packages/cem-components/src/components/cem-nav/cem-nav.stories.ts",
+            "test": "LandmarksAndTabs",
             "assertions": [
                 "expect(appBar.getAttribute('role')).toBe('banner');",
                 "expect(tablist.getAttribute('role')).toBe('tablist');"
@@ -1177,8 +1194,8 @@
             "componentEvidence": [
                 {
                     "component": "cem-paginator",
-                    "owner": "packages/cem-components/src/lib/paginator.browser.spec.ts",
-                    "test": "renders exact landmark, page-size, range, action, normalization, and optional-control semantics",
+                    "owner": "packages/cem-components/src/components/cem-paginator/cem-paginator.stories.ts",
+                    "test": "NativeOwners",
                     "assertions": [
                         "expect(records.owner.tagName).toBe('NAV');",
                         "expect(records.range.getAttribute('role')).toBe('status');"
@@ -1186,11 +1203,19 @@
                 },
                 {
                     "component": "cem-stepper",
-                    "owner": "packages/cem-components/src/lib/stepper.browser.spec.ts",
-                    "test": "renders one labeled ordered workflow with exact native headers and persistent linked regions",
+                    "owner": "packages/cem-components/src/components/cem-stepper/cem-stepper.stories.ts",
+                    "test": "NativeOwners",
                     "assertions": [
                         "expect(parts.owner.tagName).toBe('SECTION');",
                         "expect(parts.list.tagName).toBe('OL');"
+                    ]
+                },
+                {
+                    "component": "cem-app-bar",
+                    "owner": "packages/cem-components/src/components/cem-app-bar/cem-app-bar.stories.ts",
+                    "test": "Semantics",
+                    "assertions": [
+                        "expect(owner.getAttribute('role')).toBe('banner');"
                     ]
                 }
             ]
@@ -1199,11 +1224,16 @@
             "id": "navigation:hover",
             "category": "Navigation",
             "state": "hover",
-            "components": ["cem-nav", "cem-tabs", "cem-stepper", "cem-paginator"],
+            "components": [
+                "cem-nav",
+                "cem-tabs",
+                "cem-stepper",
+                "cem-paginator"
+            ],
             "interaction": "Move the pointer across navigation items without changing layout.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
-            "test": "styles only navigation hover owners without changing current selection or component state",
+            "owner": "packages/cem-components/src/components/cem-nav/cem-nav.stories.ts",
+            "test": "HoverOwners",
             "assertions": [
                 "expect(owner.matches(':hover')).toBe(true);",
                 "expect(hovered.backgroundColor).toBe(resolveTokenColor(owner, tokens.hoverBackground));",
@@ -1216,8 +1246,8 @@
             "componentEvidence": [
                 {
                     "component": "cem-paginator",
-                    "owner": "packages/cem-components/src/lib/paginator.browser.spec.ts",
-                    "test": "keeps hover, focus-visible, and active paint on native controls with stable transient geometry",
+                    "owner": "packages/cem-components/src/components/cem-paginator/cem-paginator.stories.ts",
+                    "test": "TransientPaint",
                     "assertions": [
                         "expect(pointerEvents).toEqual(['pointerenter:true', 'pointerleave:true']);",
                         "expectActionGeometry(hovered, baseline);"
@@ -1225,8 +1255,8 @@
                 },
                 {
                     "component": "cem-stepper",
-                    "owner": "packages/cem-components/src/lib/stepper.browser.spec.ts",
-                    "test": "keeps hover and focus-visible on the exact header with stable geometry and zero transient mutation",
+                    "owner": "packages/cem-components/src/components/cem-stepper/cem-stepper.stories.ts",
+                    "test": "StatePaintAndGeometry",
                     "assertions": [
                         "expect(pointerEvents).toEqual(['pointerenter:true', 'pointerleave:true']);",
                         "expectStableTransient(hovered, baseline);"
@@ -1238,11 +1268,16 @@
             "id": "navigation:focus-visible",
             "category": "Navigation",
             "state": "focus-visible",
-            "components": ["cem-nav", "cem-tabs", "cem-stepper", "cem-paginator"],
+            "components": [
+                "cem-nav",
+                "cem-tabs",
+                "cem-stepper",
+                "cem-paginator"
+            ],
             "interaction": "Move keyboard focus through navigation items with a visible focus indicator.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
-            "test": "moves keyboard focus through navigation owners without changing selection or component state",
+            "owner": "packages/cem-components/src/components/cem-nav/cem-nav.stories.ts",
+            "test": "KeyboardFocus",
             "assertions": [
                 "expect(document.activeElement).toBe(owner);",
                 "expect(owner.matches(':focus-visible')).toBe(true);",
@@ -1255,8 +1290,8 @@
             "componentEvidence": [
                 {
                     "component": "cem-paginator",
-                    "owner": "packages/cem-components/src/lib/paginator.browser.spec.ts",
-                    "test": "keeps hover, focus-visible, and active paint on native controls with stable transient geometry",
+                    "owner": "packages/cem-components/src/components/cem-paginator/cem-paginator.stories.ts",
+                    "test": "TransientPaint",
                     "assertions": [
                         "expect(next.matches(':focus-visible')).toBe(true);",
                         "expect(focusedHovered.outlineWidth).toBe(resolveTokenLength(next, '--cem-stroke-focus'));"
@@ -1264,8 +1299,8 @@
                 },
                 {
                     "component": "cem-stepper",
-                    "owner": "packages/cem-components/src/lib/stepper.browser.spec.ts",
-                    "test": "keeps hover and focus-visible on the exact header with stable geometry and zero transient mutation",
+                    "owner": "packages/cem-components/src/components/cem-stepper/cem-stepper.stories.ts",
+                    "test": "StatePaintAndGeometry",
                     "assertions": [
                         "expect(parts.headers[1]?.matches(':focus-visible')).toBe(true);",
                         "expectStableTransient(focused, focusBaseline);"
@@ -1277,11 +1312,16 @@
             "id": "navigation:active",
             "category": "Navigation",
             "state": "active",
-            "components": ["cem-nav", "cem-tabs", "cem-stepper", "cem-paginator"],
+            "components": [
+                "cem-nav",
+                "cem-tabs",
+                "cem-stepper",
+                "cem-paginator"
+            ],
             "interaction": "Activate a navigation item while retaining selection and readable contrast.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
-            "test": "applies navigation active treatment during trusted pointer and native keyboard activation",
+            "owner": "packages/cem-components/src/components/cem-nav/cem-nav.stories.ts",
+            "test": "NativeActive",
             "assertions": [
                 "expect(owner.matches(':active')).toBe(true);",
                 "expectPaintedColorToResolveFromToken(active.backgroundColor, owner, tokens.activeBackground);",
@@ -1295,8 +1335,8 @@
             "componentEvidence": [
                 {
                     "component": "cem-paginator",
-                    "owner": "packages/cem-components/src/lib/paginator.browser.spec.ts",
-                    "test": "keeps hover, focus-visible, and active paint on native controls with stable transient geometry",
+                    "owner": "packages/cem-components/src/components/cem-paginator/cem-paginator.stories.ts",
+                    "test": "TransientPaint",
                     "assertions": [
                         "expect(parts.host.getAttribute('page-index')).toBe('1');",
                         "expectActionGeometry(active, baseline);"
@@ -1304,8 +1344,8 @@
                 },
                 {
                     "component": "cem-stepper",
-                    "owner": "packages/cem-components/src/lib/stepper.browser.spec.ts",
-                    "test": "keeps hover and focus-visible on the exact header with stable geometry and zero transient mutation",
+                    "owner": "packages/cem-components/src/components/cem-stepper/cem-stepper.stories.ts",
+                    "test": "StatePaintAndGeometry",
                     "assertions": [
                         "expect(parts.headers[1]?.matches(':active')).toBe(true);",
                         "expectStableTransient(active, focusBaseline);"
@@ -1317,11 +1357,16 @@
             "id": "navigation:disabled",
             "category": "Navigation",
             "state": "disabled",
-            "components": ["cem-nav", "cem-tabs", "cem-stepper", "cem-paginator"],
+            "components": [
+                "cem-nav",
+                "cem-tabs",
+                "cem-stepper",
+                "cem-paginator"
+            ],
             "interaction": "Disable a navigation item and remove activation and tab-stop behavior where appropriate.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
-            "test": "keeps aria-disabled navigation owners discoverable while suppressing activation",
+            "owner": "packages/cem-components/src/components/cem-nav/cem-nav.stories.ts",
+            "test": "DisabledDiscovery",
             "assertions": [
                 "expect(focusEvents).toEqual(focusOrder.map((owner) => owner.id));",
                 "expect(capturedClicks.at(-1)?.defaultPrevented).toBe(true);",
@@ -1338,8 +1383,8 @@
             "componentEvidence": [
                 {
                     "component": "cem-tabs",
-                    "owner": "packages/cem-components/src/lib/tabs.browser.spec.ts",
-                    "test": "commits pointer and native keyboard activation once while current and disabled paths stay silent",
+                    "owner": "packages/cem-components/src/components/cem-tabs/cem-tabs.stories.ts",
+                    "test": "NativeActivation",
                     "assertions": [
                         "expect(parts.host.selectedIndex).toBe(3);",
                         "expect(events.filter(({ type }) => type === 'cem-tab')).toHaveLength(1);"
@@ -1347,8 +1392,8 @@
                 },
                 {
                     "component": "cem-paginator",
-                    "owner": "packages/cem-components/src/lib/paginator.browser.spec.ts",
-                    "test": "keeps global disabled and live programmatic control silent while retaining surviving owners",
+                    "owner": "packages/cem-components/src/components/cem-paginator/cem-paginator.stories.ts",
+                    "test": "AuthorControl",
                     "assertions": [
                         "expect(requiredSelect(disabled).disabled).toBe(true);",
                         "expect(boundaryTargetEvents).toEqual([]);"
@@ -1356,8 +1401,8 @@
                 },
                 {
                     "component": "cem-stepper",
-                    "owner": "packages/cem-components/src/lib/stepper.browser.spec.ts",
-                    "test": "keeps programmatic control silent, clamps selection, and rejects malformed or globally disabled owners",
+                    "owner": "packages/cem-components/src/components/cem-stepper/cem-stepper.stories.ts",
+                    "test": "ProgrammaticAndDisabled",
                     "assertions": [
                         "expect(disabled.headers.every((header) => header.disabled && header.tabIndex === -1)).toBe(true);",
                         "expect(disabled.host.selectedIndex).toBe(1);"
@@ -1375,16 +1420,16 @@
             ],
             "interaction": "Distinguish the selected tab from its unselected peer through ARIA state.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
-            "test": "reflects selected state on native tabs",
+            "owner": "packages/cem-components/src/components/cem-tabs/cem-tabs.stories.ts",
+            "test": "SelectedState",
             "assertions": [
                 "expect(tabs.map((tab) => tab.getAttribute('aria-selected')).join('|')).toBe('true|false');"
             ],
             "componentEvidence": [
                 {
                     "component": "cem-tabs",
-                    "owner": "packages/cem-components/src/lib/tabs.browser.spec.ts",
-                    "test": "renders one labeled tablist with exact native tabs and stable reciprocal panels",
+                    "owner": "packages/cem-components/src/components/cem-tabs/cem-tabs.stories.ts",
+                    "test": "NativeOwners",
                     "assertions": [
                         "expect(parts.tabs.filter((tab) => tab.getAttribute('aria-selected') === 'true')).toEqual([parts.tabs[1]]);",
                         "expect(parts.panels.filter((panel) => !panel.hidden)).toEqual([parts.panels[1]]);"
@@ -1392,8 +1437,8 @@
                 },
                 {
                     "component": "cem-stepper",
-                    "owner": "packages/cem-components/src/lib/stepper.browser.spec.ts",
-                    "test": "renders one labeled ordered workflow with exact native headers and persistent linked regions",
+                    "owner": "packages/cem-components/src/components/cem-stepper/cem-stepper.stories.ts",
+                    "test": "NativeOwners",
                     "assertions": [
                         "expect(parts.headers[1]?.getAttribute('aria-current')).toBe('step');",
                         "expect(parts.panels[1]?.hidden).toBe(false);"
@@ -1405,11 +1450,13 @@
             "id": "navigation:expanded",
             "category": "Navigation",
             "state": "expanded",
-            "components": ["cem-nav"],
+            "components": [
+                "cem-nav"
+            ],
             "interaction": "Open and close a navigation group and mirror disclosure state with aria-expanded.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
-            "test": "toggles collapsible navigation without changing passive landmark semantics",
+            "owner": "packages/cem-components/src/components/cem-nav/cem-nav.stories.ts",
+            "test": "DisclosureAndPassive",
             "assertions": [
                 "expect(closedButton.getAttribute('aria-expanded')).toBe('false');",
                 "expect(pointerContent.hidden).toBe(false);",
@@ -1421,11 +1468,16 @@
             "id": "layout:default",
             "category": "Layout",
             "state": "default",
-            "components": ["cem-surface", "cem-stack", "cem-grid", "cem-divider"],
+            "components": [
+                "cem-surface",
+                "cem-stack",
+                "cem-grid",
+                "cem-divider"
+            ],
             "interaction": "Render token-scoped layout containers with their authored structure and spacing metadata.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/primitives.browser.spec.ts",
-            "test": "renders layout, list, navigation, and surface primitives",
+            "owner": "packages/cem-components/src/components/cem-nav/cem-nav.stories.ts",
+            "test": "LayoutComposition",
             "assertions": [
                 "expect(surface.getAttribute('aria-label')).toBe('Account');",
                 "expect(grid.getAttribute('data-columns')).toBe('2');"
@@ -1433,8 +1485,8 @@
             "componentEvidence": [
                 {
                     "component": "cem-divider",
-                    "owner": "packages/cem-components/src/lib/divider.browser.spec.ts",
-                    "test": "exposes exact semantic orientation and an explicit decorative boundary",
+                    "owner": "packages/cem-components/src/components/cem-divider/cem-divider.stories.ts",
+                    "test": "Semantics",
                     "assertions": [
                         "expect(horizontal.getAttribute('role')).toBe('separator');",
                         "expect(decorative.getAttribute('aria-hidden')).toBe('true');"
@@ -1446,11 +1498,15 @@
             "id": "layout:loading",
             "category": "Layout",
             "state": "loading",
-            "components": ["cem-surface", "cem-stack", "cem-grid"],
+            "components": [
+                "cem-surface",
+                "cem-stack",
+                "cem-grid"
+            ],
             "interaction": "Mark a layout region busy while preserving its dimensions and child placement.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
-            "test": "marks explicit busy workflow surfaces without making formatting containers loading owners",
+            "owner": "packages/cem-components/src/components/cem-surface/cem-surface.stories.ts",
+            "test": "BusyWorkflow",
             "assertions": [
                 "expect(initial.getAttribute('data-state')).toBe('loading');",
                 "expect(transitionSurface.getAttribute('data-state')).toBe('loading');",
@@ -1465,11 +1521,15 @@
             "id": "layout:empty",
             "category": "Layout",
             "state": "empty",
-            "components": ["cem-surface", "cem-stack", "cem-grid"],
+            "components": [
+                "cem-surface",
+                "cem-stack",
+                "cem-grid"
+            ],
             "interaction": "Render an empty layout region with visible guidance and a next action path.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
-            "test": "marks explicit empty workflow surfaces without inferring layout emptiness",
+            "owner": "packages/cem-components/src/components/cem-surface/cem-surface.stories.ts",
+            "test": "EmptyWorkflow",
             "assertions": [
                 "expect(emptySurface.getAttribute('data-state')).toBe('empty');",
                 "expect(guidance.textContent?.trim()).toBe('Upload an asset to begin building this collection.');",
@@ -1495,8 +1555,8 @@
             ],
             "interaction": "Render content primitives with their semantic roles, labels, and projected content.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/primitives.browser.spec.ts",
-            "test": "renders content-family MVP primitives as accessible light DOM",
+            "owner": "packages/cem-components/src/components/cem-list/cem-list.stories.ts",
+            "test": "ContentFamily",
             "assertions": [
                 "expect(table.getAttribute('role')).toBe('table');",
                 "expect(avatar.getAttribute('role')).toBe('img');"
@@ -1504,8 +1564,8 @@
             "componentEvidence": [
                 {
                     "component": "cem-expansion",
-                    "owner": "packages/cem-components/src/lib/expansion.browser.spec.ts",
-                    "test": "exposes one exact heading, button, and persistent controlled-panel relationship",
+                    "owner": "packages/cem-components/src/components/cem-expansion/cem-expansion.stories.ts",
+                    "test": "NativeOwners",
                     "assertions": [
                         "expect(account.heading.getAttribute('role')).toBe('heading');",
                         "expect(account.button.getAttribute('aria-controls')).toBe(account.panel.id);"
@@ -1513,8 +1573,8 @@
                 },
                 {
                     "component": "cem-sort-header",
-                    "owner": "packages/cem-components/src/lib/sort-header.browser.spec.ts",
-                    "test": "renders exact column-header, native action, direction, and accessible-name ownership",
+                    "owner": "packages/cem-components/src/components/cem-sort-header/cem-sort-header.stories.ts",
+                    "test": "NativeOwners",
                     "assertions": [
                         "expect(name.owner.getAttribute('role')).toBe('columnheader');",
                         "expect(name.button).toBeInstanceOf(HTMLButtonElement);"
@@ -1522,11 +1582,35 @@
                 },
                 {
                     "component": "cem-tree",
-                    "owner": "packages/cem-components/src/lib/tree.browser.spec.ts",
-                    "test": "renders one named tree with exact native treeitems, explicit hierarchy metadata, and stable owned groups",
+                    "owner": "packages/cem-components/src/components/cem-tree/cem-tree.stories.ts",
+                    "test": "NativeOwners",
                     "assertions": [
                         "expect(parts.owner.getAttribute('role')).toBe('tree');",
                         "expect(apps.getAttribute('role')).toBe('treeitem');"
+                    ]
+                },
+                {
+                    "component": "cem-badge",
+                    "owner": "packages/cem-components/src/components/cem-badge/cem-badge.stories.ts",
+                    "test": "Semantics",
+                    "assertions": [
+                        "expect(owner.textContent).toBe('Ready');"
+                    ]
+                },
+                {
+                    "component": "cem-avatar",
+                    "owner": "packages/cem-components/src/components/cem-avatar/cem-avatar.stories.ts",
+                    "test": "Semantics",
+                    "assertions": [
+                        "expect(owner.getAttribute('role')).toBe('img');"
+                    ]
+                },
+                {
+                    "component": "cem-media-preview",
+                    "owner": "packages/cem-components/src/components/cem-media-preview/cem-media-preview.stories.ts",
+                    "test": "Semantics",
+                    "assertions": [
+                        "expect(owner.localName).toBe('figure');"
                     ]
                 }
             ]
@@ -1535,11 +1619,17 @@
             "id": "content:hover",
             "category": "Content",
             "state": "hover",
-            "components": ["cem-list", "cem-chip", "cem-expansion", "cem-sort-header", "cem-tree"],
+            "components": [
+                "cem-list",
+                "cem-chip",
+                "cem-expansion",
+                "cem-sort-header",
+                "cem-tree"
+            ],
             "interaction": "Move the pointer over the selectable-list composite or checkable chip without changing layout, selection, checked state, or passive content wrappers.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
-            "test": "styles only interactive content hover owners without changing selection or component state",
+            "owner": "packages/cem-components/src/components/cem-list/cem-list.stories.ts",
+            "test": "HoverOwners",
             "assertions": [
                 "expect(owner.matches(':hover')).toBe(true);",
                 "expect(hovered.backgroundColor).toBe(resolveTokenColor(owner, tokens.hoverBackground));",
@@ -1553,8 +1643,8 @@
             "componentEvidence": [
                 {
                     "component": "cem-expansion",
-                    "owner": "packages/cem-components/src/lib/expansion.browser.spec.ts",
-                    "test": "keeps hover, focus-visible, and active paint on the header with stable transient geometry",
+                    "owner": "packages/cem-components/src/components/cem-expansion/cem-expansion.stories.ts",
+                    "test": "TransientPaint",
                     "assertions": [
                         "expect(hovered.backgroundColor).toBe(",
                         "expectTransientGeometry(hovered, baseline);",
@@ -1563,8 +1653,8 @@
                 },
                 {
                     "component": "cem-sort-header",
-                    "owner": "packages/cem-components/src/lib/sort-header.browser.spec.ts",
-                    "test": "keeps pointer, hover, focus-visible, and active paint on the native button with stable geometry and state",
+                    "owner": "packages/cem-components/src/components/cem-sort-header/cem-sort-header.stories.ts",
+                    "test": "AuthorControl",
                     "assertions": [
                         "expect(hovered.backgroundColor).toBe(",
                         "expect(pointerEvents).toEqual(['pointerenter:true', 'pointerleave:true']);",
@@ -1573,8 +1663,8 @@
                 },
                 {
                     "component": "cem-tree",
-                    "owner": "packages/cem-components/src/lib/tree.browser.spec.ts",
-                    "test": "keeps hover, focus-visible, selected-active paint on the exact node with stable geometry and transient silence",
+                    "owner": "packages/cem-components/src/components/cem-tree/cem-tree.stories.ts",
+                    "test": "StatePaintAndGeometry",
                     "assertions": [
                         "expect(node.matches(':hover')).toBe(true);",
                         "expectStableTransient(hovered, baseline);",
@@ -1587,11 +1677,17 @@
             "id": "content:focus-visible",
             "category": "Content",
             "state": "focus-visible",
-            "components": ["cem-list", "cem-chip", "cem-expansion", "cem-sort-header", "cem-tree"],
+            "components": [
+                "cem-list",
+                "cem-chip",
+                "cem-expansion",
+                "cem-sort-header",
+                "cem-tree"
+            ],
             "interaction": "Move keyboard focus through the selectable-list composite and checkable chips with a tokenized visible ring while skipping disabled and passive content.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
-            "test": "moves keyboard focus through interactive content owners without changing selection or checked state",
+            "owner": "packages/cem-components/src/components/cem-list/cem-list.stories.ts",
+            "test": "KeyboardFocus",
             "assertions": [
                 "expect(owner.matches(':focus-visible')).toBe(true);",
                 "expect(paintedColor(focused.focusTreatment[0])).toBe(resolveTokenColor(owner, '--cem-zebra-color-1'));",
@@ -1607,8 +1703,8 @@
             "componentEvidence": [
                 {
                     "component": "cem-expansion",
-                    "owner": "packages/cem-components/src/lib/expansion.browser.spec.ts",
-                    "test": "keeps hover, focus-visible, and active paint on the header with stable transient geometry",
+                    "owner": "packages/cem-components/src/components/cem-expansion/cem-expansion.stories.ts",
+                    "test": "TransientPaint",
                     "assertions": [
                         "expect(parts.button.matches(':focus-visible')).toBe(true);",
                         "expect(focused.outlineWidth).toBe(resolveTokenLength(parts.button, '--cem-stroke-focus'));",
@@ -1617,8 +1713,8 @@
                 },
                 {
                     "component": "cem-sort-header",
-                    "owner": "packages/cem-components/src/lib/sort-header.browser.spec.ts",
-                    "test": "keeps pointer, hover, focus-visible, and active paint on the native button with stable geometry and state",
+                    "owner": "packages/cem-components/src/components/cem-sort-header/cem-sort-header.stories.ts",
+                    "test": "AuthorControl",
                     "assertions": [
                         "expect(parts.button.matches(':focus-visible')).toBe(true);",
                         "expect(focusedHovered.outlineWidth).toBe(resolveTokenLength(parts.button, '--cem-stroke-focus'));",
@@ -1627,8 +1723,8 @@
                 },
                 {
                     "component": "cem-tree",
-                    "owner": "packages/cem-components/src/lib/tree.browser.spec.ts",
-                    "test": "keeps hover, focus-visible, selected-active paint on the exact node with stable geometry and transient silence",
+                    "owner": "packages/cem-components/src/components/cem-tree/cem-tree.stories.ts",
+                    "test": "StatePaintAndGeometry",
                     "assertions": [
                         "expect(treeNode(parts, 'web').matches(':focus-visible')).toBe(true);",
                         "expectStableTransient(focused, baseline);"
@@ -1640,11 +1736,16 @@
             "id": "content:selected",
             "category": "Content",
             "state": "selected",
-            "components": ["cem-list", "cem-table", "cem-chip", "cem-tree"],
+            "components": [
+                "cem-list",
+                "cem-table",
+                "cem-chip",
+                "cem-tree"
+            ],
             "interaction": "Select a content row or chip and distinguish it from hover and keyboard focus.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
-            "test": "selects declarative list options without changing passive list semantics",
+            "owner": "packages/cem-components/src/components/cem-list/cem-list.stories.ts",
+            "test": "SelectionAndPassive",
             "assertions": [
                 "expect(options.map((option) => option.selected).join('|')).toBe('false|true|false');",
                 "expect(options.map((option) => option.getAttribute('aria-selected')).join('|')).toBe('false|true|false');",
@@ -1656,8 +1757,8 @@
             "componentEvidence": [
                 {
                     "component": "cem-tree",
-                    "owner": "packages/cem-components/src/lib/tree.browser.spec.ts",
-                    "test": "projects silent single/multiple/none selection and application loading with late stable children",
+                    "owner": "packages/cem-components/src/components/cem-tree/cem-tree.stories.ts",
+                    "test": "ApplicationSelectionAndLoading",
                     "assertions": [
                         "expect(web.getAttribute('aria-selected')).toBe('true');",
                         "expect(treeNode(multi, 'gamma').getAttribute('aria-selected')).toBe('true');"
@@ -1669,11 +1770,17 @@
             "id": "content:loading",
             "category": "Content",
             "state": "loading",
-            "components": ["cem-list", "cem-table", "cem-card", "cem-media-preview", "cem-tree"],
+            "components": [
+                "cem-list",
+                "cem-table",
+                "cem-card",
+                "cem-media-preview",
+                "cem-tree"
+            ],
             "interaction": "Mark content busy while preserving dimensions and an accessible loading status.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
-            "test": "marks explicit busy cards without making nested content primitives loading owners",
+            "owner": "packages/cem-components/src/components/cem-card/cem-card.stories.ts",
+            "test": "BusyContent",
             "assertions": [
                 "expect(initial.getAttribute('data-state')).toBe('loading');",
                 "expect(initial.getAttribute('aria-busy')).toBe('true');",
@@ -1685,8 +1792,8 @@
             "componentEvidence": [
                 {
                     "component": "cem-tree",
-                    "owner": "packages/cem-components/src/lib/tree.browser.spec.ts",
-                    "test": "projects silent single/multiple/none selection and application loading with late stable children",
+                    "owner": "packages/cem-components/src/components/cem-tree/cem-tree.stories.ts",
+                    "test": "ApplicationSelectionAndLoading",
                     "assertions": [
                         "expect(asyncIdentity.getAttribute('aria-busy')).toBe('true');",
                         "expect(asyncIdentity.textContent).toContain('Loading children');"
@@ -1698,11 +1805,14 @@
             "id": "content:empty",
             "category": "Content",
             "state": "empty",
-            "components": ["cem-list", "cem-table"],
+            "components": [
+                "cem-list",
+                "cem-table"
+            ],
             "interaction": "Render visible empty-state content when a list or table has no projected items.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
-            "test": "preserves empty states, indeterminate progress, and live-region roles",
+            "owner": "packages/cem-components/src/components/cem-list/cem-list.stories.ts",
+            "test": "PassiveEmptyStates",
             "assertions": [
                 "expect(list.querySelector('.cem-list__empty')?.textContent?.trim()).toBe('No items');",
                 "expect(table.querySelector('[role=\"cell\"]')?.textContent?.trim()).toBe('No rows');"
@@ -1712,11 +1822,13 @@
             "id": "content:checked",
             "category": "Content",
             "state": "checked",
-            "components": ["cem-chip"],
+            "components": [
+                "cem-chip"
+            ],
             "interaction": "Toggle a filter chip and mirror checked and selected treatment.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
-            "test": "toggles checkable content chips without changing passive chip semantics",
+            "owner": "packages/cem-components/src/components/cem-chip/cem-chip.stories.ts",
+            "test": "CheckableAndPassive",
             "assertions": [
                 "expect(passive).toBeInstanceOf(HTMLSpanElement);",
                 "expect(unchecked.getAttribute('aria-pressed')).toBe('false');",
@@ -1729,13 +1841,22 @@
             "id": "feedback:default",
             "category": "Feedback",
             "state": "default",
-            "components": ["cem-tooltip", "cem-dialog", "cem-sheet", "cem-toast", "cem-progress", "cem-progress-spinner", "cem-skeleton", "cem-alert"],
+            "components": [
+                "cem-tooltip",
+                "cem-dialog",
+                "cem-sheet",
+                "cem-toast",
+                "cem-progress",
+                "cem-progress-spinner",
+                "cem-skeleton",
+                "cem-alert"
+            ],
             "interaction": "Render feedback surfaces with their native dialog, region, progress, and live-region semantics.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/primitives.browser.spec.ts",
-            "test": "renders feedback-family MVP primitives with status and region semantics",
+            "owner": "packages/cem-components/src/components/cem-toast/cem-toast.stories.ts",
+            "test": "Semantics",
             "assertions": [
-                "expect(toast.getAttribute('aria-live')).toBe('polite');"
+                "expect(owner.getAttribute('aria-live')).toBe('polite');"
             ],
             "componentEvidence": [
                 {
@@ -1758,8 +1879,8 @@
                 },
                 {
                     "component": "cem-progress-spinner",
-                    "owner": "packages/cem-components/src/lib/progress-spinner.browser.spec.ts",
-                    "test": "renders exact circular determinate and indeterminate progress semantics",
+                    "owner": "packages/cem-components/src/components/cem-progress-spinner/cem-progress-spinner.stories.ts",
+                    "test": "Semantics",
                     "assertions": [
                         "expect(indeterminate.owner.getAttribute('role')).toBe('progressbar');",
                         "expectDeterminate(determinate, { max: 100, value: 25, dash: '25 75' });"
@@ -1773,6 +1894,30 @@
                         "expect(owner.getAttribute('role')).toBe('region');",
                         "expect(owner.hidden).toBe(false);"
                     ]
+                },
+                {
+                    "component": "cem-alert",
+                    "owner": "packages/cem-components/src/components/cem-alert/cem-alert.stories.ts",
+                    "test": "Semantics",
+                    "assertions": [
+                        "expect(owner.getAttribute('data-tone')).toBe('info');"
+                    ]
+                },
+                {
+                    "component": "cem-skeleton",
+                    "owner": "packages/cem-components/src/components/cem-skeleton/cem-skeleton.stories.ts",
+                    "test": "Semantics",
+                    "assertions": [
+                        "expect(owner.getAttribute('aria-hidden')).toBe('true');"
+                    ]
+                },
+                {
+                    "component": "cem-progress",
+                    "owner": "packages/cem-components/src/components/cem-progress/cem-progress.stories.ts",
+                    "test": "NativeSemantics",
+                    "assertions": [
+                        "expect(owner).toHaveAccessibleName('Upload progress');"
+                    ]
                 }
             ]
         },
@@ -1780,7 +1925,12 @@
             "id": "feedback:focus-visible",
             "category": "Feedback",
             "state": "focus-visible",
-            "components": ["cem-tooltip", "cem-dialog", "cem-dialog-shell", "cem-sheet"],
+            "components": [
+                "cem-tooltip",
+                "cem-dialog",
+                "cem-dialog-shell",
+                "cem-sheet"
+            ],
             "interaction": "Move keyboard focus into a feedback surface and retain a visible focus indicator.",
             "status": "covered",
             "owner": "packages/cem-components/src/components/cem-dialog/cem-dialog.stories.ts",
@@ -1824,11 +1974,15 @@
             "id": "feedback:loading",
             "category": "Feedback",
             "state": "loading",
-            "components": ["cem-progress", "cem-progress-spinner", "cem-skeleton"],
+            "components": [
+                "cem-progress",
+                "cem-progress-spinner",
+                "cem-skeleton"
+            ],
             "interaction": "Expose indeterminate progress and an inert visual placeholder with an accessible loading label.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
-            "test": "preserves empty states, indeterminate progress, and live-region roles",
+            "owner": "packages/cem-components/src/components/cem-list/cem-list.stories.ts",
+            "test": "PassiveEmptyStates",
             "assertions": [
                 "expect(progress.hasAttribute('value')).toBe(false);",
                 "expect(skeleton.getAttribute('aria-hidden')).toBe('true');"
@@ -1836,10 +1990,10 @@
             "componentEvidence": [
                 {
                     "component": "cem-progress-spinner",
-                    "owner": "packages/cem-components/src/lib/progress-spinner.browser.spec.ts",
-                    "test": "binds D0/D2c/D7 tokens while pointer and keyboard input stay event- and state-neutral",
+                    "owner": "packages/cem-components/src/components/cem-progress-spinner/cem-progress-spinner.stories.ts",
+                    "test": "NativeInputNeutrality",
                     "assertions": [
-                        "expect(indicatorStyle.animationName).toBe('cem-progress-spinner-cycle');",
+                        "expect(indicatorStyle.animationName).toMatch(/^cem-progress-spinner-cycle-cem-[a-f0-9]+$/);",
                         "expect(determinateIndicatorStyle.animationName).toBe('none');"
                     ]
                 }
@@ -1849,7 +2003,12 @@
             "id": "feedback:expanded",
             "category": "Feedback",
             "state": "expanded",
-            "components": ["cem-tooltip", "cem-dialog", "cem-dialog-shell", "cem-sheet"],
+            "components": [
+                "cem-tooltip",
+                "cem-dialog",
+                "cem-dialog-shell",
+                "cem-sheet"
+            ],
             "interaction": "Commands open native dialogs nonmodally or modally; interest presents tooltips, while sheets retain application-controlled visibility.",
             "status": "covered",
             "owner": "packages/cem-components/src/components/cem-dialog/cem-dialog.stories.ts",
@@ -1893,11 +2052,13 @@
             "id": "feedback:invalid",
             "category": "Feedback",
             "state": "invalid",
-            "components": ["cem-alert"],
+            "components": [
+                "cem-alert"
+            ],
             "interaction": "Render validation feedback with urgent semantics and an error treatment.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
-            "test": "preserves empty states, indeterminate progress, and live-region roles",
+            "owner": "packages/cem-components/src/components/cem-list/cem-list.stories.ts",
+            "test": "PassiveEmptyStates",
             "assertions": [
                 "expect(alert.getAttribute('data-tone')).toBe('danger');",
                 "expect(alert.textContent?.trim()).toBe('Resolve errors.');"
@@ -1907,11 +2068,13 @@
             "id": "feedback:indeterminate",
             "category": "Feedback",
             "state": "indeterminate",
-            "components": ["cem-progress-spinner"],
+            "components": [
+                "cem-progress-spinner"
+            ],
             "interaction": "Expose unknown circular progress without a numeric value or keyboard interaction.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/progress-spinner.browser.spec.ts",
-            "test": "renders exact circular determinate and indeterminate progress semantics",
+            "owner": "packages/cem-components/src/components/cem-progress-spinner/cem-progress-spinner.stories.ts",
+            "test": "Semantics",
             "assertions": [
                 "expect(indeterminate.owner.getAttribute('data-mode')).toBe('indeterminate');",
                 "expect(indeterminate.owner.hasAttribute('aria-valuenow')).toBe(false);",

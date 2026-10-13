@@ -108,26 +108,17 @@ with its colocated
 Its reusable form, choice, keyboard, and interaction machinery is the
 `choice-select` capability in `cem-elements`, not component-local code.
 
-## Existing migration debt and enforcement
+## Completed migration and enforcement
 
-The package predates this rule. Its remaining monolithic
-`CEM_COMPONENT_PRIMITIVES` registry, `*-behavior.ts` files, global component
-selectors, installers, and separate browser specs are compatibility debt. They
-remain runnable while migrating but are not templates for new work; their
-inventories may only shrink.
+All 53 components now follow this rule. The legacy registry, behavior modules,
+installers, separate specs and package-owned JavaScript tooling are retired.
+`packages/cem-components/declarative-migration.json` records a closed zero
+inventory; `verify-declarative` rejects reopening either legacy list and checks
+every XHTML declaration and colocated CSF Next story. Build/catalog/publication
+scripts belong to workspace tooling under `tools/cem-components/`.
 
-`packages/cem-components/declarative-migration.json` records that baseline.
-`yarn nx run @epa-wg/cem-components:verify-declarative` rejects new legacy code
-or registry members, changes to the remaining frozen legacy behavior files,
-invalid component folders, component implementation outside XHTML/CEM-ML,
-standalone component CSS, migrated selectors in global CSS, component behavior
-left in TypeScript, or a colocated story that does not follow the CSF Next
-loader/render/`play` contract. The target state is zero legacy component tags
-and zero legacy authored code files other than the required stories.
-
-Studio and Site have the same migration direction: app-local visible DOM
-construction, UI listeners, and state projection must disappear. JavaScript may
-remain only behind the non-UI service boundary above.
+Studio and Site remain separate follow-up work. Their visible DOM construction,
+UI listeners and state projection must migrate under the same ownership rule.
 
 ## Source and development pages
 

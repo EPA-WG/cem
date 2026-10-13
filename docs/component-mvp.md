@@ -52,8 +52,8 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
 | Input | `datepicker` | `cem-datepicker` | Single-date modal calendar with an authored native text-input form owner | action, palette, content, select, stroke, bend, layering, coupling, control, typography |
 | Input | `suggestions` | `cem-suggestions` | Suggestions attached to an existing text field with one native editor/form owner | palette, select, stroke, bend, gap, typography |
 | Input | `select` | `cem-select` | Form-associated rich single/multiple choice | palette, select, stroke, bend, layering, control, typography |
-| Input | `option` | `cem-option` | Canonical rich option payload for select and autocomplete | palette, typography |
-| Input | `option-group` | `cem-option-group` | Labeled option grouping payload for select and autocomplete | palette, typography |
+| Input | `option` | `cem-option` | Canonical rich option payload for select and autocomplete | typography |
+| Input | `option-group` | `cem-option-group` | Labeled option grouping payload for select and autocomplete | typography |
 | Input | `checkbox` | `cem-checkbox` | Binary consent, settings, and filters | palette, stroke, control, bend, typography |
 | Input | `radio` | `cem-radio` | Mutually exclusive choice inside a radio group | palette, stroke, control, typography |
 | Input | `switch` | `cem-switch` | Immediate boolean setting toggle | palette, stroke, action, control, bend |
@@ -72,27 +72,27 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
 | Content | `chip` | `cem-chip` | Compact filter, token, or removable label | palette, content, action, stroke, bend, inset, typography |
 | Content | `badge` | `cem-badge` | Status, count, priority, and severity labels | palette, bend, inset, typography |
 | Content | `avatar` | `cem-avatar` | Person or organization visual identity | palette, bend, typography |
-| Content | `media-preview` | `cem-media-preview` | Asset thumbnail, file, or object preview | palette, stroke, bend, gap |
+| Content | `media-preview` | `cem-media-preview` | Asset thumbnail, file, or object preview | palette, stroke, bend, gap, typography |
 | Content | `tree` | `cem-tree` | Generic expandable hierarchy with composite focus and application-owned selection/loading | palette, content, control, stroke, bend, gap, coupling, typography |
-| Content | `tree-item` | `cem-tree-item` | Inert recursive hierarchy payload consumed by `cem-tree` | palette, content, control, stroke, bend, gap, coupling, typography |
+| Content | `tree-item` | `cem-tree-item` | Inert recursive hierarchy payload consumed by `cem-tree` | typography |
 | Navigation | `app-bar` | `cem-app-bar` | Product title, global actions, and current context | palette, stroke, gap, inset, typography |
 | Navigation | `dropdown` | `cem-dropdown` | Triggered popup for arbitrary content and nested menus | action, palette, stroke, control, bend, typography |
 | Navigation | `menu` | `cem-menu` | Persistent wrapping commands and links with optional nested composite menus | action, palette, stroke, gap, inset, typography |
 | Navigation | `nav` | `cem-nav` | Labeled navigation region and item list | palette, navigation, gap, inset, typography |
 | Navigation | `tabs` | `cem-tabs` | Labeled local-view switching with linked persistent panels | palette, navigation, stroke, bend, gap, coupling, control, typography |
-| Navigation | `tab` | `cem-tab` | Inert labeled local-view payload consumed by `cem-tabs` | palette, navigation, stroke, bend, gap, coupling, control, typography |
+| Navigation | `tab` | `cem-tab` | Inert labeled local-view payload consumed by `cem-tabs` | typography |
 | Navigation | `stepper` | `cem-stepper` | Labeled linear or nonlinear workflow navigation with persistent panels | palette, navigation, workflow, stroke, bend, gap, coupling, control, typography |
-| Navigation | `step` | `cem-step` | Inert labeled workflow-step payload consumed by `cem-stepper` | palette, navigation, workflow, stroke, bend, gap, coupling, control, typography |
+| Navigation | `step` | `cem-step` | Inert labeled workflow-step payload consumed by `cem-stepper` | typography |
 | Navigation | `paginator` | `cem-paginator` | Paged-content navigation with application-owned data | action, palette, select, control, stroke, bend, gap, inset, typography |
 | Feedback | `tooltip` | `cem-tooltip` | Supplemental plain-text description for one authored native trigger | palette, stroke, bend, gap, inset, layering, typography |
 | Feedback | `dialog` | `cem-dialog` | Native nonmodal task, with explicit modal decision mode | palette, stroke, bend, gap, inset |
 | Feedback | `dialog-shell` | `cem-dialog-shell` | Labeled dialog shell for focused light-DOM task content | palette, stroke, bend, gap, inset |
 | Feedback | `sheet` | `cem-sheet` | Non-modal or edge-attached task surface | palette, stroke, bend, gap, inset |
-| Feedback | `toast` | `cem-toast` | Transient status message | palette, action, stroke, gap, typography |
-| Feedback | `progress` | `cem-progress` | Determinate and indeterminate progress | palette, action, control, typography |
+| Feedback | `toast` | `cem-toast` | Transient status message | palette, stroke, inset, typography |
+| Feedback | `progress` | `cem-progress` | Determinate and indeterminate progress | progress |
 | Feedback | `progress-spinner` | `cem-progress-spinner` | Circular determinate and indeterminate progress | progress, timing |
-| Feedback | `skeleton` | `cem-skeleton` | Loading placeholder preserving layout | palette, control, bend |
-| Feedback | `alert` | `cem-alert` | Inline info, success, warning, and error feedback | palette, action, stroke, gap, typography |
+| Feedback | `skeleton` | `cem-skeleton` | Loading placeholder preserving layout | palette, control, bend, stroke |
+| Feedback | `alert` | `cem-alert` | Inline info, success, warning, and error feedback | palette, stroke, inset, typography |
 
 ## Deferred From MVP
 

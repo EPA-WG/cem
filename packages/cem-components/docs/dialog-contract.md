@@ -43,6 +43,14 @@ Keyboard focus enters an authored eligible target or the browser's dialog
 fallback. Only the actual focused owner/control receives its own token outline;
 forced colors use `Canvas`, `CanvasText` and `Highlight`.
 
+A conditional `default-open` dialog without an explicit invoker retains the
+focused entry control as its return destination. Removing the dialog after a
+service decision returns focus only when it still owned focus and that control
+remains available. Focus moved elsewhere, an unavailable destination, and
+`return-focus="none"` suppress shared restoration. The
+[project navigation workflow](project-navigation-contract.md) demonstrates delayed
+Save, failed Save, Discard and Cancel with declarative state and shared controls.
+
 ## Migration from legacy dialogs
 
 Remove `transient` and live `expanded`. Use explicit `mode="modal"` where modal

@@ -1,11 +1,71 @@
 import { expect, within } from 'storybook/test';
-import preview, { loadCemDeclaration, whenCemRendered, storybookCemRuntime } from '../../../../cem-elements/.storybook/preview.js';
+import preview, { loadCemDeclaration, loadCemComponent, cemComponentPlaygroundSource, whenCemRendered, storybookCemRuntime } from '../../../../cem-elements/.storybook/preview.js';
 import declarationSource from './cem-textarea.xhtml?raw';
 
 const meta = preview.meta({
     component: 'cem-textarea',
     title: 'CEM Components/cem-textarea',
     loaders: [async () => { await loadCemDeclaration('cem-textarea', declarationSource); return {}; }],
+});
+
+export const TextSelectionRequests = meta.story({
+    render: () => '<cem-textarea label="Selected source" value="Select this source text" selection-request="initial-range" selection-start="7" selection-end="11"></cem-textarea>',
+    play: async ({ canvasElement }) => {
+        const host = canvasElement.querySelector('cem-textarea') as HTMLElement;
+        await whenCemRendered(host);
+        const editor = within(host).getByRole('textbox', { name: 'Selected source' }) as HTMLTextAreaElement;
+        expect([editor.selectionStart, editor.selectionEnd]).toEqual([7, 11]);
+        expect(document.activeElement).not.toBe(editor);
+        host.setAttribute('selection-focus', ''); host.setAttribute('selection-request', 'navigate');
+        await whenCemRendered(host);
+        expect(document.activeElement).toBe(editor);
+        editor.setSelectionRange(0, 0);
+        host.setAttribute('busy', ''); await whenCemRendered(host);
+        expect(host.querySelector('textarea')).toBe(editor);
+        expect([editor.selectionStart, editor.selectionEnd]).toEqual([0, 0]);
+        expect(editor.value).toBe('Select this source text');
+    },
+});
+
+export const SelectionPropertyControls = meta.story({
+    loaders: [async () => {
+        const source = await cemComponentPlaygroundSource('cem-textarea');
+        await Promise.all(['cem-field', 'cem-radio', 'cem-action'].map(loadCemComponent));
+        const document = new DOMParser().parseFromString(source, 'text/html');
+        const template = document.querySelector('main > cem-element > template') as HTMLTemplateElement;
+        return { selectionPropertyMarkup: `<cem-element>${template.outerHTML}</cem-element>` };
+    }],
+    render: (_args, { loaded }) => String(loaded.selectionPropertyMarkup),
+    play: async ({ canvasElement }) => {
+        const declaration = canvasElement.querySelector('cem-element') as HTMLElement;
+        const settle = async () => {
+            await storybookCemRuntime().whenDeclarationSettled(declaration);
+            const instance = declaration.querySelector('[data-cem-anonymous-instance]') as HTMLElement;
+            await whenCemRendered(instance);
+            await Promise.all([...canvasElement.querySelectorAll<HTMLElement>('cem-field, cem-textarea, cem-radio, cem-action')].map(whenCemRendered));
+        };
+        await settle();
+        const editor = canvasElement.querySelector('[aria-label="Field preview"] textarea') as HTMLTextAreaElement;
+        const request = within(canvasElement).getByRole('textbox', { name: 'selection-request' }) as HTMLInputElement;
+        const start = within(canvasElement).getByRole('textbox', { name: 'selection-start' }) as HTMLInputElement;
+        const end = within(canvasElement).getByRole('textbox', { name: 'selection-end' }) as HTMLInputElement;
+        start.value = '1'; start.dispatchEvent(new Event('input', { bubbles: true }));
+        end.value = '4'; end.dispatchEvent(new Event('input', { bubbles: true }));
+        await settle();
+        const direction = within(canvasElement).getByRole('radiogroup', { name: 'selection-direction' });
+        within(direction).getByRole('radio', { name: 'backward' }).click();
+        const focus = within(canvasElement).getByRole('radiogroup', { name: 'selection-focus' });
+        within(focus).getByRole('radio', { name: 'present' }).click();
+        await settle();
+        request.focus(); request.value = 'navigate';
+        request.dispatchEvent(new Event('input', { bubbles: true })); await settle();
+        expect(document.activeElement).toBe(request);
+        request.dispatchEvent(new Event('change', { bubbles: true })); await settle();
+        expect(document.activeElement).toBe(editor);
+        expect([editor.selectionStart, editor.selectionEnd, editor.selectionDirection]).toEqual([1, 4, 'backward']);
+        expect(canvasElement.querySelector('[aria-label="Field preview"] textarea')).toBe(editor);
+        expect(storybookCemRuntime().diagnosticsFor(declaration)).toEqual([]);
+    },
 });
 
 export const AllAttributes = meta.story({

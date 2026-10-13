@@ -11,6 +11,8 @@ import {
     applyPatchFramesToRange,
     diffRenderPlansToPatchFrames,
     preparePatchFramesForRange,
+    retainCapturedPayloadEnvelope,
+    captureNativeCheckedEdits,
     applyRenderPlanToRange,
     edgeContentAddress,
     materializeRenderPlan,
@@ -127,6 +129,18 @@ import {
     type CemRepositoryStatus,
 } from './repository.js';
 import { CEM_FORM_CONTROL_CAPABILITY } from './form-control-capability.js';
+import { CEM_NAVIGATION_LANDMARK_CAPABILITY } from './navigation-landmark-capability.js';
+import { CEM_DISCLOSURE_PANEL_CAPABILITY } from './disclosure-panel-capability.js';
+import { CEM_SORT_ACTION_CAPABILITY } from './sort-action-capability.js';
+import { CEM_PROGRESS_STATUS_CAPABILITY } from './progress-status-capability.js';
+import { CEM_PAGINATION_CAPABILITY } from './pagination-capability.js';
+import { CEM_NATIVE_LIST_CAPABILITY } from './native-list-capability.js';
+import { CEM_TAB_PANELS_CAPABILITY } from './tab-panels-capability.js';
+import { CEM_WORKFLOW_PANELS_CAPABILITY } from './workflow-panels-capability.js';
+import { CEM_TREE_VIEW_CAPABILITY } from './tree-view-capability.js';
+import { CEM_TIME_INPUT_CAPABILITY } from './time-input-capability.js';
+import { CEM_RANGE_INPUT_CAPABILITY } from './range-input-capability.js';
+import { CEM_CALENDAR_INPUT_CAPABILITY } from './calendar-input-capability.js';
 import { CEM_EDITABLE_CHOICE_CAPABILITY } from './editable-choice-capability.js';
 import { CEM_CHECKABLE_CONTROL_CAPABILITY } from './checkable-control.js';
 import { CEM_SUGGESTIONS_CAPABILITY, refreshCemSuggestionsAuthorization, localCemSuggestionsBinding, type CemLocalSuggestionsEnvironment } from './suggestions-capability.js';
@@ -749,6 +763,22 @@ export interface CemDeclarationRegistrationOptions {
  * cem-elements and are versioned as part of the declaration identity.
  */
 export const CEM_DECLARATIVE_CAPABILITIES = Object.freeze({
+    'progress-status': { behavior: CEM_PROGRESS_STATUS_CAPABILITY, behaviorIdentity: 'cem-elements-progress-status-v1' },
+    'disclosure-panel': { behavior: CEM_DISCLOSURE_PANEL_CAPABILITY, behaviorIdentity: 'cem-elements-disclosure-panel-v1' },
+    'sort-action': { behavior: CEM_SORT_ACTION_CAPABILITY, behaviorIdentity: 'cem-elements-sort-action-v1' },
+    'pagination': { behavior: CEM_PAGINATION_CAPABILITY, behaviorIdentity: 'cem-elements-pagination-v1' },
+    'native-list': { behavior: CEM_NATIVE_LIST_CAPABILITY, behaviorIdentity: 'cem-elements-native-list-v1' },
+    'navigation-landmark': { behavior: CEM_NAVIGATION_LANDMARK_CAPABILITY, behaviorIdentity: 'cem-elements-navigation-landmark-v1' },
+    'tab-panels': { behavior: CEM_TAB_PANELS_CAPABILITY, behaviorIdentity: 'cem-elements-tab-panels-v1' },
+    'workflow-panels': { behavior: CEM_WORKFLOW_PANELS_CAPABILITY, behaviorIdentity: 'cem-elements-workflow-panels-v1' },
+    'tree-view': { behavior: CEM_TREE_VIEW_CAPABILITY, behaviorIdentity: 'cem-elements-tree-view-v1' },
+
+    'time-input': { behavior: CEM_TIME_INPUT_CAPABILITY, behaviorIdentity: 'cem-elements-time-input-v1' },
+    'range-input': { behavior: CEM_RANGE_INPUT_CAPABILITY, behaviorIdentity: 'cem-elements-range-input-v1' },
+    'calendar-input': {
+        behavior: CEM_CALENDAR_INPUT_CAPABILITY,
+        behaviorIdentity: 'cem-elements-calendar-input-v1',
+    },
     'editable-choice': {
         behavior: CEM_EDITABLE_CHOICE_CAPABILITY,
         behaviorIdentity: 'cem-elements-editable-choice-v1',
@@ -763,7 +793,7 @@ export const CEM_DECLARATIVE_CAPABILITIES = Object.freeze({
     },
     'native-surface': {
         behavior: CEM_NATIVE_SURFACE_CAPABILITY,
-        behaviorIdentity: 'cem-elements-native-surface-v5',
+        behaviorIdentity: 'cem-elements-native-surface-v6',
     },
     'form-control': {
         behavior: CEM_FORM_CONTROL_CAPABILITY,
@@ -1723,6 +1753,7 @@ export class CemElementRuntime {
     private readonly declarationScopeOption?: CemDeclarationScope;
     private readonly diagnostics = new WeakMap<object, CemElementDiagnostic[]>();
     private readonly initializedInstances = new WeakSet<HTMLElement>();
+    private readonly nativeCheckedPreservations = new WeakMap<HTMLElement, (element: Element) => boolean>();
     private readonly explicitInstancePayloads = new WeakSet<HTMLElement>();
     private readonly invalidInstancePayloads = new WeakSet<HTMLElement>();
     private readonly frozenSerializedInstances = new WeakSet<HTMLElement>();
@@ -2522,6 +2553,12 @@ export class CemElementRuntime {
         return this.declarationForInstance(instance)?.declarationVersion ?? null;
     }
 
+    /** Whether this runtime can resolve an active declaration for a produced host. */
+    hasDeclarationFor(instance: HTMLElement): boolean {
+        const declaration = this.declarationForInstance(instance);
+        return !!declaration && !declaration.declarationScope.disposed;
+    }
+
     renderedSuggestionsFor(instance: HTMLElement): CemRenderedSuggestions | undefined {
         const prepared = this.committedSuggestionRows.get(instance);
         return prepared?.current() ? prepared : undefined;
@@ -2899,6 +2936,7 @@ export class CemElementRuntime {
 
     private renderInstance(instance: HTMLElement, compiled: CompiledDeclaration, formRefreshPass = 0): void {
         if (!instance.isConnected || compiled.declarationScope.disposed) return;
+        this.nativeCheckedPreservations.set(instance, captureNativeCheckedEdits(instance.ownerDocument));
         // Invalidate in-flight publication as soon as state changes, even though
         // the replacement snapshot will be captured in the next task.
         const token = this.nextRenderToken(instance);
@@ -3932,10 +3970,17 @@ export class CemElementRuntime {
         }
     }
 
+    private authoredPayloadContainer(current: Element): Element | undefined {
+        if (!this.declarationsByDocument.get(current.ownerDocument)?.has(current.localName)) return undefined;
+        const island = directDataIsland(current);
+        return island ? directIslandSection(island, DATA_ISLAND_SECTIONS.payload) : undefined;
+    }
+
     private processingPatchOptions(instance: HTMLElement, compiled: CompiledDeclaration): Parameters<typeof applyPatchFramesToRange>[4] {
         const behavior = compiled.behavior;
         const preserveRenderedAttribute = behavior?.preserveRenderedAttribute?.bind(behavior);
         return {
+            preserveNativeCheckedState: this.nativeCheckedPreservations.get(instance),
             preserveNode: (node) => behavior?.preserveRenderedNode?.(instance, node) ?? false,
             preserveElementAttribute: preserveRenderedAttribute
                 ? (current, desired, attribute) => preserveRenderedAttribute(instance, current, desired, attribute)
@@ -3943,6 +3988,7 @@ export class CemElementRuntime {
             preserveElementChildren: (current) =>
                 (this.declarationsByDocument.get(current.ownerDocument)?.has(current.localName) ?? false) &&
                 directDataIsland(current) !== undefined,
+            authoredChildContainer: (current) => this.authoredPayloadContainer(current),
             transientElementTags: [
                 'cem-module-url',
                 'module-url',
@@ -4274,6 +4320,9 @@ export class CemElementRuntime {
             const payload = directIslandSection(island, DATA_ISLAND_SECTIONS.payload);
             if (payload?.getAttribute(DATA_ISLAND_EXPLICIT_PAYLOAD_ATTR) === 'true') {
                 this.explicitInstancePayloads.add(instance);
+                if (!this.initializedInstances.has(instance) && payload.getAttribute('content-type') !== DATA_ISLAND_CEM_ML_CONTENT_TYPE) {
+                    retainCapturedPayloadEnvelope(payload, instance.ownerDocument.createElement('template'));
+                }
             }
             if (!this.initializedInstances.has(instance)) {
                 if (instance.firstElementChild !== island) {
@@ -4315,6 +4364,7 @@ export class CemElementRuntime {
                 payload.appendChild(envelope);
             } else {
                 payload.append(...Array.from(envelope.content.childNodes));
+                retainCapturedPayloadEnvelope(payload, envelope);
                 envelope.remove();
                 this.rejectActiveCapturedPayload(instance, payload);
             }
@@ -6705,11 +6755,13 @@ export class CemElementRuntime {
                   preserveRenderedAttribute(instance, current, desired, attribute)
             : undefined;
         const mergeOptions = {
+            preserveNativeCheckedState: this.nativeCheckedPreservations.get(instance),
             preserveNode: (node: Node) => behavior?.preserveRenderedNode?.(instance, node) ?? false,
             preserveElementAttribute,
             preserveElementChildren: (current: Element) =>
                 (this.declarationsByDocument.get(current.ownerDocument)?.has(current.localName) ?? false) &&
                 directDataIsland(current) !== undefined,
+            authoredChildContainer: (current: Element) => this.authoredPayloadContainer(current),
             transientElementTags: [
                 'cem-module-url',
                 'module-url',

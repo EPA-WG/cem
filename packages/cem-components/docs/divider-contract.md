@@ -83,5 +83,13 @@ or `forced-color-adjust: none` to simulate the line.
 | Input neutrality | Pointer enter/leave and click cause no DOM, ARIA, state, geometry, or application-event mutation |
 | Forced colors | `CanvasText` line with the same D5 width, D1 inset, and D1/D2 margin-box extent |
 
-The browser fixture and dedicated forced-colors gate are aggregated by the package verification target before the
+The colocated `cem-divider.stories.ts` plays and dedicated forced-colors gate are aggregated by the package verification target before the
 Angular Material divider row can be promoted from `gap` to `covered`.
+
+
+The canonical XHTML declaration uses one stable `part="root"` line. Changing
+orientation or decorative presence updates that line without replacing it.
+Empty and false-valued decorative attributes both remove separator semantics.
+Scoped CSS replaces the former global divider rules. The
+[property playground](../playgrounds/cem-divider.html) links to its five-theme
+[variation gallery](../playgrounds/cem-divider-gallery.html).

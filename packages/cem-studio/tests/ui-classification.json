@@ -76,7 +76,7 @@
             "materialReferences": ["tabs"],
             "contractBounds": ["Use cem-tabs as the completed general local-view owner with inert cem-tab payloads, stable panels, manual activation, and no route, persistence, lazy-loading, or in-place reordering ownership."],
             "applicationOwns": ["selected pane route", "preserved workbench selection"],
-            "evidence": ["packages/cem-components/docs/tabs-contract.md", "docs/cem-studio.md#responsive-layout"]
+            "evidence": ["packages/cem-components/docs/project-navigation-contract.md", "packages/cem-components/docs/tabs-contract.md", "docs/cem-studio.md#responsive-layout"]
         },
         {
             "id": "home-and-projects",
@@ -84,12 +84,12 @@
             "requirement": "Recent projects, create/import, Feature Tour, storage health, offline/update status, and provider status.",
             "disposition": "application-orchestration",
             "compositionGate": "open",
-            "generalComponents": ["cem-card", "cem-action", "cem-icon-button", "cem-badge", "cem-alert", "cem-progress"],
+            "generalComponents": ["cem-card", "cem-list", "cem-action", "cem-icon-button", "cem-badge", "cem-alert", "cem-progress"],
             "studioComponents": [],
             "materialReferences": ["card", "button", "badge", "progress-bar"],
-            "contractBounds": ["Use cards, native actions, standalone badges, inline alerts, and the linear progress subset; no attached badge, FAB, buffer progress, or action-list contract is claimed."],
+            "contractBounds": ["Use cards, passive lists with explicit native actions, standalone badges, inline alerts, and the linear progress subset; no attached badge, FAB, buffer progress, or action-list contract is claimed."],
             "applicationOwns": ["project records", "seed installation", "storage estimates", "offline, update, and provider state"],
-            "evidence": ["docs/cem-studio.md#primary-screens", "docs/component-mvp.md#component-list"]
+            "evidence": ["packages/cem-components/docs/project-navigation-contract.md", "docs/cem-studio.md#primary-screens", "docs/component-mvp.md#component-list"]
         },
         {
             "id": "project-hierarchy",
@@ -102,7 +102,7 @@
             "materialReferences": ["tree"],
             "contractBounds": ["cem-tree owns hierarchy, expansion, and composite focus; Studio supplies data, loading, stable selection mutation, and navigation."],
             "applicationOwns": ["project data", "selected stable id", "loading", "route navigation"],
-            "evidence": ["packages/cem-components/docs/tree-contract.md", "docs/cem-studio.md#primary-screens"]
+            "evidence": ["packages/cem-components/docs/project-navigation-contract.md", "packages/cem-components/docs/tree-contract.md", "docs/cem-studio.md#primary-screens"]
         },
         {
             "id": "explorer-reordering",
@@ -310,7 +310,7 @@
             "materialReferences": ["dialog", "button"],
             "contractBounds": ["Use the covered native dialog lifecycle and native actions; Studio supplies the transaction, recovery, and consequence text."],
             "applicationOwns": ["confirmation policy", "transaction", "recovery and undo state"],
-            "evidence": ["packages/cem-components/tests/angular-material-parity.json#dialog", "docs/cem-studio.md#mutation-and-recovery"]
+            "evidence": ["packages/cem-components/docs/project-navigation-contract.md", "packages/cem-components/tests/angular-material-parity.json#dialog", "docs/cem-studio.md#mutation-and-recovery"]
         },
         {
             "id": "project-settings",

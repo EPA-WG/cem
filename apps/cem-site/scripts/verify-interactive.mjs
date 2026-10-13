@@ -1,3 +1,5 @@
+import assert from 'node:assert/strict';
+import { verifySiteThemes } from './verify-themes.mjs';
 import { verifyDeployedXhtml } from './verify-xhtml.mjs';
 import { createReadStream } from 'node:fs';
 import { mkdir, stat, writeFile } from 'node:fs/promises';
@@ -70,7 +72,10 @@ try {
     const xhtml = await verifyDeployedXhtml(page);
     if (browserErrors.length) throw new Error(`XHTML deployment failed: ${browserErrors.join("; ")}`);
 
-    await page.locator('[data-token-filter]').fill('comfort');
+    assert.equal(await page.locator('[data-native-output] pre').textContent(),
+        await page.locator('[data-cem-fixture-instance] .cem-site-greeting').evaluate(node => node.outerHTML));
+    await page.locator('[data-token-filter] input').fill('comfort');
+    await page.waitForFunction(() => document.querySelector('[data-token-status]')?.textContent.trim() === '1 token example');
     const visibleTokens = await page.locator('[data-token-example]:visible').count();
     const tokenStatus = await page.locator('[data-token-status]').textContent();
     if (visibleTokens !== 1 || tokenStatus?.trim() !== '1 token example') {
@@ -79,6 +84,7 @@ try {
 
     await page.locator('cem-action button').click();
     await page.locator('cem-action button').click();
+    await page.waitForFunction(() => document.querySelector('[data-action-count]')?.textContent.trim() === 'Action count: 2');
     const actionCount = await page.locator('[data-action-count]').textContent();
     if (actionCount?.trim() !== 'Action count: 2') {
         throw new Error(`production action did not retain native click interaction: ${actionCount}`);
@@ -119,11 +125,10 @@ try {
     }
 
     const expectedImports = [
-        '@epa-wg/cem-components/primitives',
+        '@epa-wg/cem-elements',
         '@epa-wg/cem-site/components-runtime',
         '@epa-wg/cem-site/runtime',
         '@epa-wg/cem-site/search',
-        '@epa-wg/custom-element',
     ];
     if (JSON.stringify(Object.keys(contract.importMap.imports ?? {}).sort()) !== JSON.stringify(expectedImports)) {
         throw new Error('the browser import map does not expose the exact interactive entrypoints');
@@ -135,7 +140,36 @@ try {
         throw new Error(`interactive stylesheets drifted: ${contract.styleSheets.join(', ')}`);
     }
 
+    // Updating the parent must retain an edited child and its native focus owner.
+    const editor = page.locator('[data-component-example="field"] input');
+    await editor.fill('A retained value');
+    const owner = await editor.elementHandle();
+    await page.locator('[data-token-filter] input').fill('  CALM  ');
+    await page.waitForFunction(() => document.querySelector('[data-token-example]')?.getAttribute('data-token-example') === '--cem-palette-calm'
+        && document.querySelector('[data-token-status]')?.textContent.trim() === '1 token example');
+    assert.equal(await page.locator('[data-token-example]').getAttribute('data-token-example'), '--cem-palette-calm');
+    assert.equal(await editor.inputValue(), 'A retained value');
+    assert.ok(await owner.evaluate(node => node === document.querySelector('[data-component-example="field"] input')));
+    const filterOwner = await page.locator('[data-token-filter] input').elementHandle();
+    for (const [query, count, label] of [['not-a-token', 0, '0 token examples'], ['', 3, '3 token examples']]) {
+        await page.locator('[data-token-filter] input').fill(query);
+        await page.waitForFunction(label => document.querySelector('[data-token-status]')?.textContent.trim() === label, label);
+        assert.equal(await page.locator('[data-token-example]').count(), count);
+        assert.ok(await filterOwner.evaluate(node => node === document.activeElement));
+    }
+    const exactOutput = await page.evaluate(() => ({
+        rendered: document.querySelector('[data-cem-fixture-instance] .cem-site-greeting').outerHTML,
+        preview: document.querySelector('[data-native-output] pre')?.textContent,
+        parsed: !!document.querySelector('[data-native-output] .cem-site-greeting'),
+    }));
+    assert.equal(exactOutput.preview, exactOutput.rendered);
+    assert.equal(exactOutput.parsed, false);
+
+    const themes = await verifySiteThemes(page);
+    assert.deepEqual(browserErrors, []);
+
     const report = {
+        themes,
         version: 1,
         xhtml,
         route: fixturePath,

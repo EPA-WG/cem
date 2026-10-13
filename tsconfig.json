@@ -7,9 +7,6 @@
             "path": "./packages/cem-theme"
         },
         {
-            "path": "./packages/cem-components"
-        },
-        {
             "path": "./packages/cem-elements"
         },
         {

@@ -1424,6 +1424,12 @@ async function runCrossSpecChecks(combinedCss) {
         fail("D3 round-end bend does not reference D2c control height");
     }
 
+    const gridMinimum = rootDecls.get("--cem-layout-grid-min");
+    if (!gridMinimum || gridMinimum.includes("--cem-typography-") ||
+        !(parseCssLengthPx(resolveValue("--cem-layout-grid-min")) >= parseCssLengthPx(resolveValue("--cem-coupling-zone-min")))) {
+        fail("D1 intrinsic grid minimum must be a theme-owned layout endpoint, independent of D6 reading measure and large enough for native coupling");
+    }
+
     const readingSize = parseCssLengthPx(resolveValue("--cem-typography-size-m"));
     const lineHeight = Number.parseFloat(resolveValue("--cem-typography-line-height-reading"));
     const measure = resolveValue("--cem-typography-reading-measure-max");

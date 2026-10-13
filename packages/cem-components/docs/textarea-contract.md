@@ -20,6 +20,11 @@ light DOM. `cem-action` supplies submit and reset commands.
 - `invalid` forwards the ARIA string; it does not impose custom validity.
 - `indicator` defaults to `underline`; `outline` selects an outline indicator.
   Both appearances keep the native border removed. `class` stays on the host.
+- `selection-request`, `selection-start`, `selection-end`, `selection-direction`
+  and `selection-focus` use the shared [form-control text navigation contract](../../cem-elements/README.md#native-string-form-controls).
+  Supply a fresh request token for each navigation, UTF-16 offsets and an explicit
+  focus flag when navigation should move focus. Unrelated renders retain the
+  user's caret; no component-owned script is required.
 
 ## Editing and forms
 

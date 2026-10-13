@@ -1,0 +1,214 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-stepper" capability="workflow-panels">
+<template id="cem-stepper" type="text/cem-ml">
+{module | {attribute @name=label | Steps}
+ {slice @name=steps}
+ {template @name=stepper-header |  {param @name=step}  {body |   {li @class=cem-stepper__item @part="item" @data-completed="{$step.connectorCompleted}" |    {button @id="{$step.buttonId}" @type=button @class=cem-stepper__header @part="header" @data-step-index="{$step.index}" @data-marker-state="{$step.markerState}" @tabindex="{$step.tabIndex}" @disabled={if step.disabled { true } else { null }} @aria-disabled={if step.unavailable { true } else { null }} @aria-current={if step.current { "step" } else { null }} @aria-invalid={if step.invalid { true } else { null }} @aria-controls="{$step.panelId}" |     {span @class=cem-stepper__marker @part="marker" @aria-hidden=true | {$step.marker}}     {span @class=cem-stepper__label @part="label" | {$step.label}}     {cem:if @test=step.status | {span @class=cem-stepper__status @part="status" | {$step.status}}}}}}}
+ {template @name=stepper-panel |  {param @name=step}  {body |   {div @id="{$step.panelId}" @class=cem-stepper__panel @part="panel" @role=region @aria-labelledby="{$step.buttonId}" @hidden={if step.current { null } else { true }} |    {cem:project-payload @select="step.children" | }}}}
+ {body | {style @type=text/css |```
+:scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
+:scope {
+    display: block;
+}
+
+:scope > :where([part~="root"]) {
+    --_cem-stepper-gap: var(--cem-gap-group);
+    background-color: var(--cem-palette-comfort);
+    color: var(--cem-palette-comfort-text);
+    display: block;
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    line-height: var(--cem-typography-ui-line-height);
+}
+
+:scope > :where([part~="root"]) > :where([part~="steps"]) {
+    display: flex;
+    gap: var(--_cem-stepper-gap);
+    list-style: none;
+    margin: var(--cem-stroke-none);
+    padding: var(--cem-stroke-none);
+}
+
+:scope > :where([part~="root"])[data-orientation='vertical'] > :where([part~="steps"]) {
+    display: grid;
+}
+
+:scope > :where([part~="root"]) > :where([part~="steps"]) > :where([part~="item"]) {
+    flex: 1 1 0;
+    min-inline-size: 0;
+    position: relative;
+}
+
+:scope > :where([part~="root"]) > :where([part~="steps"]) > :where([part~="item"]:not(:last-child))::after {
+    background-color: var(--cem-workflow-connector-default-color);
+    block-size: var(--cem-stroke-divider);
+    content: '';
+    inline-size: var(--_cem-stepper-gap);
+    inset-block-start: calc(var(--cem-coupling-zone-min) / 2);
+    inset-inline-start: 100%;
+    pointer-events: none;
+    position: absolute;
+}
+
+:scope > :where([part~="root"])[data-orientation='vertical'] > :where([part~="steps"]) > :where([part~="item"]:not(:last-child))::after {
+    block-size: var(--_cem-stepper-gap);
+    inline-size: var(--cem-stroke-divider);
+    inset-block-start: 100%;
+    inset-inline-start: calc(var(--cem-control-padding-x) + var(--cem-icon-button-icon-size) / 2);
+}
+
+:scope > :where([part~="root"]) > :where([part~="steps"]) > :where([part~="item"])[data-completed='true']:where(:not(:last-child))::after {
+    background-color: var(--cem-workflow-connector-completed-color);
+}
+
+:scope > :where([part~="root"]) > :where([part~="steps"]) > :where([part~="item"]) > :where([part~="header"]) {
+    appearance: none;
+    background-color: var(--cem-navigation-item-default-background);
+    border: var(--cem-stroke-none) solid transparent;
+    border-radius: var(--cem-bend-control);
+    box-sizing: border-box;
+    color: var(--cem-navigation-item-default-text);
+    display: grid;
+    font: inherit;
+    font-weight: var(--cem-typography-ui-font-weight);
+    gap: var(--cem-gap-related);
+    grid-template-areas: 'marker label' 'marker status';
+    grid-template-columns: auto minmax(0, 1fr);
+    inline-size: 100%;
+    letter-spacing: var(--cem-typography-ui-letter-spacing);
+    margin: var(--cem-stroke-none);
+    min-block-size: var(--cem-coupling-zone-min);
+    padding-block: var(--cem-control-padding-y);
+    padding-inline: var(--cem-control-padding-x);
+    text-align: start;
+}
+
+:scope > :where([part~="root"]) > :where([part~="steps"]) > :where([part~="item"]) > :where([part~="header"]):enabled:where(:not([aria-disabled='true']):hover) {
+    background-color: var(--cem-navigation-item-hover-background);
+    color: var(--cem-navigation-item-hover-text);
+}
+
+:scope > :where([part~="root"]) > :where([part~="steps"]) > :where([part~="item"]) > :where([part~="header"]):enabled:where(:not([aria-disabled='true']):active) {
+    background-color: var(--cem-navigation-item-active-background);
+    color: var(--cem-navigation-item-active-text);
+}
+
+:scope > :where([part~="root"]) > :where([part~="steps"]) > :where([part~="item"]) > :where([part~="header"])[aria-current='step'] {
+    background-color: var(--cem-navigation-item-current-background);
+    color: var(--cem-navigation-item-current-text);
+}
+
+:scope > :where([part~="root"]) > :where([part~="steps"]) > :where([part~="item"]) > :where([part~="header"])[aria-current='step']:where(:enabled:not([aria-disabled='true']):hover) {
+    background-color: var(--cem-navigation-item-current-hover-background);
+    color: var(--cem-navigation-item-current-hover-text);
+}
+
+:scope > :where([part~="root"]) > :where([part~="steps"]) > :where([part~="item"]) > :where([part~="header"])[aria-current='step']:where(:enabled:not([aria-disabled='true']):active) {
+    background-color: var(--cem-navigation-item-current-active-background);
+    color: var(--cem-navigation-item-current-active-text);
+}
+
+:scope > :where([part~="root"]) > :where([part~="steps"]) > :where([part~="item"]) > :where([part~="header"]:is(:disabled, [aria-disabled='true'])) {
+    background-color: var(--cem-navigation-item-disabled-background);
+    color: var(--cem-navigation-item-disabled-text);
+}
+
+:scope > :where([part~="root"]) > :where([part~="steps"]) > :where([part~="item"]) > :where([part~="header"]):enabled:where(:focus-visible) {
+    outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1);
+    outline-offset: var(--cem-stroke-indicator-offset);
+}
+
+:scope :where([part~="marker"]) {
+    align-items: center;
+    align-self: center;
+    block-size: var(--cem-icon-button-icon-size);
+    border: var(--cem-stroke-boundary) solid currentColor;
+    border-radius: 50%;
+    display: inline-flex;
+    grid-area: marker;
+    inline-size: var(--cem-icon-button-icon-size);
+    justify-content: center;
+}
+
+:scope :where([part~="label"]) {
+    align-self: end;
+    grid-area: label;
+}
+
+:scope :where([part~="status"]) {
+    font-family: var(--cem-typography-tag-font-family);
+    font-size: var(--cem-typography-tag-font-size);
+    font-weight: var(--cem-typography-tag-font-weight);
+    grid-area: status;
+    letter-spacing: var(--cem-typography-tag-letter-spacing);
+    line-height: var(--cem-typography-tag-line-height);
+}
+
+:scope :where([part~="header"])[data-marker-state='completed'] > :where([part~="marker"]) {
+    color: var(--cem-workflow-step-completed-indicator-color);
+}
+
+:scope :where([part~="header"])[data-marker-state='invalid'] > :where([part~="marker"]) {
+    color: var(--cem-workflow-step-invalid-indicator-color);
+}
+
+:scope > :where([part~="root"]) > :where([part~="panels"]) {
+    margin-block-start: var(--cem-gap-block);
+}
+
+:scope > :where([part~="root"]) > :where([part~="panels"]) > :where([part~="panel"]) {
+    background-color: var(--cem-palette-comfort);
+    color: var(--cem-palette-comfort-text);
+    padding: var(--cem-inset-container);
+}
+
+@media (forced-colors: active) {
+
+    :scope > :where([part~="root"]),
+:scope > :where([part~="root"]) > :where([part~="panels"]) > :where([part~="panel"]),
+:scope > :where([part~="root"]) > :where([part~="steps"]) > :where([part~="item"]) > :where([part~="header"]) {
+        background-color: Canvas;
+        color: CanvasText;
+    }
+
+    :scope > :where([part~="root"]) > :where([part~="steps"]) > :where([part~="item"]) > :where([part~="header"])[aria-current='step'] {
+        background-color: SelectedItem;
+        color: SelectedItemText;
+    }
+
+    :scope > :where([part~="root"]) > :where([part~="steps"]) > :where([part~="item"]) > :where([part~="header"]):enabled:where(:not([aria-disabled='true']):hover),
+:scope > :where([part~="root"]) > :where([part~="steps"]) > :where([part~="item"]) > :where([part~="header"]):enabled:where(:not([aria-disabled='true']):active),
+:scope > :where([part~="root"]) > :where([part~="steps"]) > :where([part~="item"]) > :where([part~="header"])[aria-current='step']:where(:enabled:not([aria-disabled='true']):hover),
+:scope > :where([part~="root"]) > :where([part~="steps"]) > :where([part~="item"]) > :where([part~="header"])[aria-current='step']:where(:enabled:not([aria-disabled='true']):active) {
+        background-color: Highlight;
+        color: HighlightText;
+    }
+
+    :scope > :where([part~="root"]) > :where([part~="steps"]) > :where([part~="item"]) > :where([part~="header"]:is(:disabled, [aria-disabled='true'])) {
+        background-color: Canvas;
+        color: GrayText;
+    }
+
+    :scope > :where([part~="root"]) > :where([part~="steps"]) > :where([part~="item"]) > :where([part~="header"]):enabled:where(:focus-visible) {
+        outline: var(--cem-stroke-focus) solid CanvasText;
+        outline-offset: var(--cem-stroke-indicator-offset);
+    }
+
+    :scope :where([part~="header"])[data-marker-state='completed'] > :where([part~="marker"]) {
+        color: Highlight;
+    }
+
+    :scope :where([part~="header"])[data-marker-state='invalid'] > :where([part~="marker"]) {
+        color: Mark;
+    }
+
+    :scope > :where([part~="root"]) > :where([part~="steps"]) > :where([part~="item"]:not(:last-child))::after {
+        background-color: GrayText;
+    }
+
+    :scope > :where([part~="root"]) > :where([part~="steps"]) > :where([part~="item"])[data-completed='true']:where(:not(:last-child))::after {
+        background-color: Highlight;
+    }
+}
+```}  {cem:choose |   {cem:when @test=datadom.slices.authoringValid |    {section @class=cem-stepper @part="root" @data-orientation="{$datadom.slices.orientation}" @aria-label={datadom.attributes.aria-label ?? label} |     {ol @class=cem-stepper__steps @part="steps" |      {cem:for-each @select=datadom.slices.steps @as=step | {call @template=stepper-header @with:step="{$step}"}}}     {div @class=cem-stepper__panels @part="panels" |      {cem:for-each @select=datadom.slices.steps @as=step | {call @template=stepper-panel @with:step="{$step}"}}}}}   {cem:otherwise | {span @class="cem-stepper cem-stepper--invalid" @part="root" @hidden=true | }}}}}
+</template>
+</cem-element>

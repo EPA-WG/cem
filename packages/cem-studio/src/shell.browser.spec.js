@@ -1,12 +1,22 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
     CEM_STUDIO_THEME_MODES,
+    createCemStudioFileSystemController,
     createCemStudioInstallController,
     createCemStudioUpdateCoordinator,
     mountCemStudioApplicationShell,
 } from './shell.js';
 import { CEM_STUDIO_REPOSITORY_ID, createCemStudioProjectRepository } from './repository.js';
+
+// Supply the same resource identity as the production page's import map.
+beforeAll(() => {
+    const map = document.createElement('script'); map.type = 'importmap';
+    map.textContent = JSON.stringify({ imports: {
+        '@epa-wg/cem-components/components.xhtml': new URL('../../cem-components/dist/components.xhtml', import.meta.url).href,
+    } });
+    document.head.append(map);
+});
 
 const repositories = [];
 const mountedShells = [];
@@ -20,6 +30,104 @@ afterEach(async () => {
 });
 
 describe('CEM Studio installable application shell', () => {
+    it('serializes host operations during the asynchronous declarative disabled-state update', async () => {
+        let release;
+        const pending = new Promise(resolve => { release = resolve; });
+        const provider = { capabilities: () => ({ available: true }), openProjectDirectory: vi.fn(() => pending) };
+        const files = createCemStudioFileSystemController({ provider });
+        const first = files.openProjectDirectory();
+        const duplicateFile = files.openProjectDirectory();
+        expect(provider.openProjectDirectory).toHaveBeenCalledOnce();
+        release({ projectId: 'opened' }); await Promise.all([first, duplicateFile]); files.dispose();
+
+        const target = new EventTarget();
+        const install = createCemStudioInstallController({ eventTarget: target });
+        let choose;
+        const choice = new Promise(resolve => { choose = resolve; });
+        const prompt = vi.fn(async () => undefined);
+        const offer = new Event('beforeinstallprompt', { cancelable: true });
+        Object.defineProperties(offer, { prompt: { value: prompt }, userChoice: { value: choice } });
+        target.dispatchEvent(offer);
+        const installing = install.prompt();
+        const duplicateInstall = install.prompt();
+        expect(prompt).toHaveBeenCalledOnce();
+        choose({ outcome: 'accepted' }); await Promise.all([installing, duplicateInstall]); install.dispose();
+
+        let persist;
+        const persistence = new Promise(resolve => { persist = resolve; });
+        const waiting = { postMessage: vi.fn() };
+        const save = vi.fn(() => persistence);
+        const update = createCemStudioUpdateCoordinator({ registration: eventTarget({ waiting }), persistState: save });
+        update.setDirty(true);
+        const activating = update.activateUpdate();
+        const duplicateUpdate = update.activateUpdate();
+        expect(save).toHaveBeenCalledOnce();
+        persist(); await Promise.all([activating, duplicateUpdate]); await update.activateUpdate();
+        expect(waiting.postMessage).toHaveBeenCalledOnce();
+        update.dispose();
+    });
+
+    it('binds native theme and install controls declaratively while retaining slotted workbench state', async () => {
+        const { userEvent } = await import('vitest/browser');
+        const root = document.createElement('main');
+        document.body.append(root);
+        const storage = memoryStorage({ 'cem-studio-theme': 'cem-theme-native' });
+        const shell = await mountCemStudioApplicationShell({ root, storage });
+        mountedShells.push(shell);
+        const theme = root.querySelector('cem-select[data-cem-studio-theme]');
+        const trigger = theme.querySelector('[role="combobox"]');
+        await userEvent.click(trigger);
+        await shell.whenSettled();
+        const option = [...theme.querySelectorAll('[role="option"]')].find(row => row.textContent.trim() === 'Dark');
+        expect(option).toBeTruthy();
+        await userEvent.click(option);
+        await shell.whenSettled();
+        expect(shell.theme.mode).toBe('cem-theme-dark');
+        expect(shell.view.element.dataset.theme).toBe('cem-theme-dark');
+        expect(storage.getItem('cem-studio-theme')).toBe('cem-theme-dark');
+        expect(theme.querySelector('[role="combobox"]')).toBe(trigger);
+        expect(document.activeElement).toBe(trigger);
+
+        const workbench = document.createElement('section');
+        const editor = document.createElement('textarea');
+        editor.setAttribute('aria-label', 'Retained workbench editor');
+        workbench.append(editor);
+        shell.view.element.append(workbench);
+        await shell.whenSettled();
+        editor.value = 'unsaved source'; editor.focus(); editor.setSelectionRange(2, 8);
+        shell.theme.setMode('cem-theme-contrast-dark');
+        await shell.whenSettled();
+        expect(shell.view.element.contains(workbench)).toBe(true);
+        expect(workbench.querySelector('textarea')).toBe(editor);
+        expect(editor.value).toBe('unsaved source');
+        expect([editor.selectionStart, editor.selectionEnd]).toEqual([2, 8]);
+        expect(document.activeElement).toBe(editor);
+
+        const install = root.querySelector('[data-cem-studio-install] button');
+        expect(install.disabled).toBe(true);
+        const prompt = vi.fn(() => {
+            expect(navigator.userActivation.isActive).toBe(true);
+            return Promise.resolve();
+        });
+        const offer = new Event('beforeinstallprompt', { cancelable: true });
+        Object.defineProperties(offer, { prompt: { value: prompt }, userChoice: { value: Promise.resolve({ outcome: 'accepted' }) } });
+        window.dispatchEvent(offer);
+        await shell.whenSettled();
+        expect(install.disabled).toBe(false);
+        await userEvent.click(install);
+        await vi.waitFor(() => expect(shell.install.status().state).toBe('installed'));
+        await shell.whenSettled();
+        expect(prompt).toHaveBeenCalledOnce();
+        expect(root.querySelector('[data-cem-studio-install] button')).toBe(install);
+        expect(install.disabled).toBe(true);
+        expect(root.querySelector('[data-cem-studio-install-state]').getAttribute('label')).toBe('Installed');
+        expect(shell.view.errors).toEqual([]);
+        shell.dispose();
+        install.disabled = false; install.click();
+        expect(prompt).toHaveBeenCalledOnce();
+        expect(root.children).toHaveLength(0);
+    });
+
     it('renders production CEM controls and persists every repository-defined theme mode', async () => {
         const storage = memoryStorage({ 'cem-studio-theme': 'cem-theme-dark' });
         const root = document.createElement('main');
@@ -39,12 +147,18 @@ describe('CEM Studio installable application shell', () => {
         expect(root.querySelector('cem-select .cem-select__control')).not.toBeNull();
         expect(root.querySelector('cem-action button')).not.toBeNull();
         expect(root.querySelectorAll('button:not(cem-action button):not(cem-select button)')).toHaveLength(0);
+        for (const action of root.querySelectorAll('cem-action')) {
+            expect(['primary', 'explicit', 'contextual', 'alternate', 'destructive']).toContain(action.getAttribute('variant'));
+        }
+        expect(root.querySelector('[data-cem-studio-install]').getAttribute('variant')).toBe('contextual');
+        expect(root.querySelector('[data-cem-studio-open-project]').getAttribute('variant')).toBe('alternate');
 
         for (const mode of CEM_STUDIO_THEME_MODES) {
             shell.theme.setMode(mode);
-            expect(root.dataset.theme).toBe(mode);
-            expect(root.classList.contains(mode)).toBe(true);
-            expect(CEM_STUDIO_THEME_MODES.filter((candidate) => root.classList.contains(candidate))).toEqual([mode]);
+            await shell.whenSettled();
+            expect(shell.view.element.dataset.theme).toBe(mode);
+            expect(shell.view.element.classList.contains(mode)).toBe(true);
+            expect(CEM_STUDIO_THEME_MODES.filter((candidate) => shell.view.element.classList.contains(candidate))).toEqual([mode]);
             expect(storage.getItem('cem-studio-theme')).toBe(mode);
         }
     });

@@ -42,6 +42,22 @@ no local defaults. Keep button glyph sizing under its existing token.
 The user approved the recommended legacy scale. D2c now owns these definitions;
 no component-local CSS exception is needed.
 
+### CEM-CSS-004 — Intrinsic grid track minimum (adopted into theme)
+
+The layout/content completion audit found that `cem-grid` used D6's
+`--cem-typography-reading-measure-max` as a minimum track width. A maximum line
+length does not express a minimum usable column; its convenient value cannot
+justify crossing that semantic boundary. The existing catalog lacked a matching
+intrinsic-grid endpoint, so component CSS changes paused for this ownership review.
+
+**Decision (2026-10-12):** adopt `--cem-layout-grid-min` in the canonical D1
+`cem-dim-layout` source table, at required tier. Its `14rem` default comes from
+the canonical D1y intrinsic Grid example. The table-driven generator and manifest
+own the output. `cem-grid` consumes the inherited endpoint directly, capped to
+available width, with no local default or public alias. D6 reading-measure
+changes must not change grid track count. The user's instruction to uphold CEM
+principles governs this correction; no component CSS exception is introduced.
+
 ## Accepted bounded exceptions
 
 None. The final legacy choice-popup owner migrated to the existing public theme

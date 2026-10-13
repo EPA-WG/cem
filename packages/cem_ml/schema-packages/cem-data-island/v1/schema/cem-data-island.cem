@@ -69,10 +69,10 @@
     }
 
     {diagnostics |
-        {diagnostic @code="cem.data_island.parts_invalid" @severity="error"}
-        {diagnostic @code="cem.data_island.dataset_mismatch" @severity="error"}
-        {diagnostic @code="cem.data_island.payload_identity_invalid" @severity="error"}
-        {diagnostic @code="cem.data_island.host_capability_rejected" @severity="error"}
+        {diagnostic @code="cem.data_island.parts_invalid" @severity="error" @behavior="schema:field-contract"}
+        {diagnostic @code="cem.data_island.dataset_mismatch" @severity="error" @behavior="schema:field-contract"}
+        {diagnostic @code="cem.data_island.payload_identity_invalid" @severity="error" @behavior="schema:field-contract"}
+        {diagnostic @code="cem.data_island.host_capability_rejected" @severity="error" @behavior="schema:field-contract"}
     }
 
     {open-content |

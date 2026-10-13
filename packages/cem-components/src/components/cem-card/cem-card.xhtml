@@ -1,0 +1,17 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-card">
+  <template id="cem-card" type="text/cem-ml">
+    {style @type="text/css" |```
+:scope { display: block; }
+[part~='root'] { background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); box-shadow: var(--cem-layer-work); border: var(--cem-stroke-boundary) solid currentColor; border-radius: var(--cem-bend-container); padding: var(--cem-inset-container); box-sizing: border-box; min-inline-size: 0; }
+[part~='root'] { font-optical-sizing: var(--cem-typography-feature-optical-sizing); font-family: var(--cem-typography-reading-font-family); font-size: var(--cem-typography-reading-font-size); font-weight: var(--cem-typography-reading-font-weight); line-height: var(--cem-typography-reading-line-height); letter-spacing: var(--cem-typography-reading-letter-spacing); }
+[part~='header'] { margin-block-end: var(--cem-gap-group); font-family: var(--cem-typography-ui-font-family); font-size: var(--cem-typography-ui-font-size); font-weight: var(--cem-typography-ui-font-weight); line-height: var(--cem-typography-ui-line-height); letter-spacing: var(--cem-typography-ui-letter-spacing); }
+@media (forced-colors: active) { [part~='root'] { box-shadow: none; background: Canvas; color: CanvasText; border-color: CanvasText; forced-color-adjust: auto; } }
+:scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
+    ```}
+    {attribute @name=label | Card}
+    {section @part=root @class=cem-card @aria-label="{$label}" @data-state={if seq:count(datadom.attributes.busy) > 0 { "loading" } else { null }} @aria-busy={if seq:count(datadom.attributes.busy) > 0 { true } else { null }} |
+      {header @part=header @class=cem-card__header | {slot @name=title | {$label}}}
+      {div @part=body @class=cem-card__body | {slot}}
+    }
+  </template>
+</cem-element>

@@ -399,7 +399,11 @@ it('replays stateless native value I/O on worker loss and suppresses cancelled r
 
 
 class StylesheetProcessingWorker extends ControlledProcessingWorker {
-    private readonly engine = new CemProcessingEngine();
+    private readonly engine: CemProcessingEngine;
+    constructor(maxArtifactEntries?: number) {
+        super();
+        this.engine = new CemProcessingEngine({ maxArtifactEntries });
+    }
     failDelivery = false;
     override terminate(): void { this.engine.dispose({ reason: 'runtime-disposed' }); super.terminate(); }
     override postMessage(request: CemProcessingRequestEnvelope): void {
@@ -598,4 +602,21 @@ it('cancels a native session after fallback import and releases its owner before
     await host.nativeSession({ ...request, handle: { ...handle, sessionKey: 'fresh' } }).result;
     await host.dispose({ reason: 'runtime-disposed' }).result;
     expect(native.releaseRetainedNativeSession).toHaveBeenCalledWith(701);
+});
+
+
+it('reacquires stylesheet source after bounded worker artifact eviction', async () => {
+    const worker = new StylesheetProcessingWorker(1);
+    const root = createCemDeclarationScope({ document: {} as Document });
+    const host = cemProcessingHostForScope(root, { workerScriptUrl: new URL('https://example.test/worker.js'),
+        workerFactory: () => worker as unknown as Worker });
+    try {
+        const first = await host.compile(compileInput('evicted-css')).result;
+        await host.compile(compileInput('replacement-css')).result;
+        const result = await host.stylesheet({ ...stylesheetBegin, artifact: first.artifact }).result;
+        expect(result).toHaveProperty('loadId');
+        expect(host.mode).toBe('worker');
+        expect(worker.requests.slice(-2).map(request => request.operation)).toEqual(['compile', 'stylesheet']);
+        await host.stylesheet({ action: 'release', artifact: first.artifact, consumer: stylesheetBegin.consumer }).result;
+    } finally { await host.dispose({ reason: 'runtime-disposed' }).result; }
 });

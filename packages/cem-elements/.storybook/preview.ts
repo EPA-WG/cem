@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
 import { installCemElementRuntime, createCemDeclarationScope, CemElementRuntime } from '../src/index.js';
-export { getCemActionInvocation } from '../src/index.js';
+export { getCemActionInvocation, mountCemView } from '../src/index.js';
 export { nativeTap, nativeInputPoint, nativeTouchGesture, nativePenDrag, nativeWheel } from './native-input.js';
 import '@epa-wg/cem-demo-element';
 import '@epa-wg/cem-theme/styles.css';
@@ -9,7 +9,10 @@ import { themeMode } from './theme.js';
 import { definePreview } from '@storybook/web-components-vite';
 import { treeProcessingTimingOptions } from './tree-processing-timing.js';
 import { startReadinessTiming } from './readiness-timing.js';
+import { setDomAssertionRuntime } from './dom-assertions.js';
 import { assertSourceLoadedCoverage } from './demo-coverage.js';
+export type { CemElementRuntime, DataIslandSnapshot } from '../src/index.js';
+export { captureFormSnapshot, expectComponentEvent, assertAccessibleName, assertAriaReferenceIntegrity, assertFocusVisible, assertLightDomRendered, captureVisualSnapshot, nextRenderFrame, type VisualSnapshot } from './dom-assertions.js';
 
 export const retainedCssEnabled = import.meta.env.STORYBOOK_CEM_RETAINED_CSS !== '0';
 let runtime: CemElementRuntime | undefined;
@@ -78,6 +81,7 @@ const preview = definePreview({
     },
     beforeAll: async () => {
         runtime = installStorybookRuntime();
+        setDomAssertionRuntime(cemStoryRuntime);
     },
     afterEach: ({ id, canvasElement }) => {
         assertSourceLoadedCoverage(id, canvasElement);
@@ -105,6 +109,21 @@ export async function cemComponentDeclarationSource(name: string): Promise<strin
     if (!source) throw new Error(`Unknown component declaration ${name}`);
     return source();
 }
+
+/** Read the canonical property page through the shared test/setup boundary. */
+const componentPlaygrounds = import.meta.glob<string>('../../cem-components/playgrounds/*.html', { query: '?raw', import: 'default' });
+export async function cemComponentPlaygroundSource(name: string): Promise<string> {
+    const source = componentPlaygrounds[`../../cem-components/playgrounds/${name}.html`];
+    if (!source) throw new Error(`Unknown component playground ${name}`);
+    return source();
+}
+/** Read a shipped workflow declaration through the shared test/setup boundary. */
+const workflowDeclarations = import.meta.glob<string>('../../cem-components/playgrounds/*.xhtml', { query: '?raw', import: 'default' });
+export async function cemWorkflowDeclarationSource(name: string): Promise<string> {
+    const source = workflowDeclarations[`../../cem-components/playgrounds/${name}.xhtml`];
+    if (!source) throw new Error(`Unknown workflow declaration ${name}`);
+    return source();
+}
 /** Isolated host setup for worker/fallback declaration lifecycle plays. */
 export function createCemStoryRuntime(root: HTMLElement, fallback: boolean) {
     const declarationTag = `declaration-${crypto.randomUUID()}`;
@@ -125,6 +144,15 @@ export function createCemStoryRuntime(root: HTMLElement, fallback: boolean) {
 }
 export async function loadCemComponent(name: string): Promise<void> {
     await loadCemDeclaration(name, await cemComponentDeclarationSource(name));
+}
+
+/** Canonical dependencies for cross-component workflow fixtures. */
+export async function loadCemWorkflowDependencies(): Promise<void> {
+    for (const path of Object.keys(componentDeclarations)) {
+        const name = path.split('/').at(-2);
+        if (!name) throw new Error(`Invalid component declaration path ${path}`);
+        await loadCemComponent(name);
+    }
 }
 
 async function registerCemDeclaration(path: string, source: string): Promise<void> {
@@ -164,6 +192,12 @@ export async function whenCemRendered(instance: HTMLElement): Promise<void> {
     await runtime?.whenRenderSettled(instance);
 }
 
+/** Shared story runtime for retained declaration state and workflow dependency setup. */
+export function cemStoryRuntime(): CemElementRuntime {
+    if (!runtime) throw new Error('Storybook CEM runtime is not installed');
+    return runtime;
+}
+
 /** Settle a source page and the declarations/instances in its initial output. */
 export async function whenCemSourceRendered(host: HTMLElement): Promise<void> {
     await whenCemRendered(host);
@@ -177,3 +211,5 @@ export async function whenCemSourceRendered(host: HTMLElement): Promise<void> {
 }
 
 export default preview;
+
+export type { CemSortDetail, CemPageDetail } from '../src/index.js';

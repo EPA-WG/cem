@@ -1,0 +1,46 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="project-navigation-example">
+  <template id="project-navigation-example" type="text/cem-ml">
+    {cem:variable @name=state @select=datadom.slices}
+    {cem-stack |
+      {cem-list @label=Projects |
+        {li | {cem-action @variant=contextual @host-command=open-alpha | Open Alpha}}
+        {li | {cem-action @variant=contextual @host-command=open-beta | Open Beta}}
+      }
+      {cem-surface @label="Project resources" | {cem:choose |
+        {cem:when @test='state.status == "loading"' | {cem-surface @busy=true @label="Loading resources" | {p | Loading resources…}}}
+        {cem:when @test='state.status == "empty"' | {cem-surface @empty=true @label="No resources" | {p | This project has no resources.}}}
+        {cem:when @test='state.status == "failed"' | {cem-alert @tone=danger @label="Resources could not be loaded"}}
+        {cem:otherwise |
+          {cem-tree @label=Resources @selection=single @selected-values={state.selected} @expanded-values=project
+              @host-command=navigate @host-command-event=cem-tree-activate |
+            {cem-tree-item @value=project @label=Project |
+              {cem-tree-item @value=alpha @label=Alpha}
+              {cem-tree-item @value=beta @label=Beta}
+            }
+          }
+        }
+      }}
+      {cem-tabs @label=Workbench |
+        {cem-tab @value=editor @label=Editor |
+          {cem-textarea @label="Resource source" @value={state.draft} @host-command=edit @host-command-event=input}
+        }
+        {cem-tab @value=preview @label=Preview | {p | Saved source: {$state.saved}}}
+      }
+      {cem-alert @tone={if state.dirty { "warning" } else { "success" }}
+          @label={if state.dirty { "Unsaved changes" } else { "Saved" }}}
+      {cem:if @test=state.pending |
+        {cem-dialog @label="Save changes before opening another resource?" @mode=modal @default-open=true
+            @closedby={if state.saving { "none" } else { "closerequest" }}
+            @host-command=cancel @host-command-event=cem-close |
+          {p | Save or discard your draft, or cancel navigation.}
+          {cem:if @test=state.failed | {cem-alert @tone=danger @label="Save failed. Your draft is retained."}}
+          {cem-stack |
+            {cem-action @host-command=save @variant=primary @disabled={if state.saving { true } else { null }} @loading={if state.saving { true } else { null }} | Save}
+            {cem-action @host-command=discard @variant=destructive @disabled={if state.saving { true } else { null }} | Discard}
+            {cem-action @host-command=cancel @variant=contextual @disabled={if state.saving { true } else { null }} | Cancel}
+          }
+        }
+      }
+    }
+  </template>
+</cem-element>

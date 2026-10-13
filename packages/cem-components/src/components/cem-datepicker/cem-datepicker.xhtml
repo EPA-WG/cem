@@ -1,0 +1,391 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-datepicker" capability="calendar-input">
+  <template id="cem-datepicker" type="text/cem-ml">
+{module |
+    {slice @name=weekdays}
+    {slice @name=weeks}
+    {slice @name=expanded | false}
+    {template @name=datepicker-day |
+        {param @name=day}
+        {body |
+            {cem:choose |
+                {cem:when @test=day.value |
+                    {button @aria-current={if day.current { "date" } else { null }} @aria-disabled="{$day.disabled}"
+                        @aria-label="{$day.fullLabel}" @aria-selected="{$day.selected}"
+                        @class=cem-datepicker__day @data-active="{$day.active}"
+                        @data-date="{$day.value}" @data-outside="{$day.outside}" @disabled={if day.disabled { true } else { null }} @id="{$day.id}"
+                        @part=day @role=gridcell @tabindex="{$day.tabIndex}" @type=button |
+                        {$ | day.number}
+                }   }
+                {cem:otherwise |
+                    {span @aria-disabled=true @class=cem-datepicker__day @id="{$day.id}" @part=day
+                        @role=gridcell}
+    }   }   }   }
+    {template @name=datepicker-week |
+        {param @name=week}
+        {body |
+            {div @class=cem-datepicker__week @part=week @role=row |
+                {cem:for-each @as=day @select=week.days |
+                    {call @template=datepicker-day @with:day="{$day}"}
+    }   }   }   }
+    {body |
+        {style @type=text/css |```
+:scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
+
+
+input[slot=input] {
+    --_cem-input-indicator-anchor-width: var(--cem-stroke-none);
+    --_cem-input-indicator-focus-width: var(--cem-stroke-none);
+    --_cem-input-indicator-selection-width: var(--cem-stroke-none);
+    --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-color);
+    --_cem-input-indicator-focus-color: var(--cem-zebra-color-1);
+    --_cem-input-indicator-selection-color: var(--cem-input-indicator-selection-color);
+}
+input[slot=input]:where(:focus-visible, :checked, [aria-checked='mixed'], [aria-expanded='true'], [aria-invalid='true']:enabled, [data-state='loading']:enabled) {
+    box-shadow:
+        0 calc(var(--_cem-input-indicator-appearance) * var(--_cem-input-indicator-anchor-width)) 0
+            calc((1 - var(--_cem-input-indicator-appearance)) * var(--_cem-input-indicator-anchor-width))
+            var(--_cem-input-indicator-anchor-color),
+        0
+            calc(
+                var(--_cem-input-indicator-appearance) *
+                    (var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width))
+            )
+            0
+            calc(
+                (1 - var(--_cem-input-indicator-appearance)) *
+                    (var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width))
+            )
+            var(--_cem-input-indicator-focus-color),
+        0
+            calc(
+                var(--_cem-input-indicator-appearance) *
+                    (
+                        var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width) +
+                            var(--_cem-input-indicator-selection-width)
+                    )
+            )
+            0
+            calc(
+                (1 - var(--_cem-input-indicator-appearance)) *
+                    (
+                        var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width) +
+                            var(--_cem-input-indicator-selection-width)
+                    )
+            )
+            var(--_cem-input-indicator-selection-color);
+    outline: var(--cem-stroke-none) solid transparent;
+}
+input[slot=input] {
+    --_cem-input-indicator-appearance: var(
+        --cem-input-indicator-appearance,
+        var(--cem-indicator-appearance-underline)
+    );
+}
+:scope:where([indicator='outline']) input[slot=input] {
+    --_cem-input-indicator-appearance: var(
+        --cem-input-indicator-appearance,
+        var(--cem-indicator-appearance-outline)
+    );
+}
+input[slot=input]:where(:enabled:hover) {
+    --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-hover-color);
+}
+input[slot=input]:where([data-state='loading']:enabled) {
+    --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-pending-color);
+    --_cem-input-indicator-anchor-width: var(--cem-stroke-pending);
+}
+input[slot=input]:where([aria-invalid='true']:enabled) {
+    --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-color);
+    --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
+}
+input[slot=input]:where([aria-invalid='true']:enabled:hover) {
+    --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-hover-color);
+    --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
+}
+input[slot=input]:where(:disabled) {
+    --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-disabled-color);
+    --_cem-input-indicator-anchor-width: var(--cem-stroke-none);
+}
+input[slot=input]:where(:focus-visible) {
+    --_cem-input-indicator-focus-width: var(--cem-zebra-strip-size);
+}
+input[slot=input]:where([aria-expanded='true']) {
+    --_cem-input-indicator-selection-width: var(--cem-zebra-strip-size);
+}
+:scope {
+    anchor-scope: --_cem-datepicker-anchor;
+    display: inline-block;
+    inline-size: 100%;
+}
+[part~=root] {
+    align-items: stretch;
+    display: grid;
+    gap: var(--cem-gap-related);
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+input[slot=input] {
+    anchor-name: --_cem-datepicker-anchor;
+    background-color: var(--cem-select-popup-background);
+    border: var(--cem-stroke-none) solid transparent;
+    box-sizing: border-box;
+    color: var(--cem-select-popup-text);
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    inline-size: 100%;
+    line-height: var(--cem-typography-ui-line-height);
+    min-block-size: var(--cem-control-height);
+    min-inline-size: 0;
+    padding-block: var(--cem-control-padding-y);
+    padding-inline: var(--cem-control-padding-x);
+}
+button[slot=toggle],
+[part~=action] {
+    align-items: center;
+    background-color: var(--cem-action-contextual-default-background);
+    border: var(--cem-stroke-none) solid transparent;
+    border-radius: var(--cem-bend-control);
+    color: var(--cem-action-contextual-default-text);
+    cursor: pointer;
+    display: inline-flex;
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    justify-content: center;
+    min-block-size: var(--cem-coupling-zone-min);
+    min-inline-size: var(--cem-coupling-zone-min);
+    padding-block: var(--cem-control-padding-y);
+    padding-inline: var(--cem-control-padding-x);
+}
+button[slot=toggle]:where(:enabled:hover),
+[part~=action]:where(:enabled:hover) {
+    background-color: var(--cem-action-contextual-hover-background);
+    color: var(--cem-action-contextual-hover-text);
+}
+button[slot=toggle]:where(:enabled:active),
+[part~=action]:where(:enabled:active) {
+    background-color: var(--cem-action-contextual-active-background);
+    color: var(--cem-action-contextual-active-text);
+}
+button[slot=toggle]:where(:disabled),
+[part~=action]:where(:disabled) {
+    background-color: var(--cem-action-contextual-disabled-background);
+    color: var(--cem-action-contextual-disabled-text);
+    cursor: default;
+}
+button[slot=toggle]:where(:focus-visible),
+[part~=action]:where(:focus-visible),
+[part~=day]:where(:focus-visible) {
+    outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1);
+    outline-offset: var(--cem-stroke-indicator-offset);
+}
+[part~=dialog] {
+    background-color: var(--cem-select-popup-background);
+    border: var(--cem-stroke-standard) solid var(--cem-select-popup-border-color);
+    border-radius: var(--cem-bend-overlay);
+    box-shadow: var(--cem-elevation-3);
+    box-sizing: border-box;
+    color: var(--cem-select-popup-text);
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    inline-size: calc(
+        var(--cem-coupling-zone-min) * 7
+        + var(--cem-gap-related) * 6
+        + var(--cem-gap-group) * 2
+    );
+    inset: auto;
+    line-height: var(--cem-typography-ui-line-height);
+    margin: var(--cem-gap-related);
+    max-inline-size: calc(100vi - var(--cem-gap-block) * 2);
+    padding: var(--cem-gap-group);
+    position: fixed;
+    position-anchor: --_cem-datepicker-anchor;
+    position-area: block-end center;
+    position-try-fallbacks: block-start;
+    position-try-order: most-height;
+}
+[part~=header],
+[part~=actions] {
+    align-items: center;
+    display: flex;
+    gap: var(--cem-gap-related);
+}
+[part~=header] {
+    justify-content: space-between;
+    margin-block-end: var(--cem-gap-group);
+}
+[part~=heading] {
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    font-weight: var(--cem-typography-ui-font-weight);
+    line-height: var(--cem-typography-ui-line-height);
+    margin: 0;
+    text-align: center;
+}
+[part~=grid] {
+    display: grid;
+    gap: var(--cem-gap-related);
+}
+[part~=weekdays],
+[part~=week] {
+    display: grid;
+    gap: var(--cem-gap-related);
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+[part~=weekday] {
+    align-items: center;
+    display: flex;
+    font-family: var(--cem-typography-data-font-family);
+    font-size: var(--cem-typography-data-font-size);
+    font-weight: var(--cem-typography-data-font-weight);
+    justify-content: center;
+    line-height: var(--cem-typography-data-line-height);
+    min-block-size: var(--cem-control-height);
+    min-inline-size: 0;
+}
+[part~=day] {
+    align-items: center;
+    background-color: var(--cem-content-interaction-default-background);
+    border: var(--cem-stroke-boundary) solid transparent;
+    border-radius: var(--cem-bend-control);
+    box-sizing: border-box;
+    color: var(--cem-content-interaction-default-text);
+    display: flex;
+    font-family: var(--cem-typography-data-font-family);
+    font-size: var(--cem-typography-data-font-size);
+    justify-content: center;
+    line-height: var(--cem-typography-data-line-height);
+    min-block-size: var(--cem-coupling-zone-min);
+    min-inline-size: 0;
+    padding: var(--cem-control-padding-y);
+}
+[part~=day]:where(:not(:disabled)) {
+    cursor: pointer;
+}
+[part~=day]:where(:not(:disabled):hover) {
+    background-color: var(--cem-content-interaction-hover-background);
+    color: var(--cem-content-interaction-hover-text);
+}
+[part~=day]:where([aria-selected='true']) {
+    background-color: var(--cem-content-interaction-selected-background);
+    color: var(--cem-content-interaction-selected-text);
+}
+[part~=day]:where([aria-selected='true']:not(:disabled):hover) {
+    background-color: var(--cem-content-interaction-selected-hover-background);
+    color: var(--cem-content-interaction-selected-hover-text);
+}
+[part~=day]:where([aria-current='date']) {
+    border-color: var(--cem-content-interaction-current-indicator-color);
+}
+[part~=day]:where(:disabled) {
+    background-color: var(--cem-content-interaction-disabled-background);
+    border-color: var(--cem-content-interaction-disabled-text);
+    color: var(--cem-content-interaction-disabled-text);
+    cursor: default;
+}
+[part~=actions] {
+    justify-content: flex-end;
+    margin-block-start: var(--cem-gap-group);
+}
+@media (forced-colors: active) {
+
+    input[slot=input] {
+        box-shadow: none;
+    }
+
+    input[slot=input]:where(:enabled:hover) {
+        border-color: Highlight;
+    }
+
+    input[slot=input]:where([data-state='loading']:enabled:not([aria-invalid='true'])) {
+        outline: var(--cem-stroke-pending) solid CanvasText;
+        outline-offset: var(--cem-stroke-indicator-offset);
+    }
+
+    input[slot=input]:where(:focus-visible),
+button[slot=toggle]:where(:focus-visible),
+[part~=action]:where(:focus-visible),
+[part~=day]:where(:focus-visible),
+input[slot=input]:where([data-state='loading']:enabled:focus-visible) {
+        outline: var(--cem-stroke-focus) solid CanvasText;
+        outline-offset: var(--cem-stroke-indicator-offset);
+    }
+
+    [part~=dialog] {
+        background-color: Canvas;
+        border-color: CanvasText;
+        color: CanvasText;
+    }
+
+    [part~=dialog] {
+        box-shadow: none;
+    }
+
+    button[slot=toggle],
+[part~=action],
+[part~=day] {
+        background-color: Canvas;
+        color: CanvasText;
+    }
+
+    button[slot=toggle]:where(:enabled:hover),
+[part~=action]:where(:enabled:hover),
+[part~=day]:where(:not(:disabled):hover) {
+        background-color: Highlight;
+        color: HighlightText;
+    }
+
+    [part~=day]:where([aria-selected='true']) {
+        background-color: SelectedItem;
+        color: SelectedItemText;
+        outline: var(--cem-stroke-selected) solid SelectedItem;
+        outline-offset: calc(var(--cem-stroke-selected) * -1);
+    }
+
+    [part~=day]:where([aria-current='date']) {
+        border-color: Mark;
+    }
+
+    [part~=day]:where(:focus-visible) {
+        outline: var(--cem-stroke-focus) solid CanvasText;
+        outline-offset: var(--cem-stroke-indicator-offset);
+    }
+
+    button[slot=toggle]:where(:disabled),
+[part~=action]:where(:disabled),
+[part~=day]:where(:disabled) {
+        background-color: Canvas;
+        border-color: GrayText;
+        color: GrayText;
+}   }
+```}
+        {span @class=cem-datepicker @data-mode="{$datadom.slices.mode}" @part=root |
+            {slot @name=input}
+            {slot @name=toggle}
+            {dialog @class=cem-datepicker__dialog @id="{$datadom.slices.dialogId}" @part=dialog |
+                {div @class=cem-datepicker__header @part=header |
+                    {button @aria-label="Previous month" @class=cem-datepicker__action
+                        @data-calendar-action=previous @disabled={if datadom.slices.previousDisabled { true } else { null }} @part=action @type=button | Previous}
+                    {h2 @aria-live=polite @class=cem-datepicker__heading
+                        @id="{$datadom.slices.headingId}" @part=heading |
+                        {$ | datadom.slices.heading}}
+                    {button @aria-label="Next month" @class=cem-datepicker__action
+                        @data-calendar-action=next @disabled={if datadom.slices.nextDisabled { true } else { null }} @part=action @type=button | Next}
+                }
+                {div @aria-labelledby="{$datadom.slices.headingId}" @class=cem-datepicker__grid
+                    @part=grid @role=grid |
+                    {div @class=cem-datepicker__weekdays @part=weekdays @role=row |
+                        {cem:for-each @as=weekday @select=datadom.slices.weekdays |
+                            {span @aria-label="{$weekday.full}" @class=cem-datepicker__weekday
+                                @part=weekday @role=columnheader |
+                                {$ | weekday.short}
+                    }   }   }
+                    {cem:for-each @as=week @select=datadom.slices.weeks |
+                        {call @template=datepicker-week @with:week="{$week}"}
+                }   }
+                {div @class=cem-datepicker__actions @part=actions |
+                    {button @class=cem-datepicker__action @data-calendar-action=cancel @part=action
+                        @type=button | Cancel}
+                    {button @class=cem-datepicker__action @data-calendar-action=apply @disabled={if datadom.slices.applyDisabled { true } else { null }}
+                        @part=action @type=button | Apply}
+}   }   }   }   }
+  </template>
+</cem-element>

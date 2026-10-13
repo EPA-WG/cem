@@ -82,7 +82,7 @@ formats:
     },
     {
         title: 'CSV to CEM-ML',
-        description: 'CSV to CEM-ML conversion example. Currently reports a missing CSV AST export adapter.',
+        description: 'Convert CSV rows and cells to formatted, colored CEM-ML. Cell values remain strings.',
         source: `name,format,enabled
 Orders,CSV,true
 Catalog,YAML,false

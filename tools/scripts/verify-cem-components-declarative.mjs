@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-import { createHash } from 'node:crypto';
 import {
     existsSync,
     readFileSync,
@@ -14,7 +13,6 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const packageRoot = join(repoRoot, 'packages/cem-components');
 const migrationPath = join(packageRoot, 'declarative-migration.json');
 const mvpPath = join(repoRoot, 'docs/component-mvp.md');
-const primitivesPath = join(packageRoot, 'src/lib/primitives.ts');
 const legacySourceRoot = join(packageRoot, 'src/lib');
 const globalStylesPath = join(packageRoot, 'src/styles.css');
 const ignoredDirectories = new Set([
@@ -130,7 +128,7 @@ function embeddedStyleText(source) {
     for (const match of source.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)) {
         styles.push(match[1]);
     }
-    for (const match of source.matchAll(/\{style(?:\s+[^|{}]*)?\s*\|```([\s\S]*?)```\s*\}/gi)) {
+    for (const match of source.matchAll(/\{style(?:\s+[^|{}]*)?\s*\|\s*```([\s\S]*?)```\s*\}/gi)) {
         styles.push(match[1]);
     }
     return styles.join('\n');
@@ -143,6 +141,7 @@ const legacyCodeFiles = sortedUnique(
     migration.legacyAuthoredCodeFiles,
     'legacyAuthoredCodeFiles',
 );
+if (legacyTags.length || legacyCodeFiles.length) fail('Completed declarative migration cannot reintroduce legacy components or authored code');
 const frozenLegacyImplementationDigests = migration.frozenLegacyImplementationDigests ?? {};
 const themeContract = migration.storybookThemeContract ?? {};
 
@@ -169,38 +168,16 @@ const authoredCodeFiles = walkFiles(packageRoot)
     .filter((path) => !/\/src\/components\/[^/]+\/[^/]+\.stories\.ts$/.test(slash(path)))
     .map((path) => slash(relative(packageRoot, path)))
     .sort();
-compareExact(authoredCodeFiles, legacyCodeFiles, 'authored JavaScript/TypeScript inventory');
+compareExact(authoredCodeFiles, [], 'authored JavaScript/TypeScript inventory');
 
-const legacyImplementationFiles = legacyCodeFiles.filter(
-    (path) => path.endsWith('-behavior.ts') || path === 'src/lib/choice-options.ts',
-);
 compareExact(
     Object.keys(frozenLegacyImplementationDigests),
-    legacyImplementationFiles,
-    'frozen legacy implementation digest inventory',
+    [],
+    'retired legacy implementation digest inventory',
 );
-for (const [path, expectedDigest] of Object.entries(frozenLegacyImplementationDigests)) {
-    const absolutePath = join(packageRoot, path);
-    if (!existsSync(absolutePath)) {
-        fail(`frozen legacy implementation is missing at ${path}`);
-        continue;
-    }
-    if (!/^[a-f0-9]{64}$/.test(expectedDigest)) {
-        fail(`frozen legacy implementation digest for ${path} must be lowercase SHA-256`);
-        continue;
-    }
-    const actualDigest = createHash('sha256').update(readText(absolutePath)).digest('hex');
-    if (actualDigest !== expectedDigest) {
-        fail(
-            `${path} is frozen migration debt and cannot be modified; migrate it to XHTML/CEM-ML and cem-elements instead`,
-        );
-    }
+if (existsSync(legacySourceRoot)) {
+    fail('Retired src/lib component registry, behavior and separate test directory must not return');
 }
-
-const primitiveTags = existsSync(primitivesPath)
-    ? [...readText(primitivesPath).matchAll(/\btag:\s*'(cem-[a-z0-9-]+)'/g)].map((match) => match[1])
-    : [];
-compareExact(primitiveTags, legacyTags, 'legacy CEM_COMPONENT_PRIMITIVES registry');
 
 const declarativeTags = [];
 if (!existsSync(componentRoot)) {
@@ -360,38 +337,16 @@ if (declarativeTags.length > 0) {
     }
 }
 
-const legacyTestFiles = existsSync(legacySourceRoot)
-    ? walkFiles(legacySourceRoot).filter((path) => /\.(?:browser\.)?(?:spec|test)\.ts$/.test(path))
-    : [];
-const legacyProductionFiles = existsSync(legacySourceRoot)
-    ? walkFiles(legacySourceRoot).filter((path) => path.endsWith('.ts') && !/\.(?:browser\.)?(?:spec|test)\.ts$/.test(path))
-    : [];
 const globalStyles = existsSync(globalStylesPath) ? readText(globalStylesPath) : '';
 for (const tag of declarativeTags) {
     const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    for (const path of legacyTestFiles) {
-        if (new RegExp(`<${escaped}\\b`, 'i').test(readText(path))) {
-            fail(`${slash(relative(repoRoot, path))} contains unit coverage for migrated ${tag}; keep component tests in ${tag}.stories.ts`);
-        }
-    }
-    for (const path of legacyProductionFiles) {
-        const source = readText(path);
-        if (new RegExp(`\\btag\\s*:\\s*['"]${escaped}['"]|\\.${escaped}__`, 'i').test(source)) {
-            fail(`${slash(relative(repoRoot, path))} still implements migrated ${tag} in JavaScript/TypeScript`);
-        }
-    }
     if (new RegExp(`\\b${escaped}(?=[\\s.#:[>+~,{])`, 'im').test(globalStyles)) {
         fail(`packages/cem-components/src/styles.css still owns selectors for migrated ${tag}; embed them in ${tag}.xhtml`);
     }
 }
 
-const overlap = declarativeTags.filter((tag) => legacyTags.includes(tag));
-if (overlap.length > 0) {
-    fail(`components cannot be both legacy and declarative: ${overlap.sort().join(', ')}`);
-}
-
 const mvpTags = parseMvpTags(readText(mvpPath));
-compareExact([...legacyTags, ...declarativeTags], mvpTags, 'MVP component ownership');
+compareExact(declarativeTags, mvpTags, 'MVP component ownership');
 
 if (failures.length > 0) {
     console.error('cem-components declarative architecture verification failed:\n');

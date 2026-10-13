@@ -12,12 +12,12 @@
         "modes": ["Light", "Dark", "Contrast Light", "Contrast Dark", "Native"]
     },
     "generated": {
-        "verifiedAt": "2026-08-19",
-        "variableCountPerMode": 252,
+        "verifiedAt": "2026-10-12",
+        "variableCountPerMode": 272,
         "variableTypes": {
-            "COLOR": 57,
-            "FLOAT": 112,
-            "STRING": 83
+            "COLOR": 64,
+            "FLOAT": 124,
+            "STRING": 84
         }
     },
     "lastReviewed": {

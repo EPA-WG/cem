@@ -609,7 +609,6 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
     }
 }
 ````
-
 ## AST references
 
 The accepted [node reference design](../../../../../docs/cem-ql-cem-ml-node-references-design.md) defines `{#nodes}` and XML `<cem:expr>#nodes</cem:expr>` as equivalent reference expressions. `#` is a prefix-unary CEM-QL operator at precedence 9. It accepts AST nodes or ordered node sequences, including empty sequences and attribute/reference nodes. Strings are not implicit IDs or query source. Loading retains the expression and its original contextual association; it does not execute the selection. Graph targets are not structural children.

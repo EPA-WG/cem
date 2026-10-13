@@ -150,7 +150,9 @@ fn style_rule_assembly_handles_empty_suppressed_and_instance_rules() {
 
 #[test]
 fn scope_wrappers_preserve_private_shared_and_instance_boundaries() {
-    let limit = " to (:scope :has(> template[data-cem-island=\"instance\"]) > *, [slot] > *) {";
+    // Input is void in authored HTML, but Chromium exposes its UA thumb inside
+    // the scope boundary. Excluding that subtree prevents native hit-testing.
+    let limit = " to (:scope :has(> template[data-cem-island=\"instance\"]) > *, [slot]:not(input) > *) {";
     for (scope, root) in [
         (CssManagedScope::Private { tag: "cem-card".into(), context: None }, "@scope (cem-card)"),
         (CssManagedScope::Private { tag: "cem-card".into(), context: Some("ctx".into()) }, "@scope (cem-card[data-cem-css-context=\"ctx\"])"),

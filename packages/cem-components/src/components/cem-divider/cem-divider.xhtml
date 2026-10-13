@@ -1,0 +1,67 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-divider">
+  <template id="cem-divider" type="text/cem-ml">
+    {style @type="text/css" |```
+:scope {
+    --_cem-divider-space: var(--cem-gap-group);
+    display: block;
+    margin-block: calc(
+        (max(var(--_cem-divider-space), var(--cem-coupling-guard-min)) - var(--cem-stroke-divider)) / 2
+    );
+}
+
+:scope[spacing='related'] {
+    --_cem-divider-space: var(--cem-gap-related);
+}
+
+:scope[spacing='block'] {
+    --_cem-divider-space: var(--cem-gap-block);
+}
+
+:scope[spacing='section'] {
+    --_cem-divider-space: var(--cem-gap-section);
+}
+
+:scope[orientation='vertical'] {
+    align-self: stretch;
+    display: inline-flex;
+    margin-block: var(--cem-stroke-none);
+    margin-inline: calc(
+        (max(var(--_cem-divider-space), var(--cem-coupling-guard-min)) - var(--cem-stroke-divider)) / 2
+    );
+}
+
+[part~='root'] {
+    border-color: var(--cem-separator-color);
+    border-style: solid;
+    border-width: var(--cem-stroke-none);
+    box-sizing: border-box;
+    margin: var(--cem-stroke-none);
+}
+
+[part~='root']:where([data-orientation='horizontal']) {
+    block-size: var(--cem-stroke-none);
+    border-block-start-width: var(--cem-stroke-divider);
+}
+
+[part~='root']:where([data-orientation='vertical']) {
+    align-self: stretch;
+    border-inline-start-width: var(--cem-stroke-divider);
+    inline-size: var(--cem-stroke-none);
+}
+
+:scope:where([inset]) [part~='root']:where([data-orientation='horizontal']) {
+    margin-inline-start: var(--cem-inset-container);
+}
+
+:scope:where([inset]) [part~='root']:where([data-orientation='vertical']) {
+    margin-block-start: var(--cem-inset-container);
+}
+
+
+:scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
+    ```}
+    {attribute @name=orientation | horizontal}
+    {attribute @name=spacing | group}
+    {div @part=root @class=cem-divider @data-orientation={if $orientation == "vertical" { "vertical" } else { "horizontal" }} @role={if seq:count(datadom.attributes.decorative) > 0 { null } else { "separator" }} @aria-hidden={if seq:count(datadom.attributes.decorative) > 0 { true } else { null }} @aria-orientation={if seq:count(datadom.attributes.decorative) > 0 { null } else { if $orientation == "vertical" { "vertical" } else { "horizontal" } }} | }
+  </template>
+</cem-element>

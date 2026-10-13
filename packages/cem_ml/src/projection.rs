@@ -1964,6 +1964,68 @@ pub fn cem_tree_nodes_with_source_content_type(
     }
 }
 
+/// Present the shared data import vocabulary with a legal CEM namespace alias.
+/// This only assigns writer names; values and source maps come from the typed tree.
+pub fn imported_data_cem_tree_nodes(
+    owner: Arc<crate::parser::tree::RetainedCemTree>,
+    source_content_type: &str,
+) -> CemTreeAstStream {
+    fn bind(node: &mut CemTreeAstNode) {
+        match node {
+            CemTreeAstNode::Element { name, attributes, children, .. } => {
+                if let Some(local) = name.strip_prefix("cem:generic-data:") {
+                    *name = format!("data:{local}");
+                }
+                for attribute in attributes {
+                    if let Some(local) = attribute.name.strip_prefix("cem:generic-data:") {
+                        attribute.name = format!("data:{local}");
+                    }
+                    for child in &mut attribute.value_nodes { bind(child); }
+                }
+                for child in children { bind(child); }
+            }
+            CemTreeAstNode::Document { children, .. } => {
+                for child in children { bind(child); }
+            }
+            _ => {}
+        }
+    }
+    let stream = cem_tree_nodes_with_source_content_type(owner.ast(), Some(source_content_type));
+    let source = SourceMapStack::default();
+    let mut nodes = vec![
+        projection_directive("@doc", "cem-ml 1", &source),
+        projection_directive("@ns", "data = \"cem:generic-data\"", &source),
+    ];
+    for mut node in stream.as_nodes().iter().cloned() {
+        bind(&mut node);
+        nodes.push(node);
+    }
+    let mut result = CemTreeAstStream::new(nodes);
+    result.source_owner = Some(owner);
+    result
+}
+
+/// Bind the same imported vocabulary on XML roots instead of CEM directives.
+pub fn imported_data_xml_tree_nodes(
+    owner: Arc<crate::parser::tree::RetainedCemTree>,
+    source_content_type: &str,
+) -> CemTreeAstStream {
+    let cem = imported_data_cem_tree_nodes(owner.clone(), source_content_type);
+    let mut nodes: Vec<_> = cem.as_nodes().iter()
+        .filter(|node| !node.is_cem_directive()).cloned().collect();
+    for node in &mut nodes {
+        if let CemTreeAstNode::Element { attributes, source, .. } = node {
+            attributes.push(CemTreeAstAttribute {
+                name: "xmlns:data".into(), value: Some("cem:generic-data".into()),
+                value_nodes: Vec::new(), source: source.clone(),
+            });
+        }
+    }
+    let mut stream = CemTreeAstStream::new(nodes);
+    stream.source_owner = Some(owner);
+    stream
+}
+
 fn project_node(doc: &CemDocument, id: AstNodeId) -> Option<Value> {
     let node = doc.get(id)?;
     let value = match node {

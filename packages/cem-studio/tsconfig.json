@@ -7,7 +7,11 @@
         "declaration": false,
         "declarationMap": false,
         "emitDeclarationOnly": false,
-        "lib": ["es2022", "dom", "webworker"],
+        "lib": [
+            "es2022",
+            "dom",
+            "webworker"
+        ],
         "noEmit": true
     },
     "include": [
@@ -25,9 +29,6 @@
         },
         {
             "path": "../cem-theme"
-        },
-        {
-            "path": "../cem-components"
         }
     ]
 }

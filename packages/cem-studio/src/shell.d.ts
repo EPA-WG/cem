@@ -1,3 +1,5 @@
+import type { CemHostView } from '@epa-wg/cem-elements';
+
 export declare const CEM_STUDIO_THEME_MODES: readonly [
     'cem-theme-light',
     'cem-theme-dark',
@@ -11,6 +13,7 @@ export type CemStudioThemeMode = (typeof CEM_STUDIO_THEME_MODES)[number];
 export interface CemStudioThemeController {
     readonly mode: CemStudioThemeMode;
     setMode(mode: CemStudioThemeMode): CemStudioThemeMode;
+    subscribe(notify: (mode: CemStudioThemeMode) => void): () => void;
 }
 
 export interface CemStudioInstallStatus {
@@ -50,6 +53,8 @@ export interface CemStudioApplicationShell {
     readonly install: CemStudioInstallController;
     readonly update: CemStudioUpdateCoordinator;
     readonly fileSystem: CemStudioFileSystemController;
+    readonly view: CemHostView;
+    whenSettled(): Promise<void>;
     dispose(): void;
 }
 
@@ -80,8 +85,7 @@ export interface CemStudioFileSystemController {
 }
 
 export function installCemStudioShellComponents(): Promise<Readonly<Record<string, unknown>>>;
-export function createCemStudioThemeController(options: {
-    root: Element;
+export function createCemStudioThemeController(options?: {
     storage?: Storage;
     storageKey?: string;
     defaultMode?: CemStudioThemeMode;

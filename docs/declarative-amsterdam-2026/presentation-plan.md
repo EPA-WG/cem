@@ -16,7 +16,7 @@ explains how to make that session persuasive.
 | [CEM manifesto](cem-manifesto.md) | Principles behind the platform's direction |
 | [Platform evidence](platform-evidence.md) | Capability facts, implementation boundaries, sources, and proof gaps |
 | This plan | Internal ideas, narrative design, demonstration options, and preparation dependencies |
-| [Active work in docs/todo.md](../todo.md#current-work-declarative-amsterdam-2026-cem-presentation) | Sole active execution checklist, including fixtures and verification work |
+| [Deferred presentation work in docs/todo.md](../todo.md#deferred-work-declarative-amsterdam-2026-cem-presentation) | Preserved execution checklist; component implementation currently has priority |
 
 Use the pitch for audience copy and the presentation minutes for timing. Design
 options here must fit the published session, **CEM-ML declarative document
@@ -492,4 +492,4 @@ coverage, delivery minutes, and correspondence limits. The
 capability gaps. The [EPA/DWA source notes](platform-evidence.md#ideas-from-epa-and-dwa)
 explain inspiration retained from those repositories without adopting their
 old implementation recipes. Execution and completion tracking remain solely
-in [docs/todo.md](../todo.md#current-work-declarative-amsterdam-2026-cem-presentation).
+in [docs/todo.md](../todo.md#deferred-work-declarative-amsterdam-2026-cem-presentation).

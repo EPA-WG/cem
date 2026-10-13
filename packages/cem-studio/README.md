@@ -21,15 +21,20 @@ groups, projected `slot="name"` roots, component-owned `part="name"` hooks, and
 custom properties. It must not select data-island or render-identity markers.
 Studio follows the normative
 [CEM light-DOM CSS scoping rules](../../docs/cem-ml-uid-and-scoped-css-design.md).
-That behavior remains a migration target until its active todo gate passes.
+The Studio/Site declarative UI migration is complete; its evidence is recorded
+in [the active todo](../../docs/todo.md).
 
-The package currently includes a migration-era typed bootstrap/deployment
+The package currently includes a typed bootstrap/deployment
 boundary and installable component shell, plus the versioned local project
 repository, opt-in File System Access
 provider, and graph-owned offline deployment. The project-backed workbench
 executes parse, inspect, conversion, query, direct transformation, trace, and
 transformation-graph commands through the same browser worker and exact-revision
 repository boundary.
+The application still selects the Feature Tour project and derives workbench
+descriptors from its seed catalog. General project navigation is the next
+delivery milestone; existing repository/provider APIs do not yet constitute
+that complete user flow.
 
 ## Package surfaces
 
@@ -46,9 +51,9 @@ repository boundary.
   retained-handle permission requests require an explicit caller action.
 - `@epa-wg/cem-studio/shell` exposes the production CEM-component shell, five
   theme modes, browser install state, and explicit safe-update coordinator.
-- `@epa-wg/cem-studio/preview` exposes the bounded result policy and isolated
-  preview frame. Text is inserted only through `textContent`; HTML, XHTML, and
-  SVG use an empty opaque-origin iframe sandbox plus a deny-all preview CSP;
+- `@epa-wg/cem-studio/preview` exposes the bounded result policy for the shared
+  `cem-media-preview` declaration. Text remains literal; HTML, XHTML, and SVG
+  use an empty opaque-origin iframe sandbox plus a deny-all preview CSP;
   binary, invalid UTF-8, and oversized active markup remain download-only.
 - `@epa-wg/cem-studio/manifest.webmanifest` exposes the generated application
   manifest.
@@ -83,8 +88,9 @@ scenarios with explicit resource identities and pinned expected summaries.
 Their source/result, execution, expected-result, trace, graph, copy, and download
 surfaces are composed entirely from production CEM controls and remain available
 after an offline reload.
-Search and storage status render through CEM components when the workbench shell
-is composed; persistence does not introduce application-local visible controls.
+Deterministic search is available through the repository protocol; project-search
+UI belongs to the next milestone below. Storage status uses the CEM shell;
+persistence does not introduce application-local visible controls.
 
 File and directory handles are structured-cloned into host-only
 `providerBindings`, restored across repository reopen, and excluded from every
@@ -117,8 +123,12 @@ Deployers must apply every response header in `static/security-headers.json`.
 The graph-emitted policy is hash-based for the two static inline script blocks,
 allows only same-origin application assets and the narrow `wasm-unsafe-eval`
 capability, and denies framing, forms, objects, ambient network origins, and
-powerful permissions. No policy contains `unsafe-inline` or general
-`unsafe-eval`.
+powerful permissions. Script policy excludes `unsafe-inline` and general
+`unsafe-eval`. Native CEM declarations publish their retained CSS in generated
+style elements, so `style-src-elem` permits those inline elements. Style
+attributes remain blocked by `style-src-attr 'none'`; preview documents retain
+their separate restrictive policy. Declaration owners stay connected in the
+document head so their styles have a live runtime owner.
 
 ## Build and verification
 
@@ -137,10 +147,102 @@ are explicit typed graph imports/exports. There is no post-graph production-copy
 step.
 
 Those JavaScript assets may own bootstrap, workers, persistence, and browser
-service adapters. Existing app-local DOM composition or UI listeners are
-migration debt and must not be copied or extended.
+service adapters. Visible DOM composition and UI bindings belong to the
+canonical declarations and shared runtime.
 
 The final `check` also packs the npm archive, installs it into a clean consumer,
 audits the exact/transitive runtime dependency path, and writes synchronized
 local release evidence to `dist/reports/cem-studio/release-evidence.json`.
 Publication signing and protected-release evidence remain owned by Phase 9.
+
+
+## Declarative UI migration
+
+The application shell is now `src/shell.xhtml`, composed from production CEM
+app-bar, select, action, card, badge and alert declarations. It owns theme,
+install/update and file-provider presentation and all control bindings.
+`src/shell.js` retains non-UI browser/repository services, declaration loading
+and state delivery through `cem-elements`' `mountCemView`. The theme controller
+is a state/persistence service; its former `root` DOM option is retired. Theme
+classes, `data-theme` and ready state now belong to the produced
+`cem-studio-shell` host, inside the bootstrap mount point. Consumers that need
+the rendered state await `shell.whenSettled()`; `shell.view` exposes the shared
+view handle. Slotted workbench content retains its native nodes and edits.
+
+This migration uses Studio/Site needs to improve the shared library against the
+pinned Angular Material functionality comparison. A missing useful control must
+be implemented in `cem-components` before app adoption. JavaScript interaction
+belongs in `cem-elements`; the styled declarative counterpart consumes canonical
+CEM theme tokens. Shell controls stay within their documented single-row app-bar,
+select, native-action and passive-status subsets. This slice introduces no new
+widget, token defaults, theme aliases, motion or parity claims.
+
+The host-service adapter uses an explicit command allowlist and invokes services
+on the native event stack so browser install/file gestures remain valid. Repeated
+pending install, update and file requests are rejected by their service owners;
+rendering disabled state is not transaction authority. State projection remains
+declarative. Native worker/fallback and shell browser tests cover this boundary,
+theme persistence, focus/owner retention, nested-view isolation and disposal.
+
+`verify:shell-delivery` checks the graph-emitted shell with its real deployment
+headers and service worker, all five theme modes, inherited public token overrides,
+forced colors and offline reload. `verify:output` checks relative JavaScript
+dependencies against shipped assets. The full `verify:static-worker` gate remains
+separate and still validates every Feature Tour schema example and worker workflow.
+
+`src/workbench-controls.xhtml` now owns workbench selection, source editing,
+revision/status presentation, save/reload and operation controls. Parse/inspect
+use native forms and the shared host command's successful scalar values, including
+programmatic CEM select values. A pending service guard prevents duplicate
+operations before disabled presentation catches up. Diagnostic navigation issues
+an explicit one-time selection request to the shared form-control capability;
+unrelated state updates preserve caret and focus. All controls reuse canonical
+CEM declarations and intents without app CSS or component-local behavior.
+
+`src/workbench-command.xhtml` owns command editing, semantic changes, apply/run
+targets and incompatible replacement confirmation. It reuses canonical textarea,
+select, text-field, action, table, alert, tabs and modal dialog declarations.
+Shared host commands deliver only the surface owner's dismissal; nested closes
+cannot cancel the outer confirmation. The service publishes drafts synchronously,
+rejects stale validation results and excludes duplicate pending operations.
+The adapter forwards bounded command metadata and serialized change values;
+labels, truncation, action intents and availability stay in the declaration.
+
+`src/workbench-layout.xhtml` and `src/workbench-results.xhtml` own the remaining
+result, execution, expected, trace, graph, validation and provenance views.
+Navigation and exact output transfers use the same host-service boundary.
+`cem-media-preview` supplies literal text, isolated documents and download
+messages. Unrelated updates retain native previews and focus; pending transfers
+cannot duplicate copy/download operations. The service retains exact output bytes,
+UTF-8 validation, resource limits and secret redaction.
+Native trace events are normalized into at most 100 path/value records for the
+shared table view; output copy/download still retains the complete verified bytes.
+
+The legacy `mountCemStudioPreview` renderer, application preview stylesheet and
+`CEM_STUDIO_PREVIEW_CSP` export are retired. Hosts should render the preview model
+through the canonical media-preview declaration; the component owns its fixed
+sandbox/CSP. Studio workbench UI contains no application DOM event handlers or
+markup generators. Its empty mounting containers and hidden download anchor are
+host/bootstrap and browser API plumbing.
+
+Site's interactive examples and search now use the same canonical declarations
+and host-service boundary.
+
+## Next delivery milestone
+
+The planned [user-owned project workspace](../../docs/cem-studio.md#next-delivery-milestone-user-owned-project-workspace)
+lets users create/import, open, navigate, edit, save, reopen and export their own
+projects with guarded source/command drafts, deterministic search, recoverable
+trash and an active-project file provider. The shared tree-to-host scalar command
+bridge and [shared navigation workflows](../cem-components/docs/project-navigation-contract.md)
+are implemented and browser-verified. Generalizing the seed-bound project session
+and guarding source/command drafts comes next.
+Reuse existing CEM list, tree, tabs, dialog, editor and
+result controls; add missing reusable behavior in `cem-elements` and its styled
+declaration in `cem-components` before Studio adoption.
+
+The [ordered checklist](../../docs/todo.md#cem-studio-delivery-planning) owns
+execution. Explicit Save/Apply is this slice's durability boundary; autosave,
+general structural editing and simultaneous/resizable panes remain follow-ups.
+Broader browser/device/AT acceptance remains independently open, and presentation
+preparation stays deferred.

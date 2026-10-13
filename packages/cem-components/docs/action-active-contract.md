@@ -157,7 +157,7 @@ implementation must stop and propose a queue entry before changing CSS.
 ## Executable acceptance
 
 Implementation is owned by one focused browser test in
-[`states.browser.spec.ts`](../src/lib/states.browser.spec.ts) named `applies
+[`cem-action.stories.ts`](../src/components/cem-action/cem-action.stories.ts) named `applies
 shared native active treatment during pointer and keyboard activation`.
 
 The fixture covers all three enabled and disabled primitives with native

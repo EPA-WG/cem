@@ -1,10 +1,18 @@
 # Timepicker Contract
 
-This contract fixes the first CEM time-of-day picker against the pinned Angular
+This contract defines the CEM time-of-day picker against the pinned Angular
 Material `v22.1.1` behavior before component CSS is added. Angular is a
 behavioral benchmark; CEM keeps a native form control and a string time-of-day
 model instead of reproducing Angular date objects, directives, adapters, or
 overlay services.
+
+The canonical implementation is [cem-timepicker.xhtml](../src/components/cem-timepicker/cem-timepicker.xhtml),
+with [colocated stories](../src/components/cem-timepicker/cem-timepicker.stories.ts),
+[property controls](../playgrounds/cem-timepicker.html) and a
+[five-theme gallery](../playgrounds/cem-timepicker-gallery.html). Its shared
+`time-input` capability lives in cem-elements; fragment-src wrappers repeat the
+capability. Styles are embedded and installed once per declaration through native
+@scope. Projected inputs retain native ownership; generated internals expose part hooks.
 
 ## Owner and author vocabulary
 
@@ -79,7 +87,9 @@ without emitting another event.
 Clicking the enabled input or toggle opens the popup. The toggle's native click
 remains singular and then returns focus to the combobox input so list navigation
 has one focus owner. Outside pointer down or focus leaving the component closes
-the popup. Disabled state suppresses every route.
+the popup. Host disabled, inherited native fieldset-disabled and native input readonly
+suppress every route. Composition-owned keys, keyCode 229 and modified editor
+keys retain native ownership. Disconnect closes without replaying events on reconnect.
 
 With input focus, `ArrowDown` opens at the selected or first enabled choice and
 `ArrowUp` opens at the selected or last enabled choice. Subsequent Up/Down moves
@@ -151,7 +161,7 @@ without shadow, authored hue, opacity, animation, or numeric z-index.
 
 ## Focused fixture and assertion matrix
 
-`tests/timepicker/contract.html`, its browser spec, and the dedicated
+`tests/timepicker/contract.html`, its colocated stories, and the dedicated
 forced-colors gate form the executable contract:
 
 | Concern | Required evidence |

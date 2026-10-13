@@ -1,6 +1,7 @@
 import { CEM_STUDIO_REPOSITORY_ID } from './repository.js';
-import { CEM_STUDIO_LIMITS, createCemStudioPreview, mountCemStudioPreview, redactCemStudioSecrets } from './preview.js';
+import { CEM_STUDIO_LIMITS, createCemStudioPreview, redactCemStudioSecrets } from './preview.js';
 import { installCemStudioShellComponents } from './shell.js';
+import { mountCemView } from '@epa-wg/cem-elements';
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
@@ -488,8 +489,6 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         if (!state.command) throw new Error('CEM Studio command view is unavailable');
         const capturedVersion = ++commandEditVersion;
         const current = state.command.current;
-        const persisted = await readPersisted();
-        if (capturedVersion !== commandEditVersion) return state;
         publish({
             ...state,
             command: freezeCommand({
@@ -506,6 +505,8 @@ export async function createCemStudioFeatureTourWorkbench(options) {
                     : state.projection,
         });
         try {
+            const persisted = await readPersisted();
+            if (capturedVersion !== commandEditVersion) return state;
             const preview = await validator.previewResourceCommand({
                 ...commandResourceOptions(persisted),
                 text,
@@ -1034,180 +1035,123 @@ export async function mountCemStudioFeatureTourWorkbench({
 }) {
     if (!(root instanceof Element)) throw new TypeError('Feature Tour workbench root must be an Element');
     const components = await installCemStudioShellComponents();
-    const host = document.createElement('section');
-    host.setAttribute('data-cem-studio-workbench', '');
-    host.setAttribute('aria-label', 'Feature Tour workbench');
-    host.innerHTML = workbenchMarkup(workbench.snapshot());
-    const shell = root.querySelector('[data-cem-studio-shell]');
-    if (shell) shell.append(host);
-    else root.append(host);
-    await settleWorkbench(components.runtime, host);
+    // This empty container is only a mount boundary; the declaration owns UI.
+    const mount = document.createElement('div');
+    (root.querySelector('[data-cem-studio-shell]') ?? root).append(mount);
+    const layout = mountCemView(components.runtime, { root: mount, tag: 'cem-studio-workbench-layout' });
+    await layout.whenSettled();
+    const host = layout.element;
 
-    const editorHost = host.querySelector('cem-textarea[data-cem-studio-editor]');
-    const saveAction = host.querySelector('cem-action[data-cem-studio-save]');
-    const reloadAction = host.querySelector('cem-action[data-cem-studio-reload]');
-    const parseAction = host.querySelector('cem-action[data-cem-studio-parse]');
-    const inspectAction = host.querySelector('cem-action[data-cem-studio-inspect]');
-    const runAction = host.querySelector('cem-action[data-cem-studio-operation-run]');
-    const workbenchSelect = host.querySelector('cem-select[data-cem-studio-workbench-select]');
-    const commandEditorHost = host.querySelector('cem-textarea[data-cem-studio-command-editor]');
-    const commandCopyAction = host.querySelector('cem-action[data-cem-studio-command-copy]');
-    const commandResetAction = host.querySelector('cem-action[data-cem-studio-command-reset]');
-    const projectionCopyAction = host.querySelector('cem-action[data-cem-studio-projection-copy]');
-    const projectionDownloadAction = host.querySelector('cem-action[data-cem-studio-projection-download]');
-    const parseSelect = host.querySelector('cem-select[data-cem-studio-parse-projection]');
-    const inspectSelect = host.querySelector('cem-select[data-cem-studio-inspect-view]');
     let renderPromise = Promise.resolve();
-    let actionPromise = Promise.resolve();
+    let controlPromise = Promise.resolve();
+    let editPromise = Promise.resolve();
+    let pending = false;
+    let active = true;
+    let selection;
+    let selectionRequest = 0;
+    const perform = (operation) => {
+        if (pending || !active || workbenchBusy(workbench.snapshot())) return;
+        pending = true;
+        controls.update({ pending });
+        commandView.update({ pending });
+        results.update({ pending });
+        // Start on the command event stack; the service owns durable state.
+        controlPromise = (async () => {
+            try { await operation(); }
+            catch { /* Workbench services publish their structured failure. */ }
+            finally {
+                pending = false;
+                controls.update({ pending });
+                commandView.update({ pending });
+                results.update({ pending });
+            }
+        })();
+        return controlPromise;
+    };
+    const controls = mountCemView(components.runtime, {
+        root: host.querySelector('[data-cem-studio-workbench-controls-mount]'),
+        tag: 'cem-studio-workbench-controls',
+        state: { state: workbenchControlState(workbench.snapshot()), selectionRequest: '', pending },
+        commands: {
+            edit: ({ value }) => workbench.updateDraft(value ?? ''),
+            save: () => perform(() => workbench.saveAndValidate()),
+            reload: () => perform(() => workbench.reload()),
+            parse: ({ fields }) => perform(() => workbench.parsePersisted(fields.mode[0])),
+            inspect: ({ fields }) => perform(() => workbench.inspectPersisted(fields.mode[0])),
+            run: () => perform(() => workbench.runPersistedOperation()),
+            'select-workbench': ({ value }) => perform(() => workbench.selectWorkbench(value)),
+        },
+    });
 
+    const newTarget = (values = {}) => {
+        const application = workbench.snapshot().command?.application;
+        workbench.setCommandTarget({ mode: 'new', name: application?.newPageName ?? '',
+            ...(application?.newPageParentId ? { parentId: application.newPageParentId } : {}), ...values });
+    };
+    const dismissReplacement = () => {
+        if (workbench.snapshot().command?.application?.status === 'confirmation-required') {
+            workbench.cancelCommandReplacement();
+        }
+    };
+    const commandView = mountCemView(components.runtime, {
+        root: host.querySelector('[data-cem-studio-workbench-command-mount]'),
+        tag: 'cem-studio-workbench-command',
+        state: { command: workbenchCommandState(workbench.snapshot().command), pending, busy: workbenchBusy(workbench.snapshot()) },
+        commands: {
+            edit: ({ value }) => {
+                const edit = workbench.updateCommandDraft(value ?? '').catch(() => undefined);
+                editPromise = Promise.all([editPromise, edit]).then(() => undefined);
+                return edit;
+            },
+            copy: () => perform(() => workbench.copyCommand(typeof clipboard?.writeText === 'function'
+                ? text => clipboard.writeText(text) : undefined)),
+            reset: () => perform(() => workbench.resetCommandDraft()),
+            'target-name': ({ value }) => newTarget({ name: value ?? '' }),
+            'target-parent': ({ value }) => newTarget({ parentId: value || undefined }),
+            'target-existing': ({ value }) => workbench.setCommandTarget({ mode: 'existing', entryId: value }),
+            'target-mode': ({ value }) => {
+                if (value === 'current') workbench.setCommandTarget({ mode: 'current' });
+                else if (value === 'existing') {
+                    const targets = workbench.snapshot().command?.application?.targets.existing ?? [];
+                    const entry = targets.find(({ compatible }) => compatible) ?? targets[0];
+                    if (entry) workbench.setCommandTarget({ mode: 'existing', entryId: entry.id });
+                } else if (value === 'new') newTarget();
+            },
+            apply: () => perform(() => workbench.applyCommand()),
+            'apply-run': () => perform(() => workbench.applyAndRun()),
+            'confirm-replacement': () => perform(() => workbench.confirmCommandReplacement()),
+            'use-new': () => workbench.useNewCommandTarget(),
+            'cancel-replacement': dismissReplacement,
+            'dismiss-replacement': dismissReplacement,
+        },
+    });
+    const results = mountCemView(components.runtime, {
+        root: host.querySelector('[data-cem-studio-workbench-results-mount]'),
+        tag: 'cem-studio-workbench-results',
+        state: { state: workbenchResultState(workbench.snapshot()), pending },
+        commands: {
+            'copy-output': () => perform(() => workbench.copyProjection(typeof clipboard?.writeText === 'function'
+                ? text => clipboard.writeText(text) : undefined)),
+            'download-output': () => perform(() => workbench.downloadProjection(download)),
+            diagnostic: ({ value }) => workbench.navigateDiagnostic(Number(value)),
+            provenance: ({ value }) => workbench.navigateProvenance(Number(value)),
+        },
+    });
+    let latestSnapshot;
     const render = (snapshot) => {
+        latestSnapshot = snapshot;
         renderPromise = renderPromise.then(async () => {
-            renderWorkbench(host, snapshot);
-            await settleWorkbench(components.runtime, host);
-            const editor = host.querySelector('cem-textarea[data-cem-studio-editor] textarea');
-            if (editor && editor.value !== snapshot.draft) editor.value = snapshot.draft;
-            const commandEditor = host.querySelector('cem-textarea[data-cem-studio-command-editor] textarea');
-            if (commandEditor && commandEditor.value !== (snapshot.command?.draftText ?? '')) {
-                commandEditor.value = snapshot.command?.draftText ?? '';
-            }
-            const commandTargetName = host.querySelector('cem-text-field[data-cem-studio-command-target-name] input');
-            if (commandTargetName && commandTargetName.value !== (snapshot.command?.application?.newPageName ?? '')) {
-                commandTargetName.value = snapshot.command?.application?.newPageName ?? '';
-            }
-            if (editor && snapshot.selection) {
-                editor.focus();
-                editor.setSelectionRange(snapshot.selection.start, snapshot.selection.end);
-            }
+            if (!active) return;
+            const current = latestSnapshot;
+            if (current.selection && current.selection !== selection) selectionRequest++;
+            selection = current.selection;
+            controls.update({ state: workbenchControlState(current), selectionRequest: selection ? String(selectionRequest) : '', pending });
+            commandView.update({ command: workbenchCommandState(current.command), pending, busy: workbenchBusy(current) });
+            results.update({ state: workbenchResultState(current), pending });
+            await Promise.all([controls.whenSettled(), commandView.whenSettled(), results.whenSettled()]);
         });
     };
     const unsubscribe = workbench.subscribe(render);
-    const edited = (event) => {
-        if (event.target instanceof HTMLTextAreaElement) workbench.updateDraft(event.target.value);
-    };
-    const save = () => {
-        actionPromise = workbench.saveAndValidate().catch(() => undefined);
-    };
-    const reload = () => {
-        actionPromise = workbench.reload().catch(() => undefined);
-    };
-    const parse = () => {
-        actionPromise = workbench.parsePersisted(parseSelect.value).catch(() => undefined);
-    };
-    const inspect = () => {
-        actionPromise = workbench.inspectPersisted(inspectSelect.value).catch(() => undefined);
-    };
-    const runOperation = () => {
-        actionPromise = workbench.runPersistedOperation().catch(() => undefined);
-    };
-    const selectWorkbench = () => {
-        actionPromise = workbench.selectWorkbench(workbenchSelect.value).catch(() => undefined);
-    };
-    const commandEdited = (event) => {
-        if (event.target instanceof HTMLTextAreaElement) {
-            actionPromise = workbench.updateCommandDraft(event.target.value).catch(() => undefined);
-        }
-    };
-    const copyCommand = () => {
-        const writeText = typeof clipboard?.writeText === 'function' ? (text) => clipboard.writeText(text) : undefined;
-        actionPromise = workbench.copyCommand(writeText).catch(() => undefined);
-    };
-    const resetCommand = () => {
-        actionPromise = workbench.resetCommandDraft().catch(() => undefined);
-    };
-    const copyProjection = () => {
-        const writeText = typeof clipboard?.writeText === 'function' ? (text) => clipboard.writeText(text) : undefined;
-        actionPromise = workbench.copyProjection(writeText).catch(() => undefined);
-    };
-    const downloadProjection = () => {
-        actionPromise = workbench.downloadProjection(download).catch(() => undefined);
-    };
-    const commandApplicationInput = (event) => {
-        const field =
-            event.target instanceof Element
-                ? event.target.closest('cem-text-field[data-cem-studio-command-target-name]')
-                : null;
-        if (!field || !(event.target instanceof HTMLInputElement)) return;
-        const application = workbench.snapshot().command?.application;
-        workbench.setCommandTarget({
-            mode: 'new',
-            name: event.target.value,
-            ...(application?.newPageParentId ? { parentId: application.newPageParentId } : {}),
-        });
-    };
-    const commandApplicationChange = (event) => {
-        if (!(event.target instanceof Element)) return;
-        const select = event.target.closest('cem-select');
-        if (!select) return;
-        const application = workbench.snapshot().command?.application;
-        if (select.hasAttribute('data-cem-studio-command-target-mode')) {
-            if (select.value === 'current') workbench.setCommandTarget({ mode: 'current' });
-            else if (select.value === 'existing') {
-                const entry =
-                    application?.targets.existing.find(({ compatible }) => compatible) ??
-                    application?.targets.existing[0];
-                if (entry) workbench.setCommandTarget({ mode: 'existing', entryId: entry.id });
-            } else {
-                workbench.setCommandTarget({
-                    mode: 'new',
-                    name: application?.newPageName ?? '',
-                    ...(application?.newPageParentId ? { parentId: application.newPageParentId } : {}),
-                });
-            }
-        } else if (select.hasAttribute('data-cem-studio-command-target-existing')) {
-            workbench.setCommandTarget({ mode: 'existing', entryId: select.value });
-        } else if (select.hasAttribute('data-cem-studio-command-target-parent')) {
-            workbench.setCommandTarget({
-                mode: 'new',
-                name: application?.newPageName ?? '',
-                ...(select.value ? { parentId: select.value } : {}),
-            });
-        }
-    };
-    const commandApplicationAction = (event) => {
-        if (!(event.target instanceof Element)) return;
-        const action = event.target.closest('cem-action');
-        if (!action) return;
-        if (action.hasAttribute('data-cem-studio-command-apply')) {
-            actionPromise = workbench.applyCommand().catch(() => undefined);
-        } else if (action.hasAttribute('data-cem-studio-command-apply-run')) {
-            actionPromise = workbench.applyAndRun().catch(() => undefined);
-        } else if (action.hasAttribute('data-cem-studio-command-replace-confirm')) {
-            actionPromise = workbench.confirmCommandReplacement().catch(() => undefined);
-        } else if (action.hasAttribute('data-cem-studio-command-use-new')) {
-            workbench.useNewCommandTarget();
-        } else if (action.hasAttribute('data-cem-studio-command-replace-cancel')) {
-            workbench.cancelCommandReplacement();
-        }
-    };
-    const commandDialogDismissed = (event) => {
-        if (event.target instanceof Element && event.target.matches('[data-cem-studio-command-replace-dialog]')) {
-            workbench.cancelCommandReplacement();
-        }
-    };
-    const navigate = (event) => {
-        if (!(event.target instanceof HTMLSelectElement)) return;
-        const list = event.target.closest('cem-list');
-        const index = Number(event.target.value);
-        if (list?.hasAttribute('data-diagnostic-list')) workbench.navigateDiagnostic(index);
-        else if (list?.hasAttribute('data-provenance-list')) workbench.navigateProvenance(index);
-    };
-    editorHost.addEventListener('input', edited);
-    saveAction.addEventListener('click', save);
-    reloadAction.addEventListener('click', reload);
-    parseAction.addEventListener('click', parse);
-    inspectAction.addEventListener('click', inspect);
-    runAction.addEventListener('click', runOperation);
-    workbenchSelect.addEventListener('change', selectWorkbench);
-    commandEditorHost.addEventListener('input', commandEdited);
-    commandCopyAction.addEventListener('click', copyCommand);
-    commandResetAction.addEventListener('click', resetCommand);
-    projectionCopyAction.addEventListener('click', copyProjection);
-    projectionDownloadAction.addEventListener('click', downloadProjection);
-    host.addEventListener('input', commandApplicationInput);
-    host.addEventListener('change', commandApplicationChange);
-    host.addEventListener('click', commandApplicationAction);
-    host.addEventListener('cem-dismiss', commandDialogDismissed);
-    host.addEventListener('change', navigate);
     await renderPromise;
 
     return Object.freeze({
@@ -1215,33 +1159,24 @@ export async function mountCemStudioFeatureTourWorkbench({
         workbench,
         async whenSettled() {
             while (true) {
-                const actions = actionPromise;
-                await actions;
+                const controlAction = controlPromise;
+                const edits = editPromise;
+                await controlAction;
+                await edits;
                 const renders = renderPromise;
                 await renders;
-                if (actions === actionPromise && renders === renderPromise) return;
+                await Promise.all([controls.whenSettled(), commandView.whenSettled(), results.whenSettled()]);
+                if (controlAction === controlPromise && edits === editPromise && renders === renderPromise) return;
             }
         },
         dispose() {
+            active = false;
             unsubscribe();
-            editorHost.removeEventListener('input', edited);
-            saveAction.removeEventListener('click', save);
-            reloadAction.removeEventListener('click', reload);
-            parseAction.removeEventListener('click', parse);
-            inspectAction.removeEventListener('click', inspect);
-            runAction.removeEventListener('click', runOperation);
-            workbenchSelect.removeEventListener('change', selectWorkbench);
-            commandEditorHost.removeEventListener('input', commandEdited);
-            commandCopyAction.removeEventListener('click', copyCommand);
-            commandResetAction.removeEventListener('click', resetCommand);
-            projectionCopyAction.removeEventListener('click', copyProjection);
-            projectionDownloadAction.removeEventListener('click', downloadProjection);
-            host.removeEventListener('input', commandApplicationInput);
-            host.removeEventListener('change', commandApplicationChange);
-            host.removeEventListener('click', commandApplicationAction);
-            host.removeEventListener('cem-dismiss', commandDialogDismissed);
-            host.removeEventListener('change', navigate);
-            host.remove();
+            controls.dispose();
+            commandView.dispose();
+            results.dispose();
+            layout.dispose();
+            mount.remove();
         },
     });
 }
@@ -1386,7 +1321,8 @@ function projectCommandProjection(kind, mode, outcome, source, revision, expecte
     const operation = result?.result?.storage === 'inline' ? result.result.value : undefined;
     const trace =
         kind === 'trace' && Array.isArray(operation?.value?.body?.events)
-            ? operation.value.body.events
+            ? operation.value.body.events.slice(0, CEM_STUDIO_LIMITS.structuredRows)
+                .map((value, index) => Object.freeze({ path: `value.body.events.${index}`, value }))
             : collectOperationRecords(operation, ['trace', 'stages', 'events']);
     const graph =
         kind === 'transform' && mode === 'graph'
@@ -1874,515 +1810,54 @@ function utf8ByteOffsetToCodeUnit(value, target) {
     return codeUnits;
 }
 
-function workbenchMarkup(state) {
-    return `
-        <cem-select data-cem-studio-workbench-select name="operation-workbench" value="${escapeHtml(state.workbenchId)}">
-            <span slot="label">Workbench</span>
-            ${state.workbenches.map((workbench) => `<option value="${escapeHtml(workbench.id)}">${escapeHtml(`${workbench.name} — ${workbench.operation}`)}</option>`).join('')}
-        </cem-select>
-        <cem-card label="Feature Tour editor">
-            <span slot="title">Feature Tour operation workbenches</span>
-            <div data-cem-studio-workbench-content>
-                <div role="status" aria-live="polite" aria-atomic="true">
-                    <cem-badge data-cem-studio-workbench-status label="Loading" tone="info"></cem-badge>
-                    <cem-badge data-cem-studio-workbench-revision label="Revision loading" tone="info"></cem-badge>
-                </div>
-                <cem-textarea data-cem-studio-editor name="feature-tour-source" label="CEM source">
-                    <span slot="help">Changes remain local and are checked against the loaded revision.</span>
-                </cem-textarea>
-                <div>
-                    <cem-action data-cem-studio-save variant="primary">Save and validate</cem-action>
-                    <cem-action data-cem-studio-reload variant="quiet">Reload persisted revision</cem-action>
-                </div>
-                <cem-alert data-cem-studio-workbench-alert label="Load a resource to begin" tone="info"></cem-alert>
-            </div>
-        </cem-card>
-        <section aria-label="CEM-ML projections">
-            <cem-action data-cem-studio-operation-run variant="primary">Run configured workbench</cem-action>
-            <cem-select data-cem-studio-parse-projection name="parse-projection" value="ast">
-                <span slot="label">Parse projection</span>
-                <option value="ast">AST</option>
-                <option value="events">Events</option>
-            </cem-select>
-            <cem-action data-cem-studio-parse variant="secondary">Parse persisted revision</cem-action>
-            <cem-select data-cem-studio-inspect-view name="inspect-view" value="summary">
-                <span slot="label">Inspect view</span>
-                <option value="summary">Summary</option>
-                <option value="ast">AST</option>
-                <option value="events">Events</option>
-                <option value="diagnostics">Diagnostics</option>
-                <option value="source-offsets">Source offsets</option>
-                <option value="tree">Tree</option>
-            </cem-select>
-            <cem-action data-cem-studio-inspect variant="secondary">Inspect persisted revision</cem-action>
-            <cem-alert data-cem-studio-projection-alert label="Run the configured operation against the persisted revision" tone="info"></cem-alert>
-            <div data-cem-studio-operation-details></div>
-        </section>
-        <section aria-label="CLI Command">
-            <cem-tabs label="CLI Command" value="command">
-                <cem-tab value="command" label="Studio command">
-                    <cem-alert data-cem-studio-command-alert label="Loading Studio command" tone="info"></cem-alert>
-                    <cem-textarea data-cem-studio-command-editor name="studio-command" label="Studio command (literal argv)">
-                        <span slot="help">Parsed by the shared CEM-ML grammar without shell expansion. Editing does not mutate the project.</span>
-                    </cem-textarea>
-                    <div>
-                        <cem-action data-cem-studio-command-copy variant="secondary">Copy command</cem-action>
-                        <cem-action data-cem-studio-command-reset variant="quiet">Reset generated command</cem-action>
-                    </div>
-                    <section data-cem-studio-command-application aria-label="Apply Studio command"></section>
-                </cem-tab>
-                <cem-tab value="changes" label="Semantic changes">
-                    <div data-cem-studio-command-changes></div>
-                </cem-tab>
-            </cem-tabs>
-        </section>
-        <cem-tabs label="Projection results" value="output">
-            <cem-tab value="output" label="Operation output">
-                <section data-cem-studio-preview aria-label="Result preview">
-                    <cem-alert label="Run an operation to preview its bounded result" tone="info"></cem-alert>
-                </section>
-                <div>
-                    <cem-action data-cem-studio-projection-copy variant="secondary">Copy exact output</cem-action>
-                    <cem-action data-cem-studio-projection-download variant="quiet">Download exact output</cem-action>
-                </div>
-                <cem-alert data-cem-studio-projection-transfer label="No output transfer requested" tone="info"></cem-alert>
-            </cem-tab>
-            <cem-tab value="metadata" label="Execution"><div data-cem-studio-projection-metadata></div></cem-tab>
-            <cem-tab value="expected" label="Expected"><div data-cem-studio-projection-expected></div></cem-tab>
-            <cem-tab value="trace" label="Trace"><div data-cem-studio-projection-trace></div></cem-tab>
-            <cem-tab value="graph" label="Graph"><div data-cem-studio-projection-graph></div></cem-tab>
-        </cem-tabs>
-        <cem-tabs label="Validation results" value="diagnostics">
-            <cem-tab value="diagnostics" label="Diagnostics"><div data-cem-studio-diagnostics></div></cem-tab>
-            <cem-tab value="report" label="Report"><div data-cem-studio-report></div></cem-tab>
-            <cem-tab value="provenance" label="Provenance"><div data-cem-studio-provenance></div></cem-tab>
-        </cem-tabs>`;
+function workbenchBusy(state) {
+    return ['saving', 'validating', 'projecting'].includes(state.status)
+        || ['applying', 'running'].includes(state.command?.application?.status);
 }
 
-function renderWorkbench(host, state) {
-    const commandBusy =
-        state.command?.application?.status === 'applying' || state.command?.application?.status === 'running';
-    const busy =
-        state.status === 'saving' || state.status === 'validating' || state.status === 'projecting' || commandBusy;
-    const status = host.querySelector('[data-cem-studio-workbench-status]');
-    const revision = host.querySelector('[data-cem-studio-workbench-revision]');
-    const alert = host.querySelector('[data-cem-studio-workbench-alert]');
-    const save = host.querySelector('[data-cem-studio-save]');
-    const reload = host.querySelector('[data-cem-studio-reload]');
-    const parse = host.querySelector('[data-cem-studio-parse]');
-    const inspect = host.querySelector('[data-cem-studio-inspect]');
-    const runOperation = host.querySelector('[data-cem-studio-operation-run]');
-    const workbenchSelect = host.querySelector('[data-cem-studio-workbench-select]');
-    const commandAlert = host.querySelector('[data-cem-studio-command-alert]');
-    const commandCopy = host.querySelector('[data-cem-studio-command-copy]');
-    const commandReset = host.querySelector('[data-cem-studio-command-reset]');
-    const projectionAlert = host.querySelector('[data-cem-studio-projection-alert]');
-    const projectionCopy = host.querySelector('[data-cem-studio-projection-copy]');
-    const projectionDownload = host.querySelector('[data-cem-studio-projection-download]');
-    const projectionTransfer = host.querySelector('[data-cem-studio-projection-transfer]');
-    workbenchSelect.value = state.workbenchId;
-    status.setAttribute('label', statusLabel(state));
-    status.setAttribute('tone', statusTone(state.status));
-    revision.setAttribute('label', `Project ${state.projectRevision}; resource ${state.resourceRevision}`);
-    save.toggleAttribute('disabled', busy || !state.dirty);
-    save.toggleAttribute('loading', busy);
-    reload.toggleAttribute('disabled', busy);
-    parse.toggleAttribute('disabled', busy);
-    parse.toggleAttribute('loading', state.status === 'projecting');
-    inspect.toggleAttribute('disabled', busy);
-    inspect.toggleAttribute('loading', state.status === 'projecting');
-    runOperation.toggleAttribute('disabled', busy);
-    runOperation.toggleAttribute('loading', state.status === 'projecting');
-    alert.setAttribute('label', alertLabel(state));
-    alert.setAttribute(
-        'tone',
-        state.error || state.status === 'invalid' || state.status === 'conflict' ? 'danger' : 'info',
-    );
-    host.querySelector('[data-cem-studio-diagnostics]').innerHTML = diagnosticsMarkup(
-        state.projection?.diagnostics ?? state.validation?.diagnostics ?? [],
-    );
-    host.querySelector('[data-cem-studio-report]').innerHTML = reportMarkup(state.validation?.reportSummary);
-    host.querySelector('[data-cem-studio-provenance]').innerHTML = provenanceMarkup(
-        state.projection?.provenance ?? state.validation?.provenance ?? [],
-    );
-    projectionAlert.setAttribute('label', projectionAlertLabel(state));
-    projectionAlert.setAttribute(
-        'tone',
-        state.status === 'projection-invalid' || state.error || state.projection?.expectedMatches === false
-            ? 'danger'
-            : state.projection?.stale
-              ? 'warning'
-              : 'info',
-    );
-    host.querySelector('[data-cem-studio-projection-metadata]').innerHTML = projectionMetadataMarkup(state.projection);
-    host.querySelector('[data-cem-studio-operation-details]').innerHTML = operationDetailsMarkup(state);
-    host.querySelector('[data-cem-studio-projection-expected]').innerHTML = projectionExpectedMarkup(
-        state.projection,
-        state.expected,
-    );
-    host.querySelector('[data-cem-studio-projection-trace]').innerHTML = operationRecordsMarkup(
-        'Operation trace',
-        state.projection?.trace ?? [],
-    );
-    host.querySelector('[data-cem-studio-projection-graph]').innerHTML = operationRecordsMarkup(
-        'Transformation graph execution overlay',
-        state.projection?.graph ?? [],
-    );
-    const previewRoot = host.querySelector('[data-cem-studio-preview]');
-    if (state.projection?.preview) {
-        mountCemStudioPreview(previewRoot, state.projection.preview);
-    } else {
-        previewRoot.innerHTML =
-            '<cem-alert label="Run an operation to preview its bounded result" tone="info"></cem-alert>';
-    }
-    const hasOutput = Boolean(state.projection?.output);
-    const copyableOutput = hasOutput && state.projection?.preview?.kind !== 'download';
-    projectionCopy.toggleAttribute('disabled', !copyableOutput || busy);
-    projectionDownload.toggleAttribute('disabled', !hasOutput || busy);
-    projectionTransfer.setAttribute(
-        'label',
-        state.projection?.transfer?.message ?? 'Copy or download the exact verified operation output.',
-    );
-    projectionTransfer.setAttribute('tone', state.projection?.transfer?.status === 'failed' ? 'danger' : 'info');
-    commandAlert.setAttribute('label', commandAlertLabel(state.command));
-    commandAlert.setAttribute('tone', commandAlertTone(state.command));
-    commandCopy.toggleAttribute('disabled', !state.command || state.command.status === 'checking');
-    commandCopy.toggleAttribute('loading', state.command?.copy?.status === 'copying');
-    commandReset.toggleAttribute(
-        'disabled',
-        !state.command || state.command.status === 'current' || state.command.status === 'checking',
-    );
-    host.querySelector('[data-cem-studio-command-changes]').innerHTML = commandChangesMarkup(state.command);
-    renderCommandApplication(host.querySelector('[data-cem-studio-command-application]'), state.command);
+// Forward service data used by this view, excluding potentially large result
+// bytes, graphs and command previews. Presentation remains in the declaration.
+function workbenchControlState(state) {
+    const { status, workbenchId, workbenches, draft, dirty, projectRevision,
+        resourceRevision, selection, error, path, contentType, validation } = state;
+    return { status, workbenchId, workbenches, draft, dirty, projectRevision,
+        resourceRevision, selection, error, path, contentType, validation,
+        command: { application: { status: state.command?.application?.status } } };
 }
 
-function statusLabel(state) {
-    if (state.status === 'stale') return 'Validation result stale';
-    return (
-        {
-            loading: 'Loading resource',
-            loaded: 'Persisted revision loaded',
-            dirty: 'Unsaved changes',
-            saving: 'Saving revision',
-            saved: 'Revision saved',
-            validating: 'Validating saved revision',
-            projecting: 'Projecting saved revision',
-            projected: 'Saved revision projected',
-            'projection-invalid': 'Projection has diagnostics',
-            'projection-stale': 'Projection result stale',
-            valid: 'Saved revision valid',
-            invalid: 'Saved revision has diagnostics',
-            stale: 'Validation result stale',
-            conflict: 'Revision conflict',
-            failed: 'Workbench failed',
-        }[state.status] ?? state.status
-    );
+function workbenchCommandState(command) {
+    if (!command) return null;
+    const { status, draftText, copy, diagnostic, revision, current, changes, application } = command;
+    const { result, execution: _execution, ...targeting } = application ?? {};
+    const text = value => typeof value === 'string' ? value : JSON.stringify(value);
+    return { status, draftText, copy, diagnostic, revision, current: { commonVersion: current.commonVersion },
+        changes: changes.map(({ category, path, kind, before, after }) => ({ category, path, kind,
+            beforeText: text(before), afterText: text(after) })),
+        application: application ? { ...targeting, result: result && {
+            projectRevision: result.projectRevision, resourceRevision: result.resourceRevision } } : null };
 }
 
-function statusTone(status) {
-    if (status === 'valid' || status === 'saved' || status === 'loaded' || status === 'projected') return 'success';
-    if (status === 'invalid' || status === 'failed' || status === 'conflict' || status === 'projection-invalid')
-        return 'danger';
-    if (status === 'dirty' || status === 'stale' || status === 'projection-stale') return 'warning';
-    return 'info';
-}
-
-function alertLabel(state) {
-    if (state.error) return `${state.error.code}: ${state.error.message}`;
-    if (state.validation?.stale) return 'This result belongs to an older draft or durable revision.';
-    if (state.validation) {
-        return `${state.validation.diagnostics.length} diagnostics; ${state.validation.hardViolationCount} hard violations.`;
-    }
-    return `${state.path}; ${state.contentType}`;
-}
-
-function projectionAlertLabel(state) {
-    if (!state.projection) return `Run ${state.operation} against the persisted revision.`;
-    const freshness = state.projection.stale ? 'stale' : 'current';
-    const expected =
-        state.projection.expectedMatches === undefined
-            ? ''
-            : state.projection.expectedMatches
-              ? '; pinned expectation matched'
-              : '; pinned expectation differed';
-    return `${state.projection.kind} ${state.projection.mode}; ${state.projection.output.byteLength} output bytes; ${freshness} revision${expected}.`;
-}
-
-function projectionMetadataMarkup(projection) {
-    if (!projection) return '<cem-alert label="No parse or inspect result yet" tone="info"></cem-alert>';
-    const rows = [
-        ['Operation', projection.kind],
-        ['Projection', projection.mode],
-        ['Runtime', projection.executionIdentity?.runtime ?? 'unknown'],
-        ['Project revision', projection.revision.projectRevision],
-        ['Resource revision', projection.revision.resourceRevision],
-        ['Output content type', projection.output.contentType],
-        ['Output bytes', projection.output.byteLength],
-        ['Diagnostics', projection.diagnostics.length],
-        ['Source-map frames', projection.provenance.length],
-        [
-            'Expected result',
-            projection.expectedMatches === undefined
-                ? 'not pinned'
-                : projection.expectedMatches
-                  ? 'matched'
-                  : 'different',
-        ],
-        ['Freshness', projection.stale ? 'stale' : 'current'],
-    ];
-    return `<cem-table label="Projection execution"><div role="row"><strong role="columnheader">Measure</strong><strong role="columnheader">Value</strong></div>${rows.map(([label, value]) => `<div role="row"><span role="cell">${escapeHtml(label)}</span><span role="cell">${escapeHtml(value)}</span></div>`).join('')}</cem-table>`;
-}
-
-function operationDetailsMarkup(state) {
-    const rows = [
-        ['Operation', state.operation],
-        ['Input path', state.path],
-        ['Input content type', state.contentType],
-        ['Input schema', state.schema],
-        ['Literal argv', state.command?.current?.argv?.join(' ') ?? 'loading'],
-        ['Pinned expectation', state.expected?.kind ?? 'none'],
-    ];
-    return `<cem-table label="Operation identities and configuration"><div role="row"><strong role="columnheader">Field</strong><strong role="columnheader">Value</strong></div>${rows.map(([label, value]) => `<div role="row"><span role="cell">${escapeHtml(label)}</span><span role="cell">${escapeHtml(value)}</span></div>`).join('')}</cem-table>`;
-}
-
-function projectionExpectedMarkup(projection, expected) {
+// Transport only the data this declaration consumes. Preserve exact downloadable
+// bytes in the service; serialize typed record values without presentation labels.
+function workbenchResultState(state) {
+    const { status, error, operation, path, contentType, schema, expected, validation, command, projection } = state;
     const pinned = projection?.expected ?? expected;
-    if (!pinned) return '<cem-alert label="No pinned expected result for this workbench" tone="info"></cem-alert>';
     const actual = projection?.summary;
-    const status =
-        projection?.expectedMatches === undefined
-            ? 'Run the operation to compare its native summary.'
-            : projection.expectedMatches
-              ? 'Native result matches the pinned expectation.'
-              : 'Native result differs from the pinned expectation.';
-    const rows = [...new Set([...Object.keys(pinned), ...Object.keys(actual ?? {})])]
-        .sort()
-        .map((key) => [
-            key,
-            pinned[key] === undefined ? '—' : JSON.stringify(pinned[key]),
-            actual?.[key] === undefined ? '—' : JSON.stringify(actual[key]),
-        ]);
-    return `<cem-alert label="${escapeHtml(status)}" tone="${projection?.expectedMatches === false ? 'danger' : projection?.expectedMatches ? 'success' : 'info'}"></cem-alert><cem-table label="Pinned expected result"><div role="row"><strong role="columnheader">Measure</strong><strong role="columnheader">Expected</strong><strong role="columnheader">Actual</strong></div>${rows.map(([key, expectedValue, actualValue]) => `<div role="row"><span role="cell">${escapeHtml(key)}</span><span role="cell">${escapeHtml(expectedValue)}</span><span role="cell">${escapeHtml(actualValue)}</span></div>`).join('')}</cem-table>`;
-}
-
-function operationRecordsMarkup(label, records) {
-    if (records.length === 0)
-        return `<cem-alert label="No ${escapeHtml(label.toLowerCase())} records" tone="info"></cem-alert>`;
-    return `<cem-table label="${escapeHtml(label)}"><div role="row"><strong role="columnheader">Path</strong><strong role="columnheader">Record</strong></div>${records
-        .slice(0, CEM_STUDIO_LIMITS.structuredRows)
-        .map(
-            ({ path, value }) =>
-                `<div role="row"><span role="cell">${escapeHtml(path)}</span><span role="cell">${escapeHtml(commandChangeValue(value))}</span></div>`,
-        )
-        .join('')}</cem-table>`;
-}
-
-function commandAlertLabel(command) {
-    if (!command) return 'Loading Studio command.';
-    if (command.copy?.message) return command.copy.message;
-    if (command.status === 'checking') return 'Checking command with the shared CEM-ML grammar.';
-    if (command.status === 'invalid') {
-        return `${command.diagnostic?.code ?? 'cem.command.invalid'}: ${command.diagnostic?.message ?? 'Command is invalid.'}`;
-    }
-    if (command.status === 'changed') {
-        return `${command.changes.length} semantic changes; project records remain unchanged.`;
-    }
-    return `Generated Studio command for project ${command.revision.projectRevision}, resource ${command.revision.resourceRevision}; CEM-ML ${command.current.commonVersion}.`;
-}
-
-function commandAlertTone(command) {
-    if (command?.copy?.status === 'failed' || command?.status === 'invalid') return 'danger';
-    if (command?.status === 'changed') return 'warning';
-    if (command?.copy?.status === 'success' || command?.status === 'current') return 'success';
-    return 'info';
-}
-
-function renderCommandApplication(container, command) {
-    const application = command?.application;
-    if (!application) {
-        container.innerHTML = '<cem-alert label="Command targeting is loading" tone="info"></cem-alert>';
-        return;
-    }
-    const signature = JSON.stringify({
-        mode: application.target.mode,
-        current: application.targets.current?.id,
-        existing: application.targets.existing.map(({ id, kind }) => [id, kind]),
-        parents: application.targets.parents.map(({ id }) => id),
-        confirmation:
-            application.status === 'confirmation-required'
-                ? (application.confirmation?.target?.entryId ?? application.confirmation?.target?.mode)
-                : undefined,
-    });
-    if (container.dataset.signature !== signature) {
-        container.dataset.signature = signature;
-        container.innerHTML = commandApplicationMarkup(application);
-    }
-    const targetMode = container.querySelector('[data-cem-studio-command-target-mode]');
-    if (targetMode) targetMode.value = application.target.mode;
-    const existing = container.querySelector('[data-cem-studio-command-target-existing]');
-    if (existing && application.target.mode === 'existing') existing.value = application.target.entryId;
-    const parent = container.querySelector('[data-cem-studio-command-target-parent]');
-    if (parent) parent.value = application.newPageParentId ?? '';
-    const alert = container.querySelector('[data-cem-studio-command-apply-alert]');
-    alert?.setAttribute('label', commandApplicationAlertLabel(application));
-    alert?.setAttribute('tone', commandApplicationAlertTone(application));
-    const busy = application.status === 'applying' || application.status === 'running';
-    const targetInvalid = application.target.mode === 'new' && application.newPageName.trim().length === 0;
-    const disabled = busy || targetInvalid || command.status === 'invalid' || command.status === 'checking';
-    const apply = container.querySelector('[data-cem-studio-command-apply]');
-    const applyRun = container.querySelector('[data-cem-studio-command-apply-run]');
-    apply?.toggleAttribute('disabled', disabled);
-    apply?.toggleAttribute('loading', application.status === 'applying');
-    applyRun?.toggleAttribute('disabled', disabled);
-    applyRun?.toggleAttribute('loading', application.status === 'running');
-}
-
-function commandApplicationMarkup(application) {
-    const current = application.targets.current;
-    const existingOptions =
-        application.targets.existing.length === 0
-            ? '<option value="" disabled>No existing pages</option>'
-            : application.targets.existing
-                  .map(
-                      (entry) => `
-            <option value="${escapeHtml(entry.id)}">${escapeHtml(`${entry.name} — ${entry.kind}${entry.compatible ? '' : ' (replacement)'}`)}</option>`,
-                  )
-                  .join('');
-    const targetDetail =
-        application.target.mode === 'current'
-            ? `<cem-alert label="${escapeHtml(
-                  current
-                      ? `${current.name}; ${current.kind}${current.compatible ? '; compatible' : '; replacement confirmation required'}`
-                      : 'No current page is available',
-              )}" tone="${current?.compatible ? 'success' : 'warning'}"></cem-alert>`
-            : application.target.mode === 'existing'
-              ? `<cem-select data-cem-studio-command-target-existing name="command-target-existing" value="${escapeHtml(application.target.entryId ?? '')}">
-                    <span slot="label">Existing page</span>${existingOptions}
-                </cem-select>`
-              : `<cem-text-field data-cem-studio-command-target-name name="command-target-name" label="New page name" value="${escapeHtml(application.newPageName)}" required>
-                    <span slot="help">A collision-safe stable id is assigned by the repository.</span>
-                </cem-text-field>
-                <cem-select data-cem-studio-command-target-parent name="command-target-parent" value="${escapeHtml(application.newPageParentId ?? '')}">
-                    <span slot="label">Parent</span>
-                    <option value="">Project root</option>
-                    ${application.targets.parents.map(({ id, name }) => `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`).join('')}
-                </cem-select>`;
-    const confirmation =
-        application.status === 'confirmation-required'
-            ? `<cem-dialog data-cem-studio-command-replace-dialog transient expanded label="Confirm incompatible page replacement">
-                <p>The selected page has an incompatible kind. Creating a new inspection page is recommended.</p>
-                <div>
-                    <cem-action data-cem-studio-command-use-new variant="primary">Use new page</cem-action>
-                    <cem-action data-cem-studio-command-replace-confirm variant="secondary">Replace selected page</cem-action>
-                    <cem-action data-cem-studio-command-replace-cancel variant="quiet">Cancel</cem-action>
-                </div>
-            </cem-dialog>`
-            : '';
-    return `
-        <cem-select data-cem-studio-command-target-mode name="command-target-mode" value="${application.target.mode}">
-            <span slot="label">Apply to</span>
-            <option value="current"${current ? '' : ' disabled'}>Current page</option>
-            <option value="existing"${application.targets.existing.length ? '' : ' disabled'}>Existing page</option>
-            <option value="new">New page (recommended when incompatible)</option>
-        </cem-select>
-        <div data-cem-studio-command-target-detail>${targetDetail}</div>
-        <cem-alert data-cem-studio-command-apply-alert label="Ready to apply" tone="info"></cem-alert>
-        <div>
-            <cem-action data-cem-studio-command-apply variant="secondary">Apply</cem-action>
-            <cem-action data-cem-studio-command-apply-run variant="primary">Apply &amp; Run</cem-action>
-        </div>
-        ${confirmation}`;
-}
-
-function commandApplicationAlertLabel(application) {
-    if (application.error) return `${application.error.code}: ${application.error.message}`;
-    if (application.status === 'applying')
-        return 'Applying exact authored command bytes in one repository transaction.';
-    if (application.status === 'running') return 'Running the exact committed command revision.';
-    if (application.status === 'confirmation-required') {
-        return 'Replacement is incompatible. Creating a new page is recommended; replacement requires confirmation.';
-    }
-    if (application.status === 'conflict') return 'The project changed before Apply; reload before trying again.';
-    if (application.status === 'stale') return 'The command or project advanced after the last Apply.';
-    if (application.status === 'run-stale')
-        return 'Execution completed, but a newer command, draft, or project revision exists.';
-    if (application.status === 'run-invalid') return 'The exact committed command ran with diagnostics.';
-    if (application.status === 'ran') {
-        return `Ran committed project ${application.result.projectRevision}, command resource ${application.result.resourceRevision}.`;
-    }
-    if (application.status === 'applied') {
-        return `Applied project ${application.result.projectRevision}, command resource ${application.result.resourceRevision}; not executed.`;
-    }
-    if (application.status === 'failed') return 'The command could not be applied or executed.';
-    return application.target.mode === 'new'
-        ? 'Apply will create a new inspection page without executing it.'
-        : 'Apply will update the selected page without executing it.';
-}
-
-function commandApplicationAlertTone(application) {
-    if (['failed', 'conflict', 'run-invalid'].includes(application.status)) return 'danger';
-    if (['confirmation-required', 'stale', 'run-stale'].includes(application.status)) return 'warning';
-    if (['applied', 'ran'].includes(application.status)) return 'success';
-    return 'info';
-}
-
-function commandChangesMarkup(command) {
-    if (!command) return '<cem-alert label="Command preview is loading" tone="info"></cem-alert>';
-    if (command.status === 'invalid') {
-        return `<cem-alert label="${escapeHtml(commandAlertLabel(command))}" tone="danger"></cem-alert>`;
-    }
-    if (command.changes.length === 0) {
-        return '<cem-alert label="The command matches the active normalized run plan" tone="success"></cem-alert>';
-    }
-    return `<cem-table label="CLI Command semantic changes"><div role="row"><strong role="columnheader">Area</strong><strong role="columnheader">Path</strong><strong role="columnheader">Change</strong><strong role="columnheader">Current</strong><strong role="columnheader">Draft</strong></div>${command.changes.map((change) => `<div role="row"><span role="cell">${escapeHtml(change.category)}</span><span role="cell">${escapeHtml(change.path)}</span><span role="cell">${escapeHtml(change.kind)}</span><span role="cell">${escapeHtml(commandChangeValue(change.before))}</span><span role="cell">${escapeHtml(commandChangeValue(change.after))}</span></div>`).join('')}</cem-table>`;
-}
-
-function commandChangeValue(value) {
-    if (value === undefined) return '—';
-    const text = typeof value === 'string' ? value : JSON.stringify(value);
-    return text.length <= 240 ? text : `${text.slice(0, 239)}…`;
-}
-
-function diagnosticsMarkup(diagnostics) {
-    if (diagnostics.length === 0) return '<cem-alert label="No diagnostics" tone="success"></cem-alert>';
-    return `<cem-list data-diagnostic-list selectable label="Diagnostics" size="${Math.min(8, diagnostics.length)}">${diagnostics
-        .map(
-            (diagnostic, index) => `
-        <cem-list-option value="${index}">${escapeHtml(`${diagnostic.severity}: ${diagnostic.code}: ${diagnostic.message}`)}</cem-list-option>`,
-        )
-        .join('')}</cem-list>`;
-}
-
-function reportMarkup(summary) {
-    if (!summary) return '<cem-alert label="No validation report yet" tone="info"></cem-alert>';
-    const rows = [
-        ['Inputs', summary.inputCount],
-        ['Information', summary.infoCount],
-        ['Warnings', summary.warningCount],
-        ['Errors', summary.errorCount],
-        ['Fatal', summary.fatalCount],
-        ['Hard violations', summary.hardViolationCount],
-    ];
-    return `<cem-table label="Validation report"><div role="row"><strong role="columnheader">Measure</strong><strong role="columnheader">Count</strong></div>${rows.map(([label, value]) => `<div role="row"><span role="cell">${label}</span><span role="cell">${value ?? 0}</span></div>`).join('')}</cem-table>`;
-}
-
-function provenanceMarkup(provenance) {
-    if (provenance.length === 0) return '<cem-alert label="No source-map provenance" tone="info"></cem-alert>';
-    return `<cem-list data-provenance-list selectable label="Source-map provenance" size="${Math.min(8, provenance.length)}">${provenance
-        .map(
-            (frame, index) => `
-        <cem-list-option value="${index}">${escapeHtml(`Source ${frame.sourceId ?? 'unknown'}: ${frame.transform}; bytes ${frame.range.start}–${frame.range.start + frame.range.len}`)}</cem-list-option>`,
-        )
-        .join('')}</cem-list>`;
-}
-
-function escapeHtml(value) {
-    return String(value)
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#39;');
+    const expectedRows = pinned ? [...new Set([...Object.keys(pinned), ...Object.keys(actual ?? {})])].sort()
+        .map(key => ({ key, expectedText: JSON.stringify(pinned[key]), actualText: JSON.stringify(actual?.[key]) })) : [];
+    const records = values => (values ?? []).slice(0, CEM_STUDIO_LIMITS.structuredRows)
+        .map(({ path, value }) => ({ path, text: typeof value === 'string' ? value : JSON.stringify(value) }));
+    return { status, error, operation, path, contentType, schema, expected, expectedRows,
+        validation: validation && { reportSummary: validation.reportSummary, diagnostics: validation.diagnostics,
+            provenance: validation.provenance },
+        command: { current: { argv: command?.current?.argv }, application: { status: command?.application?.status } },
+        projection: projection && { kind: projection.kind, mode: projection.mode, stale: projection.stale,
+            expectedMatches: projection.expectedMatches, executionIdentity: projection.executionIdentity,
+            revision: projection.revision, diagnostics: projection.diagnostics, provenance: projection.provenance,
+            preview: projection.preview, expected: projection.expected, summary: projection.summary,
+            transfer: projection.transfer, output: projection.output && {
+                contentType: projection.output.contentType, byteLength: projection.output.byteLength },
+            trace: records(projection.trace), graph: records(projection.graph) } };
 }
 
 async function browserDownload({ filename, contentType, bytes }) {
@@ -2398,17 +1873,4 @@ async function browserDownload({ filename, contentType, bytes }) {
     } finally {
         URL.revokeObjectURL(url);
     }
-}
-
-async function settleWorkbench(runtime, root) {
-    for (let depth = 0; depth < 3; depth += 1) {
-        await Promise.resolve();
-        const instances = [
-            ...root.querySelectorAll(
-                'cem-card, cem-badge, cem-text-field, cem-textarea, cem-select, cem-action, cem-alert, cem-tabs, cem-list, cem-table, cem-dialog',
-            ),
-        ];
-        await Promise.all(instances.map((instance) => runtime.whenRenderSettled(instance)));
-    }
-    await Promise.resolve();
 }

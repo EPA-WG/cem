@@ -105,7 +105,7 @@ For a declaration producing `cem-select`, private CSS compiles to:
 ```css
 @scope (cem-select) to (
   :scope :has(> template[data-cem-island="instance"]) > *,
-  [slot] > *
+  [slot]:not(input) > *
 ) {
   :where(:scope) {
     /* authored :host */
@@ -216,7 +216,7 @@ limits as private rules:
   [scope="form-controls"]:has(> template[data-cem-island="instance"])
 ) to (
   :scope :has(> template[data-cem-island="instance"]) > *,
-  [slot] > *
+  [slot]:not(input) > *
 ) {
   :where(:scope) {
     font-family: var(--cem-typography-ui-font-family);
@@ -281,14 +281,21 @@ Default projected element roots use `slot=""`. The marker remains on the
 projected root after CEM projection; no literal `<slot>` wrapper survives.
 
 - `[slot="label"]` may style the documented projected root.
-- `[slot] > *` is a scope lower limit, so the component does not style deeper
-  consumer-owned structure.
+- `[slot]:not(input) > *` is a scope lower limit, so the component does not style
+  deeper consumer-owned structure.
 - Text roots cannot carry attributes and inherit from the component-owned
   insertion container.
 - Component fallback content is component-owned and MUST NOT receive a
   projection marker.
 - A projection site that must expose a styleable public root MUST have a stable
   CEM-ML slot name.
+
+Native HTML input is void and cannot own authored element payload, but browsers
+use its internal subtree to style and hit-test range thumbs. Including input in
+the descendant limit blocks its native pseudo-elements. The exception preserves
+the projected input's native control surface; other projected descendants and
+nested DCE interiors remain excluded. Native scope-wrapper and worker/fallback
+browser fixtures cover this boundary.
 
 ### 4.2 Component-owned internals
 
@@ -348,7 +355,7 @@ the scope root. The managed instance style therefore compiles to:
 ```css
 @scope to (
   :scope :has(> template[data-cem-island="instance"]) > *,
-  [slot] > *
+  [slot]:not(input) > *
 ) {
   :scope {
     /* authored :host */

@@ -8,7 +8,6 @@ import postcss from 'postcss';
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const componentMvpPath = join(repoRoot, 'docs/component-mvp.md');
 const packageJsonPath = join(repoRoot, 'packages/cem-components/package.json');
-const primitivesPath = join(repoRoot, 'packages/cem-components/src/lib/primitives.ts');
 const examplesDir = join(repoRoot, 'packages/cem-components/examples');
 const workflowFixturesDir = join(repoRoot, 'packages/cem-components/tests/workflows');
 const componentRoot = join(repoRoot, 'packages/cem-components');
@@ -344,6 +343,7 @@ const EXPANSION_BINDINGS = new Map([
             ['line-height', 'var(--cem-typography-ui-line-height)'],
             ['margin', 'var(--cem-stroke-none)'],
             ['min-block-size', 'var(--cem-coupling-zone-min)'],
+            ['min-inline-size', 'var(--cem-coupling-zone-min)'],
             ['padding-block', 'var(--cem-control-padding-y)'],
             ['padding-inline', 'var(--cem-control-padding-x)'],
             ['text-align', 'start'],
@@ -431,6 +431,7 @@ const SORT_HEADER_BINDINGS = new Map([
             ['line-height', 'var(--cem-typography-ui-line-height)'],
             ['margin', 'var(--cem-stroke-none)'],
             ['min-block-size', 'max(var(--cem-table-row-height), var(--cem-coupling-zone-min))'],
+            ['min-inline-size', 'var(--cem-coupling-zone-min)'],
             ['padding-block', 'var(--cem-control-padding-y)'],
             ['padding-inline', 'var(--cem-control-padding-x)'],
             ['text-align', 'start'],
@@ -489,7 +490,7 @@ const PAGINATOR_BINDINGS = new Map([
             ['font-family', 'var(--cem-typography-ui-font-family)'],
             ['font-size', 'var(--cem-typography-ui-font-size)'],
             ['font-weight', 'var(--cem-typography-ui-font-weight)'],
-            ['gap', 'var(--cem-gap-group)'],
+            ['gap', 'max(var(--cem-gap-group), var(--cem-coupling-guard-min))'],
             ['justify-content', 'flex-end'],
             ['letter-spacing', 'var(--cem-typography-ui-letter-spacing)'],
             ['line-height', 'var(--cem-typography-ui-line-height)'],
@@ -504,7 +505,7 @@ const PAGINATOR_BINDINGS = new Map([
         new Map([
             ['align-items', 'center'],
             ['display', 'flex'],
-            ['gap', 'var(--cem-gap-related)'],
+            ['gap', 'max(var(--cem-gap-related), var(--cem-coupling-guard-min))'],
         ]),
     ]),
     [
@@ -520,7 +521,8 @@ const PAGINATOR_BINDINGS = new Map([
             ['font-weight', 'var(--cem-typography-ui-font-weight)'],
             ['letter-spacing', 'var(--cem-typography-ui-letter-spacing)'],
             ['line-height', 'var(--cem-typography-ui-line-height)'],
-            ['min-block-size', 'var(--cem-control-height)'],
+            ['min-block-size', 'max(var(--cem-control-height), var(--cem-coupling-zone-min))'],
+            ['min-inline-size', 'var(--cem-coupling-zone-min)'],
             ['padding-block', 'var(--cem-control-padding-y)'],
             ['padding-inline', 'var(--cem-control-padding-x)'],
         ]),
@@ -555,14 +557,14 @@ const PAGINATOR_BINDINGS = new Map([
             ['align-items', 'center'],
             ['appearance', 'none'],
             ['background-color', 'var(--cem-action-contextual-default-background)'],
-            ['block-size', 'var(--cem-icon-button-size)'],
+            ['block-size', 'max(var(--cem-icon-button-size), var(--cem-coupling-zone-min))'],
             ['border', 'var(--cem-stroke-none) solid transparent'],
             ['border-radius', 'var(--cem-bend-control)'],
             ['box-sizing', 'border-box'],
             ['color', 'var(--cem-action-contextual-default-text)'],
             ['display', 'inline-flex'],
-            ['flex', '0 0 var(--cem-icon-button-size)'],
-            ['inline-size', 'var(--cem-icon-button-size)'],
+            ['flex', '0 0 max(var(--cem-icon-button-size), var(--cem-coupling-zone-min))'],
+            ['inline-size', 'max(var(--cem-icon-button-size), var(--cem-coupling-zone-min))'],
             ['justify-content', 'center'],
             ['margin', 'var(--cem-stroke-none)'],
             ['padding', 'var(--cem-stroke-none)'],
@@ -678,9 +680,11 @@ const PROGRESS_SPINNER_BINDINGS = new Map([
         "cem-progress-spinner > .cem-progress-spinner[data-mode='indeterminate'] .cem-progress-spinner__indicator",
         new Map([
             [
-                'animation',
-                'cem-progress-spinner-cycle var(--cem-duration-continuous-cycle) var(--cem-easing-uniform) infinite',
+                'animation-name', 'cem-progress-spinner-cycle',
             ],
+            ['animation-duration', 'var(--cem-duration-continuous-cycle)'],
+            ['animation-timing-function', 'var(--cem-easing-uniform)'],
+            ['animation-iteration-count', 'infinite'],
         ]),
     ],
 ]);
@@ -1089,6 +1093,21 @@ function assertPublicComponentStyles(components, tokenNames) {
         }
     }
 
+    // Keep the accepted paint/layout assertions while reading the declaration-owned CSS.
+    for (const tag of [...CONTENT_INTERACTION_TAGS, ...NAVIGATION_TAGS]) {
+        const path = join(componentRoot, `src/components/${tag}/${tag}.xhtml`);
+        const css = readText(path).match(/\{style[^|]*\|```([\s\S]*?)```\}/)?.[1] ?? '';
+        assertCssUsesTokensOnly(repoPath(path), css);
+        const expected = CONTENT_INTERACTION_TAGS.has(tag) ? CONTENT_INTERACTION_BINDINGS : new Map([...NAVIGATION_BINDINGS, ...TABS_LAYOUT_BINDINGS]);
+        const actual = CONTENT_INTERACTION_TAGS.has(tag) ? contentInteractionRules : navigationRules;
+        for (const rule of parseCssRules(repoPath(path), css, [])) {
+            const selector = legacyNavigationSelector(rule.selector, tag);
+            if (rule.media || !expected.has(selector)) continue;
+            if (actual.has(selector)) fail(`${repoPath(path)}: duplicate accepted selector ${selector}`);
+            actual.set(selector, rule.declarations);
+        }
+    }
+
     for (const [selector, expectedDeclarations] of CONTENT_INTERACTION_BINDINGS) {
         const declarations = contentInteractionRules.get(selector);
         if (!declarations) {
@@ -1152,8 +1171,32 @@ function assertPublicComponentStyles(components, tokenNames) {
         TABS_LAYOUT_BINDINGS,
     );
 
+    const dividerPath = join(componentRoot, 'src/components/cem-divider/cem-divider.xhtml');
+    const dividerCss = readText(dividerPath).match(/\{style[^|]*\|```([\s\S]*?)```\}/)?.[1] ?? '';
+    assertCssUsesTokensOnly(repoPath(dividerPath), dividerCss);
+    for (const rule of parseCssRules(repoPath(dividerPath), dividerCss, [])) {
+        let selector = rule.selector.replace(/:where\(([^)]+)\)/g, '$1').replace(':scope', 'cem-divider');
+        selector = selector.startsWith('cem-divider')
+            ? selector.replace(" [part~='root']", ' > .cem-divider')
+            : selector.replace("[part~='root']", 'cem-divider > .cem-divider');
+        if (!rule.media && DIVIDER_BINDINGS.has(selector)) dividerRules.set(selector, rule.declarations);
+    }
     assertExactStateBindings(pathLabel, 'divider', dividerRules, DIVIDER_BINDINGS);
 
+    for (const [tag, normal, forced, bindings, forcedBindings] of [
+        ['cem-expansion', expansionRules, expansionForcedColorRules, EXPANSION_BINDINGS, EXPANSION_FORCED_COLOR_BINDINGS],
+        ['cem-sort-header', sortHeaderRules, sortHeaderForcedColorRules, SORT_HEADER_BINDINGS, SORT_HEADER_FORCED_COLOR_BINDINGS],
+        ['cem-paginator', paginatorRules, paginatorForcedColorRules, PAGINATOR_BINDINGS, PAGINATOR_FORCED_COLOR_BINDINGS],
+    ]) {
+        const path = join(componentRoot, `src/components/${tag}/${tag}.xhtml`);
+        const css = readText(path).match(/\{style[^|]*\|```([\s\S]*?)```\}/)?.[1] ?? '';
+        assertCssUsesTokensOnly(repoPath(path), css);
+        for (const rule of parseCssRules(repoPath(path), css, [])) {
+            const selector = legacyNavigationSelector(rule.selector, tag);
+            const expected = rule.media ? forcedBindings : bindings;
+            if (expected.has(selector)) (rule.media ? forced : normal).set(selector, rule.declarations);
+        }
+    }
     assertExactStateBindings(pathLabel, 'expansion', expansionRules, EXPANSION_BINDINGS);
     assertExactStateBindings(
         pathLabel,
@@ -1162,6 +1205,14 @@ function assertPublicComponentStyles(components, tokenNames) {
         EXPANSION_FORCED_COLOR_BINDINGS,
     );
 
+    const spinnerPath = join(componentRoot, 'src/components/cem-progress-spinner/cem-progress-spinner.xhtml');
+    const spinnerCss = readText(spinnerPath).match(/\{style[^|]*\|```([\s\S]*?)```\}/)[1];
+    assertCssUsesTokensOnly(repoPath(spinnerPath), spinnerCss);
+    for (const rule of parseCssRules(repoPath(spinnerPath), spinnerCss)) {
+        const selector = legacyNavigationSelector(rule.selector, 'cem-progress-spinner');
+        const expected = rule.media ? PROGRESS_SPINNER_REDUCED_MOTION_BINDINGS : PROGRESS_SPINNER_BINDINGS;
+        if (expected.has(selector)) (rule.media ? progressSpinnerReducedMotionRules : progressSpinnerRules).set(selector, rule.declarations);
+    }
     assertExactStateBindings(pathLabel, 'progress-spinner', progressSpinnerRules, PROGRESS_SPINNER_BINDINGS);
     assertExactStateBindings(
         pathLabel,
@@ -1175,7 +1226,7 @@ function assertPublicComponentStyles(components, tokenNames) {
         progressSpinnerForcedColorRules,
         new Map(),
     );
-    assertProgressSpinnerKeyframes(pathLabel, cssText);
+    assertProgressSpinnerKeyframes(repoPath(spinnerPath), spinnerCss);
 
     assertExactStateBindings(pathLabel, 'sort-header', sortHeaderRules, SORT_HEADER_BINDINGS);
     assertExactStateBindings(
@@ -1236,6 +1287,22 @@ function assertExactStateBindings(pathLabel, contract, actualRules, expectedRule
             fail(`${pathLabel}: unexpected ${contract} selector \`${selector}\` is outside the accepted contract`);
         }
     }
+}
+
+// :where changes specificity, not matching. Unwrap only single selectors, preserving
+// nested :is/:not groups, then map the public parts to the frozen paint contract.
+function legacyNavigationSelector(selector, tag) {
+    while (selector.includes(':where(')) {
+        const start = selector.lastIndexOf(':where(');
+        let end = start + 7, depth = 1;
+        for (; end < selector.length && depth; end++) {
+            if (selector[end] === '(') depth++;
+            else if (selector[end] === ')') depth--;
+        }
+        selector = selector.slice(0, start) + selector.slice(start + 7, end - 1) + selector.slice(end);
+    }
+    return selector.replace(':scope', tag).replace(/\[part~=["']([^"']+)["']\]/g, (_, part) =>
+        part === 'root' ? (tag === 'cem-list' ? '.cem-list.cem-list--selectable' : `.${tag}`) : `.${tag}__${part}`);
 }
 
 function parseCssRules(pathLabel, cssText, allowedKeyframes = ['cem-progress-spinner-cycle']) {
@@ -1333,7 +1400,6 @@ function parseDeclarations(pathLabel, selectorList, nodes) {
 
 function styleContractFiles() {
     return [
-        primitivesPath,
         ...walkFiles(examplesDir).filter((path) => extname(path) === '.html'),
         ...walkFiles(workflowFixturesDir).filter((path) => extname(path) === '.html'),
         ...walkFiles(componentRoot).filter((path) => STYLE_EXTENSIONS.has(extname(path))),

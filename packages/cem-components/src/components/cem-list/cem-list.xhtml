@@ -1,0 +1,62 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-list" capability="native-list">
+<template id="cem-list" type="text/cem-ml">
+{style @type=text/css |```
+:scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
+:scope[selectable] > :where(select[part~="root"]) {
+    background-color: var(--cem-content-interaction-default-background);
+    color: var(--cem-content-interaction-default-text);
+}
+
+:scope[selectable] > :where(select[part~="root"]:enabled:hover) {
+    background-color: var(--cem-content-interaction-hover-background);
+    color: var(--cem-content-interaction-hover-text);
+}
+
+:scope[selectable] > :where(select[part~="root"]:disabled) {
+    background-color: var(--cem-content-interaction-disabled-background);
+    color: var(--cem-content-interaction-disabled-text);
+}
+
+:scope[selectable] > :where(select[part~="root"]:enabled:focus-visible) {
+    outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1);
+    outline-offset: var(--cem-stroke-indicator-offset);
+}
+
+@media (forced-colors: active) {
+
+    :scope[selectable] > :where(select[part~="root"]) {
+        background-color: Canvas;
+        color: CanvasText;
+    }
+
+    :scope[selectable] > :where(select[part~="root"]:enabled:hover) {
+        background-color: Canvas;
+        border-color: Highlight;
+        color: CanvasText;
+    }
+
+    :scope[selectable] > :where(select[part~="root"]:disabled) {
+        background-color: Canvas;
+        color: GrayText;
+    }
+
+    :scope[selectable] > :where(select[part~="root"]:enabled:focus-visible) {
+        outline: var(--cem-stroke-focus) solid CanvasText;
+        outline-offset: var(--cem-stroke-indicator-offset);
+    }
+}
+```}
+{attribute @name=label | Items}
+{attribute @name=size | 4}
+{cem:choose |
+ {cem:when @test="seq:count(datadom.attributes.selectable) > 0" |
+  {select @class="cem-list cem-list--selectable" @part=root @aria-label={datadom.attributes.aria-label ?? label} @size={$size} @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @slice=value @slice-event=change @slice-value="$target.value" |
+   {cem:for-each @select=datadom.slices.options @as=option |
+    {option @value={option.value} @disabled={if option.disabled {true} else {null}} @selected={if option.selected {true} else {null}} @aria-selected={option.selected} | {$option.label}}
+   }
+  }
+ }
+ {cem:otherwise | {ul @class=cem-list @part=root @aria-label={datadom.attributes.aria-label ?? label} | {slot | {li @class=cem-list__empty @part=empty | No items}}}}
+}
+</template>
+</cem-element>

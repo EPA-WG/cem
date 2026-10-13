@@ -101,3 +101,10 @@ behavior.
 
 The declarative fixture, focused browser test, and dedicated forced-colors target must pass in the aggregate package
 gate before the Angular Material expansion row can be promoted from `gap` to `covered`.
+
+## Canonical delivery
+
+The canonical owner is `src/components/cem-expansion/cem-expansion.xhtml`;
+all component assertions live in its colocated `.stories.ts` plays. See the
+[declarative migration and CEM principle audit](disclosure-data-contract.md).
+The static HTML contract fixture remains reference material, not a second owner.

@@ -1,0 +1,12 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-skeleton">
+  <template id="cem-skeleton" type="text/cem-ml">
+    {style @type=text/css |```
+:scope { display: block; }
+[part~='root'] { box-sizing: border-box; }
+:scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
+[part~='root'] { display: block; background-color: var(--cem-palette-conservative); color: transparent; min-block-size: var(--cem-control-height); border-radius: var(--cem-bend-control); }
+@media (forced-colors: active) { [part~='root'] { background-color: Canvas; border: var(--cem-stroke-boundary) solid GrayText; } }
+    ```}
+    {attribute @name=label | Loading}{span @part=root @class=cem-skeleton @aria-hidden=true @inert=true | {slot | {$label}}}
+  </template>
+</cem-element>

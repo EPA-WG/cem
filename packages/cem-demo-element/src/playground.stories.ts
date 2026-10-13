@@ -199,13 +199,6 @@ export const PresetExamples: Story = {
             await userEvent.selectOptions(canvas.getByRole('combobox', { name: 'Output format' }), state.output);
             setSource(playground, state.source);
             await controller.render();
-            if (state.input === 'csv') {
-                await expect(playground).toHaveAttribute('data-state', 'error');
-                await expect(playground.querySelector(':scope > [role="status"]'))
-                    .toHaveTextContent('without a registered CSV AST export adapter');
-                await expect(requiredEditor(playground)).toHaveTextContent('Orders');
-                continue;
-            }
             await expect(playground).toHaveAttribute('data-state', 'ready');
             if (index < 2) {
                 await expect(requiredOutput(playground)).toHaveTextContent(/Hello, CEM/);
@@ -227,9 +220,31 @@ export const PresetExamples: Story = {
                 const code = requiredOutput(playground).querySelector('pre code');
                 await expect(code).not.toBeNull();
                 await expect(code?.children.length).toBeGreaterThan(0);
-                await expect(JSON.parse(code?.textContent ?? '')).toEqual({
-                    name: 'CEM', version: 1, enabled: true, formats: ['YAML', 'JSON'],
-                });
+                if (state.input === 'yaml') {
+                    await expect(JSON.parse(code?.textContent ?? '')).toEqual({
+                        name: 'CEM', version: 1, enabled: true, formats: ['YAML', 'JSON'],
+                    });
+                } else {
+                    await expect(code).toHaveClass('language-cem');
+                    await expect(code).toHaveTextContent('cem:generic-data');
+                    await expect(code).toHaveTextContent('Orders');
+                    await expect(code).toHaveTextContent('Catalog');
+                    await expect(code).toHaveTextContent('string');
+                    await userEvent.selectOptions(canvas.getByRole('combobox', { name: 'Output format' }), 'xml');
+                    // Render the original CSV, not its display-padded source view.
+                    setSource(playground, state.source);
+                    await controller.render();
+                    await expect(playground).toHaveAttribute('data-state', 'ready');
+                    const xmlCode = requiredOutput(playground).querySelector('pre code');
+                    await expect(xmlCode).toHaveClass('language-xml');
+                    await expect(xmlCode?.children.length).toBeGreaterThan(0);
+                    const xml = new DOMParser().parseFromString(xmlCode?.textContent ?? '', 'application/xml');
+                    await expect(xml.querySelector('parsererror')).toBeNull();
+                    const cells = Array.from(xml.getElementsByTagNameNS('cem:generic-data', 'string'));
+                    await expect(cells.map(cell => cell.textContent)).toEqual([
+                        'name', 'format', 'enabled', 'Orders', 'CSV', 'true', 'Catalog', 'YAML', 'false',
+                    ]);
+                }
             }
         }
     },

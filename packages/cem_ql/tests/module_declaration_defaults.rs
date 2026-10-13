@@ -2,6 +2,36 @@ use cem_ql::eval::{AtomValue, Item, ItemStream};
 use cem_ql::render::{render_template, HostAttributeUpdate, TemplateData};
 
 #[test]
+fn module_prelude_selected_attributes_match_unwrapped_declarations() {
+    let declarations = r#"{attribute @name=label | Default}{attribute @name=class @select='datadom.slices.mode ?? "native"'}{attribute @name=data-theme @select='datadom.attributes.class'}"#;
+    let body = r#"{output | {$label}|{$class}|{$datadom.attributes.data-theme}}"#;
+    for data in [TemplateData::default(), TemplateData::default().with_binding("label", ItemStream::once(Item::Atomic(AtomValue::String("Authored".into()))))] {
+        let expected = render_template(&format!("{declarations}{body}"), &data);
+        assert!(expected.diagnostics.is_empty(), "{:?}", expected.diagnostics);
+        assert!(expected.host_attribute_updates.contains(&HostAttributeUpdate::new("data-theme", "native")));
+        for source in [format!("{{module |{declarations}{{body |{body}}}}}"), format!("{{cem:module |{declarations}{{cem:body |{body}}}}}")] {
+            let result = render_template(&source, &data);
+            assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+            assert_eq!(result.host_attribute_updates, expected.host_attribute_updates);
+            assert_eq!(result.rendered, expected.rendered);
+        }
+    }
+}
+
+#[test]
+fn selected_attributes_do_not_escape_body_or_named_templates() {
+    let result = render_template(r#"{module |
+        {attribute @name=class @select='"visible"'}
+        {template @name=unused | {attribute @name=class @select='"private"'}}
+        {body | {article | {attribute @name=nested @select='"hidden"'}}
+            {output | {$datadom.attributes.class}|{$datadom.attributes.nested ?? "unset"}}}
+    }"#, &TemplateData::default());
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert_eq!(result.host_attribute_updates, vec![HostAttributeUpdate::new("class", "visible")]);
+    assert!(result.rendered.contains("<output>visible|unset</output>"), "{}", result.rendered);
+}
+
+#[test]
 fn module_prelude_defaults_match_unwrapped_declarations() {
     let declarations = "{slice @name=scope | css-samples}{slice @name=enabled | false}{slice @name=empty}{attribute @name=label | Default}";
     let body = r#"{output | {$scope}|{$datadom.slices.scope}|{$ enabled == false}|{$ datadom.slices.enabled == false}|{$ empty ?? "unset"}|{$label}}"#;

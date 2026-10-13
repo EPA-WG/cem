@@ -150,8 +150,9 @@ For example, try HTML → CEM-ML, CEM-ML → HTML, or JSON → YAML.
 Give the example a **Title** and **Description**. The example list starts with
 **Hello, CEM**, **Hello, CEM-ML**, **Login form CEM-ML**, **Markdown cem-ml**,
 **YML to JSON**, and **CSV to CEM-ML**.
-YML to JSON renders colored JSON; CSV to CEM-ML currently reports the missing
-CSV AST export adapter.
+YML to JSON renders colored JSON; CSV to CEM-ML renders the typed data tree
+with row arrays and string-valued cells. Select XML output on the same CSV
+example to see the namespaced XML representation.
 The Markdown example includes a `cem-ml svg` fence rendered as inline SVG.
 
 **Copy Link** stores the title, description, code and selected formats in the

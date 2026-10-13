@@ -1,19 +1,30 @@
 # Component Stylesheet Publication Contract
 
-**Status:** Implemented Phase 4 contract. This contract is promoted by
-[`docs/todo.md`](../../../docs/todo.md), resolves the packaging stop condition
-in the accepted [`action:hover` contract](./action-hover-contract.md), and is
-enforced by `@epa-wg/cem-components:verify-package` plus the aggregate package
-gate.
+**Status:** Declarative migration complete (2026-10-12). The public
+`@epa-wg/cem-components/styles.css` export remains a byte-identical, comment-only
+compatibility asset copied from `src/styles.css` to `dist/styles.css`. All 53
+components own embedded static CSS in their XHTML/CEM-ML declarations under the
+[CEM light-DOM CSS scope contract](../../../docs/cem-ml-uid-and-scoped-css-design.md).
+The runtime installs each declaration's styles once. Global component selectors,
+a component JavaScript entry and an installer are retired.
 
-> **Migration relationship:** this is the implemented publication contract for
-> the frozen legacy component stylesheet. It preserves current behavioral and
-> release evidence while the inventory migrates, but it is not the CSS source
-> model for a new or migrated component. The accepted replacement is embedded
-> declaration CSS under the
-> [CEM light-DOM CSS scope contract](../../../docs/cem-ml-uid-and-scoped-css-design.md).
-> `src/styles.css` and its export shrink with legacy debt; the native `@scope`
-> target does not move migrated selectors back into this file.
+The explicit Nx asset build depends on architecture verification and the style,
+bundle, catalog and playground outputs. It has no TypeScript compilation.
+Workspace tools `tools/cem-components/copy-styles.mjs` and
+`tools/cem-components/verify-package.mjs` own the copy and publication checks.
+`verify-package` checks byte identity, the exact CSS export, source/root duplicate
+exclusion, all canonical declaration/playground exports and zero packed
+JavaScript/TypeScript. `verify-style-contract` audits embedded declaration CSS
+and its theme-owned tokens. The complete package gate includes both checks.
+Authors load the public theme stylesheet; declarations carry component CSS.
+Existing explicit imports of the compatibility stylesheet remain valid.
+
+The original Phase 4 decisions and execution evidence below are historical.
+Their inferred TypeScript target, registry, installer and separate browser-spec
+references no longer describe the current package. They preserve the original
+[`action:hover` contract](./action-hover-contract.md) publication evidence;
+current architecture is defined above and in the
+[passive-component closure](./passive-payload-contract.md).
 
 ## Decision
 
@@ -43,11 +54,11 @@ stylesheet.
 | Surface             | Exact path or identity                               | Owner                         | Contract                                                                                                                   |
 | ------------------- | ---------------------------------------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | Canonical source    | `packages/cem-components/src/styles.css`             | Component authors             | The only reviewed CSS source; style and browser tests consume this file.                                                   |
-| Copy implementation | `packages/cem-components/scripts/copy-styles.mjs`    | Package build                 | Creates `dist` if needed and copies the source bytes to the built output. It contains no CSS generation or transformation. |
+| Copy implementation | `tools/cem-components/copy-styles.mjs`    | Package build                 | Creates `dist` if needed and copies the source bytes to the built output. It contains no CSS generation or transformation. |
 | Nx asset target     | `@epa-wg/cem-components:build:styles`                | Package project configuration | Cacheable target with exact source/script inputs and `dist/styles.css` as its only output.                                 |
 | Built artifact      | `packages/cem-components/dist/styles.css`            | Nx build output               | Must be byte-identical to the canonical source and is ignored by Git with the rest of `dist`.                              |
 | Public export       | `@epa-wg/cem-components/styles.css`                  | Package manifest              | Resolves only to `./dist/styles.css`; no source or package-root fallback is exposed.                                       |
-| Package verifier    | `packages/cem-components/scripts/verify-package.mjs` | Package verification          | Checks topology, byte identity, JavaScript side-effect freedom, and dry-run npm contents.                                  |
+| Package verifier    | `tools/cem-components/verify-package.mjs` | Package verification          | Checks topology, byte identity, JavaScript side-effect freedom, and dry-run npm contents.                                  |
 
 The copy is deliberately mechanical. CEM theme values are already generated by
 `@epa-wg/cem-theme`; component CSS only binds those public custom properties to
@@ -118,7 +129,7 @@ does not gain a hidden copy step.
 
 The implementation also adds a cacheable `verify-package` target that depends
 on the package `build` and runs
-`packages/cem-components/scripts/verify-package.mjs`. The aggregate package
+`tools/cem-components/verify-package.mjs`. The aggregate package
 `verify` target depends on `verify-package`. Its project configuration is:
 
 ```json

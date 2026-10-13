@@ -82,7 +82,11 @@ accepts a `CemSurfaceInvocation`, optionally captured with
 `captureCemSurfaceInvocation(source, event, { selectionOwner })`. The context
 stays a retained `NativeCemValue`; geometry never becomes a focus destination.
 Tooltips preserve stable description tokens and input focus. Owners survive
-rerender, while disconnect cleans sessions and resources. Explicit ARIA names take precedence; a direct `part="heading"` supplies
+rerender, while disconnect cleans sessions and resources. A dialog opened without
+an explicit invoker retains the focused entry control as its return destination.
+Removing a conditional dialog returns there only if the dialog still owned focus
+and the destination remains available; `return-focus="none"` suppresses shared
+restoration. Explicit ARIA names take precedence; a direct `part="heading"` supplies
 a stable generated heading relationship when no explicit name is present. A direct `template[slot="body"]` in the native owner defaults
 to retained materialization; `materialize="eager"` mounts at connection and
 `materialize="dispose"` removes the body after close/focus/exit cleanup. Body
@@ -108,7 +112,7 @@ consume this capability. Tooltips accept slotted native/editor triggers or share
 control providers, scoped/typed external launchers and native interest. Focus and
 hover are independent; Escape cancels delayed presentation, touch remains native,
 and disabling suppresses presentation while retaining the description. Native-surface
-behavior identity is v5; popup/composite identities remain v4.
+behavior identity is v6; popup/composite identities remain v4.
 For the shared lifecycle,
 see the [implemented adapter contract](../../docs/cem-interaction-design.md#implemented-shared-native-surface-adapter).
 
@@ -326,6 +330,13 @@ the input node, focus and selection (clamped to the new length); native input
 sanitization and form reset defaults still apply. File inputs and controls whose
 values already reflect their attributes retain native behavior.
 
+Parent reconciliation updates a registered child's inert authored payload while
+preserving that child's generated output. Full plans and child-list patches use
+the same payload boundary as targeted attribute patches. Consecutive changes to
+projected input labels, names and defaults retain native input identity; unchanged
+value bindings preserve edits. The calendar input's `AuthoredPayloadUpdates`
+story covers this boundary in worker and fallback execution.
+
 Declarations may opt into `capability="checkable-control"` for one owned native
 `input[type="checkbox"][part~="control"]`. The host's `indeterminate` presence
 sets the native mixed-state property, including empty values and the text
@@ -336,6 +347,33 @@ owners or a switch role do not receive mixed state. Fragment loaders must repeat
 the capability. Native checked/defaultChecked, value, forms, radio grouping,
 reset, validity, keys and events remain browser-owned; this capability does not
 add a form-associated host or synthetic change events.
+
+Declarations may opt into `capability="calendar-input"` for a bounded single-date
+calendar around exactly one direct authored `input[slot="input"][type="text"]`
+and an optional `button[slot="toggle"][type="button"]`. A generated
+`[part~=root]` projects both and contains a direct native `dialog[part~=dialog]`.
+Day buttons use `role="gridcell"`, `data-date`, and `data-active`; navigation and
+confirmation buttons use `data-calendar-action="previous|next|cancel|apply"`.
+The input remains the exact native value, form, validity, reset and event owner.
+This capability does not add a form-associated host or a host value API.
+
+The shared model validates Gregorian `YYYY-MM-DD` in years 0001–9999, host
+`min`/`max`, and presence-only `disabled`, `required` and `invalid`. Localized
+labels retain Gregorian UTC date parts; malformed locale tags use the runtime
+fallback. Render slices expose IDs, heading, weekdays, bounds, action state and
+six weeks of days. Closed calendars leave day rows unmaterialized; opening
+reads the current native value and creates the 42 cells, including inert blanks
+beyond the year limits. Fieldset disabling and readonly input suppress opening;
+composition and modified editing keys stay with the native input.
+
+The native modal dialog registers with shared surface ownership. A silent
+`expanded` property controls it; Escape, Cancel, backdrop, reset and reconnect
+discard drafts. Apply closes and restores input focus before one native
+`input`/`change` pair. No custom lifecycle events are emitted. Generation checks
+prevent deferred resets or commits from crossing disconnection. Fragment loaders
+must repeat the capability. The [datepicker contract](../cem-components/docs/datepicker-contract.md)
+and [shared worker/fallback plays](src/lib/calendar-input.stories.ts) specify the
+owner, keyboard, focus, event and lifecycle boundaries.
 
 Declarations may opt into `capability="editable-choice"` for a single editable
 combobox whose submitted option identity differs from its visible label. The
@@ -362,6 +400,8 @@ replacement and does not connect a separate editor provider or query/filter the
 native suggestions model. Shared [runtime plays](src/lib/editable-choice.stories.ts)
 cover worker/fallback lifecycle, native forms and nested ownership.
 
+## Native string form controls
+
 Declarations may opt into `capability="form-control"` for one string-valued
 native input or textarea marked `part="control"`. The produced host owns
 ElementInternals submission and validity. Keep the child unnamed with `form=""`;
@@ -374,6 +414,17 @@ Trusted Enter in a single-line control delegates implicit submission to the
 host form, preserving default submitter activation and event cancellation.
 It is not a file, checkbox/radio, or multi-value capability. Template-fragment
 loaders must repeat the capability on their loading declaration.
+
+Text navigation uses the host attributes `selection-request` (a new nonempty
+token for each request), `selection-start`, `selection-end` (nonnegative safe
+integers in UTF-16 code units), optional `selection-direction` (`none`, `forward`
+or `backward`), and the presence flag `selection-focus`. The shared capability
+applies the range after rendering and focuses only when explicitly requested.
+Native range clamping/order rules apply. Readonly text may be selected; disabled,
+composing and non-text controls ignore navigation. Each change to a nonempty
+token is consumed once even when invalid or unavailable, so unrelated renders, reconnects and
+later availability never replay focus. Issue a fresh token to retry or revisit
+the same range. No input/change event or value mutation is caused by selection.
 
 The shared provider now admits exactly one owned control, offers synchronous
 replacement transactions with cancellable synthetic beforeinput, and updates
@@ -900,3 +951,169 @@ the default slice value and serialized event targets. It lets a parent bind a
 `cem-select` change directly to its own slice. Non-string custom values are not
 serialized as event target values; ordinary elements retain attribute fallback
 only for default values and aliases.
+
+Asynchronous checked-state publication preserves native checkbox/radio edits
+made after that render was requested. Authored `checked` defaults still update;
+a newer native selection keeps its live state across the radio group sharing
+its name, root and form. A later authored change remains authoritative. No
+synthetic input/change event is emitted during reconciliation.
+
+### Native time and range inputs
+
+`capability="time-input"` preserves one authored text `input[slot=input]` and
+an optional native `button[slot=toggle][type=button]`. The declaration supplies
+`part=root`, `part=popup` with `role=listbox` and `popover=manual`, and options
+from `datadom.slices.options` with stable IDs and `data-option-index`. Native
+input value, labels, validation, reset and form ownership stay on that input.
+Project the slots in `datadom.slices.ownerSlots` order to retain authored owner
+order, including a toggle placed before the input.
+Canonical HH:mm choices use host min/max/interval or direct cem-option payload.
+The silent expanded property controls presentation; commits close the popup and
+focus the input before its input/change event pair. Composition and modified
+editing keys, native readonly and inherited fieldset-disabled state are honored.
+Disconnect closes transient presentation and invalidates pending reset work.
+Disabled availability reaches the exact native owners at mutation delivery.
+A retained list with matching values and disabled states can update its active
+and selected state and native visibility immediately; changed options wait for
+publication. Calendar close restores the editor and publishes its native commit
+pair before any asynchronous follow-up render.
+
+`capability="range-input"` preserves one `input[type=range][slot=single]` or a
+pair with slots start/end. The existing data-cem-slider-thumb attribute remains
+a compatibility alias; conflicting aliases and extra/nested owners are invalid.
+The declaration supplies part=root, part=inputs, and optional single-value,
+start-value and end-value parts inside an aria-hidden visual. Bounds and step
+are projected silently. Non-crossing clamps run in capture before native events
+reach application listeners. Form reset resynchronizes positions and labels
+without dispatching replacement events. Private --_cem-range-start-position,
+--_cem-range-end-position and --_cem-range-tick-spacing properties carry value
+percentages. Neither capability creates a second form-associated host. Repeat
+the capability on fragment-src declaration wrappers.
+
+Project the slots in `datadom.slices.thumbSlots` order inside part=inputs. The
+list preserves reversed start/end payloads and the legacy default-slot pair;
+`datadom.slices.mode` reports single, range or invalid from the current authored
+payload. Parent mode changes retain surviving native input identity and value.
+
+The [shared time/range fixtures](src/lib/time-range-input.stories.ts) run worker
+and fallback ownership, reset, reconnect and malformed-payload checks.
+
+### Navigation and content capabilities
+
+`navigation-landmark`, `tab-panels`, `workflow-panels`, `tree-view` and
+`native-list` are versioned declarative capabilities. They identify owned native
+nodes through public parts and structural ownership, so declaration tags can be
+renamed. None makes the host form-associated. The tabs/workflow capabilities
+consume direct `cem-tab`/`cem-step` payloads and retain stable panel relationships;
+`tree-view` consumes recursive `cem-tree-item` payload. Selection/expansion and
+published event details keep their component contracts. `native-list` normalizes
+direct `cem-list-option` payload into an options slice for a native select.
+
+The worker/fallback fixtures in `navigation-content.stories.ts` cover renamed
+hosts, nested panel owners, presence flags, reconnect, native owner retention,
+modifier/composition keys, hidden-panel recovery and outside-focus preservation.
+Mixed canonical/legacy component stories load built compatibility declarations
+through the shared preview; build cem-components before running those stories.
+
+### Disclosure and data capabilities
+
+`disclosure-panel`, `sort-action` and `pagination` are versioned declarative
+capabilities. They use structural ownership and public parts, support renamed
+hosts, and do not make hosts form-associated. Repeat the capability on
+fragment-src declaration wrappers.
+
+- `disclosure-panel`: direct `part=root` contains a `part=heading[role=heading]`
+  and its native `button[part=header]`, plus a persistent `part=panel`. The
+  capability provides stable `headingId`, `summaryId`, `panelId` and validated
+  `headingLevel` slices. Native click toggles presence-only `expanded`; disabled
+  suppresses user activation. The template owns visibility and exact ARIA links.
+- `sort-action`: direct `part=root[role=columnheader]` contains its native
+  `button[part=button]`. Slices provide normalized direction, indicator and action
+  label. Native activation cycles none/ascending/descending, clears other
+  admitted sort owners in the nearest native table or table/grid role, and emits
+  one `cem-sort`. Nested tables are independent; ordinary columnheaders are not
+  enrolled. Data ordering and result announcements remain application-owned.
+- `pagination`: direct `nav[part=root]` contains an optional
+  `label[part=page-size] > select`, and `part=range-actions` with native
+  `button[part=action][data-page-action=first|previous|next|last]` controls.
+  Normalized slices supply numeric state, options, labels and availability.
+  User transitions emit one `cem-page`; boundary clicks are suppressed in
+  capture phase while a surviving button retains focus. Page-size changes
+  preserve the first visible item. Invalid positive fractions below one use
+  the default size of 50, avoiding division by zero.
+
+All author changes are silent. Presence includes empty and false-valued flags.
+Listeners are released on disconnect and reconnect once; exact native owners
+survive live updates. See [worker/fallback fixtures](src/lib/disclosure-data.stories.ts).
+
+### Read-only progress preparation
+
+`capability="progress-status"` prepares a retained declarative status graphic from
+`value`/`max` without installing event listeners, mutating attributes or managing
+focus. Absent value is indeterminate; a present empty/invalid value is zero.
+A missing/non-finite/non-positive maximum becomes 100, with finite values clamped
+to 0..max. Slices expose `mode`, `indeterminate`, `value`, `max` and a normalized
+100-unit `dashArray` (`25 75` for unknown progress). Divide before multiplying
+to avoid overflow for large finite ranges. Worker and fallback executions share
+the same preparation. Native linear progress can instead retain browser normalization.
+
+
+### Declarative host-service views
+
+`mountCemView(runtime, { root, tag, state, commands })` mounts a registered
+XHTML/CEM-ML view. Host JavaScript supplies non-UI services and explicitly named
+state slices; the declaration owns visible markup, status mapping, disabled
+state and interaction bindings. `view.update(values)` updates slices and
+`view.whenSettled()` waits for the view and its produced descendants, settling
+ancestors before descendants so nested payload updates are included. Native
+surface preparation is separate: `cem-open` reports admitted visibility.
+
+Declare `host-command="save"` on a control, with optional
+`host-command-event="input|change|submit|cem-close|cem-tree-activate"`
+(one event, default `click`). Only
+commands supplied by this mounted host are callable. The shared runtime invokes
+the service synchronously on the event stack, preserving browser user-gesture
+requirements. The service receives a frozen `{ command, eventType, value,
+isTrusted }` record, with the current string value of a native or form-associated
+control, a validated tree activation value, or null; it receives no DOM node.
+Submit bindings prevent native
+submission for an authorized command. Declare submit commands on native forms;
+the request additionally includes frozen `fields` mapping names to arrays of
+successful string values, captured synchronously with native `FormData` and the
+submitter. Repeated names retain order; disabled/unnamed controls follow native
+submission rules. File values and form controls belonging outside this mounted
+view (including nested views) reject the command and appear in `view.errors`;
+no partial input is delivered. Services must implement
+persistence, routing, workers or browser APIs, never DOM/UI behavior.
+
+Surface dismissal uses `host-command-event="cem-close"` on the surface host.
+Only that host's own close event invokes its command; a nested surface cannot
+dismiss its ancestor task. Cancelled close requests do not emit a close command.
+The request remains a scalar record without surface nodes or event detail.
+
+Tree navigation uses `host-command="open" host-command-event="cem-tree-activate"`
+on the tree host. Only an event targeted at that bound owner is eligible;
+descendant treeitems and nested owners cannot invoke its command. A `CustomEvent`
+must carry an own data property `detail.value` containing a non-empty string
+without whitespace, matching the tree's identity contract. Missing, inherited,
+accessor, array or non-string values reject delivery with a `TypeError` in
+`view.errors`. No accessor is evaluated and no additional detail is transported.
+The frozen request receives the exact string as `value`. Expansion, focus and
+selection remain under their existing tree/application owners; the bridge never
+selects or navigates on their behalf. Other component event names are unsupported.
+
+Disabled controls, cancelled events and unavailable commands do not invoke a
+service. Input capture rechecks mounted-view/declaration authority and the command
+binding before invocation. `isTrusted` reports the delivered event's actual value:
+tree activation is a custom event and stays false even after native pointer or
+keyboard input. It is not a browser permission credential. File/install actions
+continue to use their own native activation and synchronous service invocation.
+
+Bindings belong to trusted application declarations, not arbitrary document
+content. A nested mounted view is a separate command boundary. State updates
+preserve native owner identity, edits and focus through ordinary runtime
+reconciliation. Synchronous failures and rejected promises are available through
+`view.errors`; reporting an error does not construct UI. `dispose()` revokes
+commands, stops state updates and removes only that view. Applications project
+user-visible failure state through their own service-state contract. This is a
+host adapter, not a serialized source of authority or a component behavior hook.

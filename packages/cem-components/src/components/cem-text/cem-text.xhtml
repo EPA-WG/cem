@@ -1,0 +1,15 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-text">
+  <template id="cem-text" type="text/cem-ml">
+    {style @type="text/css" |```
+:scope { display: inline; }
+[part~='root'] { font-optical-sizing: var(--cem-typography-feature-optical-sizing); font-family: var(--cem-typography-reading-font-family); font-size: var(--cem-typography-reading-font-size); font-weight: var(--cem-typography-reading-font-weight); line-height: var(--cem-typography-reading-line-height); letter-spacing: var(--cem-typography-reading-letter-spacing); }
+:scope:where([variant='caption']) [part~='root'] { font-family: var(--cem-typography-ui-font-family); font-size: var(--cem-typography-ui-font-size); font-weight: var(--cem-typography-ui-font-weight); line-height: var(--cem-typography-ui-line-height); letter-spacing: var(--cem-typography-ui-letter-spacing); }
+:scope:where([variant='heading']) [part~='root'] { font-family: var(--cem-typography-ui-font-family); font-size: var(--cem-typography-ui-font-size); font-weight: var(--cem-typography-ui-font-weight); line-height: var(--cem-typography-ui-line-height); letter-spacing: var(--cem-typography-ui-letter-spacing); }
+:scope:where([variant='data']) [part~='root'] { font-variant-numeric: var(--cem-typography-data-font-variant-numeric); font-family: var(--cem-typography-data-font-family); font-size: var(--cem-typography-data-font-size); font-weight: var(--cem-typography-data-font-weight); line-height: var(--cem-typography-data-line-height); letter-spacing: var(--cem-typography-data-letter-spacing); }
+:scope:where([variant='heading']) [part~='root'] { font-weight: var(--cem-typography-heading-font-weight); }
+:scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
+    ```}
+    {attribute @name=variant | body}{attribute @name=text | }
+    {span @part=root @class="cem-text cem-text--{$variant}" | {slot | {$text}}}
+  </template>
+</cem-element>

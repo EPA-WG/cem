@@ -1,0 +1,13 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-stack">
+  <template id="cem-stack" type="text/cem-ml">
+    {style @type="text/css" |```
+:scope { display: block; }
+[part~='root'] { display: flex; flex-direction: column; gap: var(--cem-layout-stack-gap); min-inline-size: 0; }
+:scope:where([gap='sm']) [part~='root'] { gap: var(--cem-gap-related); }
+:scope:where([gap='lg']) [part~='root'] { gap: var(--cem-gap-section); }
+:scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
+    ```}
+    {attribute @name=gap | md}
+    {div @part=root @class="cem-stack cem-stack--{$gap}" @data-gap="{$gap}" | {slot}}
+  </template>
+</cem-element>

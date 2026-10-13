@@ -6,7 +6,6 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const inventoryPath = resolve(repoRoot, 'packages/cem-components/tests/angular-material-parity.json');
-const primitivesPath = resolve(repoRoot, 'packages/cem-components/src/lib/primitives.ts');
 const declarativeComponentsPath = resolve(repoRoot, 'packages/cem-components/src/components');
 const failures = [];
 
@@ -71,8 +70,7 @@ const EXPECTED_IMPLEMENTATION_PRIORITY = {
 };
 
 const inventory = JSON.parse(readFileSync(inventoryPath, 'utf8'));
-const primitiveSource = readFileSync(primitivesPath, 'utf8');
-const primitiveTags = new Set([...primitiveSource.matchAll(/\btag:\s*'([^']+)'/g)].map((match) => match[1]));
+const primitiveTags = new Set();
 for (const entry of readdirSync(declarativeComponentsPath, { withFileTypes: true })) {
     if (entry.isDirectory()) primitiveTags.add(entry.name);
 }
@@ -219,7 +217,7 @@ function validateRecord(record) {
         }
         for (const owner of owners) {
             if (mapping.kind === 'component' && !primitiveTags.has(owner)) {
-                fail(`${label}: component owner ${String(owner)} is not a public CEM_COMPONENT_PRIMITIVES tag`);
+                fail(`${label}: component owner ${String(owner)} is not a canonical XHTML component tag`);
             }
             if (mapping.kind === 'behavior' && (typeof owner !== 'string' || !owner.startsWith('behavior:'))) {
                 fail(`${label}: behavior owner ${String(owner)} must use a behavior: identity`);
@@ -241,8 +239,8 @@ function validateRecord(record) {
 }
 
 function validateEvidence(label, reference) {
-    if (typeof reference !== 'string' || !reference.startsWith('packages/cem-components/')) {
-        fail(`${label}: evidence must be rooted in packages/cem-components, received ${String(reference)}`);
+    if (typeof reference !== 'string' || !['packages/cem-components/', 'tools/cem-components/'].some(root => reference.startsWith(root))) {
+        fail(`${label}: evidence must be rooted in the component package or its workspace tooling, received ${String(reference)}`);
         return;
     }
     const separatorIndex = reference.indexOf('::');

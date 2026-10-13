@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect, userEvent } from 'storybook/test';
 import { CemElementRuntime } from './cem-elements.js';
+import { createCemStoryRuntime } from '../../.storybook/preview.js';
 
 const meta: Meta = { title: 'CEM Elements/Form Control', tags: ['test'] };
 export default meta;
@@ -13,6 +14,67 @@ interface FormHost extends HTMLElement {
     setCustomValidity(message: string): void;
     formStateRestoreCallback(value: string, mode: 'restore' | 'autocomplete'): void;
 }
+
+async function selectionContract(canvasElement: HTMLElement, fallback: boolean) {
+    const { runtime, scope } = createCemStoryRuntime(canvasElement, fallback);
+    const tag = `selection-control-${fallback ? 'fallback' : 'worker'}`;
+    const declaration = document.createElement('div');
+    declaration.setAttribute('tag', tag); declaration.setAttribute('capability', 'form-control');
+    const template = document.createElement('template'); template.type = 'text/cem-ml';
+    template.textContent = '{textarea @part=control @form="" @aria-label=Source @disabled={if datadom.slices.formDisabled { true } else { null }} @slice=value @slice-event=input @slice-value="$target.value" | {$datadom.slices.value}}';
+    declaration.append(template);
+    runtime.registerDeclaration(declaration); await runtime.whenDeclarationSettled(declaration);
+    const host = document.createElement(tag) as FormHost;
+    host.setAttribute('value', 'a😀bcdef');
+    const other = document.createElement('button'); other.textContent = 'Other';
+    canvasElement.append(host, other);
+    const settle = () => runtime.whenRenderSettled(host);
+    try {
+        await settle();
+        const editor = host.querySelector('textarea') as HTMLTextAreaElement;
+        let changes = 0;
+        host.addEventListener('input', () => changes++); host.addEventListener('change', () => changes++);
+        other.focus();
+        host.setAttribute('selection-start', '1'); host.setAttribute('selection-end', '3');
+        host.setAttribute('selection-request', 'one'); await settle();
+        expect([editor.selectionStart, editor.selectionEnd]).toEqual([1, 3]);
+        expect(document.activeElement).toBe(other);
+        host.setAttribute('selection-focus', ''); host.setAttribute('selection-request', 'two'); await settle();
+        expect(document.activeElement).toBe(editor);
+        editor.setSelectionRange(4, 4); other.focus();
+        host.setAttribute('busy', ''); await settle();
+        expect(host.querySelector('textarea')).toBe(editor);
+        expect([editor.selectionStart, editor.selectionEnd]).toEqual([4, 4]);
+        expect(document.activeElement).toBe(other);
+        host.setAttribute('selection-request', 'three'); await settle();
+        expect([editor.selectionStart, editor.selectionEnd]).toEqual([1, 3]);
+        expect(document.activeElement).toBe(editor);
+        other.focus(); host.setAttribute('selection-start', '-1'); host.setAttribute('selection-request', 'invalid'); await settle();
+        host.setAttribute('selection-start', '0'); await settle();
+        expect(document.activeElement).toBe(other);
+        expect([editor.selectionStart, editor.selectionEnd]).toEqual([1, 3]);
+        host.setAttribute('disabled', ''); host.setAttribute('selection-request', 'disabled'); await settle();
+        host.removeAttribute('disabled'); await settle();
+        expect(document.activeElement).toBe(other);
+        editor.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+        host.setAttribute('selection-request', 'composing'); await settle();
+        editor.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+        await new Promise(resolve => setTimeout(resolve)); await settle();
+        expect(document.activeElement).toBe(other);
+        host.setAttribute('selection-end', '999'); host.setAttribute('selection-direction', 'backward');
+        host.setAttribute('selection-request', 'clamped'); await settle();
+        expect([editor.selectionStart, editor.selectionEnd, editor.selectionDirection]).toEqual([0, editor.value.length, 'backward']);
+        expect(changes).toBe(0);
+        expect(host.value).toBe('a😀bcdef');
+        host.remove(); other.focus(); canvasElement.append(host); await settle();
+        expect(document.activeElement).toBe(other);
+        expect(runtime.diagnosticsFor(declaration).map(({ code }) => code)).toEqual(
+            fallback ? ['cem.processing_host.worker_startup_fallback'] : []);
+    } finally { host.remove(); other.remove(); scope.dispose(); }
+}
+
+export const SelectionWorker: Story = { render: () => document.createElement('section'), play: async ({ canvasElement }) => selectionContract(canvasElement, false) };
+export const SelectionFallback: Story = { render: () => document.createElement('section'), play: async ({ canvasElement }) => selectionContract(canvasElement, true) };
 
 export const Lifecycle: Story = {
     render: () => document.createElement('section'),

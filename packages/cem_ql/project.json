@@ -82,7 +82,8 @@
                 "{workspaceRoot}/packages/cem-elements/demo/stock-cell.cemt",
                 "{workspaceRoot}/packages/cem-elements/demo/data-table-aspects.xslt",
                 "{workspaceRoot}/packages/cem-elements/demo/xpath-functions.html",
-                "{workspaceRoot}/packages/cem-elements/demo/xpath-functions.cemt"
+                "{workspaceRoot}/packages/cem-elements/demo/xpath-functions.cemt",
+                "{workspaceRoot}/packages/cem-components/src/components/cem-datepicker/cem-datepicker.xhtml"
             ],
             "outputs": ["{options.target-dir}"],
             "options": {

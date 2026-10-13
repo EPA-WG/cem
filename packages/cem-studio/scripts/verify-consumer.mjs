@@ -65,7 +65,7 @@ try {
         'dist/static/assets/@epa-wg/cem-studio/preview.js',
         'dist/static/assets/@epa-wg/cem-ml-cli/dist/browser-worker.js',
         'dist/static/assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_bg.wasm',
-        'dist/static/assets/@epa-wg/cem-components/dist/index.js',
+        'dist/static/assets/@epa-wg/cem-components/dist/components.xhtml',
         'dist/static/assets/@epa-wg/cem-theme/dist/lib/css/cem-combined.css',
         'src/bootstrap.d.ts',
         'src/feature-tour.d.ts',

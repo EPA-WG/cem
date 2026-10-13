@@ -1,0 +1,17 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-grid">
+  <template id="cem-grid" type="text/cem-ml">
+    {style @type="text/css" |```
+:scope { display: block; }
+[part~='root'] { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--cem-layout-grid-min)), 1fr)); gap: var(--cem-layout-stack-gap); min-inline-size: 0; }
+:scope:where([gap='sm']) [part~='root'] { gap: var(--cem-gap-related); }
+:scope:where([gap='lg']) [part~='root'] { gap: var(--cem-gap-section); }
+:scope:where([columns='1']) [part~='root'] { grid-template-columns: minmax(0, 1fr); }
+:scope:where([columns='2']) [part~='root'] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+:scope:where([columns='3']) [part~='root'] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+:scope:where([columns='4']) [part~='root'] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+:scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
+    ```}
+    {attribute @name=columns | auto}{attribute @name=gap | md}
+    {div @part=root @class="cem-grid cem-grid--{$columns} cem-grid--gap-{$gap}" @data-columns="{$columns}" @data-gap="{$gap}" | {slot}}
+  </template>
+</cem-element>

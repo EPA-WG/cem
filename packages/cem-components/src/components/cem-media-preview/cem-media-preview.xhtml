@@ -1,0 +1,47 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-media-preview">
+  <template id="cem-media-preview" type="text/cem-ml">
+{style @type=text/css | ```
+:scope { display: block; min-inline-size: 0; }
+:scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
+[part~='root'] { box-sizing: border-box; font-family: var(--cem-typography-ui-font-family); font-size: var(--cem-typography-ui-font-size); font-weight: var(--cem-typography-ui-font-weight); line-height: var(--cem-typography-ui-line-height); letter-spacing: var(--cem-typography-ui-letter-spacing); }
+[part~='root'] { display: grid; margin: 0; min-inline-size: 0; gap: var(--cem-gap-related); background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); border: var(--cem-stroke-boundary) solid currentColor; border-radius: var(--cem-bend-media); }
+[part~='text'], [part~='message'] { box-sizing: border-box; margin: 0; min-inline-size: 0; padding: var(--cem-inset-container); overflow-wrap: anywhere; }
+[part~='text'] { font-family: var(--cem-typography-script-font-family); font-size: var(--cem-typography-script-font-size); font-weight: var(--cem-typography-script-font-weight); line-height: var(--cem-typography-script-line-height); letter-spacing: var(--cem-typography-script-letter-spacing); font-variant-ligatures: var(--cem-typography-script-font-variant-ligatures); white-space: pre-wrap; overflow: auto; max-block-size: 60vb; }
+[part~='document'] { display: block; box-sizing: border-box; min-inline-size: 0; inline-size: 100%; max-inline-size: 100%; border: var(--cem-stroke-boundary) solid currentColor; border-radius: var(--cem-bend-media); }
+[part~='text']:focus-visible, [part~='document']:focus-visible { outline: var(--cem-stroke-focus) solid currentColor; outline-offset: var(--cem-stroke-indicator-offset); box-shadow: var(--cem-ring-zebra-3); }
+@media (forced-colors: active) {
+    [part~='root'], [part~='document'] { background-color: Canvas; color: CanvasText; border-color: CanvasText; forced-color-adjust: auto; }
+    [part~='text']:focus-visible, [part~='document']:focus-visible { outline-color: Highlight; box-shadow: none; }
+}
+```}
+{attribute @name=label | Media preview}
+{attribute @name=mode | media}
+{attribute @name=value}
+{cem:variable @name=textLabel
+ @select='if seq:count(datadom.attributes.truncated) &gt; 0 { str:concat((label, " (truncated)"), "") } else { label }'}
+{figure @aria-label="{$label}" @class=cem-media-preview @part=root @cem:whitespace=layout |
+ {cem:choose |
+  {cem:when @test='mode == "text"' |
+   {pre @aria-label="{$textLabel}" @part=text @tabindex=0 |
+    {$ | value}
+  }}
+  {cem:when @test='mode == "document"' |
+   {iframe @allow="" @loading=lazy @part=document @referrerpolicy=no-referrer @sandbox="" @srcdoc={str:concat(("&lt;!doctype html&gt;&lt;html&gt;&lt;head&gt;&lt;meta charset=\"utf-8\"&gt;&lt;meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; base-uri 'none'; connect-src 'none'; font-src 'none'; form-action 'none'; frame-src 'none'; img-src 'none'; media-src 'none'; object-src 'none'; script-src 'none'; style-src 'none'; worker-src 'none'\"&gt;&lt;meta name=\"referrer\" content=\"no-referrer\"&gt;&lt;title&gt;Sandboxed document preview&lt;/title&gt;&lt;/head&gt;&lt;body&gt;", value, "&lt;/body&gt;&lt;/html&gt;"), "")}
+    @title="{$label}"}
+  }
+  {cem:when @test='mode == "message"' |
+   {p @part=message |
+    {$ | value}
+  }}
+  {cem:otherwise |
+   {div @class=cem-media-preview__media @part=media |
+    {slot |
+     {$ | label}
+   }}
+   {figcaption @class=cem-media-preview__caption @part=caption |
+    {slot @name=caption |
+     {$ | label}
+}}}}}
+
+  </template>
+</cem-element>

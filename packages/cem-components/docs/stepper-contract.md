@@ -1,5 +1,13 @@
 # Stepper Contract
 
+Implementation: [canonical XHTML](../src/components/cem-stepper/cem-stepper.xhtml)
+with the shared `cem-elements` capability `workflow-panels` and embedded scoped token CSS.
+[Colocated stories](../src/components/cem-stepper/cem-stepper.stories.ts) preserve the
+contract checks. [Properties](../playgrounds/cem-stepper.html) and the linked
+five-theme gallery ship in both source and packed delivery. The host is not
+form-associated; native controls keep their own form behavior.
+
+
 ## Owner and author vocabulary
 
 `cem-stepper` is the public workflow-navigation owner. Its only authored element

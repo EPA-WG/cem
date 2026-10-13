@@ -118,7 +118,7 @@ and automatic color adjustment in both determinate and indeterminate modes.
 ## Focused fixture and assertion matrix
 
 `tests/progress-spinner/contract.html` is declarative and script-free. The
-focused browser suite and forced-colors gate cover:
+colocated `cem-progress-spinner.stories.ts` plays and forced-colors gate cover:
 
 | Surface | Required assertion |
 |---|---|
@@ -133,3 +133,8 @@ focused browser suite and forced-colors gate cover:
 | Keyboard | spinner is skipped between surrounding focusable controls |
 | Events | pointer/click/keyboard probes dispatch no spinner-owned mutation event |
 | Forced colors | `GrayText` track, `Highlight` indicator, and `forced-color-adjust:auto` |
+
+The canonical XHTML declaration now requests the shared `progress-status`
+capability. Its embedded CSS uses animation longhands so the native scoped-CSS
+compiler can bind its static animation name to the declaration-owned keyframe.
+See the [feedback/status migration contract](feedback-status-contract.md).

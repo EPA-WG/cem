@@ -1,0 +1,12 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-toast">
+  <template id="cem-toast" type="text/cem-ml">
+    {style @type=text/css |```
+:scope { display: block; }
+[part~='root'] { box-sizing: border-box; }
+:scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
+[part~='root'] { background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); border: var(--cem-stroke-boundary) solid currentColor; padding: var(--cem-inset-container); font-family: var(--cem-typography-ui-font-family); font-size: var(--cem-typography-ui-font-size); font-weight: var(--cem-typography-ui-font-weight); line-height: var(--cem-typography-ui-line-height); letter-spacing: var(--cem-typography-ui-letter-spacing); }
+@media (forced-colors: active) { [part~='root'] { background-color: Canvas; color: CanvasText; border-color: CanvasText; } }
+    ```}
+    {attribute @name=label | Status}{div @part=root @class=cem-toast @role=status @aria-live=polite | {slot | {$label}}}
+  </template>
+</cem-element>

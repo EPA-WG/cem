@@ -1,0 +1,84 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-nav" capability="navigation-landmark">
+<template id="cem-nav" type="text/cem-ml">
+{style @type=text/css |```
+:scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
+:scope > :where(nav) > :where(:is(a[href], button)), :scope > :where(nav) > :where([part~="content"]) > :where(:is(a[href], button)) {
+    background-color: var(--cem-navigation-item-default-background);
+    color: var(--cem-navigation-item-default-text);
+}
+
+:scope > :where(nav) > :where(:is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true']))):hover, :scope > :where(nav) > :where([part~="content"]) > :where(:is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true']))):hover {
+    background-color: var(--cem-navigation-item-hover-background);
+    color: var(--cem-navigation-item-hover-text);
+}
+
+:scope > :where(nav) > :where(:is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true']))):active, :scope > :where(nav) > :where([part~="content"]) > :where(:is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true']))):active {
+    background-color: var(--cem-navigation-item-active-background);
+    color: var(--cem-navigation-item-active-text);
+}
+
+:scope > :where(nav) > :where(:is(a[href], button))[aria-current]:where(:not([aria-current='false'])), :scope > :where(nav) > :where([part~="content"]) > :where(:is(a[href], button))[aria-current]:where(:not([aria-current='false'])) {
+    background-color: var(--cem-navigation-item-current-background);
+    color: var(--cem-navigation-item-current-text);
+}
+
+:scope > :where(nav) > :where(:is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true'])))[aria-current]:where(:not([aria-current='false']):hover), :scope > :where(nav) > :where([part~="content"]) > :where(:is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true'])))[aria-current]:where(:not([aria-current='false']):hover) {
+    background-color: var(--cem-navigation-item-current-hover-background);
+    color: var(--cem-navigation-item-current-hover-text);
+}
+
+:scope > :where(nav) > :where(:is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true'])))[aria-current]:where(:not([aria-current='false']):active), :scope > :where(nav) > :where([part~="content"]) > :where(:is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true'])))[aria-current]:where(:not([aria-current='false']):active) {
+    background-color: var(--cem-navigation-item-current-active-background);
+    color: var(--cem-navigation-item-current-active-text);
+}
+
+:scope > :where(nav) > :where(:is(a[href], button):is(button:disabled, [aria-disabled='true'])), :scope > :where(nav) > :where([part~="content"]) > :where(:is(a[href], button):is(button:disabled, [aria-disabled='true'])), :scope > :where(nav) > :where(:is(a[href], button))[aria-current]:where(:not([aria-current='false']):is(button:disabled, [aria-disabled='true'])), :scope > :where(nav) > :where([part~="content"]) > :where(:is(a[href], button))[aria-current]:where(:not([aria-current='false']):is(button:disabled, [aria-disabled='true'])) {
+    background-color: var(--cem-navigation-item-disabled-background);
+    color: var(--cem-navigation-item-disabled-text);
+}
+
+:scope > :where(nav) > :where(:is(a[href], button:enabled)):focus-visible, :scope > :where(nav) > :where([part~="content"]) > :where(:is(a[href], button:enabled)):focus-visible {
+    outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1);
+    outline-offset: var(--cem-stroke-indicator-offset);
+}
+
+@media (forced-colors: active) {
+
+    :scope > :where(nav) > :where(:is(a[href], button))[aria-current]:where(:not([aria-current='false'])), :scope > :where(nav) > :where([part~="content"]) > :where(:is(a[href], button))[aria-current]:where(:not([aria-current='false'])) {
+        background-color: SelectedItem;
+        color: SelectedItemText;
+    }
+
+    :scope > :where(nav) > :where(:is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true']))):hover, :scope > :where(nav) > :where([part~="content"]) > :where(:is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true']))):hover, :scope > :where(nav) > :where(:is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true'])))[aria-current]:where(:not([aria-current='false']):hover), :scope > :where(nav) > :where([part~="content"]) > :where(:is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true'])))[aria-current]:where(:not([aria-current='false']):hover) {
+        background-color: Highlight;
+        color: HighlightText;
+    }
+
+    :scope > :where(nav) > :where(:is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true']))):active, :scope > :where(nav) > :where([part~="content"]) > :where(:is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true']))):active, :scope > :where(nav) > :where(:is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true'])))[aria-current]:where(:not([aria-current='false']):active), :scope > :where(nav) > :where([part~="content"]) > :where(:is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true'])))[aria-current]:where(:not([aria-current='false']):active) {
+        background-color: Highlight;
+        color: HighlightText;
+    }
+
+    :scope > :where(nav) > :where(:is(a[href], button):is(button:disabled, [aria-disabled='true'])), :scope > :where(nav) > :where([part~="content"]) > :where(:is(a[href], button):is(button:disabled, [aria-disabled='true'])), :scope > :where(nav) > :where(:is(a[href], button))[aria-current]:where(:not([aria-current='false']):is(button:disabled, [aria-disabled='true'])), :scope > :where(nav) > :where([part~="content"]) > :where(:is(a[href], button))[aria-current]:where(:not([aria-current='false']):is(button:disabled, [aria-disabled='true'])) {
+        background-color: Canvas;
+        color: GrayText;
+    }
+
+    :scope > :where(nav) > :where(:is(a[href], button:enabled)):focus-visible, :scope > :where(nav) > :where([part~="content"]) > :where(:is(a[href], button:enabled)):focus-visible {
+        outline: var(--cem-stroke-focus) solid CanvasText;
+        outline-offset: var(--cem-stroke-indicator-offset);
+    }
+}
+```}
+{attribute @name=label | Navigation}
+{cem:choose |
+ {cem:when @test="seq:count(datadom.attributes.collapsible) > 0" |
+  {nav @class="cem-nav cem-nav--collapsible" @part=root @aria-label={datadom.attributes.aria-label ?? label} |
+   {button @type=button @class=cem-nav__disclosure @part=disclosure @aria-expanded={datadom.slices.expanded ?? (seq:count(datadom.attributes.expanded) > 0)} | {cem:choose | {cem:when @test="datadom.slices.expanded ?? (seq:count(datadom.attributes.expanded) > 0)" | {slice @slice=expanded @slice-event=click @slice-value=false}}{cem:otherwise | {slice @slice=expanded @slice-event=click @slice-value=true}}} {$label}}
+   {div @class=cem-nav__content @part=content @hidden={if datadom.slices.expanded ?? (seq:count(datadom.attributes.expanded) > 0) { null } else { true }} | {slot}}
+  }
+ }
+ {cem:otherwise | {nav @class=cem-nav @part=root @aria-label={datadom.attributes.aria-label ?? label} | {slot}}}
+}
+</template>
+</cem-element>

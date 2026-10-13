@@ -8,6 +8,7 @@ use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::{EngineContext, EngineInput, FormatIdentity, InputFormat, LayerFormat};
 use crate::schema::ir::CEM_CORE_NAMESPACE;
 use crate::schema::registry::{
+    CEM_DATA_ISLAND_CONTENT_TYPE, CEM_DATA_ISLAND_SCHEMA_URI,
     CEM_AST_JSON_PROJECTION_CONTENT_TYPE, CEM_AST_PROJECTION_CONTENT_TYPE,
     CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_JSON_PROJECTION_CONTENT_TYPE,
     CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
@@ -107,6 +108,7 @@ const XSLT_NAMESPACE: &str = XSLT_NAMESPACE_URI;
 const HTML_ADAPTER_SCHEMA_IDENTITIES: &[&str] = &[HTML_SCHEMA_URI, HTML_NAMESPACE];
 const XML_ADAPTER_SCHEMA_IDENTITIES: &[&str] = &[XML_SCHEMA_URI];
 const CEM_ML_SCHEMA_IDENTITIES: &[&str] = &[
+    CEM_DATA_ISLAND_SCHEMA_URI,
     CEM_ML_SCHEMA_URI,
     CEM_SCHEMA_URI,
     CEM_SCHEMA_PACKAGE_URI,
@@ -591,6 +593,7 @@ impl LifecycleAdapter for CemMlAdapter {
             &[
                 "application/cem+xml",
                 CEM_ML_CONTENT_TYPE,
+                CEM_DATA_ISLAND_CONTENT_TYPE,
                 CEM_SCHEMA_CONTENT_TYPE,
                 CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
                 CEM_NATIVE_TEMPLATE_CONTENT_TYPE,

@@ -36,6 +36,10 @@ and variation; CEM supplies the platform ambition.
 ## Design and timing
 
 The first slide uses native editable branching, helix and template diagrams.
+The [prepared animation](opening-animation.md) reveals these groups with
+2-second fades starting at 0, 12 and 24 seconds after one starting click.
+Its native timing survived import; copying it into the main deck and checking
+Slideshow playback remain open.
 Its colors come from the [CEM palette](../../packages/cem-theme/src/lib/tokens/cem-colors.md):
 comfort `#F1FEFE`, comfort-text `#001010`, creativity-x `#6A1B9A`, creativity
 `#E1BEE7`, trust `#D7E3FF`, trust-x `#002F65`, calm-x `#006A6A`.

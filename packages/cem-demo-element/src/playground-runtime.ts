@@ -124,7 +124,12 @@ export async function renderPlaygroundSource(
                 diagnostics: uniqueDiagnostics(diagnostics),
             };
         }
-        const presentation = await presentSource(converted.text, output);
+        // Conversion already applied the requested formatter. Highlight CEM
+        // directly: reparsing a data vocabulary as an HTML document would
+        // introduce unrelated schema validation and repeat the conversion.
+        const presentation = output.id === 'cem'
+            ? { ...(await highlightCemSource(converted.text, output.contentType)), text: converted.text }
+            : await presentSource(converted.text, output);
         diagnostics.push(...presentation.diagnostics);
         return {
             status: 'rendered', sourceHtml, sourceText, inputFormat: selected,

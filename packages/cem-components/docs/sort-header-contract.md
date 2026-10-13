@@ -139,3 +139,10 @@ forced-colors gate must prove:
 
 - [Angular Material sort overview](https://material.angular.dev/components/sort/overview)
 - [WAI-ARIA APG sortable table example](https://www.w3.org/WAI/ARIA/apg/patterns/table/examples/sortable-table/)
+
+## Canonical delivery
+
+The canonical owner is `src/components/cem-sort-header/cem-sort-header.xhtml`;
+all component assertions live in its colocated `.stories.ts` plays. See the
+[declarative migration and CEM principle audit](disclosure-data-contract.md).
+The static HTML contract fixture remains reference material, not a second owner.

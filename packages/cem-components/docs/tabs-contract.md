@@ -1,5 +1,13 @@
 # Tabs Contract
 
+Implementation: [canonical XHTML](../src/components/cem-tabs/cem-tabs.xhtml)
+with the shared `cem-elements` capability `tab-panels` and embedded scoped token CSS.
+[Colocated stories](../src/components/cem-tabs/cem-tabs.stories.ts) preserve the
+contract checks. [Properties](../playgrounds/cem-tabs.html) and the linked
+five-theme gallery ship in both source and packed delivery. The host is not
+form-associated; native controls keep their own form behavior.
+
+
 ## Owner and author vocabulary
 
 `cem-tabs` is the public local-view switching owner. Its only authored element

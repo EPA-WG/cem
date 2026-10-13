@@ -48,4 +48,10 @@ export default [
       ],
     },
   },
+  {
+    files: ['packages/cem-components/src/components/**/*.stories.ts'],
+    // XHTML components permit only colocated development stories; the
+    // declarative architecture gate validates their import/behavior boundary.
+    rules: { '@nx/enforce-module-boundaries': 'off' },
+  },
 ];

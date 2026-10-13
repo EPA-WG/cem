@@ -356,7 +356,7 @@ describe('host processing boundary contracts', () => {
         expect(result.css).toContain(':where(:scope) { display: block; }');
         expect(result.css).toContain(':where(:scope).legacy button, :where(:scope) { color: red; }');
         expect(result.css).toContain(':scope :has(> template[data-cem-island="instance"]) > *');
-        expect(result.css).toContain('[slot] > *');
+        expect(result.css).toContain('[slot]:not(input) > *');
         expect(result.css).toContain('@keyframes pulse-cem-scope-story-card-useed-p0');
         expect(result.css).toContain('animation: pulse-cem-scope-story-card-useed-p0 1s ease');
         expect(result.css).toContain('animation-name: pulse-cem-scope-story-card-useed-p0');
@@ -476,7 +476,7 @@ describe('host processing boundary contracts', () => {
                 '    boundary-card',
                 ') to (',
                 '    :scope :has(> template[data-cem-island="instance"]) > *,',
-                '    [slot] > *',
+                '    [slot]:not(input) > *',
                 ') {',
                 '    button { color: green; }',
                 '}',
@@ -572,7 +572,7 @@ describe('host processing boundary contracts', () => {
             text: [
                 '@scope to (',
                 '    :scope :has(> template[data-cem-island="instance"]) > *,',
-                '    [slot] > *',
+                '    [slot]:not(input) > *',
                 ') {',
                 '    :scope button, :scope[open] { border-color: red; }',
                 '}',

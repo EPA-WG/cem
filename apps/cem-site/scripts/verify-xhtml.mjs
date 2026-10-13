@@ -7,7 +7,7 @@ export async function verifyDeployedXhtml(page) {
     }
     const action = await page.evaluate(async () => {
         const { componentRuntime } = await import('./assets/cem-site/components-runtime.js');
-        const declaration = document.querySelector('custom-element[tag="cem-action"]');
+        const declaration = document.querySelector('cem-element[tag="cem-action"]');
         const host = document.querySelector('cem-action');
         if (!declaration || !host) throw new Error('route must explicitly load and use canonical action');
         await componentRuntime.whenDeclarationSettled(declaration);
@@ -31,14 +31,14 @@ export async function verifyDeployedXhtml(page) {
         const { componentRuntime } = await import('./assets/cem-site/components-runtime.js');
         const fixture = document.createElement('section');
         fixture.id = 'deployed-xhtml-proof';
-        fixture.innerHTML = `<custom-element tag="cem-select" capability="choice-select"
-            src="${resource}#cem-select"></custom-element>
+        fixture.innerHTML = `<cem-element tag="cem-select" capability="choice-select"
+            src="${resource}#cem-select"></cem-element>
             <cem-select label="Deployment proof" value="first"><template>
                 <cem-option value="first">First</cem-option>
                 <cem-option value="second">Second</cem-option>
             </template></cem-select>`;
         document.body.append(fixture);
-        const declaration = fixture.querySelector('custom-element');
+        const declaration = fixture.querySelector('cem-element');
         await componentRuntime.whenDeclarationSettled(declaration);
         await componentRuntime.whenRenderSettled(fixture.querySelector('cem-select'));
         const errors = componentRuntime.diagnosticsFor(declaration)
@@ -53,7 +53,7 @@ export async function verifyDeployedXhtml(page) {
         const fixture = document.querySelector('#deployed-xhtml-proof');
         const select = fixture.querySelector('cem-select');
         await componentRuntime.whenRenderSettled(select);
-        const style = fixture.querySelector('custom-element > style[data-cem-declaration-style]');
+        const style = fixture.querySelector('cem-element > style[data-cem-declaration-style]');
         const result = { value: select.value, display: getComputedStyle(select.querySelector('[part="root"]')).display,
             scoped: style?.textContent.includes('@scope') === true, shadow: !!select.shadowRoot };
         fixture.remove();

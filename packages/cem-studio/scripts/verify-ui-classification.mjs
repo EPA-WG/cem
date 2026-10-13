@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -7,7 +7,6 @@ const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workspaceRoot = resolve(projectRoot, '../..');
 const classificationPath = resolve(projectRoot, 'tests/ui-classification.json');
 const parityPath = resolve(workspaceRoot, 'packages/cem-components/tests/angular-material-parity.json');
-const primitivesPath = resolve(workspaceRoot, 'packages/cem-components/src/lib/primitives.ts');
 const documentationPath = resolve(workspaceRoot, 'docs/cem-studio-phase6.5-ui-classification.md');
 const reportRoot = resolve(workspaceRoot, 'dist/reports/cem-studio');
 const requiredBehaviorIds = [
@@ -44,12 +43,9 @@ const allowedDispositions = new Set([
 
 const classification = await readJson(classificationPath);
 const parity = await readJson(parityPath);
-const primitivesSource = await readFile(primitivesPath, 'utf8');
 const documentation = await readFile(documentationPath, 'utf8');
 const parityById = new Map(parity.components.map((component) => [component.id, component]));
-const generalComponents = new Set(
-    [...primitivesSource.matchAll(/\btag:\s*'([^']+)'/g)].map((match) => match[1]),
-);
+const generalComponents = new Set(await readdir(resolve(workspaceRoot, 'packages/cem-components/src/components')));
 
 assert.equal(classification.version, 1);
 assert.equal(classification.scope, 'initial-studio-shell-and-workbench');

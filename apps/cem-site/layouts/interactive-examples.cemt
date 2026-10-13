@@ -1,196 +1,209 @@
 @doc cem-ml 1
 @ns transform = "https://cem.dev/ns/transform/cem/1"
 @default transform
-
-{module @version="1.0.0" |
-  // Imported inputs use the retained cem:generic-data vocabulary.
-  {param @name="input" @type="object" @required=true}
-  {template @name="interactive-examples" @visibility="public" |
-    {body |
-      {element @name="html" @namespace="http://www.w3.org/1999/xhtml" |
-        {attribute @name="lang" @value="en"}
-        {element @name="head" @namespace="http://www.w3.org/1999/xhtml" |
-          {element @name="meta" @namespace="http://www.w3.org/1999/xhtml" |
-            {attribute @name="charset" @value="utf-8"}
-          }
-          {element @name="meta" @namespace="http://www.w3.org/1999/xhtml" |
-            {attribute @name="name" @value="viewport"}
-            {attribute @name="content" @value="width=device-width, initial-scale=1"}
-          }
-          {element @name="title" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(input.children.children, fn(member) => member.attributes.value == "title").children.children.value}}
-          {element @name="link" @namespace="http://www.w3.org/1999/xhtml" |
-            {attribute @name="rel" @value="stylesheet"}
-            {attribute @name="href" @value="./assets/theme/cem-combined.css"}
-          }
-          {element @name="link" @namespace="http://www.w3.org/1999/xhtml" |
-            {attribute @name="rel" @value="stylesheet"}
-            {attribute @name="href" @value="./assets/cem-components/styles.css"}
-          }
-          {element @name="script" @namespace="http://www.w3.org/1999/xhtml" |
-            {attribute @name="type" @value="importmap"}
-            {$seq:where(input.children.children, fn(member) => member.attributes.value == "importMap").children.children.value}
-          }
-          {element @name="script" @namespace="http://www.w3.org/1999/xhtml" |
-            {attribute @name="type" @value="module"}
-            import "@epa-wg/cem-site/runtime";
-          }
-        }
-        {element @name="body" @namespace="http://www.w3.org/1999/xhtml" |
-          {element @name="header" @namespace="http://www.w3.org/1999/xhtml" |
-            {element @name="nav" @namespace="http://www.w3.org/1999/xhtml" |
-              {attribute @name="aria-label" @value="Primary"}
-              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="href" @value="/"}
-                CEM Site
-              }
-              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="href" @value="/guides/"}
-                Guides
-              }
-              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="href" @value="/packages/"}
-                Packages
-              }
-              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="href" @value="/guides/cem-ml/cli/"}
-                CLI guide
-              }
-              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="href" @value="/reference/cem-ml/transform-config/"}
-                CEM-ML reference
-              }
-              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="href" @value="/tokens/"}
-                Tokens
-              }
-              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="href" @value="/components/"}
-                Components
-              }
-              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="href" @value="/components/angular-material/"}
-                Material comparison
-              }
-              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="href" @value="/examples/interactive/"}
-                Interactive examples
-              }
-              {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="href" @value="/search/"}
-                Search
-              }
-            }
-          }
-          {element @name="custom-element" @namespace="http://www.w3.org/1999/xhtml" |
-            {attribute @name="hidden" @value="hidden"}
-            {attribute @name="tag" @value="cem-action"}
-            {attribute @name="src" @value="./assets/cem-components/cem-action.xhtml#cem-action"}
-          }
-          {element @name="main" @namespace="http://www.w3.org/1999/xhtml" |
-            {attribute @name="id" @value="content"}
-            {element @name="h1" @namespace="http://www.w3.org/1999/xhtml" |
-              {attribute @name="id" @value="interactive-examples"}
-              {$seq:where(input.children.children, fn(member) => member.attributes.value == "title").children.children.value}
-            }
-            {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
-              This page loads only resources declared by the CEM-ML module-map transformation.
-            }
-            {element @name="section" @namespace="http://www.w3.org/1999/xhtml" |
-              {attribute @name="aria-labelledby" @value="token-example-heading"}
-              {element @name="h2" @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="id" @value="token-example-heading"}
-                Interactive token filter
-              }
-              {element @name="label" @namespace="http://www.w3.org/1999/xhtml" |
-                Filter token examples
-                {element @name="input" @namespace="http://www.w3.org/1999/xhtml" |
-                  {attribute @name="type" @value="search"}
-                  {attribute @name="data-token-filter" @value=""}
-                  {attribute @name="aria-describedby" @value="token-filter-status"}
-                }
-              }
-              {element @name="output" @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="id" @value="token-filter-status"}
-                {attribute @name="data-token-status" @value=""}
-                {$ seq:count(seq:where(input.children.children, fn(member) => member.attributes.value == "tokens").children.children)} token examples
-              }
-              {element @name="ul" @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="data-token-list" @value=""}
-                {cem:for-each @select='seq:where(input.children.children, fn(member) => member.attributes.value == "tokens").children.children' @as="token" |
-                  {element @name="li" @namespace="http://www.w3.org/1999/xhtml" |
-                    {attribute @name="data-token-example" @value='{seq:where(token.children, fn(member) => member.attributes.value == "name").children.children.value}'}
-                    {element @name="span" @namespace="http://www.w3.org/1999/xhtml" |
-                      {attribute @name="aria-hidden" @value="true"}
-                      {attribute @name="style" @value='{str:concat(("display:inline-block;width:2rem;height:2rem;background:var(", seq:where(token.children, fn(member) => member.attributes.value == "name").children.children.value, ");"))}'}
-                    }
-                    {element @name="strong" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(token.children, fn(member) => member.attributes.value == "label").children.children.value}}
-                    {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(token.children, fn(member) => member.attributes.value == "name").children.children.value}}
-                  }
-                }
-              }
-            }
-            {element @name="section" @namespace="http://www.w3.org/1999/xhtml" |
-              {attribute @name="aria-labelledby" @value="component-example-heading"}
-              {element @name="h2" @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="id" @value="component-example-heading"}
-                Production component examples
-              }
-              {cem:for-each @select='seq:where(input.children.children, fn(member) => member.attributes.value == "components").children.children' @as="component" |
-                {element @name='{$seq:where(component.children, fn(member) => member.attributes.value == "tag").children.children.value}' @namespace="http://www.w3.org/1999/xhtml" |
-                  {attribute @name="label" @value='{seq:where(component.children, fn(member) => member.attributes.value == "label").children.children.value}'}
-                  {attribute @name="data-component-example" @value='{seq:where(component.children, fn(member) => member.attributes.value == "kind").children.children.value}'}
-                  {$seq:where(component.children, fn(member) => member.attributes.value == "label").children.children.value}
-                }
-              }
-              {element @name="output" @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="data-action-count" @value=""}
-                Action count: 0
-              }
-            }
-            {element @name="section" @namespace="http://www.w3.org/1999/xhtml" |
-              {attribute @name="aria-labelledby" @value="cem-fixture-heading"}
-              {element @name="h2" @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="id" @value="cem-fixture-heading"}
-                CEM fixture and native light-DOM output
-              }
-              {element @name="custom-element" @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="tag" @value='{seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "cemFixture").children.children, fn(member) => member.attributes.value == "tag").children.children.value}'}
-                {element @name="template" @namespace="http://www.w3.org/1999/xhtml" |
-                  {attribute @name="type" @value="text/cem-ml"}
-                  {$seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "cemFixture").children.children, fn(member) => member.attributes.value == "source").children.children.value}
-                }
-              }
-              {element @name='{$seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "cemFixture").children.children, fn(member) => member.attributes.value == "tag").children.children.value}' @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="name" @value='{seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "cemFixture").children.children, fn(member) => member.attributes.value == "name").children.children.value}'}
-                {attribute @name="data-cem-fixture-instance" @value=""}
-              }
-              {element @name="h3" @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="id" @value="cem-source"}
-                CEM source
-              }
-              {element @name="pre" @namespace="http://www.w3.org/1999/xhtml" |
-                {element @name="code" @namespace="http://www.w3.org/1999/xhtml" |
-                  {attribute @name="data-cem-source" @value=""}
-                  {$seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "cemFixture").children.children, fn(member) => member.attributes.value == "source").children.children.value}
-                }
-              }
-              {element @name="h3" @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="id" @value="native-output"}
-                Native output
-              }
-              {element @name="pre" @namespace="http://www.w3.org/1999/xhtml" |
-                {element @name="code" @namespace="http://www.w3.org/1999/xhtml" |
-                  {attribute @name="data-native-output" @value=""}
-                  Waiting for the production runtime.
-                }
-              }
-            }
-          }
-          {element @name="footer" @namespace="http://www.w3.org/1999/xhtml" |
-            Generated by the native CEM-ML transformation graph.
-          }
-        }
+{module @version=1.0.0 @cem:whitespace=layout |
+ ```// Imported inputs use the retained cem:generic-data vocabulary.
+  ```
+ {param @name=input @required=true @type=object}
+ {template @name=interactive-examples @visibility=public |
+  {body |
+   {element @name=html @namespace=http://www.w3.org/1999/xhtml |
+    {attribute @name=lang @value=en}
+    {element @name=head @namespace=http://www.w3.org/1999/xhtml |
+     {element @name=meta @namespace=http://www.w3.org/1999/xhtml |
+      {attribute @name=charset @value=utf-8}
+     }
+     {element @name=meta @namespace=http://www.w3.org/1999/xhtml |
+      {attribute @name=name @value=viewport}
+      {attribute @name=content @value="width=device-width, initial-scale=1"}
+     }
+     {element @name=title @namespace=http://www.w3.org/1999/xhtml |
+      {$ | seq:where(input.children.children, fn(member) => member.attributes.value == "title").children.children.value}
+     }
+     {element @name=link @namespace=http://www.w3.org/1999/xhtml |
+      {attribute @name=rel @value=stylesheet}
+      {attribute @name=href @value=./assets/theme/cem-combined.css}
+     }
+     {element @name=link @namespace=http://www.w3.org/1999/xhtml |
+      {attribute @name=rel @value=stylesheet}
+      {attribute @name=href @value=./assets/cem-components/styles.css}
+     }
+     {element @name=script @namespace=http://www.w3.org/1999/xhtml |
+      {attribute @name=type @value=importmap}
+      {$ | seq:where(input.children.children, fn(member) => member.attributes.value == "importMap").children.children.value}
+     }
+     {element @name=script @namespace=http://www.w3.org/1999/xhtml |
+      {attribute @name=type @value=module}
+      ```import "@epa-wg/cem-site/runtime";
+          ```
+    }}
+    {element @name=body @namespace=http://www.w3.org/1999/xhtml |
+     {element @name=header @namespace=http://www.w3.org/1999/xhtml |
+      {element @name=nav @namespace=http://www.w3.org/1999/xhtml |
+       {attribute @name=aria-label @value=Primary}
+       {element @name=a @namespace=http://www.w3.org/1999/xhtml |
+        {attribute @name=href @value=/}
+        ```CEM Site
+              ```
+       }
+       {element @name=a @namespace=http://www.w3.org/1999/xhtml |
+        {attribute @name=href @value=/guides/}
+        ```Guides
+              ```
+       }
+       {element @name=a @namespace=http://www.w3.org/1999/xhtml |
+        {attribute @name=href @value=/packages/}
+        ```Packages
+              ```
+       }
+       {element @name=a @namespace=http://www.w3.org/1999/xhtml |
+        {attribute @name=href @value=/guides/cem-ml/cli/}
+        ```CLI guide
+              ```
+       }
+       {element @name=a @namespace=http://www.w3.org/1999/xhtml |
+        {attribute @name=href @value=/reference/cem-ml/transform-config/}
+        ```CEM-ML reference
+              ```
+       }
+       {element @name=a @namespace=http://www.w3.org/1999/xhtml |
+        {attribute @name=href @value=/tokens/}
+        ```Tokens
+              ```
+       }
+       {element @name=a @namespace=http://www.w3.org/1999/xhtml |
+        {attribute @name=href @value=/components/}
+        ```Components
+              ```
+       }
+       {element @name=a @namespace=http://www.w3.org/1999/xhtml |
+        {attribute @name=href @value=/components/angular-material/}
+        ```Material comparison
+              ```
+       }
+       {element @name=a @namespace=http://www.w3.org/1999/xhtml |
+        {attribute @name=href @value=/examples/interactive/}
+        ```Interactive examples
+              ```
+       }
+       {element @name=a @namespace=http://www.w3.org/1999/xhtml |
+        {attribute @name=href @value=/search/}
+        ```Search
+              ```
+     }}}
+     {element @name=cem-element @namespace=http://www.w3.org/1999/xhtml |
+      {attribute @name=tag
+       @value='{seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "cemFixture").children.children, fn(member) => member.attributes.value == "tag").children.children.value}'}
+      {element @name=template @namespace=http://www.w3.org/1999/xhtml |
+       {attribute @name=id
+        @value='{seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "cemFixture").children.children, fn(member) => member.attributes.value == "tag").children.children.value}'}
+       {attribute @name=type @value=text/cem-ml}
+       {$ | seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "cemFixture").children.children, fn(member) => member.attributes.value == "source").children.children.value}
+     }}
+     {element @name=main @namespace=http://www.w3.org/1999/xhtml |
+      {attribute @name=id @value=content}
+      {element @name=h1 @namespace=http://www.w3.org/1999/xhtml |
+       {attribute @name=id @value=interactive-examples}
+       {$ | seq:where(input.children.children, fn(member) => member.attributes.value == "title").children.children.value}
       }
-    }
-  }
-}
+      {element @name=p @namespace=http://www.w3.org/1999/xhtml | Explore theme colors, try the controls, and inspect their rendered output.
+            }
+      {element @name=section @namespace=http://www.w3.org/1999/xhtml |
+       {attribute @name=aria-labelledby @value=token-example-heading}
+       {element @name=h2 @namespace=http://www.w3.org/1999/xhtml |
+        {attribute @name=id @value=token-example-heading}
+        ```Interactive token filter
+              ```
+       }
+       {element @name=cem-field @namespace=http://www.w3.org/1999/xhtml |
+        {attribute @name=type @value=search}
+        {attribute @name=label @value="Filter token examples"}
+        {attribute @name=data-token-filter @value=""}
+        {attribute @name=aria-describedby @value=token-filter-status}
+        {attribute @name=describedby @value=token-filter-status}
+       }
+       {element @name=output @namespace=http://www.w3.org/1999/xhtml |
+        {attribute @name=id @value=token-filter-status}
+        {attribute @name=data-token-status @value=""}
+        {attribute @name=role @value=status}
+        {$ | seq:count(seq:where(input.children.children, fn(member) => member.attributes.value == "tokens").children.children)}
+        ```token examples
+              ```
+       }
+       {element @name=ul @namespace=http://www.w3.org/1999/xhtml |
+        {attribute @name=data-token-list @value=""}
+        {cem:for-each @as=token
+         @select='seq:where(input.children.children, fn(member) => member.attributes.value == "tokens").children.children' |
+         {element @name=li @namespace=http://www.w3.org/1999/xhtml |
+          {attribute @name=data-token-example
+           @value='{seq:where(token.children, fn(member) => member.attributes.value == "name").children.children.value}'}
+          {attribute @name=data-token-tone
+           @value='{seq:where(token.children, fn(member) => member.attributes.value == "tone").children.children.value}'}
+          {element @name=cem-surface @namespace=http://www.w3.org/1999/xhtml |
+           {attribute @name=tone
+            @value='{seq:where(token.children, fn(member) => member.attributes.value == "tone").children.children.value}'}
+           {element @name=strong @namespace=http://www.w3.org/1999/xhtml |
+            {$ | seq:where(token.children, fn(member) => member.attributes.value == "label").children.children.value}
+           }
+           {element @name=code @namespace=http://www.w3.org/1999/xhtml |
+            {$ | seq:where(token.children, fn(member) => member.attributes.value == "name").children.children.value}
+      }}}}}}
+      {element @name=section @namespace=http://www.w3.org/1999/xhtml |
+       {attribute @name=aria-labelledby @value=component-example-heading}
+       {element @name=h2 @namespace=http://www.w3.org/1999/xhtml |
+        {attribute @name=id @value=component-example-heading}
+        ```Production component examples
+              ```
+       }
+       {cem:for-each @as=component
+        @select='seq:where(input.children.children, fn(member) => member.attributes.value == "components").children.children' |
+        {element @name='{$seq:where(component.children, fn(member) => member.attributes.value == "tag").children.children.value}'
+         @namespace=http://www.w3.org/1999/xhtml |
+         {attribute @name=label
+          @value='{seq:where(component.children, fn(member) => member.attributes.value == "label").children.children.value}'}
+         {attribute @name=data-component-example
+          @value='{seq:where(component.children, fn(member) => member.attributes.value == "kind").children.children.value}'}
+         {$ | seq:where(component.children, fn(member) => member.attributes.value == "label").children.children.value}
+       }}
+       {element @name=output @namespace=http://www.w3.org/1999/xhtml |
+        {attribute @name=data-action-count @value=""}
+        {attribute @name=role @value=status}
+        ```Action count: 0
+              ```
+      }}
+      {element @name=section @namespace=http://www.w3.org/1999/xhtml |
+       {attribute @name=aria-labelledby @value=cem-fixture-heading}
+       {element @name=h2 @namespace=http://www.w3.org/1999/xhtml |
+        {attribute @name=id @value=cem-fixture-heading}
+        ```CEM fixture and native light-DOM output
+              ```
+       }
+       {element @name='{$seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "cemFixture").children.children, fn(member) => member.attributes.value == "tag").children.children.value}'
+        @namespace=http://www.w3.org/1999/xhtml |
+        {attribute @name=name
+         @value='{seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "cemFixture").children.children, fn(member) => member.attributes.value == "name").children.children.value}'}
+        {attribute @name=data-cem-fixture-instance @value=""}
+       }
+       {element @name=h3 @namespace=http://www.w3.org/1999/xhtml |
+        {attribute @name=id @value=cem-source}
+        ```CEM source
+              ```
+       }
+       {element @name=pre @namespace=http://www.w3.org/1999/xhtml |
+        {element @name=code @namespace=http://www.w3.org/1999/xhtml |
+         {attribute @name=data-cem-source @value=""}
+         {$ | seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "cemFixture").children.children, fn(member) => member.attributes.value == "source").children.children.value}
+       }}
+       {element @name=h3 @namespace=http://www.w3.org/1999/xhtml |
+        {attribute @name=id @value=native-output}
+        ```Native output
+              ```
+       }
+       {element @name=pre @namespace=http://www.w3.org/1999/xhtml |
+        {element @name=code @namespace=http://www.w3.org/1999/xhtml |
+         {attribute @name=data-native-output @value=""}
+         ```Waiting for the production runtime.
+                ```
+     }}}}
+     {element @name=footer @namespace=http://www.w3.org/1999/xhtml | Generated by the native CEM-ML transformation graph.
+}}}}}}

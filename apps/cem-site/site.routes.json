@@ -133,7 +133,7 @@
             "routes": ["/search/"]
         }
     ],
-    "searchImportMap": "{\"imports\":{\"@epa-wg/cem-site/components-runtime\":\"components-runtime.js\",\"@epa-wg/cem-site/runtime\":\"site-runtime.js\",\"@epa-wg/cem-site/search\":\"search-runtime.js\",\"@epa-wg/custom-element\":\"../../../packages/custom-element/dist/custom-element.js\",\"@epa-wg/cem-components/primitives\":\"../../../packages/cem-components/dist/lib/primitives.js\"}}",
+    "searchImportMap": "{\"imports\":{\"@epa-wg/cem-site/components-runtime\":\"components-runtime.js\",\"@epa-wg/cem-site/runtime\":\"site-runtime.js\",\"@epa-wg/cem-site/search\":\"search-runtime.js\",\"@epa-wg/cem-elements\":\"../../../packages/cem-elements/dist/index.js\"}}",
     "searchDocuments": [
         {
             "route": "/",
@@ -293,14 +293,14 @@
             "summary": "Authoring contracts, production gates, actions, inputs, layout, navigation, content, and feedback.",
             "headings": [
                 { "id": "heading-1", "level": 1, "text": "CEM Component Reference" },
-                { "id": "heading-9", "level": 2, "text": "Authoring Contract" },
-                { "id": "heading-13", "level": 2, "text": "Production Gate" },
-                { "id": "heading-35", "level": 2, "text": "Actions" },
-                { "id": "heading-41", "level": 2, "text": "Inputs" },
-                { "id": "heading-61", "level": 2, "text": "Layout" },
-                { "id": "heading-67", "level": 2, "text": "Navigation" },
-                { "id": "heading-75", "level": 2, "text": "Content" },
-                { "id": "heading-89", "level": 2, "text": "Feedback" }
+                { "id": "heading-7", "level": 2, "text": "Authoring Contract" },
+                { "id": "heading-11", "level": 2, "text": "Production Gate" },
+                { "id": "heading-33", "level": 2, "text": "Actions" },
+                { "id": "heading-45", "level": 2, "text": "Inputs" },
+                { "id": "heading-95", "level": 2, "text": "Layout" },
+                { "id": "heading-103", "level": 2, "text": "Navigation" },
+                { "id": "heading-111", "level": 2, "text": "Content" },
+                { "id": "heading-125", "level": 2, "text": "Feedback" }
             ]
         },
         {
@@ -551,7 +551,6 @@
             "canonicalSources": [
                 "docs/component-mvp.md",
                 "packages/cem-components/declarative-migration.json",
-                "packages/cem-components/src/lib/primitives.ts",
                 "packages/cem-components/docs/component-reference.md",
                 "packages/cem-components/docs/conventions.md",
                 "packages/cem-components/docs/accessibility.md"
@@ -573,7 +572,7 @@
             "exportId": "angular-material-comparison",
             "canonicalSources": [
                 "packages/cem-components/docs/angular-material-parity.md",
-                "packages/cem-components/src/lib/primitives.ts"
+                "packages/cem-components/declarative-migration.json"
             ]
         },
         {
@@ -618,7 +617,7 @@
             "exportId": "interactive-examples",
             "canonicalSources": [
                 "packages/cem-theme/src/lib/tokens/cem-colors.md",
-                "packages/cem-components/src/lib/primitives.ts"
+                "packages/cem-components/declarative-migration.json"
             ],
             "evidenceSources": [
                 "packages/cem-theme/dist/lib/tokens/cem.tokens.catalog.json",

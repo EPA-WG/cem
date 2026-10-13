@@ -54,6 +54,9 @@ pub struct CemSchemaMachine<E: EventNormalizer> {
     /// §13.1. Pushed/popped alongside `ns_contexts` for non-directive
     /// scopes.
     schema_scopes: SchemaScopeContext,
+    /// Namespace claims from the host-selected ready document model. These are
+    /// metadata, not authored schema switches in the captured lexical stream.
+    root_schema_namespaces: std::collections::BTreeSet<String>,
     /// While processing `cem:schema` elements, accumulates declared
     /// attributes per open frame so nested declarations do not overwrite
     /// their parent frame's pending state.
@@ -180,6 +183,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             frames: Vec::new(),
             ns_contexts: vec![NsContext::new(0)],
             schema_scopes: SchemaScopeContext::new(),
+            root_schema_namespaces: Default::default(),
             pending_schema_elements: Vec::new(),
             pending_host_switches: Vec::new(),
             active_directive: None,
@@ -228,6 +232,14 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
     /// should use [`Self::with_root_module_map_entries`].
     pub fn with_root_module_map(mut self, module_map: Option<&str>) -> Self {
         self.schema_source_base = module_map.and_then(module_map_schema_base);
+        self
+    }
+
+    pub(crate) fn with_root_schema_namespaces(
+        mut self,
+        namespaces: std::collections::BTreeSet<String>,
+    ) -> Self {
+        self.root_schema_namespaces = namespaces;
         self
     }
 
@@ -611,6 +623,9 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             return;
         }
         let namespace_uri = self.current_ns_context().resolve(name).namespace_uri;
+        if namespace_uri.as_ref().is_some_and(|uri| self.root_schema_namespaces.contains(uri)) {
+            return;
+        }
         let has_active_schema_source =
             !matches!(self.schema_scopes.current().active, SchemaSource::Default);
         if !disposition::is_unresolved_namespace(namespace_uri.as_deref(), has_active_schema_source)

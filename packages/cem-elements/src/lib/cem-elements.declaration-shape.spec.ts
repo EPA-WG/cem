@@ -11,10 +11,20 @@ import {
 
 describe('cem-element declarative capability contract', () => {
     it('owns reusable select behavior in cem-elements under a stable declaration identity', () => {
-        expect(Object.keys(CEM_DECLARATIVE_CAPABILITIES)).toEqual(['suggestions', 'native-surface', 'form-control', 'popup', 'action-control', 'action-command', 'composite-menu', 'choice-select']);
+        expect(Object.keys(CEM_DECLARATIVE_CAPABILITIES)).toEqual(['progress-status', 'disclosure-panel', 'sort-action', 'pagination', 'native-list', 'navigation-landmark', 'tab-panels', 'workflow-panels', 'tree-view', 'time-input', 'range-input', 'calendar-input', 'editable-choice', 'checkable-control', 'suggestions', 'native-surface', 'form-control', 'popup', 'action-control', 'action-command', 'composite-menu', 'choice-select']);
+        for (const name of ['progress-status', 'disclosure-panel', 'sort-action', 'pagination', 'native-list', 'navigation-landmark', 'tab-panels', 'workflow-panels', 'tree-view'] as const) {
+            expect(CEM_DECLARATIVE_CAPABILITIES[name].behaviorIdentity).toBe(`cem-elements-${name}-v1`);
+            expect(CEM_DECLARATIVE_CAPABILITIES[name].behavior.formAssociated).toBeUndefined();
+        }
+        expect(CEM_DECLARATIVE_CAPABILITIES['time-input'].behaviorIdentity).toBe('cem-elements-time-input-v1');
+        expect(CEM_DECLARATIVE_CAPABILITIES['range-input'].behaviorIdentity).toBe('cem-elements-range-input-v1');
+        expect(CEM_DECLARATIVE_CAPABILITIES['time-input'].behavior.formAssociated).toBeUndefined();
+        expect(CEM_DECLARATIVE_CAPABILITIES['range-input'].behavior.formAssociated).toBeUndefined();
+        expect(CEM_DECLARATIVE_CAPABILITIES['calendar-input'].behaviorIdentity).toBe('cem-elements-calendar-input-v1');
+        expect(CEM_DECLARATIVE_CAPABILITIES['calendar-input'].behavior.formAssociated).toBeUndefined();
         expect(CEM_DECLARATIVE_CAPABILITIES.suggestions.behaviorIdentity).toBe('cem-elements-suggestions-v1');
         expect(CEM_DECLARATIVE_CAPABILITIES.suggestions.behavior.formAssociated).toBeUndefined();
-        expect(CEM_DECLARATIVE_CAPABILITIES['native-surface'].behaviorIdentity).toBe('cem-elements-native-surface-v5');
+        expect(CEM_DECLARATIVE_CAPABILITIES['native-surface'].behaviorIdentity).toBe('cem-elements-native-surface-v6');
         expect(CEM_DECLARATIVE_CAPABILITIES['form-control'].behaviorIdentity).toBe('cem-elements-form-control-v3');
         expect(CEM_DECLARATIVE_CAPABILITIES['choice-select'].behaviorIdentity).toBe(
             'cem-elements-choice-select-v1',

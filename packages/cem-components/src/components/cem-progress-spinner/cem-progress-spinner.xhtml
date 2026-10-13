@@ -1,0 +1,61 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-progress-spinner" capability="progress-status">
+  <template id="cem-progress-spinner" type="text/cem-ml">
+    {style @type=text/css |```
+:scope {
+    display: inline-block;
+}
+
+:scope > :where([part~='root']) {
+    block-size: var(--cem-progress-spinner-size);
+    display: inline-block;
+    inline-size: var(--cem-progress-spinner-size);
+}
+
+:scope :where([part~='svg']) {
+    block-size: 100%;
+    display: block;
+    inline-size: 100%;
+    overflow: visible;
+    transform: rotate(-90deg);
+}
+
+:scope :where([part~='track']) {
+    fill: none;
+    stroke: var(--cem-progress-track-color);
+    stroke-width: var(--cem-progress-track-thickness);
+    vector-effect: non-scaling-stroke;
+}
+
+:scope :where([part~='indicator']) {
+    fill: none;
+    stroke: var(--cem-progress-indicator-color);
+    stroke-linecap: round;
+    stroke-width: var(--cem-progress-track-thickness);
+    transform-box: fill-box;
+    transform-origin: center;
+    vector-effect: non-scaling-stroke;
+}
+
+:scope > :where([part~='root'][data-mode='indeterminate']) :where([part~='indicator']) {
+    animation-name: cem-progress-spinner-cycle;
+    animation-duration: var(--cem-duration-continuous-cycle);
+    animation-timing-function: var(--cem-easing-uniform);
+    animation-iteration-count: infinite;
+}
+
+@keyframes cem-progress-spinner-cycle {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :scope > :where([part~='root'][data-mode='indeterminate']) :where([part~='indicator']) {
+        animation: none;
+    }
+}
+:scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
+    ```}
+    {attribute @name=label | Progress}{span @part=root @class=cem-progress-spinner @role=progressbar @data-mode="{$datadom.slices.mode}" @aria-label="{$label}" @aria-describedby={datadom.attributes.describedby} @aria-valuemin={if datadom.slices.indeterminate { null } else { 0 }} @aria-valuemax={if datadom.slices.indeterminate { null } else { datadom.slices.max }} @aria-valuenow={if datadom.slices.indeterminate { null } else { datadom.slices.value }} | {element @name=svg @namespace="http://www.w3.org/2000/svg" |  {attribute @name=part @value=svg}{attribute @name=class @value=cem-progress-spinner__svg}  {attribute @name=viewBox @value="0 0 100 100"}  {attribute @name=aria-hidden @value=true}  {attribute @name=focusable @value=false}  {element @name=circle @namespace="http://www.w3.org/2000/svg" |   {attribute @name=part @value=track}{attribute @name=class @value=cem-progress-spinner__track}   {attribute @name=cx @value=50}   {attribute @name=cy @value=50}   {attribute @name=r @value=42}   {attribute @name=pathLength @value=100}}  {element @name=circle @namespace="http://www.w3.org/2000/svg" |   {attribute @name=part @value=indicator}{attribute @name=class @value=cem-progress-spinner__indicator}   {attribute @name=cx @value=50}   {attribute @name=cy @value=50}   {attribute @name=r @value=42}   {attribute @name=pathLength @value=100}   {attribute @name=stroke-dasharray @value="{$datadom.slices.dashArray}"}}}}
+  </template>
+</cem-element>

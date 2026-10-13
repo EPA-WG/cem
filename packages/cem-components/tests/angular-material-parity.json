@@ -25,11 +25,39 @@
             "status": "covered",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-autocomplete", "cem-option", "cem-option-group"],
-                "states": ["default", "hover", "focus-visible", "disabled", "loading", "expanded", "invalid", "required", "readonly", "selected", "active"],
-                "keyboard": ["Keep focus on the native text input; use ArrowUp/ArrowDown to move the active option, Home/End for native text editing unless popup navigation follows an arrow key, Enter to select, Escape or Alt+ArrowUp to close, Alt+ArrowDown to open, and Tab to close without trapping focus."],
-                "accessibility": ["Expose a labeled native input with combobox, aria-autocomplete, truthful aria-expanded/aria-controls, and connected enabled aria-activedescendant ownership; expose the transient popup as a listbox with option and labeled-group semantics."],
-                "evidence": ["packages/cem-components/src/components/cem-autocomplete/cem-autocomplete.stories.ts::EditableComboboxAndForms", "packages/cem-components/src/components/cem-autocomplete/cem-autocomplete.stories.ts::KeyboardCommit", "packages/cem-components/src/components/cem-autocomplete/cem-autocomplete.stories.ts::IndependentPaintAndGeometry", "packages/cem-components/src/components/cem-autocomplete/cem-autocomplete.stories.ts::NativeAdapterAndPresence", "packages/cem-components/scripts/verify-autocomplete-forced-colors.mjs", "packages/cem-components/scripts/verify-package.mjs", "packages/cem-components/docs/autocomplete-contract.md"],
+                "owners": [
+                    "cem-autocomplete",
+                    "cem-option",
+                    "cem-option-group"
+                ],
+                "states": [
+                    "default",
+                    "hover",
+                    "focus-visible",
+                    "disabled",
+                    "loading",
+                    "expanded",
+                    "invalid",
+                    "required",
+                    "readonly",
+                    "selected",
+                    "active"
+                ],
+                "keyboard": [
+                    "Keep focus on the native text input; use ArrowUp/ArrowDown to move the active option, Home/End for native text editing unless popup navigation follows an arrow key, Enter to select, Escape or Alt+ArrowUp to close, Alt+ArrowDown to open, and Tab to close without trapping focus."
+                ],
+                "accessibility": [
+                    "Expose a labeled native input with combobox, aria-autocomplete, truthful aria-expanded/aria-controls, and connected enabled aria-activedescendant ownership; expose the transient popup as a listbox with option and labeled-group semantics."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-autocomplete/cem-autocomplete.stories.ts::EditableComboboxAndForms",
+                    "packages/cem-components/src/components/cem-autocomplete/cem-autocomplete.stories.ts::KeyboardCommit",
+                    "packages/cem-components/src/components/cem-autocomplete/cem-autocomplete.stories.ts::IndependentPaintAndGeometry",
+                    "packages/cem-components/src/components/cem-autocomplete/cem-autocomplete.stories.ts::NativeAdapterAndPresence",
+                    "tools/cem-components/verify-autocomplete-forced-colors.mjs",
+                    "tools/cem-components/verify-package.mjs",
+                    "packages/cem-components/docs/autocomplete-contract.md"
+                ],
                 "notes": "cem-autocomplete owns the editable-combobox capability with free-form and require-selection value models, application/CEM-QL-owned filtering, live declarative suggestion replacement, string form values, canonical rich options, exact native input/change ordering, and tokenized normal/forced-colors states. It intentionally does not reproduce Angular directives, TypeScript display callbacks, object identity, arbitrary overlay origins, or an overlay-service API."
             }
         },
@@ -39,11 +67,23 @@
             "status": "partial",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-badge"],
-                "states": ["default", "tone"],
-                "keyboard": ["No component-owned keyboard interaction; the standalone status label is not focusable."],
-                "accessibility": ["Visible status text remains in the accessibility tree as ordinary text."],
-                "evidence": ["packages/cem-components/src/lib/primitives.browser.spec.ts::renders content-family MVP primitives as accessible light DOM"],
+                "owners": [
+                    "cem-badge"
+                ],
+                "states": [
+                    "default",
+                    "tone"
+                ],
+                "keyboard": [
+                    "No component-owned keyboard interaction; the standalone status label is not focusable."
+                ],
+                "accessibility": [
+                    "Visible status text remains in the accessibility tree as ordinary text."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-list/cem-list.stories.ts::ContentFamily",
+                    "packages/cem-components/src/components/cem-badge/cem-badge.stories.ts::Semantics"
+                ],
                 "notes": "cem-badge covers a standalone status, count, priority, or severity label. It does not attach a positioned badge to another host, toggle badge visibility, or project an aria-describedby description onto that host."
             }
         },
@@ -53,11 +93,23 @@
             "status": "partial",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-sheet"],
-                "states": ["default", "expanded"],
-                "keyboard": ["Authored descendants retain native keyboard behavior; the sheet itself is focus-neutral and application-controlled."],
-                "accessibility": ["Expose a labeled non-modal region without taking focus or creating a modal boundary."],
-                "evidence": ["packages/cem-components/src/components/cem-sheet/cem-sheet.stories.ts::PersistentRegionAndNames", "packages/cem-components/src/components/cem-sheet/cem-sheet.stories.ts::TransientFocusAndKeyboard"],
+                "owners": [
+                    "cem-sheet"
+                ],
+                "states": [
+                    "default",
+                    "expanded"
+                ],
+                "keyboard": [
+                    "Authored descendants retain native keyboard behavior; the sheet itself is focus-neutral and application-controlled."
+                ],
+                "accessibility": [
+                    "Expose a labeled non-modal region without taking focus or creating a modal boundary."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-sheet/cem-sheet.stories.ts::PersistentRegionAndNames",
+                    "packages/cem-components/src/components/cem-sheet/cem-sheet.stories.ts::TransientFocusAndKeyboard"
+                ],
                 "notes": "cem-sheet covers a declarative edge-attached surface and explicit visibility. It intentionally lacks the modal dialog semantics, Escape dismissal, focus trap/restoration, backdrop, and single-open overlay lifecycle of a Material bottom sheet."
             }
         },
@@ -67,11 +119,30 @@
             "status": "partial",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-action", "cem-icon-button"],
-                "states": ["default", "hover", "focus-visible", "active", "disabled", "loading", "expanded"],
-                "keyboard": ["Use native Tab focus and Space/Enter button activation."],
-                "accessibility": ["Render native buttons; require an accessible label for icon-only actions and preserve busy and disclosure state."],
-                "evidence": ["packages/cem-components/src/components/cem-icon-button/cem-icon-button.stories.ts::AllAttributes", "packages/cem-components/src/components/cem-icon-button/cem-icon-button.stories.ts::Hover", "packages/cem-components/src/components/cem-menu-item/cem-menu-item.stories.ts::Active"],
+                "owners": [
+                    "cem-action",
+                    "cem-icon-button"
+                ],
+                "states": [
+                    "default",
+                    "hover",
+                    "focus-visible",
+                    "active",
+                    "disabled",
+                    "loading",
+                    "expanded"
+                ],
+                "keyboard": [
+                    "Use native Tab focus and Space/Enter button activation."
+                ],
+                "accessibility": [
+                    "Render native buttons; require an accessible label for icon-only actions and preserve busy and disclosure state."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-icon-button/cem-icon-button.stories.ts::AllAttributes",
+                    "packages/cem-components/src/components/cem-icon-button/cem-icon-button.stories.ts::Hover",
+                    "packages/cem-components/src/components/cem-menu-item/cem-menu-item.stories.ts::Active"
+                ],
                 "notes": "Native text and icon commands are covered, and icon-button also supports legacy icon-link navigation and image/font icons. The row remains partial because FAB, mini-FAB, extended-FAB, general action anchors, and interactive-disabled variants are not implemented."
             }
         },
@@ -81,11 +152,26 @@
             "status": "partial",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-chip"],
-                "states": ["default", "hover", "focus-visible", "active", "checked"],
-                "keyboard": ["Use native Tab focus and Space/Enter activation on an individual checkable chip."],
-                "accessibility": ["Expose an individual native button with aria-pressed while keeping passive chips non-interactive."],
-                "evidence": ["packages/cem-components/src/lib/states.browser.spec.ts::toggles checkable content chips without changing passive chip semantics", "packages/cem-components/src/lib/states.browser.spec.ts::moves keyboard focus through interactive content owners without changing selection or checked state"],
+                "owners": [
+                    "cem-chip"
+                ],
+                "states": [
+                    "default",
+                    "hover",
+                    "focus-visible",
+                    "active",
+                    "checked"
+                ],
+                "keyboard": [
+                    "Use native Tab focus and Space/Enter activation on an individual checkable chip."
+                ],
+                "accessibility": [
+                    "Expose an individual native button with aria-pressed while keeping passive chips non-interactive."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-chip/cem-chip.stories.ts::CheckableAndPassive",
+                    "packages/cem-components/src/components/cem-list/cem-list.stories.ts::KeyboardFocus"
+                ],
                 "notes": "A checkable cem-chip covers a single on/off pressed button. It does not provide a labeled toggle group, exclusive radio-like selection, multiple group selection, orientation, form value, or disabled toggle contract."
             }
         },
@@ -95,11 +181,23 @@
             "status": "covered",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-card"],
-                "states": ["default", "loading"],
-                "keyboard": ["No card-owned keyboard interaction; authored interactive descendants retain native behavior."],
-                "accessibility": ["Expose a labeled section with a header and preserve authored descendant semantics."],
-                "evidence": ["packages/cem-components/src/lib/primitives.browser.spec.ts::renders content-family MVP primitives as accessible light DOM", "packages/cem-components/src/lib/states.browser.spec.ts::marks explicit busy cards without making nested content primitives loading owners"],
+                "owners": [
+                    "cem-card"
+                ],
+                "states": [
+                    "default",
+                    "loading"
+                ],
+                "keyboard": [
+                    "No card-owned keyboard interaction; authored interactive descendants retain native behavior."
+                ],
+                "accessibility": [
+                    "Expose a labeled section with a header and preserve authored descendant semantics."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-list/cem-list.stories.ts::ContentFamily",
+                    "packages/cem-components/src/components/cem-card/cem-card.stories.ts::BusyContent"
+                ],
                 "notes": "cem-card covers the behavioral card capability as a semantic, composable content surface with title, body, and explicit busy state. Consumer Semantic Theme styling replaces Material appearances; no Angular API compatibility is claimed."
             }
         },
@@ -109,11 +207,33 @@
             "status": "covered",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-checkbox"],
-                "states": ["default", "hover", "focus-visible", "disabled", "loading", "invalid", "required", "checked", "indeterminate"],
-                "keyboard": ["Use native Tab focus and Space toggling."],
-                "accessibility": ["Render a labeled native checkbox and expose checked, mixed, required, invalid, disabled, and busy semantics."],
-                "evidence": ["packages/cem-components/src/components/cem-checkbox/cem-checkbox.stories.ts::NamesAndPresence", "packages/cem-components/src/components/cem-checkbox/cem-checkbox.stories.ts::NativeFormsWorkerAndFallback", "packages/cem-components/src/components/cem-checkbox/cem-checkbox.stories.ts::NativeKeyboardAndIndicators", "packages/cem-components/src/components/cem-checkbox/cem-checkbox.stories.ts::MixedStateAndNativeEvents", "packages/cem-components/src/components/cem-checkbox/cem-checkbox.stories.ts::ParentSliceBinding"],
+                "owners": [
+                    "cem-checkbox"
+                ],
+                "states": [
+                    "default",
+                    "hover",
+                    "focus-visible",
+                    "disabled",
+                    "loading",
+                    "invalid",
+                    "required",
+                    "checked",
+                    "indeterminate"
+                ],
+                "keyboard": [
+                    "Use native Tab focus and Space toggling."
+                ],
+                "accessibility": [
+                    "Render a labeled native checkbox and expose checked, mixed, required, invalid, disabled, and busy semantics."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-checkbox/cem-checkbox.stories.ts::NamesAndPresence",
+                    "packages/cem-components/src/components/cem-checkbox/cem-checkbox.stories.ts::NativeFormsWorkerAndFallback",
+                    "packages/cem-components/src/components/cem-checkbox/cem-checkbox.stories.ts::NativeKeyboardAndIndicators",
+                    "packages/cem-components/src/components/cem-checkbox/cem-checkbox.stories.ts::MixedStateAndNativeEvents",
+                    "packages/cem-components/src/components/cem-checkbox/cem-checkbox.stories.ts::ParentSliceBinding"
+                ],
                 "notes": "cem-checkbox owns the native checkbox interaction and semantic states. Theme and event APIs differ from Angular Material without reducing the checkbox capability."
             }
         },
@@ -123,11 +243,27 @@
             "status": "partial",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-chip"],
-                "states": ["default", "hover", "focus-visible", "active", "checked"],
-                "keyboard": ["Individual checkable chips use native Space/Enter activation; no roving arrow-key set behavior exists."],
-                "accessibility": ["Render passive chips as non-focusable text and checkable chips as labeled aria-pressed buttons."],
-                "evidence": ["packages/cem-components/src/lib/primitives.browser.spec.ts::renders content-family MVP primitives as accessible light DOM", "packages/cem-components/src/lib/states.browser.spec.ts::toggles checkable content chips without changing passive chip semantics", "packages/cem-components/src/lib/states.browser.spec.ts::styles only interactive content hover owners without changing selection or component state"],
+                "owners": [
+                    "cem-chip"
+                ],
+                "states": [
+                    "default",
+                    "hover",
+                    "focus-visible",
+                    "active",
+                    "checked"
+                ],
+                "keyboard": [
+                    "Individual checkable chips use native Space/Enter activation; no roving arrow-key set behavior exists."
+                ],
+                "accessibility": [
+                    "Render passive chips as non-focusable text and checkable chips as labeled aria-pressed buttons."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-list/cem-list.stories.ts::ContentFamily",
+                    "packages/cem-components/src/components/cem-chip/cem-chip.stories.ts::CheckableAndPassive",
+                    "packages/cem-components/src/components/cem-list/cem-list.stories.ts::HoverOwners"
+                ],
                 "notes": "cem-chip covers static and individual checkable chips. It lacks chip-set/listbox/grid ownership, single/multiple group selection, arrow navigation, input entry, editing, removal actions, orientation, and disabled interaction."
             }
         },
@@ -137,11 +273,28 @@
             "status": "partial",
             "mapping": {
                 "kind": "behavior",
-                "owners": ["behavior:consumer-semantic-theme-core"],
-                "states": ["default", "hover", "focus-visible", "active", "disabled", "selected", "forced-colors"],
-                "keyboard": ["Cross-cutting styles preserve native keyboard ownership and add visible keyboard focus without synthetic focus movement."],
-                "accessibility": ["Tokenized contrast, focus-visible, disabled, and forced-colors behavior is shared across public primitives."],
-                "evidence": ["packages/cem-components/src/styles.css", "packages/cem-components/src/components/cem-field/cem-field.stories.ts::InteractionPaint"],
+                "owners": [
+                    "behavior:consumer-semantic-theme-core"
+                ],
+                "states": [
+                    "default",
+                    "hover",
+                    "focus-visible",
+                    "active",
+                    "disabled",
+                    "selected",
+                    "forced-colors"
+                ],
+                "keyboard": [
+                    "Cross-cutting styles preserve native keyboard ownership and add visible keyboard focus without synthetic focus movement."
+                ],
+                "accessibility": [
+                    "Tokenized contrast, focus-visible, disabled, and forced-colors behavior is shared across public primitives."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/styles.css",
+                    "packages/cem-components/src/components/cem-field/cem-field.stories.ts::InteractionPaint"
+                ],
                 "notes": "Consumer Semantic Theme styles provide the shared component foundation. The row is partial because cem-components has no single public equivalent for Angular Material Core services such as overlay/elevation infrastructure and general-purpose host directives."
             }
         },
@@ -151,11 +304,38 @@
             "status": "partial",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-datepicker"],
-                "states": ["default", "hover", "focus-visible", "expanded", "selected", "current", "disabled", "required", "invalid"],
-                "keyboard": ["Keep the native text input as the closed focus owner; ArrowDown or Alt+ArrowDown opens the modal calendar, the roving grid uses arrows, Home/End, PageUp/PageDown, Shift/Alt+PageUp/PageDown, Enter/Space drafts selection, Escape cancels, and native Apply commits."],
-                "accessibility": ["Connect one labeled native text input and optional native toggle to a modal native dialog containing a labeled grid, localized column headers, one roving day owner, exact selected/current/disabled semantics, and input-owned validation."],
-                "evidence": ["packages/cem-components/src/lib/datepicker.browser.spec.ts::keeps one direct native text input and optional native toggle as the exact owners", "packages/cem-components/src/lib/datepicker.browser.spec.ts::keeps canonical value, locale calendar, validation, form, and reset ownership on the input", "packages/cem-components/src/lib/datepicker.browser.spec.ts::moves one roving grid focus owner through day, week, month, and year navigation before confirmation", "packages/cem-components/src/lib/datepicker.browser.spec.ts::keeps pointer drafts and cancel, Escape, and backdrop dismissal silent until Apply commits", "packages/cem-components/src/lib/datepicker.browser.spec.ts::suppresses every disabled route and rejects malformed owner vocabulary without substitution", "packages/cem-components/src/lib/datepicker.browser.spec.ts::keeps today, selected, focus, hover, and disabled paint independent and geometry-stable", "packages/cem-components/src/lib/datepicker.browser.spec.ts::supports a silent expanded property while live bounds update validity and calendar suppression", "packages/cem-components/scripts/verify-datepicker-forced-colors.mjs", "packages/cem-components/scripts/verify-package.mjs", "packages/cem-components/docs/datepicker-contract.md"],
+                "owners": [
+                    "cem-datepicker"
+                ],
+                "states": [
+                    "default",
+                    "hover",
+                    "focus-visible",
+                    "expanded",
+                    "selected",
+                    "current",
+                    "disabled",
+                    "required",
+                    "invalid"
+                ],
+                "keyboard": [
+                    "Keep the native text input as the closed focus owner; ArrowDown or Alt+ArrowDown opens the modal calendar, the roving grid uses arrows, Home/End, PageUp/PageDown, Shift/Alt+PageUp/PageDown, Enter/Space drafts selection, Escape cancels, and native Apply commits."
+                ],
+                "accessibility": [
+                    "Connect one labeled native text input and optional native toggle to a modal native dialog containing a labeled grid, localized column headers, one roving day owner, exact selected/current/disabled semantics, and input-owned validation."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-datepicker/cem-datepicker.stories.ts::NativeOwners",
+                    "packages/cem-components/src/components/cem-datepicker/cem-datepicker.stories.ts::ValueValidationAndReset",
+                    "packages/cem-components/src/components/cem-datepicker/cem-datepicker.stories.ts::RovingCalendarKeyboard",
+                    "packages/cem-components/src/components/cem-datepicker/cem-datepicker.stories.ts::DraftAndDismissal",
+                    "packages/cem-components/src/components/cem-datepicker/cem-datepicker.stories.ts::DisabledAndMalformedOwners",
+                    "packages/cem-components/src/components/cem-datepicker/cem-datepicker.stories.ts::IndependentPaintAndGeometry",
+                    "packages/cem-components/src/components/cem-datepicker/cem-datepicker.stories.ts::LiveBoundsAndExpanded",
+                    "tools/cem-components/verify-datepicker-forced-colors.mjs",
+                    "tools/cem-components/verify-package.mjs",
+                    "packages/cem-components/docs/datepicker-contract.md"
+                ],
                 "notes": "cem-datepicker covers one canonical Gregorian YYYY-MM-DD value, authored native text-input form ownership, locale-aware month/day presentation, bounded validation, a six-week modal calendar grid, explicit draft/Apply commit, native modal focus containment/restoration, tokenized current/selected/hover/focus/disabled coexistence, and top-layer forced-colors behavior. The catalog row remains partial because date ranges, date adapters and filters, alternate year/multi-year views, date-time integration, timezone/Date/Temporal values, and locale-specific text parsing are intentionally outside this bounded single-date contract."
             }
         },
@@ -195,11 +375,27 @@
             "status": "covered",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-divider"],
-                "states": ["default", "inset", "vertical"],
-                "keyboard": ["The divider is non-focusable and owns no keyboard interaction or activation."],
-                "accessibility": ["Expose a non-focusable separator with exact horizontal/vertical orientation when meaningful; decorative use removes the separator role and orientation and sets aria-hidden=true."],
-                "evidence": ["packages/cem-components/src/lib/divider.browser.spec.ts::exposes exact semantic orientation and an explicit decorative boundary", "packages/cem-components/src/lib/divider.browser.spec.ts::composes D0 color, D1 relationship and inset, D2 guard, and D5 line geometry", "packages/cem-components/src/lib/divider.browser.spec.ts::keeps trusted pointer and click input event-neutral and geometry-stable", "packages/cem-components/scripts/verify-divider-forced-colors.mjs", "packages/cem-components/docs/divider-contract.md"],
+                "owners": [
+                    "cem-divider"
+                ],
+                "states": [
+                    "default",
+                    "inset",
+                    "vertical"
+                ],
+                "keyboard": [
+                    "The divider is non-focusable and owns no keyboard interaction or activation."
+                ],
+                "accessibility": [
+                    "Expose a non-focusable separator with exact horizontal/vertical orientation when meaningful; decorative use removes the separator role and orientation and sets aria-hidden=true."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-divider/cem-divider.stories.ts::Semantics",
+                    "packages/cem-components/src/components/cem-divider/cem-divider.stories.ts::TokenGeometry",
+                    "packages/cem-components/src/components/cem-divider/cem-divider.stories.ts::PointerNeutral",
+                    "tools/cem-components/verify-divider-forced-colors.mjs",
+                    "packages/cem-components/docs/divider-contract.md"
+                ],
                 "notes": "cem-divider covers horizontal, vertical, inset, semantic, and decorative sibling separation as a complete tokenized line-plus-margins track. It intentionally has no content, focus, keyboard, state, or event lifecycle and does not substitute for document headings, list/table structure, boundaries around one component, or focus/selection indicators."
             }
         },
@@ -209,11 +405,30 @@
             "status": "covered",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-expansion"],
-                "states": ["default", "hover", "focus-visible", "expanded", "disabled"],
-                "keyboard": ["Tab to the header control; Space/Enter toggles its panel while disabled headers suppress activation."],
-                "accessibility": ["Associate a button-like header and controlled content with aria-expanded and aria-controls."],
-                "evidence": ["packages/cem-components/src/lib/expansion.browser.spec.ts::exposes one exact heading, button, and persistent controlled-panel relationship", "packages/cem-components/src/lib/expansion.browser.spec.ts::uses one native click path for pointer, Enter, and Space while preserving owner identity", "packages/cem-components/src/lib/expansion.browser.spec.ts::keeps disabled activation suppressed while allowing silent programmatic state control", "packages/cem-components/src/lib/expansion.browser.spec.ts::keeps hover, focus-visible, and active paint on the header with stable transient geometry", "packages/cem-components/scripts/verify-expansion-forced-colors.mjs", "packages/cem-components/docs/expansion-contract.md"],
+                "owners": [
+                    "cem-expansion"
+                ],
+                "states": [
+                    "default",
+                    "hover",
+                    "focus-visible",
+                    "expanded",
+                    "disabled"
+                ],
+                "keyboard": [
+                    "Tab to the header control; Space/Enter toggles its panel while disabled headers suppress activation."
+                ],
+                "accessibility": [
+                    "Associate a button-like header and controlled content with aria-expanded and aria-controls."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-expansion/cem-expansion.stories.ts::NativeOwners",
+                    "packages/cem-components/src/components/cem-expansion/cem-expansion.stories.ts::NativeActivation",
+                    "packages/cem-components/src/components/cem-expansion/cem-expansion.stories.ts::DisabledAndAuthorControl",
+                    "packages/cem-components/src/components/cem-expansion/cem-expansion.stories.ts::TransientPaint",
+                    "tools/cem-components/verify-expansion-forced-colors.mjs",
+                    "packages/cem-components/docs/expansion-contract.md"
+                ],
                 "notes": "cem-expansion owns one independent general-purpose disclosure panel with a native header button, live expanded host state, persistent controlled-panel references, disabled suppression, and tokenized normal/forced-color states. Multiple siblings remain independent; exclusive single-open accordion-group coordination is intentionally outside this parity slice, and navigation-specific cem-nav disclosure remains a separate owner."
             }
         },
@@ -223,11 +438,35 @@
             "status": "partial",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-field", "cem-text-field", "cem-textarea", "cem-select"],
-                "states": ["default", "hover", "focus-visible", "disabled", "loading", "expanded", "invalid", "required", "readonly"],
-                "keyboard": ["Delegate editing, selection, focus, and disclosure keys to the owned native or ARIA control."],
-                "accessibility": ["Provide programmatic labels and retain help, description, validation, and error relationships."],
-                "evidence": ["packages/cem-components/src/components/cem-field/cem-field.stories.ts::AllAttributes", "packages/cem-components/src/components/cem-field/cem-field.stories.ts::InteractionPaint", "packages/cem-components/src/components/cem-field/cem-field.stories.ts::RequiredMarker", "packages/cem-components/src/components/cem-select/cem-select.stories.ts::export const FormAndKeyboard"],
+                "owners": [
+                    "cem-field",
+                    "cem-text-field",
+                    "cem-textarea",
+                    "cem-select"
+                ],
+                "states": [
+                    "default",
+                    "hover",
+                    "focus-visible",
+                    "disabled",
+                    "loading",
+                    "expanded",
+                    "invalid",
+                    "required",
+                    "readonly"
+                ],
+                "keyboard": [
+                    "Delegate editing, selection, focus, and disclosure keys to the owned native or ARIA control."
+                ],
+                "accessibility": [
+                    "Provide programmatic labels and retain help, description, validation, and error relationships."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-field/cem-field.stories.ts::AllAttributes",
+                    "packages/cem-components/src/components/cem-field/cem-field.stories.ts::InteractionPaint",
+                    "packages/cem-components/src/components/cem-field/cem-field.stories.ts::RequiredMarker",
+                    "packages/cem-components/src/components/cem-select/cem-select.stories.ts::export const FormAndKeyboard"
+                ],
                 "notes": "CEM field owners cover labeled controls, help, error references, validation, and semantic indicators. Prefix/suffix ownership, projected hint/error regions, floating-label policy, and subscript sizing are not defined as a general form-field composition contract."
             }
         },
@@ -237,11 +476,21 @@
             "status": "partial",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-grid"],
-                "states": ["default"],
-                "keyboard": ["No grid-owned keyboard interaction; authored descendants retain their semantics."],
-                "accessibility": ["Provide layout without imposing list, grid, or tile roles on authored content."],
-                "evidence": ["packages/cem-components/src/lib/primitives.browser.spec.ts::renders layout, list, navigation, and surface primitives"],
+                "owners": [
+                    "cem-grid"
+                ],
+                "states": [
+                    "default"
+                ],
+                "keyboard": [
+                    "No grid-owned keyboard interaction; authored descendants retain their semantics."
+                ],
+                "accessibility": [
+                    "Provide layout without imposing list, grid, or tile roles on authored content."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-nav/cem-nav.stories.ts::LayoutComposition"
+                ],
                 "notes": "cem-grid covers responsive layout columns and gaps. It does not own grid-list tiles, row height, colspan/rowspan, header/footer regions, or grid-list semantics."
             }
         },
@@ -251,11 +500,25 @@
             "status": "partial",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-icon"],
-                "states": ["default", "decorative", "labeled"],
-                "keyboard": ["Icons are not independently keyboard interactive; an owning control supplies interaction."],
-                "accessibility": ["Hide decorative icons and expose labeled icons with role=img and an accessible name."],
-                "evidence": ["packages/cem-components/src/components/cem-icon/cem-icon.stories.ts::SourcesAndLiveAttributes", "packages/cem-components/src/components/cem-icon/cem-icon.stories.ts::ContentAndVisibility", "packages/cem-components/src/components/cem-icon/cem-icon.stories.ts::ThemeSizes"],
+                "owners": [
+                    "cem-icon"
+                ],
+                "states": [
+                    "default",
+                    "decorative",
+                    "labeled"
+                ],
+                "keyboard": [
+                    "Icons are not independently keyboard interactive; an owning control supplies interaction."
+                ],
+                "accessibility": [
+                    "Hide decorative icons and expose labeled icons with role=img and an accessible name."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-icon/cem-icon.stories.ts::SourcesAndLiveAttributes",
+                    "packages/cem-components/src/components/cem-icon/cem-icon.stories.ts::ContentAndVisibility",
+                    "packages/cem-components/src/components/cem-icon/cem-icon.stories.ts::ThemeSizes"
+                ],
                 "notes": "Canonical cem-icon supports Unicode/emoji, image URLs, Font Awesome classes, Material Icons ligatures, a name alias, three theme-owned sizes, and row/column content. Decorative/labeled semantics are covered. An SVG registry, namespaces, and inline SVG sanitization remain outside this contract."
             }
         },
@@ -265,11 +528,34 @@
             "status": "covered",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-field", "cem-text-field", "cem-textarea"],
-                "states": ["default", "hover", "focus-visible", "disabled", "loading", "invalid", "required", "readonly"],
-                "keyboard": ["Preserve native text editing, selection, Tab focus, and type-specific input behavior."],
-                "accessibility": ["Render labeled native input and textarea controls with help, description, error, validation, required, readonly, disabled, and busy semantics."],
-                "evidence": ["packages/cem-components/src/components/cem-field/cem-field.stories.ts::AllAttributes", "packages/cem-components/src/components/cem-text-field/cem-text-field.stories.ts::InteractionPaint", "packages/cem-components/src/components/cem-textarea/cem-textarea.stories.ts::NativeConstraintsAndFormOwnership", "packages/cem-components/src/components/cem-textarea/cem-textarea.stories.ts::EnterEditsWithoutSubmitting", "packages/cem-components/src/components/cem-textarea/cem-textarea.stories.ts::InteractionPaint"],
+                "owners": [
+                    "cem-field",
+                    "cem-text-field",
+                    "cem-textarea"
+                ],
+                "states": [
+                    "default",
+                    "hover",
+                    "focus-visible",
+                    "disabled",
+                    "loading",
+                    "invalid",
+                    "required",
+                    "readonly"
+                ],
+                "keyboard": [
+                    "Preserve native text editing, selection, Tab focus, and type-specific input behavior."
+                ],
+                "accessibility": [
+                    "Render labeled native input and textarea controls with help, description, error, validation, required, readonly, disabled, and busy semantics."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-field/cem-field.stories.ts::AllAttributes",
+                    "packages/cem-components/src/components/cem-text-field/cem-text-field.stories.ts::InteractionPaint",
+                    "packages/cem-components/src/components/cem-textarea/cem-textarea.stories.ts::NativeConstraintsAndFormOwnership",
+                    "packages/cem-components/src/components/cem-textarea/cem-textarea.stories.ts::EnterEditsWithoutSubmitting",
+                    "packages/cem-components/src/components/cem-textarea/cem-textarea.stories.ts::InteractionPaint"
+                ],
                 "notes": "The behavioral text-input and textarea capability is covered through native controls. Form-field composition breadth is tracked separately and remains partial."
             }
         },
@@ -279,11 +565,28 @@
             "status": "partial",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-list"],
-                "states": ["default", "hover", "focus-visible", "selected", "disabled", "empty"],
-                "keyboard": ["Passive lists have no container interaction; selectable mode delegates focus, arrow navigation, and selection to a native select listbox."],
-                "accessibility": ["Render a labeled native list for passive content or a labeled single-select native listbox with disabled options."],
-                "evidence": ["packages/cem-components/src/lib/primitives.browser.spec.ts::renders content-family MVP primitives as accessible light DOM", "packages/cem-components/src/lib/states.browser.spec.ts::selects declarative list options without changing passive list semantics", "packages/cem-components/src/lib/states.browser.spec.ts::preserves empty states, indeterminate progress, and live-region roles"],
+                "owners": [
+                    "cem-list"
+                ],
+                "states": [
+                    "default",
+                    "hover",
+                    "focus-visible",
+                    "selected",
+                    "disabled",
+                    "empty"
+                ],
+                "keyboard": [
+                    "Passive lists have no container interaction; selectable mode delegates focus, arrow navigation, and selection to a native select listbox."
+                ],
+                "accessibility": [
+                    "Render a labeled native list for passive content or a labeled single-select native listbox with disabled options."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-list/cem-list.stories.ts::ContentFamily",
+                    "packages/cem-components/src/components/cem-list/cem-list.stories.ts::SelectionAndPassive",
+                    "packages/cem-components/src/components/cem-list/cem-list.stories.ts::PassiveEmptyStates"
+                ],
                 "notes": "Passive and native single-select list modes are covered. Material action lists, navigation lists, multi-selection lists, subheaders, multi-line metadata, and dedicated list-item action ownership remain absent or live in separate CEM components."
             }
         },
@@ -293,11 +596,29 @@
             "status": "partial",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-menu-item"],
-                "states": ["default", "hover", "focus-visible", "active", "disabled", "selected", "expanded"],
-                "keyboard": ["Individual menu items use native button activation; no menu-level ArrowUp/ArrowDown, Home/End, Escape, or typeahead controller exists."],
-                "accessibility": ["Expose labeled native buttons with role=menuitem, disabled state, and disclosure state."],
-                "evidence": ["packages/cem-components/src/components/cem-icon-button/cem-icon-button.stories.ts::AllAttributes", "packages/cem-components/src/components/cem-menu-item/cem-menu-item.stories.ts::AllAttributes", "packages/cem-components/src/components/cem-menu-item/cem-menu-item.stories.ts::Active"],
+                "owners": [
+                    "cem-menu-item"
+                ],
+                "states": [
+                    "default",
+                    "hover",
+                    "focus-visible",
+                    "active",
+                    "disabled",
+                    "selected",
+                    "expanded"
+                ],
+                "keyboard": [
+                    "Individual menu items use native button activation; no menu-level ArrowUp/ArrowDown, Home/End, Escape, or typeahead controller exists."
+                ],
+                "accessibility": [
+                    "Expose labeled native buttons with role=menuitem, disabled state, and disclosure state."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-icon-button/cem-icon-button.stories.ts::AllAttributes",
+                    "packages/cem-components/src/components/cem-menu-item/cem-menu-item.stories.ts::AllAttributes",
+                    "packages/cem-components/src/components/cem-menu-item/cem-menu-item.stories.ts::Active"
+                ],
                 "notes": "cem-menu-item covers command-row semantics only. There is no public menu container, trigger/popup relationship, focus controller, dismissal lifecycle, positioning, nested menu, or menu selection group."
             }
         },
@@ -307,11 +628,36 @@
             "status": "covered",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-paginator"],
-                "states": ["default", "hover", "focus-visible", "active", "disabled", "page", "page-size", "forced-colors"],
-                "keyboard": ["Use native Tab focus for the page-size select and available actions, native select keyboard behavior, and native Enter/Space button activation; a focused action that becomes a page boundary retains focus while leaving subsequent sequential navigation."],
-                "accessibility": ["Expose a labeled pagination navigation landmark, labeled native page-size select and actions, focus-stable aria-disabled page boundaries, and one atomic polite current-range status."],
-                "evidence": ["packages/cem-components/src/lib/paginator.browser.spec.ts::renders exact landmark, page-size, range, action, normalization, and optional-control semantics", "packages/cem-components/src/lib/paginator.browser.spec.ts::navigates once through pointer, Enter, and Space with focus-stable suppressed boundaries", "packages/cem-components/src/lib/paginator.browser.spec.ts::preserves the first visible item on native page-size change with one ordered component event", "packages/cem-components/src/lib/paginator.browser.spec.ts::keeps global disabled and live programmatic control silent while retaining surviving owners", "packages/cem-components/src/lib/paginator.browser.spec.ts::keeps hover, focus-visible, and active paint on native controls with stable transient geometry", "packages/cem-components/src/lib/paginator.browser.spec.ts::updates only requested range until the application consumes cem-page for data rendering", "packages/cem-components/scripts/verify-paginator-forced-colors.mjs", "packages/cem-components/scripts/verify-package.mjs", "packages/cem-components/docs/paginator-contract.md"],
+                "owners": [
+                    "cem-paginator"
+                ],
+                "states": [
+                    "default",
+                    "hover",
+                    "focus-visible",
+                    "active",
+                    "disabled",
+                    "page",
+                    "page-size",
+                    "forced-colors"
+                ],
+                "keyboard": [
+                    "Use native Tab focus for the page-size select and available actions, native select keyboard behavior, and native Enter/Space button activation; a focused action that becomes a page boundary retains focus while leaving subsequent sequential navigation."
+                ],
+                "accessibility": [
+                    "Expose a labeled pagination navigation landmark, labeled native page-size select and actions, focus-stable aria-disabled page boundaries, and one atomic polite current-range status."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-paginator/cem-paginator.stories.ts::NativeOwners",
+                    "packages/cem-components/src/components/cem-paginator/cem-paginator.stories.ts::NativeActivation",
+                    "packages/cem-components/src/components/cem-paginator/cem-paginator.stories.ts::PageSizeChange",
+                    "packages/cem-components/src/components/cem-paginator/cem-paginator.stories.ts::AuthorControl",
+                    "packages/cem-components/src/components/cem-paginator/cem-paginator.stories.ts::TransientPaint",
+                    "packages/cem-components/src/components/cem-paginator/cem-paginator.stories.ts::ApplicationDataOwnership",
+                    "tools/cem-components/verify-paginator-forced-colors.mjs",
+                    "tools/cem-components/verify-package.mjs",
+                    "packages/cem-components/docs/paginator-contract.md"
+                ],
                 "notes": "cem-paginator owns labeled paged-content navigation with a zero-based normalized page model, localizable labels, optional first/last and page-size controls, first-visible-item preservation on page-size changes, one serializable cem-page request event, focus-stable boundary suppression, and tokenized normal/forced-color states. Applications retain data loading, row/item rendering, and result-announcement ownership; Angular dependency-injection defaults and TypeScript paginator APIs are intentionally not reproduced."
             }
         },
@@ -321,11 +667,24 @@
             "status": "partial",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-progress"],
-                "states": ["default", "determinate", "indeterminate"],
-                "keyboard": ["No keyboard interaction is required for the read-only progress indicator."],
-                "accessibility": ["Render a labeled native progress element; expose value and max when determinate and omit value when indeterminate."],
-                "evidence": ["packages/cem-components/src/lib/primitives.browser.spec.ts::renders feedback-family MVP primitives with status and region semantics", "packages/cem-components/src/lib/states.browser.spec.ts::preserves empty states, indeterminate progress, and live-region roles"],
+                "owners": [
+                    "cem-progress"
+                ],
+                "states": [
+                    "default",
+                    "determinate",
+                    "indeterminate"
+                ],
+                "keyboard": [
+                    "No keyboard interaction is required for the read-only progress indicator."
+                ],
+                "accessibility": [
+                    "Render a labeled native progress element; expose value and max when determinate and omit value when indeterminate."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-toast/cem-toast.stories.ts::Semantics",
+                    "packages/cem-components/src/components/cem-list/cem-list.stories.ts::PassiveEmptyStates"
+                ],
                 "notes": "cem-progress behaviorally covers a linear determinate or indeterminate progress bar through the native progress element. It has no secondary buffer value or buffer-mode rendering contract; query-specific animation is also not owned."
             }
         },
@@ -335,11 +694,31 @@
             "status": "covered",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-progress-spinner"],
-                "states": ["default", "determinate", "indeterminate", "reduced-motion", "forced-colors"],
-                "keyboard": ["The read-only spinner has no tab stop or keyboard interaction; focus skips it and remains on surrounding authored controls."],
-                "accessibility": ["Expose one labeled progressbar; determinate mode publishes normalized min/max/now values, indeterminate mode omits aria-valuenow, and the circular SVG is hidden from assistive technology."],
-                "evidence": ["packages/cem-components/src/lib/progress-spinner.browser.spec.ts::renders exact circular determinate and indeterminate progress semantics", "packages/cem-components/src/lib/progress-spinner.browser.spec.ts::normalizes invalid and out-of-range values without rewriting author attributes", "packages/cem-components/src/lib/progress-spinner.browser.spec.ts::reuses the SVG owner across live value, range, and mode changes with stable geometry", "packages/cem-components/src/lib/progress-spinner.browser.spec.ts::binds D0/D2c/D7 tokens while pointer and keyboard input stay event- and state-neutral", "packages/cem-components/scripts/verify-progress-spinner-forced-colors.mjs", "packages/cem-components/scripts/verify-package.mjs", "packages/cem-components/docs/progress-spinner-contract.md"],
+                "owners": [
+                    "cem-progress-spinner"
+                ],
+                "states": [
+                    "default",
+                    "determinate",
+                    "indeterminate",
+                    "reduced-motion",
+                    "forced-colors"
+                ],
+                "keyboard": [
+                    "The read-only spinner has no tab stop or keyboard interaction; focus skips it and remains on surrounding authored controls."
+                ],
+                "accessibility": [
+                    "Expose one labeled progressbar; determinate mode publishes normalized min/max/now values, indeterminate mode omits aria-valuenow, and the circular SVG is hidden from assistive technology."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-progress-spinner/cem-progress-spinner.stories.ts::Semantics",
+                    "packages/cem-components/src/components/cem-progress-spinner/cem-progress-spinner.stories.ts::Normalization",
+                    "packages/cem-components/src/components/cem-progress-spinner/cem-progress-spinner.stories.ts::RetainedGeometry",
+                    "packages/cem-components/src/components/cem-progress-spinner/cem-progress-spinner.stories.ts::NativeInputNeutrality",
+                    "tools/cem-components/verify-progress-spinner-forced-colors.mjs",
+                    "tools/cem-components/verify-package.mjs",
+                    "packages/cem-components/docs/progress-spinner-contract.md"
+                ],
                 "notes": "cem-progress-spinner owns circular determinate/indeterminate progress without changing the linear cem-progress owner. Value presence selects mode, numeric semantics are normalized without rewriting author input, the SVG owner remains stable, automatic indeterminate motion stops under reduced motion, and generated D0/D2c/D7 tokens cover normal and forced colors. It intentionally does not reproduce Angular directives, dependency-injection defaults, or public per-instance diameter, stroke-width, palette, and animation APIs."
             }
         },
@@ -349,11 +728,31 @@
             "status": "partial",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-radio"],
-                "states": ["default", "hover", "focus-visible", "disabled", "loading", "invalid", "required", "checked"],
-                "keyboard": ["Individual radios use native focus and activation; same-name native radio grouping is available but group arrow-key behavior is not asserted by the product harness."],
-                "accessibility": ["Render a labeled native radio with checked, disabled, required, invalid, and busy semantics."],
-                "evidence": ["packages/cem-components/src/components/cem-radio/cem-radio.stories.ts::NamesAndPresence", "packages/cem-components/src/components/cem-radio/cem-radio.stories.ts::NativeFormsWorkerAndFallback", "packages/cem-components/src/components/cem-radio/cem-radio.stories.ts::NativeKeyboardAndIndicators", "packages/cem-components/src/components/cem-radio/cem-radio.stories.ts::NativeRadioPeers"],
+                "owners": [
+                    "cem-radio"
+                ],
+                "states": [
+                    "default",
+                    "hover",
+                    "focus-visible",
+                    "disabled",
+                    "loading",
+                    "invalid",
+                    "required",
+                    "checked"
+                ],
+                "keyboard": [
+                    "Individual radios use native focus and activation; same-name native radio grouping is available but group arrow-key behavior is not asserted by the product harness."
+                ],
+                "accessibility": [
+                    "Render a labeled native radio with checked, disabled, required, invalid, and busy semantics."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-radio/cem-radio.stories.ts::NamesAndPresence",
+                    "packages/cem-components/src/components/cem-radio/cem-radio.stories.ts::NativeFormsWorkerAndFallback",
+                    "packages/cem-components/src/components/cem-radio/cem-radio.stories.ts::NativeKeyboardAndIndicators",
+                    "packages/cem-components/src/components/cem-radio/cem-radio.stories.ts::NativeRadioPeers"
+                ],
                 "notes": "The individual native radio is covered. The row remains partial until a public labeled radio-group boundary and executable group selection and arrow-key contract exist."
             }
         },
@@ -363,11 +762,26 @@
             "status": "partial",
             "mapping": {
                 "kind": "behavior",
-                "owners": ["behavior:active-interaction-feedback"],
-                "states": ["hover", "focus-visible", "active", "disabled", "forced-colors"],
-                "keyboard": ["Paint held active feedback for trusted pointer activation and native Space/Enter activation without synthesizing events or mutating component state."],
-                "accessibility": ["Keep visible focus independent from active paint, preserve readable contrast, suppress disabled activation, and use system colors in forced-colors mode."],
-                "evidence": ["packages/cem-components/src/components/cem-menu-item/cem-menu-item.stories.ts::Active", "packages/cem-components/src/lib/states.browser.spec.ts::applies navigation active treatment during trusted pointer and native keyboard activation"],
+                "owners": [
+                    "behavior:active-interaction-feedback"
+                ],
+                "states": [
+                    "hover",
+                    "focus-visible",
+                    "active",
+                    "disabled",
+                    "forced-colors"
+                ],
+                "keyboard": [
+                    "Paint held active feedback for trusted pointer activation and native Space/Enter activation without synthesizing events or mutating component state."
+                ],
+                "accessibility": [
+                    "Keep visible focus independent from active paint, preserve readable contrast, suppress disabled activation, and use system colors in forced-colors mode."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-menu-item/cem-menu-item.stories.ts::Active",
+                    "packages/cem-components/src/components/cem-nav/cem-nav.stories.ts::NativeActive"
+                ],
                 "notes": "CEM provides tokenized bounded active feedback rather than a radial pointer-origin ripple. The behavior is partial because it is scoped to accepted interactive owners and has no arbitrary-host ripple directive, radius/origin animation, or programmatic launch API."
             }
         },
@@ -377,11 +791,35 @@
             "status": "covered",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-select", "cem-option", "cem-option-group"],
-                "states": ["default", "hover", "focus-visible", "disabled", "loading", "expanded", "invalid", "required", "selected", "multiple"],
-                "keyboard": ["Support ArrowUp/ArrowDown, Home/End, Enter, Space, Escape, and Tab commit behavior across dropdown, listbox, and multiple-listbox modes."],
-                "accessibility": ["Expose labeled combobox/listbox, option and group semantics, aria-expanded, aria-controls, aria-activedescendant, disabled/selected options, and form-associated values."],
-                "evidence": ["packages/cem-components/src/components/cem-select/cem-select.stories.ts::export const Default", "packages/cem-components/src/components/cem-select/cem-select.stories.ts::export const FormAndKeyboard", "packages/cem-components/src/components/cem-select/cem-select.stories.ts::export const MultipleListbox", "packages/cem-components/docs/select-contract.md"],
+                "owners": [
+                    "cem-select",
+                    "cem-option",
+                    "cem-option-group"
+                ],
+                "states": [
+                    "default",
+                    "hover",
+                    "focus-visible",
+                    "disabled",
+                    "loading",
+                    "expanded",
+                    "invalid",
+                    "required",
+                    "selected",
+                    "multiple"
+                ],
+                "keyboard": [
+                    "Support ArrowUp/ArrowDown, Home/End, Enter, Space, Escape, and Tab commit behavior across dropdown, listbox, and multiple-listbox modes."
+                ],
+                "accessibility": [
+                    "Expose labeled combobox/listbox, option and group semantics, aria-expanded, aria-controls, aria-activedescendant, disabled/selected options, and form-associated values."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-select/cem-select.stories.ts::export const Default",
+                    "packages/cem-components/src/components/cem-select/cem-select.stories.ts::export const FormAndKeyboard",
+                    "packages/cem-components/src/components/cem-select/cem-select.stories.ts::export const MultipleListbox",
+                    "packages/cem-components/docs/select-contract.md"
+                ],
                 "notes": "CEM owns rich single and multiple selection, option grouping, disabled options, keyboard behavior, validation, form submission/reset, and legacy native-option migration. The declarative CEM API intentionally differs from Angular Material."
             }
         },
@@ -391,11 +829,30 @@
             "status": "partial",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-nav", "cem-sheet"],
-                "states": ["default", "hover", "focus-visible", "active", "disabled", "selected", "expanded"],
-                "keyboard": ["Navigation links/buttons retain native keyboard behavior and an optional disclosure button toggles navigation content; the sheet remains focus-neutral."],
-                "accessibility": ["Expose a labeled navigation landmark and a separately labeled edge-region surface."],
-                "evidence": ["packages/cem-components/src/lib/primitives.browser.spec.ts::renders navigation-family MVP primitives as accessible landmarks and tablists", "packages/cem-components/src/lib/states.browser.spec.ts::toggles collapsible navigation without changing passive landmark semantics", "packages/cem-components/src/components/cem-sheet/cem-sheet.stories.ts::TransientFocusAndKeyboard"],
+                "owners": [
+                    "cem-nav",
+                    "cem-sheet"
+                ],
+                "states": [
+                    "default",
+                    "hover",
+                    "focus-visible",
+                    "active",
+                    "disabled",
+                    "selected",
+                    "expanded"
+                ],
+                "keyboard": [
+                    "Navigation links/buttons retain native keyboard behavior and an optional disclosure button toggles navigation content; the sheet remains focus-neutral."
+                ],
+                "accessibility": [
+                    "Expose a labeled navigation landmark and a separately labeled edge-region surface."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-nav/cem-nav.stories.ts::LandmarksAndTabs",
+                    "packages/cem-components/src/components/cem-nav/cem-nav.stories.ts::DisclosureAndPassive",
+                    "packages/cem-components/src/components/cem-sheet/cem-sheet.stories.ts::TransientFocusAndKeyboard"
+                ],
                 "notes": "cem-nav plus cem-sheet can compose an edge navigation surface. There is no integrated sidenav container, start/end drawer ownership, over/push/side modes, backdrop dismissal, responsive transition contract, or modal focus policy."
             }
         },
@@ -405,11 +862,30 @@
             "status": "covered",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-switch"],
-                "states": ["default", "hover", "focus-visible", "disabled", "loading", "invalid", "required", "checked"],
-                "keyboard": ["Use native Tab focus and Space toggling."],
-                "accessibility": ["Render a labeled native checkbox with role=switch and expose checked, disabled, required, invalid, and busy semantics."],
-                "evidence": ["packages/cem-components/src/components/cem-switch/cem-switch.stories.ts::NamesAndPresence", "packages/cem-components/src/components/cem-switch/cem-switch.stories.ts::NativeFormsWorkerAndFallback", "packages/cem-components/src/components/cem-switch/cem-switch.stories.ts::NativeKeyboardAndIndicators"],
+                "owners": [
+                    "cem-switch"
+                ],
+                "states": [
+                    "default",
+                    "hover",
+                    "focus-visible",
+                    "disabled",
+                    "loading",
+                    "invalid",
+                    "required",
+                    "checked"
+                ],
+                "keyboard": [
+                    "Use native Tab focus and Space toggling."
+                ],
+                "accessibility": [
+                    "Render a labeled native checkbox with role=switch and expose checked, disabled, required, invalid, and busy semantics."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-switch/cem-switch.stories.ts::NamesAndPresence",
+                    "packages/cem-components/src/components/cem-switch/cem-switch.stories.ts::NativeFormsWorkerAndFallback",
+                    "packages/cem-components/src/components/cem-switch/cem-switch.stories.ts::NativeKeyboardAndIndicators"
+                ],
                 "notes": "cem-switch covers the boolean switch capability with native form and keyboard behavior. Consumer Semantic Theme styling replaces the Material slide-toggle appearance."
             }
         },
@@ -419,19 +895,35 @@
             "status": "covered",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-slider"],
-                "states": ["default", "hover", "focus-visible", "active", "disabled", "min", "max", "step", "range"],
-                "keyboard": ["Retain native horizontal range-input Arrow, PageUp/PageDown, Home, and End behavior for single/start/end thumbs while clamping range thumbs so start never exceeds end."],
-                "accessibility": ["Keep each authored native range input as the focus, slider-value, bounds, step, accessible-name, event, and form owner; require distinct names for start/end thumbs and hide generated track, ticks, and labels."],
+                "owners": [
+                    "cem-slider"
+                ],
+                "states": [
+                    "default",
+                    "hover",
+                    "focus-visible",
+                    "active",
+                    "disabled",
+                    "min",
+                    "max",
+                    "step",
+                    "range"
+                ],
+                "keyboard": [
+                    "Retain native horizontal range-input Arrow, PageUp/PageDown, Home, and End behavior for single/start/end thumbs while clamping range thumbs so start never exceeds end."
+                ],
+                "accessibility": [
+                    "Keep each authored native range input as the focus, slider-value, bounds, step, accessible-name, event, and form owner; require distinct names for start/end thumbs and hide generated track, ticks, and labels."
+                ],
                 "evidence": [
-                    "packages/cem-components/src/lib/slider.browser.spec.ts::keeps exact native single and range inputs as the accessible form owners",
-                    "packages/cem-components/src/lib/slider.browser.spec.ts::uses native keyboard events and clamps each range thumb without redispatch",
-                    "packages/cem-components/src/lib/slider.browser.spec.ts::serializes independent native values and preserves input identity through live parent control",
-                    "packages/cem-components/src/lib/slider.browser.spec.ts::keeps pointer enter/leave, hover, active, and focus-visible on the native thumb with stable state",
-                    "packages/cem-components/src/lib/slider.browser.spec.ts::projects global disabled suppression and skips the disabled native owner",
-                    "packages/cem-components/src/lib/slider.browser.spec.ts::mirrors normalized positions, ticks, and discrete labels without accessible duplication",
-                    "packages/cem-components/scripts/verify-slider-forced-colors.mjs",
-                    "packages/cem-components/scripts/verify-package.mjs",
+                    "packages/cem-components/src/components/cem-slider/cem-slider.stories.ts::NativeOwners",
+                    "packages/cem-components/src/components/cem-slider/cem-slider.stories.ts::NativeKeyboardAndRange",
+                    "packages/cem-components/src/components/cem-slider/cem-slider.stories.ts::FormsAndIdentity",
+                    "packages/cem-components/src/components/cem-slider/cem-slider.stories.ts::PointerStateAndGeometry",
+                    "packages/cem-components/src/components/cem-slider/cem-slider.stories.ts::DisabledOwners",
+                    "packages/cem-components/src/components/cem-slider/cem-slider.stories.ts::VisualValues",
+                    "tools/cem-components/verify-slider-forced-colors.mjs",
+                    "tools/cem-components/verify-package.mjs",
                     "packages/cem-components/docs/slider-contract.md"
                 ],
                 "notes": "cem-slider owns one horizontal single-value or range visual while exact authored native range inputs retain pointer, keyboard, focus, value, event, accessible-name, and independent form serialization ownership. Parent min/max/step/disabled state is normalized and projected, range thumbs cannot cross, and optional discrete labels/ticks are hidden visuals. Canonical D0 slider colors and D2c track/thumb geometry cover normal/forced-color styling without a component CSS exception. Angular directives, dependency-injection defaults, vertical sliders, tuple form values, and JavaScript displayWith callbacks are intentionally not reproduced."
@@ -443,11 +935,22 @@
             "status": "partial",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-toast"],
-                "states": ["default"],
-                "keyboard": ["The status container has no keyboard owner; authored action descendants retain native behavior."],
-                "accessibility": ["Announce visible message content through role=status and aria-live=polite."],
-                "evidence": ["packages/cem-components/src/lib/primitives.browser.spec.ts::renders feedback-family MVP primitives with status and region semantics", "packages/cem-components/src/lib/states.browser.spec.ts::preserves empty states, indeterminate progress, and live-region roles"],
+                "owners": [
+                    "cem-toast"
+                ],
+                "states": [
+                    "default"
+                ],
+                "keyboard": [
+                    "The status container has no keyboard owner; authored action descendants retain native behavior."
+                ],
+                "accessibility": [
+                    "Announce visible message content through role=status and aria-live=polite."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-toast/cem-toast.stories.ts::Semantics",
+                    "packages/cem-components/src/components/cem-list/cem-list.stories.ts::PassiveEmptyStates"
+                ],
                 "notes": "cem-toast covers polite transient-status semantics. It lacks an open/dismiss lifecycle, duration and queue policy, single action/dismiss ownership, announcement politeness configuration, overlay positioning, and focus-restoration behavior."
             }
         },
@@ -457,11 +960,34 @@
             "status": "covered",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-sort-header"],
-                "states": ["default", "hover", "focus-visible", "active", "disabled", "ascending", "descending", "none"],
-                "keyboard": ["Use native Tab focus and Space/Enter button activation to cycle none, ascending, descending, and none exactly once per activation."],
-                "accessibility": ["Expose a native action inside a columnheader, conditionally apply aria-sort only for ascending/descending state, provide a Sort by action name, and emit cem-sort so the application can reorder rows and announce the localized result."],
-                "evidence": ["packages/cem-components/src/lib/sort-header.browser.spec.ts::renders exact column-header, native action, direction, and accessible-name ownership", "packages/cem-components/src/lib/sort-header.browser.spec.ts::cycles pointer, Enter, and Space once while coordinating only the nearest table", "packages/cem-components/src/lib/sort-header.browser.spec.ts::keeps pointer, hover, focus-visible, and active paint on the native button with stable geometry and state", "packages/cem-components/src/lib/sort-header.browser.spec.ts::leaves row reordering and polite result announcement to the application event consumer", "packages/cem-components/scripts/verify-sort-header-forced-colors.mjs", "packages/cem-components/scripts/verify-package.mjs", "packages/cem-components/docs/sort-header-contract.md"],
+                "owners": [
+                    "cem-sort-header"
+                ],
+                "states": [
+                    "default",
+                    "hover",
+                    "focus-visible",
+                    "active",
+                    "disabled",
+                    "ascending",
+                    "descending",
+                    "none"
+                ],
+                "keyboard": [
+                    "Use native Tab focus and Space/Enter button activation to cycle none, ascending, descending, and none exactly once per activation."
+                ],
+                "accessibility": [
+                    "Expose a native action inside a columnheader, conditionally apply aria-sort only for ascending/descending state, provide a Sort by action name, and emit cem-sort so the application can reorder rows and announce the localized result."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-sort-header/cem-sort-header.stories.ts::NativeOwners",
+                    "packages/cem-components/src/components/cem-sort-header/cem-sort-header.stories.ts::NativeCycle",
+                    "packages/cem-components/src/components/cem-sort-header/cem-sort-header.stories.ts::AuthorControl",
+                    "packages/cem-components/src/components/cem-sort-header/cem-sort-header.stories.ts::TransientPaint",
+                    "tools/cem-components/verify-sort-header-forced-colors.mjs",
+                    "tools/cem-components/verify-package.mjs",
+                    "packages/cem-components/docs/sort-header-contract.md"
+                ],
                 "notes": "cem-sort-header owns sortable-column semantics and native activation while cem-table remains passive. User activation cycles a fixed direction sequence, clears active peers only in the nearest table, and emits serializable cem-sort detail; applications retain row-order and localized live-announcement ownership. Existing contextual action, D1/D2/D2c/D3/D5/D6 tokens cover normal and forced-color paint without a CSS exception. It intentionally does not reproduce Angular directives, dependency-injection defaults, configurable start/clear policies, or table data-source APIs."
             }
         },
@@ -471,11 +997,37 @@
             "status": "covered",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-stepper", "cem-step"],
-                "states": ["default", "focus-visible", "selected", "completed", "editable", "optional", "invalid", "disabled"],
-                "keyboard": ["Use roving Left/Right in horizontal orientation or Up/Down in vertical orientation, wrapping and skipping native-disabled steps; Home/End reach the first/last enabled header, while native Enter/Space activation obeys linear and editable eligibility."],
-                "accessibility": ["Expose a labeled ordered workflow, exact native step-header buttons with aria-current=step, stable reciprocal header/panel references, visible completion/optional/error copy, native disabled suppression, and focusable aria-disabled eligibility without substituting generic tab roles."],
-                "evidence": ["packages/cem-components/src/lib/stepper.browser.spec.ts::renders one labeled ordered workflow with exact native headers and persistent linked regions", "packages/cem-components/src/lib/stepper.browser.spec.ts::commits one pointer/native-button path while current and disabled activation stay silent", "packages/cem-components/src/lib/stepper.browser.spec.ts::moves roving focus by orientation, wraps, skips native-disabled steps, and activates with Enter", "packages/cem-components/src/lib/stepper.browser.spec.ts::enforces authored linear, optional, invalid, and editable facts without inspecting panel controls", "packages/cem-components/src/lib/stepper.browser.spec.ts::keeps programmatic control silent, clamps selection, and rejects malformed or globally disabled owners", "packages/cem-components/src/lib/stepper.browser.spec.ts::keeps hover and focus-visible on the exact header with stable geometry and zero transient mutation", "packages/cem-components/scripts/verify-stepper-forced-colors.mjs", "packages/cem-components/scripts/verify-package.mjs", "packages/cem-components/docs/stepper-contract.md"],
+                "owners": [
+                    "cem-stepper",
+                    "cem-step"
+                ],
+                "states": [
+                    "default",
+                    "focus-visible",
+                    "selected",
+                    "completed",
+                    "editable",
+                    "optional",
+                    "invalid",
+                    "disabled"
+                ],
+                "keyboard": [
+                    "Use roving Left/Right in horizontal orientation or Up/Down in vertical orientation, wrapping and skipping native-disabled steps; Home/End reach the first/last enabled header, while native Enter/Space activation obeys linear and editable eligibility."
+                ],
+                "accessibility": [
+                    "Expose a labeled ordered workflow, exact native step-header buttons with aria-current=step, stable reciprocal header/panel references, visible completion/optional/error copy, native disabled suppression, and focusable aria-disabled eligibility without substituting generic tab roles."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-stepper/cem-stepper.stories.ts::NativeOwners",
+                    "packages/cem-components/src/components/cem-stepper/cem-stepper.stories.ts::NativeActivation",
+                    "packages/cem-components/src/components/cem-stepper/cem-stepper.stories.ts::RovingFocus",
+                    "packages/cem-components/src/components/cem-stepper/cem-stepper.stories.ts::ApplicationWorkflowFacts",
+                    "packages/cem-components/src/components/cem-stepper/cem-stepper.stories.ts::ProgrammaticAndDisabled",
+                    "packages/cem-components/src/components/cem-stepper/cem-stepper.stories.ts::StatePaintAndGeometry",
+                    "tools/cem-components/verify-stepper-forced-colors.mjs",
+                    "tools/cem-components/verify-package.mjs",
+                    "packages/cem-components/docs/stepper-contract.md"
+                ],
                 "notes": "cem-stepper now owns the workflow capability separately from cem-tabs: strict inert cem-step payloads, application-authored completion/invalid facts, linear/nonlinear eligibility, optional steps, editable return, horizontal/vertical roving focus, stable linked panels, silent programmatic selection, one serializable activation event, and tokenized normal/forced-colors states. Angular form directives, dependency injection, custom icon templates, and animation APIs are framework APIs rather than missing behavioral ownership."
             }
         },
@@ -485,11 +1037,23 @@
             "status": "partial",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-table"],
-                "states": ["default", "empty"],
-                "keyboard": ["The passive table has no component-owned keyboard interaction; authored interactive cells retain native behavior."],
-                "accessibility": ["Expose a labeled role=table wrapper and preserve authored row, columnheader, and cell roles."],
-                "evidence": ["packages/cem-components/src/lib/primitives.browser.spec.ts::renders content-family MVP primitives as accessible light DOM", "packages/cem-components/src/lib/states.browser.spec.ts::preserves empty states, indeterminate progress, and live-region roles"],
+                "owners": [
+                    "cem-table"
+                ],
+                "states": [
+                    "default",
+                    "empty"
+                ],
+                "keyboard": [
+                    "The passive table has no component-owned keyboard interaction; authored interactive cells retain native behavior."
+                ],
+                "accessibility": [
+                    "Expose a labeled role=table wrapper and preserve authored row, columnheader, and cell roles."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-list/cem-list.stories.ts::ContentFamily",
+                    "packages/cem-components/src/components/cem-list/cem-list.stories.ts::PassiveEmptyStates"
+                ],
                 "notes": "cem-table covers a semantic structured-data wrapper and explicit empty fallback; sortable columns may compose cem-sort-header and paged views may compose cem-paginator without giving the table data ownership. It still lacks data/column/row definitions, rendering updates, sticky regions, data sources, filtering, table-owned pagination integration, grid/treegrid focus behavior, and table-owned selection."
             }
         },
@@ -499,11 +1063,36 @@
             "status": "covered",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-tabs", "cem-tab"],
-                "states": ["default", "hover", "focus-visible", "active", "disabled", "selected"],
-                "keyboard": ["Use manual activation: roving Left/Right in horizontal orientation or Up/Down in vertical orientation wraps and skips native-disabled tabs; Home/End reach the first/last enabled tab, Enter/Space selects, and the other-axis arrows remain native."],
-                "accessibility": ["Expose one labeled tablist, exact native tab buttons, stable reciprocal tab/tabpanel references, one selected enabled tab and visible focusable panel, native disabled suppression, and focus recovery before a selected panel is hidden."],
-                "evidence": ["packages/cem-components/src/lib/tabs.browser.spec.ts::renders one labeled tablist with exact native tabs and stable reciprocal panels", "packages/cem-components/src/lib/tabs.browser.spec.ts::commits pointer and native keyboard activation once while current and disabled paths stay silent", "packages/cem-components/src/lib/tabs.browser.spec.ts::uses manual activation with orientation-aware wrapping roving focus and selected entry restoration", "packages/cem-components/src/lib/tabs.browser.spec.ts::keeps programmatic changes silent, stabilizes ids, recovers selection, and never hides focused content", "packages/cem-components/src/lib/tabs.browser.spec.ts::fails closed for malformed authoring", "packages/cem-components/src/lib/states.browser.spec.ts::styles only navigation hover owners without changing current selection or component state", "packages/cem-components/src/lib/states.browser.spec.ts::applies navigation active treatment during trusted pointer and native keyboard activation", "packages/cem-components/scripts/verify-tabs-forced-colors.mjs", "packages/cem-components/scripts/verify-package.mjs", "packages/cem-components/docs/tabs-contract.md"],
+                "owners": [
+                    "cem-tabs",
+                    "cem-tab"
+                ],
+                "states": [
+                    "default",
+                    "hover",
+                    "focus-visible",
+                    "active",
+                    "disabled",
+                    "selected"
+                ],
+                "keyboard": [
+                    "Use manual activation: roving Left/Right in horizontal orientation or Up/Down in vertical orientation wraps and skips native-disabled tabs; Home/End reach the first/last enabled tab, Enter/Space selects, and the other-axis arrows remain native."
+                ],
+                "accessibility": [
+                    "Expose one labeled tablist, exact native tab buttons, stable reciprocal tab/tabpanel references, one selected enabled tab and visible focusable panel, native disabled suppression, and focus recovery before a selected panel is hidden."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-tabs/cem-tabs.stories.ts::NativeOwners",
+                    "packages/cem-components/src/components/cem-tabs/cem-tabs.stories.ts::NativeActivation",
+                    "packages/cem-components/src/components/cem-tabs/cem-tabs.stories.ts::ManualRovingFocus",
+                    "packages/cem-components/src/components/cem-tabs/cem-tabs.stories.ts::ProgrammaticSelectionAndRecovery",
+                    "packages/cem-components/src/components/cem-tabs/cem-tabs.stories.ts::MalformedAuthoring",
+                    "packages/cem-components/src/components/cem-nav/cem-nav.stories.ts::HoverOwners",
+                    "packages/cem-components/src/components/cem-nav/cem-nav.stories.ts::NativeActive",
+                    "tools/cem-components/verify-tabs-forced-colors.mjs",
+                    "tools/cem-components/verify-package.mjs",
+                    "packages/cem-components/docs/tabs-contract.md"
+                ],
                 "notes": "cem-tabs owns local-view switching through strict inert cem-tab payloads, stable linked tabpanels, horizontal/vertical roving focus, deliberate manual activation, silent programmatic selection, one serializable activation event, native disabled behavior, focus-safe dynamic removal/disable recovery, and tokenized normal/forced-color states. Routing, navigation links, lazy loading, label pagination, deletion, popup behavior, and arbitrary in-place payload reordering remain outside the v1 owner."
             }
         },
@@ -513,11 +1102,38 @@
             "status": "covered",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-timepicker", "cem-option"],
-                "states": ["default", "hover", "focus-visible", "expanded", "selected", "disabled", "required", "invalid"],
-                "keyboard": ["Keep focus on the native text input; ArrowUp/ArrowDown open and move the active enabled time, Enter commits, Escape closes without changing value, and Tab closes without trapping focus while other text-editing keys remain native."],
-                "accessibility": ["Connect a natively labeled text-input combobox and optional native toggle to a stable listbox with active-descendant, selected, disabled, expanded, required, and invalid semantics."],
-                "evidence": ["packages/cem-components/src/lib/timepicker.browser.spec.ts::keeps one direct native text input and optional native toggle as the exact owners", "packages/cem-components/src/lib/timepicker.browser.spec.ts::normalizes generated and authored choices while native value, validation, and reset stay on the input", "packages/cem-components/src/lib/timepicker.browser.spec.ts::keeps focus on the combobox while keyboard navigation skips disabled choices and commits in order", "packages/cem-components/src/lib/timepicker.browser.spec.ts::opens through native input and toggle clicks, commits pointer choice on the input, and closes outside", "packages/cem-components/src/lib/timepicker.browser.spec.ts::suppresses every disabled route and rejects malformed owner vocabulary without substitution", "packages/cem-components/src/lib/timepicker.browser.spec.ts::keeps hover, focus-visible, expanded, active, selected, and disabled paint independent and geometry-stable", "packages/cem-components/src/lib/timepicker.browser.spec.ts::supports a silent expanded property while live range changes update validity and option suppression", "packages/cem-components/scripts/verify-timepicker-forced-colors.mjs", "packages/cem-components/scripts/verify-package.mjs", "packages/cem-components/docs/timepicker-contract.md"],
+                "owners": [
+                    "cem-timepicker",
+                    "cem-option"
+                ],
+                "states": [
+                    "default",
+                    "hover",
+                    "focus-visible",
+                    "expanded",
+                    "selected",
+                    "disabled",
+                    "required",
+                    "invalid"
+                ],
+                "keyboard": [
+                    "Keep focus on the native text input; ArrowUp/ArrowDown open and move the active enabled time, Enter commits, Escape closes without changing value, and Tab closes without trapping focus while other text-editing keys remain native."
+                ],
+                "accessibility": [
+                    "Connect a natively labeled text-input combobox and optional native toggle to a stable listbox with active-descendant, selected, disabled, expanded, required, and invalid semantics."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-timepicker/cem-timepicker.stories.ts::NativeOwners",
+                    "packages/cem-components/src/components/cem-timepicker/cem-timepicker.stories.ts::ValueValidationAndReset",
+                    "packages/cem-components/src/components/cem-timepicker/cem-timepicker.stories.ts::KeyboardNavigation",
+                    "packages/cem-components/src/components/cem-timepicker/cem-timepicker.stories.ts::PointerCommit",
+                    "packages/cem-components/src/components/cem-timepicker/cem-timepicker.stories.ts::DisabledAndMalformed",
+                    "packages/cem-components/src/components/cem-timepicker/cem-timepicker.stories.ts::StatePaintAndGeometry",
+                    "packages/cem-components/src/components/cem-timepicker/cem-timepicker.stories.ts::LiveBoundsAndExpansion",
+                    "tools/cem-components/verify-timepicker-forced-colors.mjs",
+                    "tools/cem-components/verify-package.mjs",
+                    "packages/cem-components/docs/timepicker-contract.md"
+                ],
                 "notes": "cem-timepicker owns a canonical HH:mm time-of-day picker around one authored native text-input form owner and an optional native toggle. It supports generated intervals or direct cem-option choices, range and syntax validation, exact input/change commit ordering, input-retained listbox focus, Popover/CSS-anchor presentation, and tokenized normal/forced-color states. Date values, time zones, seconds, locale adapters, and datepicker integration remain deliberately outside this string time-of-day capability."
             }
         },
@@ -527,11 +1143,22 @@
             "status": "partial",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-app-bar"],
-                "states": ["default"],
-                "keyboard": ["The container has no keyboard behavior; authored action descendants retain native focus and activation."],
-                "accessibility": ["Expose a labeled application header with role=banner and preserve authored action semantics."],
-                "evidence": ["packages/cem-components/src/lib/primitives.browser.spec.ts::renders navigation-family MVP primitives as accessible landmarks and tablists"],
+                "owners": [
+                    "cem-app-bar"
+                ],
+                "states": [
+                    "default"
+                ],
+                "keyboard": [
+                    "The container has no keyboard behavior; authored action descendants retain native focus and activation."
+                ],
+                "accessibility": [
+                    "Expose a labeled application header with role=banner and preserve authored action semantics."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-nav/cem-nav.stories.ts::LandmarksAndTabs",
+                    "packages/cem-components/src/components/cem-app-bar/cem-app-bar.stories.ts::Semantics"
+                ],
                 "notes": "cem-app-bar covers a single application title/context/action header. It does not provide a generic or multi-row toolbar, opt-in role=toolbar ownership, orientation, or toolbar roving-keyboard contract."
             }
         },
@@ -573,11 +1200,37 @@
             "status": "covered",
             "mapping": {
                 "kind": "component",
-                "owners": ["cem-tree", "cem-tree-item"],
-                "states": ["default", "hover", "active", "focus-visible", "selected", "expanded", "disabled", "loading"],
-                "keyboard": ["Keep one visible enabled treeitem in the roving tab order; Up/Down traverse without wrapping, Right opens or moves to a child, Left closes or moves to a parent, Home/End reach boundaries, typeahead searches visible labels, and native Enter/Space activates the exact button owner."],
-                "accessibility": ["Expose one labeled tree with exact native button treeitems, stable owned groups, explicit aria-level/aria-posinset/aria-setsize, parent-only aria-expanded, optional single/multiple aria-selected projection, and aria-busy loading status."],
-                "evidence": ["packages/cem-components/src/lib/tree.browser.spec.ts::renders one named tree with exact native treeitems, explicit hierarchy metadata, and stable owned groups", "packages/cem-components/src/lib/tree.browser.spec.ts::toggles parents and activates leaves through one native path while selection and disabled state stay application-owned", "packages/cem-components/src/lib/tree.browser.spec.ts::moves roving focus through visible nodes, parent-child arrows, boundaries, and typeahead without selection", "packages/cem-components/src/lib/tree.browser.spec.ts::projects silent single/multiple/none selection and application loading with late stable children", "packages/cem-components/src/lib/tree.browser.spec.ts::suppresses disabled subtrees and keeps programmatic expanded values silent without rewriting unknown facts", "packages/cem-components/src/lib/tree.browser.spec.ts::keeps hover, focus-visible, selected-active paint on the exact node with stable geometry and transient silence", "packages/cem-components/scripts/verify-tree-forced-colors.mjs", "packages/cem-components/scripts/verify-package.mjs", "packages/cem-components/docs/tree-contract.md"],
+                "owners": [
+                    "cem-tree",
+                    "cem-tree-item"
+                ],
+                "states": [
+                    "default",
+                    "hover",
+                    "active",
+                    "focus-visible",
+                    "selected",
+                    "expanded",
+                    "disabled",
+                    "loading"
+                ],
+                "keyboard": [
+                    "Keep one visible enabled treeitem in the roving tab order; Up/Down traverse without wrapping, Right opens or moves to a child, Left closes or moves to a parent, Home/End reach boundaries, typeahead searches visible labels, and native Enter/Space activates the exact button owner."
+                ],
+                "accessibility": [
+                    "Expose one labeled tree with exact native button treeitems, stable owned groups, explicit aria-level/aria-posinset/aria-setsize, parent-only aria-expanded, optional single/multiple aria-selected projection, and aria-busy loading status."
+                ],
+                "evidence": [
+                    "packages/cem-components/src/components/cem-tree/cem-tree.stories.ts::NativeOwners",
+                    "packages/cem-components/src/components/cem-tree/cem-tree.stories.ts::NativeActivation",
+                    "packages/cem-components/src/components/cem-tree/cem-tree.stories.ts::VisibleRovingFocus",
+                    "packages/cem-components/src/components/cem-tree/cem-tree.stories.ts::ApplicationSelectionAndLoading",
+                    "packages/cem-components/src/components/cem-tree/cem-tree.stories.ts::DisabledAndSilentProperties",
+                    "packages/cem-components/src/components/cem-tree/cem-tree.stories.ts::StatePaintAndGeometry",
+                    "tools/cem-components/verify-tree-forced-colors.mjs",
+                    "tools/cem-components/verify-package.mjs",
+                    "packages/cem-components/docs/tree-contract.md"
+                ],
                 "notes": "cem-tree owns a generic recursively authored hierarchy with inert cem-tree-item payloads, stable semantic IDs, component-owned expansion and composite focus, optional application-authored selection, application-authored loading, exact toggle/leaf-activation events, tokenized normal/forced-colors states, and no data requests. It intentionally does not provide Angular directive/controller APIs, flat-tree transformation, hierarchy data sources, check propagation, filtering, virtual scrolling, navigation, or application selection mutation."
             }
         }

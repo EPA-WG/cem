@@ -4,14 +4,12 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import ts from 'typescript';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const inventoryPath = join(repoRoot, 'examples/figma/component-library.json');
 const fixturePath = join(repoRoot, 'examples/figma/component-library-fixture.md');
 const mvpPath = join(repoRoot, 'docs/component-mvp.md');
 const referencePath = join(repoRoot, 'packages/cem-components/docs/component-reference.md');
-const primitivesPath = join(repoRoot, 'packages/cem-components/src/lib/primitives.ts');
 const declarativeComponentsPath = join(repoRoot, 'packages/cem-components/src/components');
 const stateMatrixPath = join(repoRoot, 'packages/cem-components/tests/state-matrix-coverage.json');
 const reportDirectory = join(repoRoot, 'packages/cem-components/dist/reports');
@@ -41,11 +39,7 @@ const categorySections = new Map([
 const failures = [];
 
 const mvp = parseMvpComponents(readText(mvpPath));
-const primitives = parsePrimitiveDeclarations(readText(primitivesPath));
-const primitiveByTag = new Map(primitives.map((primitive) => [primitive.tag, primitive]));
 const declarations = mvp.map((component) => {
-    const legacy = primitiveByTag.get(component.tag);
-    if (legacy) return legacy;
     const path = join(declarativeComponentsPath, component.tag, `${component.tag}.xhtml`);
     return existsSync(path) ? { tag: component.tag, cemMl: readText(path) } : undefined;
 });
@@ -321,73 +315,19 @@ function parseMvpComponents(markdown) {
     return components;
 }
 
-function parsePrimitiveDeclarations(sourceText) {
-    const source = ts.createSourceFile(primitivesPath, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-    const statement = source.statements.find(
-        (candidate) =>
-            ts.isVariableStatement(candidate) &&
-            candidate.declarationList.declarations.some(
-                (declaration) => ts.isIdentifier(declaration.name) && declaration.name.text === 'CEM_COMPONENT_PRIMITIVES',
-            ),
-    );
-    const declaration = statement?.declarationList.declarations.find(
-        (candidate) => ts.isIdentifier(candidate.name) && candidate.name.text === 'CEM_COMPONENT_PRIMITIVES',
-    );
-    const expression = unwrapExpression(declaration?.initializer);
-    if (!expression || !ts.isArrayLiteralExpression(expression)) {
-        fail('missing CEM_COMPONENT_PRIMITIVES array literal');
-        return [];
-    }
-    return expression.elements.map((element, index) => parsePrimitive(element, index)).filter(Boolean);
-}
-
-function parsePrimitive(element, index) {
-    if (!ts.isObjectLiteralExpression(element)) {
-        fail(`primitive ${index} must be an object literal`);
-        return undefined;
-    }
-    return {
-        tag: propertyString(element, 'tag'),
-        cemMl: propertyString(element, 'cemMl'),
-    };
-}
-
 function parseReferenceRows(markdown) {
     const rows = new Map();
+    let summaryTable = false;
     for (const line of markdown.split(/\r?\n/u)) {
-        if (!line.startsWith('| `cem-')) continue;
+        if (line.startsWith('| Component |')) summaryTable = line.startsWith('| Component | Semantics |');
+        if (!line.startsWith('|')) summaryTable = false;
+        if (!summaryTable || !line.startsWith('| `cem-')) continue;
         const cells = tableCells(line);
         const tag = stripCode(cells[0] ?? '');
         if (rows.has(tag)) fail(`duplicate component-reference row ${tag}`);
         rows.set(tag, { line, cells });
     }
     return rows;
-}
-
-function propertyString(object, name) {
-    const property = object.properties.find(
-        (entry) =>
-            ts.isPropertyAssignment(entry) &&
-            ((ts.isIdentifier(entry.name) && entry.name.text === name) ||
-                (ts.isStringLiteral(entry.name) && entry.name.text === name)),
-    );
-    return property && ts.isPropertyAssignment(property) ? expressionString(property.initializer) : '';
-}
-
-function expressionString(expression) {
-    if (ts.isStringLiteral(expression) || ts.isNoSubstitutionTemplateLiteral(expression)) return expression.text;
-    if (ts.isBinaryExpression(expression) && expression.operatorToken.kind === ts.SyntaxKind.PlusToken) {
-        return `${expressionString(expression.left)}${expressionString(expression.right)}`;
-    }
-    return '';
-}
-
-function unwrapExpression(expression) {
-    if (!expression) return undefined;
-    if (ts.isSatisfiesExpression(expression) || ts.isAsExpression(expression)) {
-        return unwrapExpression(expression.expression);
-    }
-    return expression;
 }
 
 function documentationTextFor(references, label) {

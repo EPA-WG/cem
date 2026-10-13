@@ -1,0 +1,104 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-expansion" capability="disclosure-panel">
+<template id="cem-expansion" type="text/cem-ml">
+{style @type=text/css |```
+:scope {
+    display: block;
+}
+
+:scope > :where([part~="root"]) {
+    background-color: var(--cem-palette-comfort);
+    color: var(--cem-palette-comfort-text);
+}
+
+:scope > :where([part~="root"]) > :where([part~="heading"]) > :where([part~="header"]) {
+    align-items: center;
+    appearance: none;
+    background-color: var(--cem-action-contextual-default-background);
+    border: var(--cem-stroke-none) solid transparent;
+    border-radius: var(--cem-bend-control);
+    box-sizing: border-box;
+    color: var(--cem-action-contextual-default-text);
+    display: flex;
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    font-weight: var(--cem-typography-ui-font-weight);
+    gap: var(--cem-gap-related);
+    letter-spacing: var(--cem-typography-ui-letter-spacing);
+    line-height: var(--cem-typography-ui-line-height);
+    margin: var(--cem-stroke-none);
+    min-block-size: var(--cem-coupling-zone-min);
+    min-inline-size: var(--cem-coupling-zone-min);
+    padding-block: var(--cem-control-padding-y);
+    padding-inline: var(--cem-control-padding-x);
+    text-align: start;
+}
+
+:scope > :where([part~="root"]) > :where([part~="heading"]) > :where([part~="header"]:enabled:hover) {
+    background-color: var(--cem-action-contextual-hover-background);
+    color: var(--cem-action-contextual-hover-text);
+}
+
+:scope > :where([part~="root"]) > :where([part~="heading"]) > :where([part~="header"]:enabled:active) {
+    background-color: var(--cem-action-contextual-active-background);
+    color: var(--cem-action-contextual-active-text);
+}
+
+:scope > :where([part~="root"]) > :where([part~="heading"]) > :where([part~="header"]:disabled) {
+    background-color: var(--cem-action-contextual-disabled-background);
+    color: var(--cem-action-contextual-disabled-text);
+}
+
+:scope > :where([part~="root"]) > :where([part~="heading"]) > :where([part~="header"]:enabled:focus-visible) {
+    outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1);
+    outline-offset: var(--cem-stroke-indicator-offset);
+}
+
+:scope :where([part~="summary"]) {
+    flex: 1 1 auto;
+}
+
+:scope :where([part~="indicator"]) {
+    align-items: center;
+    block-size: var(--cem-icon-button-icon-size);
+    display: inline-flex;
+    flex: 0 0 var(--cem-icon-button-icon-size);
+    inline-size: var(--cem-icon-button-icon-size);
+    justify-content: center;
+}
+
+:scope > :where([part~="root"]) > :where([part~="panel"]) {
+    background-color: var(--cem-palette-comfort);
+    border-radius: var(--cem-bend-surface);
+    color: var(--cem-palette-comfort-text);
+    margin-block-start: var(--cem-gap-related);
+    padding: var(--cem-inset-container);
+}
+@media (forced-colors: active) {
+:scope > :where([part~="root"]),
+:scope > :where([part~="root"]) > :where([part~="heading"]) > :where([part~="header"]),
+:scope > :where([part~="root"]) > :where([part~="panel"]) {
+        background-color: Canvas;
+        color: CanvasText;
+    }
+
+:scope > :where([part~="root"]) > :where([part~="heading"]) > :where([part~="header"]:enabled:hover),
+:scope > :where([part~="root"]) > :where([part~="heading"]) > :where([part~="header"]:enabled:active) {
+        background-color: Highlight;
+        color: HighlightText;
+    }
+
+:scope > :where([part~="root"]) > :where([part~="heading"]) > :where([part~="header"]:disabled) {
+        background-color: Canvas;
+        color: GrayText;
+    }
+
+:scope > :where([part~="root"]) > :where([part~="heading"]) > :where([part~="header"]:enabled:focus-visible) {
+        outline: var(--cem-stroke-focus) solid CanvasText;
+        outline-offset: var(--cem-stroke-indicator-offset);
+    }
+}
+:scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
+```}
+{attribute @name=label | Expansion}{div @class=cem-expansion @part=root | {div @class=cem-expansion__heading @part=heading @role=heading @aria-level="{$datadom.slices.headingLevel}" |  {button @id="{$datadom.slices.headingId}" @type=button @class=cem-expansion__header @part=header @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @aria-labelledby="{$datadom.slices.summaryId}" @aria-expanded={if seq:count(datadom.attributes.expanded) > 0 { true } else { false }} @aria-controls="{$datadom.slices.panelId}" |   {span @id="{$datadom.slices.summaryId}" @class=cem-expansion__summary @part=summary | {slot @name=summary | {$label}}}   {span @class=cem-expansion__indicator @part=indicator @aria-hidden=true | {cem:choose |    {cem:when @test="seq:count(datadom.attributes.expanded) > 0" | ▾}    {cem:otherwise | ▸}}}}} {div @id="{$datadom.slices.panelId}" @class=cem-expansion__panel @part=panel @role={if seq:count(datadom.attributes.region) > 0 { "region" } else { null }} @aria-labelledby="{$datadom.slices.headingId}" @hidden={if seq:count(datadom.attributes.expanded) > 0 { null } else { true }} | {slot}}}
+</template>
+</cem-element>

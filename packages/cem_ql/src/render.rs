@@ -2957,7 +2957,7 @@ impl PlanRenderer<'_> {
         nodes: &[TemplateNode],
         host_attribute_updates: &mut Vec<HostAttributeUpdate>,
     ) {
-        for node in nodes {
+        for node in declaration_prelude(nodes) {
             let TemplateNode::Element {
                 tag, attributes, ..
             } = node
@@ -4206,6 +4206,15 @@ fn is_named_template_declaration(node: &TemplateNode) -> bool {
     )
 }
 
+fn declaration_prelude(nodes: &[TemplateNode]) -> impl Iterator<Item = &TemplateNode> {
+    // A root module owns the same declaration prelude as an unwrapped template.
+    // Body content, nested modules and named templates retain their own scope.
+    nodes.iter().flat_map(|node| match node {
+        TemplateNode::Element { tag, children, .. } if local_template_name(tag) == "module" => children.as_slice(),
+        _ => std::slice::from_ref(node),
+    })
+}
+
 /// Seed binding values from top-level `{attribute @name=X | default}` / `{slice @name=X | default}`
 /// declarations: the declaration's text content is the default for `X` when the host data
 /// omits it (host-provided values win). Applying defaults in the render engine means the
@@ -4215,14 +4224,7 @@ fn seed_declaration_defaults(
     bindings: &mut BTreeMap<String, ItemStream>,
 ) -> Vec<HostAttributeUpdate> {
     let mut host_attribute_updates = Vec::new();
-    // A root module owns the same declaration prelude as an unwrapped template.
-    // Only open that root boundary; body content and named templates keep their
-    // own bindings and must not seed the produced instance.
-    let declarations = nodes.iter().flat_map(|node| match node {
-        TemplateNode::Element { tag, children, .. } if local_template_name(tag) == "module" => children.as_slice(),
-        _ => std::slice::from_ref(node),
-    });
-    for node in declarations {
+    for node in declaration_prelude(nodes) {
         let TemplateNode::Element {
             tag,
             attributes,

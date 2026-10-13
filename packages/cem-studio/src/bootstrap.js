@@ -80,13 +80,11 @@ export {
 export { createCemStudioFeatureTourWorkbench, mountCemStudioFeatureTourWorkbench } from './workbench.js';
 export {
     CEM_STUDIO_LIMITS,
-    CEM_STUDIO_PREVIEW_CSP,
     CemStudioLimitError,
     assertCemStudioResourceUri,
     assertCemStudioResultSize,
     assertCemStudioSourceSet,
     createCemStudioPreview,
-    mountCemStudioPreview,
     redactCemStudioSecrets,
 } from './preview.js';
 

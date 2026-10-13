@@ -96,43 +96,43 @@ and accessibility contracts, evidence, and deliberate scope boundaries. It
 ships no JavaScript and does not add Angular as a runtime dependency.
 
 The `/examples/interactive/` route fuses a site-owned JSON fixture with a native
-CEMT layout. It demonstrates searchable canonical theme tokens, live
-`cem-action` and `cem-field` primitives, an executable inline CEM custom-element
-fixture, and the resulting native light DOM. Its production custom-element,
-component, CSS, worker, and WASM resources are not special-case copies: paired
-module-map v3 documents declare the exact source and destination graph, and the
-CEM-ML transform publishes and rewrites that graph into the app-relative browser
-import map. JavaScript entries declare exact `moduleImports` edges; the native
-publisher rewrites those bare specifiers to relative deployed URLs. Other assets
-are byte-preserved. Verification checks source/output digests, byte lengths and
-the complete declared dependency graph.
+CEMT layout. Its runtime XHTML view composes canonical `cem-field`, `cem-action`,
+`cem-surface` and `cem-media-preview` declarations through `cem-elements`.
+Token filtering and the action counter use declarative slices. Named theme
+surfaces pair palette backgrounds with their intended text colors. Source and
+rendered HTML use the shared preview's literal text mode. The rendered-HTML
+preview is an explicit HTML export of the actual settled greeting paragraph;
+instance hydration metadata is outside that example output.
 
-Both routes deploy the existing canonical `cem-select.xhtml` as an
-`application/xhtml+xml` resource outside the browser import map. Their browser
-fixtures load `#cem-select` with the declaration's `choice-select` capability,
-exercise selection, and verify declaration-owned scoped CSS. The action registry
-cutover is a separate next step; these checks prove XHTML transport using the
-already migrated component.
+Both interactive routes mount their XHTML views through the shared
+`mountCemView` host-service boundary. Application JavaScript registers declaration
+metadata and snapshots the native build's scalar control data before mounting;
+it does not create visible markup, attach UI listeners or write rendered state.
+Search matching and URL transport remain non-UI services. The complete static
+search index stays useful without JavaScript. Runtime search preserves native
+form submission, current input text, stable heading links and unrelated URL state.
+
+Paired module-map v3 documents declare the exact source and destination graph,
+including the canonical runtime, shared capabilities, XHTML declarations, CSS,
+worker and WASM resources. The native CEM-ML transform publishes and rewrites
+that graph into app-relative resources. JavaScript entries declare exact
+`moduleImports` edges; the native publisher rewrites those bare specifiers to
+relative deployed URLs. Other assets are byte-preserved. Verification checks
+source/output digests, byte lengths and the complete dependency graph. No legacy
+component installer, component behavior modules or runtime aliases are deployed.
+
+The browser fixtures load standalone `cem-select.xhtml#cem-select` with its
+`choice-select` capability and verify selection and declaration-owned scoped CSS.
+They also verify action loading, retained editors, literal output, search phrase
+ranking, empty and multiple matches, form submission, URL preservation and the
+no-JavaScript search index. Production checks cover five themes, inherited public
+tokens, forced colors, accessible names, keyboard focus and stable fragment links.
+This automated evidence covers Chromium; physical-device and spoken
+assistive-technology acceptance remain separate work.
 
 Catalog and manifest layouts query retained generic-data CEM nodes directly.
 They do not expect imported JSON to become records. The shared document importer
 supports the token catalog within its 65,536-value budget; small expression
-imports retain their existing limits.
-
-The `/search/` route consumes the same route manifest through native CEMT and a
-paired module-map v3 contract. CEMT renders the manifest's `searchDocuments`
-projection as the route's semantic HTML index. Its current site-owned filtering
-module is migration debt under the primary no-JS UI rule and must move behind a
-declarative `cem-elements` capability rather than become a pattern for another
-route. The search field and action are `@epa-wg/cem-components`
-rendered on the `cem-elements`-backed custom-element light DOM, without a
-bundler, JSON sidecar, or post-build copy. Every searchable fragment is
-manifest-owned and verified against a unique rendered heading ID.
-`cem-site:verify:search` covers URL queries, live filtering, CEM component
-composition, import-map scope, and navigation to a stable heading fragment in
-Chromium.
-
-Canonical `cem-action` and `cem-select` XHTML assets are deployed through the
-module-map resource pipeline. Search and interactive routes explicitly load
-`cem-action.xhtml#cem-action`; their browser checks verify light-DOM rendering
-and declaration-owned scoped CSS.
+imports retain their existing limits. Runtime bootstrapping reads the already
+published semantic HTML as scalar control data; it does not reparse source JSON
+or replace the native import boundary with an application document model.

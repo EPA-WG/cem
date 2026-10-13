@@ -63,3 +63,33 @@ export const InterestDelaySurvivesUnrelatedUpdates: Story = {
         } finally { clearInterval(timer); controller.disconnect(); }
     },
 };
+
+export const ReboundExternalFocusAfterEscape: Story = {
+    render: () => '<section><button id="first-help" type="button">First</button><button id="next-help" type="button">Next</button><input aria-label="Trigger reference"><div trigger-for="#first-help" show-delay="500" hide-delay="100"><span part="surface" role="tooltip" popover="manual">Shared help.</span></div></section>',
+    play: async ({ canvasElement }) => {
+        const required = <T extends Element>(root: ParentNode, selector: string): T => {
+            const node = root.querySelector<T>(selector);
+            if (!node) throw new Error(`Missing tooltip fixture ${selector}`);
+            return node;
+        };
+        const host = required<HTMLElement>(canvasElement, 'div'), first = required<HTMLButtonElement>(canvasElement, '#first-help'), next = required<HTMLButtonElement>(canvasElement, '#next-help'), editor = required<HTMLInputElement>(canvasElement, 'input'), owner = required<HTMLElement>(host, '[part=surface]');
+        const controller = connectCemNativeSurface(owner, { host });
+        try {
+            first.focus();
+            await waitFor(() => expect(owner.matches(':popover-open')).toBe(true));
+            // Hiding a hovered top-layer surface need not deliver pointerleave.
+            owner.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
+            await userEvent.keyboard('{Escape}');
+            expect(owner.matches(':popover-open')).toBe(false);
+            editor.focus();
+            host.setAttribute('trigger-for', '#next-help');
+            await waitFor(() => expect(next.getAttribute('aria-describedby')).toBe(owner.id));
+            next.focus();
+            expect(document.activeElement).toBe(next);
+            await waitFor(() => expect(owner.matches(':popover-open')).toBe(true));
+            expect(first.hasAttribute('aria-describedby')).toBe(false);
+            await userEvent.keyboard('{Escape}');
+            expect(owner.matches(':popover-open')).toBe(false);
+        } finally { controller.disconnect(); }
+    },
+};

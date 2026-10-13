@@ -1,0 +1,95 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-sort-header" capability="sort-action">
+<template id="cem-sort-header" type="text/cem-ml">
+{style @type=text/css |```
+:scope {
+    display: block;
+}
+
+:scope > :where([part~="root"]) {
+    display: flex;
+    inline-size: 100%;
+}
+
+:scope > :where([part~="root"]) > :where([part~="button"]) {
+    align-items: center;
+    appearance: none;
+    background-color: var(--cem-action-contextual-default-background);
+    border: var(--cem-stroke-none) solid transparent;
+    border-radius: var(--cem-bend-control);
+    box-sizing: border-box;
+    color: var(--cem-action-contextual-default-text);
+    display: flex;
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    font-weight: var(--cem-typography-ui-font-weight);
+    gap: var(--cem-gap-related);
+    inline-size: 100%;
+    letter-spacing: var(--cem-typography-ui-letter-spacing);
+    line-height: var(--cem-typography-ui-line-height);
+    margin: var(--cem-stroke-none);
+    min-block-size: max(var(--cem-table-row-height), var(--cem-coupling-zone-min));
+    min-inline-size: var(--cem-coupling-zone-min);
+    padding-block: var(--cem-control-padding-y);
+    padding-inline: var(--cem-control-padding-x);
+    text-align: start;
+}
+
+:scope > :where([part~="root"]) > :where([part~="button"]:enabled:hover) {
+    background-color: var(--cem-action-contextual-hover-background);
+    color: var(--cem-action-contextual-hover-text);
+}
+
+:scope > :where([part~="root"]) > :where([part~="button"]:enabled:active) {
+    background-color: var(--cem-action-contextual-active-background);
+    color: var(--cem-action-contextual-active-text);
+}
+
+:scope > :where([part~="root"]) > :where([part~="button"]:disabled) {
+    background-color: var(--cem-action-contextual-disabled-background);
+    color: var(--cem-action-contextual-disabled-text);
+}
+
+:scope > :where([part~="root"]) > :where([part~="button"]:enabled:focus-visible) {
+    outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1);
+    outline-offset: var(--cem-stroke-indicator-offset);
+}
+
+:scope :where([part~="label"]) {
+    flex: 1 1 auto;
+}
+
+:scope :where([part~="indicator"]) {
+    align-items: center;
+    block-size: var(--cem-icon-button-icon-size);
+    display: inline-flex;
+    flex: 0 0 var(--cem-icon-button-icon-size);
+    inline-size: var(--cem-icon-button-icon-size);
+    justify-content: center;
+}
+@media (forced-colors: active) {
+:scope > :where([part~="root"]) > :where([part~="button"]) {
+        background-color: Canvas;
+        color: CanvasText;
+    }
+
+:scope > :where([part~="root"]) > :where([part~="button"]:enabled:hover),
+:scope > :where([part~="root"]) > :where([part~="button"]:enabled:active) {
+        background-color: Highlight;
+        color: HighlightText;
+    }
+
+:scope > :where([part~="root"]) > :where([part~="button"]:disabled) {
+        background-color: Canvas;
+        color: GrayText;
+    }
+
+:scope > :where([part~="root"]) > :where([part~="button"]:enabled:focus-visible) {
+        outline: var(--cem-stroke-focus) solid CanvasText;
+        outline-offset: var(--cem-stroke-indicator-offset);
+    }
+}
+:scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
+```}
+{attribute @name=label | Column}{div @class=cem-sort-header @part=root @role=columnheader @aria-sort={if datadom.slices.direction == "none" { null } else { datadom.slices.direction }} | {button @type=button @class=cem-sort-header__button @part=button @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @aria-label="{$datadom.slices.actionLabel}" |  {span @class=cem-sort-header__label @part=label | {$label}}  {span @class=cem-sort-header__indicator @part=indicator @aria-hidden=true | {$datadom.slices.indicator}}}}
+</template>
+</cem-element>

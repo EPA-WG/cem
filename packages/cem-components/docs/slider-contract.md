@@ -1,9 +1,17 @@
 # Slider Contract
 
-This contract fixes the first CEM single-value and range slider owner against
+This contract defines the CEM single-value and range slider owner against
 the pinned Angular Material `v22.1.1` behavior before component CSS is added.
 Angular is a behavioral benchmark; CEM keeps native HTML range controls and
 native form submission instead of reproducing Angular directives or callbacks.
+
+The canonical implementation is [cem-slider.xhtml](../src/components/cem-slider/cem-slider.xhtml),
+with [colocated stories](../src/components/cem-slider/cem-slider.stories.ts),
+[property controls](../playgrounds/cem-slider.html) and a
+[five-theme gallery](../playgrounds/cem-slider-gallery.html). Its shared
+`range-input` capability lives in cem-elements; fragment-src wrappers repeat the
+capability. Styles are embedded and installed once per declaration through native
+@scope. Projected inputs retain native ownership; generated internals expose part hooks.
 
 ## Owner and author vocabulary
 
@@ -21,7 +29,9 @@ strict and contains either one or two direct native inputs:
 </cem-slider>
 ```
 
-One input MUST use `single`. Two inputs MUST contain exactly one `start` and one
+Named slots `single`, `start` and `end` are the preferred projected hooks.
+The existing `data-cem-slider-thumb` values are compatibility aliases; if both
+are present they must agree. One input MUST use `single`. Two inputs MUST contain exactly one `start` and one
 `end`. The inputs remain the focus, pointer, keyboard, value, event, and form
 owners after light-DOM projection. There is no `cem-slider-thumb` tag, tuple
 value, component form value, or custom slider event. Additional or malformed
@@ -47,6 +57,10 @@ Single mode uses the input value. Range mode guarantees `start <= end`; equal
 values are valid. Native value normalization and step behavior remain browser
 owned. If user input attempts to cross the peer, the changing native value is
 clamped to the peer before the event reaches application listeners.
+
+Native form reset restores each defaultValue and silently resynchronizes the
+track, labels and non-crossing constraint. Canceled reset and detached callbacks
+do not change presentation.
 
 Programmatic parent attribute changes update bounds, disabled state, and visual
 positions silently. Programmatic native `value` property changes retain HTML's
@@ -124,7 +138,7 @@ track split survive independent of authored hue.
 
 ## Focused fixture and assertion matrix
 
-`tests/slider/contract.html`, its browser spec, and the dedicated forced-colors
+`tests/slider/contract.html`, its colocated stories, and the dedicated forced-colors
 gate form the executable contract:
 
 | Concern | Required evidence |

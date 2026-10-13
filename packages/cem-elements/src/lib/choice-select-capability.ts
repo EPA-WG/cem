@@ -122,7 +122,8 @@ export const CEM_CHOICE_SELECT_CAPABILITY: CemProducedElementBehavior = {
             controlFor(instance)?.focus({ preventScroll: true });
         }
         if (state.expanded || state.mode !== 'dropdown') {
-            const option = instance.querySelector<HTMLElement>(`#${cssEscape(activeOptionId(state))}`);
+            const activeId = activeOptionId(state);
+            const option = activeId ? instance.querySelector<HTMLElement>(`#${cssEscape(activeId)}`) : null;
             const viewport = option?.closest<HTMLElement>('[role="listbox"]');
             if (option && viewport) {
                 // Reveal the active row without scrolling ancestor containers

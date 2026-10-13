@@ -175,8 +175,23 @@ numeric z-index.
 
 ## Focused fixture and assertion matrix
 
-`tests/datepicker/contract.html`, its browser spec, and the dedicated
-forced-colors gate form the executable contract:
+The canonical [XHTML declaration](../src/components/cem-datepicker/cem-datepicker.xhtml)
+uses the shared `calendar-input` capability and embedded token CSS. Its
+[colocated stories](../src/components/cem-datepicker/cem-datepicker.stories.ts)
+retain all seven legacy cases and add boolean presence, boundary years and five
+themes. The [native template regression](../../cem_ql/tests/calendar_template.rs)
+checks named-template/module closure before browser execution, and
+[shared capability plays](../../cem-elements/src/lib/calendar-input.stories.ts)
+exercise worker/fallback lifecycle. `tests/datepicker/contract.html` remains an
+authoring sample. Run `@epa-wg/cem-components:verify-datepicker` for source and
+isolated package property/gallery/bundle consumers, and
+`@epa-wg/cem-components:verify-datepicker-forced-colors` for system paint.
+
+Day rows are produced only while open; the six-week grid contains inert blank
+cells outside years 0001–9999. Public `slot`/`part` hooks and native surface
+ownership replace the legacy component-local behavior and global CSS.
+
+The executable assertion matrix is:
 
 | Concern | Required evidence |
 | --- | --- |

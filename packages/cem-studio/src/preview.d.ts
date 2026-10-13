@@ -36,7 +36,6 @@ export type CemStudioPreview =
       }>;
 
 export declare const CEM_STUDIO_LIMITS: CemStudioLimits;
-export declare const CEM_STUDIO_PREVIEW_CSP: string;
 
 export declare class CemStudioLimitError extends Error {
     readonly code: string;
@@ -56,5 +55,4 @@ export declare function createCemStudioPreview(options: {
     contentType?: string;
     label?: string;
 }): CemStudioPreview;
-export declare function mountCemStudioPreview(root: Element, preview: CemStudioPreview): Element;
 export declare function redactCemStudioSecrets(value: unknown): string;

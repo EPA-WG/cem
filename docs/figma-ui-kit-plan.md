@@ -17,7 +17,7 @@ local builds and CI do not write to Figma.
 | --- | --- | --- |
 | Visual values and modes | CEM token markdown and generated `figma/cem-*.tokens.json` | One native `CEM Tokens` collection with `Light`, `Dark`, `Contrast Light`, `Contrast Dark`, and `Native` modes |
 | Layering and easing composites | Canonical DTCG `shadow`/`cubicBezier` values and `examples/figma/foundations-library.json` | Derived Effect Styles and motion specimens; excluded from native variable import |
-| Public component identity | `CEM_COMPONENT_PRIMITIVES` and `docs/component-mvp.md` | One classified inventory entry per public `cem-*` primitive |
+| Public component identity | canonical XHTML declarations and `docs/component-mvp.md` | One classified inventory entry per public `cem-*` primitive |
 | States and coexistence | Executable component state matrix and focused component contracts | Independent variant or boolean properties only where the public component owns the state |
 | Author attributes and content | Public component reference and component contracts | Variant, text, boolean, instance-swap, or slot properties selected by semantic meaning |
 | Workflow composition | Auth, profile, assets, discussion, and settings fixtures | Reusable patterns and site-demo frames composed from library instances |

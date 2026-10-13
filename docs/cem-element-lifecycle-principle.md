@@ -104,6 +104,14 @@ The declaration and the complete island state then produce a new rendered
 projection. Source payload nodes remain inert in the island while materialized
 render nodes occupy the instance's owned render range.
 
+Parent reconciliation retains the authored explicit-template boundary after
+capture. Its patch identity addresses the captured payload container; the
+ordinary envelope stays inert and is never reinserted into live child output.
+Updates inside the envelope reconcile the captured source nodes, leaving the
+child's rendered native owners and edited values under their existing ownership.
+The same rule applies to worker patches, full reconciliation and resumed HTML
+payloads.
+
 ## Declaration version and SSR compatibility
 
 A declaration may publish its template contract as an exact Semantic Version:

@@ -1504,14 +1504,26 @@ fn convert_primary_to_cem_with_cemt_pipeline(
     target_scope: &ScopeConfig,
     diagnostic_uri: Option<&str>,
 ) -> Result<Value, Vec<Diagnostic>> {
+    convert_cem_tree_stream_with_cemt_pipeline(
+        context,
+        projection::cem_tree_nodes_with_source_content_type(
+            document, Some(input_format_content_type(from_format)),
+        ),
+        target_scope, diagnostic_uri,
+    )
+}
+
+fn convert_cem_tree_stream_with_cemt_pipeline(
+    context: Option<&EngineContext>,
+    stream: projection::CemTreeAstStream,
+    target_scope: &ScopeConfig,
+    diagnostic_uri: Option<&str>,
+) -> Result<Value, Vec<Diagnostic>> {
     let pipeline = cemt_output_pipeline_for_scope(direct_cem_output_pipeline(), target_scope);
     let pipeline_execution = execute_cem_tree_output_pipeline_with_context(
         context,
         &pipeline,
-        projection::cem_tree_nodes_with_source_content_type(
-            document,
-            Some(input_format_content_type(from_format)),
-        ),
+        stream,
         None,
         Vec::new(),
         "direct-cem-output",
@@ -1892,11 +1904,26 @@ fn convert_primary_to_markup_with_cemt_pipeline(
     target_scope: &ScopeConfig,
     diagnostic_uri: Option<&str>,
 ) -> Result<Value, Vec<Diagnostic>> {
+    convert_markup_tree_stream_with_cemt_pipeline(
+        context, cem_tree_nodes_for_markup_output(document, from_format),
+        pipeline, kind, converter_id, target_scope, diagnostic_uri,
+    )
+}
+
+fn convert_markup_tree_stream_with_cemt_pipeline(
+    context: Option<&EngineContext>,
+    stream: projection::CemTreeAstStream,
+    pipeline: ConversionOutputPipeline,
+    kind: &str,
+    converter_id: &str,
+    target_scope: &ScopeConfig,
+    diagnostic_uri: Option<&str>,
+) -> Result<Value, Vec<Diagnostic>> {
     let pipeline = cemt_output_pipeline_for_scope(pipeline, target_scope);
     let pipeline_execution = execute_cem_tree_output_pipeline_with_context(
         context,
         &pipeline,
-        cem_tree_nodes_for_markup_output(document, from_format),
+        stream,
         None,
         Vec::new(),
         converter_id,
@@ -2161,6 +2188,18 @@ where
     let module_map = root_scope
         .map(|scope| load_root_module_map(scope, context))
         .unwrap_or_default();
+    let schema_uri = root_scope
+        .and_then(|scope| scope.schema.as_deref())
+        .or_else(|| context.and_then(|context| context.schema.as_deref()));
+    let content_type = root_scope
+        .and_then(|scope| scope.default_content_type.as_deref())
+        .or_else(|| context.and_then(|context| context.content_type.as_deref()));
+    let schema_namespaces = crate::schema::document_model::document_model_namespace_claims(
+        schema_uri,
+        content_type,
+        context.map(|context| &context.schema_registry),
+        context.map(|context| &context.schema_document_models),
+    );
     // Schema-machine pass.
     let schema_outcome = if T::CAPTURE_LEXICAL_SCOPES {
         None
@@ -2168,7 +2207,8 @@ where
         let src = BytesSource::new(SourceId(1), bytes.to_vec());
         let tok = T::from_bytes_with_context(src, context);
         let normalizer = CemEventNormalizer::new(tok);
-        let mut machine = CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer);
+        let mut machine = CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer)
+            .with_root_schema_namespaces(schema_namespaces.clone());
         if let Some(root_scope) = root_scope {
             machine = machine.with_root_namespace_bindings(
                 root_scope.default_namespace.as_deref(),
@@ -2193,7 +2233,8 @@ where
         let tok_diags = tok.take_diagnostics();
         let normalizer = CemEventNormalizer::new(tok);
         if T::CAPTURE_LEXICAL_SCOPES {
-            let mut machine = CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer);
+            let mut machine = CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer)
+                .with_root_schema_namespaces(schema_namespaces.clone());
             if let Some(root_scope) = root_scope {
                 machine = machine.with_root_namespace_bindings(
                     root_scope.default_namespace.as_deref(),
@@ -2236,12 +2277,6 @@ where
     } else {
         RuleRegistry::with_tier_a_rules_for_runtime_validation()
     };
-    let schema_uri = root_scope
-        .and_then(|scope| scope.schema.as_deref())
-        .or_else(|| context.and_then(|context| context.schema.as_deref()));
-    let content_type = root_scope
-        .and_then(|scope| scope.default_content_type.as_deref())
-        .or_else(|| context.and_then(|context| context.content_type.as_deref()));
     let rule_resource_reader = |uri: &str,
                                 base_uri: Option<&str>,
                                 content_type_hint: Option<&str>|
@@ -11574,6 +11609,62 @@ impl CemMlEngine for RealCemMlEngine {
                         // CSS selector query expressions require an explicit registered converter.
                     }
                     LoadedInputAstStream::CsvDocument(table_value) => {
+                        if to_format == LayerFormat::Cem
+                            || (to_format == LayerFormat::Xml && export_adapter_id == Some("xml"))
+                        {
+                            // Reuse the shared typed import boundary; CSV bytes must
+                            // never be reparsed as CEM or routed through JSON.
+                            primary = Some(Value::Null);
+                            if diagnostics.iter().any(|d| d.severity.is_hard_violation()) {
+                                return;
+                            }
+                            let tree = match crate::import::retain_lifecycle(Arc::new(
+                                LoadedInputAstStream::CsvDocument(table_value),
+                            )) {
+                                Ok(tree) => tree,
+                                Err(message) => {
+                                    diagnostics.push(Diagnostic {
+                                        uri: Some(request.input.uri.clone()),
+                                        code: "cem.lifecycle.csv_typed_import_failed".to_owned(),
+                                        severity: Severity::Fatal,
+                                        message,
+                                        ..Diagnostic::default()
+                                    });
+                                    return;
+                                }
+                            };
+                            let is_xml = to_format == LayerFormat::Xml;
+                            let base_pipeline = if is_xml { direct_xml_output_pipeline() } else { direct_cem_output_pipeline() };
+                            let converter_id = if is_xml { "csv-typed-import-to-xml-output" } else { "csv-typed-import-to-cem-output" };
+                            let pipeline = cemt_output_pipeline_for_scope(base_pipeline.clone(), &request.target_scope);
+                            conversion = Some(convert_metadata_for_direct_output_pipeline(converter_id, &pipeline));
+                            let result = if is_xml {
+                                convert_markup_tree_stream_with_cemt_pipeline(
+                                    Some(&context), projection::imported_data_xml_tree_nodes(tree, CSV_CONTENT_TYPE),
+                                    base_pipeline, "xml", converter_id, &request.target_scope, Some(&request.input.uri),
+                                )
+                            } else {
+                                convert_cem_tree_stream_with_cemt_pipeline(
+                                    Some(&context), projection::imported_data_cem_tree_nodes(tree, CSV_CONTENT_TYPE),
+                                    &request.target_scope, Some(&request.input.uri),
+                                )
+                            };
+                            match result {
+                                Ok(value) => {
+                                    if let Some(content) = value.get("content").and_then(Value::as_str) {
+                                        primary_bytes = Some(primary_bytes_from_text_document(
+                                            content,
+                                            if is_xml { XML_CONTENT_TYPE } else { CEM_ML_CONTENT_TYPE },
+                                            if is_xml { XML_SCHEMA_URI } else { CEM_ML_SCHEMA_URI },
+                                        ));
+                                    }
+                                    primary = Some(value);
+                                }
+                                Err(mut errors) => diagnostics.append(&mut errors),
+                            }
+                            return;
+                        }
+
                         if to_format == LayerFormat::Csv {
                             if diagnostics
                                 .iter()
@@ -22560,6 +22651,108 @@ mod tests {
         assert_eq!(resp.body["elements"], 1);
         assert_eq!(resp.body["attributes"], 1);
         assert_eq!(resp.body["diagnosticCount"], 0);
+    }
+
+    #[test]
+    fn convert_csv_to_xml_uses_typed_import() {
+        let response = RealCemMlEngine::new().convert(ConvertRequest {
+            input: input(b"name,value\nA&B,001\n<tag>,true\n", "sample.csv"),
+            to_format: LayerFormat::Xml,
+            preserve_source_offsets: false,
+            context: EngineContext { content_type: Some("text/csv".into()), ..ctx() },
+            target: Some(FormatIdentity { content_type: Some(XML_CONTENT_TYPE.into()), ..Default::default() }),
+            target_scope: ScopeConfig { cemt_formatter_profile: Some("tabular".into()), ..Default::default() },
+            scheduler_scope_id: 0,
+        }).unwrap();
+        assert!(!response.diagnostics.iter().any(|d| d.severity.is_hard_violation()), "{:?}", response.diagnostics);
+        let bytes = response.primary_bytes.expect("XML export bytes");
+        assert_eq!(bytes.content_type, XML_CONTENT_TYPE);
+        let output = std::str::from_utf8(&bytes.bytes).unwrap();
+        assert!(output.contains("xmlns:data=\"cem:generic-data\""), "{output}");
+        assert!(output.contains("A&amp;B") && output.contains("&lt;tag&gt;"), "{output}");
+        assert!(output.contains("001") && output.contains("true"), "{output}");
+        let mut reader = quick_xml::Reader::from_str(output);
+        let mut strings = 0;
+        loop {
+            match reader.read_event().expect("well-formed XML") {
+                quick_xml::events::Event::Start(tag) if tag.name().as_ref() == b"data:string" => strings += 1,
+                quick_xml::events::Event::Eof => break,
+                _ => {}
+            }
+        }
+        assert_eq!(strings, 6, "{output}");
+    }
+
+    #[test]
+    fn convert_csv_to_cem_uses_typed_import() {
+        let source = b"name,value\nOrders,001\nCatalog,true\n";
+        let request = ConvertRequest {
+            input: input(source, "sample.csv"),
+            to_format: LayerFormat::Cem,
+            preserve_source_offsets: false,
+            context: EngineContext { content_type: Some("text/csv".into()), ..ctx() },
+            target: None,
+            target_scope: ScopeConfig {
+                cemt_formatter_profile: Some("tabular".into()),
+                ..Default::default()
+            },
+            scheduler_scope_id: 0,
+        };
+        let response = RealCemMlEngine::new().convert(request).unwrap();
+        assert!(!response.diagnostics.iter().any(|d| d.severity.is_hard_violation()), "{:?}", response.diagnostics);
+        let bytes = response.primary_bytes.expect("CEM export bytes");
+        assert_eq!(bytes.content_type, CEM_ML_CONTENT_TYPE);
+        let rendered = std::str::from_utf8(&bytes.bytes).unwrap();
+        let tokenizer = CemTokenizer::from_source(BytesSource::new(SourceId(1), bytes.bytes.clone()));
+        let parsed = CemAstBuilder::new(CemEventNormalizer::new(tokenizer)).build();
+        assert!(!parsed.diagnostics.iter().any(|d| d.severity.is_hard_violation()), "{rendered}");
+        let strings = parsed.iter().filter(|node| matches!(node,
+            crate::parser::CemAstNode::Element { expanded_name, .. } if expanded_name.local_name == "string"
+        )).count();
+        assert_eq!(strings, 6, "{rendered}");
+        assert!(rendered.contains("001"), "{rendered}");
+        assert!(rendered.contains("true"), "{rendered}");
+        assert!(rendered.contains("cem:generic-data"), "{rendered}");
+    }
+
+    #[test]
+    fn convert_csv_to_cem_honors_headers_and_rejects_invalid_input() {
+        for (bytes, content_type, valid) in [
+            (b"id,name\n001,Ada\n".as_slice(), "text/csv; header=present", true),
+            (b"id,name\n\xff,Ada\n".as_slice(), "text/csv", false),
+        ] {
+            let response = RealCemMlEngine::new().convert(ConvertRequest {
+                input: input(bytes, "sample.csv"),
+                to_format: LayerFormat::DomJson,
+                preserve_source_offsets: false,
+                context: EngineContext { content_type: Some(content_type.into()), ..ctx() },
+                target: Some(FormatIdentity {
+                    content_type: Some(CEM_ML_CONTENT_TYPE.into()),
+                    ..Default::default()
+                }),
+                target_scope: ScopeConfig {
+                    cemt_formatter_profile: Some("tabular".into()),
+                    ..Default::default()
+                },
+                scheduler_scope_id: 0,
+            }).unwrap();
+            if valid {
+                assert!(!response.diagnostics.iter().any(|d| d.severity.is_hard_violation()), "{:?}", response.diagnostics);
+                let bytes = response.primary_bytes.expect("CEM bytes");
+                let tokenizer = CemTokenizer::from_source(BytesSource::new(SourceId(1), bytes.bytes.clone()));
+                let parsed = CemAstBuilder::new(CemEventNormalizer::new(tokenizer)).build();
+                assert!(!parsed.diagnostics.iter().any(|d| d.severity.is_hard_violation()), "{:?}", parsed.diagnostics);
+                assert!(parsed.iter().any(|node| matches!(node,
+                    crate::parser::CemAstNode::Element { expanded_name, .. } if expanded_name.local_name == "object"
+                )));
+                let text = std::str::from_utf8(&bytes.bytes).unwrap();
+                assert!(text.contains("001") && text.contains("Ada"), "{text}");
+            } else {
+                assert!(response.diagnostics.iter().any(|d| d.severity.is_hard_violation()));
+                assert!(response.primary_bytes.is_none());
+                assert!(response.primary.is_null());
+            }
+        }
     }
 
     #[test]

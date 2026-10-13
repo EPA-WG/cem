@@ -1,0 +1,247 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-timepicker" capability="time-input">
+  <template id="cem-timepicker" type="text/cem-ml">
+{module |
+ {slice @name=options}
+ {slice @name=expanded | false}
+ {body |
+ {style @type=text/css |```
+:scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
+input[slot=input] {
+    --_cem-input-indicator-anchor-width: var(--cem-stroke-none);
+    --_cem-input-indicator-focus-width: var(--cem-stroke-none);
+    --_cem-input-indicator-selection-width: var(--cem-stroke-none);
+    --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-color);
+    --_cem-input-indicator-focus-color: var(--cem-zebra-color-1);
+    --_cem-input-indicator-selection-color: var(--cem-input-indicator-selection-color);
+}
+/* Extra stripes belong only to active states on the native control. */
+input[slot=input]:where(:focus-visible, :checked, [aria-checked='mixed'], [aria-expanded='true'], [aria-invalid='true']:enabled, [data-state='loading']:enabled) {
+    box-shadow:
+        0 calc(var(--_cem-input-indicator-appearance) * var(--_cem-input-indicator-anchor-width)) 0
+            calc((1 - var(--_cem-input-indicator-appearance)) * var(--_cem-input-indicator-anchor-width))
+            var(--_cem-input-indicator-anchor-color),
+        0
+            calc(
+                var(--_cem-input-indicator-appearance) *
+                    (var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width))
+            )
+            0
+            calc(
+                (1 - var(--_cem-input-indicator-appearance)) *
+                    (var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width))
+            )
+            var(--_cem-input-indicator-focus-color),
+        0
+            calc(
+                var(--_cem-input-indicator-appearance) *
+                    (
+                        var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width) +
+                            var(--_cem-input-indicator-selection-width)
+                    )
+            )
+            0
+            calc(
+                (1 - var(--_cem-input-indicator-appearance)) *
+                    (
+                        var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width) +
+                            var(--_cem-input-indicator-selection-width)
+                    )
+            )
+            var(--_cem-input-indicator-selection-color);
+    outline: var(--cem-stroke-none) solid transparent;
+}
+input[slot=input] {
+    --_cem-input-indicator-appearance: var(
+        --cem-input-indicator-appearance,
+        var(--cem-indicator-appearance-underline)
+    );
+}
+:scope:where([indicator='outline']) input[slot=input] {
+    --_cem-input-indicator-appearance: var(
+        --cem-input-indicator-appearance,
+        var(--cem-indicator-appearance-outline)
+    );
+}
+input[slot=input]:where(:enabled:hover) {
+    --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-hover-color);
+}
+input[slot=input]:where([data-state='loading']:enabled) {
+    --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-pending-color);
+    --_cem-input-indicator-anchor-width: var(--cem-stroke-pending);
+}
+input[slot=input]:where([aria-invalid='true']:enabled) {
+    --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-color);
+    --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
+}
+input[slot=input]:where([aria-invalid='true']:enabled:hover) {
+    --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-hover-color);
+    --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
+}
+input[slot=input]:where(:disabled) {
+    --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-disabled-color);
+    --_cem-input-indicator-anchor-width: var(--cem-stroke-none);
+}
+input[slot=input]:where(:focus-visible) {
+    --_cem-input-indicator-focus-width: var(--cem-zebra-strip-size);
+}
+input[slot=input]:where([aria-expanded='true']) {
+    --_cem-input-indicator-selection-width: var(--cem-zebra-strip-size);
+}
+:scope {
+    anchor-scope: --_cem-timepicker-anchor;
+    display: inline-block;
+    inline-size: 100%;
+}
+:scope > [part~=root] {
+    align-items: stretch;
+    display: grid;
+    gap: var(--cem-gap-related);
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+input[slot=input] {
+    anchor-name: --_cem-timepicker-anchor;
+    background-color: var(--cem-select-popup-background);
+    border: var(--cem-stroke-none) solid transparent;
+    box-sizing: border-box;
+    color: var(--cem-select-popup-text);
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    inline-size: 100%;
+    line-height: var(--cem-typography-ui-line-height);
+    min-block-size: var(--cem-control-height);
+    min-inline-size: 0;
+    padding-block: var(--cem-control-padding-y);
+    padding-inline: var(--cem-control-padding-x);
+}
+button[slot=toggle] {
+    align-items: center;
+    background-color: var(--cem-action-contextual-default-background);
+    border: var(--cem-stroke-none) solid transparent;
+    border-radius: var(--cem-bend-control);
+    color: var(--cem-action-contextual-default-text);
+    cursor: pointer;
+    display: inline-flex;
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    justify-content: center;
+    min-block-size: var(--cem-coupling-zone-min);
+    min-inline-size: var(--cem-coupling-zone-min);
+    padding-block: var(--cem-control-padding-y);
+    padding-inline: var(--cem-control-padding-x);
+}
+button[slot=toggle]:where(:enabled:hover) {
+    background-color: var(--cem-action-contextual-hover-background);
+    color: var(--cem-action-contextual-hover-text);
+}
+button[slot=toggle]:where(:enabled:active) {
+    background-color: var(--cem-action-contextual-active-background);
+    color: var(--cem-action-contextual-active-text);
+}
+button[slot=toggle]:where(:disabled) {
+    background-color: var(--cem-action-contextual-disabled-background);
+    color: var(--cem-action-contextual-disabled-text);
+    cursor: default;
+}
+button[slot=toggle]:where(:focus-visible) {
+    outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1);
+    outline-offset: var(--cem-stroke-indicator-offset);
+}
+[part~=popup] {
+    background-color: var(--cem-select-popup-background);
+    border: var(--cem-stroke-standard) solid var(--cem-select-popup-border-color);
+    border-radius: var(--cem-bend-overlay);
+    box-shadow: var(--cem-elevation-3);
+    color: var(--cem-select-popup-text);
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    inline-size: anchor-size(inline);
+    inset: auto;
+    line-height: var(--cem-typography-ui-line-height);
+    margin: var(--cem-gap-related);
+    max-block-size: calc(var(--cem-list-row-height) * var(--cem-list-popup-rows));
+    overflow: auto;
+    padding-block: var(--cem-stroke-standard);
+    position: fixed;
+    position-anchor: --_cem-timepicker-anchor;
+    position-area: block-end center;
+    position-try-fallbacks: block-start;
+    position-try-order: most-height;
+}
+[part~=option] {
+    align-items: center;
+    box-sizing: border-box;
+    display: flex;
+    min-block-size: var(--cem-list-row-height);
+    padding-block: var(--cem-control-padding-y);
+    padding-inline: var(--cem-control-padding-x);
+}
+[part~=option]:where(:not([aria-disabled='true'])) {
+    cursor: pointer;
+}
+[part~=option]:where([aria-selected='true']) {
+    background-color: var(--cem-select-option-selected-background);
+    color: var(--cem-select-option-selected-text);
+    outline: var(--cem-stroke-selected) solid var(--cem-select-option-selected-background);
+    outline-offset: calc(var(--cem-stroke-selected) * -1);
+}
+[part~=option]:where(:not([aria-disabled='true']):hover) {
+    background-color: var(--cem-select-option-hover-background);
+    color: var(--cem-select-option-hover-text);
+}
+[part~=option]:where([data-active='true']) {
+    background-color: var(--cem-select-option-active-background);
+    color: var(--cem-select-option-active-text);
+}
+[part~=option]:where([aria-disabled='true']) {
+    background-color: var(--cem-select-option-disabled-background);
+    color: var(--cem-select-option-disabled-text);
+    cursor: default;
+}
+@media (forced-colors: active) {
+input[slot=input] {
+        box-shadow: none;
+    }
+input[slot=input]:where(:enabled:hover) {
+        border-color: Highlight;
+    }
+input[slot=input]:where([data-state='loading']:enabled:not([aria-invalid='true'])) {
+        outline: var(--cem-stroke-pending) solid CanvasText;
+        outline-offset: var(--cem-stroke-indicator-offset);
+    }
+input[slot=input]:where(:focus-visible),
+button[slot=toggle]:where(:focus-visible),
+input[slot=input]:where([data-state='loading']:enabled:focus-visible) {
+        outline: var(--cem-stroke-focus) solid CanvasText;
+        outline-offset: var(--cem-stroke-indicator-offset);
+    }
+[part~=popup] {
+        background-color: Canvas;
+        border-color: CanvasText;
+        color: CanvasText;
+    }
+[part~=option]:where(:not([aria-disabled='true']):hover),
+[part~=option]:where([data-active='true']) {
+        background-color: Highlight;
+        color: HighlightText;
+    }
+[part~=option]:where([aria-selected='true']) {
+        outline: var(--cem-stroke-selected) solid SelectedItem;
+        outline-offset: calc(var(--cem-stroke-selected) * -1);
+    }
+[part~=option]:where([aria-disabled='true']) {
+        color: GrayText;
+    }
+}
+```}
+ {span @class=cem-timepicker @part=root @data-mode={datadom.slices.mode} |
+  {cem:for-each @select=datadom.slices.ownerSlots @as=owner | {slot @name={owner}}}
+  {div @id={datadom.slices.listboxId} @class=cem-timepicker__popup @part=popup @role=listbox @popover=manual |
+   {cem:for-each @select=datadom.slices.options @as=option |
+    {div @id={option.id} @class=cem-timepicker__option @part=option @role=option @data-option-index={option.index} @data-value={option.value} @data-active={option.active} @aria-selected={option.selected} @aria-disabled={option.disabled} | {$option.label}}
+   }
+  }
+ }
+ }
+}
+  </template>
+</cem-element>

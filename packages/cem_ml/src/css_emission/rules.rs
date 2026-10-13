@@ -204,7 +204,7 @@ pub fn emit_css_scope_wrapper(
         CssManagedScope::Instance => String::new(),
     };
     Ok(CssScopeWrapper {
-        opening: format!("@scope{root} to (:scope :has(> template[data-cem-island=\"instance\"]) > *, [slot] > *) {{"),
+        opening: format!("@scope{root} to (:scope :has(> template[data-cem-island=\"instance\"]) > *, [slot]:not(input) > *) {{"),
         closing: "}",
     })
 }

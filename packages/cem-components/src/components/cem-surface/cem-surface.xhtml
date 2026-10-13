@@ -1,0 +1,19 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-surface">
+  <template id="cem-surface" type="text/cem-ml">
+    {style @type="text/css" |```
+:scope { display: block; }
+[part~='root'] { background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); box-shadow: var(--cem-layer-work); border: var(--cem-stroke-boundary) solid currentColor; border-radius: var(--cem-bend-container); padding: var(--cem-inset-container); box-sizing: border-box; min-inline-size: 0; }
+[part~='root'] { font-optical-sizing: var(--cem-typography-feature-optical-sizing); font-family: var(--cem-typography-reading-font-family); font-size: var(--cem-typography-reading-font-size); font-weight: var(--cem-typography-reading-font-weight); line-height: var(--cem-typography-reading-line-height); letter-spacing: var(--cem-typography-reading-letter-spacing); }
+:scope:where([tone='calm']) [part~='root'] { background: var(--cem-palette-calm); color: var(--cem-palette-calm-text); }
+:scope:where([tone='trust']) [part~='root'] { background: var(--cem-palette-trust); color: var(--cem-palette-trust-text); }
+:scope:where([tone='enthusiasm']) [part~='root'] { background: var(--cem-palette-enthusiasm); color: var(--cem-palette-enthusiasm-text); }
+:scope:where([tone='creativity']) [part~='root'] { background: var(--cem-palette-creativity); color: var(--cem-palette-creativity-text); }
+:scope:where([tone='danger']) [part~='root'] { background: var(--cem-palette-danger); color: var(--cem-palette-danger-text); }
+:scope:where([tone='conservative']) [part~='root'] { background: var(--cem-palette-conservative); color: var(--cem-palette-conservative-text); }
+@media (forced-colors: active) { [part~='root'] { box-shadow: none; background: Canvas; color: CanvasText; border-color: CanvasText; forced-color-adjust: auto; } }
+:scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
+    ```}
+    {attribute @name=tone | default}
+    {section @part=root @class="cem-surface cem-surface--{$tone}" @aria-label={datadom.attributes.label} @data-state={if seq:count(datadom.attributes.busy) > 0 { "loading" } else { if seq:count(datadom.attributes.empty) > 0 { "empty" } else { null } }} @aria-busy={if seq:count(datadom.attributes.busy) > 0 { true } else { null }} | {slot}}
+  </template>
+</cem-element>

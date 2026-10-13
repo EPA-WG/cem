@@ -1,0 +1,74 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-chip">
+<template id="cem-chip" type="text/cem-ml">
+{style @type=text/css |```
+:scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
+:scope[checkable] > :where(button[part~="root"]) {
+    background-color: var(--cem-content-interaction-default-background);
+    color: var(--cem-content-interaction-default-text);
+}
+
+:scope[checkable] > :where(button[part~="root"][aria-pressed='true']) {
+    background-color: var(--cem-content-interaction-selected-background);
+    color: var(--cem-content-interaction-selected-text);
+}
+
+:scope[checkable] > :where(button[part~="root"]:enabled:hover) {
+    background-color: var(--cem-content-interaction-hover-background);
+    color: var(--cem-content-interaction-hover-text);
+}
+
+:scope[checkable] > :where(button[part~="root"][aria-pressed='true']:enabled:hover) {
+    background-color: var(--cem-content-interaction-selected-hover-background);
+    color: var(--cem-content-interaction-selected-hover-text);
+}
+
+:scope[checkable] > :where(button[part~="root"]:disabled),
+:scope[checkable] > :where(button[part~="root"][aria-pressed='true']:disabled) {
+    background-color: var(--cem-content-interaction-disabled-background);
+    color: var(--cem-content-interaction-disabled-text);
+}
+
+:scope[checkable] > :where(button[part~="root"]:enabled:focus-visible) {
+    outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1);
+    outline-offset: var(--cem-stroke-indicator-offset);
+}
+
+@media (forced-colors: active) {
+
+    :scope[checkable] > :where(button[part~="root"]) {
+        background-color: Canvas;
+        color: CanvasText;
+    }
+
+    :scope[checkable] > :where(button[part~="root"][aria-pressed='true']) {
+        background-color: SelectedItem;
+        color: SelectedItemText;
+    }
+
+    :scope[checkable] > :where(button[part~="root"]:enabled:hover),
+:scope[checkable] > :where(button[part~="root"][aria-pressed='true']:enabled:hover) {
+        background-color: Highlight;
+        color: HighlightText;
+    }
+
+    :scope[checkable] > :where(button[part~="root"]:disabled),
+:scope[checkable] > :where(button[part~="root"][aria-pressed='true']:disabled) {
+        background-color: Canvas;
+        color: GrayText;
+    }
+
+    :scope[checkable] > :where(button[part~="root"]:enabled:focus-visible) {
+        outline: var(--cem-stroke-focus) solid CanvasText;
+        outline-offset: var(--cem-stroke-indicator-offset);
+    }
+}
+```}
+{attribute @name=label | Chip}
+{cem:choose |
+ {cem:when @test="seq:count(datadom.attributes.checkable) > 0" |
+  {button @type=button @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @class=cem-chip @part=root @aria-label={datadom.attributes.aria-label ?? label} @aria-pressed={datadom.slices.checked ?? (seq:count(datadom.attributes.checked) > 0)} | {cem:choose | {cem:when @test="datadom.slices.checked ?? (seq:count(datadom.attributes.checked) > 0)" | {slice @slice=checked @slice-event=click @slice-value=false}}{cem:otherwise | {slice @slice=checked @slice-event=click @slice-value=true}}} {slot | {$label}}}
+ }
+ {cem:otherwise | {span @class=cem-chip @part=root @aria-label={datadom.attributes.aria-label ?? label} | {slot | {$label}}}}
+}
+</template>
+</cem-element>

@@ -1,0 +1,10 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-tree-item">
+  <template id="cem-tree-item" type="text/cem-ml">
+    {style @type=text/css |```
+:scope { display: block; }
+:scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
+[part~='root'] { box-sizing: border-box; font-family: var(--cem-typography-ui-font-family); font-size: var(--cem-typography-ui-font-size); font-weight: var(--cem-typography-ui-font-weight); line-height: var(--cem-typography-ui-line-height); letter-spacing: var(--cem-typography-ui-letter-spacing); }
+    ```}
+    {div @part=root @class=cem-tree-item | {slot}}
+  </template>
+</cem-element>

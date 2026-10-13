@@ -1,0 +1,219 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-slider" capability="range-input">
+  <template id="cem-slider" type="text/cem-ml">
+{slice @name=mode | invalid}
+{style @type=text/css |```
+:scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
+:scope {
+    display: block;
+    inline-size: 100%;
+    min-inline-size: var(--cem-coupling-zone-min);
+}
+:scope > [part~=root] {
+    --_cem-range-end-position: 50%;
+    --_cem-range-start-position: 0%;
+    --_cem-range-tick-spacing: 1%;
+    box-sizing: border-box;
+    display: block;
+    inline-size: 100%;
+    min-block-size: var(--cem-coupling-zone-min);
+    position: relative;
+}
+:scope:where([discrete]) > [part~=root] {
+    padding-block-start: calc(var(--cem-typography-data-line-height) + var(--cem-gap-related));
+}
+[part~=visual],
+[part~=inputs] {
+    block-size: var(--cem-coupling-zone-min);
+    inset-block-end: var(--cem-stroke-none);
+    inset-inline: var(--cem-stroke-none);
+    position: absolute;
+}
+[part~=visual] {
+    pointer-events: none;
+}
+[part~=track],
+[part~=active-track],
+[part~=ticks] {
+    block-size: var(--cem-slider-track-thickness);
+    inset-block-start: calc((var(--cem-coupling-zone-min) - var(--cem-slider-track-thickness)) / 2);
+    position: absolute;
+}
+[part~=track] {
+    background-color: var(--cem-slider-track-color);
+    inset-inline: var(--cem-stroke-none);
+}
+[part~=active-track] {
+    background-color: var(--cem-slider-active-track-color);
+    inline-size: calc(var(--_cem-range-end-position) - var(--_cem-range-start-position));
+    inset-inline-start: var(--_cem-range-start-position);
+}
+[part~=ticks] {
+    background-image: linear-gradient(
+        to right,
+        var(--cem-slider-tick-color) var(--cem-stroke-none),
+        var(--cem-slider-tick-color) var(--cem-stroke-standard),
+        transparent var(--cem-stroke-standard)
+    );
+    background-size: var(--_cem-range-tick-spacing) 100%;
+    display: none;
+    inset-inline: var(--cem-stroke-none);
+}
+:scope:where([show-tick-marks]) [part~=ticks] {
+    display: block;
+}
+[part~=value] {
+    color: var(--cem-slider-thumb-color);
+    display: none;
+    font-family: var(--cem-typography-data-font-family);
+    font-size: var(--cem-typography-data-font-size);
+    font-variant-numeric: var(--cem-typography-data-font-variant-numeric);
+    font-weight: var(--cem-typography-data-font-weight);
+    inset-block-end: calc(var(--cem-coupling-zone-min) + var(--cem-gap-related));
+    letter-spacing: var(--cem-typography-data-letter-spacing);
+    line-height: var(--cem-typography-data-line-height);
+    position: absolute;
+    transform: translateX(-50%);
+}
+:scope:where([discrete]) > :where([part~=root][data-mode='single']) [part~=value]:where([data-cem-slider-value='single']) {
+    display: block;
+    inset-inline-start: var(--_cem-range-end-position);
+}
+:scope:where([discrete]) > :where([part~=root][data-mode='range']) [part~=value]:where([data-cem-slider-value='start']) {
+    display: block;
+    inset-inline-start: var(--_cem-range-start-position);
+}
+:scope:where([discrete]) > :where([part~=root][data-mode='range']) [part~=value]:where([data-cem-slider-value='end']) {
+    display: block;
+    inset-inline-start: var(--_cem-range-end-position);
+}
+[part~=inputs] > :where(input[type='range']) {
+    appearance: none;
+    background: transparent;
+    block-size: var(--cem-coupling-zone-min);
+    inline-size: 100%;
+    inset: var(--cem-stroke-none);
+    margin: var(--cem-stroke-none);
+    padding: var(--cem-stroke-none);
+    pointer-events: none;
+    position: absolute;
+}
+[part~=inputs] > :where(input[type='range'])::-webkit-slider-runnable-track {
+    background: transparent;
+    block-size: var(--cem-slider-track-thickness);
+}
+[part~=inputs] > :where(input[type='range'])::-webkit-slider-thumb {
+    appearance: none;
+    background-clip: content-box;
+    background-color: var(--cem-slider-thumb-color);
+    block-size: var(--cem-coupling-zone-min);
+    border: calc((var(--cem-coupling-zone-min) - var(--cem-slider-thumb-size)) / 2) solid transparent;
+    border-radius: var(--cem-bend-circle);
+    box-sizing: border-box;
+    inline-size: var(--cem-coupling-zone-min);
+    margin-block-start: calc((var(--cem-slider-track-thickness) - var(--cem-coupling-zone-min)) / 2);
+    pointer-events: auto;
+}
+[part~=inputs] > :where(input[type='range'])::-moz-range-track {
+    background: transparent;
+    block-size: var(--cem-slider-track-thickness);
+}
+[part~=inputs] > :where(input[type='range'])::-moz-range-thumb {
+    appearance: none;
+    background-clip: content-box;
+    background-color: var(--cem-slider-thumb-color);
+    block-size: var(--cem-coupling-zone-min);
+    border: calc((var(--cem-coupling-zone-min) - var(--cem-slider-thumb-size)) / 2) solid transparent;
+    border-radius: var(--cem-bend-circle);
+    box-sizing: border-box;
+    inline-size: var(--cem-coupling-zone-min);
+    pointer-events: auto;
+}
+[part~=inputs] > :where(input[type='range']):where(:enabled:hover)::-webkit-slider-thumb {
+    background-color: var(--cem-slider-thumb-hover-color);
+}
+[part~=inputs] > :where(input[type='range']):where(:enabled:hover)::-moz-range-thumb {
+    background-color: var(--cem-slider-thumb-hover-color);
+}
+[part~=inputs] > :where(input[type='range']):where(:enabled:active)::-webkit-slider-thumb {
+    background-color: var(--cem-slider-thumb-active-color);
+}
+[part~=inputs] > :where(input[type='range']):where(:enabled:active)::-moz-range-thumb {
+    background-color: var(--cem-slider-thumb-active-color);
+}
+:scope:where([disabled], :has(> [part~=root] > [part~=inputs] > input:disabled)) [part~=track],
+:scope:where([disabled], :has(> [part~=root] > [part~=inputs] > input:disabled)) [part~=active-track] {
+    background-color: var(--cem-slider-disabled-track-color);
+}
+[part~=inputs] > :where(input[type='range']):where(:disabled)::-webkit-slider-thumb {
+    background-color: var(--cem-slider-disabled-thumb-color);
+}
+[part~=inputs] > :where(input[type='range']):where(:disabled)::-moz-range-thumb {
+    background-color: var(--cem-slider-disabled-thumb-color);
+}
+[part~=inputs] > :where(input[type='range']):where(:enabled:focus-visible) {
+    outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1);
+    outline-offset: var(--cem-stroke-indicator-offset);
+}
+@media (forced-colors: active) {
+[part~=track],
+:scope:where([disabled], :has(> [part~=root] > [part~=inputs] > input:disabled)) [part~=track],
+:scope:where([disabled], :has(> [part~=root] > [part~=inputs] > input:disabled)) [part~=active-track] {
+        background-color: GrayText;
+    }
+[part~=active-track] {
+        background-color: Highlight;
+    }
+[part~=ticks] {
+        background-image: linear-gradient(
+            to right,
+            CanvasText var(--cem-stroke-none),
+            CanvasText var(--cem-stroke-standard),
+            transparent var(--cem-stroke-standard)
+        );
+        forced-color-adjust: none;
+    }
+[part~=inputs] > :where(input[type='range']) {
+        forced-color-adjust: auto;
+    }
+[part~=inputs] > :where(input[type='range'])::-webkit-slider-thumb {
+        background-color: CanvasText;
+    }
+[part~=inputs] > :where(input[type='range'])::-moz-range-thumb {
+        background-color: CanvasText;
+    }[part~=inputs] > :where(input[type='range']):where(:enabled:hover)::-webkit-slider-thumb {
+        background-color: Highlight;
+    }
+[part~=inputs] > :where(input[type='range']):where(:enabled:hover)::-moz-range-thumb {
+        background-color: Highlight;
+    }
+[part~=inputs] > :where(input[type='range']):where(:enabled:active)::-webkit-slider-thumb {
+        background-color: Highlight;
+    }
+[part~=inputs] > :where(input[type='range']):where(:enabled:active)::-moz-range-thumb {
+        background-color: Highlight;
+    }
+[part~=inputs] > :where(input[type='range']):where(:disabled)::-webkit-slider-thumb {
+        background-color: GrayText;
+    }
+[part~=inputs] > :where(input[type='range']):where(:disabled)::-moz-range-thumb {
+        background-color: GrayText;
+    }
+[part~=inputs] > :where(input[type='range']):where(:enabled:focus-visible) {
+        outline: var(--cem-stroke-focus) solid CanvasText;
+        outline-offset: var(--cem-stroke-indicator-offset);
+    }
+}
+```}
+{div @class=cem-slider @part=root @data-mode={datadom.slices.mode} |
+ {div @class=cem-slider__visual @part=visual @aria-hidden=true |
+  {span @class=cem-slider__track @part=track}
+  {span @class=cem-slider__active-track @part=active-track}
+  {span @class=cem-slider__ticks @part=ticks}
+  {span @class=cem-slider__value @part="value single-value" @data-cem-slider-value=single}
+  {span @class=cem-slider__value @part="value start-value" @data-cem-slider-value=start}
+  {span @class=cem-slider__value @part="value end-value" @data-cem-slider-value=end}
+ }
+ {div @class=cem-slider__inputs @part=inputs | {cem:for-each @select=datadom.slices.thumbSlots @as=thumb | {slot @name={thumb}}}}
+}
+  </template>
+</cem-element>

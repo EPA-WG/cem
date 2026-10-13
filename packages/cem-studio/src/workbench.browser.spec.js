@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { createCemStudioProjectRepository } from './repository.js';
 import { mountCemStudioApplicationShell } from './shell.js';
@@ -8,6 +8,15 @@ import {
     createCemStudioFeatureTourWorkbench,
     mountCemStudioFeatureTourWorkbench,
 } from './workbench.js';
+
+// Supply the same resource identity as the production page's import map.
+beforeAll(() => {
+    const map = document.createElement('script'); map.type = 'importmap';
+    map.textContent = JSON.stringify({ imports: {
+        '@epa-wg/cem-components/components.xhtml': new URL('../../cem-components/dist/components.xhtml', import.meta.url).href,
+    } });
+    document.head.append(map);
+});
 
 const repositories = [];
 const workbenches = [];
@@ -39,11 +48,17 @@ describe('CEM Studio Feature Tour workbench', () => {
         views.push(view);
 
         const editor = root.querySelector('cem-textarea[data-cem-studio-editor] textarea');
+        expect(root.querySelector('cem-studio-workbench-controls')).not.toBeNull();
         expect(editor.value).toBe('original');
+        editor.focus();
         editor.value = invalid;
+        editor.setSelectionRange(2, 5);
         editor.dispatchEvent(new InputEvent('input', { bubbles: true }));
         expect(workbench.snapshot()).toMatchObject({ status: 'dirty', dirty: true });
         await view.whenSettled();
+        expect(root.querySelector('cem-textarea[data-cem-studio-editor] textarea')).toBe(editor);
+        expect(document.activeElement).toBe(editor);
+        expect([editor.selectionStart, editor.selectionEnd]).toEqual([2, 5]);
 
         root.querySelector('cem-action[data-cem-studio-save] button').click();
         await view.whenSettled();
@@ -76,6 +91,9 @@ describe('CEM Studio Feature Tour workbench', () => {
         expect(root.querySelector('cem-tabs [role="tablist"]')).not.toBeNull();
         expect(root.querySelector('cem-table [role="table"]')).not.toBeNull();
         expect(root.querySelector('cem-list')).not.toBeNull();
+        const reportRows = [...root.querySelectorAll('[data-cem-studio-report] [role="row"]')]
+            .map(row => [...row.querySelectorAll('[role="cell"]')].map(cell => cell.textContent.trim()));
+        expect(reportRows).toEqual(expect.arrayContaining([['Inputs', '1'], ['Warnings', '0'], ['Hard violations', '1']]));
         expect(
             root.querySelectorAll('button:not(cem-action button):not(cem-select button):not(cem-tabs button)'),
         ).toHaveLength(0);
@@ -86,6 +104,18 @@ describe('CEM Studio Feature Tour workbench', () => {
         await view.whenSettled();
         expect(editor.selectionStart).toBe(workbench.snapshot().selection.start);
         expect(workbench.snapshot().selection).toMatchObject({ kind: 'diagnostic', byteStart: rangeStart });
+        expect(document.activeElement).toBe(editor);
+        editor.setSelectionRange(0, 0);
+        const reload = root.querySelector('[data-cem-studio-reload] button');
+        reload.focus();
+        await workbench.copyCommand(async () => undefined);
+        await view.whenSettled();
+        expect(document.activeElement).toBe(reload);
+        expect([editor.selectionStart, editor.selectionEnd]).toEqual([0, 0]);
+        workbench.navigateDiagnostic(0);
+        await view.whenSettled();
+        expect(document.activeElement).toBe(editor);
+        expect(editor.selectionStart).toBe(workbench.snapshot().selection.start);
         const provenance = root.querySelector('cem-list[data-provenance-list] select');
         provenance.value = '0';
         provenance.dispatchEvent(new Event('change', { bubbles: true }));
@@ -119,6 +149,40 @@ describe('CEM Studio Feature Tour workbench', () => {
             output: { text: 'inspect tree projection\n' },
         });
         expect(root.querySelector('cem-table[label="Projection execution"] [role="table"]')).not.toBeNull();
+    });
+
+    it('retains declarative editor state through reload and rejects repeated pending commands', async () => {
+        let finishValidation;
+        const result = new Promise(resolve => { finishValidation = resolve; });
+        const validator = validatorFor(validResult());
+        validator.validateResource.mockImplementationOnce(() => result);
+        const repository = await repositoryWithSource('durable');
+        const workbench = await createWorkbench(repository, validator);
+        const root = document.createElement('main'); document.body.append(root);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
+        const editor = root.querySelector('[data-cem-studio-editor] textarea');
+        editor.value = 'saved draft'; editor.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        await view.whenSettled();
+        const save = root.querySelector('[data-cem-studio-save] button');
+        save.click(); save.click();
+        await vi.waitFor(() => expect(validator.validateResource).toHaveBeenCalledTimes(1));
+        finishValidation(validResult());
+        await view.whenSettled();
+        expect(workbench.snapshot()).toMatchObject({ resourceRevision: 2, dirty: false, draft: 'saved draft' });
+        expect(root.querySelector('[data-cem-studio-workbench-alert]').textContent).toContain('0 diagnostics; 0 hard violations.');
+        expect(root.querySelector('[data-cem-studio-save]').hasAttribute('disabled')).toBe(true);
+        editor.value = 'discard me'; editor.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        await view.whenSettled();
+        root.querySelector('[data-cem-studio-reload] button').click();
+        await view.whenSettled();
+        expect(root.querySelector('[data-cem-studio-editor] textarea')).toBe(editor);
+        expect(editor.value).toBe('saved draft');
+        expect(root.querySelector('[data-cem-studio-workbench-status]').getAttribute('label')).toBe('Persisted revision loaded');
+        expect(root.querySelector('[data-cem-studio-reload]').getAttribute('variant')).toBe('contextual');
+        expect(root.querySelector('[data-cem-studio-parse]').getAttribute('variant')).toBe('alternate');
+        view.dispose();
+        editor.value = 'disposed'; editor.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        expect(workbench.snapshot().draft).toBe('saved draft');
     });
 
     it('executes every CEM-ML parse projection and inspect view against the durable revision', async () => {
@@ -211,11 +275,111 @@ describe('CEM Studio Feature Tour workbench', () => {
         expect(copied).toBe(projection.output.text);
         expect([...downloaded.bytes]).toEqual([...projection.output.bytes]);
         expect(root.querySelector('[data-cem-studio-projection-expected] cem-table [role="table"]')).not.toBeNull();
+        expect(root.querySelector('[data-cem-studio-projection-expected]').textContent).toContain('Native result matches the pinned expectation.');
+        expect(root.querySelector('[data-cem-studio-projection-metadata]').textContent).toContain('wasm-browser-worker');
+        const metadataRows = [...root.querySelectorAll('[data-cem-studio-projection-metadata] [role="row"]')]
+            .map(row => [...row.querySelectorAll('[role="cell"]')].map(cell => cell.textContent.trim()));
+        expect(metadataRows).toEqual(expect.arrayContaining([['Diagnostics', '0'], ['Source-map frames', '0']]));
+        expect(root.querySelector('[data-cem-studio-projection-trace]').textContent).toContain('No operation trace records');
+        expect(root.querySelector('[data-cem-studio-projection-graph]').textContent).toContain('No transformation graph execution overlay records');
+        expect(root.querySelector('[data-cem-studio-diagnostics]').textContent).toContain('No diagnostics');
+        expect(root.querySelector('[data-cem-studio-provenance]').textContent).toContain('No source-map provenance');
         expect(
             root.querySelectorAll(
                 '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
             ),
         ).toHaveLength(0);
+    });
+
+    it('retains declarative result owners and excludes duplicate exact output transfers', async () => {
+        const validator = validatorFor(validResult());
+        const repository = await repositoryWithSource('{main | Result ownership}\n');
+        const workbench = await createWorkbench(repository, validator);
+        const root = document.createElement('main'); document.body.append(root);
+        const copied = Promise.withResolvers(), downloaded = Promise.withResolvers();
+        const clipboard = { writeText: vi.fn(() => copied.promise) };
+        const download = vi.fn(() => downloaded.promise);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench, clipboard, download }); views.push(view);
+        expect(root.querySelector('cem-studio-workbench-layout')).not.toBeNull();
+        expect(root.querySelector('cem-studio-workbench-results')).not.toBeNull();
+        expect(root.querySelector('[data-cem-studio-preview] cem-alert').getAttribute('tone')).toBe('info');
+        await workbench.parsePersisted('events'); await view.whenSettled();
+        const output = root.querySelector('[data-cem-studio-preview] cem-media-preview pre');
+        expect(output.textContent).toBe(workbench.snapshot().projection.output.text);
+        output.focus(); workbench.updateDraft('a newer draft'); await view.whenSettled();
+        expect(root.querySelector('[data-cem-studio-preview] pre')).toBe(output);
+        expect(document.activeElement).toBe(output);
+        const copy = root.querySelector('[data-cem-studio-projection-copy] button');
+        const save = root.querySelector('[data-cem-studio-projection-download] button');
+        copy.click(); copy.click(); save.click();
+        expect(clipboard.writeText).toHaveBeenCalledTimes(1);
+        expect(clipboard.writeText).toHaveBeenCalledWith(workbench.snapshot().projection.output.text);
+        expect(download).not.toHaveBeenCalled();
+        copied.resolve(); await view.whenSettled();
+        save.click(); save.click(); expect(download).toHaveBeenCalledTimes(1);
+        expect([...download.mock.calls[0][0].bytes]).toEqual([...workbench.snapshot().projection.output.bytes]);
+        downloaded.resolve(); await view.whenSettled();
+        const outcome = projectionOutcome('parse', 'ast');
+        const source = '<p>Isolated operation result</p>';
+        const bytes = [...new TextEncoder().encode(source)];
+        validator.parseResource.mockResolvedValueOnce({ ...outcome, output: { ...outcome.output,
+            contentType: 'text/html', text: source, bytes, byteLength: bytes.length } });
+        await workbench.parsePersisted('ast'); await view.whenSettled();
+        const frame = root.querySelector('[data-cem-studio-preview] iframe');
+        expect(frame.getAttribute('sandbox')).toBe(''); expect(frame.srcdoc).toContain(source);
+        const changes = [];
+        const observer = new MutationObserver(records => changes.push(...records));
+        observer.observe(frame, { attributes: true, attributeFilter: ['srcdoc'] });
+        workbench.updateDraft('another draft'); await view.whenSettled();
+        changes.push(...observer.takeRecords()); observer.disconnect();
+        expect(root.querySelector('[data-cem-studio-preview] iframe')).toBe(frame);
+        expect(changes).toHaveLength(0);
+        view.dispose(); copy.click(); save.click();
+        expect(clipboard.writeText).toHaveBeenCalledTimes(1); expect(download).toHaveBeenCalledTimes(1);
+    });
+
+    it('renders bounded native trace and graph values without parsing their text as markup', async () => {
+        const validator = validatorFor(validResult());
+        const outcome = projectionOutcome('transform', 'graph');
+        outcome.result.result.value = { kind: 'transform', value: { value: {
+            artifacts: [], events: [false, null, '🚀'.repeat(241)], nodes: ['<node>'],
+        } } };
+        validator.runResourceCommand.mockResolvedValueOnce(outcome);
+        const repository = await repositoryWithSource('{main | Graph values}\n');
+        const seed = featureTourSeed();
+        seed.catalog.workbenches.push({ ...seed.catalog.workbenches[0], id: 'graph',
+            operation: 'transform', kind: 'transformation-graph', name: 'Graph',
+            commandArguments: ['transform', '$input', '--format', 'json'],
+            expectedSummary: { kind: 'transform', mode: 'graph', artifactCount: 0, itemCount: 0 } });
+        const workbench = await createCemStudioFeatureTourWorkbench({ repository, validator, seed, projectId: 'feature-tour' });
+        workbenches.push(workbench);
+        const root = document.createElement('main'); document.body.append(root);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
+        await workbench.selectWorkbench('graph'); await workbench.runPersistedOperation(); await view.whenSettled();
+        const trace = root.querySelector('[data-cem-studio-projection-trace]');
+        const graph = root.querySelector('[data-cem-studio-projection-graph]');
+        const values = [...trace.querySelectorAll('[role="cell"]')].map(cell => cell.textContent.trim());
+        expect(values).toEqual(expect.arrayContaining(['false', 'null', `${'🚀'.repeat(239)}…`]));
+        expect(graph.textContent).toContain('<node>'); expect(graph.querySelector('node')).toBeNull();
+        expect(root.querySelector('[data-cem-studio-projection-expected]').textContent)
+            .toContain('Native result matches the pinned expectation.');
+        const traceOutcome = projectionOutcome('trace', 'trace');
+        const events = Array.from({ length: 105 }, (_, index) => ({ kind: 'value', value: `event ${index}` }));
+        traceOutcome.result.result.value = { kind: 'trace', value: { body: { events } } };
+        validator.runResourceCommand.mockResolvedValueOnce(traceOutcome);
+        seed.catalog.workbenches.push({ ...seed.catalog.workbenches[0], id: 'native-trace', operation: 'trace',
+            kind: 'trace', name: 'Native trace', commandArguments: ['trace', '$input'],
+            expectedSummary: { kind: 'trace', hasEvents: true } });
+        const traceWorkbench = await createCemStudioFeatureTourWorkbench({ repository, validator, seed, projectId: 'feature-tour' });
+        workbenches.push(traceWorkbench); view.dispose();
+        const traceView = await mountCemStudioFeatureTourWorkbench({ root, workbench: traceWorkbench }); views.push(traceView);
+        await traceWorkbench.selectWorkbench('native-trace'); await traceWorkbench.runPersistedOperation(); await traceView.whenSettled();
+        expect(traceWorkbench.snapshot().projection.trace).toHaveLength(100);
+        const traceRows = root.querySelectorAll('[data-cem-studio-projection-trace] [role="row"]');
+        expect(traceRows).toHaveLength(101);
+        expect(traceRows[1].textContent).toContain('value.body.events.0');
+        expect(traceRows[1].textContent).toContain(JSON.stringify(events[0]));
+        expect(traceRows[100].textContent).toContain(JSON.stringify(events[99]));
     });
 
     it('round trips the Studio command, copies displayed text, and previews semantic changes without mutation', async () => {
@@ -229,6 +393,8 @@ describe('CEM Studio Feature Tour workbench', () => {
         views.push(view);
 
         const original = workbench.snapshot().command.current.text;
+        expect(root.querySelector('[data-cem-studio-command-changes]').textContent)
+            .toContain('The command matches the active normalized run plan');
         const commandEditor = root.querySelector('cem-textarea[data-cem-studio-command-editor] textarea');
         expect(commandEditor.value).toBe(original);
         expect(workbench.snapshot().command).toMatchObject({
@@ -239,6 +405,12 @@ describe('CEM Studio Feature Tour workbench', () => {
         });
 
         const changed = original.replace('--format ast', '--format events');
+        validator.previewResourceCommand.mockImplementationOnce(async options => {
+            const result = commandPreviewOutcome(options);
+            return { ...result, semantic: { ...result.semantic, configuration: {
+                label: '🚀'.repeat(241), enabled: false, nothing: null,
+            } } };
+        });
         commandEditor.value = changed;
         commandEditor.dispatchEvent(new InputEvent('input', { bubbles: true }));
         await view.whenSettled();
@@ -250,7 +422,12 @@ describe('CEM Studio Feature Tour workbench', () => {
         expect(workbench.snapshot().command.changes).toEqual(
             expect.arrayContaining([expect.objectContaining({ category: 'operation', kind: 'changed' })]),
         );
+        expect(root.querySelector('[data-cem-studio-command-alert]').textContent)
+            .toContain(`${workbench.snapshot().command.changes.length} semantic changes`);
         expect(root.querySelector('cem-table[label="CLI Command semantic changes"] [role="table"]')).not.toBeNull();
+        const cells = [...root.querySelectorAll('cem-table[label="CLI Command semantic changes"] [role="cell"]')]
+            .map(cell => cell.textContent.trim());
+        expect(cells).toEqual(expect.arrayContaining(['ast', 'events', '—', 'false', 'null', `${'🚀'.repeat(239)}…`]));
 
         root.querySelector('cem-action[data-cem-studio-command-copy] button').click();
         await view.whenSettled();
@@ -278,6 +455,44 @@ describe('CEM Studio Feature Tour workbench', () => {
         ).toHaveLength(0);
     });
 
+    it('retains command edits across pending validation and excludes duplicate clipboard commands', async () => {
+        const validator = validatorFor(validResult());
+        const repository = await repositoryWithSource('{main | Command editing}\n');
+        const workbench = await createWorkbench(repository, validator);
+        const root = document.createElement('main'); document.body.append(root);
+        const copied = Promise.withResolvers();
+        const clipboard = { writeText: vi.fn(() => copied.promise) };
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench, clipboard }); views.push(view);
+        expect(root.querySelector('cem-studio-workbench-command')).not.toBeNull();
+        const editor = root.querySelector('[data-cem-studio-command-editor] textarea');
+        const original = editor.value;
+        const first = Promise.withResolvers();
+        validator.previewResourceCommand.mockImplementationOnce(async options => {
+            await first.promise; return commandPreviewOutcome(options);
+        });
+        editor.focus(); editor.value = original.replace('--format ast', '--format events');
+        editor.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        expect(workbench.snapshot().command).toMatchObject({ status: 'checking', draftText: editor.value });
+        await expect.poll(() => validator.previewResourceCommand.mock.calls.some(([options]) => options.text === editor.value)).toBe(true);
+        editor.value = original; editor.setSelectionRange(2, 7);
+        editor.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        workbench.updateDraft('unrelated source edit');
+        await expect.poll(() => workbench.snapshot().command.status).toBe('current');
+        first.resolve(); await view.whenSettled();
+        expect(workbench.snapshot().command.draftText).toBe(original);
+        expect(root.querySelector('[data-cem-studio-command-editor] textarea')).toBe(editor);
+        expect(editor.value).toBe(original);
+        expect([editor.selectionStart, editor.selectionEnd]).toEqual([2, 7]);
+        expect(document.activeElement).toBe(editor);
+        const copy = root.querySelector('[data-cem-studio-command-copy] button');
+        copy.click(); copy.click();
+        expect(clipboard.writeText).toHaveBeenCalledTimes(1); // Same synchronous activation stack.
+        expect(clipboard.writeText).toHaveBeenCalledWith(original);
+        copied.resolve(); await view.whenSettled();
+        view.dispose(); copy.click();
+        expect(clipboard.writeText).toHaveBeenCalledTimes(1);
+    });
+
     it('applies named new and compatible existing pages through CEM controls without executing', async () => {
         const validator = validatorFor(validResult());
         const repository = await repositoryWithSource('{main | Apply only}\n');
@@ -293,9 +508,14 @@ describe('CEM Studio Feature Tour workbench', () => {
             targets: { current: { id: 'validate-cem-ml', kind: 'validation', compatible: false } },
         });
         const name = root.querySelector('cem-text-field[data-cem-studio-command-target-name] input');
+        name.focus();
         name.value = 'Applied inspection';
+        name.setSelectionRange(2, 6);
         name.dispatchEvent(new InputEvent('input', { bubbles: true }));
         await view.whenSettled();
+        expect(root.querySelector('[data-cem-studio-command-target-name] input')).toBe(name);
+        expect(document.activeElement).toBe(name);
+        expect([name.selectionStart, name.selectionEnd]).toEqual([2, 6]);
         root.querySelector('cem-action[data-cem-studio-command-apply] button').click();
         await view.whenSettled();
 
@@ -362,13 +582,22 @@ describe('CEM Studio Feature Tour workbench', () => {
             confirmation: { target: { mode: 'current', entryId: 'validate-cem-ml' }, runAfterApply: false },
         });
         const dialog = root.querySelector('cem-dialog[data-cem-studio-command-replace-dialog] dialog');
-        expect(dialog.open).toBe(true);
-        expect(dialog.getAttribute('aria-label')).toBe('Confirm incompatible page replacement');
+        await expect.poll(() => dialog.open).toBe(true);
+        expect(dialog.matches(':modal')).toBe(true);
+        const entry = document.activeElement;
+        workbench.updateDraft('unrelated edit while confirming');
+        await view.whenSettled();
+        expect(root.querySelector('[data-cem-studio-command-replace-dialog] dialog')).toBe(dialog);
+        expect(document.activeElement).toBe(entry);
+        dialog.querySelector('p').dispatchEvent(new CustomEvent('cem-close', { bubbles: true }));
+        expect(workbench.snapshot().command.application.status).toBe('confirmation-required');
+        await expect.element(dialog).toHaveAccessibleName('Confirm incompatible page replacement');
+        expect(dialog.querySelector('[data-cem-studio-command-replace-confirm]').getAttribute('variant')).toBe('destructive');
         let exported = await repository.query(request('export-project', { projectId: 'feature-tour' }));
         expect(exported.value.project.revision).toBe(1);
 
         const dismissed = new Promise((resolve) => {
-            root.addEventListener('cem-dismiss', resolve, { once: true });
+            root.addEventListener('cem-close', resolve, { once: true });
         });
         dialog.close();
         await dismissed;
@@ -378,6 +607,12 @@ describe('CEM Studio Feature Tour workbench', () => {
             target: { mode: 'current' },
             confirmation: undefined,
         });
+        root.querySelector('cem-action[data-cem-studio-command-apply] button').click();
+        await view.whenSettled();
+        const { userEvent } = await import('vitest/browser');
+        await userEvent.keyboard('{Escape}');
+        await expect.poll(() => workbench.snapshot().command.application.status).toBe('ready');
+        await view.whenSettled();
         root.querySelector('cem-action[data-cem-studio-command-apply] button').click();
         await view.whenSettled();
         dialogAction(root, 'Use new page').click();
@@ -412,7 +647,8 @@ describe('CEM Studio Feature Tour workbench', () => {
         const view = await mountCemStudioFeatureTourWorkbench({ root, workbench });
         views.push(view);
 
-        root.querySelector('cem-action[data-cem-studio-command-apply-run] button').click();
+        const applyRun = root.querySelector('cem-action[data-cem-studio-command-apply-run] button');
+        applyRun.click(); applyRun.click();
         await view.whenSettled();
         const snapshot = workbench.snapshot();
         expect(snapshot.command.application).toMatchObject({

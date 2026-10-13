@@ -86,7 +86,7 @@
             "options": {
                 "commands": [
                     "node scripts/clean-dist.mjs",
-                    "tsc --build tsconfig.lib.json",
+                    "tsc --project tsconfig.lib.json",
                     "node scripts/package-runtime-assets.mjs"
                 ],
                 "parallel": false,

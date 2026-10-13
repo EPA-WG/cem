@@ -36,8 +36,7 @@ cem-demo-element > [slot="demo"] {
     gap: var(--cem-gap-group);
 }
 
-form,
-cem-stack {
+form {
     display: grid;
     gap: var(--cem-gap-group);
 }

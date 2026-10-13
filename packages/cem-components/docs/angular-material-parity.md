@@ -60,7 +60,7 @@ The mapping audit may use these states:
 Every reviewed row records one mapping kind (`component`, `behavior`, or
 `gap`), exact owners, required states, keyboard behavior, accessibility
 semantics, evidence, and notes. Component owners must be public
-`CEM_COMPONENT_PRIMITIVES` tags. Behavior owners use a `behavior:` identity.
+canonical XHTML component tags. Behavior owners use a `behavior:` identity.
 Evidence cannot point only at `packages/cem-elements` compatibility fixtures.
 
 The audit compares behavioral capability, not Angular directive, service, or

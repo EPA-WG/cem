@@ -352,6 +352,16 @@ aliases are deprecated — use `--cem-gap-*` instead.
 
 These are *responsive* and should be treated as semantics, not fixed numbers.
 
+### Intrinsic grid sizing
+
+`--cem-layout-grid-min` owns the minimum usable track width for intrinsic,
+container-driven grids. Its default `14rem` adopts the canonical D1y intrinsic
+Grid example. Containers may override this endpoint for their content; components
+consume it without local defaults and cap the minimum to available inline space.
+This layout threshold is independent of D6's maximum reading-line measure.
+Reading content retains its own maximum-measure requirement, and explicit
+column counts remain an authored layout choice.
+
 ### 7.4 Layout token table
 
 ###### cem-dim-layout
@@ -359,6 +369,7 @@ These are *responsive* and should be treated as semantics, not fixed numbers.
 | Token                       | Value                     | Description                                                               | tier        |
 |-----------------------------|---------------------------|---------------------------------------------------------------------------|-------------|
 | `--cem-layout-stack-gap`    | `var(--cem-gap-block)`    | Default vertical stack gap for general UI stacks                          | required    |
+| `--cem-layout-grid-min`     | `14rem`                 | Minimum usable track width for intrinsic grids; cap to available container width | required |
 | `--cem-layout-cluster-gap`  | `var(--cem-gap-related)`  | Default cluster gap for inline groups                                     | required    |
 | `--cem-layout-gutter`       | `var(--cem-dim-medium)`   | Default content gutter (16px)                                             | required    |
 | `--cem-layout-gutter-wide`  | `var(--cem-dim-x-large)`  | Wide-screen gutter (32px)                                                 | recommended |
@@ -607,7 +618,7 @@ from these tables using the same XPath pattern as `cem-dimension.html`.
 | `cem-dim-insets`         | `--cem-inset-*` (3 tokens)                                                | one token per row    |
 | `cem-dim-rhythm-reading` | `--cem-rhythm-reading-*` (2 tokens)                                       | one token per row    |
 | `cem-dim-rhythm-data`    | `--cem-rhythm-data-*` (2 tokens)                                          | one token per row    |
-| `cem-dim-layout`         | `--cem-layout-*` (10 tokens; deprecated tier omitted from default output) | one token per row    |
+| `cem-dim-layout`         | `--cem-layout-*` (11 tokens; deprecated tier omitted from default output) | one token per row    |
 
 Spacing mode overrides (`cem-dim-spacing-overrides`) produce no new token names — they override existing tokens within
 `:root[data-cem-spacing="dense"]` and `:root[data-cem-spacing="sparse"]` selectors.

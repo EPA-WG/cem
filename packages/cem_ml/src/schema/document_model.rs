@@ -54,8 +54,8 @@ use crate::schema::reference_resolution::{
     ReferenceValue, ReferenceValueCardinality, ReferenceValueReason, ReferenceValueState,
 };
 use crate::schema::registry::{
-    SchemaRegistry, CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_PACKAGE_URI,
-    CEM_SCHEMA_URI, CEM_TRANSFORM_SCHEMA_URI,
+    SchemaRegistry, CEM_DATA_ISLAND_SCHEMA_URI, CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_SCHEMA_URI,
+    CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI, CEM_TRANSFORM_SCHEMA_URI,
 };
 use crate::source::{BytesSource, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack};
@@ -1251,6 +1251,42 @@ pub fn validate_document_model(
     model: &SchemaDocumentModel,
 ) -> Vec<Diagnostic> {
     validate_document_model_with_behavior_evaluator(document, model, None)
+}
+
+/// Namespace metadata is admitted only for the selected, ready structural model.
+/// Merely registering a package or selecting an unknown/pending schema does not
+/// authorize its namespaces, and other package claims are not inherited.
+pub(crate) fn document_model_namespace_claims(
+    schema_uri: Option<&str>,
+    content_type: Option<&str>,
+    schema_registry: Option<&SchemaRegistry>,
+    document_models: Option<&SchemaDocumentModelRegistry>,
+) -> BTreeSet<String> {
+    let Some(model) = load_document_model_for_identity(
+        schema_uri,
+        content_type,
+        schema_registry,
+        document_models,
+    )
+    .filter(|model| model.is_ready_for_validation() && !model.is_empty()) else {
+        return BTreeSet::new();
+    };
+    if let Some(registry) = schema_registry {
+        return registry
+            .schema(&model.schema_uri)
+            .map(|descriptor| descriptor.namespace_uris().map(str::to_owned).collect())
+            .unwrap_or_default();
+    }
+    load_builtin_schema_package(&model.schema_uri)
+        .ok()
+        .map(|package| {
+            package
+                .descriptor
+                .namespace_uris()
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// Only visit structure consumed by this model; special and unknown elements
@@ -18876,6 +18912,7 @@ fn is_bootstrap_document_model_schema(schema_uri: &str) -> bool {
     matches!(
         schema_uri,
         CEM_ML_SCHEMA_URI
+            | CEM_DATA_ISLAND_SCHEMA_URI
             | CEM_SCHEMA_URI
             | CEM_SCHEMA_PACKAGE_URI
             | CEM_NATIVE_TEMPLATE_SCHEMA_URI

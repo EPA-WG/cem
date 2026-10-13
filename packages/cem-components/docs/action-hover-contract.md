@@ -169,7 +169,7 @@ activation states; nothing is available only through hover.
 ## Executable acceptance
 
 Implementation is owned by one focused browser test in
-[`states.browser.spec.ts`](../src/lib/states.browser.spec.ts). The fixture loads
+[`cem-action.stories.ts`](../src/components/cem-action/cem-action.stories.ts). The fixture loads
 generated theme CSS followed by the author-imported component stylesheet, then
 uses the browser runner's real pointer hover/unhover interaction rather than
 dispatching synthetic pointer events or adding a test-only state class.

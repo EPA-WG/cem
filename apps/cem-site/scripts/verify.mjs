@@ -188,14 +188,14 @@ async function loadRuntimeContract(runtime, outputs) {
     } else if (
         runtime.id === 'search' &&
         (!sourceImportKeys.includes('@epa-wg/cem-site/components-runtime') ||
-            !sourceImportKeys.includes('@epa-wg/custom-element') ||
-            !sourceImportKeys.includes('@epa-wg/cem-components/primitives'))
+            !sourceImportKeys.includes('@epa-wg/cem-elements') ||
+            sourceImportKeys.some(key => /custom-element|primitives/.test(key)))
     ) {
         throw new Error('search runtime must declare the production CEM component stack');
     }
 
     const upstreamByOwner = new Map([
-        ['@epa-wg/custom-element', '@epa-wg/custom-element:build'],
+        ['cem-elements', 'cem-elements:build'],
         ['@epa-wg/cem-components', '@epa-wg/cem-components:build'],
         ['@epa-wg/cem-theme', '@epa-wg/cem-theme:build:tokens'],
     ]);
@@ -855,7 +855,6 @@ for (const entry of manifest.entries) {
             }
 
             const componentMvp = canonicalSourceText.get('docs/component-mvp.md');
-            const primitiveSource = canonicalSourceText.get('packages/cem-components/src/lib/primitives.ts');
             for (const component of catalog.components) {
                 if (
                     !component.tag?.startsWith('cem-') ||
@@ -878,8 +877,8 @@ for (const entry of manifest.entries) {
                     if (!declaration.includes(`tag="${component.tag}"`) || !declaration.includes(`id="${component.tag}"`)) {
                         throw new Error(`${component.tag} is absent from its canonical XHTML declaration`);
                     }
-                } else if (!primitiveSource.includes(`tag: '${component.tag}'`)) {
-                    throw new Error(`${component.tag} is absent from the executable primitive inventory`);
+                } else {
+                    throw new Error(`${component.tag} must have a canonical XHTML declaration`);
                 }
                 if (!output.includes(`data-component-tag="${component.tag}"`)) {
                     throw new Error(`${component.tag} is absent from the rendered component gallery`);
@@ -943,7 +942,7 @@ for (const entry of manifest.entries) {
             const expectedValidationTarget = '@epa-wg/cem-components:verify-material-parity';
             const expectedCanonicalSources = [
                 'packages/cem-components/docs/angular-material-parity.md',
-                'packages/cem-components/src/lib/primitives.ts',
+                'packages/cem-components/declarative-migration.json',
             ];
             if (
                 entry.route !== '/components/angular-material/' ||
@@ -1005,7 +1004,6 @@ for (const entry of manifest.entries) {
                 throw new Error('the Angular Material comparison does not retain every row and exact coverage total');
             }
             const renderedText = normalizedHtmlText(output);
-            const primitiveSource = canonicalSourceText.get('packages/cem-components/src/lib/primitives.ts');
             for (const record of records) {
                 const mapping = record.mapping;
                 if (
@@ -1019,7 +1017,7 @@ for (const entry of manifest.entries) {
                     throw new Error(`Angular Material comparison record is incomplete: ${record.id}`);
                 }
                 for (const owner of mapping.owners) {
-                    let declaredComponent = primitiveSource.includes(`tag: '${owner}'`);
+                    let declaredComponent = false;
                     if (mapping.kind === 'component' && !declaredComponent && /^cem-[a-z0-9-]+$/.test(owner)) {
                         const declaration = await readFile(
                             resolve(workspaceRoot, `packages/cem-components/src/components/${owner}/${owner}.xhtml`),
@@ -1090,7 +1088,6 @@ for (const entry of manifest.entries) {
                 throw new Error('interactive fixture references unknown or duplicate package identities');
             }
             const tokenSource = canonicalSourceText.get('packages/cem-theme/src/lib/tokens/cem-colors.md');
-            const componentSource = canonicalSourceText.get('packages/cem-components/src/lib/primitives.ts');
             for (const name of fixtureTokenNames) {
                 if (!tokenSource.includes(`\`${name}\``) || !output.includes(name)) {
                     throw new Error(`interactive token example ${name} lost canonical provenance`);
@@ -1098,12 +1095,9 @@ for (const entry of manifest.entries) {
             }
             for (const tag of fixtureComponentTags) {
                 const component = componentCatalog.components.find(component => component.tag === tag);
-                const declaration = component.implementation?.kind === 'cem-element-xhtml'
-                    ? await readFile(resolve(workspaceRoot, component.implementation.source), 'utf8')
-                    : componentSource;
-                const ownsTag = component.implementation?.kind === 'cem-element-xhtml'
-                    ? declaration.includes(`tag="${tag}"`) && declaration.includes(`id="${tag}"`)
-                    : declaration.includes(`tag: '${tag}'`);
+                if (component.implementation?.kind !== 'cem-element-xhtml') throw new Error(`${tag} must have a canonical declaration`);
+                const declaration = await readFile(resolve(workspaceRoot, component.implementation.source), 'utf8');
+                const ownsTag = declaration.includes(`tag="${tag}"`) && declaration.includes(`id="${tag}"`);
                 if (!ownsTag || !output.includes(`<${tag}`)) {
                     throw new Error(`interactive component example ${tag} lost canonical provenance`);
                 }
@@ -1111,11 +1105,10 @@ for (const entry of manifest.entries) {
             for (const token of [
                 '<script type="importmap">',
                 'import "@epa-wg/cem-site/runtime";',
-                '<custom-element tag="cem-site-greeting">',
+                '<cem-element tag="cem-site-greeting">',
                 '<pre><code data-native-output>',
                 '@epa-wg/cem-site/runtime',
-                '@epa-wg/custom-element',
-                '@epa-wg/cem-components/primitives',
+                '@epa-wg/cem-elements',
             ]) {
                 if (!output.includes(token)) {
                     throw new Error(`${entry.output} is missing interactive contract token ${token}`);
@@ -1150,15 +1143,14 @@ for (const entry of manifest.entries) {
             for (const token of [
                 '<form action="/search/" method="get">',
                 'data-search-index="route-manifest"',
-                '<ol data-search-results',
+                'data-search-results',
                 '<cem-field data-search-field',
                 '<cem-action data-search-action',
                 '<script type="importmap">',
                 'import "@epa-wg/cem-site/search";',
                 '@epa-wg/cem-site/search',
                 '@epa-wg/cem-site/components-runtime',
-                '@epa-wg/custom-element',
-                '@epa-wg/cem-components/primitives',
+                '@epa-wg/cem-elements',
             ]) {
                 if (!output.includes(token)) {
                     throw new Error(`${entry.output} is missing search contract token ${token}`);

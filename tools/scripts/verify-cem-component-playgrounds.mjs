@@ -23,6 +23,14 @@ const actionOnly = process.argv.includes('--action-only');
 const iconsOnly = process.argv.includes('--icons-only');
 const surfacesOnly = process.argv.includes('--surfaces-only');
 const sheetOnly = process.argv.includes('--sheet-only');
+const navigationContentOnly = process.argv.includes('--navigation-content-only');
+const passiveOnly = process.argv.includes('--passive-only');
+const passiveTags = ['cem-option', 'cem-option-group', 'cem-badge', 'cem-avatar', 'cem-media-preview', 'cem-tree-item', 'cem-app-bar', 'cem-tab', 'cem-step'];
+const feedbackOnly = process.argv.includes('--feedback-only');
+const disclosureDataOnly = process.argv.includes('--disclosure-data-only');
+const layoutOnly = process.argv.includes('--layout-only');
+const timeRangeOnly = process.argv.includes('--time-range-only');
+const datepickerOnly = process.argv.includes('--datepicker-only');
 const autocompleteOnly = process.argv.includes('--autocomplete-only');
 const checkablesOnly = process.argv.includes('--checkables-only');
 const installedOnly = process.argv.includes('--installed-only');
@@ -44,7 +52,14 @@ try {
     if (nativeDatalistOnly && historyOnly) throw new Error('Choose one evidence mode');
     if (!evidenceOnly && (headed || nativeBrowser !== 'chromium' || evidenceOutput)) throw new Error('Browser evidence flags require --native-datalist-only or --history-only');
     browser = await ({ chromium, firefox, webkit })[nativeBrowser].launch({ headless: !headed });
-    if (!installedOnly && autocompleteOnly) await verifyAutocomplete(`${origin}/packages/cem-components/playgrounds/`);
+    if (!installedOnly && passiveOnly) await verifyPassive(`${origin}/packages/cem-components/playgrounds/`);
+    else if (!installedOnly && feedbackOnly) await verifyFeedback(`${origin}/packages/cem-components/playgrounds/`);
+    else if (!installedOnly && disclosureDataOnly) await verifyDisclosureData(`${origin}/packages/cem-components/playgrounds/`);
+    else if (!installedOnly && layoutOnly) await verifyLayout(`${origin}/packages/cem-components/playgrounds/`);
+    else if (!installedOnly && navigationContentOnly) await verifyNavigationContent(`${origin}/packages/cem-components/playgrounds/`);
+    else if (!installedOnly && timeRangeOnly) await verifyTimeRange(`${origin}/packages/cem-components/playgrounds/`);
+    else if (!installedOnly && datepickerOnly) await verifyDatepicker(`${origin}/packages/cem-components/playgrounds/`);
+    else if (!installedOnly && autocompleteOnly) await verifyAutocomplete(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && checkablesOnly) await verifyCheckables(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && sheetOnly) await verifySheet(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && surfacesOnly) await verifySurfaces(`${origin}/packages/cem-components/playgrounds/`);
@@ -66,6 +81,13 @@ try {
         }
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifySurfaces(`${origin}/packages/cem-components/playgrounds/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifySheet(`${origin}/packages/cem-components/playgrounds/`);
+        if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyDatepicker(`${origin}/packages/cem-components/playgrounds/`);
+        if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyTimeRange(`${origin}/packages/cem-components/playgrounds/`);
+        if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyNavigationContent(`${origin}/packages/cem-components/playgrounds/`);
+        if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyLayout(`${origin}/packages/cem-components/playgrounds/`);
+        if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyDisclosureData(`${origin}/packages/cem-components/playgrounds/`);
+        if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyFeedback(`${origin}/packages/cem-components/playgrounds/`);
+        if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyPassive(`${origin}/packages/cem-components/playgrounds/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyAutocomplete(`${origin}/packages/cem-components/playgrounds/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyCheckables(`${origin}/packages/cem-components/playgrounds/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifySuggestions(`${origin}/packages/cem-components/playgrounds/`);
@@ -78,7 +100,14 @@ try {
         await mkdir(target, { recursive: true });
         execFileSync('tar', ['-xzf', join(temporary, output[0].filename), '--strip-components=1', '-C', target]);
     }
-    if (autocompleteOnly) await verifyAutocomplete(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    if (passiveOnly) await verifyPassive(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    else if (feedbackOnly) await verifyFeedback(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    else if (disclosureDataOnly) await verifyDisclosureData(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    else if (layoutOnly) await verifyLayout(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    else if (navigationContentOnly) await verifyNavigationContent(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    else if (timeRangeOnly) await verifyTimeRange(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    else if (datepickerOnly) await verifyDatepicker(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    else if (autocompleteOnly) await verifyAutocomplete(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     else if (checkablesOnly) await verifyCheckables(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     else if (sheetOnly) await verifySheet(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     else if (surfacesOnly) await verifySurfaces(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
@@ -100,6 +129,13 @@ try {
         }
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifySurfaces(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifySheet(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+        if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyDatepicker(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+        if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyTimeRange(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+        if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyNavigationContent(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+        if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyLayout(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+        if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyDisclosureData(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+        if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyFeedback(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+        if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyPassive(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyAutocomplete(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyCheckables(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifySuggestions(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
@@ -116,7 +152,12 @@ try {
             console.log(JSON.stringify(report, null, 2));
         }
     }
-    if (autocompleteOnly) console.log(`Autocomplete property controls, galleries, live payload, forms and bundle verified from ${verifiedLocations}.`);
+    if (disclosureDataOnly) console.log(`Disclosure, sorting, pagination and passive table delivery verified from ${verifiedLocations}.`);
+    else if (layoutOnly) console.log(`Passive layout, content state, property controls, galleries and bundle verified from ${verifiedLocations}.`);
+    else if (navigationContentOnly) console.log(`Navigation and content properties, galleries and bundle verified from ${verifiedLocations}.`);
+    else if (timeRangeOnly) console.log(`Timepicker and slider properties, native forms, galleries and bundle verified from ${verifiedLocations}.`);
+    else if (datepickerOnly) console.log(`Datepicker property controls, native forms, calendar, galleries and bundle verified from ${verifiedLocations}.`);
+    else if (autocompleteOnly) console.log(`Autocomplete property controls, galleries, live payload, forms and bundle verified from ${verifiedLocations}.`);
     else if (checkablesOnly) console.log(`Checkbox, radio and switch playgrounds, galleries, native forms, bundle and forced colors verified from ${verifiedLocations}.`);
     else if (sheetOnly) console.log(`Sheet region playground, gallery, bundle and forced colors verified from ${verifiedLocations}.`);
     else if (surfacesOnly) console.log(`Native dialog, dialog-shell and tooltip playgrounds, galleries, bundle and forced colors verified from ${verifiedLocations}.`);
@@ -156,7 +197,7 @@ async function verifyActionGallery(page) {
     });
     const declaration = await readFile(join(root, 'packages/cem-components/src/components/cem-action/cem-action.xhtml'), 'utf8');
     const implemented = [...new Set([
-        ...[...declaration.matchAll(/\{attribute @name=([\w-]+)/g)].map(match => match[1]),
+        ...[...declaration.matchAll(/\{attribute @name=([\w-]+)(?=\s*\|)/g)].map(match => match[1]),
         ...[...declaration.matchAll(/datadom\.attributes\.([\w-]+)/g)].map(match => match[1]),
         ...[...declaration.matchAll(/:scope[^\s{]*?\[([\w-]+)/g)].map(match => match[1]),
         'class', 'command-target', 'interaction', 'context-key',
@@ -751,6 +792,7 @@ async function verifyBundle(url) {
                 await window.cemPlaygroundRuntime.whenRenderSettled(host);
             }
         });
+        for (const tag of passiveTags) await page.locator(`main > ${tag} > [part=root]`).waitFor({ state: 'attached' });
         const result = await page.evaluate(async () => {
             const runtime = window.cemPlaygroundRuntime;
             const declaration = [...document.querySelectorAll('cem-element[tag="cem-action"]')][0];
@@ -814,7 +856,7 @@ async function verifyCommand(url, tag) {
         });
         const source = await readFile(join(root, `packages/cem-components/src/components/${tag}/${tag}.xhtml`), 'utf8');
         const attributes = [...new Set([
-            ...[...source.matchAll(/\{attribute @name=([\w-]+)/g)].map(match => match[1]),
+            ...[...source.matchAll(/\{attribute @name=([\w-]+)(?=\s*\|)/g)].map(match => match[1]),
             ...[...source.matchAll(/datadom\.attributes\.([\w-]+)/g)].map(match => match[1]),
             ...[...source.matchAll(/:scope[^\s{]*?\[([\w-]+)/g)].map(match => match[1]), 'class',
         ])].sort();
@@ -950,8 +992,9 @@ async function verifyGalleries(baseUrl, tags) {
                 return demos.length > 0 && demos.every(node => node.getAttribute('data-state') === 'ready');
             });
             const declaration = await readFile(join(root, 'packages/cem-components/src/components', tag, tag + '.xhtml'), 'utf8');
+            // Public parameter defaults have bodies; @value instructions emit owned DOM attributes.
             const implemented = [...new Set([
-                ...[...declaration.matchAll(/\{attribute @name=([\w-]+)/g)].map(match => match[1]),
+                ...[...declaration.matchAll(/\{attribute @name=([\w-]+)(?=\s*\|)/g)].map(match => match[1]),
                 ...[...declaration.matchAll(/datadom\.attributes\.([\w-]+)/g)].map(match => match[1]),
                 'hidden', 'class',
             ])].filter(name => name !== 'data-theme');
@@ -959,8 +1002,8 @@ async function verifyGalleries(baseUrl, tags) {
             for (const attribute of implemented) assert(documented.includes(attribute), `${tag}: missing ${attribute} in gallery inventory`);
             await page.getByRole('link', { name: 'Automated stories', exact: true }).waitFor();
             const first = page.locator(sampleSelector).first();
-            const control = first.locator(tag === 'cem-menu' ? 'button, a[href]' : ['cem-dialog', 'cem-dialog-shell', 'cem-tooltip'].includes(tag) ? '[part=trigger], [slot=trigger]' : '[part="control"], input').first();
-            if (tag !== 'cem-icon') {
+            const control = first.locator(['cem-nav', 'cem-tabs', 'cem-stepper', 'cem-tree', 'cem-chip', 'cem-expansion', 'cem-sort-header', 'cem-paginator'].includes(tag) ? 'button' : tag === 'cem-list' ? 'select' : tag === 'cem-menu' ? 'button, a[href]' : ['cem-dialog', 'cem-dialog-shell', 'cem-tooltip'].includes(tag) ? '[part=trigger], [slot=trigger]' : '[part="control"], input').first();
+            if (!['cem-icon', 'cem-surface', 'cem-text', 'cem-stack', 'cem-grid', 'cem-divider', 'cem-card', 'cem-table', 'cem-toast', 'cem-progress', 'cem-progress-spinner', 'cem-skeleton', 'cem-alert', ...passiveTags].includes(tag)) {
                 await control.hover();
                 await control.focus();
             }
@@ -1922,4 +1965,634 @@ async function verifyAutocomplete(baseUrl) {
         assert.equal(await bundled.inputValue(), 'Grace Hopper');
         assert.deepEqual(errors, []);
     } finally { await context.close(); }
+}
+
+async function verifyDatepicker(baseUrl) {
+    console.log(`Datepicker gallery: ${baseUrl}`);
+    await verifyGalleries(baseUrl, ['cem-datepicker']);
+    const context = await browser.newContext(), page = await context.newPage(), errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    try {
+        console.log(`Datepicker properties and native forms: ${baseUrl}`);
+        await page.goto(new URL('cem-datepicker.html', baseUrl).href);
+        const host = page.locator('.properties form > cem-datepicker'), input = host.locator('input[slot=input]');
+        await host.getByRole('combobox').waitFor();
+        const settle = () => host.evaluate(node => window.cemPlaygroundRuntime.whenRenderSettled(node));
+        await settle();
+        const field = (name) => page.locator(`.properties cem-field[label="${name}"] input`);
+        const text = async (name, value) => {
+            await field(name).fill(value);
+            try { await page.waitForFunction(({ name, value }) => {
+                const host = document.querySelector('.properties form > cem-datepicker');
+                const input = host?.querySelector('input[slot=input]');
+                return ['label', 'name', 'form', 'value'].includes(name)
+                    ? input?.getAttribute(name === 'label' ? 'aria-label' : name) === value
+                    : host?.getAttribute(name) === value;
+            }, { name, value }); }
+            catch (error) {
+                const state = await host.evaluate(node => ({
+                    attributes: [...node.attributes].map(attribute => [attribute.name, attribute.value]),
+                    input: node.querySelector('input[slot=input]')?.outerHTML,
+                    diagnostics: window.cemPlaygroundRuntime.diagnosticsFor(node),
+                }));
+                throw new Error(`Datepicker property ${name} did not reach ${value}: ${JSON.stringify(state)}`, { cause: error });
+            }
+            await settle();
+        };
+        const flag = async (name, present) => {
+            await page.getByRole('group', { name, exact: true }).getByRole('radio', { name: present ? 'present' : 'absent', exact: true }).check();
+            await page.waitForFunction(({ name, present }) => document.querySelector('.properties form > cem-datepicker')?.hasAttribute(name) === present, { name, present });
+            await settle();
+        };
+        assert.equal(await input.inputValue(), '2026-08-11');
+        assert.deepEqual(await input.evaluate(node => [...new FormData(node.form)]), [['arrival', '2026-08-11']]);
+        await text('label', 'Departure date'); assert.equal(await input.getAttribute('aria-label'), 'Departure date');
+        await text('name', 'departure'); assert.deepEqual(await input.evaluate(node => [...new FormData(node.form)]), [['departure', '2026-08-11']]);
+        await text('class', 'cem-theme-dark'); assert.equal(await host.getAttribute('class'), 'cem-theme-dark');
+        await text('lang', 'fr-FR'); await text('min', '2026-08-01'); await text('max', '2026-08-31');
+        await host.evaluate(node => { window.datepickerEvents = []; for (const type of ['input', 'change']) node.addEventListener(type, event => window.datepickerEvents.push([type, event.target.value, node.querySelector('dialog').open, document.activeElement === event.target])); });
+        await input.focus(); await input.press('ArrowDown'); await settle();
+        assert.equal(await host.locator('dialog').evaluate(node => node.matches(':modal')), true);
+        assert.equal(await host.locator('[part=heading]').textContent(), 'août 2026');
+        assert.equal(await host.locator('[role=gridcell]').count(), 42);
+        await host.locator('[data-date="2026-08-12"]').click(); await settle();
+        assert.equal(await input.inputValue(), '2026-08-11'); assert.deepEqual(await page.evaluate(() => window.datepickerEvents), []);
+        await host.locator('[data-calendar-action=apply]').click(); await settle();
+        assert.equal(await input.inputValue(), '2026-08-12');
+        assert.deepEqual(await page.evaluate(() => window.datepickerEvents), [['input', '2026-08-12', false, true], ['change', '2026-08-12', false, true]]);
+        await page.locator('.properties').getByRole('button', { name: 'Reset date', exact: true }).click();
+        await page.waitForFunction(() => document.querySelector('.properties form > cem-datepicker input')?.value === '2026-08-11'); await settle();
+        await flag('required', true); await input.fill(''); assert.equal(await input.evaluate(node => node.validity.valueMissing), true);
+        await input.fill('2026-02-30'); assert.equal(await input.evaluate(node => node.validity.customError), true);
+        await input.fill('2026-08-15'); assert.equal(await input.evaluate(node => node.validity.valid), true);
+        await flag('invalid', true); assert.equal(await input.getAttribute('aria-invalid'), 'true'); await flag('invalid', false);
+        await flag('disabled', true); assert.equal(await input.isDisabled(), true); assert.deepEqual(await input.evaluate(node => [...new FormData(node.form)]), []); await flag('disabled', false);
+        await page.getByRole('group', { name: 'indicator', exact: true }).getByRole('radio', { name: 'outline', exact: true }).check();
+        await page.waitForFunction(() => document.querySelector('.properties cem-datepicker')?.getAttribute('indicator') === 'outline'); await settle();
+        assert.equal(await input.evaluate(node => getComputedStyle(node).getPropertyValue('--_cem-input-indicator-appearance').trim()), await input.evaluate(node => getComputedStyle(node).getPropertyValue('--cem-indicator-appearance-outline').trim()));
+        await page.getByRole('group', { name: 'dir', exact: true }).getByRole('radio', { name: 'rtl', exact: true }).check();
+        await page.waitForFunction(() => document.querySelector('.properties cem-datepicker')?.getAttribute('dir') === 'rtl');
+        await text('form', 'date-external'); assert.equal(await input.evaluate(node => node.form?.id), 'date-external');
+        await page.getByRole('button', { name: 'Reset external date', exact: true }).click();
+        await page.waitForFunction(() => document.querySelector('.properties form > cem-datepicker input')?.value === '2026-08-11');
+        await flag('hidden', true); assert.equal(await input.isVisible(), false); await flag('hidden', false);
+        assert.deepEqual(await host.evaluate(node => window.cemPlaygroundRuntime.diagnosticsFor(node)), []);
+        console.log(`Datepicker forced colors and bundle: ${baseUrl}`);
+        await page.goto(new URL('cem-datepicker-gallery.html', baseUrl).href);
+        const first = page.locator('[data-gallery-theme] cem-datepicker').first();
+        await first.getByRole('combobox').waitFor(); await first.evaluate(node => window.cemPlaygroundRuntime.whenRenderSettled(node));
+        await page.emulateMedia({ forcedColors: 'active' });
+        await first.locator('input').focus(); await first.locator('input').press('ArrowDown'); await first.evaluate(node => window.cemPlaygroundRuntime.whenRenderSettled(node));
+        assert.equal(await first.locator('dialog').evaluate(node => node.matches(':modal')), true);
+        assert.equal(await first.locator('dialog').evaluate(node => getComputedStyle(node).boxShadow), 'none');
+        assert.equal(await first.locator('[role=gridcell][tabindex="0"]').count(), 1);
+        await page.keyboard.press('Escape'); await page.emulateMedia({ forcedColors: 'none' });
+        await page.goto(new URL('cem-bundle.html', baseUrl).href);
+        const bundled = page.getByRole('combobox', { name: 'Bundled date', exact: true }); await bundled.waitFor();
+        await bundled.focus(); await bundled.press('ArrowDown');
+        const calendar = page.locator('cem-datepicker'); await calendar.evaluate(node => window.cemPlaygroundRuntime.whenRenderSettled(node));
+        await calendar.locator('[data-date="2026-08-12"]').click(); await calendar.evaluate(node => window.cemPlaygroundRuntime.whenRenderSettled(node));
+        await calendar.locator('[data-calendar-action=apply]').click(); await calendar.evaluate(node => window.cemPlaygroundRuntime.whenRenderSettled(node));
+        assert.equal(await bundled.inputValue(), '2026-08-12'); assert.deepEqual(errors, []);
+    } finally { await context.close(); }
+}
+
+async function verifyTimeRange(baseUrl) {
+    console.log(`Timepicker and slider galleries: ${baseUrl}`);
+    await verifyGalleries(baseUrl, ['cem-timepicker', 'cem-slider']);
+    const context = await browser.newContext(), page = await context.newPage(), errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    try {
+        for (const tag of ['cem-timepicker', 'cem-slider']) {
+            console.log(`${tag} properties and native forms: ${baseUrl}`);
+            await page.goto(new URL(`${tag}.html`, baseUrl).href);
+            const host = page.locator(`.properties form > ${tag}`), input = host.locator('input').first();
+            try { await host.locator('[part=root]').waitFor(); }
+            catch (error) {
+                console.error(`${tag} root readiness`, await page.evaluate(tag => {
+                    const host = document.querySelector(`.properties form > ${tag}`), runtime = window.cemPlaygroundRuntime;
+                    return { attributes: host && [...host.attributes].map(a => [a.name, a.value]),
+                        children: host && [...host.children].filter(n => n.localName !== 'template').map(n => n.outerHTML), diagnostics: host && runtime?.diagnosticsFor(host),
+                        declarations: [...document.querySelectorAll('cem-element')].map(node => ({ tag: node.getAttribute('tag'), diagnostics: runtime?.diagnosticsFor(node) })).filter(entry => entry.diagnostics?.length) };
+                }, tag), errors);
+                throw error;
+            }
+            const settle = () => host.evaluate(node => window.cemPlaygroundRuntime.whenRenderSettled(node));
+            await settle();
+            const text = async (name, value, native = false) => {
+                await page.locator(`.properties cem-field[label="${name}"] input`).fill(value);
+                await page.waitForFunction(({ tag, name, value, native }) => {
+                    const host = document.querySelector(`.properties form > ${tag}`);
+                    return (native ? host?.querySelector('input') : host)?.getAttribute(name === 'label' ? 'aria-label' : name) === value;
+                }, { tag, name, value, native });
+                await settle();
+            };
+            const radio = async (name, value) => {
+                await page.getByRole('group', { name, exact: true }).getByRole('radio', { name: value, exact: true }).check();
+                await page.waitForFunction(({ tag, name, value }) => {
+                    const host = document.querySelector(`.properties form > ${tag}`);
+                    if (name === 'mode') return host?.querySelector('[part=root]')?.getAttribute('data-mode') === value;
+                    return ['present', 'absent'].includes(value) ? host?.hasAttribute(name) === (value === 'present') : host?.getAttribute(name) === value;
+                }, { tag, name, value });
+                await settle();
+            };
+            const initial = tag === 'cem-slider' ? '50' : '09:30';
+            assert.equal(await input.inputValue(), initial);
+            await text('label', 'Native value', true); await text('name', 'native-value', true);
+            assert.deepEqual(await input.evaluate(node => [...new FormData(node.form)]), [['native-value', initial]]);
+            await host.evaluate(node => { window.timeRangeEvents = []; for (const type of ['input', 'change']) node.addEventListener(type, event => window.timeRangeEvents.push([type, event.target.tagName, event.target.value])); });
+            if (tag === 'cem-timepicker') {
+                await text('interval', '15'); await input.focus(); await input.press('ArrowDown'); await settle();
+                assert.equal(await host.locator('[part=popup]').evaluate(node => node.matches(':popover-open')), true);
+                await host.locator('[data-value="10:00"]').click(); await settle();
+                assert.equal(await input.inputValue(), '10:00');
+                assert.deepEqual(await page.evaluate(() => window.timeRangeEvents), [['input', 'INPUT', '10:00'], ['change', 'INPUT', '10:00']]);
+                await radio('required', 'present'); await input.fill('9:30'); assert.equal(await input.evaluate(node => node.validity.customError), true);
+                await radio('indicator', 'outline');
+            } else {
+                await radio('discrete', 'present'); await radio('show-tick-marks', 'present');
+                assert.equal(await host.locator('[part~=single-value]').evaluate(node => getComputedStyle(node).display), 'block');
+                await input.focus(); await input.press('ArrowRight');
+                assert.equal(await input.inputValue(), '55');
+                assert.deepEqual(await page.evaluate(() => window.timeRangeEvents), [['input', 'INPUT', '55'], ['change', 'INPUT', '55']]);
+                await radio('mode', 'range');
+                assert.equal(await host.locator('input').count(), 2);
+                await input.focus(); await input.press('End'); assert.equal(await input.inputValue(), '75');
+            }
+            await page.locator('.properties').getByRole('button', { name: 'Reset values', exact: true }).click();
+            await page.waitForFunction(({ tag, initial }) => document.querySelector(`.properties form > ${tag} input`)?.value === initial, { tag, initial });
+            await settle();
+            await radio('disabled', 'present'); assert.equal(await input.isDisabled(), true); assert.deepEqual(await input.evaluate(node => [...new FormData(node.form)]), []); await radio('disabled', 'absent');
+            await radio('dir', 'rtl'); await radio('hidden', 'present'); assert.equal(await input.isVisible(), false); await radio('hidden', 'absent');
+            await text('form', `${tag.slice(4)}-external`, true); assert.equal(await input.evaluate(node => node.form.id), `${tag.slice(4)}-external`);
+            assert.deepEqual(await host.evaluate(node => window.cemPlaygroundRuntime.diagnosticsFor(node)), []);
+        }
+        console.log(`Timepicker and slider bundle: ${baseUrl}`);
+        await page.goto(new URL('cem-bundle.html', baseUrl).href);
+        const time = page.locator('cem-timepicker'); await time.getByRole('combobox').waitFor();
+        await time.getByRole('combobox').focus(); await time.getByRole('combobox').press('ArrowDown'); await time.evaluate(node => window.cemPlaygroundRuntime.whenRenderSettled(node));
+        await time.locator('[data-value="10:00"]').click(); assert.equal(await time.locator('input').inputValue(), '10:00');
+        const range = page.locator('cem-slider'); await range.locator('[part=root]').waitFor(); await range.evaluate(node => window.cemPlaygroundRuntime.whenRenderSettled(node));
+        await range.locator('input').focus(); await range.locator('input').press('ArrowRight'); assert.equal(await range.locator('input').inputValue(), '51');
+        await page.emulateMedia({ forcedColors: 'active' });
+        const trackSize = await range.locator('[part=track]').evaluate(node => {
+            const probe = document.createElement('span'); probe.style.cssText = 'position:absolute;block-size:var(--cem-slider-track-thickness)'; node.parentElement.append(probe);
+            const expected = getComputedStyle(probe).height; probe.remove();
+            return { actual: getComputedStyle(node).height, expected };
+        });
+        assert.equal(trackSize.actual, trackSize.expected);
+        assert.deepEqual(errors, []);
+    } finally { await context.close(); }
+}
+
+async function verifyNavigationContent(baseUrl) {
+    const tags = ['cem-nav', 'cem-tabs', 'cem-stepper', 'cem-tree', 'cem-list', 'cem-chip'];
+    await verifyGalleries(baseUrl, tags);
+    await verifyProjectNavigation(baseUrl);
+    const context = await browser.newContext(), page = await context.newPage(), errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    const interact = async (host, tag) => {
+        const settle = () => host.evaluate(node => window.cemPlaygroundRuntime.whenRenderSettled(node));
+        await host.locator('[part]').first().waitFor(); await settle();
+        if (tag === 'cem-nav' || tag === 'cem-chip') {
+            const owner = host.locator('button').first(), attribute = tag === 'cem-nav' ? 'aria-expanded' : 'aria-pressed';
+            const initial = await owner.getAttribute(attribute);
+            await owner.focus(); await owner.press('Space'); await settle();
+            assert.equal(await owner.getAttribute(attribute), initial === 'true' ? 'false' : 'true');
+            assert.equal(await owner.evaluate(node => document.activeElement === node), true);
+        } else if (tag === 'cem-tabs' || tag === 'cem-stepper') {
+            const owners = host.locator(tag === 'cem-tabs' ? '[part=tab]' : '[part=header]');
+            await owners.first().focus(); await owners.first().press('ArrowRight'); await settle();
+            assert.equal(await owners.nth(1).evaluate(node => document.activeElement === node), true);
+            assert.equal(await host.evaluate(node => node.selectedIndex), 0);
+            await owners.nth(1).press('Enter'); await settle(); assert.equal(await host.evaluate(node => node.selectedIndex), 1);
+        } else if (tag === 'cem-tree') {
+            const owner = host.locator('[part=node]').first(); await owner.focus();
+            const initial = await owner.getAttribute('aria-expanded'); await owner.press(initial === 'true' ? 'ArrowLeft' : 'ArrowRight'); await settle();
+            assert.equal(await owner.getAttribute('aria-expanded'), initial === 'true' ? 'false' : 'true');
+        } else {
+            const owner = host.locator('select'); await owner.selectOption('document'); await settle();
+            assert.equal(await owner.inputValue(), 'document');
+            assert.equal(await host.evaluate(node => window.cemPlaygroundRuntime.snapshotInstance(node).slices.value), 'document');
+        }
+        assert.deepEqual(await host.evaluate(node => window.cemPlaygroundRuntime.diagnosticsFor(node)), []);
+    };
+    try {
+        for (const tag of tags) {
+            console.log(`${tag} properties: ${baseUrl}`);
+            await page.goto(new URL(`${tag}.html`, baseUrl).href);
+            const host = page.locator(`.properties ${tag}`).last();
+            await interact(host, tag);
+            await page.locator('.properties cem-field[label="label"] input').fill('Renamed owner');
+            await page.waitForFunction(tag => document.querySelector(`.properties ${tag}`)?.getAttribute('label') === 'Renamed owner', tag);
+            await host.evaluate(node => window.cemPlaygroundRuntime.whenRenderSettled(node));
+            const owner = host.locator(tag === 'cem-tabs' ? '[role=tablist]' : tag === 'cem-chip' ? 'button' : '[part=root]').first();
+            assert.equal(await owner.getAttribute('aria-label'), 'Renamed owner');
+            await page.getByRole('group', { name: 'hidden', exact: true }).getByRole('radio', { name: 'present', exact: true }).check();
+            await host.waitFor({ state: 'hidden' });
+            await page.getByRole('group', { name: 'hidden', exact: true }).getByRole('radio', { name: 'absent', exact: true }).check();
+            await host.waitFor({ state: 'visible' });
+        }
+        await page.goto(new URL('cem-bundle.html', baseUrl).href);
+        for (const tag of tags) await interact(page.locator(tag).first(), tag);
+        assert.deepEqual(errors, []);
+    } finally { await context.close(); }
+}
+
+async function verifyProjectNavigation(baseUrl) {
+    console.log(`Shared project navigation: ${baseUrl}`);
+    const context = await browser.newContext({ viewport: { width: 360, height: 800 } });
+    const page = await context.newPage(), errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    try {
+        await page.goto(new URL('cem-tree-gallery.html', baseUrl).href);
+        await page.waitForFunction(() => ['cem-action', 'cem-list', 'cem-tree', 'cem-tabs', 'cem-dialog', 'cem-stack', 'cem-alert', 'cem-surface'].every(tag => customElements.get(tag)));
+        await page.evaluate(async ({ source, textareaSource }) => {
+            const { mountCemView } = await import('@epa-wg/cem-elements');
+            const runtime = window.cemPlaygroundRuntime;
+            const textarea = document.createElement('cem-element');
+            textarea.setAttribute('tag', 'cem-textarea'); textarea.setAttribute('capability', 'form-control'); textarea.setAttribute('src', `${textareaSource}#cem-textarea`);
+            document.body.append(textarea); await runtime.whenDeclarationSettled(textarea);
+            const declaration = document.createElement('cem-element');
+            declaration.setAttribute('tag', 'project-navigation-example'); declaration.setAttribute('src', `${source}#project-navigation-example`);
+            document.body.append(declaration); await runtime.whenDeclarationSettled(declaration);
+            const root = document.createElement('section'); root.setAttribute('aria-label', 'Project navigation example'); document.body.append(root);
+            const records = { alpha: 'Alpha saved', beta: 'Beta saved' };
+            let state = { selected: 'alpha', draft: records.alpha, saved: records.alpha, dirty: false, pending: '', saving: false, failed: false, status: 'ready' };
+            const publish = () => { window.projectNavigationState = state; view.update(state); };
+            const commit = value => { state = { ...state, selected: value, draft: records[value], saved: records[value], dirty: false, pending: '' }; publish(); };
+            const navigate = value => { if (state.dirty) { state = { ...state, pending: value }; publish(); } else commit(value); };
+            const view = window.projectNavigationView = mountCemView(runtime, { root, tag: 'project-navigation-example', state, commands: {
+                navigate: ({ value }) => navigate(value), 'open-alpha': () => navigate('alpha'), 'open-beta': () => navigate('beta'),
+                edit: ({ value }) => { state = { ...state, draft: value, dirty: value !== state.saved }; publish(); },
+                cancel: () => { state = { ...state, pending: '' }; publish(); },
+                discard: () => commit(state.pending),
+                save: () => { records[state.selected] = state.draft; commit(state.pending); },
+            } });
+            publish(); await view.whenSettled();
+        }, { source: new URL('../playgrounds/project-navigation.xhtml', baseUrl).href,
+            textareaSource: new URL('../src/components/cem-textarea/cem-textarea.xhtml', baseUrl).href });
+        const root = page.getByRole('region', { name: 'Project navigation example' });
+        const settle = () => page.evaluate(() => window.projectNavigationView.whenSettled());
+        const beta = root.locator('[data-tree-value=beta]'), editor = root.locator('textarea');
+        for (const theme of ['light', 'dark', 'contrast-light', 'contrast-dark', 'native']) {
+            await root.evaluate((node, theme) => { node.className = `cem-theme-${theme}`; node.style.setProperty('--cem-layout-stack-gap', '23px'); node.style.setProperty('--cem-stroke-focus', '3px'); }, theme);
+            await editor.fill(`Draft in ${theme}`); await settle();
+            await editor.evaluate(node => { window.navigationEditor = node; node.setSelectionRange(2, 5); });
+            await root.getByRole('tab', { name: 'Preview', exact: true }).click(); await settle();
+            await root.getByRole('tab', { name: 'Editor', exact: true }).click(); await settle();
+            assert.deepEqual(await editor.evaluate(node => [node === window.navigationEditor, node.selectionStart, node.selectionEnd]), [true, 2, 5]);
+            await beta.focus(); await beta.press('Enter'); await settle();
+            const dialog = root.getByRole('dialog', { name: 'Save changes before opening another resource?' });
+            await dialog.waitFor({ state: 'visible' });
+            assert.equal(await beta.getAttribute('aria-selected'), 'false');
+            await dialog.getByRole('button', { name: 'Cancel', exact: true }).click(); await settle();
+            await page.waitForFunction(() => document.activeElement?.getAttribute('data-tree-value') === 'beta');
+            assert.equal(await dialog.count(), 0);
+            assert.equal(await editor.inputValue(), `Draft in ${theme}`);
+            await beta.press('ArrowDown');
+            assert.equal(await root.locator('cem-stack > [part=root]').first().evaluate(node => getComputedStyle(node).gap), '23px');
+            assert.equal(await beta.evaluate(node => getComputedStyle(node).outlineWidth), '3px');
+            assert(await root.evaluate(node => node.scrollWidth <= node.clientWidth + 1), `${theme}: compact workflow overflow`);
+        }
+        await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
+        await beta.focus(); await beta.press('ArrowUp'); await beta.press('ArrowDown');
+        const paint = await beta.evaluate(node => {
+            const probe = document.createElement('span'); probe.style.color = 'CanvasText'; document.body.append(probe);
+            const canvasText = getComputedStyle(probe).color; probe.remove();
+            const style = getComputedStyle(node); return { outline: style.outlineColor, canvasText, adjust: style.forcedColorAdjust, focused: node.matches(':focus-visible') };
+        });
+        assert.equal(paint.outline, paint.canvasText); assert.equal(paint.adjust, 'auto'); assert.equal(paint.focused, true);
+        assert.deepEqual(await page.evaluate(() => window.projectNavigationView.errors.map(error => String(error))), []);
+        assert.deepEqual(errors, []);
+    } finally { await context.close(); }
+}
+
+
+async function verifyLayout(baseUrl) {
+    const tags = ['cem-surface', 'cem-text', 'cem-stack', 'cem-grid', 'cem-divider', 'cem-card'];
+    console.log(`Passive component galleries: ${baseUrl}`);
+    await verifyGalleries(baseUrl, tags);
+    const context = await browser.newContext(), page = await context.newPage(), errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    try {
+        for (const tag of tags) {
+            console.log(`Passive component properties: ${tag} at ${baseUrl}`);
+            await page.goto(new URL(`${tag}.html`, baseUrl).href);
+            const host = page.locator(`.properties ${tag}`).last(), owner = host.locator('[part=root]');
+            await owner.waitFor();
+            const settle = () => host.evaluate(node => window.cemPlaygroundRuntime.whenRenderSettled(node));
+            await settle();
+            const flag = async (name, value) => {
+                await page.getByRole('group', { name, exact: true }).getByRole('radio', { name: value, exact: true }).check();
+                await page.waitForFunction(({tag, name, value}) => {
+                    const node = document.querySelector(`.properties ${tag}`);
+                    return ['present', 'absent'].includes(value) ? node?.hasAttribute(name) === (value === 'present') : node?.getAttribute(name) === value;
+                }, {tag, name, value});
+                await settle();
+            };
+            if (tag === 'cem-surface' || tag === 'cem-card') {
+                const input = host.locator('input'); await input.fill('Edited draft');
+                await owner.evaluate(node => { window.retainedLayoutOwner = node; window.retainedLayoutInput = node.querySelector('input'); });
+                if (tag === 'cem-surface') { await flag('empty', 'present'); assert.equal(await owner.getAttribute('data-state'), 'empty'); }
+                await flag('busy', 'present'); assert.equal(await owner.getAttribute('data-state'), 'loading'); assert.equal(await owner.getAttribute('aria-busy'), 'true');
+                await flag('busy', 'absent'); assert.equal(await owner.getAttribute('data-state'), tag === 'cem-surface' ? 'empty' : null);
+                assert.equal(await input.inputValue(), 'Edited draft');
+                assert.equal(await owner.evaluate(node => node === window.retainedLayoutOwner && node.querySelector('input') === window.retainedLayoutInput), true);
+                if (tag === 'cem-surface') { await flag('tone', 'trust'); await flag('empty', 'absent'); }
+                const label = page.locator('.properties cem-field[label="label"] input'); await label.fill('Renamed content');
+                await page.waitForFunction(tag => document.querySelector(`.properties ${tag} [part=root]`)?.getAttribute('aria-label') === 'Renamed content', tag);
+                await page.emulateMedia({ forcedColors: 'active' });
+                assert.equal(await owner.evaluate(node => getComputedStyle(node).forcedColorAdjust), 'auto');
+                assert.equal(await owner.evaluate(node => getComputedStyle(node).boxShadow), 'none');
+                assert.equal(await owner.evaluate(node => getComputedStyle(node).borderBlockStartStyle), 'solid');
+                await page.emulateMedia({ forcedColors: 'none' });
+            } else if (tag === 'cem-divider') {
+                await flag('orientation', 'vertical'); assert.equal(await owner.getAttribute('aria-orientation'), 'vertical');
+                assert(await owner.evaluate(node => node.getBoundingClientRect().height) > 0);
+                await flag('decorative', 'present'); assert.equal(await owner.getAttribute('aria-hidden'), 'true'); assert.equal(await owner.getAttribute('role'), null);
+                await flag('decorative', 'absent'); assert.equal(await owner.getAttribute('role'), 'separator');
+                await flag('spacing', 'section'); await flag('inset', 'present');
+            } else if (tag === 'cem-text') {
+                await page.locator('.properties cem-field[label="text"] input').fill('Updated fallback');
+                await page.waitForFunction(() => document.querySelector('.properties cem-text [part=root]')?.textContent === 'Updated fallback');
+                await flag('variant', 'data');
+            } else {
+                await flag('gap', 'lg'); assert.equal(await owner.getAttribute('data-gap'), 'lg');
+                assert.equal(await owner.evaluate(node => getComputedStyle(node).display), tag === 'cem-stack' ? 'flex' : 'grid');
+                if (tag === 'cem-grid') { await flag('columns', '3'); assert.equal(await owner.evaluate(node => getComputedStyle(node).gridTemplateColumns.split(' ').length), 3); }
+            }
+            assert.equal(await owner.getAttribute('tabindex'), null);
+            await flag('dir', 'rtl'); await flag('hidden', 'present'); assert.equal(await owner.isVisible(), false); await flag('hidden', 'absent');
+            assert.deepEqual(await host.evaluate(node => window.cemPlaygroundRuntime.diagnosticsFor(node)), []);
+            const source = page.getByRole('link', { name: 'Open canonical XHTML', exact: true }); await source.waitFor();
+            const response = await page.request.get(await source.getAttribute('href'));
+            assert.equal(await response.text(), await readFile(join(root, `packages/cem-components/src/components/${tag}/${tag}.xhtml`), 'utf8'));
+        }
+        await page.goto(new URL('cem-bundle.html', baseUrl).href);
+        for (const tag of tags) {
+            const host = page.locator(`main ${tag}`).first(); await host.locator('[part=root]').waitFor();
+            await host.evaluate(node => window.cemPlaygroundRuntime.whenRenderSettled(node));
+            assert.deepEqual(await host.evaluate(node => window.cemPlaygroundRuntime.diagnosticsFor(node)), []);
+        }
+        assert.deepEqual(errors, []);
+    } finally { await context.close(); }
+}
+
+
+async function verifyDisclosureData(baseUrl) {
+    const tags = ['cem-expansion', 'cem-table', 'cem-sort-header', 'cem-paginator'];
+    await verifyGalleries(baseUrl, tags);
+    const context = await browser.newContext(), page = await context.newPage(), errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    try {
+        for (const tag of tags) {
+            console.log(`Disclosure/data properties: ${tag} at ${baseUrl}`);
+            await page.goto(new URL(`${tag}.html`, baseUrl).href);
+            const host = page.locator(`.properties ${tag}`).last(), owner = host.locator(':scope > [part=root]');
+            await owner.waitFor();
+            const settle = () => host.evaluate(node => window.cemPlaygroundRuntime.whenRenderSettled(node));
+            await settle();
+            const flag = async (name, value) => {
+                await page.getByRole('group', { name, exact: true }).getByRole('radio', { name: value, exact: true }).check();
+                await page.waitForFunction(({tag, name, value}) => {
+                    const node = document.querySelector(`.properties ${tag}`);
+                    return ['present', 'absent'].includes(value) ? node?.hasAttribute(name) === (value === 'present') : node?.getAttribute(name) === value;
+                }, {tag, name, value});
+                await settle();
+            };
+            await host.evaluate(node => { window.retainedDataOwner = node.querySelector(':scope > [part=root]'); window.dataEvents = []; for (const type of ['cem-sort', 'cem-page']) node.addEventListener(type, event => window.dataEvents.push({type, detail: event.detail})); });
+            if (tag === 'cem-expansion') {
+                const button = host.locator('[part=header]'), panel = host.locator('[part=panel]');
+                assert.equal(await panel.isVisible(), false);
+                await button.click(); await settle(); assert.equal(await panel.isVisible(), true);
+                const input = host.locator('input'); await input.fill('Retained edit');
+                await button.press('Enter'); await settle(); assert.equal(await panel.isVisible(), false);
+                await flag('expanded', 'present'); await flag('region', 'present'); await flag('disabled', 'present');
+                assert.equal(await button.isDisabled(), true); assert.equal(await panel.getAttribute('role'), 'region'); assert.equal(await input.inputValue(), 'Retained edit');
+                await flag('disabled', 'absent'); await flag('heading-level', '2'); assert.equal(await host.locator('[part=heading]').getAttribute('aria-level'), '2');
+            } else if (tag === 'cem-sort-header') {
+                const button = host.locator('button'); await button.click(); await settle(); assert.equal(await owner.getAttribute('aria-sort'), 'ascending');
+                await button.press('Enter'); await settle(); assert.equal(await owner.getAttribute('aria-sort'), 'descending');
+                await button.press('Space'); await settle(); assert.equal(await owner.getAttribute('aria-sort'), null);
+                assert.deepEqual(await page.evaluate(() => window.dataEvents.map(event => event.detail.direction)), ['ascending','descending','none']);
+                await flag('direction', 'descending'); await flag('disabled', 'present'); assert.equal(await button.isDisabled(), true);
+                assert.equal(await page.evaluate(() => window.dataEvents.length), 3);
+            } else if (tag === 'cem-paginator') {
+                const next = host.locator('[data-page-action=next]'); await next.click(); await settle();
+                assert.equal(await host.locator('[part=range]').textContent(), '51 – 75 of 120');
+                await host.locator('select').selectOption('10'); await settle(); assert.equal(await host.locator('[part=range]').textContent(), '51 – 60 of 120');
+                assert.equal(await page.evaluate(() => window.dataEvents.length), 2);
+                await flag('show-first-last', 'present'); await flag('hide-page-size', 'present');
+                assert.equal(await host.locator('[part=action]').count(), 4); assert.equal(await host.locator('select').count(), 0);
+                await flag('disabled', 'present'); assert.equal(await next.isDisabled(), true);
+                assert.equal(await page.evaluate(() => window.dataEvents.length), 2);
+            } else {
+                assert.equal(await owner.getAttribute('role'), 'table'); assert.equal(await host.locator('[role=row]').count(), 2);
+                await page.locator('.properties cem-field[label="label"] input').fill('Renamed records');
+                await page.waitForFunction(() => document.querySelector('.properties cem-table [part=root]')?.getAttribute('aria-label') === 'Renamed records');
+                assert.equal(await page.evaluate(() => window.dataEvents.length), 0);
+            }
+            assert.equal(await owner.evaluate(node => node === window.retainedDataOwner), true);
+            await flag('dir', 'rtl'); await flag('hidden', 'present'); assert.equal(await owner.isVisible(), false); await flag('hidden', 'absent');
+            assert.deepEqual(await host.evaluate(node => window.cemPlaygroundRuntime.diagnosticsFor(node)), []);
+            await page.emulateMedia({ forcedColors: 'active' }); assert.equal(await owner.evaluate(node => getComputedStyle(node).forcedColorAdjust), 'auto'); await page.emulateMedia({ forcedColors: 'none' });
+            const source = page.getByRole('link', { name: 'Open canonical XHTML', exact: true }); await source.waitFor();
+            const response = await page.request.get(await source.getAttribute('href'));
+            assert.equal(await response.text(), await readFile(join(root, `packages/cem-components/src/components/${tag}/${tag}.xhtml`), 'utf8'));
+        }
+        await page.goto(new URL('cem-bundle.html', baseUrl).href);
+        for (const tag of tags) {
+            const host = page.locator(`main ${tag}`).first(); await host.locator(':scope > [part=root]').waitFor();
+            await host.evaluate(node => window.cemPlaygroundRuntime.whenRenderSettled(node));
+            assert.deepEqual(await host.evaluate(node => window.cemPlaygroundRuntime.diagnosticsFor(node)), []);
+        }
+        assert.deepEqual(errors, []);
+    } finally { await context.close(); }
+}
+
+async function verifyFeedback(baseUrl) {
+    const tags = ['cem-toast', 'cem-progress', 'cem-progress-spinner', 'cem-skeleton', 'cem-alert'];
+    await verifyGalleries(baseUrl, tags);
+    const context = await browser.newContext(), page = await context.newPage(), errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    try {
+        for (const tag of tags) {
+            console.log(`Feedback properties: ${tag} at ${baseUrl}`);
+            await page.goto(new URL(`${tag}.html`, baseUrl).href);
+            const host = page.locator(`.properties ${tag}`).last(), owner = host.locator(':scope > [part=root]');
+            await owner.waitFor();
+            const settle = () => host.evaluate(async node => {
+                const runtime = window.cemPlaygroundRuntime;
+                await runtime.whenRenderSettled(node.closest('.properties'));
+                await runtime.whenRenderSettled(node);
+            });
+            await settle();
+            await host.evaluate(node => { window.feedbackOwner = node.querySelector(':scope > [part=root]'); });
+            const choose = async (name, value) => {
+                await page.getByRole('group', { name, exact: true }).getByRole('radio', { name: value, exact: true }).check();
+                await page.waitForFunction(({tag, name, value}) => {
+                    const host = document.querySelector(`.properties ${tag}`);
+                    if (name === 'mode') return host?.hasAttribute('value') === (value === 'determinate');
+                    if (name === 'content') return !!host?.querySelector('strong') === (value === 'projected');
+                    if (name === 'hidden') return host?.hasAttribute(name) === (value === 'present');
+                    return host?.getAttribute(name) === value;
+                }, {tag, name, value});
+                await settle();
+            };
+            const fill = async (name, value) => {
+                await page.getByRole('textbox', { name, exact: true }).fill(value);
+                await page.waitForFunction(({tag, name, value}) => document.querySelector(`.properties ${tag}`)?.getAttribute(name) === value, {tag, name, value});
+                await settle();
+            };
+            await fill('label', 'Updated task');
+            if (tag === 'cem-progress' || tag === 'cem-progress-spinner') {
+                await choose('mode', 'determinate'); await fill('max', '12'); await fill('value', '30');
+                if (tag === 'cem-progress') {
+                    assert.equal(await owner.evaluate(node => node.value), 12); assert.equal(await owner.evaluate(node => node.max), 12);
+                } else {
+                    assert.equal(await owner.getAttribute('aria-valuenow'), '12'); assert.equal(await owner.getAttribute('aria-valuemax'), '12');
+                    assert.equal(await host.locator('[part=indicator]').getAttribute('stroke-dasharray'), '100 0');
+                }
+                assert.equal(await owner.getAttribute('aria-label'), 'Updated task');
+                await fill('value', '');
+                assert.equal(await host.getAttribute('value'), '');
+                assert.equal(await owner.evaluate(node => node instanceof HTMLProgressElement ? node.position : Number(node.getAttribute('aria-valuenow'))), 0);
+                await choose('mode', 'indeterminate');
+                assert.equal(await host.getAttribute('value'), null);
+                if (tag === 'cem-progress') assert.equal(await owner.evaluate(node => node.position), -1);
+                else assert.equal(await owner.getAttribute('aria-valuenow'), null);
+            } else {
+                assert.equal((await owner.textContent()).trim(), 'Updated task');
+                await choose('content', 'projected');
+                assert.equal((await owner.textContent()).trim(), 'Authored message markup');
+                if (tag === 'cem-toast') { assert.equal(await owner.getAttribute('role'), 'status'); assert.equal(await owner.getAttribute('aria-live'), 'polite'); }
+                if (tag === 'cem-alert') { await choose('tone', 'danger'); await choose('role', 'alert'); assert.equal(await owner.getAttribute('data-tone'), 'danger'); assert.equal(await owner.getAttribute('role'), 'alert'); }
+                if (tag === 'cem-skeleton') { assert.equal(await owner.getAttribute('aria-hidden'), 'true'); assert.equal(await owner.evaluate(node => node.inert), true); }
+            }
+            await choose('dir', 'rtl'); assert.equal(await owner.evaluate(node => getComputedStyle(node).direction), 'rtl');
+            await choose('hidden', 'present'); assert.equal(await owner.isVisible(), false);
+            await choose('hidden', 'absent'); assert.equal(await owner.isVisible(), true);
+            assert.equal(await owner.evaluate(node => node === window.feedbackOwner), true, `${tag}: retained owner`);
+            for (const reducedMotion of ['no-preference', 'reduce']) {
+                await page.emulateMedia({ forcedColors: 'active', reducedMotion });
+                const state = await host.evaluate(node => {
+                    const owner = node.querySelector('[part=root]'), style = getComputedStyle(owner);
+                    const resolveColor = value => { const probe = document.createElement('span'); probe.style.color = value; document.body.append(probe); const result = getComputedStyle(probe).color; probe.remove(); return result; };
+                    const indicator = node.querySelector('[part=indicator]'), track = node.querySelector('[part=track]');
+                    return { color: style.color, background: style.backgroundColor, border: style.borderTopColor, adjustment: style.forcedColorAdjust,
+                        canvas: resolveColor('Canvas'), text: resolveColor('CanvasText'), gray: resolveColor('GrayText'), highlight: resolveColor('Highlight'),
+                        indicator: indicator && getComputedStyle(indicator).stroke, track: track && getComputedStyle(track).stroke,
+                        animation: indicator && getComputedStyle(indicator).animationName,
+                        dash: indicator?.getAttribute('stroke-dasharray'), width: owner.getBoundingClientRect().width };
+                });
+                assert.equal(state.adjustment, 'auto');
+                if (tag === 'cem-progress-spinner') {
+                    assert.equal(state.indicator, state.highlight); assert.equal(state.track, state.gray); assert.equal(state.dash, '25 75');
+                    if (reducedMotion === 'reduce') assert.equal(state.animation, 'none');
+                    else assert.match(state.animation, /^cem-progress-spinner-cycle-cem-[a-f0-9]+$/);
+                    assert(state.width > 0);
+                } else if (tag === 'cem-toast' || tag === 'cem-alert') { assert.equal(state.color, state.text); assert.equal(state.background, state.canvas); }
+                else if (tag === 'cem-skeleton') assert.equal(state.border, state.gray);
+            }
+            await page.emulateMedia({ forcedColors: 'none', reducedMotion: 'no-preference' });
+            assert.deepEqual(await host.evaluate(node => window.cemPlaygroundRuntime.diagnosticsFor(node)), []);
+            const source = page.getByRole('link', { name: 'Open canonical XHTML', exact: true }); await source.waitFor();
+            assert((await page.request.get(new URL(await source.getAttribute('href'), page.url()).href)).ok());
+        }
+        assert.deepEqual(errors, []);
+    } finally { await context.close(); }
+    await verifyBundle(new URL('cem-bundle.html', baseUrl).href);
+    console.log(`Feedback properties, native semantics, forced colors and reduced motion verified: ${baseUrl}`);
+}
+
+async function verifyPassive(baseUrl) {
+    await verifyGalleries(baseUrl, passiveTags);
+    const context = await browser.newContext(), page = await context.newPage(), errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    try {
+        for (const tag of passiveTags) {
+            console.log(`Passive properties: ${tag} at ${baseUrl}`);
+            await page.goto(new URL(`${tag}.html`, baseUrl).href);
+            const host = page.locator(`.properties ${tag}`).first(), owner = host.locator(':scope > [part=root]');
+            await owner.waitFor({ state: 'attached' });
+            await host.evaluate(node => { window.passiveOwner = node.querySelector(':scope > [part=root]'); });
+            const settle = () => host.evaluate(async node => {
+                await window.cemPlaygroundRuntime.whenRenderSettled(node.closest('.properties'));
+                await window.cemPlaygroundRuntime.whenRenderSettled(node);
+            });
+            await page.getByRole('textbox', { name: 'label', exact: true }).fill('Updated label');
+            await page.waitForFunction(tag => document.querySelector(`.properties ${tag}`)?.getAttribute('label') === 'Updated label', tag);
+            await settle();
+            if (['cem-avatar', 'cem-media-preview', 'cem-app-bar'].includes(tag)) assert.equal(await owner.getAttribute('aria-label'), 'Updated label');
+            if (tag === 'cem-badge') assert.equal(await owner.innerText(), 'Updated label');
+            for (const name of await page.locator('.properties fieldset[aria-label]').evaluateAll(nodes => nodes.map(node => node.getAttribute('aria-label')))) {
+                if (name === 'content') continue;
+                const radios = page.getByRole('group', { name, exact: true })
+                    .or(page.getByRole('radiogroup', { name, exact: true })).getByRole('radio');
+                for (let index = 0; index < await radios.count(); index++) {
+                    const radio = radios.nth(index), value = await radio.getAttribute('value');
+                    await radio.check();
+                    await page.waitForFunction(({ tag, name, value }) => {
+                        const host = document.querySelector(`.properties ${tag}`);
+                        return value === 'absent' || value === 'present' ? host?.hasAttribute(name) === (value === 'present') : host?.getAttribute(name) === value;
+                    }, { tag, name, value });
+                    await settle();
+                    if (name === 'tone') assert.equal(await owner.getAttribute('data-tone'), value);
+                    if (name === 'dir') assert.equal(await owner.evaluate(node => getComputedStyle(node).direction), value);
+                }
+            }
+            await page.getByRole('group', { name: 'hidden', exact: true }).or(page.getByRole('radiogroup', { name: 'hidden', exact: true })).getByRole('radio', { name: 'absent', exact: true }).check(); await settle();
+            if (tag === 'cem-media-preview') {
+                const mode = page.getByRole('radiogroup', { name: 'mode', exact: true });
+                const setMode = async value => {
+                    await mode.getByRole('radio', { name: value, exact: true }).check();
+                    await page.waitForFunction(value => document.querySelector('.properties cem-media-preview')?.getAttribute('mode') === value, value);
+                    await settle();
+                };
+                await setMode('text');
+                const value = '  <p>Exact output</p>\n';
+                await page.getByRole('textbox', { name: 'value', exact: true }).fill(value);
+                await page.waitForFunction(value => document.querySelector('.properties cem-media-preview')?.getAttribute('value') === value, value);
+                await settle();
+                assert.equal(await host.locator('pre').textContent(), value);
+                await page.getByRole('checkbox', { name: 'truncated', exact: true }).check();
+                await page.waitForFunction(() => document.querySelector('.properties cem-media-preview')?.hasAttribute('truncated'));
+                await settle();
+                assert.equal(await host.locator('pre').getAttribute('aria-label'), 'Updated label (truncated)');
+                await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
+                await page.keyboard.press('Tab');
+                await host.locator('pre').focus();
+                const outline = await host.locator('pre').evaluate(node => getComputedStyle(node).outlineStyle);
+                assert.equal(outline, 'solid');
+                await setMode('document');
+                const frame = host.locator('iframe');
+                assert.equal(await frame.getAttribute('sandbox'), '');
+                assert.equal(await frame.getAttribute('referrerpolicy'), 'no-referrer');
+                assert((await frame.getAttribute('srcdoc')).includes(value));
+                assert((await frame.getAttribute('srcdoc')).includes("script-src 'none'"));
+                assert.equal(await frame.evaluate(node => getComputedStyle(node).borderTopStyle), 'solid');
+                await page.emulateMedia({ forcedColors: 'none', reducedMotion: 'no-preference' });
+                await setMode('media');
+            }
+            await page.getByRole('group', { name: 'content', exact: true }).or(page.getByRole('radiogroup', { name: 'content', exact: true })).getByRole('radio', { name: 'projected', exact: true }).check();
+            await page.waitForFunction(tag => /Projected|Child/.test(document.querySelector(`.properties ${tag} > [part=root]`)?.textContent ?? '') || !!document.querySelector(`.properties ${tag} cem-tree-item[label="Child node"]`), tag);
+            await settle();
+            assert(await host.evaluate(node => node.querySelector(':scope > [part=root]') === window.passiveOwner), `${tag}: retained owner`);
+            assert.equal(await owner.evaluate(node => node.tabIndex), -1, `${tag}: no added tab stop`);
+            const source = await page.getByRole('link', { name: 'Open canonical XHTML', exact: true }).getAttribute('href');
+            assert((await (await page.request.get(source)).text()).includes(`<template id="${tag}" type="text/cem-ml">`));
+            await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
+            const forced = await owner.evaluate(node => {
+                const probe = document.createElement('span'); probe.style.cssText = 'color:CanvasText;background:Canvas'; document.body.append(probe);
+                const actual = getComputedStyle(node), expected = getComputedStyle(probe);
+                const value = { color: actual.color, background: actual.backgroundColor, text: expected.color, canvas: expected.backgroundColor, adjust: actual.forcedColorAdjust }; probe.remove(); return value;
+            });
+            assert.equal(forced.adjust, 'auto');
+            if (['cem-badge', 'cem-avatar', 'cem-media-preview', 'cem-app-bar'].includes(tag)) { assert.equal(forced.color, forced.text); assert.equal(forced.background, forced.canvas); }
+            await page.emulateMedia({ forcedColors: 'none', reducedMotion: 'no-preference' });
+        }
+        assert.deepEqual(errors, []);
+    } finally { await context.close(); }
+    await verifyBundle(new URL('cem-bundle.html', baseUrl).href);
 }

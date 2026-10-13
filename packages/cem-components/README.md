@@ -16,17 +16,16 @@ light DOM, authored against the `<cem-element>` substrate from `@epa-wg/cem-elem
 > `play` functions using `storybook/test`. Story `render` functions return HTML
 > strings. The story is development-only and must not implement component
 > behavior. Do not add standalone component CSS or migrated component selectors
-> to global CSS. This package must reach zero authored JavaScript/TypeScript
+> to global CSS. This package contains zero authored JavaScript/TypeScript
 > except the required colocated `.stories.ts` modules. If CEM-ML cannot express a requirement concisely,
 > component work hard-stops until the reusable capability is implemented in
 > `cem-elements`. See the normative
 > [declarative UI principle](../../docs/declarative-ui-principle.md).
 
-> **Migration status:** the installable TypeScript primitive registry, behavior
-> modules, and separate browser specs described below predate the primary rule.
-> They are frozen compatibility debt, not examples for new work. The baseline is
-> recorded in [`declarative-migration.json`](./declarative-migration.json) and
-> may only shrink toward zero.
+> **Migration complete:** all 53 components use canonical XHTML and colocated
+> stories. The package contains no legacy registry, installer, behavior module,
+> separate TypeScript suite or package-owned tooling. The closed zero inventory
+> is enforced by [`declarative-migration.json`](./declarative-migration.json).
 
 The first proven implementation of this contract is
 [`cem-select.xhtml`](./src/components/cem-select/cem-select.xhtml) with
@@ -60,30 +59,77 @@ source links to separately owned examples and local Storybook configuration.
 It contains no executable declaration or example markup and is not a runtime
 component bundle.
 
-## Legacy runtime install
+## Declaration loading
 
-This API remains available only while the frozen primitives migrate to
-declarative XHTML package assets. Do not add another registry member or
-JavaScript behavior.
+Load an individual `@epa-wg/cem-components/components/<tag>` resource, or
+`@epa-wg/cem-components/components.xhtml#<tag>` from the generated bundle,
+through the shared `cem-elements` loader. The package has no JavaScript entry
+point. Runtime APIs and event-detail types come from `@epa-wg/cem-elements`.
+Page-level import maps resolve these public resource subpaths; the shipped
+property pages demonstrate both source and installed-package loading.
 
-```ts
-import { CemElementRuntime } from '@epa-wg/cem-elements';
-import { installCemComponentPrimitives } from '@epa-wg/cem-components';
-
-const runtime = new CemElementRuntime();
-const result = await installCemComponentPrimitives(runtime);
+```html
+<cem-element tag="cem-badge" src="./components.xhtml#cem-badge"></cem-element>
+<cem-badge label="Ready" tone="success"></cem-badge>
 ```
 
-The promise resolves after every accepted declaration settles. Inspect
-`result.registered`, `result.skipped`, and `result.diagnostics` before rendering
-application content. Behavior-backed primitives supply stable versioned host
-identities as part of their registration contract.
+The final passive and inert payload owners are `cem-option`, `cem-option-group`,
+`cem-badge`, `cem-avatar`, `cem-media-preview`, `cem-tree-item`, `cem-app-bar`,
+`cem-tab` and `cem-step`. See their [contract and CEM audit](docs/passive-payload-contract.md).
 
-This registers the remaining legacy primitive tags: `cem-timepicker`, `cem-datepicker`, `cem-option`, `cem-option-group`,
-`cem-slider`, `cem-surface`, `cem-text`,
-`cem-stack`, `cem-grid`, `cem-divider`, `cem-list`, `cem-card`, `cem-expansion`, `cem-table`, `cem-sort-header`, `cem-chip`, `cem-badge`, `cem-avatar`,
-`cem-media-preview`, `cem-tree`, `cem-tree-item`, `cem-app-bar`, `cem-nav`, `cem-tabs`, `cem-tab`, `cem-stepper`, `cem-step`, `cem-paginator`,
-`cem-toast`, `cem-progress`, `cem-progress-spinner`, `cem-skeleton`, and `cem-alert`.
+The foundational layout/content owners also load directly from canonical XHTML,
+without a capability or component JavaScript:
+
+| Component | Property playground |
+| --- | --- |
+| `cem-surface` | [Surface](playgrounds/cem-surface.html) |
+| `cem-text` | [Text](playgrounds/cem-text.html) |
+| `cem-stack` | [Stack](playgrounds/cem-stack.html) |
+| `cem-grid` | [Grid](playgrounds/cem-grid.html) |
+| `cem-divider` | [Divider](playgrounds/cem-divider.html) |
+| `cem-card` | [Card](playgrounds/cem-card.html) |
+
+Each page links to a five-theme gallery. Their `part="root"` owners remain stable
+through attribute changes; cards also expose `part="header"` and `part="body"`.
+Busy, empty and decorative are presence attributes, including `="false"`.
+The surface/card state markers preserve native focus and edited content. Stack
+and grid remain passive formatting containers. See the
+[layout/content contract](docs/layout-content-contract.md) and
+[divider contract](docs/divider-contract.md).
+
+The navigation/content owners now load from canonical XHTML declarations:
+
+| Component | Shared capability | Property playground |
+| --- | --- | --- |
+| `cem-nav` | `navigation-landmark` | [Navigation](playgrounds/cem-nav.html) |
+| `cem-tabs` | `tab-panels` | [Tabs](playgrounds/cem-tabs.html) |
+| `cem-stepper` | `workflow-panels` | [Stepper](playgrounds/cem-stepper.html) |
+| `cem-tree` | `tree-view` | [Tree](playgrounds/cem-tree.html) |
+| `cem-list` | `native-list` | [List](playgrounds/cem-list.html) |
+| `cem-chip` | None; native button and declarative slice bindings | [Chip](playgrounds/cem-chip.html) |
+
+Each declaration owns its scoped token CSS and colocated executable stories.
+The hosts are not form-associated. Disclosure and chip toggles retain their
+native button identity; presence-only attributes accept empty and false-valued
+spellings. Tabs/stepper retain panel controls and recover focus when the focused
+panel is hidden. Tree collapse recovers to a visible ancestor without stealing
+focus from outside. `CemTabDetail`, `CemStepDetail`, `CemTreeToggleDetail` and
+`CemTreeActivateDetail` remain public type exports.
+
+Load canonical `cem-timepicker` with `capability="time-input"` and `cem-slider`
+with `capability="range-input"`. Both keep their authored inputs as native value,
+event and form owners; the host is not form-associated. The property pages and
+five-theme galleries are [timepicker](playgrounds/cem-timepicker.html) and
+[slider](playgrounds/cem-slider.html). Slider accepts named `single`, `start` and
+`end` slots as well as the existing `data-cem-slider-thumb` vocabulary.
+
+Load canonical `cem-datepicker` with `capability="calendar-input"`. Its authored
+native text input owns the canonical Gregorian date, labels, validation, events,
+forms and reset. The shared capability supplies bounded calendar navigation and
+a silent modal draft/Apply lifecycle; the declaration owns scoped token CSS.
+See the [datepicker contract](docs/datepicker-contract.md),
+[property playground](playgrounds/cem-datepicker.html) and
+[five-theme gallery](playgrounds/cem-datepicker-gallery.html).
 
 Load canonical `cem-autocomplete` with `capability="editable-choice"`. It keeps
 native text input focus, authoritative option payloads and one form-associated
@@ -98,12 +144,10 @@ reset; checkbox adds the shared `checkable-control` capability for mixed state.
 See the [checkable contract](docs/checkable-contract.md), linked property
 playgrounds and five-theme galleries for names, presence flags and native keys.
 
-## Legacy stylesheet install
+## Theme and compatibility stylesheet
 
-The shared component stylesheet remains the compatibility surface for components
-not yet migrated to declaration-owned CSS. New and migrated components MUST keep
-their CSS in the XHTML declaration; this export shrinks with the frozen legacy
-inventory and is not an authoring pattern for new work.
+Component CSS is installed once from each canonical declaration. The public
+`styles.css` export remains as an empty comment-only compatibility asset.
 
 Load generated theme CSS first, then explicitly load the component bindings:
 
@@ -245,7 +289,8 @@ bundle, keyboard behavior and forced colors.
 ```bash
 yarn nx run @epa-wg/cem-components:verify
 yarn nx run @epa-wg/cem-components:verify-declarative
-yarn nx run @epa-wg/cem-components:verify-primitives
+yarn nx run @epa-wg/cem-components:verify-passive
+yarn nx run @epa-wg/cem-components:verify-native-substrate
 yarn nx run @epa-wg/cem-components:verify-figma-inventory
 yarn nx run @epa-wg/cem-components:verify-material-parity
 yarn nx run @epa-wg/cem-components:verify-state-matrix
@@ -262,6 +307,9 @@ yarn nx run @epa-wg/cem-components:verify-paginator-forced-colors
 yarn nx run @epa-wg/cem-components:verify-slider-forced-colors
 yarn nx run @epa-wg/cem-components:verify-tooltip-forced-colors
 yarn nx run @epa-wg/cem-components:verify-timepicker-forced-colors
+yarn nx run @epa-wg/cem-components:verify-datepicker
+yarn nx run @epa-wg/cem-components:verify-time-range
+yarn nx run @epa-wg/cem-components:verify-navigation
 yarn nx run @epa-wg/cem-components:verify-datepicker-forced-colors
 yarn nx run @epa-wg/cem-components:verify-stepper-forced-colors
 yarn nx run @epa-wg/cem-components:verify-tree-forced-colors
@@ -276,19 +324,17 @@ yarn nx run @epa-wg/cem-components:lint
 `yarn build` at the repo root builds every package, including this one.
 
 `verify-declarative` runs first and enforces the primary architecture: new
-JavaScript/TypeScript outside the required story contract or legacy registry growth is rejected, and
+JavaScript/TypeScript outside the required story contract is rejected, and
 every migrated/new component must use its own XHTML folder with embedded,
 once-per-declaration low-specificity CEM-token styles and colocated CSF Next Storybook `play`
-tests. Remaining legacy behavior files are content-frozen: change requires
-migration to XHTML/CEM-ML plus a reusable `cem-elements` capability. The gate
+tests. Reusable behavior lives in `cem-elements`; there are no legacy exceptions. The gate
 also rejects a story that does not import its own raw declaration,
 use the shared lazy `cem-elements` loader, return HTML from `render`, or import
 test helpers from `storybook/test`.
 
-The remaining gates below preserve migration-era release behavior while that
-debt is removed. `yarn nx run @epa-wg/cem-components:verify` runs the primitive manifest,
+`yarn nx run @epa-wg/cem-components:verify` runs the architecture,
 Figma component inventory, state-matrix audit, token-only style contract,
-package publication contract, and Node/Chromium browser coverage gates. The Figma inventory accounts for every public
+package publication and browser delivery gates, then runs the full Chromium story cohort after those gates finish. The Figma inventory accounts for every public
 primitive, validates its component/payload/structural classification, public
 properties, executable states, token families, docs, and review locator, and
 depends on the native five-mode theme token gate. The state-matrix audit keeps
@@ -301,17 +347,14 @@ already exists. The style contract depends on `@epa-wg/cem-theme:build:tokens`,
 and `@epa-wg/cem-theme:verify-package`, so the component gate checks current
 generated tokens and the public theme stylesheet export.
 The package verifier proves source/built CSS byte identity, the side-effect-free
-JavaScript boundary, the built/packed behavior modules (including autocomplete,
-expansion, progress spinner, sort header, paginator, slider, tooltip, timepicker,
-datepicker, stepper, and tree), and exact dry-run npm inclusion of one `dist/styles.css`.
+asset-only boundary, all 53 canonical declarations, zero packaged JavaScript/TypeScript, and exact dry-run npm inclusion of one `dist/styles.css`.
 
-`yarn nx run @epa-wg/cem-components:test` runs the Node unit test plus Chromium-backed component harness coverage.
+`yarn nx run @epa-wg/cem-components:test` runs every colocated component play through the shared Chromium Storybook runner. Run this cohort separately from the package browser gates.
 
 ## Fixture Surfaces
 
 | Surface | Path |
 | ------- | ---- |
-| Frozen legacy primitive gate | `tools/scripts/verify-cem-components-primitives.mjs` |
 | Figma component inventory | `../../examples/figma/component-library.json` |
 | Figma component review fixture | `../../examples/figma/component-library-fixture.md` |
 | Figma component inventory gate | `tools/scripts/verify-cem-components-figma-inventory.mjs` |
@@ -320,39 +363,38 @@ datepicker, stepper, and tree), and exact dry-run npm inclusion of one `dist/sty
 | State-matrix inventory | `tests/state-matrix-coverage.json` |
 | State-matrix audit gate | `tools/scripts/verify-cem-components-state-matrix.mjs` |
 | Token-only style gate | `tools/scripts/verify-cem-components-styles.mjs` |
-| Input indicator forced-colors gate | `scripts/verify-input-indicator-forced-colors.mjs` |
-| Autocomplete forced-colors gate | `scripts/verify-autocomplete-forced-colors.mjs` |
-| Navigation hover/focus/active/disabled forced-colors gate | `scripts/verify-navigation-hover-forced-colors.mjs` |
-| Content hover/focus forced-colors gate | `scripts/verify-content-hover-forced-colors.mjs` |
-| Divider forced-colors gate | `scripts/verify-divider-forced-colors.mjs` |
-| Expansion forced-colors gate | `scripts/verify-expansion-forced-colors.mjs` |
-| Progress-spinner forced-colors/reduced-motion gate | `scripts/verify-progress-spinner-forced-colors.mjs` |
-| Sort-header forced-colors gate | `scripts/verify-sort-header-forced-colors.mjs` |
-| Paginator forced-colors gate | `scripts/verify-paginator-forced-colors.mjs` |
-| Slider forced-colors gate | `scripts/verify-slider-forced-colors.mjs` |
+| Input indicator forced-colors gate | `../../tools/cem-components/verify-input-indicator-forced-colors.mjs` |
+| Autocomplete forced-colors gate | `../../tools/cem-components/verify-autocomplete-forced-colors.mjs` |
+| Navigation hover/focus/active/disabled forced-colors gate | `../../tools/cem-components/verify-navigation-hover-forced-colors.mjs` |
+| Content hover/focus forced-colors gate | `../../tools/cem-components/verify-content-hover-forced-colors.mjs` |
+| Divider forced-colors gate | `../../tools/cem-components/verify-divider-forced-colors.mjs` |
+| Expansion forced-colors gate | `../../tools/cem-components/verify-expansion-forced-colors.mjs` |
+| Progress-spinner forced-colors/reduced-motion gate | `../../tools/cem-components/verify-progress-spinner-forced-colors.mjs` |
+| Sort-header forced-colors gate | `../../tools/cem-components/verify-sort-header-forced-colors.mjs` |
+| Paginator forced-colors gate | `../../tools/cem-components/verify-paginator-forced-colors.mjs` |
+| Slider forced-colors gate | `../../tools/cem-components/verify-slider-forced-colors.mjs` |
 | Tooltip forced-colors gate | `../../tools/scripts/verify-cem-component-playgrounds.mjs --surfaces-only` |
-| Timepicker forced-colors gate | `scripts/verify-timepicker-forced-colors.mjs` |
-| Datepicker forced-colors gate | `scripts/verify-datepicker-forced-colors.mjs` |
-| Stepper forced-colors gate | `scripts/verify-stepper-forced-colors.mjs` |
-| Tree forced-colors gate | `scripts/verify-tree-forced-colors.mjs` |
-| Package publication gate | `scripts/verify-package.mjs` |
-| Stylesheet copy | `scripts/copy-styles.mjs` |
-| Primitive browser coverage | `src/lib/primitives.browser.spec.ts` |
+| Timepicker forced-colors gate | `../../tools/cem-components/verify-timepicker-forced-colors.mjs` |
+| Datepicker forced-colors gate | `../../tools/cem-components/verify-datepicker-forced-colors.mjs` |
+| Stepper forced-colors gate | `../../tools/cem-components/verify-stepper-forced-colors.mjs` |
+| Tree forced-colors gate | `../../tools/cem-components/verify-tree-forced-colors.mjs` |
+| Package publication gate | `../../tools/cem-components/verify-package.mjs` |
+| Stylesheet copy | `../../tools/cem-components/copy-styles.mjs` |
 | Autocomplete browser coverage | `src/components/cem-autocomplete/cem-autocomplete.stories.ts` |
-| Expansion browser coverage | `src/lib/expansion.browser.spec.ts` |
-| Progress-spinner browser coverage | `src/lib/progress-spinner.browser.spec.ts` |
-| Sort-header browser coverage | `src/lib/sort-header.browser.spec.ts` |
-| Paginator browser coverage | `src/lib/paginator.browser.spec.ts` |
-| Slider browser coverage | `src/lib/slider.browser.spec.ts` |
-| Stepper browser coverage | `src/lib/stepper.browser.spec.ts` |
+| Expansion browser coverage | `src/components/cem-expansion/cem-expansion.stories.ts` |
+| Progress-spinner browser coverage | `src/components/cem-progress-spinner/cem-progress-spinner.stories.ts` |
+| Sort-header browser coverage | `src/components/cem-sort-header/cem-sort-header.stories.ts` |
+| Paginator browser coverage | `src/components/cem-paginator/cem-paginator.stories.ts` |
+| Slider browser coverage | `src/components/cem-slider/cem-slider.stories.ts` |
+| Stepper browser coverage | `src/components/cem-stepper/cem-stepper.stories.ts` |
 | Stepper declarative contract fixture | `tests/stepper/contract.html` |
-| Tree browser coverage | `src/lib/tree.browser.spec.ts` |
+| Tree browser coverage | `src/components/cem-tree/cem-tree.stories.ts` |
 | Tree declarative contract fixture | `tests/tree/contract.html` |
 | Tooltip browser coverage | `src/components/cem-tooltip/cem-tooltip.stories.ts` |
-| Timepicker browser coverage | `src/lib/timepicker.browser.spec.ts` |
-| Datepicker browser coverage | `src/lib/datepicker.browser.spec.ts` |
-| State and ARIA coverage | `src/lib/states.browser.spec.ts` |
-| Workflow browser coverage | `src/lib/workflows.browser.spec.ts` |
+| Timepicker browser coverage | `src/components/cem-timepicker/cem-timepicker.stories.ts` |
+| Datepicker browser coverage | `src/components/cem-datepicker/cem-datepicker.stories.ts` |
+| State and ARIA coverage | `src/components/<cem-tag>/<cem-tag>.stories.ts` |
+| Workflow coverage | Colocated `cem-card`, `cem-avatar`, `cem-app-bar` and `cem-sheet` stories |
 | Workflow fixtures | `tests/workflows/` |
 | Autocomplete contract fixture | `tests/autocomplete/contract.html` |
 | Expansion contract fixture | `tests/expansion/contract.html` |
@@ -392,17 +434,12 @@ Known deferrals stay outside this trigger:
 | Migration baseline | `declarative-migration.json` |
 | Declarative architecture gate | `../../tools/scripts/verify-cem-components-declarative.mjs` |
 | Public stylesheet source | `src/styles.css` |
-| Legacy shell entry (frozen debt) | `src/lib/cem-components.ts` |
-| Legacy primitive declarations (frozen debt) | `src/lib/primitives.ts` |
-| Public component catalog source | `scripts/build-component-catalog.mjs` |
+| Public component catalog source | `../../tools/cem-components/build-component-catalog.mjs` |
 | Public component catalog output | `dist/catalog/cem.components.catalog.json` |
 | State-matrix catalog evidence | `dist/reports/component-state-matrix.{json,md}` |
-| Legacy primitive browser coverage (migration debt) | `src/lib/primitives.browser.spec.ts` |
-| Legacy state and ARIA browser coverage (migration debt) | `src/lib/states.browser.spec.ts` |
-| Legacy workflow browser coverage (migration debt) | `src/lib/workflows.browser.spec.ts` |
+| Colocated state and ARIA browser coverage | `src/components/<cem-tag>/<cem-tag>.stories.ts` |
+| Workflow coverage | Colocated `cem-card`, `cem-avatar`, `cem-app-bar` and `cem-sheet` stories |
 | Workflow fixtures | `tests/workflows/` |
-| Component test harness | `src/lib/testing/component-harness.ts` |
-| Browser harness coverage | `src/lib/testing/component-harness.browser.spec.ts` |
 | Component reference | `docs/component-reference.md` |
 | Package-local examples | `examples/` |
 | Built output | `dist/` |
@@ -552,7 +589,7 @@ component definitions. Load a template by its unique ID:
 Resolve the document URL through your module map or package deployment. The
 native CEM AST build derives the bundle from canonical XHTML and preserves the
 original resource base with `xml:base`. It includes action, select and theme
-switch; legacy registry components are outside this declaration bundle.
+switch. All 53 canonical components ship in this declaration bundle.
 
 The [bundle playground](playgrounds/cem-bundle.html) is exported at
 `@epa-wg/cem-components/playgrounds/cem-bundle.html`. Canonical source,
@@ -573,8 +610,7 @@ navigation, image and font icons, slotted labels, and disabled links.
 ### Standalone icon
 
 `cem-icon` now ships as a canonical XHTML declaration. Load it explicitly through
-`components/cem-icon` or the release bundle; the legacy registry installer no
-longer registers it. It supports the legacy source formats and size/direction
+`components/cem-icon` or the release bundle; all registration uses the shared runtime loader. It supports the legacy source formats and size/direction
 variants while preserving the `name` alias and decorative/labeled semantics.
 See the [icon contract](./docs/icon-contract.md) and
 [Full examples and variation matrix](./playgrounds/cem-icon-gallery.html).
@@ -583,6 +619,16 @@ See the [icon contract](./docs/icon-contract.md) and
 
 `cem-textarea` is a canonical XHTML component with the shared form-control
 capability. Load its declaration explicitly or use the release bundle; it is
-no longer registered by the legacy primitive installer. See the
+registered through the shared runtime loader. See the
 [textarea contract](./docs/textarea-contract.md) and
 [Full examples and variation matrix](./playgrounds/cem-textarea-gallery.html).
+
+Disclosure/data owners now use canonical declarations and shared runtime capabilities.
+See the [CEM principle audit](docs/disclosure-data-contract.md), their colocated
+stories, and each component’s property playground and five-theme gallery.
+
+The feedback/status owners now load from canonical XHTML. Toast and alert retain
+polite/explicit urgent message semantics; skeleton payload is decorative and inert.
+Linear progress retains its native owner, while circular progress uses the shared
+`progress-status` preparation capability. See the [feedback/status contract](docs/feedback-status-contract.md)
+and the five component property pages and galleries.

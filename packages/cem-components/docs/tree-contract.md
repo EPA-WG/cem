@@ -1,5 +1,17 @@
 # Tree Contract
 
+Implementation: [canonical XHTML](../src/components/cem-tree/cem-tree.xhtml)
+with the shared `cem-elements` capability `tree-view` and embedded scoped token CSS.
+[Colocated stories](../src/components/cem-tree/cem-tree.stories.ts) preserve the
+contract checks. [Properties](../playgrounds/cem-tree.html) and the linked
+five-theme gallery ship in both source and packed delivery. The host is not
+form-associated; native controls keep their own form behavior.
+
+The [shared project navigation workflow](project-navigation-contract.md) combines
+tree activation with service-admitted selection, retained panes and guarded
+Save/Discard/Cancel decisions before Studio adoption.
+
+
 ## Owner and author vocabulary
 
 `cem-tree` is the public generic expandable-hierarchy owner. Its only authored
@@ -44,6 +56,15 @@ attribute changes. The same activation on an enabled leaf emits one bubbling/
 composed `cem-tree-activate` event with `{ value }` detail and mutates no tree or
 selection state. Application code decides whether leaf activation changes
 `selected-values`, navigates, or performs another domain action.
+
+Declarative host-service consumers may bind `host-command="open"` and
+`host-command-event="cem-tree-activate"` on this host. The shared
+[`mountCemView` bridge](../../cem-elements/README.md#declarative-host-service-views)
+delivers only the validated string identity as the frozen request's `value`;
+Studio does not need a tree event listener. Nested-owner events cannot invoke
+an ancestor binding. The service admits or rejects navigation before projecting
+selection through declaration state. The custom event retains `isTrusted: false`
+and conveys no browser permission authority.
 
 Programmatic expanded/selected attribute or property changes are silent. Current
 parent activation never emits leaf activation, current leaf activation never

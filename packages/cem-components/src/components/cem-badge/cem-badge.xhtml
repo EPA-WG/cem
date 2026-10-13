@@ -1,0 +1,17 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-badge">
+  <template id="cem-badge" type="text/cem-ml">
+    {style @type=text/css |```
+:scope { display: inline; }
+:scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
+[part~='root'] { box-sizing: border-box; font-family: var(--cem-typography-ui-font-family); font-size: var(--cem-typography-ui-font-size); font-weight: var(--cem-typography-ui-font-weight); line-height: var(--cem-typography-ui-line-height); letter-spacing: var(--cem-typography-ui-letter-spacing); }
+[part~='root'] { display: inline-block; border-radius: var(--cem-bend-control); padding: var(--cem-inset-container); }
+[part~='root'][data-tone='info'] { background-color: var(--cem-palette-trust); color: var(--cem-palette-trust-text); }
+[part~='root'][data-tone='success'] { background-color: var(--cem-palette-calm); color: var(--cem-palette-calm-text); }
+[part~='root'][data-tone='warning'] { background-color: var(--cem-palette-enthusiasm); color: var(--cem-palette-enthusiasm-text); }
+[part~='root'][data-tone='danger'] { background-color: var(--cem-palette-danger); color: var(--cem-palette-danger-text); }
+@media (forced-colors: active) { [part~='root'] { background-color: Canvas; color: CanvasText; border-color: CanvasText; forced-color-adjust: auto; } }
+    ```}
+    {attribute @name=label | Badge}{attribute @name=tone | info}
+    {span @part=root @class="cem-badge cem-badge--{$tone}" @data-tone={if ($tone == "success") || ($tone == "warning") || ($tone == "danger") { $tone } else { "info" }} | {slot | {$label}}}
+  </template>
+</cem-element>

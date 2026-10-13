@@ -10,6 +10,27 @@ type Story = StoryObj;
 function required<T extends HTMLElement>(root: ParentNode, selector: string): T {
     const node = root.querySelector<T>(selector); if (!node) throw new Error(`Missing ${selector}`); return node;
 }
+export const RemovedDialogFocusOwnership: Story = {
+    render: () => '<section><button>Entry</button><button>Elsewhere</button></section>',
+    play: async ({ canvasElement }) => {
+        const root = required(canvasElement, 'section'), entry = required(root, 'button'), elsewhere = required(root, 'button:nth-child(2)');
+        for (const scenario of ['return', 'none', 'elsewhere', 'removed']) {
+            const dialog = document.createElement('dialog');
+            dialog.innerHTML = '<button>Decision</button>';
+            if (scenario === 'none') dialog.setAttribute('return-focus', 'none');
+            root.append(dialog);
+            const controller = connectCemNativeSurface(dialog);
+            entry.focus(); controller.open();
+            await expect(document.activeElement).toBe(required(dialog, 'button'));
+            if (scenario === 'elsewhere') elsewhere.focus();
+            if (scenario === 'removed') entry.remove();
+            dialog.remove(); controller.disconnect();
+            await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+            await expect(document.activeElement).toBe(scenario === 'return' ? entry : scenario === 'elsewhere' ? elsewhere : document.body);
+            if (scenario === 'removed') root.prepend(entry);
+        }
+    },
+};
 export const ModalFocusContextCancellationAndDisconnect: Story = {
     render: () => '<section><button>Invoker</button><button>Return</button><dialog aria-label="Task"><h2 tabindex="-1">Heading</h2><button autofocus>Entry</button></dialog></section>',
     play: async ({ canvasElement }) => {

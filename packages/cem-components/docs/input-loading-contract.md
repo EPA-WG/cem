@@ -2,7 +2,7 @@
 
 **Status:** Implemented Phase 4 contract. This contract is promoted by
 [`docs/todo.md`](../../../docs/todo.md) and covered by the focused browser test
-in [`states.browser.spec.ts`](../src/lib/states.browser.spec.ts).
+in [`cem-field.stories.ts`](../src/components/cem-field/cem-field.stories.ts).
 
 ## Decision
 

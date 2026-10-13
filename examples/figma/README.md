@@ -110,10 +110,10 @@ validated in the real file.
 
 ## Generated Artifact Validation
 
-Offline validation run: 2026-08-19.
+Offline validation run: 2026-10-12.
 
-- Generated variable count: 252 per mode.
-- Variable types: 57 color, 96 dimension, 6 duration, 5 font family, 10 number, and 78 string.
+- Generated variable count: 272 per mode.
+- Variable types: 64 color, 106 dimension, 7 duration, 5 font family, 11 number, and 79 string.
 - Modes: `Light`, `Dark`, `Contrast Light`, `Contrast Dark`, and `Native` with identical token paths and types.
 - Import values use current DTCG objects for sRGB colors, px dimensions, and
   second-based durations; numeric and string token values remain scalars.
