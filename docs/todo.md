@@ -1905,19 +1905,121 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
   - [ ] Complete execution-aligned general document references, non-XPath template
     loads and runtime-load closure for source-map assets; combine those findings
     with native map rewrite ownership before widening configured-project admission.
-    - [ ] Bind template/output correspondence, effective body contexts/module maps
+    - [x] Bind template/output correspondence, effective body contexts/module maps
       and acquisition freshness to native execution and immutable snapshot records.
-      Use those records to discharge preparation blockers before edit evidence.
+      Use those records to discharge preparation blockers before edit evidence
+      for the bounded snapshot XHTML profiles below.
+      - [x] Add native snapshot/execution fixtures for immutable declared imports,
+        policy denial/substitution, missing/file resources without fallback I/O,
+        source and output owner replacement, shared-context expression execution,
+        bounds/cancellation, resolver drift and rejected unrecorded body maps/reads.
+      - [x] Capture a bounded native XHTML execution from an immutable template
+        snapshot and bind its exact output to the HTML dependency preparation.
+        Delivered immutable native source snapshots and sealed snapshot preflight,
+        preserving exact URI/revision/type/bytes and native import policy. Missing
+        resources never fall back to filesystem, network or registered resolvers.
+        Source/byte/import-edge/cumulative-byte bounds and cancellation apply.
+        The native execution record compiles captured imports, renders scalar
+        bindings with the actual shared resolution capability, writes XHTML and
+        imports that output through CEM-ML. It retains original render spans and
+        exact output/source owners. Dependency preparation reuses the same native
+        preflight and body inventories without reacquisition or recompilation.
+        Equal reimported output, another execution/snapshot/engine/capability,
+        stale host evidence and resolver drift cannot replace retained authority.
+        Only output correspondence, snapshot acquisition freshness and output
+        document inspection blockers are discharged. Authored maps (including
+        nested unapplied maps), runtime reads, computed/pipeline resolution,
+        unknown calls and XPath are rejected by this initial execution profile.
+        General runtime/resource coverage and transaction admission remain open;
+        output XML coordinates are not template-source rewrite locations.
+        Contract: [recorded snapshot XHTML execution](cem-studio.md#recorded-snapshot-xhtml-execution).
+        Verification: six snapshot fixtures, four execution fixtures, 11 native
+        preflight regressions, seven HTML preparation regressions and 139 CEM-QL
+        library tests pass; four existing library tests remain ignored.
+        `cem_ql:build:wasm`, new-file `rustfmt --check` and `git diff --check` pass.
+        CEM review: shared native semantics, explicit source/context ownership and
+        bounded inputs; no app-local parsing or JSON AST handoff. No UI, token,
+        accessibility or inherited-style change; theme/forced-color checks are
+        inapplicable and physical AT remains independently open.
+      - [x] Record per-body execution context switching and authored module-map
+        installation, including imported bodies, before admitting those maps in
+        snapshot execution and discharging effective-context blockers.
+        - [x] Add native fixtures for derived context ownership, inherited map and
+          scheme restrictions, root/import/grandchild expression contexts, caller
+          restoration, CSS precedence, equal repeated imports, ambiguous import
+          ancestry, match/hook/conditional/iteration expressions, unsupported
+          custom resolvers, derived-policy drift, map budgets and nested unapplied maps.
+        Delivered `execute_snapshot_xhtml_scoped`: immutable native child contexts
+        install each body's compiled top-level map at its final snapshot URI,
+        inheriting declared import ancestry and host restrictions. Non-CSS mappings
+        remain outer-first; CSS remains closest-first with ancestor restrictions.
+        The closure compiler attaches exact body capabilities to native expressions;
+        calls, matches, hooks and control expressions preserve lexical context and
+        restore the caller after evaluation. Source labels and authored markers
+        cannot select authority; serialized artifacts omit native capabilities.
+        Dependency preparation reuses these owners, and consumption checks every
+        derived fingerprint as well as the host's fingerprint. The combined view
+        discharges effective map/context blockers. Equal repeated imports under
+        one parent work when preflight accepts them; conflicting ancestry and
+        nested unapplied maps are rejected. Custom resolvers require explicit native
+        derivation support. Declared imports remain captured preflight acquisitions.
+        Runtime/resource coverage, stylesheet history and atomic edit admission
+        remain blocked; no browser/worker or Studio edit admission was widened.
+        Contract: [recorded lexical body contexts](cem-studio.md#recorded-lexical-body-contexts-and-module-maps).
+        Verification: two derivation fixtures, all 11 execution cases (seven new),
+        15 native resolver regressions, 139 CEM-QL library tests and 56 related
+        renderer/preparation/artifact-reload tests pass; four existing library
+        tests remain ignored. `cem_ql:build:wasm`, new-file `rustfmt --check` and
+        `git diff --check` pass. CEM review: shared native semantics, explicit
+        source/context ownership and bounded variation; no app-local parser or
+        JSON AST handoff. UI, public tokens, accessibility and inherited styles
+        are unaffected; theme/forced-color checks are inapplicable and physical
+        AT acceptance remains independently open.
+    - [x] Inventory HTML `srcset` candidates through shared native retained-source
+      parsing, with descriptor validation, source locations, bounded work and
+      execution-owned base resolution before discharging that coverage blocker.
+      - [x] Add native parser/import/inventory fixtures for URL commas, ASCII
+        whitespace, density/width/height descriptors, recovery, numeric limits,
+        decoded entity/Unicode offsets, namespace/owner guards, budget exhaustion,
+        current/stale execution bases, shared validation policy and Chromium
+        candidate parity.
+      Delivered a shared bounded importer for retained HTML `img@srcset`,
+      `source@srcset` and `link@imagesrcset`. It preserves decoded UTF-8 candidate
+      and descriptor ranges, exact source owners and structured recovery/numeric
+      diagnostics. The existing HTML policy validator reuses the same parser.
+      The execution inventory resolves candidates with its confirmed base;
+      imported XML bases and module mappings do not override it. Work limits and
+      unsupported numeric profiles reject publication before CSS callbacks;
+      existing DOM/host/capability checks reject stale consumption. Supported
+      complete lists discharge their parsing/base requirements. Resource policy,
+      responsive-source selection/load history, general coverage and edit
+      admission remain explicit; decoded offsets do not authorize source rewrites.
+      Contract: [retained HTML image-source candidates](cem-studio.md#retained-html-image-source-candidates).
+      Verification: five parser/import fixtures, nine HTML inventory cases,
+      16 HTML validation tests, 210 document-focused regressions and 18 CEM-QL
+      preparation/execution tests pass. The Nx `@epa-wg/cem-ml-cli:test:browser`
+      gate rebuilt WASM and passes, including seven shared srcset/currentSrc
+      cases in Chromium 148.0.7778.96 and the existing base/worker checks.
+      New-file `rustfmt --check` and `git diff --check` pass. CEM review:
+      source authority and parsing remain shared native capabilities with bounded
+      inputs; no app-local parser or JSON AST handoff. UI, public tokens,
+      accessibility and inherited styles are unaffected; theme/forced-color
+      checks are inapplicable and physical AT acceptance remains independently open.
+    - [ ] Capture bounded native CSS `@import` dependency closure from immutable
+      acquired sources, retaining final URL bases, conditions, resolver policy,
+      source owners, cycle/budget diagnostics and freshness before discharging
+      import coverage. Keep stylesheet installation/load history separate.
   - [ ] Establish execution-owned lookup provenance for relative run-config inputs,
     including invocation/default origins, before widening relocation admission.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, bind the native template/HTML preparation to actual execution and acquisition
-snapshot records, including output correspondence and effective body contexts/maps.
+Next, implement bounded native CSS `@import` dependency closure with retained
+acquisition and policy evidence.
 Connect the prepared native read set to host transaction admission only after complete
-dependency evidence. Complete CSS/srcset/runtime dependency
-closure and combine it with map rewrite ownership before widening Studio admission.
+dependency evidence. Complete SVG presentation, responsive-source selection and
+runtime dependency closure and combine it with map rewrite ownership before
+widening Studio admission.
 Relative run-config input provenance and grouped operation/graph authoring follow.
 Expanded/resizable panes and larger-data controls must follow the same library-first
 rule. Physical device/browser/AT

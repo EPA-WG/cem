@@ -302,6 +302,7 @@ mod tests {
         let compiled = query(r#"ct:read("file:///a.xml")"#);
         let host_source = compiled.tree.source_maps[compiled.tree.root.0 as usize].clone();
         let mut expression = crate::render::CompiledTemplateExpression {
+            resolution: None,
             source: r#"ct:read("file:///a.xml")"#.into(),
             query: Some(compiled),
             source_map: host_source.clone(),

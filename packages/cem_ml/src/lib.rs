@@ -80,6 +80,7 @@ pub mod transform_graph_rebind;
 pub mod transform_graph_request;
 pub mod transform_template;
 pub mod template_dependencies;
+pub mod template_snapshot;
 #[cfg(feature = "typescript-projections")]
 pub mod typescript;
 pub mod validation;

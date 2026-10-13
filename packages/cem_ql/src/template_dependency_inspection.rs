@@ -354,6 +354,11 @@ fn inspect_nodes(nodes: &[TemplateNode], budget: usize, body: &mut TemplateBodyI
                             children,
                             ..
                         } => {
+                            if matches!(node, TemplateNode::Element { tag, .. }
+                                if tag.rsplit(':').next() == Some("module-map"))
+                            {
+                                body.blockers.push("unapplied-template-module-map".into());
+                            }
                             pending.push(Work::Nodes(children));
                             pending.push(Work::Attributes(attributes));
                         }

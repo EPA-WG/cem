@@ -291,6 +291,7 @@ fn inspect_stylesheets(
     if result.document.blockers.iter().any(|b| {
         b.contains("budget")
             || b.contains("invalid-retained")
+            || b == "srcset-numeric-profile-incomplete"
             || (base == StylesheetBase::Fixed && b == "document-base-context-required")
             || b == "document-import-diagnostics"
     }) {

@@ -15,6 +15,7 @@ pub struct InventoryObservation {
     pub navigation_url: String,
     pub stylesheet_url: String,
     pub inline_url: String,
+    pub srcset_urls: Vec<String>,
 }
 
 pub fn verify(observations: &[InventoryObservation]) -> Vec<serde_json::Value> {
@@ -34,13 +35,18 @@ pub fn verify(observations: &[InventoryObservation]) -> Vec<serde_json::Value> {
             identity: "fixture:browser-css".into(), resolver_identity: "fixture:literal-urls".into(), resource_policy_stamp: "fixture:candidates-only".into(),
             frames: vec![CemModuleUrlFrame::new("fixture", &observed.document_url)],
         })), context);
-        let inventory = host.inspect_dependencies(&evidence, &cap, 100, |slot| Ok(slot.id + 1), &observed.base_uri).unwrap();
+        let inventory = host.inspect_dependencies(&evidence, &cap, 1000, |slot| Ok(slot.id + 1), &observed.base_uri).unwrap();
         let references: Vec<_> = inventory.references().iter().map(|r| r.resolved_uri.as_ref().unwrap().as_str()).collect();
         let stylesheets: Vec<_> = inventory.stylesheets().iter().map(|s| s.resources.as_ref().unwrap().references[0].resolution.as_ref().unwrap().resolved_url.as_str()).collect();
         assert_eq!(references, [observed.image_url.as_str(), observed.navigation_url.as_str()]);
         assert_eq!(stylesheets, [observed.stylesheet_url.as_str(), observed.inline_url.as_str()]);
+        let srcsets: Vec<_> = inventory.srcsets().iter().map(|s| {
+            assert_eq!(s.resolved_urls.len(), 1);
+            s.resolved_urls[0].as_ref().unwrap().as_str()
+        }).collect();
+        assert_eq!(srcsets, observed.srcset_urls);
         host.validate_dependencies(&inventory, &cap, |slot| Ok(slot.id + 1), &observed.base_uri).unwrap();
-        serde_json::json!({ "base_uri": observed.base_uri, "references": references, "stylesheets": stylesheets,
+        serde_json::json!({ "base_uri": observed.base_uri, "references": references, "stylesheets": stylesheets, "srcsets": srcsets,
             "body_analysis_required": inventory.document().body_analysis_required, "blockers": inventory.blockers() })
     }).collect()
 }

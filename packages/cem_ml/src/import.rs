@@ -1,4 +1,5 @@
 //! External document syntax is resolved only here, into retained typed CEM trees.
+pub mod srcset;
 use crate::{
     diagnostics::Diagnostic,
     lifecycle::LoadedInputAstStream,

@@ -10,6 +10,7 @@ use crate::{
     },
     html_base_evidence::CapturedHtmlBaseEvidence,
     html_base_host::{HtmlBaseDomSlot, HtmlBaseExecutionHost},
+    import::srcset::RetainedSrcsetAttribute,
     module_resolution::CemModuleUrlResolutionCapability,
 };
 use std::sync::Arc;
@@ -21,6 +22,12 @@ pub struct HtmlReferenceProvenance {
     pub source_key: Option<String>,
 }
 
+pub struct HtmlSrcsetProvenance {
+    pub source: RetainedSrcsetAttribute,
+    /// Same order as source.parsed().candidates; no selection or policy claim.
+    pub resolved_urls: Vec<Result<String, String>>,
+}
+
 /// Private construction ties every node ID, CSS tree and resolver result to the
 /// original confirmed base and native capability owner. Retained data remains
 /// inspectable after invalidation; consuming it requires validate_dependencies.
@@ -30,6 +37,7 @@ pub struct HtmlExecutionInventory {
     resolver_identity: String,
     stylesheets: DocumentStylesheetInventory,
     references: Vec<HtmlReferenceProvenance>,
+    srcsets: Vec<HtmlSrcsetProvenance>,
     blockers: Vec<String>,
 }
 
@@ -42,6 +50,9 @@ impl HtmlExecutionInventory {
     }
     pub fn references(&self) -> &[HtmlReferenceProvenance] {
         &self.references
+    }
+    pub fn srcsets(&self) -> &[HtmlSrcsetProvenance] {
+        &self.srcsets
     }
     pub fn stylesheets(&self) -> &[DocumentStylesheetOccurrence] {
         &self.stylesheets.stylesheets
@@ -93,6 +104,24 @@ impl HtmlBaseExecutionHost {
                 source_key: tree.source_key(reference.attribute),
             })
             .collect();
+        let srcsets: Vec<_> = stylesheets
+            .document
+            .srcsets
+            .iter()
+            .map(|source| HtmlSrcsetProvenance {
+                source: source.clone(),
+                resolved_urls: source
+                    .parsed()
+                    .candidates
+                    .iter()
+                    .map(|candidate| {
+                        base.join(&candidate.url)
+                            .map(|u| u.to_string())
+                            .map_err(|e| format!("unresolved HTML srcset candidate: {e}"))
+                    })
+                    .collect(),
+            })
+            .collect();
         let mut blockers: Vec<String> = stylesheets
             .document
             .blockers
@@ -100,6 +129,7 @@ impl HtmlBaseExecutionHost {
             .filter(|b| {
                 b.as_str() != "document-base-context-required"
                     && b.as_str() != "reference-base-and-policy-required"
+                    && b.as_str() != "srcset-base-and-policy-required"
             })
             .chain(stylesheets.blockers.iter())
             .cloned()
@@ -116,6 +146,12 @@ impl HtmlBaseExecutionHost {
         if references.iter().any(|r| r.resolved_uri.is_err()) {
             blockers.push("document-reference-resolution-incomplete".into());
         }
+        if srcsets
+            .iter()
+            .any(|s| s.resolved_urls.iter().any(Result::is_err))
+        {
+            blockers.push("srcset-resolution-incomplete".into());
+        }
         if stylesheets.stylesheets.iter().any(|s| {
             s.resources
                 .as_ref()
@@ -131,6 +167,7 @@ impl HtmlBaseExecutionHost {
             resolver_identity,
             stylesheets,
             references,
+            srcsets,
             blockers,
         };
         self.validate_dependencies(&result, capability, matches, base_uri)?;

@@ -52,8 +52,8 @@ pub struct HtmlTemplateDependencyPreparation {
     context: Arc<EngineContext>,
     root: Arc<TemplateInput>,
     authorities: BTreeMap<String, BodyAuthority>,
-    preflight: NativeTemplateDependencyInspection,
-    bodies: PreflightBodyInventory,
+    preflight: Arc<NativeTemplateDependencyInspection>,
+    bodies: Arc<PreflightBodyInventory>,
     resolutions: Vec<TemplateBodyResolutions>,
     blockers: Vec<String>,
 }
@@ -108,7 +108,8 @@ impl HtmlTemplateDependencyPreparation {
 /// resolver policy. It does not evaluate templates or runtime reads. Its depth and
 /// engine operation controls apply to acquisition; max_bodies bounds analysis after
 /// preflight, not the number of reads performed by preflight. Hosts needing immutable
-/// snapshot-only reads must install that resolver in EngineContext.
+/// snapshot-only acquisition use `SnapshotTemplateExecution::prepare_dependencies`,
+/// which reuses a sealed snapshot preflight without this acquisition path.
 #[allow(clippy::too_many_arguments)]
 pub fn prepare_html_template_dependencies(
     host: &mut HtmlBaseExecutionHost,
@@ -119,8 +120,40 @@ pub fn prepare_html_template_dependencies(
     body_capabilities: &BTreeMap<String, CemModuleUrlResolutionCapability>,
     options: &CompileTemplateOptions,
     limits: HtmlTemplateDependencyLimits,
+    matches: impl FnMut(HtmlBaseDomSlot<'_>) -> Result<u32, String>,
+    base_uri: &str,
+) -> Result<HtmlTemplateDependencyPreparation, String> {
+    prepare_html_template_dependencies_with_sources(
+        host,
+        document,
+        context,
+        root,
+        document_capability,
+        body_capabilities,
+        options,
+        limits,
+        matches,
+        base_uri,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prepare_html_template_dependencies_with_sources(
+    host: &mut HtmlBaseExecutionHost,
+    document: Arc<HtmlExecutionInventory>,
+    context: Arc<EngineContext>,
+    root: Arc<TemplateInput>,
+    document_capability: &CemModuleUrlResolutionCapability,
+    body_capabilities: &BTreeMap<String, CemModuleUrlResolutionCapability>,
+    options: &CompileTemplateOptions,
+    limits: HtmlTemplateDependencyLimits,
     mut matches: impl FnMut(HtmlBaseDomSlot<'_>) -> Result<u32, String>,
     base_uri: &str,
+    sources: Option<(
+        Arc<NativeTemplateDependencyInspection>,
+        Arc<PreflightBodyInventory>,
+    )>,
 ) -> Result<HtmlTemplateDependencyPreparation, String> {
     host.validate_dependencies(&document, document_capability, &mut matches, base_uri)?;
     if options.skip_cemt_function_bodies || limits.max_bodies == 0 || limits.per_body_budget == 0 {
@@ -142,7 +175,24 @@ pub fn prepare_html_template_dependencies(
             ))
         })
         .collect::<Result<BTreeMap<_, _>, String>>()?;
-    let preflight = inspect_native_template_dependencies(&context, &root, limits.max_import_depth);
+    let (preflight, bodies) = match sources {
+        Some(sources) => sources,
+        None => {
+            let preflight = Arc::new(inspect_native_template_dependencies(
+                &context,
+                &root,
+                limits.max_import_depth,
+            ));
+            let bodies = Arc::new(inspect_preflighted_bodies(
+                &root,
+                &preflight,
+                options,
+                limits.max_bodies,
+                limits.per_body_budget,
+            ));
+            (preflight, bodies)
+        }
+    };
     if preflight.xpath_resource_uses.iter().any(|slot| {
         slot.inspection
             .blockers
@@ -151,13 +201,6 @@ pub fn prepare_html_template_dependencies(
     }) {
         return Err("complete native XPath inspection required within budget".into());
     }
-    let bodies = inspect_preflighted_bodies(
-        &root,
-        &preflight,
-        options,
-        limits.max_bodies,
-        limits.per_body_budget,
-    );
     if !bodies.blockers.is_empty() {
         return Err(format!(
             "native template preflight/body analysis failed: {}",
@@ -282,7 +325,7 @@ fn fingerprint(capability: &CemModuleUrlResolutionCapability) -> Result<String, 
         .filter(|s| !s.trim().is_empty())
         .ok_or_else(|| "template preparation requires a complete resolver fingerprint".into())
 }
-fn check_stylesheet_budget(
+pub(crate) fn check_stylesheet_budget(
     tree: &cem_ml::parser::tree::RetainedCemTree,
     remaining: &mut usize,
 ) -> Result<(), String> {

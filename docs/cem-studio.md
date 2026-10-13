@@ -2830,7 +2830,8 @@ truncation produces an explicit blocker.
 
 Both APIs always retain `body_analysis_required`. An empty candidate inventory is
 not dependency closure. Base and resolver policy, computed calls, unknown
-vocabularies, CSS/presentation values, srcset, embedded documents and runtime loads
+vocabularies, unhandled CSS/presentation values, responsive-source selection,
+embedded documents and runtime loads
 still require analysis. Integration with native template preflight, retained CSS
 resolution and immutable project snapshots remains follow-up work. These APIs do
 not authorize source-map edits or widen worker/Studio edit admission.
@@ -2911,7 +2912,8 @@ rendered document or reparsed to recover CSS.
 These are context-specific inspection results, not live loader leases or mutation
 proofs. Hosts must revalidate policy/revisions before use. Connecting generated
 output references to source edit slots, resolving document base chains, SVG
-presentation CSS, srcset and runtime loads remain open. Studio/worker edit admission
+presentation CSS, responsive-source selection and runtime loads remain open. The
+bounded HTML srcset candidate extension is specified below. Studio/worker edit admission
 is unchanged. CEM review: native source ownership and resolver policy remain shared;
 this step introduces no component behavior, CSS defaults or theme definitions.
 
@@ -3308,7 +3310,8 @@ Every body must pass compilation and bounded traversal before expression/CSS res
 Per-body budgets cover template traversal, each compiled expression inspection and the
 body's retained stylesheet trees. Native preflight uses its import-depth bound and
 engine operation controls; the body-count limit applies after preflight and is not an
-acquisition-count limit. Snapshot-only hosts must supply an immutable snapshot resolver.
+acquisition-count limit. Snapshot-only hosts use the sealed snapshot execution path
+below; installing an engine resolver does not replace the ordinary file-import path.
 Fingerprints are captured before preflight callbacks, checked before body resolution
 and checked again with the live HTML host before publication. Later consumption requires
 `validate`, which checks exact root/engine/capability owners, complete context membership,
@@ -3326,3 +3329,158 @@ before map rewriting or configuration relocation can consume edit evidence.
 CEM review: parsing, expression semantics, source ownership and policy stay in shared
 native libraries. No application UI behavior, theme token, inherited style, accessibility
 or forced-color contract changes. Physical AT acceptance remains independently open.
+
+### Recorded snapshot XHTML execution
+
+The first execution-record profile uses `TemplateSourceSnapshot` and
+`preflight_template_snapshot` in CEM-ML. A snapshot owns canonical absolute source
+URIs, revisions, content types and exact bytes. Its membership and content are
+immutable, with limits on source count, stored bytes, import edges and cumulative
+imported bytes. Native preflight still applies declared import policy, substitutions,
+cycle/depth checks and operation cancellation. Every acquisition in this profile is
+a snapshot lookup, including file URLs; absent entries never fall back to filesystem,
+network or registered resolvers. The private `SnapshotTemplatePreflight` retains the
+snapshot, root and engine owners with the actual native import report. Consumption
+requires the host's current snapshot and engine to be those exact owners. The host
+must publish a replacement snapshot whenever source content or revision changes.
+
+`cem_ql::template_execution_record::execute_snapshot_xhtml` performs a real render
+from that sealed preflight. It retains the compiled closure, body inventories,
+scalar input values, native resolver capability and fingerprint, output source spans,
+XHTML bytes and imported output tree. This operation is separate from inventory
+inspection. The profile permits scalar bindings and directly inspectable literal
+module-URL calls under one shared native resolution context. An explicit renderer
+entry point threads that capability into evaluation; existing render entry points
+keep their previous behavior. Declared imports use the captured bytes without new
+acquisition. Unknown calls, runtime content reads, computed/pipeline module resolution,
+XPath invocations and authored body module maps fail before rendering. Bounds,
+compilation/render errors, host-attribute updates, cancellation and policy drift
+prevent publication of an execution record.
+
+The named output boundary is XHTML: the native XML writer serializes the real render
+plan, and the shared CEM-ML XML importer retains those exact output bytes. A single
+HTML-namespace `html` document element is required. This is not a general HTML parser
+or a DOM reconstruction protocol. The host must mount and capture this exact output
+through the existing exclusive HTML execution host. Browser normalization that breaks
+native/DOM correspondence still fails that host's checks. The output import's source
+coordinates describe the produced XHTML; original render spans and template owners
+remain separate and do not automatically establish source-edit locations.
+
+`SnapshotTemplateExecution::prepare_dependencies` accepts only an HTML inventory whose
+native tree is the execution's exact output owner. It reuses the retained preflight
+and body inventories rather than acquiring or compiling them again. The resulting
+private `ExecutedHtmlTemplatePreparation` requires the same execution, source snapshot,
+engine, resolver and current HTML host at consumption. A second execution, equal
+reimported output, replacement source snapshot, stale host or changed policy cannot
+substitute for these owners. The combined blocker view discharges template/output
+correspondence, template acquisition freshness and output-document inspection for
+this bounded profile. The underlying candidate report retains its original findings.
+
+The scoped extension below records per-body contexts and inline module maps.
+Native data/focus inputs, runtime acquisition, stylesheet installation/history,
+CSS, responsive-source selection and other document-reference coverage, map rewrite ownership and atomic
+host transactions still require their own evidence. This profile enables no Studio
+edit admission and exposes no browser/worker record-construction shortcut. Hosts
+remain responsible for supplying their current immutable snapshot and execution
+record inside the eventual transaction boundary.
+
+CEM review: execution, resource interpretation and source retention stay in shared
+native libraries; inputs are explicit scalar controls, with no JSON AST handoff.
+No UI behavior, accessibility, theme-token, inherited-style or forced-color contract
+changes. Physical AT acceptance remains independently open.
+
+### Recorded lexical body contexts and module maps
+
+`execute_snapshot_xhtml_scoped` extends the scalar snapshot profile with native
+contexts for the root and each imported source body. The host capability is the
+outer context. Each body appends one frame, based at its final snapshot URI, and
+installs its compiled static top-level `module-map` into that frame. Imported
+bodies inherit their declared import ancestry, independent of the dynamic caller.
+Relative expression URLs and inline map targets use the body's URI; explicit
+URL referrers still select scopes under the existing resolver contract. Declared
+template imports remain the sealed native preflight acquisitions; this extension
+does not reinterpret or reacquire them through the expression module maps.
+
+The shared native resolver derives immutable child contexts, retaining ancestor
+frames, blocks and allowed-scheme restrictions. Non-CSS mappings remain outer-first;
+CSS mappings remain closest-first with ancestor restrictions. Map entries/scopes
+use the per-body inspection budget, and native frame depth is bounded. Custom
+resolvers must explicitly implement native derivation, preserving those contracts
+and complete fingerprints; unsupported derivation fails. This profile has scalar
+inputs and adds no node-referrer bindings or external map loading.
+
+The closure compiler attaches the exact body capability to every compiled expression
+before merging imported declarations. Named calls, match rules, expression hooks,
+attributes, variables, conditionals and iteration retain that lexical capability.
+Evaluation installs it for the expression and restores the caller afterward.
+Authored module markers, synthetic source coordinates and template-name strings do
+not select authority. These native capabilities are omitted from serialized template
+artifacts; reload cannot mint execution records or recover their authority. The
+ordinary compiler and shared-context execution entry point keep their existing
+semantics.
+
+One final source URI must have one import ancestry in this profile. Equal repeated
+imports under the same parent reuse the context when native preflight accepts the
+graph. A source reached under different parents is rejected because closure
+compilation currently deduplicates by URI; occurrence-specific compilation is needed
+before that case can be admitted. Nested unapplied maps also fail rather than being
+treated as installed preludes.
+
+The execution record retains every derived capability and its complete fingerprint.
+Dependency preparation uses those same owners for expression and stylesheet analysis;
+publication and consumption validate both host and body fingerprints. The combined
+view additionally discharges effective template-map and module-resolution-context
+blockers. Mapping denials, stylesheet execution/history, full document/resource
+coverage, runtime closure and atomic transaction blockers remain applicable. This
+native extension does not widen Studio edit or browser/worker admission.
+
+CEM review: context construction and expression semantics remain shared native
+services with explicit, bounded ownership. Native retained sources and the shared
+import boundary are preserved. No UI, accessibility, public token, inherited style
+or forced-color contract changes; physical AT remains independently open.
+
+### Retained HTML image-source candidates
+
+`cem_ml::import::srcset` parses decoded retained attributes using the
+[HTML image-candidate algorithm](https://html.spec.whatwg.org/multipage/images.html#parsing-a-srcset-attribute).
+The supported slots are HTML `img@srcset`, `source@srcset` and
+`link@imagesrcset`, with unqualified attributes and exact retained ownership.
+These are potential source lists; surrounding picture, media, type, rel/as and
+sizes conditions do not establish selection or acquisition. Unsupported slots
+retain their analysis blocker.
+
+The shared importer handles ASCII whitespace, internal URL commas, descriptor
+parentheses and recovery. It retains accepted URLs, density/width descriptors,
+future-compatible height descriptors and structured diagnostics. Width/height
+integers are positive `u32`; density uses finite `f64` with HTML float syntax,
+including zero. Valid numeric syntax outside that profile makes analysis
+incomplete. Parse errors discard invalid candidates while preserving recovery;
+future-height and extra-comma diagnostics stay visible. Cross-candidate authoring
+conformance and browser source selection remain separate from this parser.
+
+Each retained occurrence owns the original CEM tree, element/attribute IDs, source
+key and whole-attribute source map. Candidate URL and descriptor ranges are UTF-8
+byte offsets into the **decoded attribute value**. Entity decoding and source
+normalization mean these are not original-file edit ranges or template rewrite
+locations. Candidate lists remain separate from single-URI document references.
+Default limits are 65,536 decoded bytes and 4,096 candidate attempts per list,
+including malformed candidates. Document inventory charges list bytes against
+its shared node/attribute work budget. Exhaustion prevents host publication;
+unsupported numeric values also prevent CSS callbacks and complete inventory.
+
+`HtmlBaseExecutionHost::inspect_dependencies` resolves each accepted candidate
+against the confirmed execution base and retains its source occurrence. Imported
+XML bases, source URIs and module mappings cannot replace that base. A failed URL
+resolution stays explicit. The existing host/DOM/capability checks apply before
+publication and at consumption. Supported complete lists discharge only their
+parsing and base-resolution requirements; parse diagnostics, resource policy,
+source selection/load history, general coverage and atomic edit admission remain
+explicit. No fetch, browser-selection emulation or source mutation is performed.
+
+The native and Chromium fixtures consume the same XHTML bytes. Single surviving
+candidates compare with actual `currentSrc` for URL commas, entity/Unicode
+handling, descriptor recovery, width/height, exponent and zero-density cases.
+This bounded parity evidence does not certify a complete browser selection model.
+CEM review: parsing and source authority remain shared native capabilities. No
+UI, public token, accessibility or inherited-style contract changes; theme and
+forced-color checks are inapplicable. Physical AT acceptance remains independent.

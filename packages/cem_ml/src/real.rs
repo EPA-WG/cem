@@ -5617,6 +5617,15 @@ pub fn inspect_native_template_dependencies(
     template: &TemplateInput,
     max_import_depth: u32,
 ) -> NativeTemplateDependencyInspection {
+    inspect_native_template_dependencies_with_snapshot(context, template, max_import_depth, None)
+}
+
+pub(crate) fn inspect_native_template_dependencies_with_snapshot(
+    context: &EngineContext,
+    template: &TemplateInput,
+    max_import_depth: u32,
+    snapshot: Option<&crate::template_snapshot::TemplateSourceSnapshot>,
+) -> NativeTemplateDependencyInspection {
     let mut parsed =
         parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
             template: template.clone(),
@@ -5642,7 +5651,7 @@ pub fn inspect_native_template_dependencies(
         .limits
         .max_import_depth
         .min(max_import_depth);
-    let preflight = preflight_transform_template_modules(
+    let preflight = preflight_transform_template_modules_with_snapshot(
         context,
         "cem-native-dependency-inspection",
         template,
@@ -5650,6 +5659,7 @@ pub fn inspect_native_template_dependencies(
         &parsed.module_options,
         TransformExecutionPolicy::default(),
         &mut result.diagnostics,
+        snapshot,
     );
     if result
         .diagnostics
@@ -5682,6 +5692,29 @@ fn preflight_transform_template_modules(
     execution_policy: TransformExecutionPolicy,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<TransformTemplateModulePreflight> {
+    preflight_transform_template_modules_with_snapshot(
+        context,
+        adapter_id,
+        template,
+        entrypoint,
+        module_options,
+        execution_policy,
+        diagnostics,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn preflight_transform_template_modules_with_snapshot(
+    context: &EngineContext,
+    adapter_id: &str,
+    template: &TemplateInput,
+    entrypoint: &TransformTemplateEntrypoint,
+    module_options: &TransformTemplateModuleOptions,
+    execution_policy: TransformExecutionPolicy,
+    diagnostics: &mut Vec<Diagnostic>,
+    snapshot: Option<&crate::template_snapshot::TemplateSourceSnapshot>,
+) -> Option<TransformTemplateModulePreflight> {
     let mut ancestry = vec![template.uri.clone()];
     let mut seen_aliases = BTreeSet::new();
     let mut resolved_imports = Vec::new();
@@ -5698,6 +5731,7 @@ fn preflight_transform_template_modules(
         &mut resolved_imports,
         &mut dependency_hash_input,
         diagnostics,
+        snapshot,
     );
 
     if has_fatal {
@@ -5734,10 +5768,27 @@ fn preflight_template_module_imports(
     resolved_imports: &mut Vec<TransformTemplateResolvedModule>,
     dependency_hash_input: &mut Vec<u8>,
     diagnostics: &mut Vec<Diagnostic>,
+    snapshot: Option<&crate::template_snapshot::TemplateSourceSnapshot>,
 ) -> bool {
     let mut has_fatal = false;
 
     for import in imports {
+        if let Some(snapshot) = snapshot {
+            let control = context
+                .operation_control
+                .check_scope(crate::operation_control::ROOT_EXECUTION_SCOPE_ID);
+            if resolved_imports.len() >= snapshot.max_imports() || control.is_err() {
+                diagnostics.push(template_module_diagnostic(
+                    Some(&importing_template.uri),
+                    "cem.transform.template.snapshot_limit",
+                    control.err().map_or_else(
+                        || "template snapshot import edge budget exceeded".into(),
+                        |e| e.to_string(),
+                    ),
+                ));
+                return false;
+            }
+        }
         if import.kind == TransformTemplateModuleDependencyKind::IncludeReserved {
             diagnostics.push(template_module_diagnostic(
                 Some(&import.uri),
@@ -5778,8 +5829,20 @@ fn preflight_template_module_imports(
             continue;
         }
 
-        match read_template_module_import(context, importing_template, import, parent_uri) {
+        match read_template_module_import(context, importing_template, import, parent_uri, snapshot) {
             Ok(module) => {
+                if snapshot.is_some_and(|snapshot| {
+                    resolved_imports.iter().fold(module.bytes.len(), |bytes, prior| {
+                        bytes.saturating_add(prior.bytes.len())
+                    }) > snapshot.max_bytes()
+                }) {
+                    diagnostics.push(template_module_diagnostic(
+                        Some(&importing_template.uri),
+                        "cem.transform.template.snapshot_limit",
+                        "template snapshot cumulative import byte budget exceeded",
+                    ));
+                    return false;
+                }
                 if ancestry.iter().any(|uri| uri == &module.uri) {
                     diagnostics.push(template_module_diagnostic(
                         Some(&module.uri),
@@ -5868,6 +5931,7 @@ fn preflight_template_module_imports(
                     resolved_imports,
                     dependency_hash_input,
                     diagnostics,
+                    snapshot,
                 ) {
                     has_fatal = true;
                 }
@@ -6177,6 +6241,7 @@ fn read_template_module_import(
     template: &TemplateInput,
     import: &TransformTemplateModuleImport,
     parent_uri: Option<&str>,
+    snapshot: Option<&crate::template_snapshot::TemplateSourceSnapshot>,
 ) -> Result<TransformTemplateResolvedModule, TemplateImportReadError> {
     let content_type_hint = import
         .identity
@@ -6187,6 +6252,7 @@ fn read_template_module_import(
         template,
         &import.uri,
         content_type_hint.as_deref(),
+        snapshot,
     )?;
     let TemplateImportSourceRead {
         read,
@@ -6220,6 +6286,7 @@ fn read_template_import_source_with_policy(
     template: &TemplateInput,
     import_uri: &str,
     content_type_hint: Option<&str>,
+    snapshot: Option<&crate::template_snapshot::TemplateSourceSnapshot>,
 ) -> Result<TemplateImportSourceRead, TemplateImportReadError> {
     let mut request =
         ResolveRequest::new(import_uri, ResolvePurpose::Template, ResolveDirection::Read)
@@ -6231,12 +6298,15 @@ fn read_template_import_source_with_policy(
         .resolver_policy
         .decide(&request)
         .map_err(TemplateImportReadError::Policy)?;
-    let read = read_template_import_source(
-        context,
-        template,
-        &policy_decision.effective_uri,
-        content_type_hint,
-    )
+    let read = match snapshot {
+        Some(snapshot) => snapshot.read(&policy_decision.effective_uri, &template.uri),
+        None => read_template_import_source(
+            context,
+            template,
+            &policy_decision.effective_uri,
+            content_type_hint,
+        ),
+    }
     .map_err(|error| TemplateImportReadError::Resolver {
         error,
         policy_decision: policy_decision.clone(),

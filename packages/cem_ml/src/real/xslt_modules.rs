@@ -164,6 +164,7 @@ impl Preflight<'_> {
                 template,
                 &import,
                 Some(&template.uri),
+                None,
             ) {
                 Ok(module) => module,
                 Err(error) => {

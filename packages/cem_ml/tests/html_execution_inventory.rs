@@ -21,6 +21,15 @@ fn shared_browser_reference_and_inline_css_candidates() {
         navigation_url: "https://example.test/assets/next.html".into(),
         stylesheet_url: "https://example.test/assets/sheet.svg".into(),
         inline_url: "https://example.test/assets/inline.svg".into(),
+        srcset_urls: vec![
+            "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%3E%3C/svg%3E".into(),
+            "https://example.test/assets/images/a,b.svg".into(),
+            "https://example.test/assets/caf%C3%A9.svg?x=1&y=2".into(),
+            "https://example.test/assets/width.svg".into(),
+            "https://example.test/assets/tail.svg".into(),
+            "https://example.test/assets/%C2%A0space.svg".into(),
+            "https://example.test/assets/zero.svg".into(),
+        ],
     }]);
     assert_eq!(result.len(), 1);
 }
@@ -381,6 +390,115 @@ fn imported_xml_bases_and_unicode_whitespace_do_not_override_execution_urls() {
             .resolved_url,
         "https://example.test/assets/sheet.svg"
     );
+}
+
+#[test]
+fn srcset_candidates_keep_decoded_sources_and_confirmed_execution_base() {
+    let source = SOURCE.replace(
+        "<body>",
+        "<body xml:base=\"https://wrong.test/\"><img srcset=\"café.svg?x=1&amp;y=2 1x, icon 2x\"/>",
+    );
+    let (mut host, evidence) = host(
+        &source,
+        "https://example.test/assets/",
+        HtmlBaseCompatibilityProfile::StandardAgreement,
+    );
+    let cap = capability(false);
+    let inventory = host
+        .inspect_dependencies(&evidence, &cap, 500, slots, evidence.effective_url())
+        .unwrap();
+    assert_eq!(inventory.srcsets().len(), 1);
+    let srcset = &inventory.srcsets()[0];
+    assert!(Arc::ptr_eq(
+        srcset.source.tree(),
+        &inventory.document().tree
+    ));
+    assert_eq!(
+        srcset.source.source_uri(),
+        Some("studio://source/original.xhtml")
+    );
+    assert_eq!(
+        srcset
+            .resolved_urls
+            .iter()
+            .map(|u| u.as_ref().unwrap().as_str())
+            .collect::<Vec<_>>(),
+        [
+            "https://example.test/assets/caf%C3%A9.svg?x=1&y=2",
+            "https://example.test/assets/icon"
+        ]
+    );
+    assert!(!inventory.blockers().iter().any(|b| matches!(
+        b.as_str(),
+        "srcset-analysis-required" | "srcset-base-and-policy-required"
+    )));
+    assert!(inventory
+        .blockers()
+        .iter()
+        .any(|b| b == "srcset-selection-and-load-history-required"));
+    assert!(host
+        .validate_dependencies(&inventory, &cap, slots, evidence.effective_url())
+        .is_ok());
+    assert!(host
+        .validate_dependencies(
+            &inventory,
+            &cap,
+            |s| Ok(s.id + 100),
+            evidence.effective_url()
+        )
+        .is_err());
+}
+
+#[test]
+fn incomplete_srcset_scan_precedes_css_callbacks_and_invalid_base_stays_unresolved() {
+    for (value, budget) in [
+        ("a.svg 1x, b.svg 2x", 20),
+        ("a.svg 999999999999999999w", 500),
+    ] {
+        let source = SOURCE.replace("<body>", &format!("<body><img srcset=\"{value}\"/>"));
+        let (mut host, evidence) = host(
+            &source,
+            "https://example.test/assets/",
+            HtmlBaseCompatibilityProfile::StandardAgreement,
+        );
+        let calls = Arc::new(AtomicUsize::new(0));
+        let cap = CemModuleUrlResolutionCapability::new(
+            Arc::new(ObservedResolver {
+                delegate: capability(false),
+                calls: calls.clone(),
+                revision: Arc::new(AtomicUsize::new(1)),
+                drift: false,
+                cacheable: true,
+            }),
+            CemResolutionContextHandle::new("execution"),
+        );
+        assert!(host
+            .inspect_dependencies(&evidence, &cap, budget, slots, evidence.effective_url())
+            .is_err());
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+    }
+    let source = SOURCE
+        .replace("../assets/", "http://[")
+        .replace("<body>", "<body><img srcset=\"a.svg 1x\"/>");
+    let (mut host, evidence) = host(
+        &source,
+        "about:blank",
+        HtmlBaseCompatibilityProfile::Chromium148,
+    );
+    let inventory = host
+        .inspect_dependencies(
+            &evidence,
+            &capability(false),
+            500,
+            slots,
+            evidence.effective_url(),
+        )
+        .unwrap();
+    assert!(inventory.srcsets()[0].resolved_urls[0].is_err());
+    assert!(inventory
+        .blockers()
+        .iter()
+        .any(|b| b == "srcset-resolution-incomplete"));
 }
 
 #[test]

@@ -1,4 +1,7 @@
 //! Native retained-document reference candidates. No fetch, execution or rewrite.
+use crate::import::srcset::{
+    import_srcset_attribute, srcset_slot, RetainedSrcsetAttribute, SrcsetLimits,
+};
 use crate::parser::{tree::RetainedCemTree, AstNodeId};
 use crate::source_map::SourceMapStack;
 use std::sync::Arc;
@@ -20,10 +23,12 @@ pub struct DocumentReference {
 pub struct DocumentDependencyInspection {
     pub tree: Arc<RetainedCemTree>,
     pub references: Vec<DocumentReference>,
+    pub srcsets: Vec<RetainedSrcsetAttribute>,
     pub blockers: Vec<String>,
     pub body_analysis_required: bool,
 }
-/// Inventory native decoded HTML/SVG direct URI slots and HTML navigation links.
+/// Inventory native decoded HTML/SVG direct URI slots and HTML image candidates.
+/// Work charges nodes, attributes and decoded srcset bytes against one budget.
 /// The retained owner keeps node IDs/source maps alive. This does not resolve bases,
 /// apply module maps, execute templates or claim a complete document dependency set.
 pub fn inspect_document_dependencies(
@@ -38,6 +43,7 @@ pub fn inspect_document_dependencies(
     const HTML: &str = "http://www.w3.org/1999/xhtml";
     const SVG: &str = "http://www.w3.org/2000/svg";
     let mut references = Vec::new();
+    let mut srcsets = Vec::new();
     let mut blockers = Vec::new();
     let mut remaining = budget;
     let mut pending = vec![0];
@@ -119,8 +125,40 @@ pub fn inspect_document_dependencies(
                     if field == "style" {
                         block(&mut blockers, "embedded-css-analysis-required");
                     }
-                    if field == "srcset" {
-                        block(&mut blockers, "srcset-analysis-required");
+                    if matches!(field, "srcset" | "imagesrcset") {
+                        if srcset_slot(namespace, local, attr_ns, field) {
+                            let defaults = SrcsetLimits::default();
+                            let limits = SrcsetLimits {
+                                max_bytes: remaining.min(defaults.max_bytes),
+                                max_candidates: defaults.max_candidates,
+                            };
+                            match import_srcset_attribute(tree.clone(), id, *attribute, limits) {
+                                Ok(srcset) => {
+                                    remaining -= srcset.value().len();
+                                    if !srcset.parsed().complete {
+                                        block(&mut blockers, "srcset-analysis-required");
+                                        block(&mut blockers, "srcset-numeric-profile-incomplete");
+                                    }
+                                    if !srcset.parsed().issues.is_empty() {
+                                        block(&mut blockers, "srcset-parse-errors");
+                                    }
+                                    if !srcset.parsed().candidates.is_empty() {
+                                        block(&mut blockers, "srcset-base-and-policy-required");
+                                        block(
+                                            &mut blockers,
+                                            "srcset-selection-and-load-history-required",
+                                        );
+                                    }
+                                    srcsets.push(srcset);
+                                }
+                                Err(_) => {
+                                    block(&mut blockers, "inspection-budget-exceeded");
+                                    break 'nodes;
+                                }
+                            }
+                        } else {
+                            block(&mut blockers, "srcset-analysis-required");
+                        }
                     }
                     if field.starts_with("on") {
                         block(&mut blockers, "event-runtime-analysis-required");
@@ -180,6 +218,7 @@ pub fn inspect_document_dependencies(
     DocumentDependencyInspection {
         tree,
         references,
+        srcsets,
         blockers,
         body_analysis_required: true,
     }

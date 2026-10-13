@@ -180,7 +180,11 @@ globalThis.runHtmlBaseHostFixture = async (version) => {
         };
         inventoryObservation = { document_url: doc.URL, base_uri: base, engine: 'chromium', version,
             image_url: doc.querySelector('img').src, navigation_url: doc.querySelector('a').href,
-            stylesheet_url: background(doc.querySelector('p')), inline_url: background(doc.querySelector('span')) };
+            stylesheet_url: background(doc.querySelector('p')), inline_url: background(doc.querySelector('span')),
+            srcset_urls: Array.from(doc.querySelectorAll('img[srcset]'), (img) => {
+                check(img.currentSrc !== '', 'srcset fixture must have a selected candidate');
+                return img.currentSrc;
+            }) };
     }, {}, '/docs/html-execution-inventory.html');
     return { chromiumVersion: version, cases: passed, inventoryObservation };
 };

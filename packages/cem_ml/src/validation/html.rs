@@ -1621,7 +1621,7 @@ fn html_attribute_requires_resource_policy(local_name: &str, attribute: &HtmlAtt
         return html_uri_requires_policy(value);
     }
     match attribute.local_name.as_str() {
-        "srcset" => html_srcset_requires_policy(value),
+        "srcset" | "imagesrcset" => html_srcset_requires_policy(value),
         "style" => html_css_url_reference_requires_policy(value),
         _ => false,
     }
@@ -1635,10 +1635,26 @@ pub(crate) fn html_uri_requires_policy(value: &str) -> bool {
 }
 
 fn html_srcset_requires_policy(value: &str) -> bool {
-    value
-        .split(',')
-        .filter_map(|candidate| candidate.split_whitespace().next())
-        .any(html_uri_requires_policy)
+    let Ok(parsed) = crate::import::srcset::parse_srcset(value, Default::default()) else {
+        return true;
+    };
+    !parsed.complete || !parsed.issues.is_empty() || parsed.candidates.iter().any(|candidate| {
+        // Quotes and non-ASCII whitespace are literal URL characters here.
+        !candidate.url.starts_with('#') && !candidate.url.to_ascii_lowercase().starts_with("data:")
+    })
+}
+
+#[cfg(test)]
+mod srcset_policy_tests {
+    use super::*;
+    #[test]
+    fn shared_srcset_policy_preserves_url_commas_and_literal_whitespace() {
+        assert!(!html_srcset_requires_policy("data:image/svg+xml,empty 1x"));
+        assert!(!html_srcset_requires_policy("#local 2x"));
+        assert!(html_srcset_requires_policy("\u{a0}#external.svg 1x"));
+        assert!(html_srcset_requires_policy("\"data:image/svg+xml,empty\" 1x"));
+        assert!(html_srcset_requires_policy("data:image/svg+xml,empty 999999999999999999999w"));
+    }
 }
 
 fn html_css_url_reference_requires_policy(value: &str) -> bool {
