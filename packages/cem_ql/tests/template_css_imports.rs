@@ -1329,3 +1329,7 @@ fn recorded_html_delivery_keeps_empty_templates_closed_and_rechecks_native_polic
 }
 #[path = "template_css_imports/worker_preparation.rs"]
 mod worker_preparation;
+#[path = "template_css_imports/browser_preparation.rs"]
+mod browser_preparation;
+#[path = "template_css_imports/host_binding.rs"]
+mod host_binding;

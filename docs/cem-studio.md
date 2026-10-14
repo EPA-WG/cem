@@ -3858,12 +3858,67 @@ when local IDs repeat. Fresh preparations are required after replacement.
 Cancellation also remains bound to the original native execution and its sources;
 empty stylesheet sets receive the same lifecycle and policy checks.
 
-This remains a native integration surface. The Chromium fixture keeps the worker
-registry in a live Rust process and exchanges individual scalar predicates with
-the browser. Its JSON test controls cannot transfer a seal. Exposing preparation
-requests through the production browser/worker runtime still requires a bounded
-observation bridge with exclusive DOM ownership and failure/cancellation wiring;
-the current serialized operation-result protocol cannot supply that authority.
+The production QL WASM `RecordedOutputSession(requestJson, slot, generation)`
+now retains this registry in the synchronous DOM observation realm. The request
+is an explicit source-acquisition envelope, bounded to 4 MiB: `rootUri`,
+`outputUri`, `resolutionBase`, `policyStamp`, `browser: {engine, version}`,
+`sources: [{uri, revision, source, contentType}]`,
+`stylesheets: [{requestedUrl, finalUrl, revision, source, contentType}]`,
+`choices: [{bodyUri, index, scope, hostPaths?}]` and optional scalar-string `bindings`.
+Private scopes use `{kind: 'private', tag}`; shared scopes use
+`{kind: 'shared', name}`. Native compilation validates the complete ordered
+choices against recorded body occurrences. Sources enter the shared importer
+once; missing acquisition responses cannot fall back to network I/O. No AST,
+evidence or result handle is accepted in this envelope. The initial profile uses
+immutable lexical resolution contexts and standard-agreement HTML base behavior.
+Context-sensitive sheets (including imported CSS) require explicit `hostPaths`:
+element-ordinal paths in the original native output, such as `[0, 1, 0]` for
+the first element in an explicit HTML body. Native
+`compose_output_with_hosts` validates the selected host's HTML namespace, private
+tag or shared membership, and direct instance-island template before adding the
+native resolver-context marker. Missing/foreign hosts, conflicting authored
+markers or two different contexts for one host reject. Paths are bounded to 64
+segments and 256 hosts per sheet; marker attributes count toward output bounds.
+The original source/render is unchanged. JavaScript neither derives nor patches
+these internal markers. Non-contextual sheets may omit host paths.
+
+`captureBrowserRecordedOutput(document, native, install, options)` and
+`pool.captureRecordedOutput(...)` own the native session, including failed
+construction/capture. Supply `{ownership: 'exclusive', policy: {stamp, decide},
+signal?}`. The document must be a live UTF-8 HTTP(S) document matching `outputUri`.
+The synchronous `install(html, stage)` callback delivers first the `original`
+render and then the `composed` output into that same document. Each delivery is
+followed by full native correspondence and a real base freeze. Returning a Promise,
+inexact delivery, changing the document URL, reentry or cancellation rejects and
+closes the session. HTML is a named delivery artifact; the browser never reconstructs
+the semantic source tree or native evidence from it.
+The rendered tree must already match the browser's DOM: parser-inserted nodes
+and nonempty inert template contents are outside this exact-correspondence
+profile and reject capture.
+
+`read()` returns diagnostic blockers after complete live validation. `dispose()`
+releases ownership; `change(write)` revokes before a controlled synchronous
+DOM/CSS/history/policy write, including A-B-A changes. A fresh native session is
+required afterward. Shared DOM correspondence and document ownership prevent a
+second HTML-base or recorded-output host from claiming the same document.
+DOM mutation, CSSOM/installation drift, policy stamp or URL changes, load/error,
+resize, page hide and abort invalidate the record. Callback failures cannot
+publish a handle; WASM disposal waits until an active native call returns.
+An initial browser-generated load notification for a captured inline sheet may
+arrive after synchronous delivery. It preserves the record only after a complete
+native reread. Later or synthetic load notifications and all errors revoke it.
+
+The bounded stylesheet profile accepts flattened, untitled inline HTML styles
+without outer media, shadow roots or adopted sheets. Body imports are resolved
+from the supplied immutable snapshots and flattened natively. External document
+stylesheets, titled/outer-media selection and unflattened document imports still
+require bridge extensions; unsupported cases fail closed. Pool closure, worker
+failure and generation replacement revoke these main-realm dependencies before
+new work can publish; fresh capture resumes only after pool recovery. Dedicated
+workers never receive a DOM/evidence DTO or consume this native seal. Moving the
+semantic owner off-thread would require a separate bounded observation protocol.
+The live Rust/Chromium predicate fixture remains independent of this real WASM
+production path.
 Compiled scope/inner-condition applicability, responsive images, computed CSS/SVG
 resources, other runtime loads and atomic transaction admission retain their
 blockers. A joined DOM/CSS record is not complete dependency closure.
@@ -3877,8 +3932,8 @@ forms take ownership of the session, including disposal on failed capture. A CSS
 string, serialized artifact or worker response cannot replace the native lease.
 The compiled observer remains local to the realm holding the QL owner; it does not
 transfer worker-resident preparation evidence or reconstruct recorded bodies from
-worker metadata. The recorded-body API above is currently a native integration
-surface, while the browser bridge consumes retained-template artifact handles.
+worker metadata. This artifact-consumer bridge is separate from the whole-output
+`RecordedOutputSession` bridge above.
 
 The browser compares installed CSSOM against the browser's inactive parsing of
 native emitted text. It requires readable native `@scope`, exact style/sheet/parent

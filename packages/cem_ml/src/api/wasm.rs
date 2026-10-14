@@ -73,6 +73,8 @@ mod xpath_artifact;
 pub use xpath_artifact::retained_xpath_artifact;
 mod documents;
 mod html_base_host;
+// Shared scalar predicate adapter for combined native WASM consumers.
+pub use html_base_host::match_slot as match_html_base_slot;
 mod stylesheet_execution;
 pub use documents::retained_cem_document;
 #[cfg(feature = "debug-control")]

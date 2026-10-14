@@ -116,7 +116,7 @@ fn error(message: impl AsRef<str>) -> JsValue {
     JsValue::from_str(message.as_ref())
 }
 
-pub(super) fn match_slot(matches: &Function, slot: HtmlBaseDomSlot<'_>) -> Result<u32, String> {
+pub fn match_slot(matches: &Function, slot: HtmlBaseDomSlot<'_>) -> Result<u32, String> {
     let node = slot.node;
     let kind = match node.kind {
         CemTreeNodeKind::Document => 9,

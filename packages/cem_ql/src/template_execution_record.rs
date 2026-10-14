@@ -1,6 +1,7 @@
 //! Native XHTML output correspondence for an immutable template acquisition snapshot.
 //! Scalar execution supports a shared context or recorded lexical body contexts.
 //! Runtime reads and arbitrary native calls remain outside these profiles.
+pub mod browser;
 mod css_imports;
 pub use css_imports::{
     BodyStylesheetInstallation, ExecutedTemplateCssImports, ExecutedTemplateStylesheets,

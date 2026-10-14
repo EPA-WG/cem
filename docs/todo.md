@@ -2333,11 +2333,63 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       private/shared scope rules, public token defaults, inherited overrides,
       accessibility and theme ownership are unchanged. Theme/forced-color checks
       are inapplicable; physical AT acceptance remains independent.
-    - [ ] Expose native preparation requests through the production browser/worker
+    - [x] Expose native preparation requests through the production browser/worker
       runtime with a bounded observation bridge and exclusive DOM ownership.
       Wire cancellation, release, host failure and replacement before publishing
       handles; keep native owners in one realm and diagnostic results separate
-      from evidence. The live-native Chromium fixture is not this production bridge.
+      from evidence. Use the synchronous DOM observation realm, with native
+      preparation ownership bound to the worker pool's dependency lifetime.
+      - [x] Add native staged-session fixtures for bounded source ingress,
+        original/composed delivery, capture ordering, policy denial, cancellation
+        and permanent failure; retain source owners throughout every stage.
+      - [x] Add real WASM/browser fixtures through the shared production host,
+        covering snapshot import flattening, complete DOM/CSS checks, exclusive
+        ownership, disposal/reentry,
+        pool closure/replacement, fresh recovery and incomplete-resource blockers.
+      - [x] Bind imported stylesheet resolver-context markers to explicitly
+        selected native produced hosts; fixture scope/island checks, missing or
+        conflicting bindings, source preservation and actual imported-rule effect.
+      - [x] Verify delayed initial inline-style load notifications preserve a
+        record only after full revalidation; later/synthetic loads still revoke.
+
+      Implemented the native `RecordedOutputSession` staged source/delivery
+      contract, its QL WASM adapter, and the shared browser
+      `captureBrowserRecordedOutput` / `pool.captureRecordedOutput` APIs.
+      Source-acquisition envelopes enter native import once (4 MiB, at most 256
+      sources/choices and 10,000 observed nodes); original/composed delivery,
+      native base freezes and final capture retain the same semantic/source owners.
+      Scalar predicates reuse shared DOM correspondence; HTML-base and whole-output
+      hosts share exclusive document ownership. Callback/reentry/DOM/CSSOM/policy
+      failures, disposal, abort, pool failure and generation replacement revoke
+      evidence. Native cancellation shares the original execution signal.
+      Context-sensitive styles require explicit native host paths; composition
+      checks private tags/shared membership and instance-island structure, then
+      binds native resolver-context markers without changing original sources.
+      Missing, foreign or conflicting contexts reject. Initial trusted inline
+      style load notifications preserve a capture only after full native reread;
+      later/synthetic loads and errors revoke it.
+      Diagnostic blocker summaries and HTML delivery never carry a native seal.
+      Initial production scope: standard-agreement UTF-8 HTTP(S) output, immutable
+      lexical contexts, and flattened untitled inline stylesheet installations
+      without outer media, shadow/adopted sheets or nonempty inert templates.
+      The native owner remains in the synchronous DOM observation realm; this
+      does not move seals into dedicated workers or their result messages.
+      Verification: 54 focused QL native tests pass (six new staged-session and
+      three host-binding cases). All 22 production Chromium cases pass, including
+      actual imported CSS application, delayed initial loads, ownership/reentry,
+      cancellation and pool replacement/recovery. The full Nx browser gate passes
+      all prior live-native output, HTML-base, stylesheet/SVG, worker and command
+      regressions. TypeScript/WASM builds, CLI lint, focused Rust formatting and
+      `git diff --check` pass.
+      CEM review: native source ownership and shared services remain authoritative,
+      with bounded inputs and existing private/shared scope semantics. No component
+      behavior, public token defaults, inherited overrides, accessibility or theme
+      ownership changes; theme/forced-color checks are inapplicable and physical AT
+      acceptance remains independent. Resource closure and atomic admission stay
+      blocked.
+    - [ ] Extend whole-output preparation observations to external/titled and
+      outer-media document stylesheets, reusing native acquisition/selection
+      records and controlled recapture without relaxing complete DOM ownership.
     - [ ] Record responsive image-source selection and acquisition, followed by
       remaining computed CSS/SVG and general runtime resource loads, before
       claiming complete execution dependency closure.
@@ -2346,8 +2398,8 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, expose the native preparation registry through the production browser/worker
-runtime with bounded observation and exclusive DOM ownership.
+Next, extend production whole-output preparation observations to external/titled
+and outer-media document stylesheet installations.
 Then record responsive image-source selection/acquisition and remaining computed
 CSS/SVG/runtime loads.
 Connect the prepared native read set to host transaction admission only after complete

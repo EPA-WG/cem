@@ -8,6 +8,7 @@ import {
 import './html-base-host.fixture.mjs';
 import './browser-stylesheets.fixture.mjs';
 import './browser-compiled-stylesheets.fixture.mjs';
+import './browser-recorded-output.fixture.mjs';
 import './browser-stylesheet-selection.fixture.mjs';
 import './browser-stylesheet-active.fixture.mjs';
 import parseRunPlan from './browser-command-run-plan.fixture.json' with { type: 'json' };

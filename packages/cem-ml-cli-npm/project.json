@@ -90,6 +90,7 @@
                 "{projectRoot}/tests/html-base-host.fixture.mjs",
                 "{projectRoot}/tests/browser-stylesheets.fixture.mjs",
                 "{projectRoot}/tests/browser-compiled-stylesheets.fixture.mjs",
+                "{projectRoot}/tests/browser-recorded-output.fixture.mjs",
                 "{projectRoot}/tests/browser-stylesheet-selection.fixture.mjs",
                 "{projectRoot}/tests/browser-stylesheet-active.fixture.mjs",
                 "{workspaceRoot}/packages/cem_ml/tests/fixtures/html-base-host.xhtml",

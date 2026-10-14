@@ -1,3 +1,6 @@
+import { captureBrowserRecordedOutput, type NativeRecordedOutputSession, type BrowserRecordedOutputHost, type RecordedOutputInstaller, type BrowserRecordedOutputOptions } from './browser-recorded-output.js';
+export { BrowserRecordedOutputHost, captureBrowserRecordedOutput } from './browser-recorded-output.js';
+export type { NativeRecordedOutputSession, BrowserRecordedOutputOptions, BrowserRecordedOutputSummary, RecordedOutputInstaller } from './browser-recorded-output.js';
 import { captureBrowserCompiledStylesheets, type NativeCompiledStylesheetSession, type BrowserCompiledStylesheetHost } from './browser-compiled-stylesheets.js';
 export { BrowserCompiledStylesheetHost, captureBrowserCompiledStylesheets } from './browser-compiled-stylesheets.js';
 export type { NativeCompiledStylesheetSession } from './browser-compiled-stylesheets.js';
@@ -328,6 +331,16 @@ export class BrowserWorkerPool {
         }
         const signal = options.signal ? AbortSignal.any([options.signal, this.#stylesheetLifetime.signal]) : this.#stylesheetLifetime.signal;
         return captureBrowserCompiledStylesheets(document, native, nodes, { ...options, signal });
+    }
+    /** Native preparations live with synchronous DOM observation on the main
+     * realm. Every worker-pool generation/failure revokes that dependency. */
+    captureRecordedOutput(document: Document, native: NativeRecordedOutputSession, install: RecordedOutputInstaller, options: BrowserRecordedOutputOptions): BrowserRecordedOutputHost {
+        if (this.#closing || this.#stylesheetLifetime.signal.aborted) {
+            try { native.close(); } finally { native.free(); }
+            throw new Error('Browser worker pool preparation lifetime is unavailable');
+        }
+        const signal = options.signal ? AbortSignal.any([options.signal, this.#stylesheetLifetime.signal]) : this.#stylesheetLifetime.signal;
+        return captureBrowserRecordedOutput(document, native, install, { ...options, signal });
     }
     #invalidateStylesheets(worker?: WorkerAddress): void {
         if (worker) this.#unavailableStylesheetWorkers.add(`${worker.slot}:${worker.generation}`);

@@ -54,6 +54,11 @@ try {
     const sendNight = response => { response.writeHead(200, { 'content-type': 'text/css; charset=utf-8', 'cache-control': 'no-store' }); response.end('p{color:rgb(40,30,20)}'); };
     server = createServer((request, response) => {
         const pathname = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
+        if (pathname === '/docs/browser-recorded-output.html') {
+            response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+            response.end('<!doctype html><html><head></head><body></body></html>');
+            return;
+        }
         if (pathname === '/docs/browser-stylesheets.html') {
             response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
             response.end(`<!doctype html>${readFileSync(resolve(workspaceRoot, 'packages/cem_ml/tests/fixtures/browser-stylesheets.xhtml'), 'utf8').trim()}`);
@@ -359,6 +364,9 @@ try {
     console.log(`Verified ${browserStylesheets.cases.length} shared browser stylesheet host cases.`);
     const compiledStylesheets = await page.evaluate(() => globalThis.runCompiledStylesheetsFixture());
     assert.equal(compiledStylesheets.cases.length, 20);
+    const recordedPreparations = await page.evaluate(version => globalThis.runRecordedOutputFixture(version), browser.version());
+    assert.equal(recordedPreparations.cases.length, 22);
+    console.log(`Verified ${recordedPreparations.cases.length} production native preparation host cases.`);
     const recordedOutput = await verifyRecordedOutput(browser, workspaceRoot);
     const stylesheetSelection = await page.evaluate((version) => globalThis.runStylesheetSelectionFixture(version), browser.version());
     assert.equal(stylesheetSelection.cases.length, 9);
@@ -394,6 +402,7 @@ try {
                 stylesheetSelection,
                 activeStylesheets,
                 recordedOutput,
+                recordedPreparations,
             },
             null,
             2,

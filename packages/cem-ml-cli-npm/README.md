@@ -297,8 +297,22 @@ installations. The native `RecordedPreparationWorker` retains this joined record
 behind realm-local handles with bounded capacity, generation replacement,
 release/close/drop and cancellation guards. Every read revalidates the live record
 and returns diagnostic blockers; failed reads permanently revoke the handle.
-XML/HTML exports remain delivery artifacts. The production browser/worker
-preparation bridge and remaining runtime resource loads are still required before
-transaction admission.
+XML/HTML exports remain delivery artifacts. Use the QL WASM
+`RecordedOutputSession(requestJson, slot, generation)` with
+`captureBrowserRecordedOutput(document, native, install, options)` or
+`pool.captureRecordedOutput(...)` for whole-output preparation. The host owns the
+session and performs original/composed HTML delivery through a synchronous
+`install(html, stage)` callback, then validates the complete DOM and native inline
+stylesheet installations. Options require exclusive ownership and a stamped base
+policy, with optional cancellation. `read()` returns diagnostics; `change(write)`
+revokes before writes and requires a fresh session. Pool failure, replacement and
+closure revoke all dependent preparations. Native owners stay in the synchronous
+DOM observation realm; worker result messages contain no evidence authority.
+Context-sensitive stylesheet choices require explicit `hostPaths` into the native
+output; native composition validates produced-host scope/island membership and
+adds the resolver-context marker. Browser code does not patch semantic attributes.
+The initial profile excludes external/titled/outer-media document sheets and
+shadow/adopted styles. Remaining runtime resource loads and transaction admission
+retain their blockers.
 See the [full observation contract](../../docs/cem-studio.md#shared-browser-stylesheet-observation-host)
 and [compiled installation contract](../../docs/cem-studio.md#compiled-template-and-body-stylesheet-installations).

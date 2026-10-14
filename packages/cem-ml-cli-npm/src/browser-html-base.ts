@@ -2,8 +2,7 @@ import * as runtime from '@epa-wg/cem-ml/wasm';
 
 import { BrowserStylesheetHost, type BrowserStylesheetResponse, type BrowserStylesheetOptions, type BrowserStylesheetSelectionOptions } from './browser-stylesheets.js';
 
-const HTML = 'http://www.w3.org/1999/xhtml';
-const owners = new WeakMap<Document, BrowserHtmlBaseHost>();
+import { BrowserDomCorrespondence, claimDocument, documentOwned, releaseDocument } from './browser-dom-correspondence.js';
 
 export interface BrowserHtmlBaseOptions {
     readonly profile: 'standard-agreement' | 'chromium-148';
@@ -36,12 +35,7 @@ export class BrowserHtmlBaseHost {
     readonly #native: runtime.HtmlBaseExecutionHost;
     readonly #observer: MutationObserver;
     readonly #maxNodes: number;
-    readonly #identities = new WeakMap<Node, number>();
-    readonly #slots = new Map<number, Node>();
-    readonly #handles = new Map<number, Node>();
-    #childLists = new WeakMap<Node, Node[]>();
-    #attributeLists = new WeakMap<Node, Attr[]>();
-    #nextIdentity = 1;
+    readonly #dom: BrowserDomCorrespondence;
     #url: string;
     #busy = false;
     #pending?: AbortController;
@@ -55,19 +49,20 @@ export class BrowserHtmlBaseHost {
         this.#document = document;
         this.#maxNodes = options.maxNodes ?? 10_000;
         const bytes = options.maxUrlBytes ?? 16_384;
-        if (options.contextOwnership !== 'exclusive' || owners.has(document)
+        if (options.contextOwnership !== 'exclusive' || documentOwned(document)
             || !Number.isSafeInteger(this.#maxNodes) || this.#maxNodes < 1 || this.#maxNodes > 1_000_000
             || !Number.isSafeInteger(bytes) || bytes < 1 || bytes > 16_777_216
             || document.contentType !== 'text/html' || document.characterSet !== 'UTF-8'
             || !/^https?:/u.test(document.URL) || !document.defaultView || document.defaultView.document !== document) {
             throw new TypeError('HTML base host requires an unowned, exclusive UTF-8 HTTP(S) document and bounded limits');
         }
+        this.#dom = new BrowserDomCorrespondence(document, this.#maxNodes);
         this.#native = new runtime.HtmlBaseExecutionHost(options.profile, options.browser.engine, options.browser.version, this.#maxNodes, bytes);
         this.#url = document.URL;
         this.#observer = new MutationObserver((records) => { if (records.length) this.#revoke(); });
         this.#observer.observe(document, { subtree: true, attributes: true, childList: true, characterData: true });
         document.defaultView.addEventListener('pagehide', this.#onPageHide);
-        owners.set(document, this);
+        claimDocument(document, this);
     }
 
     /** A synchronous exclusive write boundary. Invalidates before running code,
@@ -93,14 +88,14 @@ export class BrowserHtmlBaseHost {
         return this.#run(() => {
             this.#disposeStylesheets();
             this.#captured = false;
-            this.#resetSlots();
+            this.#dom.reset();
             const stamp = policy.stamp;
-            const selected = this.#native.prepare(nativeDocument, this.#document.URL, stamp, this.#matchSlot, policy.decide);
+            const selected = this.#native.prepare(nativeDocument, this.#document.URL, stamp, this.#dom.matchSlot, policy.decide);
             // A policy callback must not mutate or reenter the host.
             this.#checkQuiet();
             if (policy.stamp !== stamp) throw new Error('HTML base policy changed during preparation');
             if (selected) {
-                const attribute = this.#handles.get(selected) as Attr | undefined;
+                const attribute = this.#dom.handle(selected) as Attr | undefined;
                 const element = attribute?.ownerElement;
                 if (!attribute || attribute.nodeType !== 2 || !element) throw new Error('Selected native href has no live DOM attribute');
                 element.setAttributeNS(null, 'href', attribute.value);
@@ -112,8 +107,8 @@ export class BrowserHtmlBaseHost {
             const result = this.#native.confirm(this.#document.baseURI);
             this.#captured = true;
             // Native correspondence and identities are rechecked after the write.
-            this.#resetSlots();
-            this.#native.validate(this.#matchSlot, this.#document.baseURI);
+            this.#dom.reset();
+            this.#native.validate(this.#dom.matchSlot, this.#document.baseURI);
             return result;
         });
     }
@@ -125,8 +120,8 @@ export class BrowserHtmlBaseHost {
         this.#checkQuiet();
         if (!this.#captured) throw new Error('HTML base host needs a fresh capture after a context change');
         return this.#run(() => {
-            this.#resetSlots();
-            return this.#native.validate(this.#matchSlot, this.#document.baseURI);
+            this.#dom.reset();
+            return this.#native.validate(this.#dom.matchSlot, this.#document.baseURI);
         });
     }
 
@@ -136,8 +131,8 @@ export class BrowserHtmlBaseHost {
         // Dispose superseded sessions before publishing a replacement.
         this.#disposeStylesheets();
         const host = this.#run(() => new BrowserStylesheetHost({
-            document: this.#document, native: this.#native, matches: this.#matchSlot,
-            node: (id) => this.#slots.get(id), run: (work) => this.#run(work),
+            document: this.#document, native: this.#native, matches: this.#dom.matchSlot,
+            node: (id) => this.#dom.node(id), run: (work) => this.#run(work),
         }, responses, options));
         try {
             host.capture();
@@ -155,8 +150,8 @@ export class BrowserHtmlBaseHost {
         let host: BrowserStylesheetHost | undefined;
         try {
             host = this.#run(() => new BrowserStylesheetHost({
-                document: this.#document, native: this.#native, matches: this.#matchSlot,
-                node: (id) => this.#slots.get(id), run: (work) => this.#run(work),
+                document: this.#document, native: this.#native, matches: this.#dom.matchSlot,
+                node: (id) => this.#dom.node(id), run: (work) => this.#run(work),
             }, responses, { ownership: options.ownership, signal }));
             const preparedHost = host;
             const selection = this.#run(() => preparedHost.prepareSelection(title, options.timeoutMs ?? 10_000));
@@ -192,8 +187,8 @@ export class BrowserHtmlBaseHost {
         this.#disposed = true;
         this.#native.free();
         this.#document.defaultView?.removeEventListener('pagehide', this.#onPageHide);
-        if (owners.get(this.#document) === this) owners.delete(this.#document);
-        this.#resetSlots();
+        releaseDocument(this.#document, this);
+        this.#dom.reset();
     }
 
     #run<T>(work: () => T): T {
@@ -234,65 +229,5 @@ export class BrowserHtmlBaseHost {
         this.#captured = false;
         this.#observer.disconnect();
         if (!this.#busy && !this.#disposed) this.#native.revoke();
-    }
-    #resetSlots(): void {
-        this.#slots.clear(); this.#handles.clear();
-        this.#childLists = new WeakMap(); this.#attributeLists = new WeakMap();
-    }
-
-    // Native asks predicates against its retained nodes. JS keeps only DOM
-    // identities; it never stores native names/values or a projected AST.
-    readonly #matchSlot = (id: number, parent: number | null, index: number, kind: number,
-        namespace: string, name: string, value: string, children: number, attributes: number): number => {
-        if (parent === null) this.#resetSlots(); // Native dependency validation makes repeated complete passes.
-        const owner = parent === null ? null : this.#slots.get(parent);
-        const node = parent === null ? this.#document : kind === 2
-            ? this.#attributes(owner)[index] : this.#children(owner)[index];
-        if (!node || this.#slots.has(id) || this.#slots.size >= this.#maxNodes || node.nodeType !== kind
-            || (node !== this.#document && node.ownerDocument !== this.#document)) throw new Error('Native/DOM slot topology mismatch');
-        if (kind === 1 || kind === 2) {
-            const named = node as Element | Attr;
-            if ((named.namespaceURI ?? '') !== namespace || named.localName !== name) throw new Error('Native/DOM expanded name mismatch');
-        }
-        if ((kind === 2 || kind === 3 || kind === 8) && node.nodeValue !== value) throw new Error('Native/DOM decoded value mismatch');
-        if (this.#children(node).length !== children || this.#attributes(node).length !== attributes) throw new Error('Native/DOM slot count mismatch');
-        let handle = this.#identities.get(node);
-        if (!handle) {
-            if (this.#nextIdentity > 0xffff_ffff) throw new Error('HTML base DOM identities exhausted');
-            handle = this.#nextIdentity++;
-            this.#identities.set(node, handle);
-        }
-        this.#slots.set(id, node);
-        this.#handles.set(handle, node);
-        return handle;
-    };
-    #children(node: Node | null | undefined): Node[] {
-        if (!node || node.childNodes.length > this.#maxNodes) throw new Error('HTML base DOM child bounds exceeded');
-        const cached = this.#childLists.get(node);
-        if (cached) return cached;
-        const children = Array.from(node.childNodes).filter((child) => {
-            if (child.nodeType !== 10) return true;
-            const type = child as DocumentType;
-            if (node !== this.#document || type.name !== 'html' || type.publicId || type.systemId) throw new Error('Unsupported HTML doctype');
-            return false; // Native semantic import omits the standard doctype.
-        });
-        this.#childLists.set(node, children);
-        return children;
-    }
-    #attributes(node: Node | null | undefined): Attr[] {
-        if (!node) throw new Error('HTML base DOM parent missing');
-        if (node.nodeType !== 1) return [];
-        const element = node as Element;
-        if (element.attributes.length > this.#maxNodes) throw new Error('HTML base DOM attribute bounds exceeded');
-        const cached = this.#attributeLists.get(node);
-        if (cached) return cached;
-        const attributes = Array.from(element.attributes).filter((attribute) => {
-            // XML import consumes the root's namespace declaration. In text/html
-            // it is an inert ordinary attribute; admit only this exact equivalent.
-            return !(element === this.#document.documentElement && attribute.name === 'xmlns'
-                && attribute.value === HTML && !attribute.namespaceURI && element.namespaceURI === HTML);
-        });
-        this.#attributeLists.set(node, attributes);
-        return attributes;
     }
 }

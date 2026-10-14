@@ -56,6 +56,29 @@ impl RecordedBodyStylesheetInstallations {
         max_nodes: usize,
         max_bytes: usize,
     ) -> Result<Arc<RecordedTemplateOutput>, String> {
+        self.compose_output_profile(parents, None, max_nodes, max_bytes)
+    }
+    /// Explicit element-ordinal paths into the original native output, one list
+    /// per stylesheet. Context-sensitive declarations require produced hosts.
+    pub fn compose_output_with_hosts(
+        self: &Arc<Self>,
+        parents: &[AstNodeId],
+        hosts: &[Vec<Vec<usize>>],
+        max_nodes: usize,
+        max_bytes: usize,
+    ) -> Result<Arc<RecordedTemplateOutput>, String> {
+        if hosts.len() != self.len() {
+            return Err("complete stylesheet host binding lists required".into());
+        }
+        self.compose_output_profile(parents, Some(hosts), max_nodes, max_bytes)
+    }
+    fn compose_output_profile(
+        self: &Arc<Self>,
+        parents: &[AstNodeId],
+        hosts: Option<&[Vec<Vec<usize>>]>,
+        max_nodes: usize,
+        max_bytes: usize,
+    ) -> Result<Arc<RecordedTemplateOutput>, String> {
         self.validate_current()?;
         if parents.len() != self.len() || max_nodes == 0 || max_bytes == 0 {
             return Err("complete bounded native stylesheet placements required".into());
@@ -109,10 +132,111 @@ impl RecordedBodyStylesheetInstallations {
             }
             paths.push(element_path(&execution.tree, *parent)?);
         }
+        let mut markers = std::collections::BTreeMap::<Vec<usize>, String>::new();
+        if let Some(hosts) = hosts {
+            for (index, paths) in hosts.iter().enumerate() {
+                let identity = self.set.identity(index)?;
+                if paths.len() > 256 || (identity.context_marker.is_some() && paths.is_empty()) {
+                    return Err(
+                        "bounded explicit produced hosts required for contextual styles".into(),
+                    );
+                }
+                for path in paths {
+                    if path.is_empty() || path.len() > 64 {
+                        return Err("bounded native host path required".into());
+                    }
+                    let id = element_at(&execution.tree, path)?;
+                    let node = execution.tree.node(id).ok_or("native host missing")?;
+                    let name = node.name.as_ref().ok_or("native host name missing")?;
+                    let scope_matches = match &identity.scope {
+                        CssManagedScope::Private { tag, .. } => name.local_name == *tag,
+                        CssManagedScope::Shared { name, .. } => {
+                            attribute(&execution.tree, id, "scope").is_some_and(|value| {
+                                value.split_ascii_whitespace().any(|v| v == name)
+                            })
+                        }
+                        _ => false,
+                    };
+                    let produced = node.children.iter().any(|child| {
+                        execution.tree.node(*child).is_some_and(|n| {
+                            n.name.as_ref().is_some_and(|n| {
+                                n.namespace_uri == HTML && n.local_name == "template"
+                            }) && attribute(&execution.tree, *child, "data-cem-island")
+                                == Some("instance")
+                        })
+                    });
+                    if name.namespace_uri != HTML
+                        || !name.local_name.contains('-')
+                        || !scope_matches
+                        || !produced
+                    {
+                        return Err(
+                            "stylesheet binding requires a matching native produced host".into(),
+                        );
+                    }
+                    if let Some(marker) = &identity.context_marker {
+                        if attribute(&execution.tree, id, "data-cem-css-context")
+                            .is_some_and(|value| value != marker)
+                        {
+                            return Err(
+                                "authored host resolver context conflicts with stylesheet".into()
+                            );
+                        }
+                        if let Some(previous) = markers.insert(path.clone(), marker.clone()) {
+                            if previous != *marker {
+                                return Err(
+                                    "one produced host cannot bind different resolver contexts"
+                                        .into(),
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        for (path, marker) in &markers {
+            if attribute(
+                &execution.tree,
+                element_at(&execution.tree, path)?,
+                "data-cem-css-context",
+            )
+            .is_none()
+            {
+                nodes = nodes.checked_add(1).ok_or("host attribute node overflow")?;
+                bytes = bytes
+                    .checked_add(
+                        marker
+                            .len()
+                            .checked_mul(6)
+                            .and_then(|n| n.checked_add(32))
+                            .ok_or("host attribute byte overflow")?,
+                    )
+                    .ok_or("host attribute byte overflow")?;
+            }
+        }
         if nodes > max_nodes || bytes > max_bytes {
             return Err("composed output node or byte bound exceeded".into());
         }
         let mut plan = execution.plan.clone();
+        for (path, marker) in &markers {
+            let attributes = plan_attributes(&mut plan.nodes, path)?;
+            if attributes.iter().any(|a| {
+                a.name == "data-cem-css-context" && a.namespace.as_deref().unwrap_or("").is_empty()
+            }) {
+                continue;
+            }
+            attributes.push(render::RenderPlanAttribute {
+                name: "data-cem-css-context".into(),
+                namespace: None,
+                qualified_name: None,
+                value: marker.clone(),
+                value_stream: crate::eval::ItemStream::once(crate::eval::Item::Atomic(
+                    crate::eval::AtomValue::String(marker.clone()),
+                )),
+                contract: None,
+                source_map: Default::default(),
+            });
+        }
         let mut sheet_paths = Vec::new();
         for (index, path) in paths.iter().enumerate() {
             let children = plan_children(&mut plan.nodes, path)?;
@@ -167,6 +291,13 @@ impl RecordedBodyStylesheetInstallations {
                 .any(|d| d.severity.is_hard_violation())
         {
             return Err("complete bounded composed output required".into());
+        }
+        for (path, marker) in &markers {
+            if attribute(&tree, element_at(&tree, path)?, "data-cem-css-context")
+                != Some(marker.as_str())
+            {
+                return Err("native host context/output correspondence failed".into());
+            }
         }
         let stylesheet_nodes = sheet_paths
             .iter()
@@ -446,5 +577,41 @@ fn plan_children<'a>(
         Ok(children)
     } else {
         plan_children(children, tail)
+    }
+}
+
+fn attribute<'a>(tree: &'a RetainedCemTree, id: AstNodeId, name: &str) -> Option<&'a str> {
+    tree.node(id)?
+        .attributes
+        .iter()
+        .filter_map(|id| tree.node(*id))
+        .find(|a| {
+            a.name
+                .as_ref()
+                .is_some_and(|n| n.namespace_uri.is_empty() && n.local_name == name)
+        })
+        .map(|a| a.value.as_str())
+}
+fn plan_attributes<'a>(
+    nodes: &'a mut [RenderPlanNode],
+    path: &[usize],
+) -> Result<&'a mut Vec<render::RenderPlanAttribute>, String> {
+    let (index, tail) = path.split_first().ok_or("native host path missing")?;
+    let RenderPlanNode::Element {
+        children,
+        attributes,
+        ..
+    } = nodes
+        .iter_mut()
+        .filter(|n| matches!(n, RenderPlanNode::Element { .. }))
+        .nth(*index)
+        .ok_or("native host plan missing")?
+    else {
+        unreachable!()
+    };
+    if tail.is_empty() {
+        Ok(attributes)
+    } else {
+        plan_attributes(children, tail)
     }
 }
