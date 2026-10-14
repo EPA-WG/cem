@@ -324,3 +324,15 @@ native session. Media changes, load failure, timeout, abort and pool generation
 changes fail closed; runtime resource closure and atomic admission stay blocked.
 See the [full observation contract](../../docs/cem-studio.md#shared-browser-stylesheet-observation-host)
 and [compiled installation contract](../../docs/cem-studio.md#compiled-template-and-body-stylesheet-installations).
+
+
+The whole-output async host also records responsive `img`/`picture` selected
+URLs after decoding, then reacquires distinct same-origin raster sources with
+a shared 4 MiB streaming limit. Native records retain the opaque bytes, SHA-256
+revision and request/final metadata, and validate selection on every read.
+`read().imageAcquisitions` reports the diagnostic count. Source/DOM/media drift,
+timeout, abort and pool replacement revoke the record. Redirects, custom request
+policies, SVG and cross-origin image acquisition remain outside this profile.
+Reacquisition does not prove the browser's original response bytes; that identity
+and duplicate-candidate occurrence evidence remain required before dependency
+closure or transaction admission.

@@ -1,17 +1,18 @@
+import { BrowserImageObservation, type ImagePredicate, type NativeImagePreparation } from './browser-images.js';
 import { BrowserDomCorrespondence, claimDocument, documentOwned, releaseDocument } from './browser-dom-correspondence.js';
 import { BrowserStylesheetObservation, type StylesheetPredicate } from './browser-stylesheet-observation.js';
 import type { BrowserHtmlBasePolicy } from './browser-html-base.js';
 type NativeDomPredicate = BrowserDomCorrespondence['matchSlot'];
 
 /** Actual realm-local QL WASM session; result messages cannot replace this owner. */
-export interface NativeRecordedOutputSession {
+export interface NativeRecordedOutputSession extends NativeImagePreparation {
     url(): string;
     html(): string;
     prepareBase(matches: NativeDomPredicate, decide: (candidate: string, fallback: string, stamp: string) => boolean): number;
     compose(base: string, matches: NativeDomPredicate): string;
     prepareStylesheets(base: string, matches: NativeDomPredicate, title: string | undefined, command: (owner: number, link: boolean, selected: boolean) => void): void;
-    capture(base: string, matches: NativeDomPredicate, revision: () => string, observe: StylesheetPredicate): string;
-    read(base: string, matches: NativeDomPredicate, revision: () => string, observe: StylesheetPredicate): string;
+    capture(base: string, matches: NativeDomPredicate, revision: () => string, observe: StylesheetPredicate, images: ImagePredicate): string;
+    read(base: string, matches: NativeDomPredicate, revision: () => string, observe: StylesheetPredicate, images: ImagePredicate): string;
     close(): void;
     free(): void;
 }
@@ -24,7 +25,7 @@ export interface BrowserRecordedOutputOptions {
     /** Async capture's whole load deadline; 1..30,000 ms. */
     readonly timeoutMs?: number;
 }
-export interface BrowserRecordedOutputSummary { readonly blockers: readonly string[]; }
+export interface BrowserRecordedOutputSummary { readonly blockers: readonly string[]; readonly imageAcquisitions: number; }
 /** The installer delivers native HTML into this document synchronously. It must
  * preserve the Document/URL and must not start unowned context or CSS mutations. */
 export type RecordedOutputInstaller = (html: string, stage: 'original' | 'composed') => void;
@@ -39,6 +40,7 @@ export class BrowserRecordedOutputHost {
     readonly #url: string;
     readonly #stamp: string;
     readonly #observation: BrowserStylesheetObservation;
+    readonly #images: BrowserImageObservation;
     readonly #initialLoads = new Set<Element>();
     readonly #waitingLinks = new Set<Element>();
     #cancelWait?: () => void;
@@ -68,6 +70,7 @@ export class BrowserRecordedOutputHost {
         this.#document = document; this.#view = view; this.#native = native; this.#options = options;
         this.#url = document.URL; this.#stamp = options.policy.stamp;
         this.#dom = new BrowserDomCorrespondence(document, 10_000);
+        this.#images = new BrowserImageObservation(document, id => this.#dom.node(id), () => this.#quiet(), this.#revoke, work => this.#run(work));
         this.#observation = new BrowserStylesheetObservation(document, id => this.#dom.node(id), this.#revoke);
         this.#observer = new MutationObserver(records => { if (records.length) this.dispose(); });
         this.#observer.observe(document, { subtree: true, attributes: true, characterData: true, childList: true });
@@ -88,7 +91,7 @@ export class BrowserRecordedOutputHost {
             this.#deliver(composed, 'composed', install);
             this.#freeze();
             this.#native.prepareStylesheets(this.#document.baseURI, this.#match, undefined, () => { throw new Error('Unexpected selection command'); });
-            const summary = this.#summary(this.#native.capture(this.#document.baseURI, this.#match, this.#revision, this.#observe));
+            const summary = this.#summary(this.#native.capture(this.#document.baseURI, this.#match, this.#revision, this.#observe, this.#images.observe));
             this.#observation.validateSeen();
             this.#captured = true;
             return summary;
@@ -139,6 +142,7 @@ export class BrowserRecordedOutputHost {
                 if (mutations.some(r => r.type !== 'attributes' || r.attributeName !== 'disabled' || r.attributeNamespace !== null
                     || !selected.some(a => a.node === r.target))) throw new Error('Unexpected selection mutation');
             });
+            await this.#images.prepare(this.#native, deadline, this.#revision);
             return this.#run(() => {
                 const active = new Map<Node, CSSStyleSheet>();
                 for (const action of actions) {
@@ -151,7 +155,7 @@ export class BrowserRecordedOutputHost {
                     this.#observation.activeTitled = active;
                     this.#observation.titledDisabled = title === '';
                 }
-                const result = this.#summary(this.#native.capture(this.#document.baseURI, this.#match, this.#revision, this.#observe));
+                const result = this.#summary(this.#native.capture(this.#document.baseURI, this.#match, this.#revision, this.#observe, this.#images.observe));
                 this.#observation.validateSeen();
                 this.#captured = true; this.#pending = false;
                 return result;
@@ -200,7 +204,7 @@ export class BrowserRecordedOutputHost {
     read(): BrowserRecordedOutputSummary {
         return this.#run(() => {
             if (!this.#captured) throw new Error('Recorded output capture required');
-            return this.#summary(this.#native.read(this.#document.baseURI, this.#match, this.#revision, this.#observe));
+            return this.#summary(this.#native.read(this.#document.baseURI, this.#match, this.#revision, this.#observe, this.#images.observe));
         });
     }
     /** Revoke before all controlled writes, including synchronous A-B-A changes. */
@@ -217,7 +221,7 @@ export class BrowserRecordedOutputHost {
         this.#view.removeEventListener('pagehide', this.#revoke); this.#view.removeEventListener('resize', this.#revoke); this.#view.removeEventListener('orientationchange', this.#revoke);
         this.#document.removeEventListener('load', this.#load, true); this.#document.removeEventListener('error', this.#revoke, true);
         this.#options.signal?.removeEventListener('abort', this.#revoke);
-        releaseDocument(this.#document, this); this.#cancelWait?.(); this.#observation.dispose(); this.#initialLoads.clear();
+        releaseDocument(this.#document, this); this.#cancelWait?.(); this.#images.dispose(); this.#observation.dispose(); this.#initialLoads.clear();
         if (!this.#busy) this.#free();
     }
     #free(): void { if (!this.#freed) { this.#freed = true; try { this.#native.close(); } finally { this.#native.free(); } } }
@@ -240,7 +244,7 @@ export class BrowserRecordedOutputHost {
         this.#observer.takeRecords();
         this.#quiet(); this.#dom.reset();
         this.#initialLoads.clear();
-        for (const node of this.#document.querySelectorAll('style')) this.#initialLoads.add(node);
+        for (const node of this.#document.querySelectorAll('style, img')) this.#initialLoads.add(node);
     }
     #freeze(): void {
         const selected = this.#native.prepareBase(this.#match, (candidate, fallback, stamp) => {
@@ -276,8 +280,9 @@ export class BrowserRecordedOutputHost {
     };
     #summary(json: string): BrowserRecordedOutputSummary {
         const value = JSON.parse(json) as BrowserRecordedOutputSummary;
-        if (!Array.isArray(value.blockers) || !value.blockers.every(b => typeof b === 'string')) throw new Error('Invalid native preparation diagnostic summary');
-        return Object.freeze({ blockers: Object.freeze([...value.blockers]) });
+        if (!Array.isArray(value.blockers) || !value.blockers.every(b => typeof b === 'string')
+            || !Number.isInteger(value.imageAcquisitions) || value.imageAcquisitions < 0 || value.imageAcquisitions > 256) throw new Error('Invalid native preparation diagnostic summary');
+        return Object.freeze({ blockers: Object.freeze([...value.blockers]), imageAcquisitions: value.imageAcquisitions });
     }
 }
 /** Takes ownership of the native session, including failed construction/capture. */

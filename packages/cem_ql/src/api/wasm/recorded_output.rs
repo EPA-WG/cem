@@ -1,16 +1,19 @@
 //! Source ingress, HTML delivery and scalar live predicates. No AST/evidence DTO.
 use crate::template_execution_record::browser::RecordedOutputSession;
+use cem_ml::html_image_execution::{ImageObservation, ImageResponse};
 use cem_ml::{
     api::wasm::{match_html_base_slot, BrowserStylesheetObserver},
     browser_stylesheet_sources::BrowserStylesheetSource,
     html_base::HtmlBasePolicyDecision,
 };
-use js_sys::Function;
+use js_sys::{Array, Function};
 use wasm_bindgen::prelude::*;
 #[wasm_bindgen(js_name = "RecordedOutputSession")]
 pub struct WasmRecordedOutputSession {
     inner: RecordedOutputSession,
     sources: Vec<BrowserStylesheetSource>,
+    images: Vec<ImageResponse>,
+    image_bytes: usize,
 }
 #[wasm_bindgen(js_class = "RecordedOutputSession")]
 impl WasmRecordedOutputSession {
@@ -20,6 +23,8 @@ impl WasmRecordedOutputSession {
             .map(|inner| Self {
                 inner,
                 sources: Vec::new(),
+                images: Vec::new(),
+                image_bytes: 0,
             })
             .map_err(error)
     }
@@ -87,14 +92,63 @@ impl WasmRecordedOutputSession {
         }
         Ok(())
     }
+    #[wasm_bindgen(js_name = "selectImages")]
+    pub fn select_images(&mut self, observe: &Function, request: &Function) -> Result<(), JsValue> {
+        let requests = self
+            .inner
+            .select_images(|id| image_observation(observe, id))
+            .map_err(error)?;
+        for (id, url) in requests {
+            let result = request.call2(&JsValue::NULL, &id.into(), &url.into());
+            if !matches!(result, Ok(ref value) if value.is_undefined()) {
+                self.inner.close();
+                return Err(error("synchronous image request callback required"));
+            }
+        }
+        Ok(())
+    }
+    #[wasm_bindgen(js_name = "addImageResponse")]
+    pub fn add_image_response(
+        &mut self,
+        requested: String,
+        final_url: String,
+        content_type: String,
+        revision: String,
+        bytes: Vec<u8>,
+    ) -> Result<(), JsValue> {
+        self.image_bytes = self.image_bytes.saturating_add(bytes.len());
+        if self.image_bytes > 4 * 1024 * 1024 || self.images.len() >= 256 {
+            self.inner.close();
+            return Err(error("image acquisition bounds exceeded"));
+        }
+        self.images.push(ImageResponse {
+            requested_url: requested,
+            final_url,
+            content_type,
+            revision,
+            bytes,
+        });
+        Ok(())
+    }
+    #[wasm_bindgen(js_name = "recordImages")]
+    pub fn record_images(&mut self, environment: &str, observe: &Function) -> Result<(), JsValue> {
+        self.inner
+            .record_images(std::mem::take(&mut self.images), environment, |id| {
+                image_observation(observe, id)
+            })
+            .map_err(error)
+    }
     pub fn capture(
         &mut self,
         base: &str,
         matches: &Function,
         revision: &Function,
         observe: &Function,
+        images: &Function,
     ) -> Result<String, JsValue> {
-        self.inner
+        self.verify_images(revision, images)?;
+        let result = self
+            .inner
             .capture(
                 base,
                 |s| match_html_base_slot(matches, s),
@@ -104,8 +158,9 @@ impl WasmRecordedOutputSession {
                     observe,
                 },
             )
-            .map(summary)
-            .map_err(error)
+            .map_err(error)?;
+        self.verify_images(revision, images)?;
+        Ok(summary(result, self.inner.image_acquisitions()))
     }
     pub fn read(
         &mut self,
@@ -113,8 +168,11 @@ impl WasmRecordedOutputSession {
         matches: &Function,
         revision: &Function,
         observe: &Function,
+        images: &Function,
     ) -> Result<String, JsValue> {
-        self.inner
+        self.verify_images(revision, images)?;
+        let result = self
+            .inner
             .read(
                 base,
                 |s| match_html_base_slot(matches, s),
@@ -124,13 +182,60 @@ impl WasmRecordedOutputSession {
                     observe,
                 },
             )
-            .map(summary)
-            .map_err(error)
+            .map_err(error)?;
+        self.verify_images(revision, images)?;
+        Ok(summary(result, self.inner.image_acquisitions()))
     }
 }
-fn summary(blockers: Vec<String>) -> String {
-    serde_json::json!({"blockers":blockers}).to_string()
+fn summary(mut blockers: Vec<String>, images: usize) -> String {
+    if images > 0 {
+        blockers.push("image-browser-response-identity-required".into());
+    }
+    serde_json::json!({"blockers":blockers, "imageAcquisitions": images}).to_string()
 }
 fn error(e: impl AsRef<str>) -> JsValue {
     JsValue::from_str(e.as_ref())
+}
+
+impl WasmRecordedOutputSession {
+    fn verify_images(&mut self, revision: &Function, images: &Function) -> Result<(), JsValue> {
+        let result = (|| {
+            let env = revision
+                .call0(&JsValue::NULL)
+                .map_err(|_| "image environment callback failed")?
+                .as_string()
+                .ok_or("image environment string required")?;
+            self.inner
+                .validate_images(&env, |id| image_observation(images, id))
+        })();
+        if result.is_err() {
+            self.inner.close();
+        }
+        result.map_err(error)
+    }
+}
+fn image_observation(observe: &Function, id: u32) -> Result<ImageObservation, String> {
+    let result = observe
+        .call1(&JsValue::NULL, &id.into())
+        .map_err(|_| "image observation callback failed")?;
+    if !Array::is_array(&result) {
+        return Err("synchronous image observation tuple required".into());
+    }
+    let values = Array::from(&result);
+    if values.length() != 4 {
+        return Err("image observation tuple length".into());
+    }
+    let number = |i| -> Result<u32, String> {
+        let n = values.get(i).as_f64().ok_or("image dimension required")?;
+        if !n.is_finite() || n < 1.0 || n > u32::MAX as f64 || n.fract() != 0.0 {
+            return Err("bounded image dimensions required".into());
+        }
+        Ok(n as u32)
+    };
+    Ok(ImageObservation {
+        url: values.get(0).as_string().ok_or("image URL required")?,
+        width: number(1)?,
+        height: number(2)?,
+        complete: values.get(3).as_bool().ok_or("image completion required")?,
+    })
 }

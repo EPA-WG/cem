@@ -1,6 +1,7 @@
 //! Bounded source-ingress and staged delivery contract for synchronous browser
 //! observation. All semantic trees and preparation evidence stay native.
 use super::*;
+use cem_ml::html_image_execution::{ImageObservation, ImagePlan, ImageRecord, ImageResponse};
 use cem_ml::{
     css_emission::CssManagedScope,
     css_import_snapshot::{CssSnapshotSource, CssSourceSnapshot},
@@ -79,6 +80,9 @@ enum Stage {
 
 pub struct RecordedOutputSession {
     stage: Stage,
+    image_plan: Option<Arc<ImagePlan>>,
+    image_record: Option<ImageRecord>,
+    pending_images: Option<Vec<ImageObservation>>,
     snapshot: Arc<TemplateSourceSnapshot>,
     engine: Arc<EngineContext>,
     cap: CemModuleUrlResolutionCapability,
@@ -210,6 +214,9 @@ impl RecordedOutputSession {
         let cancel = engine.operation_control.abort_signal().clone();
         Ok(Self {
             stage: Stage::Original,
+            image_plan: None,
+            image_record: None,
+            pending_images: None,
             snapshot,
             engine,
             cap,
@@ -255,6 +262,9 @@ impl RecordedOutputSession {
         self.html = None;
         self.handle = None;
         self.output = None;
+        self.image_plan = None;
+        self.image_record = None;
+        self.pending_images = None;
     }
     fn run<T>(&mut self, work: impl FnOnce(&mut Self) -> Result<T, String>) -> Result<T, String> {
         let result = if self.stage == Stage::Closed || self.cancel.is_aborted() {
@@ -408,6 +418,12 @@ impl RecordedOutputSession {
                 &mut matches,
                 base,
             )?);
+            s.image_plan = Some(ImagePlan::from_tree(
+                document.document().tree.clone(),
+                base,
+                MAX_NODES,
+                256,
+            )?);
             let css = Arc::new(html.inspect_css_imports(
                 document,
                 &s.cap,
@@ -436,6 +452,79 @@ impl RecordedOutputSession {
                 Vec::new()
             };
             Ok((sources, actions))
+        })
+    }
+    pub fn image_acquisitions(&self) -> usize {
+        self.image_record
+            .as_ref()
+            .map_or(0, |r| r.responses().len())
+    }
+    pub fn select_images(
+        &mut self,
+        mut observe: impl FnMut(u32) -> Result<ImageObservation, String>,
+    ) -> Result<Vec<(u32, String)>, String> {
+        self.run(|s| {
+            if s.stage != Stage::ComposedBase
+                || s.pending_images.is_some()
+                || s.image_record.is_some()
+            {
+                return Err("fresh composed image preparation required".into());
+            }
+            let plan = s.image_plan.as_ref().ok_or("native image plan required")?;
+            let observations = plan.observe(&mut observe)?;
+            if observations != plan.observe(observe)? {
+                return Err("image selection changed".into());
+            }
+            let requests = plan
+                .targets()
+                .iter()
+                .zip(&observations)
+                .map(|(t, o)| (t.owner, o.url.clone()))
+                .collect();
+            s.pending_images = Some(observations);
+            Ok(requests)
+        })
+    }
+    pub fn record_images(
+        &mut self,
+        responses: Vec<ImageResponse>,
+        environment: &str,
+        mut observe: impl FnMut(u32) -> Result<ImageObservation, String>,
+    ) -> Result<(), String> {
+        self.run(|s| {
+            if s.stage != Stage::ComposedBase {
+                return Err("image acquisition out of order".into());
+            }
+            let plan = s.image_plan.as_ref().ok_or("image plan required")?;
+            let pending = s.pending_images.take().ok_or("image selection required")?;
+            if pending != plan.observe(&mut observe)? {
+                return Err("image changed during acquisition".into());
+            }
+            s.image_record = Some(ImageRecord::capture(
+                plan.clone(),
+                responses,
+                environment,
+                observe,
+                s.cancel.clone(),
+                MAX_BYTES,
+            )?);
+            Ok(())
+        })
+    }
+    pub fn validate_images(
+        &mut self,
+        environment: &str,
+        observe: impl FnMut(u32) -> Result<ImageObservation, String>,
+    ) -> Result<(), String> {
+        self.run(|s| {
+            let plan = s.image_plan.as_ref().ok_or("image plan required")?;
+            if plan.targets().is_empty() {
+                return Ok(());
+            }
+            s.image_record
+                .as_mut()
+                .ok_or("image selection and acquisition required")?
+                .validate(plan, environment, observe)
         })
     }
     pub fn capture(

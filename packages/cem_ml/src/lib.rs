@@ -25,6 +25,7 @@ pub mod html_base_evidence;
 pub mod html_base_host;
 pub mod html_css_import_snapshot;
 pub mod html_execution_inventory;
+pub mod html_image_execution;
 pub mod html_stylesheet_links;
 pub mod html_stylesheet_execution;
 pub mod html_stylesheet_selection;

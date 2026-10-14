@@ -208,6 +208,58 @@ globalThis.runRecordedOutputFixture = async version => {
             check(doc.URL.includes('browser-recorded-output'), 'fixture navigated document');
         }, kind === 'pool-close');
     }
+
+    const addImage = (request, markup) => {
+        const marker = "{result-element @name=p @namespace='http://www.w3.org/1999/xhtml' | Outside}";
+        request.sources[0].source = request.sources[0].source.replace(marker, markup + ' ' + marker);
+    };
+    for (const mode of ['src', 'density', 'density-only', 'width', 'picture']) {
+        await run(`image-selection-${mode}`, async ({ captureAsync, request, doc }) => {
+            const img = mode === 'src' ? "{img @src='/recorded-images/a.png' @alt=Example}" :
+                mode === 'density' ? "{img @srcset='/recorded-images/a.png 1x, /recorded-images/b.png 2x' @alt=Example}" :
+                mode === 'density-only' ? "{img @srcset='/recorded-images/b.png 2x' @alt=Example}" :
+                mode === 'width' ? "{img @srcset='/recorded-images/a.png 64w, /recorded-images/b.png 128w' @sizes=64px @alt=Example}" :
+                "{picture | {source @media=screen @type='image/png' @srcset='/recorded-images/b.png 1x'} {img @src='/recorded-images/a.png' @alt=Example}}";
+            addImage(request, img);
+            const host = await captureAsync();
+            const summary = host.read(), selected = doc.querySelector('img').currentSrc;
+            check(summary.imageAcquisitions === 1 && summary.blockers.includes('image-browser-response-identity-required'), 'image acquisition not retained or response identity overclaimed');
+            check(selected.endsWith(['picture', 'density-only'].includes(mode) ? '/b.png' : '/a.png'), 'unexpected responsive image source');
+            await new Promise(resolve => setTimeout(resolve, 20));
+            host.read();
+            doc.querySelector('img').setAttribute('srcset', '/recorded-images/b.png 1x');
+            rejects(() => host.read(), 'image source mutation retained evidence');
+        });
+    }
+    for (const mode of ['missing', 'acquisition-error', 'oversized', 'redirect', 'timeout', 'abort', 'mutation', 'pool-close']) {
+        await run(`image-acquisition-${mode}`, async ({ captureAsync, request, doc, pool }) => {
+            const path = ['missing', 'acquisition-error', 'oversized', 'redirect'].includes(mode) ? mode : 'pending';
+            addImage(request, `{img @src='/recorded-images/${path}.png' @alt=Example}`);
+            const controller = new AbortController();
+            let failed = false;
+            const pending = captureAsync({ signal: controller.signal, timeoutMs: mode === 'timeout' ? 100 : 5000 }).catch(() => { failed = true; });
+            if (mode === 'abort') setTimeout(() => controller.abort(), 25);
+            if (mode === 'mutation') setTimeout(() => doc.querySelector('img')?.setAttribute('sizes', '20px'), 25);
+            if (mode === 'pool-close') setTimeout(() => pool.close(), 25);
+            await pending;
+            check(failed, 'failed/stale image acquisition published preparation');
+        }, mode === 'pool-close');
+    }
+
+    await run('image-media-revocation', async ({ captureAsync, request, view }) => {
+        addImage(request, "{picture | {source @media=screen @srcset='/recorded-images/b.png'} {img @src='/recorded-images/a.png' @alt=Example}}");
+        const original = view.matchMedia.bind(view), queries = [];
+        view.matchMedia = value => { const query = original(value); queries.push(query); return query; };
+        const host = await captureAsync();
+        const media = queries.find(query => query.media === 'screen');
+        check(media, 'picture media observer missing');
+        media.dispatchEvent(new Event('change'));
+        rejects(() => host.read(), 'picture media transition retained evidence');
+    });
+    await run('image-synchronous-capture-rejected', ({ capture, request }) => {
+        addImage(request, "{img @src='/recorded-images/a.png' @alt=Example}");
+        rejects(() => capture(), 'synchronous capture claimed image acquisition');
+    });
     await run('snapshot-import-flattening', ({ capture, request, doc, view }) => {
         request.sources[0].source = source.replace('p{color:rgb(1,2,3)}', "@import './child.css'; p{color:rgb(1,2,3)}");
         const url = new URL('./child.css', request.rootUri).href;

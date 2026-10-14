@@ -2431,16 +2431,56 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       definitions, inherited overrides, accessibility or theme ownership changed;
       theme/forced-color checks are inapplicable to these observation services.
       Physical browser/device/AT acceptance stays independently open.
-    - [ ] Record responsive image-source selection and acquisition, followed by
-      remaining computed CSS/SVG and general runtime resource loads, before
-      claiming complete execution dependency closure.
+    - [x] Record bounded responsive image-source selection and acquisition.
+      - [x] Fixture native image candidate ownership, picture ancestry, selected URL,
+        acquisition bounds, cancellation and permanent stale-record rejection.
+      - [x] Fixture production browser srcset/picture/sizes selection, decoded
+        loading, bounded acquisition, mutation, failure and pool cancellation.
+
+      Implemented shared native `ImagePlan`/`ImageRecord` ownership and the
+      staged QL/WASM byte ingress. Candidate analysis reuses the native retained
+      srcset importer and confirmed execution base, preserving img/picture
+      ownership and excluding inert templates. Live selected URLs, completion
+      and natural dimensions are checked before/after acquisition and every
+      preparation read. Async browser capture waits for decoding, streams distinct
+      same-origin raster responses within a shared 4 MiB/deadline budget, and
+      retains bytes plus SHA-256 revision and response metadata natively.
+      `imageAcquisitions` is a diagnostic count, never an execution grant.
+      Source/DOM/media/DPR drift, errors, timeout, abort, pool closure and native
+      output invalidation revoke records. Callbacks use the existing reentry and
+      deferred-disposal guards.
+      Verification: 62 focused native tests pass (four new ML image cases and one
+      new QL staged-lifetime case). All 52 production Chromium preparation cases
+      pass, including 15 image cases for src/density/width/picture selection,
+      decoding, media invalidation, byte bounds, redirect rejection, acquisition
+      failure, timeout, mutation, abort, pool closure and synchronous rejection.
+      The full Nx browser regression gate, TypeScript/WASM builds, CLI lint,
+      focused Rust formatting and `git diff --check` pass.
+
+      This bounded profile records a separate reacquisition, not proof of the
+      browser's original response bytes or the winning occurrence when candidates
+      share a URL. `image-browser-response-identity-required` and existing runtime
+      closure blockers remain. Redirects, cross-origin/custom request policies,
+      SVG images, preloads and unresolved lazy/failed loads stay outside this
+      profile; the next item closes response identity before broader admission.
+      CEM review: the shared native importer, source ownership, bounded variation
+      and existing private/shared scoping remain authoritative. No component
+      behavior, public token defaults, inherited overrides, accessible names or
+      theme/forced-color behavior is changed by the observation service; visual
+      theme checks are inapplicable. Physical browser/device/AT acceptance remains
+      independent.
+    - [ ] Bind selected images to the browser's actual acquired response identity
+      and disambiguate repeated source occurrences before closing image load history.
+    - [ ] Record remaining computed CSS/SVG and general runtime resource loads,
+      before claiming complete execution dependency closure.
   - [ ] Establish execution-owned lookup provenance for relative run-config inputs,
     including invocation/default origins, before widening relocation admission.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, record responsive image-source selection and acquisition.
-Then cover remaining computed CSS/SVG and general runtime resource loads.
+Next, bind recorded selected images to the browser's original acquired response
+and disambiguate repeated source occurrences. Then cover remaining computed
+CSS/SVG and general runtime resource loads.
 Connect the prepared native read set to host transaction admission only after complete
 dependency evidence. Combine that dependency closure with map rewrite ownership before
 widening Studio admission.

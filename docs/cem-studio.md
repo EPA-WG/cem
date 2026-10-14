@@ -3948,6 +3948,41 @@ Compiled scope/inner-condition applicability, responsive images, computed CSS/SV
 resources, other runtime loads and atomic transaction admission retain their
 blockers. A joined DOM/CSS record is not complete dependency closure.
 
+Responsive images in the whole-output async host use native `ImagePlan` and
+`ImageRecord` owners. The plan retains the exact composed tree and resolves
+`img@src`, imported `img@srcset`, and preceding `picture/source@srcset`
+candidates against the confirmed execution base. Inert templates are excluded;
+malformed/incomplete candidates, foreign URLs, unresolved or unloaded selections
+and exceeded bounds reject. Browser choice remains a live engine observation:
+the adapter records `currentSrc`, completion and natural dimensions after
+`decode()`; it does not implement the browser's sizes/media/DPR algorithm or infer
+which occurrence won when candidates share a URL.
+
+The async host then separately reacquires each distinct selected URL, with a
+shared 4 MiB streaming byte limit and the same whole preparation deadline.
+This initial transport profile requires same-origin HTTP(S), rejects redirects
+and custom image crossorigin/referrer policies, and accepts declared raster MIME
+types PNG/JPEG/GIF/WebP/AVIF. Lazy or failed images that do not decode within the
+deadline reject. Opaque acquisition bytes, final/request URLs, MIME and SHA-256
+revision enter the native record through an explicit byte ingress; no image AST
+or execution seal is serialized. Source text/metadata are not substituted for
+the retained semantic tree. Selected URLs/dimensions are checked again after
+acquisition, before/after native CSS capture, and on every read. DOM mutations,
+load/error, viewport/DPR/picture-media changes, cancellation and pool replacement
+revoke the preparation; fresh capture requires a new native session. The
+synchronous factory cannot capture documents requiring image acquisition.
+
+`read().imageAcquisitions` is diagnostic metadata counting distinct acquired
+responses. A same-URL fetch can return different bytes from the browser's original
+image request: this record does **not** assert byte identity, a complete request
+history, winning duplicate source occurrence, or image-specific authorization
+beyond this bounded transport policy. Existing resource blockers remain and
+`image-browser-response-identity-required` is explicit. A future controlled
+transport/response binding must supply that missing evidence before image
+dependency closure or transaction admission. SVG images, image preloads,
+cross-origin/redirected acquisition and other runtime loads remain outside this
+profile.
+
 The QL WASM `CompiledStylesheetSession(artifact, consumer, indicesJson)` binds
 current retained-template consumers inside that WASM realm. The shared browser
 `captureBrowserCompiledStylesheets(document, nativeSession, styleNodes, options)`
