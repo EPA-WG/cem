@@ -1,5 +1,9 @@
 use cem_ml::{
-    html_base::*, html_base_evidence::*, html_base_host::*, module_resolution::*,
+    css_import_snapshot::{CssSnapshotCaptureLimits, CssSnapshotSource, CssSourceSnapshot},
+    html_base::*,
+    html_base_evidence::*,
+    html_base_host::*,
+    module_resolution::*,
     parser::tree::RetainedCemTree,
 };
 use std::sync::{
@@ -543,4 +547,157 @@ fn policy_drift_after_publication_and_dom_drift_during_resolution_are_rejected()
         )
         .is_err());
     assert!(host.current().is_none());
+}
+
+fn css_snapshot() -> Arc<CssSourceSnapshot> {
+    CssSourceSnapshot::new(
+        vec![CssSnapshotSource {
+            requested_url: "https://example.test/assets/theme.css".into(),
+            final_url: "https://example.test/cdn/theme.css".into(),
+            revision: "v1".into(),
+            bytes: b"p {background:url(./imported.svg)}".to_vec(),
+            content_type: "text/css".into(),
+        }],
+        Default::default(),
+    )
+    .unwrap()
+}
+
+fn css_closure_source() -> String {
+    SOURCE.replace(
+        "p { background: url(./sheet.svg) } @import \"./theme.css\";",
+        "@import \"./theme.css\"; p { background: url(./sheet.svg) }",
+    )
+}
+
+#[test]
+fn html_css_snapshot_closure_preserves_execution_owner_and_separate_history_requirements() {
+    let (mut host, evidence) = host(
+        &css_closure_source(),
+        "https://example.test/assets/",
+        HtmlBaseCompatibilityProfile::StandardAgreement,
+    );
+    let cap = capability(false);
+    let inventory = Arc::new(
+        host.inspect_dependencies(&evidence, &cap, 100, slots, evidence.effective_url())
+            .unwrap(),
+    );
+    let snap = css_snapshot();
+    let imports = host
+        .inspect_css_imports(
+            inventory.clone(),
+            &cap,
+            snap.clone(),
+            Default::default(),
+            cem_ml::scheduler::AbortSignal::new(),
+            slots,
+            evidence.effective_url(),
+        )
+        .unwrap();
+    assert!(std::ptr::eq(imports.document(), inventory.as_ref()));
+    assert_eq!(imports.closures().len(), 2);
+    assert_eq!(
+        imports.closures()[0].closure().sheets()[1]
+            .resources
+            .references[0]
+            .resolution
+            .as_ref()
+            .unwrap()
+            .resolved_url,
+        "https://example.test/cdn/imported.svg"
+    );
+    assert!(!imports
+        .blockers()
+        .iter()
+        .any(|b| b == "css-import-and-runtime-closure-required"));
+    for reason in [
+        "css-runtime-dependency-closure-required",
+        "stylesheet-execution-history-required",
+        "atomic-host-transaction-required",
+    ] {
+        assert!(imports.blockers().iter().any(|b| b == reason), "{reason}");
+    }
+    host.validate_css_imports(&imports, &cap, &snap, slots, evidence.effective_url())
+        .unwrap();
+    assert!(host
+        .validate_css_imports(
+            &imports,
+            &cap,
+            &css_snapshot(),
+            slots,
+            evidence.effective_url()
+        )
+        .is_err());
+    host.invalidate().unwrap();
+    assert!(host
+        .validate_css_imports(&imports, &cap, &snap, slots, evidence.effective_url())
+        .is_err());
+}
+
+#[test]
+fn html_css_snapshot_aggregate_limits_and_dom_drift_reject_publication() {
+    let source =
+        css_closure_source().replace("<body>", "<body><style>@import './theme.css';</style>");
+    let (mut host, evidence) = host(
+        &source,
+        "https://example.test/assets/",
+        HtmlBaseCompatibilityProfile::StandardAgreement,
+    );
+    let calls = Arc::new(AtomicUsize::new(0));
+    let cap = CemModuleUrlResolutionCapability::new(
+        Arc::new(ObservedResolver {
+            delegate: capability(false),
+            calls: calls.clone(),
+            revision: Arc::new(AtomicUsize::new(1)),
+            drift: false,
+            cacheable: true,
+        }),
+        CemResolutionContextHandle::new("execution"),
+    );
+    let inventory = Arc::new(
+        host.inspect_dependencies(&evidence, &cap, 500, slots, evidence.effective_url())
+            .unwrap(),
+    );
+    for mode in ["sheets", "bytes", "roots", "dom"] {
+        calls.store(0, Ordering::SeqCst);
+        let mut limits = CssSnapshotCaptureLimits::default();
+        if mode == "sheets" {
+            limits.imports.max_sheets = 4;
+        } // five occurrences across three roots
+        if mode == "bytes" {
+            limits.responses.max_total_bytes = 40;
+        } // each response fits; the sum does not
+        if mode == "roots" {
+            limits.max_root_nodes = 1;
+        }
+        let error = host
+            .inspect_css_imports(
+                inventory.clone(),
+                &cap,
+                css_snapshot(),
+                limits,
+                cem_ml::scheduler::AbortSignal::new(),
+                |slot| {
+                    Ok(slot.id
+                        + if mode == "dom" && calls.load(Ordering::SeqCst) > 0 {
+                            100
+                        } else {
+                            1
+                        })
+                },
+                evidence.effective_url(),
+            )
+            .err()
+            .unwrap();
+        let expected = match mode {
+            "sheets" => "cem.css.import_limit",
+            "bytes" => "cem.css.import_byte_limit",
+            "roots" => "root node limit",
+            _ => "DOM",
+        };
+        assert!(error.contains(expected), "{mode}: {error}");
+        if mode == "roots" {
+            assert_eq!(calls.load(Ordering::SeqCst), 0);
+        }
+    }
 }

@@ -58,6 +58,10 @@ pub struct HtmlTemplateDependencyPreparation {
     blockers: Vec<String>,
 }
 impl HtmlTemplateDependencyPreparation {
+    pub(crate) fn document_owner(&self) -> &Arc<HtmlExecutionInventory> {
+        &self.document
+    }
+
     pub fn document(&self) -> &HtmlExecutionInventory {
         &self.document
     }

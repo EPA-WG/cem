@@ -2005,17 +2005,91 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       inputs; no app-local parser or JSON AST handoff. UI, public tokens,
       accessibility and inherited styles are unaffected; theme/forced-color
       checks are inapplicable and physical AT acceptance remains independently open.
-    - [ ] Capture bounded native CSS `@import` dependency closure from immutable
+    - [x] Capture bounded native CSS `@import` dependency closure from immutable
       acquired sources, retaining final URL bases, conditions, resolver policy,
       source owners, cycle/budget diagnostics and freshness before discharging
       import coverage. Keep stylesheet installation/load history separate.
+      - [x] Add native snapshot/HTML fixtures for redirected and repeated imports,
+        retained conditions/source ranges/revisions, missing sources without I/O,
+        alias conflicts, MIME/integrity/import and leaf policy denial,
+        cycle/depth/sheet/byte/root bounds, cancellation, resolver drift,
+        equal-source owner substitution and stale
+        HTML hosts; rerun existing import/emission regressions and WASM build.
+      Delivered immutable `CssSourceSnapshot` responses and sealed native capture
+      through the existing `CssImportClosure` loader. Exact acquisition owners,
+      revisions, final URL bases, conditions and source ranges survive repeated
+      import occurrences. Missing responses never fall back to I/O. Shared MIME,
+      integrity, redirect policy, placement and cycle checks remain authoritative;
+      response/sheet/depth/root limits, cancellation and resolver drift prevent
+      publication. Equal replacement snapshots, roots or capability labels cannot
+      restore authority. Hosts supply the current snapshot again at consumption.
+      HTML execution integration binds the exact retained inline roots, shares
+      limits across them and revalidates DOM/host/policy around consumption.
+      Its combined view discharges only those roots' import coverage; ordinary
+      resource denial, conditions, installation/history, runtime coverage and
+      atomic admission stay explicit. External stylesheet and template-body
+      integration follow; no Studio/browser-worker edit admission is widened.
+      Contract: [immutable CSS import snapshot capture](cem-studio.md#immutable-css-import-snapshot-capture).
+      Verification: six snapshot fixtures, all 11 HTML inventory cases (two new),
+      23 existing import-closure cases, four resource-resolution cases and nine
+      resource-emission cases pass (53 total). `cem_ql:build:wasm`, new-file
+      `rustfmt --check` and `git diff --check` pass. CEM review: native shared
+      import/loading semantics, explicit retained authority and bounded inputs;
+      no app-local parser, JSON AST handoff, UI behavior or token change. Inherited
+      styles and accessibility are unaffected; theme/forced-color checks are
+      inapplicable and physical AT acceptance remains independently open.
+    - [x] Bind captured CSS import snapshots to recorded template/body execution
+      and dependency preparation, preserving each body's effective capability,
+      root/source correspondence and acquisition freshness before discharging
+      template stylesheet import coverage.
+      - [x] Add native binding fixtures for root/imported-body map precedence,
+        redirected nested imports and source ownership, distinct HTML/template
+        bases, repeated occurrences and aggregate budgets, missing/denied CSS,
+        empty stylesheet sets, snapshot/execution replacement, cancellation,
+        host/derived-policy drift and retained runtime/history/edit blockers;
+        verify native dependency regressions and the WASM build.
+      Delivered `ExecutedHtmlTemplatePreparation::prepare_css_imports`, retaining
+      exact execution/preparation owners, native body stylesheet roots and their
+      recorded effective capabilities. Body CSS uses the final template URI;
+      document CSS uses the confirmed HTML base; redirected imports retain their
+      final response bases and the owning body's mapping/policy context. Repeated
+      occurrences, conditions, source maps and acquisition revisions survive.
+      All root bounds precede resolution, with shared sheet/root-node/response-byte
+      budgets across document and body closures. Missing/denied imports, partial
+      captures and cancellation cannot publish. Consumption rejects replacement
+      snapshots/executions/engines/capabilities and stale host evidence. Every body
+      fingerprint is checked, including empty stylesheet sets; observed policy
+      drift stays invalid after restoration, including drift during DOM callbacks.
+      The combined view discharges only stylesheet ownership/import coverage;
+      original inventory blockers remain intact. Resource denials, conditions,
+      installation/history, runtime coverage and atomic edit admission remain
+      explicit. No template reacquisition, CSS installation or browser/Studio edit
+      admission was added; CSS-local ranges remain distinct from source edit ranges.
+      Contract: [recorded template CSS import binding](cem-studio.md#recorded-template-css-import-binding).
+      Verification: seven new binding fixtures, 31 CEM-QL execution/preparation/
+      retained-stylesheet regressions, seven native dependency inspection tests
+      and 17 CSS snapshot/HTML inventory cases pass (62 total).
+      `cem_ql:build:wasm`, new-file `rustfmt --check` and `git diff --check` pass.
+      CEM review: shared native import/loading semantics, retained source/context
+      authority and bounded inputs; no app-local parser, JSON AST handoff or UI
+      behavior change. Public tokens, accessibility and inherited styles are
+      unaffected; theme/forced-color checks are inapplicable and physical AT
+      acceptance remains independently open.
+    - [ ] Capture external HTML link stylesheet roots from execution-owned link
+      occurrences and immutable response snapshots, preserving link eligibility,
+      confirmed href/base ownership, final URL policy, conditions and bounded
+      import closure. Keep stylesheet installation/load history separate.
+    - [ ] Bind stylesheet selection, installation and load history to native
+      execution evidence for document, body and external-link roots before
+      discharging their conditions/execution-history blockers.
   - [ ] Establish execution-owned lookup provenance for relative run-config inputs,
     including invocation/default origins, before widening relocation admission.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, implement bounded native CSS `@import` dependency closure with retained
-acquisition and policy evidence.
+Next, capture external HTML link stylesheet roots and their bounded import closure
+from execution-owned link occurrences and immutable response snapshots. Then bind
+stylesheet selection, installation and load history to native execution evidence.
 Connect the prepared native read set to host transaction admission only after complete
 dependency evidence. Complete SVG presentation, responsive-source selection and
 runtime dependency closure and combine it with map rewrite ownership before

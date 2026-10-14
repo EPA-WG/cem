@@ -291,6 +291,8 @@ pub fn inspect_preflighted_bodies(
         if !artifact.stylesheets.is_empty() {
             body.blockers
                 .push("stylesheet-owner-context-required".into());
+            body.blockers
+                .push("template-stylesheet-import-closure-required".into());
         }
         if artifact.module_map.is_some() {
             body.blockers

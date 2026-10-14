@@ -3484,3 +3484,104 @@ This bounded parity evidence does not certify a complete browser selection model
 CEM review: parsing and source authority remain shared native capabilities. No
 UI, public token, accessibility or inherited-style contract changes; theme and
 forced-color checks are inapplicable. Physical AT acceptance remains independent.
+
+### Immutable CSS import snapshot capture
+
+`cem_ml::css_import_snapshot::CssSourceSnapshot` retains already acquired response
+bytes, requested/final absolute URLs, content types and opaque revisions. The
+trusted host supplies its current immutable snapshot at capture and consumption.
+Duplicate request URLs and conflicting aliases for one final URL are rejected.
+Equal copies or revision labels cannot replace the exact snapshot owner. This
+records snapshot freshness; it does not monitor transport or filesystem changes.
+The host must replace its snapshot when acquisition state changes.
+
+`capture_css_import_snapshot` drives the existing native `CssImportClosure` with
+only those responses. Missing imports fail with native import location evidence;
+there is no filesystem, registry or network fallback. Existing shared admission
+owns MIME, integrity, final-URL policy, CSS parsing, import placement, cycles and
+conditions. Repeated imports remain distinct occurrences, including anonymous
+layers; each occurrence retains its acquisition record and native source tree.
+Relative child imports and resource URLs use the response's final URL. The root
+keeps its caller-owned retained tree and explicit execution URL, including for
+inline CSS whose synthetic source URI is only a coordinate identifier.
+
+The snapshot defaults to 256 responses and 16 MiB including acquisition metadata.
+Capture defaults to 64 sheet occurrences, depth 16, 65,536 retained root nodes and
+the existing response/cumulative byte limits. Repeated responses count repeatedly
+against capture limits. Root node bounds are checked before resolution; downloaded
+CSS also keeps the shared importer's byte/event/depth bounds. Cancellation,
+incomplete resolver fingerprints and observed policy drift prevent publication or
+later consumption. Observed resolver drift stays invalid after an A-B-A change.
+The sealed result checks exact root, base, capability and snapshot owners; its
+public diagnostic views cannot construct a replacement record.
+
+`HtmlBaseExecutionHost::inspect_css_imports` captures every inline stylesheet root
+from an exact `HtmlExecutionInventory`, preserving its document/source mappings
+and confirmed base. It checks all root errors and aggregate root bounds before
+new resolution, then shares sheet and response-byte budgets across the forest.
+`validate_css_imports` checks the current HTML host, DOM correspondence, resolver,
+snapshot and cancellation state around consumption. Stale or substituted owners
+fail; successful inspection discharges only the retained inline roots' import
+coverage. The combined blocker view retains CSS runtime closure, condition and
+installation/load history, ordinary resource-resolution failures and atomic edit
+admission. No conditions are evaluated and no CSS is installed by this API.
+
+External link stylesheet acquisition, SVG presentation references,
+responsive-source selection and general runtime loads require separate
+execution-owned evidence. Recorded template-body CSS uses the binding below.
+This extension does not widen
+Studio/browser-worker edit admission or convert CSS-local ranges into template
+rewrite locations. CEM review: shared native loading/import/source semantics and
+bounded inputs; no app-local parser, UI behavior, public token or inherited-style
+change. Theme/forced-color checks are inapplicable; physical AT remains open.
+
+### Recorded template CSS import binding
+
+`ExecutedHtmlTemplatePreparation::prepare_css_imports` binds immutable CSS
+response snapshots to the exact native execution and dependency preparation.
+The sealed `ExecutedTemplateCssImports` retains that preparation, the document
+CSS capture and a closure for each compiled stylesheet in every recorded body.
+Body and stylesheet occurrence order are preserved, including bodies with no CSS.
+Public inventory fields and equal serialized artifacts cannot create this record.
+It reuses retained roots, sources and capabilities without recompiling templates,
+rendering again or reacquiring template imports.
+
+Each body closure uses that body's final template URI and recorded effective
+capability. Its lexical module map, ancestor restrictions and closest-first CSS
+mapping policy remain authoritative. Inline document roots use the confirmed HTML
+base and document capability instead. Imported sheets keep the owning body's
+capability but use each response's final URL for relative references. CSS-local
+source coordinates remain attached to their exact roots; synthetic CSS source
+URIs, output document coordinates and authored body labels cannot select a base
+or substitute an execution context.
+
+All document and body root counts and node bounds are checked before new CSS
+resolution. One aggregate budget then covers root/import sheet occurrences and
+response bytes across the document and all bodies; repeated imports count again.
+The existing loader retains conditions, native source maps, response revisions,
+redirect/MIME/integrity/policy checks and cycle/depth limits. Missing snapshot
+responses fail without fallback I/O, and execution cancellation applies to all
+captures. Failed or partial captures do not publish a combined result.
+
+Consumption validates the exact execution, engine, template snapshot, CSS
+snapshot, host and capability owners. Every recorded body fingerprint is checked,
+including bodies without stylesheets, before and after DOM callbacks. Observed
+internal policy drift permanently invalidates the CSS preparation, even if the
+policy later returns to its original value. A rejected caller-supplied replacement
+owner does not invalidate otherwise current original evidence. The trusted host
+must supply its current immutable acquisition snapshots and invalidate its HTML
+session when execution state changes; this API does not watch external resources.
+
+Only the combined result discharges `stylesheet-owner-context-required`,
+`template-stylesheet-import-closure-required` and the retained document roots'
+`css-import-and-runtime-closure-required`; the original candidate inventories
+remain unchanged. Resource denials, CSS conditions and installation/load history,
+template/runtime dependency coverage and atomic transaction requirements stay
+explicit. These are potential dependencies across recorded bodies, including
+unused declarations; capture neither proves stylesheet installation nor authorizes
+source edits. External link roots and broader resource coverage remain separate.
+
+CEM review: shared native import/loading semantics, explicit retained ownership
+and bounded variation are preserved. No UI behavior, public token, accessibility
+or inherited-style contract changes; theme/forced-color checks are inapplicable
+and physical AT acceptance remains independently open.

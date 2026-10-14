@@ -1,6 +1,9 @@
 //! Native XHTML output correspondence for an immutable template acquisition snapshot.
 //! Scalar execution supports a shared context or recorded lexical body contexts.
 //! Runtime reads and arbitrary native calls remain outside these profiles.
+mod css_imports;
+pub use css_imports::{ExecutedTemplateCssImports, TemplateBodyCssImports};
+
 use crate::{
     dependency_inspection::ResourceUseKind,
     html_template_dependencies::{
