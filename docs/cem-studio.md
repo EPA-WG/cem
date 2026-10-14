@@ -3694,6 +3694,33 @@ and execution ownership. UI behavior, accessibility, public theme tokens and
 inherited overrides are unaffected. Theme/forced-color checks are inapplicable;
 physical device/AT acceptance remains independently open.
 
+### Native computed SVG presentation observations
+
+`cem_ml::svg_computed_execution::SvgComputedHost` records current computed
+values for explicitly supplied retained SVG presentation attributes. Each slot
+keeps the exact document, attribute and imported CSS owner. An exclusive observer
+must verify the live element correspondence and supply an environment revision
+covering style, animation and owner transitions, including same-value restoration.
+Capture compares two complete passes bracketed by revision reads. Validation
+checks native owner identity, revision and every computed value. Failure or
+explicit invalidation permanently revokes that capture; recapture supersedes old
+evidence even when the new attempt fails.
+
+The profile admits at most 256 unique attributes from one document, with at most
+4096 UTF-8 bytes per computed value and environment revision. Computed strings
+are opaque browser observations. A cascade override can legitimately differ from
+the authored presentation value; neither equality nor a computed URL establishes
+which declaration won or which response bytes were consumed. Evidence retains
+explicit winning-source, acquisition and general-runtime coverage blockers.
+The supplied subset is not proof of complete document coverage. The caller must
+also validate its document/base/style evidence before and after consumption.
+
+This native contract is not yet wired into the browser/worker preparation host.
+It does not cover SVG properties without authored presentation attributes,
+pseudo-elements, SMIL sampling, paint-server traversal, general CSS resource
+selection or response delivery. Those require separate bounded contracts and
+browser acceptance before transaction admission can widen.
+
 ### Shared browser stylesheet observation host
 
 `BrowserHtmlBaseHost.captureStylesheets(responses, { ownership: 'exclusive' })`

@@ -2563,6 +2563,21 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       This is not a historical-capture claim or a theme override. No styling was
       added, so visual/theme/forced-color checks are inapplicable; physical
       browser/device/AT acceptance stays independent.
+    - [x] Add native fixtures and a bounded computed SVG presentation observation
+      contract: retain source owners, reject unstable or foreign observations, and
+      permanently revoke changed evidence without claiming fetched-resource identity.
+      `SvgComputedHost` retains exact document/attribute/CSS owners, compares two
+      capture passes, checks environment revisions and revokes on validation failure.
+      Limits: 256 unique slots from one document and 4096 bytes per value/revision.
+      Eight new native fixtures plus five retained SVG and five stylesheet execution
+      tests pass; focused rustfmt and diff checks pass. Browser integration is pending;
+      winning-source, acquired-body and general-runtime coverage blockers remain.
+      CEM audit: shared native ownership and bounded inputs are preserved. No UI,
+      public tokens, inherited theme values or scoped CSS are changed; visual and
+      forced-color checks do not apply to this native evidence-only increment.
+    - [ ] Wire computed SVG observations into the shared browser/native preparation
+      lifetime with exact element correspondence, style/environment invalidation,
+      before/after read validation and Chromium cascade/owner-transition fixtures.
     - [ ] Record remaining computed CSS/SVG and general runtime resource loads,
       before claiming complete execution dependency closure.
   - [ ] Establish execution-owned lookup provenance for relative run-config inputs,
@@ -2570,7 +2585,9 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, cover remaining computed CSS/SVG and general runtime resource loads.
+Next, wire the native computed SVG observation contract into shared browser
+preparation and verify cascade/owner transitions in Chromium. Then cover remaining
+computed CSS/SVG selection and general runtime resource loads.
 Selected image response/candidate binding is available through explicit native
 replay; unchanged-URL observation deliberately retains its historical-identity
 blocker.
