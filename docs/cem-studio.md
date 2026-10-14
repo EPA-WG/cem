@@ -3792,6 +3792,51 @@ real installation; the observer must not fabricate an installation for each
 original import. Inner supports/media/scope applicability and computed resource
 loads retain explicit runtime blockers.
 
+`RecordedBodyStylesheetInstallations::compose_output(parents, max_nodes,
+max_bytes)` now joins these declarations to a complete native render. Parent IDs
+come from the original retained output and must cover every stylesheet occurrence
+in order. Recorded declarations admit private/shared scopes and append to the
+HTML head; instance payloads keep their separate scope/placement contract. The
+composer reuses the recorded native render plan and native CSS emission fragments,
+including their source frames. It does not reevaluate template expressions, acquire
+sources again, infer scope ownership, or edit the original tree. Node and byte
+bounds apply before cloning; the byte preflight conservatively reserves XML
+escaping space. HTML raw-text style terminators reject this bounded profile.
+
+The returned `RecordedTemplateOutput` retains the original execution and body
+installation owners, the new native tree, stylesheet node bindings, XML output
+and an explicit HTML delivery projection. Native XML export/import materializes
+the composed semantic tree through the shared CEM-ML boundary; original template
+and CSS source owners remain distinct from output XML coordinates. Delivery bytes
+and source spans alone grant neither execution authority nor source rewrite rights.
+An identical reimport or a second equal-byte composition is a different owner.
+
+Capture that exact new tree in `HtmlBaseExecutionHost`, inspect its document, and
+call `RecordedTemplateOutput::capture` with a `RecordedTemplateOutputHost` and
+trusted stylesheet/DOM predicates. Effective/fallback base and policy must agree
+with the recorded preparation. The join observes the entire document CSS forest,
+then binds each compiled body occurrence to the observation for its exact native
+style node. Flattened imports retain one installation each; there is no separate
+caller assertion that body and document installations agree. The sealed
+`RecordedTemplateOutputEvidence::validate` rechecks whole-document topology,
+identities and values, native source/policy lifetimes, loaded CSSOM correspondence,
+selection and environment on both sides of consumption. Callbacks that mutate
+non-style content also invalidate the join. Controlled invalidation, HTML recapture,
+source drift, cancellation or release cannot revive earlier evidence, including
+empty body stylesheet sets. Every context/DOM and CSS/environment writer must
+invalidate its respective host before writing; unobserved synchronous A-B-A
+changes remain outside the exclusive-owner contract. The original execution's
+`html_output()` provides the corresponding explicit HTML projection, preserving
+empty template elements when delivering to a text/html document.
+
+This is a native integration surface. Its Chromium fixture keeps the preparation
+and joined evidence in a live Rust process and exchanges individual scalar
+predicates with the browser; its JSON test protocol cannot transfer a seal.
+Production worker-owned preparation handles remain a separate integration step.
+Compiled scope/inner-condition applicability, responsive images, computed CSS/SVG
+resources, other runtime loads and atomic transaction admission retain their
+blockers. A joined DOM/CSS record is not complete dependency closure.
+
 The QL WASM `CompiledStylesheetSession(artifact, consumer, indicesJson)` binds
 current retained-template consumers inside that WASM realm. The shared browser
 `captureBrowserCompiledStylesheets(document, nativeSession, styleNodes, options)`

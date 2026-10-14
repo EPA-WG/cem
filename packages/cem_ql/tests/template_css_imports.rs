@@ -927,3 +927,403 @@ fn empty_body_installations_bind_policy_and_explicit_release() {
         .capture(&mut host, &mut CompiledObserver, 0)
         .is_err());
 }
+
+fn element(tree: &cem_ml::parser::tree::RetainedCemTree, name: &str) -> u32 {
+    (0..tree.ast().nodes.len() as u32)
+        .find(|id| {
+            tree.node(*id).is_some_and(|n| {
+                n.name.as_ref().is_some_and(|n| n.local_name == name)
+                    && n.kind == cem_ml::parser::tree::CemTreeNodeKind::Element
+            })
+        })
+        .unwrap()
+}
+fn composed(
+    f: &mut Fixture,
+) -> (
+    Arc<RecordedBodyStylesheetInstallations>,
+    Arc<RecordedTemplateOutput>,
+) {
+    let css = Arc::new(capture(f, css_sources(), Default::default()).unwrap());
+    let choices = f
+        .execution
+        .bodies()
+        .bodies
+        .iter()
+        .flat_map(|body| {
+            body.stylesheets
+                .iter()
+                .enumerate()
+                .map(|(index, _)| BodyStylesheetInstallation {
+                    body_uri: body.uri.clone(),
+                    index,
+                    scope: cem_ml::css_emission::CssManagedScope::Private {
+                        tag: "cem-card".into(),
+                        context: None,
+                    },
+                })
+        })
+        .collect::<Vec<_>>();
+    let compiled = css.compile_installations(&choices, 100000).unwrap();
+    let head = element(f.execution.tree(), "head");
+    let output = compiled
+        .compose_output(&vec![head; compiled.len()], 10000, 100000)
+        .unwrap();
+    (compiled, output)
+}
+fn composed_document(
+    f: &mut Fixture,
+    output: &RecordedTemplateOutput,
+) -> Arc<cem_ml::html_execution_inventory::HtmlExecutionInventory> {
+    f.host
+        .prepare(
+            output.tree().clone(),
+            HtmlBaseContext {
+                fallback: HtmlFallbackBase::DocumentUrl(OUTPUT.into()),
+                encoding: HtmlBaseEncoding::Utf8,
+                policy_stamp: "base:1".into(),
+            },
+            slots,
+            |_| Ok(HtmlBasePolicyDecision::Allow),
+        )
+        .unwrap();
+    let base = f.host.confirm(BASE.into()).unwrap();
+    Arc::new(
+        f.host
+            .inspect_dependencies(&base, &f.cap, 10000, slots, BASE)
+            .unwrap(),
+    )
+}
+struct OutputObserver {
+    wrong: bool,
+}
+impl cem_ml::stylesheet_execution::StylesheetExecutionObserver for OutputObserver {
+    fn environment_revision(&mut self) -> Result<String, String> {
+        Ok("output:1".into())
+    }
+    fn observe(
+        &mut self,
+        slot: cem_ml::stylesheet_execution::StylesheetExecutionSlot<'_>,
+    ) -> Result<cem_ml::stylesheet_execution::StylesheetObservation, String> {
+        Ok(cem_ml::stylesheet_execution::StylesheetObservation {
+            selected: true,
+            conditions_match: true,
+            loaded_source: Some(if self.wrong {
+                "wrong".into()
+            } else {
+                slot.source_key.into()
+            }),
+            installation: Some((slot.root * 100 + slot.sheet + 1) as u64),
+        })
+    }
+}
+#[test]
+fn complete_output_composes_retained_emissions_and_joins_live_document_and_installations() {
+    let mut f = fixture(
+        ROOT_SOURCE,
+        &CHILD_SOURCE.replace(" layer(base)", ""),
+        false,
+    );
+    let (compiled, output) = composed(&mut f);
+    assert_eq!(output.stylesheet_nodes().len(), 2);
+    assert_ne!(Arc::as_ptr(output.tree()), Arc::as_ptr(f.execution.tree()));
+    assert!(output.output().rendered.contains("<style>"));
+    let style_start = output.output().rendered.find("<style>").unwrap() as u64 + 7;
+    let style_end = output.output().rendered.find("</style>").unwrap() as u64;
+    assert!(
+        output
+            .output()
+            .output_spans
+            .iter()
+            .any(|span| span.output_range.start >= style_start
+                && span.output_range.end() <= style_end
+                && span.output_range.len > 0
+                && !span.origin.frames.is_empty()),
+        "emitted CSS must preserve its own source frames, independently of body spans"
+    );
+    assert_eq!(
+        output.original_execution().output().rendered,
+        f.execution.output().rendered
+    );
+    let document = composed_document(&mut f, &output);
+    let mut host = RecordedTemplateOutputHost::default();
+    let mut observer = OutputObserver { wrong: false };
+    let evidence = output
+        .capture(
+            &mut f.host,
+            document,
+            &mut host,
+            &mut observer,
+            slots,
+            BASE,
+            Default::default(),
+        )
+        .unwrap();
+    evidence
+        .validate(&mut f.host, &mut host, &mut observer, slots, BASE)
+        .unwrap();
+    assert!(!evidence
+        .blockers()
+        .iter()
+        .any(|s| s == "stylesheet-execution-history-required"));
+    assert!(evidence
+        .blockers()
+        .iter()
+        .any(|s| s == "css-runtime-dependency-closure-required"));
+    assert!(evidence
+        .blockers()
+        .iter()
+        .any(|s| s == "atomic-host-transaction-required"));
+    compiled.release();
+    assert!(evidence
+        .validate(&mut f.host, &mut host, &mut observer, slots, BASE)
+        .is_err());
+}
+#[test]
+fn whole_output_rejects_foreign_html_and_changed_non_stylesheet_slots() {
+    let mut f = fixture(
+        ROOT_SOURCE,
+        &CHILD_SOURCE.replace(" layer(base)", ""),
+        false,
+    );
+    let (_, output) = composed(&mut f);
+    let mut host = RecordedTemplateOutputHost::default();
+    let mut observer = OutputObserver { wrong: false };
+    // The original, uncomposed output cannot certify newly installed styles.
+    let original = Arc::new(
+        f.host
+            .inspect_dependencies(
+                &f.host.current().unwrap().clone(),
+                &f.cap,
+                10000,
+                slots,
+                BASE,
+            )
+            .unwrap(),
+    );
+    assert!(output
+        .capture(
+            &mut f.host,
+            original,
+            &mut host,
+            &mut observer,
+            slots,
+            BASE,
+            Default::default()
+        )
+        .is_err());
+    let doc = composed_document(&mut f, &output);
+    let evidence = output
+        .capture(
+            &mut f.host,
+            doc,
+            &mut host,
+            &mut observer,
+            slots,
+            BASE,
+            Default::default(),
+        )
+        .unwrap();
+    let body = element(output.tree(), "p");
+    assert!(evidence
+        .validate(
+            &mut f.host,
+            &mut host,
+            &mut observer,
+            |slot| Ok(if slot.id == body { 100000 } else { slot.id + 1 }),
+            BASE
+        )
+        .is_err());
+    assert!(evidence
+        .validate(&mut f.host, &mut host, &mut observer, slots, BASE)
+        .is_err());
+}
+#[test]
+fn whole_output_latches_css_and_body_policy_drift_and_rejects_cancellation() {
+    for failure in ["css", "policy", "cancel"] {
+        let mut f = fixture(
+            ROOT_SOURCE,
+            &CHILD_SOURCE.replace(" layer(base)", ""),
+            false,
+        );
+        let (_, output) = composed(&mut f);
+        let doc = composed_document(&mut f, &output);
+        let mut host = RecordedTemplateOutputHost::default();
+        let mut observer = OutputObserver { wrong: false };
+        let evidence = output
+            .capture(
+                &mut f.host,
+                doc,
+                &mut host,
+                &mut observer,
+                slots,
+                BASE,
+                Default::default(),
+            )
+            .unwrap();
+        match failure {
+            "css" => observer.wrong = true,
+            "policy" => f.revision.store(1, Ordering::SeqCst),
+            _ => f.context.operation_control.abort_signal().abort(),
+        }
+        assert!(evidence
+            .validate(&mut f.host, &mut host, &mut observer, slots, BASE)
+            .is_err());
+        observer.wrong = false;
+        f.revision.store(0, Ordering::SeqCst);
+        assert!(evidence
+            .validate(&mut f.host, &mut host, &mut observer, slots, BASE)
+            .is_err());
+    }
+}
+#[test]
+fn whole_output_bounds_complete_placements_and_preserves_declaration_scope_contract() {
+    let mut f = fixture(
+        ROOT_SOURCE,
+        &CHILD_SOURCE.replace(" layer(base)", ""),
+        false,
+    );
+    let (compiled, _) = composed(&mut f);
+    let head = element(f.execution.tree(), "head");
+    let body = element(f.execution.tree(), "p");
+    assert!(compiled.compose_output(&[head], 10000, 100000).is_err());
+    assert!(compiled.compose_output(&[head, head], 1, 100000).is_err());
+    assert!(compiled.compose_output(&[head, head], 10000, 1).is_err());
+    assert!(compiled
+        .compose_output(&[body, head], 10000, 100000)
+        .is_err());
+    let css = Arc::new(capture(&mut f, css_sources(), Default::default()).unwrap());
+    let choices = f
+        .execution
+        .bodies()
+        .bodies
+        .iter()
+        .flat_map(|body| {
+            body.stylesheets
+                .iter()
+                .enumerate()
+                .map(|(index, _)| BodyStylesheetInstallation {
+                    body_uri: body.uri.clone(),
+                    index,
+                    scope: cem_ml::css_emission::CssManagedScope::Instance,
+                })
+        })
+        .collect::<Vec<_>>();
+    assert!(css.compile_installations(&choices, 100000).is_err());
+}
+
+#[test]
+fn composed_equal_bytes_do_not_substitute_native_owners_or_html_epochs() {
+    let mut f = fixture(
+        ROOT_SOURCE,
+        &CHILD_SOURCE.replace(" layer(base)", ""),
+        false,
+    );
+    let (compiled, output) = composed(&mut f);
+    let head = element(f.execution.tree(), "head");
+    let other = compiled
+        .compose_output(&[head, head], 10000, 100000)
+        .unwrap();
+    assert_eq!(output.output().rendered, other.output().rendered);
+    let doc = composed_document(&mut f, &output);
+    let mut host = RecordedTemplateOutputHost::default();
+    let mut observer = OutputObserver { wrong: false };
+    assert!(other
+        .capture(
+            &mut f.host,
+            doc.clone(),
+            &mut host,
+            &mut observer,
+            slots,
+            BASE,
+            Default::default()
+        )
+        .is_err());
+    let evidence = output
+        .capture(
+            &mut f.host,
+            doc,
+            &mut host,
+            &mut observer,
+            slots,
+            BASE,
+            Default::default(),
+        )
+        .unwrap();
+    // Even a same-output recapture is a different live HTML epoch.
+    composed_document(&mut f, &output);
+    assert!(evidence
+        .validate(&mut f.host, &mut host, &mut observer, slots, BASE)
+        .is_err());
+}
+#[test]
+fn empty_composed_output_keeps_all_body_policies_and_callback_invalidation() {
+    let root = ROOT_SOURCE
+        .lines()
+        .skip(1)
+        .collect::<Vec<_>>()
+        .join("\n")
+        .replace(" @style='background:url(./document.svg)'", "");
+    let child = CHILD_SOURCE.lines().skip(1).collect::<Vec<_>>().join("\n");
+    let mut f = fixture(&root, &child, false);
+    let css = Arc::new(
+        capture(
+            &mut f,
+            CssSourceSnapshot::new(vec![], Default::default()).unwrap(),
+            Default::default(),
+        )
+        .unwrap(),
+    );
+    let compiled = css.compile_installations(&[], 0).unwrap();
+    let output = compiled.compose_output(&[], 10000, 100000).unwrap();
+    assert!(output.stylesheet_nodes().is_empty());
+    assert_eq!(output.output().rendered, f.execution.output().rendered);
+    let doc = composed_document(&mut f, &output);
+    let mut host = RecordedTemplateOutputHost::default();
+    let mut observer = OutputObserver { wrong: false };
+    let evidence = output
+        .capture(
+            &mut f.host,
+            doc,
+            &mut host,
+            &mut observer,
+            slots,
+            BASE,
+            Default::default(),
+        )
+        .unwrap();
+    let revision = f.revision.clone();
+    assert!(evidence
+        .validate(
+            &mut f.host,
+            &mut host,
+            &mut observer,
+            |slot| {
+                revision.store(1, Ordering::SeqCst);
+                slots(slot)
+            },
+            BASE
+        )
+        .is_err());
+    f.revision.store(0, Ordering::SeqCst);
+    assert!(evidence
+        .validate(&mut f.host, &mut host, &mut observer, slots, BASE)
+        .is_err());
+}
+
+#[test]
+fn recorded_html_delivery_keeps_empty_templates_closed_and_rechecks_native_policy() {
+    let root = ROOT_SOURCE.replace(
+        "{head |",
+        "{head | {result-element @name=template @namespace='http://www.w3.org/1999/xhtml'}",
+    );
+    let f = fixture(&root, CHILD_SOURCE, false);
+    let before = f.execution.output().rendered.clone();
+    let html = f.execution.html_output().unwrap();
+    assert!(html.rendered.contains("</template>"), "{}", html.rendered);
+    assert_eq!(html.rendered, f.execution.html_output().unwrap().rendered);
+    assert_eq!(before, f.execution.output().rendered);
+    assert!(!html.output_spans.is_empty());
+    f.revision.store(1, Ordering::SeqCst);
+    assert!(f.execution.html_output().is_err());
+}

@@ -289,6 +289,12 @@ source or CSSOM mismatch, and installation replacement invalidate evidence.
 Compiled imports form one real installation per output stylesheet. Inner
 conditions, whole-output correspondence and runtime loads retain their blockers;
 worker result strings cannot replace the native consumer lease. Recorded-body
-compilation binding is also available through the native QL API.
+compilation binding is also available through the native QL API. Native
+`RecordedBodyStylesheetInstallations::compose_output(...)` creates a new retained
+whole output with ordered declaration styles; `RecordedTemplateOutput::capture`
+and its sealed evidence join complete HTML correspondence with those exact
+installations. XML/HTML exports remain delivery artifacts. Production worker
+preparation handles and remaining runtime resource loads are still required before
+transaction admission.
 See the [full observation contract](../../docs/cem-studio.md#shared-browser-stylesheet-observation-host)
 and [compiled installation contract](../../docs/cem-studio.md#compiled-template-and-body-stylesheet-installations).

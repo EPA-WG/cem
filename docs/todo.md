@@ -2264,9 +2264,45 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       theme/forced-color checks are inapplicable and physical AT stays independent.
       Whole-output correspondence, remaining resource closure and transaction
       admission retain their blockers.
-    - [ ] Join native recorded-body installation evidence with complete rendered
+    - [x] Join native recorded-body installation evidence with complete rendered
       output correspondence before worker-owned preparation/transaction consumption;
       preserve native owners and never transfer seals through result DTOs.
+      - [x] Add native whole-output fixtures for ordered private/shared
+        placement and instance-scope rejection, emitted source spans, HTML delivery,
+        exact HTML ownership, missing/changed DOM or CSS, cancellation, policy
+        drift, release and bounded failure.
+      - [x] Add Chromium parity for the native composed output, including real
+        scoped application and complete DOM/source checks; keep fixture exports
+        separate from native consumption authority.
+
+      Implemented `RecordedBodyStylesheetInstallations::compose_output` and
+      sealed `RecordedTemplateOutputEvidence`. Composition reuses the recorded
+      native render and exact emitted fragments, preserves source frames and
+      ordered private/shared declaration placement, and retains the original
+      execution/source owners. Exact composed-tree capture joins full HTML
+      topology/identity/value checks with document CSS observations and compiled
+      installation identities; independent caller assertions cannot join the two.
+      Explicit XML/HTML delivery stays separate from authority, including correct
+      empty-template serialization. Equal bytes, changed slots or CSSOM, callbacks,
+      policy drift, cancellation, release and stale HTML epochs reject consumption.
+      Empty stylesheet sets still retain body policies. Instance payloads preserve
+      their separate contract; declaration styles cannot adopt instance scope.
+      Verification: 33 focused QL native tests pass (seven new cases), eight
+      live-native Chromium cases pass, and the complete Nx browser gate and QL
+      WASM build pass with all prior HTML-base, SVG, stylesheet, worker and command
+      regressions. CLI lint, focused Rust formatting and `git diff --check` pass.
+      The Chromium fixture retains native owners in one Rust process throughout
+      scalar DOM/CSS callbacks; JSON test controls never transfer a native seal.
+      CEM review: shared native ownership, bounded variation and existing CEM
+      private/shared scope rules remain authoritative. Real computed-style checks
+      use the required produced-host instance-island structure and verify scope
+      containment. No UI behavior, public token defaults, inherited overrides,
+      accessibility or theme ownership changes; theme/forced-color checks are
+      inapplicable and physical AT remains independent. Runtime resource closure
+      and atomic host transaction admission remain blocked.
+    - [ ] Carry joined output records through worker-owned preparation handles,
+      with generation, release and cancellation invalidation. Keep native owners
+      in their execution realm and never reconstruct seals from result DTOs.
     - [ ] Record responsive image-source selection and acquisition, followed by
       remaining computed CSS/SVG and general runtime resource loads, before
       claiming complete execution dependency closure.
@@ -2275,7 +2311,8 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, join compiled body installations with complete rendered-output correspondence.
+Next, carry joined output records through worker-owned preparation handles and
+generation/lifetime guards.
 Then record responsive image-source selection/acquisition and remaining computed
 CSS/SVG/runtime loads.
 Connect the prepared native read set to host transaction admission only after complete

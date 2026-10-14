@@ -10,6 +10,7 @@ import { build } from 'vite';
 import { verifyHtmlBaseParity, emitNativeHtmlBaseEvidence } from './verify-html-base.mjs';
 import { verifyHtmlBaseFreezeEvidence } from './verify-html-base-evidence.mjs';
 import { verifyStylesheetSvg } from './verify-stylesheet-svg.mjs';
+import { verifyRecordedOutput } from './verify-recorded-output.mjs';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workspaceRoot = resolve(projectRoot, '../..');
@@ -358,6 +359,7 @@ try {
     console.log(`Verified ${browserStylesheets.cases.length} shared browser stylesheet host cases.`);
     const compiledStylesheets = await page.evaluate(() => globalThis.runCompiledStylesheetsFixture());
     assert.equal(compiledStylesheets.cases.length, 20);
+    const recordedOutput = await verifyRecordedOutput(browser, workspaceRoot);
     const stylesheetSelection = await page.evaluate((version) => globalThis.runStylesheetSelectionFixture(version), browser.version());
     assert.equal(stylesheetSelection.cases.length, 9);
     const activeStylesheets = await page.evaluate((version) => globalThis.runActiveStylesheetFixture(version), browser.version());
@@ -391,6 +393,7 @@ try {
                 compiledStylesheets,
                 stylesheetSelection,
                 activeStylesheets,
+                recordedOutput,
             },
             null,
             2,

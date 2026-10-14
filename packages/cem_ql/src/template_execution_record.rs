@@ -2,7 +2,11 @@
 //! Scalar execution supports a shared context or recorded lexical body contexts.
 //! Runtime reads and arbitrary native calls remain outside these profiles.
 mod css_imports;
-pub use css_imports::{BodyStylesheetInstallation, RecordedBodyStylesheetInstallations, RecordedBodyStylesheetEvidence, ExecutedTemplateCssImports, ExecutedTemplateStylesheets, TemplateBodyCssImports};
+pub use css_imports::{
+    BodyStylesheetInstallation, ExecutedTemplateCssImports, ExecutedTemplateStylesheets,
+    RecordedBodyStylesheetEvidence, RecordedBodyStylesheetInstallations, RecordedTemplateOutput,
+    RecordedTemplateOutputEvidence, RecordedTemplateOutputHost, TemplateBodyCssImports,
+};
 
 use crate::{
     dependency_inspection::ResourceUseKind,
@@ -40,12 +44,34 @@ pub struct SnapshotTemplateExecution {
     body_fingerprints: BTreeMap<String, String>,
     scoped: bool,
     output: TransformOutput,
+    plan: render::RenderPlan,
     tree: Arc<RetainedCemTree>,
     limits: HtmlTemplateDependencyLimits,
 }
 impl SnapshotTemplateExecution {
     pub fn output(&self) -> &TransformOutput {
         &self.output
+    }
+    /// Explicit HTML delivery projection of the recorded native render. This
+    /// does not establish browser correspondence or transfer execution evidence.
+    pub fn html_output(&self) -> Result<TransformOutput, String> {
+        self.validate_current(
+            self.preflight.snapshot(),
+            self.preflight.context(),
+            &self.capability,
+        )?;
+        let output = render::render_plan_to_html_with_control(
+            &self.plan,
+            &self.preflight.context().operation_control,
+            ROOT_EXECUTION_SCOPE_ID,
+        )
+        .map_err(|e| e.to_string())?;
+        self.validate_current(
+            self.preflight.snapshot(),
+            self.preflight.context(),
+            &self.capability,
+        )?;
+        Ok(output)
     }
     pub fn tree(&self) -> &Arc<RetainedCemTree> {
         &self.tree
@@ -425,6 +451,16 @@ fn execute_snapshot_xhtml_internal(
             plan.diagnostics
         ));
     }
+    // Freeze native value projection once; later installation composition must
+    // reuse this render, without repeating expression evaluation or acquisition.
+    let plan = render::project_render_plan_with_control(
+        &plan,
+        crate::eval::QueryContextScope(0),
+        &cem_ml::value::artifact::CemValueArtifactLimits::default(),
+        control,
+        ROOT_EXECUTION_SCOPE_ID,
+    )
+    .map_err(|e| e.to_string())?;
     let output = render::render_plan_to_xml_with_control(&plan, control, ROOT_EXECUTION_SCOPE_ID)
         .map_err(|e| e.to_string())?;
     let tree = cem_ml::import::import_data_bytes(
@@ -466,6 +502,7 @@ fn execute_snapshot_xhtml_internal(
         body_capabilities,
         body_fingerprints,
         scoped,
+        plan,
         output,
         tree,
         limits,

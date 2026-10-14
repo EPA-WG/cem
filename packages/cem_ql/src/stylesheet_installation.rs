@@ -59,6 +59,17 @@ impl CompiledStylesheetSet {
             .emission()?
             .css())
     }
+    pub(crate) fn emission(
+        &self,
+        index: usize,
+    ) -> Result<&cem_ml::css_emission::CssClosureEmission, String> {
+        self.validate_current()?;
+        self.sheets
+            .get(index)
+            .ok_or("unknown compiled stylesheet occurrence")?
+            .emission()
+            .map_err(str::to_string)
+    }
     pub fn identity(&self, index: usize) -> Result<&CssStylesheetIdentity, String> {
         self.validate_current()?;
         Ok(self
