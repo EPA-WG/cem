@@ -92,6 +92,37 @@ impl WasmRecordedOutputSession {
         }
         Ok(())
     }
+    #[wasm_bindgen(js_name = "beginImageDelivery")]
+    pub fn begin_image_delivery(&mut self) -> Result<(), JsValue> {
+        self.inner.begin_image_delivery().map_err(error)
+    }
+    #[wasm_bindgen(js_name = "acceptImageDelivery")]
+    pub fn accept_image_delivery(
+        &mut self,
+        url: String,
+        content_type: String,
+        bytes: Vec<u8>,
+    ) -> Result<(), JsValue> {
+        self.inner
+            .accept_image_delivery(ImageResponse {
+                final_url: url.clone(),
+                requested_url: url,
+                content_type,
+                bytes,
+                revision: String::new(),
+            })
+            .map_err(error)
+    }
+    #[wasm_bindgen(js_name = "recordDeliveredImages")]
+    pub fn record_delivered_images(
+        &mut self,
+        environment: &str,
+        observe: &Function,
+    ) -> Result<(), JsValue> {
+        self.inner
+            .record_delivered_images(environment, |id| image_observation(observe, id))
+            .map_err(error)
+    }
     #[wasm_bindgen(js_name = "selectImages")]
     pub fn select_images(&mut self, observe: &Function, request: &Function) -> Result<(), JsValue> {
         let requests = self
@@ -160,7 +191,11 @@ impl WasmRecordedOutputSession {
             )
             .map_err(error)?;
         self.verify_images(revision, images)?;
-        Ok(summary(result, self.inner.image_acquisitions()))
+        Ok(summary(
+            result,
+            self.inner.image_acquisitions(),
+            self.inner.image_deliveries(),
+        ))
     }
     pub fn read(
         &mut self,
@@ -184,14 +219,18 @@ impl WasmRecordedOutputSession {
             )
             .map_err(error)?;
         self.verify_images(revision, images)?;
-        Ok(summary(result, self.inner.image_acquisitions()))
+        Ok(summary(
+            result,
+            self.inner.image_acquisitions(),
+            self.inner.image_deliveries(),
+        ))
     }
 }
-fn summary(mut blockers: Vec<String>, images: usize) -> String {
+fn summary(mut blockers: Vec<String>, images: usize, deliveries: usize) -> String {
     if images > 0 {
         blockers.push("image-browser-response-identity-required".into());
     }
-    serde_json::json!({"blockers":blockers, "imageAcquisitions": images}).to_string()
+    serde_json::json!({"blockers":blockers, "imageAcquisitions": images, "imageDeliveries": deliveries}).to_string()
 }
 fn error(e: impl AsRef<str>) -> JsValue {
     JsValue::from_str(e.as_ref())

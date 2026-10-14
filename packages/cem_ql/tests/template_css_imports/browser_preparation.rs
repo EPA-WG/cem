@@ -279,3 +279,95 @@ fn staged_images_keep_acquisition_with_output_and_revoke_on_dom_failure() {
         .is_err());
     assert_eq!(s.image_acquisitions(), 0);
 }
+
+#[test]
+fn staged_image_delivery_is_joined_and_revoked_with_output() {
+    use cem_ml::html_image_execution::{ImageObservation, ImageResponse};
+    let mut value: serde_json::Value = serde_json::from_str(&request()).unwrap();
+    for source in value["sources"].as_array_mut().unwrap() {
+        source["source"] = source["source"]
+            .as_str()
+            .unwrap()
+            .lines()
+            .skip(1)
+            .collect::<Vec<_>>()
+            .join("\n")
+            .replace(
+                "{p @style='background:url(./document.svg)'",
+                "{img @src='a.png'} {p",
+            )
+            .into();
+    }
+    value["choices"] = serde_json::json!([]);
+    let mut s = RecordedOutputSession::from_json(&value.to_string(), 1, 1).unwrap();
+    s.begin_image_delivery().unwrap();
+    s.accept_image_delivery(ImageResponse {
+        requested_url: format!("{BASE}a.png"),
+        final_url: format!("{BASE}a.png"),
+        revision: String::new(),
+        content_type: "image/png".into(),
+        bytes: vec![1],
+    })
+    .unwrap();
+    compose(&mut s);
+    s.prepare_base(slots, |_| Ok(HtmlBasePolicyDecision::Allow))
+        .unwrap();
+    s.prepare_stylesheets(BASE, slots, None).unwrap();
+    let observation = ImageObservation {
+        url: format!("{BASE}a.png"),
+        width: 1,
+        height: 1,
+        complete: true,
+    };
+    let selected = s.select_images(|_| Ok(observation.clone())).unwrap();
+    assert_eq!(selected.len(), 1);
+    s.record_delivered_images("env", |_| Ok(observation.clone()))
+        .unwrap();
+    assert_eq!(s.image_deliveries(), 1);
+    assert_eq!(s.image_acquisitions(), 1);
+    s.capture(BASE, slots, &mut OutputObserver { wrong: false })
+        .unwrap();
+    s.validate_images("env", |_| Ok(observation.clone()))
+        .unwrap();
+    assert!(s
+        .read(
+            BASE,
+            |_| Err("DOM changed".into()),
+            &mut OutputObserver { wrong: false }
+        )
+        .is_err());
+    assert!(s
+        .validate_images("env", |_| Ok(observation.clone()))
+        .is_err());
+    assert_eq!(s.image_acquisitions(), 0);
+    assert_eq!(s.image_deliveries(), 0);
+}
+
+#[test]
+fn image_delivery_ingress_cannot_outlive_or_precede_its_session() {
+    use cem_ml::html_image_execution::ImageResponse;
+    let response = || ImageResponse {
+        requested_url: format!("{BASE}a.png"),
+        final_url: format!("{BASE}a.png"),
+        content_type: "image/png".into(),
+        revision: String::new(),
+        bytes: vec![1],
+    };
+    let mut s = session();
+    assert!(s.accept_image_delivery(response()).is_err());
+    assert!(s.begin_image_delivery().is_err());
+    let mut s = session();
+    compose(&mut s);
+    assert!(s.begin_image_delivery().is_err());
+    let mut s = session();
+    s.begin_image_delivery().unwrap();
+    s.close();
+    assert!(s.accept_image_delivery(response()).is_err());
+    let mut s = session();
+    s.begin_image_delivery().unwrap();
+    let mut foreign = response();
+    foreign.requested_url = "https://foreign.test/a.png".into();
+    foreign.final_url = foreign.requested_url.clone();
+    assert!(s.accept_image_delivery(foreign).is_err());
+    assert!(s.accept_image_delivery(response()).is_err());
+}

@@ -2489,13 +2489,51 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       because disposal can mask that diagnostic with cancellation.
       Original-response identity remains OPEN: the current post-load adapter has
       no body handle for the original browser request. Reacquired hashes, sizes,
-      dimensions and validators cannot repair that missing observation. Begin
-      transport observation before image delivery; bind actual delivered bytes
-      to the execution/document/request lifetime, including cache and redirect
-      policy. Controlled replay is a new delivery, never historical proof.
+      dimensions and validators cannot repair that missing observation. The
+      pre-delivery transport below now supplies actual intercepted bodies, but
+      cache-safe per-consumer/request identity remains required. Controlled replay
+      is a new delivery, never historical proof.
       CEM review: retained native source ownership and bounded variation govern
       rejection; no app/component workaround, public token or theme behavior
       changes. Visual/theme/forced-color checks do not apply to this service.
+    - [x] Capture image bodies before browser delivery through an opt-in shared
+      transport and bind the delivery ledger to native execution cancellation.
+      - [x] Fixture native receipt bounds, duplicate-body consistency, seal ordering,
+        selected-response joins and cancellation before acknowledgement.
+      - [x] Fixture production service-worker delivery, selected-body ingress,
+        failures, abort/disposal and rejection of missing delivery receipts.
+
+      Implemented execution-owned `ImageDeliveryCapture`, staged QL/WASM ingress
+      and an opt-in shared service-worker transport. The worker buffers a direct
+      same-origin raster response and waits for synchronous native acceptance
+      before releasing that exact decoded body. The native ledger computes
+      SHA-256 and enforces 256 responses/4 MiB, same-origin ownership, consistency,
+      stage ordering and execution cancellation. Selected images join sealed
+      receipts without a second fetch; missing receipts reject. Diagnostic
+      `imageDeliveries` does not grant transaction admission. Worker registration
+      remains explicitly application-owned, with 32 bounded client sessions and
+      the existing maximum 30-second preparation deadline.
+      Verification: 68 focused native tests pass (eight ML image, 45 QL template
+      CSS, 11 execution-record and four installation cases). All 68 production
+      Chromium preparation cases and the full Nx browser regression gate pass.
+      New cases cover pre-delivery acknowledgement, a single network fetch shared
+      across image consumers, empty documents, missing controller/receipts,
+      redirects, byte limits, abort/pool closure, controller invalidation and
+      synchronous/native rejection without pixel delivery. CLI/WASM builds, lint,
+      focused rustfmt and diff checks pass. Server fixtures distinguish first and
+      second network requests directly, since service-worker fetch destination
+      metadata differs from an image-loader request.
+      Limits: available-image caches may bypass interception, so receipts prove
+      intercepted deliveries, not every img consumer's actual historical response.
+      Keep `image-browser-response-identity-required` until cache-safe per-consumer
+      binding exists. Redirects, cross-origin/custom policies, SVG and broader
+      runtime loads stay outside the profile. Original HTTP header/wire encoding
+      identity is not asserted by reconstructed decoded-body responses.
+      CEM audit: shared transport and native retained source/lifetime owners govern
+      the feature; no app/component UI workaround, public token defaults, inherited
+      override, accessibility or theme behavior changed. Visual/forced-color
+      checks are inapplicable to this resource service. Deferred presentation and
+      physical browser/device/AT work remain preserved.
     - [ ] Record remaining computed CSS/SVG and general runtime resource loads,
       before claiming complete execution dependency closure.
   - [ ] Establish execution-owned lookup provenance for relative run-config inputs,
@@ -2503,10 +2541,11 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, add image response observation before initial browser delivery, binding
-actual delivered bytes to native execution/document/request lifetimes. Post-load
-reacquisition cannot establish original-response identity. Ambiguous source
-occurrences now reject; broader duplicate support needs occurrence evidence. Then cover remaining computed
+Next, bind selected image consumers to intercepted deliveries across browser
+cache reuse; receipts now retain actual pre-delivery bytes under native execution
+lifetimes, but currentSrc alone cannot distinguish a cached same-URL consumer.
+Ambiguous source occurrences reject; broader duplicate support needs occurrence
+evidence. Then cover remaining computed
 CSS/SVG and general runtime resource loads.
 Connect the prepared native read set to host transaction admission only after complete
 dependency evidence. Combine that dependency closure with map rewrite ownership before

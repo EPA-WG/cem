@@ -1,7 +1,11 @@
+import type { BrowserImageDelivery } from './browser-image-delivery.js';
 /** Browser selection and separate, bounded same-origin raster reacquisition.
  * These bytes are not asserted to be the browser's original image response. */
 export type ImagePredicate = (owner: number) => [string, number, number, boolean];
 export interface NativeImagePreparation {
+    beginImageDelivery(): void;
+    acceptImageDelivery(url: string, contentType: string, bytes: Uint8Array): void;
+    recordDeliveredImages(environment: string, observe: ImagePredicate): void;
     selectImages(observe: ImagePredicate, request: (owner: number, url: string) => void): void;
     addImageResponse(requested: string, finalUrl: string, contentType: string, revision: string, bytes: Uint8Array): void;
     recordImages(environment: string, observe: ImagePredicate): void;
@@ -20,7 +24,7 @@ export class BrowserImageObservation {
         const result: ReturnType<ImagePredicate> = [image.currentSrc, image.naturalWidth, image.naturalHeight, image.complete];
         this.guard(); return result;
     };
-    async prepare(native: NativeImagePreparation, deadline: number, revision: () => string): Promise<void> {
+    async prepare(native: NativeImagePreparation, deadline: number, revision: () => string, delivery?: BrowserImageDelivery): Promise<void> {
         this.guard();
         const signal = this.#abort.signal;
         const remaining = deadline - performance.now();
@@ -30,11 +34,11 @@ export class BrowserImageObservation {
             signal.addEventListener('abort', () => reject(new Error('Image acquisition cancelled or timed out')), { once: true });
         });
         try {
-            await Promise.race([this.#prepare(native, revision, signal), cancelled]);
+            await Promise.race([this.#prepare(native, revision, signal, deadline, delivery), cancelled]);
             this.guard();
         } finally { clearTimeout(timer); }
     }
-    async #prepare(native: NativeImagePreparation, revision: () => string, signal: AbortSignal): Promise<void> {
+    async #prepare(native: NativeImagePreparation, revision: () => string, signal: AbortSignal, deadline: number, delivery?: BrowserImageDelivery): Promise<void> {
         const images = [...this.document.images].filter(img => img.hasAttribute('src') || img.hasAttribute('srcset') || img.parentElement?.localName === 'picture');
         if (images.length > 256) throw new Error('Image observation count exceeded');
         for (const image of images) {
@@ -47,7 +51,8 @@ export class BrowserImageObservation {
         this.guard();
         const environment = revision();
         let budget = 4 * 1024 * 1024;
-        for (const url of requests) {
+        if (delivery) await delivery.seal(deadline);
+        for (const url of delivery ? [] : requests) {
             const requested = new URL(url);
             if (requested.origin !== new URL(this.document.URL).origin || requested.hash || !/^https?:$/u.test(requested.protocol)) throw new Error('Same-origin HTTP(S) image acquisition required');
             // Redirect errors avoid sending a second request to an unowned origin.
@@ -76,7 +81,7 @@ export class BrowserImageObservation {
             this.run(() => native.addImageResponse(url, response.url, contentType, [...digest].map(n => n.toString(16).padStart(2, '0')).join(''), bytes));
         }
         if (revision() !== environment) throw new Error('Image environment changed during acquisition');
-        this.run(() => native.recordImages(environment, this.observe));
+        this.run(() => delivery ? native.recordDeliveredImages(environment, this.observe) : native.recordImages(environment, this.observe));
         this.guard();
         if (!requests.size) return;
         const view = this.document.defaultView;

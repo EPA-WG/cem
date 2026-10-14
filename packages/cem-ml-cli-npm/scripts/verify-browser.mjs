@@ -39,9 +39,9 @@ try {
             outDir: bundleRoot,
             target: 'es2022',
             rollupOptions: {
-                input: resolve(projectRoot, 'tests/browser-worker-pool.fixture.mjs'),
+                input: { entry: resolve(projectRoot, 'tests/browser-worker-pool.fixture.mjs'), 'image-worker': resolve(projectRoot, 'tests/image-delivery-worker.fixture.mjs') },
                 output: {
-                    entryFileNames: 'entry.js',
+                    entryFileNames: '[name].js',
                     chunkFileNames: 'assets/[name]-[hash].js',
                     assetFileNames: 'assets/[name]-[hash][extname]',
                 },
@@ -49,6 +49,7 @@ try {
         },
     });
 
+    const deliveryRequests = new Set();
     let selectionMode = 'normal';
     const pendingSelection = new Set();
     const sendNight = response => { response.writeHead(200, { 'content-type': 'text/css; charset=utf-8', 'cache-control': 'no-store' }); response.end('p{color:rgb(40,30,20)}'); };
@@ -57,6 +58,14 @@ try {
         if (pathname.startsWith('/recorded-images/')) {
             const body = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAl0lEQVR4nO3QoREAIBDAsNdoNPtvCWNEUBHf66x97s9GB2gN0AFaA3SA1gAdoDVAB2gN0AFaA3SA1gAdoDVAB2gN0AFaA3SA1gAdoDVAB2gN0AFaA3SA1gAdoDVAB2gN0AFaA3SA1gAdoDVAB2gN0AFaA3SA1gAdoDVAB2gN0AFaA3SA1gAdoDVAB2gN0AFaA3SA1gAdoD0H/LEefIE4owAAAABJRU5ErkJggg==', 'base64');
             const acquisition = request.headers['sec-fetch-dest'] !== 'image';
+            if (pathname.endsWith('/delivery.png')) {
+                if (deliveryRequests.has(request.url)) { response.writeHead(404).end(); return; }
+                deliveryRequests.add(request.url);
+            }
+            if (pathname.endsWith('/delivery-error.png')) { response.writeHead(404).end(); return; }
+            if (pathname.endsWith('/delivery-redirect.png')) { response.writeHead(302, { location: '/recorded-images/a.png' }).end(); return; }
+            if (pathname.endsWith('/delivery-oversized.png')) { response.writeHead(200, { 'content-type': 'image/png' }).end(Buffer.alloc(4*1024*1024+1)); return; }
+
             if (pathname.endsWith('/missing.png') || (pathname.endsWith('/acquisition-error.png') && acquisition)) {
                 response.writeHead(404).end(); return;
             }
@@ -71,7 +80,7 @@ try {
                 response.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'no-store' }).end(Buffer.concat([body, Buffer.from('different response')])); return;
             }
             const send = () => response.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'no-store' }).end(body);
-            if (pathname.endsWith('/pending.png') && acquisition) setTimeout(send, 250); else send();
+            if ((pathname.endsWith('/pending.png') && acquisition) || pathname.endsWith('/delivery-pending.png')) setTimeout(send, 250); else send();
             return;
         }
         if (pathname === '/styles/recorded-error.css') {
@@ -392,7 +401,7 @@ try {
     const compiledStylesheets = await page.evaluate(() => globalThis.runCompiledStylesheetsFixture());
     assert.equal(compiledStylesheets.cases.length, 20);
     const recordedPreparations = await page.evaluate(version => globalThis.runRecordedOutputFixture(version), browser.version());
-    assert.equal(recordedPreparations.cases.length, 56);
+    assert.equal(recordedPreparations.cases.length, 68);
     console.log(`Verified ${recordedPreparations.cases.length} production native preparation host cases.`);
     const recordedOutput = await verifyRecordedOutput(browser, workspaceRoot);
     const stylesheetSelection = await page.evaluate((version) => globalThis.runStylesheetSelectionFixture(version), browser.version());

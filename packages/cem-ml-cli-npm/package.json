@@ -23,6 +23,11 @@
             "import": "./dist/browser.js",
             "default": "./dist/browser.js"
         },
+        "./image-delivery-worker": {
+            "types": "./dist/image-delivery-worker.d.ts",
+            "import": "./dist/image-delivery-worker.js",
+            "default": "./dist/image-delivery-worker.js"
+        },
         "./node": {
             "types": "./dist/node.d.ts",
             "import": "./dist/node.js",

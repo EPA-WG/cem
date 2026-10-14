@@ -1,7 +1,9 @@
 //! Bounded source-ingress and staged delivery contract for synchronous browser
 //! observation. All semantic trees and preparation evidence stay native.
 use super::*;
-use cem_ml::html_image_execution::{ImageObservation, ImagePlan, ImageRecord, ImageResponse};
+use cem_ml::html_image_execution::{
+    ImageDeliveryCapture, ImageObservation, ImagePlan, ImageRecord, ImageResponse,
+};
 use cem_ml::{
     css_emission::CssManagedScope,
     css_import_snapshot::{CssSnapshotSource, CssSourceSnapshot},
@@ -81,6 +83,8 @@ enum Stage {
 pub struct RecordedOutputSession {
     stage: Stage,
     image_plan: Option<Arc<ImagePlan>>,
+    image_delivery: Option<ImageDeliveryCapture>,
+    delivered_images: usize,
     image_record: Option<ImageRecord>,
     pending_images: Option<Vec<ImageObservation>>,
     snapshot: Arc<TemplateSourceSnapshot>,
@@ -215,6 +219,8 @@ impl RecordedOutputSession {
         Ok(Self {
             stage: Stage::Original,
             image_plan: None,
+            image_delivery: None,
+            delivered_images: 0,
             image_record: None,
             pending_images: None,
             snapshot,
@@ -263,6 +269,8 @@ impl RecordedOutputSession {
         self.handle = None;
         self.output = None;
         self.image_plan = None;
+        self.image_delivery = None;
+        self.delivered_images = 0;
         self.image_record = None;
         self.pending_images = None;
     }
@@ -453,6 +461,65 @@ impl RecordedOutputSession {
             };
             Ok((sources, actions))
         })
+    }
+    pub fn begin_image_delivery(&mut self) -> Result<(), String> {
+        self.run(|s| {
+            if s.stage != Stage::Original || s.image_delivery.is_some() {
+                return Err("image transport must begin before HTML delivery".into());
+            }
+            s.image_delivery = Some(ImageDeliveryCapture::new(s.cancel.clone()));
+            Ok(())
+        })
+    }
+    pub fn accept_image_delivery(&mut self, response: ImageResponse) -> Result<(), String> {
+        self.run(|s| {
+            if s.stage == Stage::Captured || s.stage == Stage::Closed || s.image_record.is_some() {
+                return Err("image delivery after publication".into());
+            }
+            if url::Url::parse(&response.requested_url)
+                .map_err(|_| "image URL required")?
+                .origin()
+                != url::Url::parse(&s.output_uri)
+                    .map_err(|_| "output URL required")?
+                    .origin()
+            {
+                return Err("same-origin image delivery required".into());
+            }
+            s.image_delivery
+                .as_mut()
+                .ok_or("image transport not begun")?
+                .accept(response)
+        })
+    }
+    pub fn record_delivered_images(
+        &mut self,
+        environment: &str,
+        mut observe: impl FnMut(u32) -> Result<ImageObservation, String>,
+    ) -> Result<(), String> {
+        self.run(|s| {
+            if s.stage != Stage::ComposedBase {
+                return Err("image delivery join out of order".into());
+            }
+            let selected = s
+                .pending_images
+                .as_ref()
+                .ok_or("image selection required")?
+                .iter()
+                .map(|o| o.url.clone())
+                .collect::<Vec<_>>();
+            let responses = s
+                .image_delivery
+                .as_mut()
+                .ok_or("image transport not begun")?
+                .seal(&selected)?;
+            let count = responses.len();
+            s.record_images(responses, environment, &mut observe)?;
+            s.delivered_images = count;
+            Ok(())
+        })
+    }
+    pub fn image_deliveries(&self) -> usize {
+        self.delivered_images
     }
     pub fn image_acquisitions(&self) -> usize {
         self.image_record

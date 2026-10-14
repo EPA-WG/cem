@@ -216,3 +216,53 @@ fn candidate_occurrences_retain_source_attribute_and_descriptor() {
         }))
         .is_ok());
 }
+
+#[test]
+fn delivery_ledger_seals_selected_bodies_and_revokes_with_execution() {
+    let cancel = AbortSignal::new();
+    let mut ledger = ImageDeliveryCapture::new(cancel.clone());
+    let response = || ImageResponse {
+        requested_url: "https://test/a.png".into(),
+        final_url: "https://test/a.png".into(),
+        content_type: "image/png".into(),
+        revision: String::new(),
+        bytes: vec![1, 2, 3],
+    };
+    ledger.accept(response()).unwrap();
+    ledger.accept(response()).unwrap();
+    let selected = ledger.seal(&["https://test/a.png".into()]).unwrap();
+    assert_eq!(selected.len(), 1);
+    assert_eq!(selected[0].bytes, [1, 2, 3]);
+    assert_eq!(selected[0].revision.len(), 64);
+    assert!(ledger.accept(response()).is_err());
+    let mut ledger = ImageDeliveryCapture::new(cancel.clone());
+    cancel.abort();
+    assert!(ledger.accept(response()).is_err());
+}
+
+#[test]
+fn delivery_missing_changed_oversized_and_redirected_bodies_fail_closed() {
+    let response = || ImageResponse {
+        requested_url: "https://test/a.png".into(),
+        final_url: "https://test/a.png".into(),
+        content_type: "image/png".into(),
+        revision: String::new(),
+        bytes: vec![1],
+    };
+    let mut ledger = ImageDeliveryCapture::new(AbortSignal::new());
+    assert!(ledger.seal(&["https://test/a.png".into()]).is_err());
+    assert!(ledger.accept(response()).is_err());
+    for mode in ["changed", "oversized", "redirect", "mime"] {
+        let mut ledger = ImageDeliveryCapture::new(AbortSignal::new());
+        ledger.accept(response()).unwrap();
+        let mut other = response();
+        match mode {
+            "changed" => other.bytes = vec![2],
+            "oversized" => other.bytes = vec![1; 4 * 1024 * 1024 + 1],
+            "redirect" => other.final_url = "https://test/b.png".into(),
+            _ => other.content_type = "image/svg+xml".into(),
+        }
+        assert!(ledger.accept(other).is_err());
+        assert!(ledger.seal(&["https://test/a.png".into()]).is_err());
+    }
+}

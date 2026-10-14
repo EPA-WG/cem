@@ -40,8 +40,9 @@ globalThis.runRecordedOutputFixture = async version => {
                 const host = pool ? pool.captureRecordedOutput(doc, session, installer, options) : captureBrowserRecordedOutput(doc, session, installer, options);
                 hosts.push(host); return host;
             };
-            const captureAsync = async (extra = {}, installer = install) => {
+            const captureAsync = async (extra = {}, installer = install, configure = () => undefined) => {
                 const session = native(), options = { ownership: 'exclusive', policy, ...extra };
+                configure(session);
                 const host = await (pool ? pool.captureRecordedOutputAsync(doc, session, installer, options) : captureBrowserRecordedOutputAsync(doc, session, installer, options));
                 hosts.push(host); return host;
             };
@@ -309,5 +310,75 @@ globalThis.runRecordedOutputFixture = async version => {
         check(pool.workers[0].generation > 1, 'fixture failed to replace worker');
         check(capture().read().blockers.length > 0, 'replacement did not admit fresh preparation');
     }, true);
+    await run('image-delivery-no-controller', async ({ captureAsync }) => {
+        let failed = false;
+        try { await captureAsync({ imageDelivery: 'service-worker' }); } catch { failed = true; }
+        check(failed, 'delivery transport admitted an uncontrolled document');
+    });
+    const registration = await navigator.serviceWorker.register('/image-worker.js', { type: 'module', scope: '/' });
+    await navigator.serviceWorker.ready;
+    if (!navigator.serviceWorker.controller) await new Promise(resolve => navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true }));
+    try {
+        for (const mode of ['single', 'shared', 'empty']) {
+            await run(`image-delivery-${mode}`, async ({ captureAsync, request, doc, install }) => {
+                const url = `/recorded-images/delivery.png?execution=${crypto.randomUUID()}`;
+                if (mode !== 'empty') addImage(request, `{img @src='${url}' @alt=Example}` + (mode === 'shared' ? ` {img @src='${url}' @alt=Second}` : ''));
+                let receipts = 0;
+                const host = await captureAsync({ imageDelivery: 'service-worker' }, install, session => {
+                    const accept = session.acceptImageDelivery.bind(session);
+                    session.acceptImageDelivery = (url, type, bytes) => {
+                        check(bytes.byteLength > 0 && type === 'image/png', 'original response bytes missing');
+                        check([...doc.images].every(image => !image.complete), 'image was delivered before native receipt');
+                        accept(url, type, bytes); receipts++;
+                    };
+                });
+                const count = mode === 'empty' ? 0 : 1;
+                check(receipts === count && host.read().imageDeliveries === count, 'native delivery join missing');
+                check(host.read().imageAcquisitions === count, 'selected delivery body missing');
+                if (count) check(host.read().blockers.includes('image-browser-response-identity-required'), 'cache-selection history overclaimed');
+                if (mode === 'single') {
+                    doc.defaultView.navigator.serviceWorker.dispatchEvent(new Event('controllerchange'));
+                    rejects(() => host.read(), 'controller loss retained native delivery evidence');
+                }
+                host.dispose(); rejects(() => host.read(), 'disposed delivery retained native evidence');
+            });
+        }
+        await run('image-delivery-missing-receipt', async ({ captureAsync, request, doc, install }) => {
+            addImage(request, `{img @src='/recorded-images/bypass.png?execution=${crypto.randomUUID()}' @alt=Example}`);
+            let failed = false, diagnostic = '';
+            try {
+                await captureAsync({ imageDelivery: 'service-worker' }, install, session => {
+                    const record = session.recordDeliveredImages.bind(session);
+                    session.recordDeliveredImages = (...args) => {
+                        try { return record(...args); } catch (error) { diagnostic = String(error); throw error; }
+                    };
+                });
+            } catch { failed = true; }
+            check(failed && diagnostic.includes('complete live image delivery receipts required'), 'bypassed response acquired native delivery evidence');
+            check(doc.querySelector('img').naturalWidth > 0, 'bypass fixture did not deliver an image');
+        });
+        for (const mode of ['throw', 'async']) await run(`image-delivery-native-rejection-${mode}`, async ({ captureAsync, request, doc, install }) => {
+            addImage(request, `{img @src='/recorded-images/delivery.png?execution=${crypto.randomUUID()}' @alt=Example}`);
+            let received = false, failed = false;
+            try {
+                await captureAsync({ imageDelivery: 'service-worker' }, install, session => {
+                    session.acceptImageDelivery = () => { received = true; if (mode === 'async') return Promise.resolve(); throw new Error('Receipt rejected'); };
+                });
+            } catch { failed = true; }
+            check(received && failed && doc.querySelector('img').naturalWidth === 0, 'rejected receipt released image pixels');
+        });
+        for (const mode of ['error', 'redirect', 'oversized', 'abort', 'pool-close']) {
+            await run(`image-delivery-${mode}`, async ({ captureAsync, request, pool }) => {
+                const path = ['abort', 'pool-close'].includes(mode) ? 'pending' : mode;
+                addImage(request, `{img @src='/recorded-images/delivery-${path}.png?execution=${crypto.randomUUID()}' @alt=Example}`);
+                const controller = new AbortController();
+                let failed = false;
+                const pending = captureAsync({ imageDelivery: 'service-worker', signal: controller.signal }).catch(() => { failed = true; });
+                if (mode === 'abort') setTimeout(() => controller.abort(), 50);
+                if (mode === 'pool-close') setTimeout(() => pool.close(), 50);
+                await pending; check(failed, 'failed delivery published preparation');
+            }, mode === 'pool-close');
+        }
+    } finally { await registration.unregister(); }
     return { cases };
 };

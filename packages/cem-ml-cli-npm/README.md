@@ -340,3 +340,31 @@ resolve to currentSrc, including src/srcset and picture collisions. This bounded
 profile intentionally does not guess the winner from dimensions or source order.
 Original-response proof requires transport observation before initial delivery;
 post-load reacquisition cannot supply it.
+
+
+For opt-in pre-delivery byte capture, install
+`installImageDeliveryTransport(self)` from
+`@epa-wg/cem-ml-cli/image-delivery-worker` in your application's service worker.
+The application owns registration, activation and scope; the library never
+replaces a worker. Once that worker controls the target document, pass
+`imageDelivery: 'service-worker'` to async recorded-output capture.
+
+The worker intercepts that client's same-origin raster image requests, buffers
+at most 4 MiB across 256 URLs, and sends byte ingress over a private MessagePort.
+It waits for native acceptance before returning the same body to the browser.
+Native code computes SHA-256, retains bytes under the execution cancellation
+signal, and rejects conflicting repeated bodies. Repeated intercepted requests
+for one URL share the first body within the session. Selection joins only
+received bodies; it performs no second fetch in this mode. Missing receipts,
+redirects, failures, unsupported MIME and cancellation reject capture. Sealing
+closes ingress; further intercepted image loads revoke the preparation.
+`read().imageDeliveries` counts selected URLs with pre-delivery receipts.
+
+This is evidence of intercepted responses, not complete image-cache history.
+Browser image-cache reuse can bypass a service worker, and a same-URL receipt
+alone cannot identify every cache-satisfied consumer. Consequently the original
+response-identity blocker remains, along with the broader dependency/admission
+blockers. Native seals never travel through worker messages. The transport is
+bounded to 32 concurrent client sessions with a 30-second preparation deadline.
+Controller replacement, document/DOM changes, abort and pool disposal revoke
+native execution evidence and close the private transport.

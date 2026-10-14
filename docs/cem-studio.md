@@ -4003,6 +4003,40 @@ and revoke on transport loss. A controlled replay would be a **new** delivery
 with native source mapping, never proof about the earlier browser load. The
 current API does not accept caller-supplied historical-identity assertions.
 
+The shared opt-in image delivery transport now supplies that pre-consumption
+byte boundary for intercepted requests. An application-owned controlling service
+worker installs `installImageDeliveryTransport`; async recorded-output capture
+selects `imageDelivery: 'service-worker'`. A private MessagePort associates the
+worker's actual client ID with the document and native session. Before either
+HTML delivery, the host opens the native ledger and worker session. For each
+same-origin raster image request, the worker buffers the decoded entity body,
+submits it to native byte ingress, and awaits acceptance before constructing the
+browser response from those same bytes. No AST or native seal crosses realms.
+The native ledger computes its own digest and binds storage to execution
+cancellation, bounded URL/MIME metadata, 256 responses and 4 MiB total. Repeated
+intercepted requests share a session's immutable body; conflicting native ingress
+revokes. After decode, the adapter seals transport ingress, joins selected URLs
+to receipts, and publishes the usual native record. Missing receipts reject;
+there is no second-fetch fallback in this mode. `imageDeliveries` is diagnostic.
+
+Registration/activation/scope remain application-owned; absence or replacement
+of the controlling worker rejects. The shared transport allows at most 32 client
+sessions, with a maximum 30-second preparation deadline. Failure, rejection,
+abort, output invalidation or pool closure aborts pending requests and closes the
+native ledger. Subsequent intercepted image loads after sealing revoke. This
+initial profile rejects redirects, custom image request policy, SVG, cross-origin
+responses and non-200 responses. It reconstructs a response from the decoded
+entity body with raster Content-Type and no-store; encoded-wire bytes and original
+HTTP headers are not claimed as evidence.
+
+A delivery receipt proves which body this transport released. It does not prove
+that every selected img consumed that response: browser available-image caches
+can bypass interception, even across documents. The
+`image-browser-response-identity-required` blocker therefore remains until
+cache-safe consumer/request binding exists. This is distinct from the completed
+pre-delivery capture/lifetime join; complete resource history and transaction
+admission remain blocked independently.
+
 The QL WASM `CompiledStylesheetSession(artifact, consumer, indicesJson)` binds
 current retained-template consumers inside that WASM realm. The shared browser
 `captureBrowserCompiledStylesheets(document, nativeSession, styleNodes, options)`

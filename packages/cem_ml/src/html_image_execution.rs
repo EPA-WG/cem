@@ -317,3 +317,95 @@ impl ImageRecord {
         result
     }
 }
+
+/// Byte ingress from a transport that withholds its response until acceptance.
+/// This ledger is execution-local; neither an acknowledgement nor its digest is
+/// a transferable seal, and it does not prove cache-bypassed image selection.
+pub struct ImageDeliveryCapture {
+    responses: BTreeMap<String, ImageResponse>,
+    cancel: AbortSignal,
+    bytes: usize,
+    closed: bool,
+}
+impl ImageDeliveryCapture {
+    pub fn new(cancel: AbortSignal) -> Self {
+        Self {
+            responses: BTreeMap::new(),
+            cancel,
+            bytes: 0,
+            closed: false,
+        }
+    }
+    pub fn accept(&mut self, mut response: ImageResponse) -> Result<(), String> {
+        use sha2::{Digest, Sha256};
+        let result = (|| {
+            if self.closed || self.cancel.is_aborted() {
+                return Err("closed image delivery capture".into());
+            }
+            let url = url::Url::parse(&response.requested_url)
+                .map_err(|_| "absolute delivery URL required")?;
+            let mime = response
+                .content_type
+                .split(';')
+                .next()
+                .unwrap_or("")
+                .trim()
+                .to_ascii_lowercase();
+            if !matches!(url.scheme(), "http" | "https")
+                || url.fragment().is_some()
+                || response.requested_url != response.final_url
+                || response.requested_url.len() > 4096
+                || response.content_type.len() > 256
+                || response.bytes.is_empty()
+                || response.bytes.len() > 4 * 1024 * 1024
+                || !matches!(
+                    mime.as_str(),
+                    "image/png" | "image/jpeg" | "image/gif" | "image/webp" | "image/avif"
+                )
+            {
+                return Err("bounded direct raster delivery required".into());
+            }
+            if let Some(previous) = self.responses.get(&response.requested_url) {
+                if previous.bytes != response.bytes
+                    || previous.content_type != response.content_type
+                {
+                    return Err("image delivery body changed within execution".into());
+                }
+                return Ok(());
+            }
+            if self.responses.len() >= 256
+                || self.bytes.saturating_add(response.bytes.len()) > 4 * 1024 * 1024
+            {
+                return Err("image delivery budget exceeded".into());
+            }
+            response.revision = format!("{:x}", Sha256::digest(&response.bytes));
+            self.bytes += response.bytes.len();
+            self.responses
+                .insert(response.requested_url.clone(), response);
+            Ok(())
+        })();
+        if result.is_err() {
+            self.closed = true;
+            self.responses.clear();
+        }
+        result
+    }
+    /// Close byte ingress before publication; select only responses demanded by
+    /// the native plan, allowing earlier original-document loads to be unused.
+    pub fn seal(&mut self, selected: &[String]) -> Result<Vec<ImageResponse>, String> {
+        let valid = !self.closed
+            && !self.cancel.is_aborted()
+            && selected.len() <= 256
+            && selected.iter().all(|url| self.responses.contains_key(url));
+        self.closed = true;
+        let responses = std::mem::take(&mut self.responses);
+        if !valid {
+            return Err("complete live image delivery receipts required".into());
+        }
+        Ok(responses
+            .into_iter()
+            .filter(|(url, _)| selected.contains(url))
+            .map(|(_, response)| response)
+            .collect())
+    }
+}

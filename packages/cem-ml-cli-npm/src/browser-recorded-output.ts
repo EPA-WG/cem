@@ -1,3 +1,4 @@
+import { BrowserImageDelivery } from './browser-image-delivery.js';
 import { BrowserImageObservation, type ImagePredicate, type NativeImagePreparation } from './browser-images.js';
 import { BrowserDomCorrespondence, claimDocument, documentOwned, releaseDocument } from './browser-dom-correspondence.js';
 import { BrowserStylesheetObservation, type StylesheetPredicate } from './browser-stylesheet-observation.js';
@@ -22,10 +23,12 @@ export interface BrowserRecordedOutputOptions {
     readonly signal?: AbortSignal;
     /** Async capture only: exact external title, or empty to disable all titles. */
     readonly stylesheetTitle?: string;
+    /** Opt-in pre-delivery capture through an already controlling shared worker. */
+    readonly imageDelivery?: 'service-worker';
     /** Async capture's whole load deadline; 1..30,000 ms. */
     readonly timeoutMs?: number;
 }
-export interface BrowserRecordedOutputSummary { readonly blockers: readonly string[]; readonly imageAcquisitions: number; }
+export interface BrowserRecordedOutputSummary { readonly blockers: readonly string[]; readonly imageAcquisitions: number; readonly imageDeliveries: number; }
 /** The installer delivers native HTML into this document synchronously. It must
  * preserve the Document/URL and must not start unowned context or CSS mutations. */
 export type RecordedOutputInstaller = (html: string, stage: 'original' | 'composed') => void;
@@ -41,6 +44,7 @@ export class BrowserRecordedOutputHost {
     readonly #stamp: string;
     readonly #observation: BrowserStylesheetObservation;
     readonly #images: BrowserImageObservation;
+    #delivery?: BrowserImageDelivery;
     readonly #initialLoads = new Set<Element>();
     readonly #waitingLinks = new Set<Element>();
     #cancelWait?: () => void;
@@ -64,7 +68,8 @@ export class BrowserRecordedOutputHost {
     };
     constructor(document: Document, native: NativeRecordedOutputSession, options: BrowserRecordedOutputOptions) {
         const view = document.defaultView;
-        if (!view || view.document !== document || documentOwned(document) || options.ownership !== 'exclusive'
+        if ((options.imageDelivery !== undefined && options.imageDelivery !== 'service-worker')
+            || !view || view.document !== document || documentOwned(document) || options.ownership !== 'exclusive'
             || options.signal?.aborted || document.contentType !== 'text/html' || document.characterSet !== 'UTF-8'
             || !/^https?:/u.test(document.URL) || document.URL !== native.url()) throw new Error('Recorded output requires an exclusive live UTF-8 HTTP(S) document matching its native URL');
         this.#document = document; this.#view = view; this.#native = native; this.#options = options;
@@ -80,6 +85,7 @@ export class BrowserRecordedOutputHost {
         claimDocument(document, this);
     }
     capture(install: RecordedOutputInstaller): BrowserRecordedOutputSummary {
+        if (this.#options.imageDelivery) throw new Error('Image delivery capture requires async preparation');
         return this.#run(() => {
             if (this.#started) throw new Error('Recorded output already started');
             this.#started = true;
@@ -107,6 +113,14 @@ export class BrowserRecordedOutputHost {
             this.#run(() => {
                 if (this.#started || !Number.isSafeInteger(timeout) || timeout < 1 || timeout > 30_000) throw new Error('Fresh bounded asynchronous capture required');
                 this.#started = true; this.#pending = true;
+                if (this.#options.imageDelivery) this.#native.beginImageDelivery();
+            });
+            if (this.#options.imageDelivery) {
+                this.#delivery = new BrowserImageDelivery(this.#document,
+                    (url, type, bytes) => this.#run(() => this.#native.acceptImageDelivery(url, type, bytes)), this.#revoke);
+                await this.#delivery.open(deadline);
+            }
+            this.#run(() => {
                 this.#deliver(this.#native.html(), 'original', install);
                 this.#freeze();
                 const composed = this.#native.compose(this.#document.baseURI, this.#match);
@@ -142,7 +156,7 @@ export class BrowserRecordedOutputHost {
                 if (mutations.some(r => r.type !== 'attributes' || r.attributeName !== 'disabled' || r.attributeNamespace !== null
                     || !selected.some(a => a.node === r.target))) throw new Error('Unexpected selection mutation');
             });
-            await this.#images.prepare(this.#native, deadline, this.#revision);
+            await this.#images.prepare(this.#native, deadline, this.#revision, this.#delivery);
             return this.#run(() => {
                 const active = new Map<Node, CSSStyleSheet>();
                 for (const action of actions) {
@@ -221,7 +235,7 @@ export class BrowserRecordedOutputHost {
         this.#view.removeEventListener('pagehide', this.#revoke); this.#view.removeEventListener('resize', this.#revoke); this.#view.removeEventListener('orientationchange', this.#revoke);
         this.#document.removeEventListener('load', this.#load, true); this.#document.removeEventListener('error', this.#revoke, true);
         this.#options.signal?.removeEventListener('abort', this.#revoke);
-        releaseDocument(this.#document, this); this.#cancelWait?.(); this.#images.dispose(); this.#observation.dispose(); this.#initialLoads.clear();
+        this.#delivery?.dispose(); releaseDocument(this.#document, this); this.#cancelWait?.(); this.#images.dispose(); this.#observation.dispose(); this.#initialLoads.clear();
         if (!this.#busy) this.#free();
     }
     #free(): void { if (!this.#freed) { this.#freed = true; try { this.#native.close(); } finally { this.#native.free(); } } }
@@ -233,6 +247,7 @@ export class BrowserRecordedOutputHost {
         finally { this.#busy = false; if (this.#disposed) this.#free(); }
     }
     #quiet(): void {
+        this.#delivery?.validate();
         if (this.#disposed || this.#options.signal?.aborted || this.#document.defaultView?.document !== this.#document
             || this.#document.URL !== this.#url || this.#options.policy.stamp !== this.#stamp
             || this.#observer.takeRecords().length) throw new Error('Recorded document, policy or lifetime changed');
@@ -281,8 +296,9 @@ export class BrowserRecordedOutputHost {
     #summary(json: string): BrowserRecordedOutputSummary {
         const value = JSON.parse(json) as BrowserRecordedOutputSummary;
         if (!Array.isArray(value.blockers) || !value.blockers.every(b => typeof b === 'string')
+            || !Number.isInteger(value.imageDeliveries) || value.imageDeliveries < 0 || value.imageDeliveries > value.imageAcquisitions
             || !Number.isInteger(value.imageAcquisitions) || value.imageAcquisitions < 0 || value.imageAcquisitions > 256) throw new Error('Invalid native preparation diagnostic summary');
-        return Object.freeze({ blockers: Object.freeze([...value.blockers]), imageAcquisitions: value.imageAcquisitions });
+        return Object.freeze({ blockers: Object.freeze([...value.blockers]), imageAcquisitions: value.imageAcquisitions, imageDeliveries: value.imageDeliveries });
     }
 }
 /** Takes ownership of the native session, including failed construction/capture. */
