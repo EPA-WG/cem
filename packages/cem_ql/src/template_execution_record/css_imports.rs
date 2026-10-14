@@ -1,5 +1,7 @@
 //! Snapshot CSS closures bound to the roots and resolver contexts of a native execution.
 mod execution;
+mod installations;
+pub use installations::*;
 use super::{ExecutedHtmlTemplatePreparation, SnapshotTemplateExecution};
 use cem_ml::{
     css_import_snapshot::{

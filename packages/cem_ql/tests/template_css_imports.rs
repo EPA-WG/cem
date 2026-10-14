@@ -785,3 +785,145 @@ fn stylesheet_execution_joins_document_link_and_body_owners() {
         )
         .is_err());
 }
+
+struct CompiledObserver;
+impl cem_ql::stylesheet_installation::CompiledStylesheetObserver for CompiledObserver {
+    fn environment_revision(&mut self) -> Result<String, String> {
+        Ok("fixture:1".into())
+    }
+    fn observe(
+        &mut self,
+        slot: cem_ql::stylesheet_installation::CompiledStylesheetSlot<'_>,
+    ) -> Result<cem_ql::stylesheet_installation::CompiledStylesheetObservation, String> {
+        assert!(slot.css.starts_with("@scope"));
+        Ok(
+            cem_ql::stylesheet_installation::CompiledStylesheetObservation {
+                installation: slot.index as u32 + 1,
+                selected: true,
+                source_matches: true,
+            },
+        )
+    }
+}
+
+#[test]
+fn recorded_body_installations_compile_exact_scopes_and_keep_body_policy_live() {
+    use cem_ml::css_emission::CssManagedScope;
+    use cem_ql::template_execution_record::BodyStylesheetInstallation;
+    let mut f = fixture(
+        ROOT_SOURCE,
+        &CHILD_SOURCE.replace(" layer(base)", ""),
+        false,
+    );
+    let css = Arc::new(capture(&mut f, css_sources(), Default::default()).unwrap());
+    let choices: Vec<_> = f
+        .execution
+        .bodies()
+        .bodies
+        .iter()
+        .flat_map(|body| {
+            body.stylesheets
+                .iter()
+                .enumerate()
+                .map(|(index, _)| BodyStylesheetInstallation {
+                    body_uri: body.uri.clone(),
+                    index,
+                    scope: CssManagedScope::Private {
+                        tag: "cem-card".into(),
+                        context: None,
+                    },
+                })
+        })
+        .collect();
+    assert!(css.compile_installations(&choices[..1], 100000).is_err());
+    assert!(css.compile_installations(&choices, 1).is_err());
+    let mut choices = choices;
+    choices.swap(0, 1);
+    assert!(css.compile_installations(&choices, 100000).is_err());
+    choices.swap(0, 1);
+    let compiled = css.compile_installations(&choices, 100000).unwrap();
+    let mut host = cem_ql::stylesheet_installation::CompiledStylesheetHost::default();
+    let evidence = compiled
+        .capture(&mut host, &mut CompiledObserver, 100000)
+        .unwrap();
+    evidence.validate(&mut host, &mut CompiledObserver).unwrap();
+    assert!(evidence
+        .blockers()
+        .iter()
+        .any(|b| b == "atomic-host-transaction-required"));
+    assert_eq!(compiled.len(), 2);
+    assert!(compiled
+        .css(0)
+        .unwrap()
+        .contains("https://templates.test/root.svg"));
+    assert!(compiled.css(1).unwrap().contains("@supports"));
+    assert!(compiled.css(1).unwrap().contains("@scope"));
+    f.revision.store(1, Ordering::SeqCst);
+    assert!(compiled.css(0).is_err());
+    assert!(evidence.validate(&mut host, &mut CompiledObserver).is_err());
+    f.revision.store(0, Ordering::SeqCst);
+    assert!(compiled.css(0).is_err());
+}
+
+#[test]
+fn suppressed_body_emission_never_becomes_installation_evidence() {
+    use cem_ml::css_emission::CssManagedScope;
+    let mut f = fixture(ROOT_SOURCE, CHILD_SOURCE, false);
+    let css = Arc::new(capture(&mut f, css_sources(), Default::default()).unwrap());
+    let choices: Vec<_> = f
+        .execution
+        .bodies()
+        .bodies
+        .iter()
+        .flat_map(|body| {
+            body.stylesheets
+                .iter()
+                .enumerate()
+                .map(|(index, _)| BodyStylesheetInstallation {
+                    body_uri: body.uri.clone(),
+                    index,
+                    scope: CssManagedScope::Private {
+                        tag: "cem-card".into(),
+                        context: None,
+                    },
+                })
+        })
+        .collect();
+    assert!(css
+        .compile_installations(&choices, 100000)
+        .err()
+        .unwrap()
+        .contains("layer_unsupported"));
+}
+
+#[test]
+fn empty_body_installations_bind_policy_and_explicit_release() {
+    let root = ROOT_SOURCE
+        .lines()
+        .skip(1)
+        .collect::<Vec<_>>()
+        .join("\n")
+        .replace(" @style='background:url(./document.svg)'", "");
+    let child = CHILD_SOURCE.lines().skip(1).collect::<Vec<_>>().join("\n");
+    let mut f = fixture(&root, &child, false);
+    let sources = CssSourceSnapshot::new(vec![], Default::default()).unwrap();
+    let css = Arc::new(capture(&mut f, sources, Default::default()).unwrap());
+    let compiled = css.compile_installations(&[], 0).unwrap();
+    assert!(compiled.is_empty());
+    let mut host = cem_ql::stylesheet_installation::CompiledStylesheetHost::default();
+    let evidence = compiled
+        .capture(&mut host, &mut CompiledObserver, 0)
+        .unwrap();
+    evidence.validate(&mut host, &mut CompiledObserver).unwrap();
+    let released = css.compile_installations(&[], 0).unwrap();
+    released.release();
+    assert!(released
+        .capture(&mut Default::default(), &mut CompiledObserver, 0)
+        .is_err());
+    f.revision.store(1, Ordering::SeqCst);
+    assert!(evidence.validate(&mut host, &mut CompiledObserver).is_err());
+    f.revision.store(0, Ordering::SeqCst);
+    assert!(compiled
+        .capture(&mut host, &mut CompiledObserver, 0)
+        .is_err());
+}

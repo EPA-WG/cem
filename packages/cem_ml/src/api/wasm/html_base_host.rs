@@ -7,7 +7,7 @@ use js_sys::{Array, Function};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen(js_name = "HtmlBaseExecutionHost")]
-pub struct WasmHtmlBaseExecutionHost(HtmlBaseExecutionHost);
+pub struct WasmHtmlBaseExecutionHost(pub(super) HtmlBaseExecutionHost);
 
 #[wasm_bindgen(js_class = "HtmlBaseExecutionHost")]
 impl WasmHtmlBaseExecutionHost {
@@ -116,7 +116,7 @@ fn error(message: impl AsRef<str>) -> JsValue {
     JsValue::from_str(message.as_ref())
 }
 
-fn match_slot(matches: &Function, slot: HtmlBaseDomSlot<'_>) -> Result<u32, String> {
+pub(super) fn match_slot(matches: &Function, slot: HtmlBaseDomSlot<'_>) -> Result<u32, String> {
     let node = slot.node;
     let kind = match node.kind {
         CemTreeNodeKind::Document => 9,

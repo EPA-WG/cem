@@ -18,6 +18,12 @@ const temporaryRoot = mkdtempSync(resolve(tmpdir(), 'cem-ml-browser-worker-'));
 const bundleRoot = resolve(temporaryRoot, 'bundle');
 let browser;
 let server;
+let inactiveCssReleased = false;
+const pendingInactiveCss = new Set();
+const sendInactiveCss = response => {
+    response.writeHead(200, { 'content-type': 'text/css; charset=utf-8' });
+    response.end('@import "grand.css"; p{color:blue}');
+};
 
 try {
     await build({
@@ -42,8 +48,62 @@ try {
         },
     });
 
+    let selectionMode = 'normal';
+    const pendingSelection = new Set();
+    const sendNight = response => { response.writeHead(200, { 'content-type': 'text/css; charset=utf-8', 'cache-control': 'no-store' }); response.end('p{color:rgb(40,30,20)}'); };
     server = createServer((request, response) => {
         const pathname = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
+        if (pathname === '/docs/browser-stylesheets.html') {
+            response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+            response.end(`<!doctype html>${readFileSync(resolve(workspaceRoot, 'packages/cem_ml/tests/fixtures/browser-stylesheets.xhtml'), 'utf8').trim()}`);
+            return;
+        }
+        if (['selection', 'active', 'inactive', 'missing', 'omitted'].some(kind => pathname === `/docs/browser-stylesheet-${kind}.html`)) {
+            const kind = pathname.split('-').at(-1).replace('.html', '');
+            const source = readFileSync(resolve(workspaceRoot, `packages/cem_ml/tests/fixtures/browser-stylesheet-${['selection', 'active'].includes(kind) ? kind : 'inactive'}.xhtml`), 'utf8').trim();
+            response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+            response.end(`<!doctype html>${kind === 'missing' ? source.replace(' print;', ' screen;').replace('unloaded.css', 'missing.css') : kind === 'omitted' ? source.replace('print;', 'supports(display: cem-unimplemented);') : source}`);
+            return;
+        }
+        if (pathname === '/styles/unloaded.css') {
+            if (inactiveCssReleased) sendInactiveCss(response);
+            else pendingInactiveCss.add(response);
+            return;
+        }
+        if (pathname === '/release-inactive-css') {
+            inactiveCssReleased = true;
+            for (const pending of pendingInactiveCss) sendInactiveCss(pending);
+            pendingInactiveCss.clear();
+            response.writeHead(204).end();
+            return;
+        }
+        if (pathname === '/styles/grand.css') {
+            response.writeHead(200, { 'content-type': 'text/css; charset=utf-8' });
+            response.end('p{border-style:solid}');
+            return;
+        }
+        if (pathname === '/selection-mode') {
+            selectionMode = new URL(request.url, 'http://localhost').searchParams.get('mode');
+            if (selectionMode === 'normal') { for (const pending of pendingSelection) sendNight(pending); pendingSelection.clear(); }
+            response.writeHead(204).end(); return;
+        }
+        if (pathname === '/styles/night.css') {
+            if (selectionMode === 'slow') { pendingSelection.add(response); response.on('close', () => pendingSelection.delete(response)); }
+            else if (selectionMode === 'error') response.writeHead(500, { 'cache-control': 'no-store' }).end();
+            else if (selectionMode === 'changed') response.writeHead(200, { 'content-type': 'text/css', 'cache-control': 'no-store' }).end('p{color:red}');
+            else sendNight(response);
+            return;
+        }
+        if (pathname === '/styles/day.css' || pathname === '/styles/night-extra.css') {
+            response.writeHead(200, { 'content-type': 'text/css; charset=utf-8', 'cache-control': 'no-store' });
+            response.end(pathname.endsWith('/day.css') ? 'p{color:rgb(20,30,40)}' : '@import "grand.css" screen; p{background-color:rgb(4,5,6)}');
+            return;
+        }
+        if (pathname === '/styles/theme.css' || pathname === '/styles/child.css') {
+            response.writeHead(200, { 'content-type': 'text/css; charset=utf-8' });
+            response.end(pathname.endsWith('/theme.css') ? '@import "child.css" supports(display: grid) screen and (min-width: 200px); p{background-color:rgb(4,5,6)}' : 'p{border-style:solid}');
+            return;
+        }
         if (pathname === '/a/html-base-host.html') {
             response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
             response.end(`<!doctype html>${readFileSync(resolve(workspaceRoot, 'packages/cem_ml/tests/fixtures/html-base-host.xhtml'), 'utf8').trim()}`);
@@ -293,6 +353,17 @@ try {
     const htmlBase = await verifyHtmlBaseParity(browser, workspaceRoot);
     const stylesheetSvg = await verifyStylesheetSvg(browser, workspaceRoot);
     const htmlBaseFreeze = await verifyHtmlBaseFreezeEvidence(browser, workspaceRoot);
+    const browserStylesheets = await page.evaluate((version) => globalThis.runBrowserStylesheetsFixture(version), browser.version());
+    assert.equal(browserStylesheets.cases.length, 18);
+    console.log(`Verified ${browserStylesheets.cases.length} shared browser stylesheet host cases.`);
+    const compiledStylesheets = await page.evaluate(() => globalThis.runCompiledStylesheetsFixture());
+    assert.equal(compiledStylesheets.cases.length, 20);
+    const stylesheetSelection = await page.evaluate((version) => globalThis.runStylesheetSelectionFixture(version), browser.version());
+    assert.equal(stylesheetSelection.cases.length, 9);
+    const activeStylesheets = await page.evaluate((version) => globalThis.runActiveStylesheetFixture(version), browser.version());
+    assert.equal(activeStylesheets.cases.length, 19);
+    console.log(`Verified ${activeStylesheets.cases.length} active stylesheet transition cases.`);
+    console.log(`Verified ${compiledStylesheets.cases.length} compiled installation and ${stylesheetSelection.cases.length} selection cases.`);
     const htmlBaseHost = await page.evaluate((version) => globalThis.runHtmlBaseHostFixture(version), browser.version());
     assert.equal(htmlBaseHost.cases.length, 18);
     const htmlExecutionInventory = await emitNativeHtmlBaseEvidence(workspaceRoot, '--verify-execution-inventory', [htmlBaseHost.inventoryObservation]);
@@ -316,6 +387,10 @@ try {
                 htmlBaseHost,
                 htmlExecutionInventory,
                 stylesheetSvg,
+                browserStylesheets,
+                compiledStylesheets,
+                stylesheetSelection,
+                activeStylesheets,
             },
             null,
             2,

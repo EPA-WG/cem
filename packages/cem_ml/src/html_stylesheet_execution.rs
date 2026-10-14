@@ -37,7 +37,11 @@ impl HtmlExecutionCssImports {
                     } else {
                         String::new()
                     },
-                    title: get("title"),
+                    title: if sheet.owner == sheet.source_node {
+                        get("title")
+                    } else {
+                        String::new()
+                    },
                     disabled: false,
                     alternate: false,
                 }

@@ -2,7 +2,7 @@
 //! Scalar execution supports a shared context or recorded lexical body contexts.
 //! Runtime reads and arbitrary native calls remain outside these profiles.
 mod css_imports;
-pub use css_imports::{ExecutedTemplateCssImports, ExecutedTemplateStylesheets, TemplateBodyCssImports};
+pub use css_imports::{BodyStylesheetInstallation, RecordedBodyStylesheetInstallations, RecordedBodyStylesheetEvidence, ExecutedTemplateCssImports, ExecutedTemplateStylesheets, TemplateBodyCssImports};
 
 use crate::{
     dependency_inspection::ResourceUseKind,

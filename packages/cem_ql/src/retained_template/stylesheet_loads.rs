@@ -178,9 +178,9 @@ impl RetainedTemplate {
             return Err("stylesheet failure control exceeds byte limit".into());
         }
         let load = self.loads.get_mut(&id).unwrap();
-        if let Err(error) = load
-            .closure
-            .fail_import(request_id, "cem.css.import_load_failed", message)
+        if let Err(error) =
+            load.closure
+                .fail_import(request_id, "cem.css.import_load_failed", message)
         {
             self.cancel_stylesheet_load(id);
             return Err(error.into());
@@ -201,6 +201,9 @@ impl RetainedTemplate {
         self.stylesheet_generations.remove(&slot);
         self.cancel_stylesheet_load(id);
         self.consumers.remove(&slot);
+        if let Some(lease) = self.consumer_leases.remove(&slot) {
+            lease.abort();
+        }
         self.prune();
         1
     }

@@ -258,3 +258,5 @@ mod tests {
         ) -> Result<CompiledQuery, LoadError> = load;
     }
 }
+
+pub mod stylesheet_installation;

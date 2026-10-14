@@ -3650,8 +3650,10 @@ recorded body capabilities and stylesheet scopes, including unused declarations
 whose inactive status must be observed. Original candidate blockers remain intact;
 only the combined result clears stylesheet/import-condition history requirements.
 Runtime loads and atomic edit admission remain blocked. These native APIs record
-host observations; they neither install CSS nor provide the production browser
-mutation/lifecycle adapter. That adapter is the next integration step.
+host observations without installing CSS. The bounded shared browser
+mutation/lifecycle adapter and the separate compiled-installation contract are
+specified below. Flattened compiled imports have one installation per output sheet,
+so they must not be reported as independently installed source imports.
 
 The shared Chromium fixture supplies actual CSSOM/load observations for five
 inline/link/import occurrences, including a disabled alternate root. It verifies
@@ -3691,3 +3693,192 @@ confirms shared native import/loading services, bounded inputs and explicit sour
 and execution ownership. UI behavior, accessibility, public theme tokens and
 inherited overrides are unaffected. Theme/forced-color checks are inapplicable;
 physical device/AT acceptance remains independently open.
+
+### Shared browser stylesheet observation host
+
+`BrowserHtmlBaseHost.captureStylesheets(responses, { ownership: 'exclusive' })`
+now creates a `BrowserStylesheetHost` over the confirmed native HTML execution.
+`BrowserWorkerPool.captureStylesheets(html, responses, options)` additionally
+binds that host to the pool's lifetime and worker generations. The native
+`HtmlStylesheetSession` retains its HTML CSS preparation, immutable acquisitions,
+policy capability and sealed execution evidence. Native DOM predicates run before
+and after stylesheet observations. JSON response input is an explicit acquisition
+control boundary; the returned occurrence count and blockers are diagnostics.
+Neither carries an AST, execution proof or edit grant between workers.
+
+The current HTML profile covers document style elements, style attributes,
+external links and readable loaded imports. Titled sets require explicit disabling
+or the controlled external-link activation described below; inactive unloaded
+imports use the bounded extension described below. Source-probe text comes from retained
+native document values or exact acquired responses. For each occurrence the
+adapter compares actual CSSOM with the browser's parsing of that native-owned
+text in an inactive document, checks final link/import URLs and native import
+order, and records stable CSSOM identities. A supplied source fingerprint or
+refetch alone cannot pass this comparison. Media queries and import supports
+conditions use the browser engine. Root selection uses actual disabled state;
+import selection includes its parent's selection and conditions. Every document
+stylesheet must have a recorded installation.
+
+`change(callback)` invalidates before a synchronous CSSOM, selection or controlled
+environment write, including same-value and change-and-restore operations.
+`read()` requires a current capture and synchronously rechecks native ownership,
+DOM correspondence, stylesheet identities, source correspondence and conditions.
+A controlled change permits a new capture over matching sources; a failed
+comparison or reentrant/asynchronous callback disposes the session. DOM, history
+and base-policy changes use the owning HTML host's `changeContext` and require
+fresh HTML preparation. Load/error, resize/orientation and media-query events
+invalidate pending evidence; page hide, abort and disposal end the session.
+Listeners and comparison sheets are removed on disposal. Uncontrolled synchronous
+CSSOM/environment A-B-A is outside the exclusive-writer contract; MutationObserver
+and event listeners cannot reconstruct it.
+
+Pool close, error, invalid messages and replacement invalidate attached evidence
+before later worker results can publish. Failed/replacing generations cannot
+create fresh sessions; successful replacement restores admission only once all
+unavailable generations have been replaced. The DOM and native evidence stay on
+the main thread. A diagnostic summary cannot be consumed as a worker-local seal.
+
+Bounds cover 256 sheet/response occurrences, depth 16, 65,536 native root nodes,
+4 MiB of native response/source text and bounded CSSOM comparison work. Native
+CSS decoding evidence must identify UTF-8. Unreadable cross-origin CSSOM, unloaded
+root sheets, active unloaded imports and shadow/adopted sheets reject this profile.
+There is no fallback to source-only evidence or network acquisition. Compiled CEM
+output uses its own native consumer and installation contract below.
+
+The packaged Chromium fixture exercises real inline/link/import application,
+CSSOM mismatch, acquisition mismatch/missing responses, controlled A-B-A,
+disable/restore, load/error, real media transitions, unowned DOM/media changes,
+HTML invalidation, reentry, asynchronous callbacks, abort, pool close and forced
+worker replacement. Runtime inner-rule/computed CSS/SVG resources and responsive
+image acquisition remain explicit blockers, as does atomic host transaction
+admission. CEM review: native semantic/source ownership and shared bounded host
+capabilities are preserved; application/component UI behavior, public tokens,
+inherited styles and accessibility are unchanged.
+
+
+### Compiled template and body stylesheet installations
+
+`RetainedTemplate::stylesheet_installations(consumer, indices)` captures native
+compiled output and the exact leases for its consumer occurrences. The resulting
+`CompiledStylesheetSet` retains source closures, native scope/context identity and
+emission fragments. Replacing or releasing a consumer invalidates its leases even
+when another consumer keeps the cached output alive. Each lease retains its own
+incoming closure, so shared cached output cannot hide source cancellation or policy
+changes in another consumer. Owner disposal also revokes those occurrence leases. Staging a pending load leaves the currently committed emission live;
+successful replacement changes the lease. Scope admission continues through the
+existing private/shared/instance validation, including authored shared names and
+native context markers. Any emission diagnostic rejects installation evidence:
+suppressed layered imports or declarations cannot certify a complete emission.
+
+`ExecutedTemplateCssImports::compile_installations` binds every recorded body
+stylesheet to its exact captured import closure, lexical capability and source
+snapshot, using the same native emitter. Choices must cover all recorded bodies
+and their stylesheet occurrences in order, and declare an admitted managed scope.
+No body/CSS tree is serialized or reparsed. Bodies with no stylesheets still retain
+their policy lifetime. The returned `RecordedBodyStylesheetInstallations` supports
+bounded emitted text access, explicit release and sealed observation capture;
+`RecordedBodyStylesheetEvidence::validate` checks all retained policies before
+and after installation callbacks. HTML document/link observations remain a separate
+requirement; this source binding does not certify the entire rendered DOM.
+
+`CompiledStylesheetHost` compares exact native emissions against trusted host
+observations. Every occurrence must have a distinct nonzero installation identity
+and successful source comparison. Capture takes two consistent passes; later
+reads revalidate consumer leases, source policies, selection and environment.
+Mismatches, callback failure and controlled invalidation permanently stale the
+old evidence. Native emission byte and occurrence limits apply before comparison
+text allocation. Imported rules flattened into an output sheet share that one
+real installation; the observer must not fabricate an installation for each
+original import. Inner supports/media/scope applicability and computed resource
+loads retain explicit runtime blockers.
+
+The QL WASM `CompiledStylesheetSession(artifact, consumer, indicesJson)` binds
+current retained-template consumers inside that WASM realm. The shared browser
+`captureBrowserCompiledStylesheets(document, nativeSession, styleNodes, options)`
+accepts this opaque owner and the exact ordered installed HTML style elements.
+`pool.captureCompiledStylesheets(...)` adds pool lifecycle revocation. Both factory
+forms take ownership of the session, including disposal on failed capture. A CSS
+string, serialized artifact or worker response cannot replace the native lease.
+The compiled observer remains local to the realm holding the QL owner; it does not
+transfer worker-resident preparation evidence or reconstruct recorded bodies from
+worker metadata. The recorded-body API above is currently a native integration
+surface, while the browser bridge consumes retained-template artifact handles.
+
+The browser compares installed CSSOM against the browser's inactive parsing of
+native emitted text. It requires readable native `@scope`, exact style/sheet/parent
+identity, light DOM, and untitled style nodes without outer media. Native managed
+scope text must match. The passed list describes the compiled set, not the entire
+document stylesheet universe. Controlled CSSOM/selection writes use `change` and
+require a fresh `capture`; `read`, `dispose`, abort, page hide, DOM mutation,
+load/error, viewport changes and pool lifetime follow the same fail-closed rules
+as HTML observations. Actual CSSOM mismatch or replacement ends the session.
+Exclusive ownership is required to cover synchronous CSSOM A-B-A. No generated
+component behavior, app-local parser or stylesheet installer is added.
+
+### Explicit stylesheet sets and inactive imports
+
+HTML observation accepts `{ titledSets: 'disabled' }` to establish inactive
+preferred/alternate sets through actual `CSSStyleSheet.disabled` writes. Untitled
+persistent sheets retain their selection. `host.disableTitled()` invalidates before
+writing, including same-value calls, and requires a fresh capture. Native metadata,
+actual titles and disabled state must agree; unowned enablement rejects consumption.
+
+Active external titled sets use the asynchronous
+`html.selectStylesheets(nativeDocument, policy, responses, title, options)` API,
+or its `pool.selectStylesheets(html, ...)` counterpart. `options` requires exclusive
+ownership and accepts an abort signal and a 1–30,000 ms load deadline (10,000 ms
+default). An empty title disables all titled roots. Native selection matches titles
+exactly, leaves persistent sheets alone, and never enables authored-disabled roots.
+Active inline titled styles and initially unloaded roots remain outside this bounded
+profile. The whole selected set must be supported before any writes begin.
+
+An alternate can expose `disabled === false` while its rules remain inactive.
+Flipping only CSSOM flags does not activate it. The
+[CSSOM model](https://drafts.csswg.org/cssom/) also distinguishes a disabled flag
+from whether a sheet applies. The controlled transition instead toggles each selected
+link element's disabled state, establishing explicit enablement and waiting for a
+trusted load event with a fresh enabled stylesheet installation. Every selected link
+must finish. Synthetic load events, errors, timeout, abort, disposal or worker-pool
+lifetime termination cannot complete a transition. Other titled roots are explicitly
+disabled; persistent sheets keep their existing selection.
+
+Before those writes the host disposes prior CSS evidence and invalidates HTML
+capture, including same-title and A-B-A transitions. During loading, reads,
+captures and competing changes reject; unowned DOM mutations revoke the host.
+After loading, the host performs a fresh HTML base freeze and full native/DOM
+correspondence check. Native rebinding requires the same retained tree, response
+snapshot, HTML host, effective/fallback base and policy, with a strictly newer
+HTML epoch. It then verifies each loaded root/import against native-owned source
+and actual CSSOM. The private activation receipt binds the selected DOM nodes to
+those loaded stylesheet objects; a title string or diagnostic summary cannot
+substitute for it. Any subsequent observed load, CSSOM or environment change
+invalidates the receipt and requires another controlled selection. Failure revokes
+the HTML session; recovery requires a new host and capture. These observations are
+current execution evidence, not historical network provenance or edit authority.
+
+An imported sheet with an actually null `CSSImportRule.styleSheet` can be observed
+as unloaded only when its effective parent selection or browser-evaluated
+conditions are inactive. Its unloaded descendants remain explicit observations;
+expected grammar comes from browser parsing of native-owned CSS. Every source
+still needs its immutable acquisition snapshot, even when the browser did not
+fetch it. Missing active imports reject, and unloaded root links remain unsupported.
+A later load, condition or selection change invalidates and requires a new capture.
+Imports omitted by browser CSSOM, including unsupported `supports()` imports in
+Chromium, reject observation rather than being guessed as absent loads.
+
+Chromium fixtures cover computed private/shared/instance scoping, flattened
+imports, CSSOM/source tampering, replacement, selection, independent consumer
+release, callback release, disposal and pool close. Additional fixtures exercise
+explicit preferred/alternate disabling, same-value invalidation, unowned enablement,
+the inactive alternate with a false disabled flag, a pending inactive-media
+import with a null stylesheet and its unloaded descendant, its later real load,
+a missing active import, and a CSSOM-omitted unsupported import. Active-transition
+fixtures verify actual multi-link/import application, repeated and A-B-A selection,
+pending read exclusion, synthetic events, failure/timeout/cancellation, DOM/policy/source
+drift, foreign native owners, pool close and worker replacement during loading. Native fixtures
+cover complete and empty body policy ownership, emission diagnostics, source/order/byte
+bounds and stale evidence. These observations keep
+runtime resource closure, whole-output correspondence and atomic edit admission
+requirements intact. CEM review confirms shared native authority and bounded
+capabilities, with no changes to UI semantics, public tokens, inherited overrides,
+accessibility or theme ownership; forced-color checks are inapplicable here.

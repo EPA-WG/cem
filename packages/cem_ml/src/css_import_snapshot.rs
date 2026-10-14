@@ -125,7 +125,7 @@ pub struct CssSnapshotAcquisition {
 /// Only successful snapshot capture constructs this record. The root is retained
 /// from its caller's execution/source owner; imported revisions come from snapshot.
 pub struct SnapshotCssImportClosure {
-    closure: CssImportClosure,
+    closure: Arc<CssImportClosure>,
     snapshot: Arc<CssSourceSnapshot>,
     capability: CemModuleUrlResolutionCapability,
     acquisitions: Vec<CssSnapshotAcquisition>,
@@ -133,6 +133,11 @@ pub struct SnapshotCssImportClosure {
 }
 impl SnapshotCssImportClosure {
     pub fn closure(&self) -> &CssImportClosure {
+        &self.closure
+    }
+    /// Exact ready closure owner for native compilation; cloning this Arc does
+    /// not reconstruct sources or waive snapshot/policy validation.
+    pub fn closure_owner(&self) -> &Arc<CssImportClosure> {
         &self.closure
     }
     pub fn acquisitions(&self) -> &[CssSnapshotAcquisition] {
@@ -253,7 +258,7 @@ pub fn capture_css_import_snapshot(
         blockers.push("css-resource-resolution-incomplete".into());
     }
     let result = SnapshotCssImportClosure {
-        closure,
+        closure: Arc::new(closure),
         snapshot,
         capability: capability.clone(),
         acquisitions,

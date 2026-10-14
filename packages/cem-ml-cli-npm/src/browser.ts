@@ -1,8 +1,15 @@
+import { captureBrowserCompiledStylesheets, type NativeCompiledStylesheetSession, type BrowserCompiledStylesheetHost } from './browser-compiled-stylesheets.js';
+export { BrowserCompiledStylesheetHost, captureBrowserCompiledStylesheets } from './browser-compiled-stylesheets.js';
+export type { NativeCompiledStylesheetSession } from './browser-compiled-stylesheets.js';
 import * as runtime from '@epa-wg/cem-ml/wasm';
 import runtimeMetadata from '@epa-wg/cem-ml/runtime.json' with { type: 'json' };
 
 export { BrowserHtmlBaseHost, createBrowserHtmlBaseHost } from './browser-html-base.js';
 export type { BrowserHtmlBaseOptions, BrowserHtmlBasePolicy } from './browser-html-base.js';
+import type { BrowserHtmlBaseHost, BrowserHtmlBasePolicy } from './browser-html-base.js';
+import type { BrowserStylesheetHost, BrowserStylesheetResponse, BrowserStylesheetOptions, BrowserStylesheetSelectionOptions } from './browser-stylesheets.js';
+export { BrowserStylesheetHost } from './browser-stylesheets.js';
+export type { BrowserStylesheetResponse, BrowserStylesheetOptions, BrowserStylesheetSelectionOptions, BrowserStylesheetSummary } from './browser-stylesheets.js';
 
 import {
     CemMlOperationHandle,
@@ -187,6 +194,8 @@ export class BrowserWorkerPool {
     #controller: OperationHostController;
     #mainWorkerAddress: WorkerAddress;
     #closing = false;
+    #stylesheetLifetime = new AbortController();
+    readonly #unavailableStylesheetWorkers = new Set<string>();
     #startupTimeoutMs: number;
     #runtimeHostId: string;
     #abiIdentity: string;
@@ -220,6 +229,7 @@ export class BrowserWorkerPool {
             });
             record.worker.addEventListener('error', (event) => {
                 if (!this.#closing) {
+                    this.#invalidateStylesheets(record.descriptor);
                     rejectPending(record, new Error(event.message || 'CEM-ML browser worker failed'));
                     onWorkerFailure?.({
                         worker: record.descriptor,
@@ -230,6 +240,7 @@ export class BrowserWorkerPool {
             });
             record.worker.addEventListener('messageerror', () => {
                 if (!this.#closing) {
+                    this.#invalidateStylesheets(record.descriptor);
                     rejectPending(record, new Error('CEM-ML browser worker emitted an invalid message'));
                     onWorkerFailure?.({
                         worker: record.descriptor,
@@ -298,9 +309,39 @@ export class BrowserWorkerPool {
         return this.#controller.start(request);
     }
 
+    /** DOM evidence stays on the main thread; every pool generation transition,
+     * failure and close revokes sessions before further worker work can publish. */
+    captureStylesheets(html: BrowserHtmlBaseHost, responses: readonly BrowserStylesheetResponse[], options: BrowserStylesheetOptions): BrowserStylesheetHost {
+        if (this.#closing || this.#stylesheetLifetime.signal.aborted) throw new Error('Browser worker pool stylesheet lifetime is unavailable');
+        const signal = options.signal ? AbortSignal.any([options.signal, this.#stylesheetLifetime.signal]) : this.#stylesheetLifetime.signal;
+        return html.captureStylesheets(responses, { ...options, signal });
+    }
+    selectStylesheets(html: BrowserHtmlBaseHost, nativeDocument: number, policy: BrowserHtmlBasePolicy, responses: readonly BrowserStylesheetResponse[], title: string, options: BrowserStylesheetSelectionOptions): Promise<BrowserStylesheetHost> {
+        if (this.#closing || this.#stylesheetLifetime.signal.aborted) throw new Error('Browser worker pool stylesheet lifetime is unavailable');
+        const signal = options.signal ? AbortSignal.any([options.signal, this.#stylesheetLifetime.signal]) : this.#stylesheetLifetime.signal;
+        return html.selectStylesheets(nativeDocument, policy, responses, title, { ...options, signal });
+    }
+    captureCompiledStylesheets(document: Document, native: NativeCompiledStylesheetSession, nodes: readonly HTMLStyleElement[], options: BrowserStylesheetOptions): BrowserCompiledStylesheetHost {
+        if (this.#closing || this.#stylesheetLifetime.signal.aborted) {
+            native.free();
+            throw new Error('Browser worker pool stylesheet lifetime is unavailable');
+        }
+        const signal = options.signal ? AbortSignal.any([options.signal, this.#stylesheetLifetime.signal]) : this.#stylesheetLifetime.signal;
+        return captureBrowserCompiledStylesheets(document, native, nodes, { ...options, signal });
+    }
+    #invalidateStylesheets(worker?: WorkerAddress): void {
+        if (worker) this.#unavailableStylesheetWorkers.add(`${worker.slot}:${worker.generation}`);
+        this.#stylesheetLifetime.abort();
+    }
+    #restoreStylesheetLifetime(previous: WorkerAddress): void {
+        this.#unavailableStylesheetWorkers.delete(`${previous.slot}:${previous.generation}`);
+        if (!this.#closing && this.#unavailableStylesheetWorkers.size === 0) this.#stylesheetLifetime = new AbortController();
+    }
+
     async close(): Promise<void> {
         if (this.#closing) return;
         this.#closing = true;
+        this.#invalidateStylesheets();
         this.#controller.close();
         for (const record of this.#records) {
             record.worker.postMessage({ type: 'cem-worker-close' });
@@ -410,13 +451,16 @@ export class BrowserWorkerPool {
             record.pending.delete(key);
             pending.resolve(result);
         } catch (error) {
+            this.#invalidateStylesheets(record.descriptor);
             rejectPending(record, error instanceof Error ? error : new Error(String(error)));
         }
     }
 
     async #replacePhysicalWorker(previous: WorkerAddress, replacement: WorkerAddress): Promise<void> {
+        this.#invalidateStylesheets(previous);
         if (this.#records.length === 0) {
             this.#mainWorkerAddress = replacement;
+            this.#restoreStylesheetLifetime(previous);
             return;
         }
         const index = this.#records.findIndex(({ descriptor }) => sameWorker(descriptor, previous));
@@ -437,6 +481,7 @@ export class BrowserWorkerPool {
         });
         next.worker.addEventListener('error', (event) => {
             if (!this.#closing) {
+                this.#invalidateStylesheets(next.descriptor);
                 rejectPending(next, new Error(event.message || 'CEM-ML browser worker failed'));
                 this.#onWorkerFailure?.({
                     worker: next.descriptor,
@@ -447,6 +492,7 @@ export class BrowserWorkerPool {
         });
         next.worker.addEventListener('messageerror', () => {
             if (!this.#closing) {
+                this.#invalidateStylesheets(next.descriptor);
                 rejectPending(next, new Error('CEM-ML browser worker emitted an invalid message'));
                 this.#onWorkerFailure?.({
                     worker: next.descriptor,
@@ -456,6 +502,7 @@ export class BrowserWorkerPool {
             }
         });
         (this.#records as WorkerRecord[])[index] = next;
+        this.#restoreStylesheetLifetime(previous);
     }
 }
 

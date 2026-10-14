@@ -242,3 +242,53 @@ The uncached Nx `sign` target verifies and records a supplied
 `CEM_ML_GITHUB_ATTESTATION_BUNDLE`; `CEM_ML_RELEASE_SIGNING=required` turns a
 missing bundle into a hard release failure. Unsigned development packages
 remain explicitly non-publishable.
+
+
+### Native stylesheet observations
+
+After `createBrowserHtmlBaseHost` and a successful native HTML `capture`, use
+`html.captureStylesheets(responses, { ownership: 'exclusive' })` or
+`pool.captureStylesheets(html, responses, { ownership: 'exclusive', signal })`.
+Each response supplies `requestedUrl`, `finalUrl`, `revision`, `contentType` and
+UTF-8 `text` from the immutable acquisition snapshot. The adapter verifies actual
+CSSOM/source correspondence and import order; capture itself does not fetch or install CSS.
+
+The returned host supports `read()`, synchronous `change(() => { ... })`, fresh
+`capture()` and `dispose()`. All CSSOM/selection/environment writes must use the
+exclusive change boundary; DOM/base/history changes use the HTML host's
+`changeContext`. Pool close, failure and generation replacement revoke attached
+sessions. Summaries contain occurrence counts and remaining blockers, not an
+edit grant or transferable native evidence.
+
+The bounded HTML profile admits style elements/attributes and loaded external
+sheets with readable CSSOM. For inactive titled/alternate sets supply
+`titledSets: 'disabled'`; subsequent `host.disableTitled()` invalidates and requires
+fresh `capture()`. For active external titled sets, use
+`await html.selectStylesheets(nativeDocument, policy, responses, 'Night',
+{ ownership: 'exclusive', signal, timeoutMs: 10000 })`, or
+`pool.selectStylesheets(html, nativeDocument, policy, responses, 'Night', options)`.
+An empty title disables all titled sets. The native title plan preserves persistent
+and authored-disabled sheets; selected inline titled styles remain unsupported.
+The host invalidates before explicitly reloading selected links, waits for trusted
+loads, then recaptures HTML and verifies actual installations against the same native
+source and policy. Chromium's `disabled=false` alone cannot prove activation.
+Pending reads/changes reject. Load errors, timeout, abort, DOM/source/policy drift
+and lifetime termination revoke the transition. Repeated selections create fresh
+evidence; later observed CSS/environment changes require another selection.
+Actually unloaded imports are admitted
+only under inactive selection/conditions, with all source snapshots still required.
+Active unloaded imports, unloaded roots and shadow/adopted sheets reject capture.
+
+For compiled native CEM output, pass the QL WASM realm's opaque
+`new CompiledStylesheetSession(artifact, consumer, '[0]')` and ordered installed
+style nodes to `captureBrowserCompiledStylesheets(document, native, nodes, options)`
+or `pool.captureCompiledStylesheets(document, native, nodes, options)`. These
+factories own and dispose the session, including on failure. The same
+`read/change/capture/dispose` lifecycle applies. Consumer release/replacement,
+source or CSSOM mismatch, and installation replacement invalidate evidence.
+Compiled imports form one real installation per output stylesheet. Inner
+conditions, whole-output correspondence and runtime loads retain their blockers;
+worker result strings cannot replace the native consumer lease. Recorded-body
+compilation binding is also available through the native QL API.
+See the [full observation contract](../../docs/cem-studio.md#shared-browser-stylesheet-observation-host)
+and [compiled installation contract](../../docs/cem-studio.md#compiled-template-and-body-stylesheet-installations).

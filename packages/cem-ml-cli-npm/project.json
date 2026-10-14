@@ -69,7 +69,7 @@
         "test:browser": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": ["build"],
+            "dependsOn": ["build", {"projects": ["cem_ql"], "target": "build:wasm"}],
             "options": {
                 "command": "node scripts/verify-browser.mjs",
                 "cwd": "{projectRoot}"
@@ -80,8 +80,16 @@
                 "{projectRoot}/scripts/verify-html-base-evidence.mjs",
                 "{projectRoot}/scripts/verify-stylesheet-svg.mjs",
                 "{workspaceRoot}/packages/cem_ml/tests/fixtures/stylesheet-svg.xhtml",
+                "{workspaceRoot}/packages/cem_ml/tests/fixtures/browser-stylesheets.xhtml",
+                "{workspaceRoot}/packages/cem_ml/tests/fixtures/browser-stylesheet-selection.xhtml",
+                "{workspaceRoot}/packages/cem_ml/tests/fixtures/browser-stylesheet-active.xhtml",
+                "{workspaceRoot}/packages/cem_ml/tests/fixtures/browser-stylesheet-inactive.xhtml",
                 "{workspaceRoot}/packages/cem_ml/tests/support/stylesheet_svg_fixture.rs",
                 "{projectRoot}/tests/html-base-host.fixture.mjs",
+                "{projectRoot}/tests/browser-stylesheets.fixture.mjs",
+                "{projectRoot}/tests/browser-compiled-stylesheets.fixture.mjs",
+                "{projectRoot}/tests/browser-stylesheet-selection.fixture.mjs",
+                "{projectRoot}/tests/browser-stylesheet-active.fixture.mjs",
                 "{workspaceRoot}/packages/cem_ml/tests/fixtures/html-base-host.xhtml",
                 "{workspaceRoot}/packages/cem_ml/tests/fixtures/html-execution-inventory.xhtml",
                 "{workspaceRoot}/packages/cem_ml/tests/support/html_execution_inventory_fixture.rs",

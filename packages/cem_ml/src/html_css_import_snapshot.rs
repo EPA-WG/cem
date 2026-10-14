@@ -62,7 +62,8 @@ impl HtmlExecutionCssImports {
     pub fn blockers(&self) -> &[String] {
         &self.blockers
     }
-    pub(crate) fn validate_sources(
+    /// Revalidate only retained source owners/policy, not live DOM or edit authority.
+    pub fn validate_sources(
         &self,
         capability: &CemModuleUrlResolutionCapability,
         snapshot: &Arc<CssSourceSnapshot>,

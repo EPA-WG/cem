@@ -21,6 +21,7 @@ use crate::template_artifact::{
 };
 
 mod stylesheets;
+mod stylesheet_installation;
 mod values;
 mod xpath_functions;
 mod xslt_bundle;

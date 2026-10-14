@@ -2144,9 +2144,129 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       unchanged. Theme/forced-color checks are inapplicable; physical AT remains
       independently open. Browser transport policy and atomic edit admission
       remain separate requirements.
-    - [ ] Connect the exclusive stylesheet observer to the shared browser/worker
-      runtime, including CSSOM, load, selection, environment and lifecycle
-      invalidation before exposing production stylesheet execution evidence.
+    - [x] Connect the exclusive stylesheet observer's bounded HTML profile to
+      the shared browser/worker runtime, including CSSOM, load, selection,
+      environment and lifecycle invalidation before exposing execution evidence.
+      - [x] Add native source-probe fixtures for exact inline/external/import
+        ownership, import order, UTF-8 bounds, ordinary element titles and
+        unsupported observation profiles.
+      - [x] Add packaged Chromium fixtures for CSSOM/source mismatch, controlled
+        and unowned mutations, load/selection/media transitions, lifecycle
+        revocation and worker-pool close/replacement invalidation.
+      Delivered a bounded shared `BrowserStylesheetHost` through the confirmed
+      HTML base host and `BrowserWorkerPool`. Native WASM sessions retain exact
+      document/CSS/acquisition owners and sealed observations. Browser predicates
+      compare installed CSSOM with native-owned text parsed by the browser,
+      including final URLs, import order, media/supports and installation identity.
+      No source-key echo, app-local parser, network fallback or JSON AST handoff
+      can substitute. Ordinary element `title` attributes remain distinct from
+      stylesheet-set titles, preserving inline CSS on labeled elements.
+      Synchronous change boundaries invalidate before CSSOM/selection/environment
+      writes, including A-B-A. Load/error/media/viewport events, DOM/base changes,
+      abort, disposal and worker failure/close/replacement invalidate or revoke
+      consumption; all failed/replacing generations must recover before new
+      pool-bound sessions are admitted. Read summaries cannot grant edits or
+      transfer native execution evidence to workers.
+      Contract: [shared browser stylesheet observation host](cem-studio.md#shared-browser-stylesheet-observation-host).
+      Verification: four new native source-probe fixtures plus 26 ML host/CSS
+      regressions and eight recorded-template CSS tests pass (38 native tests).
+      The rebuilt Nx `@epa-wg/cem-ml-cli:test:browser` gate passes 18 new shared
+      stylesheet-host cases and existing base, stylesheet/SVG, worker and command
+      checks. The gate rebuilds the ML WASM runtime and TypeScript host. CLI lint,
+      focused Rust formatting and `git diff --check` pass.
+      The initial profile covers UTF-8 inline styles/attributes, untitled external
+      sheets and loaded readable imports. Titled sets, unloaded imports,
+      shadow/adopted sheets and compiled body installation correspondence reject
+      that initial profile; the following slice extends its bounded coverage.
+      Exclusive ownership is required: observers cannot reconstruct uncontrolled synchronous CSSOM A-B-A.
+      CEM review: semantic/native source authority and bounded shared capability
+      first; no application/component behavior or style changes. Public tokens,
+      inherited overrides and accessibility are unaffected. Theme/forced-color
+      checks are inapplicable; physical AT remains independently open. Computed
+      resource/runtime closure and atomic edit admission remain blocked.
+    - [x] Extend the shared browser observer to recorded template/body stylesheet
+      installations with exact compiled-source correspondence; then add bounded
+      titled/alternate selection and unloaded-import evidence where observable.
+      - [x] Add native compiled-installation fixtures for exact emitted-source/
+        scope ownership, complete/empty recorded body coverage, diagnostics, shared
+        consumer release/replacement/source cancellation, bounded probes and
+        stale evidence.
+      - [x] Add shared Chromium fixtures for compiled private/shared/instance
+        installations, source/CSSOM tampering, selection changes, release and
+        lifecycle invalidation, titled sets, observable unloaded imports and
+        rejection of CSSOM-omitted conditional imports.
+      Delivered sealed native compiled-installation sets and recorded-body plans,
+      using the exact captured import closures, native emitter and admitted scopes.
+      Complete ordered body coverage, empty-body policies and diagnostic-free
+      emissions are required. Per-consumer leases retain incoming closures even
+      on cache hits, so release, replacement, source cancellation and disposal
+      cannot be hidden by another consumer's cached emission. Imported rules share
+      their actual flattened output installation instead of invented source IDs.
+      The realm-local QL WASM session and shared browser/pool observer verify
+      exact emitted CSSOM plus style/sheet/parent identity, with controlled
+      selection, mutation and lifecycle invalidation. Recorded-body compilation
+      remains a native API; whole-output correspondence and worker-resident
+      preparation integration remain separate below. No serialized seal or AST
+      handoff is admitted.
+      HTML observations now admit explicitly disabled titled/alternate sets and
+      genuinely unloaded inactive imports with immutable source snapshots. The
+      Chromium fixture covers a pending media import, its unloaded descendant,
+      and its subsequent real load/invalidation. Direct capture of active titled sets rejects:
+      Chromium can expose a false disabled flag while an alternate stays inactive.
+      Unsupported supports imports omitted from CSSOM also reject instead of
+      becoming inferred unloaded evidence. These compatibility limits remain
+      actionable follow-ups; no source-only fallback is introduced.
+      Contract: [compiled installation and selection evidence](cem-studio.md#compiled-template-and-body-stylesheet-installations).
+      Verification: 28 QL and 19 ML native tests pass (47 total). The rebuilt Nx
+      browser gate passes 20 new compiled-installation cases and nine new
+      selection/import cases, plus 18 existing shared stylesheet cases and all
+      HTML-base, stylesheet/SVG, worker and command regressions.
+      `cem_ql:test:retained-stylesheets` passes its native and WASM lifecycle
+      regressions. Both WASM rebuilds, CLI lint, focused Rust formatting and
+      `git diff --check` pass.
+      CEM review: native source/policy ownership and bounded shared capabilities
+      remain authoritative; private/shared/instance scoping is checked through
+      actual computed styles. No component/app behavior, public token defaults,
+      inherited overrides, accessibility or theme ownership changes. Forced-color
+      checks are inapplicable; physical AT remains independently open. Inner
+      conditional/computed resource loads and atomic edit admission stay blocked.
+    - [x] Define browser-owned active titled-set transitions and HTML/load
+      recapture. Chromium can expose `disabled=false` for an inactive alternate;
+      CSSOM flags alone must not certify activation.
+      - [x] Add native selection-plan fixtures for exact titles, disabled and
+        inline boundaries, retained owners, fresh epochs and source/policy drift.
+      - [x] Add Chromium transition fixtures for actual application, repeated
+        selection, multiple links, pending reads, load failure, cancellation,
+        timeout, replacement and HTML/source recapture rejection.
+
+      Implemented asynchronous `html.selectStylesheets(...)` and its pool-bound
+      counterpart. Native commands select exact titles and preserve persistent
+      and authored-disabled sheets. The host invalidates before explicit link
+      enable/reload, waits for every selected link's trusted load and fresh sheet,
+      then recaptures HTML and verifies complete CSSOM/source correspondence.
+      Native rebinding retains the original tree, response snapshot, host,
+      base and policy and requires a newer HTML epoch. Reads and competing writes
+      reject while pending. Same-title/A-B-A transitions cannot revive evidence;
+      errors, timeout, abort, DOM/source/policy drift, disposal and worker generation
+      changes fail closed. Activation receipts remain private to the browser host.
+      Bounds: active selected roots must be external links, all roots must already
+      be loaded, and CSSOM must be readable. Inline titled activation remains
+      unsupported. Empty title explicitly disables every titled root.
+      Verification: 23 focused ML native tests pass, including four new selection
+      tests. Rebuilt ML/QL WASM and the full Nx browser gate pass 19 new active-set
+      cases plus existing shared/compiled/selection/import, HTML-base, SVG,
+      worker and command regressions. CLI lint, focused Rust formatting and
+      `git diff --check` pass.
+      CEM review: native semantic/source ownership and bounded shared services
+      remain authoritative. Actual computed-style checks preserve persistent
+      rules while selecting all intended links/imports. No UI behavior, public
+      token defaults, inherited overrides, accessibility or theme ownership changes;
+      theme/forced-color checks are inapplicable and physical AT stays independent.
+      Whole-output correspondence, remaining resource closure and transaction
+      admission retain their blockers.
+    - [ ] Join native recorded-body installation evidence with complete rendered
+      output correspondence before worker-owned preparation/transaction consumption;
+      preserve native owners and never transfer seals through result DTOs.
     - [ ] Record responsive image-source selection and acquisition, followed by
       remaining computed CSS/SVG and general runtime resource loads, before
       claiming complete execution dependency closure.
@@ -2155,9 +2275,9 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, connect the native stylesheet observation protocol to the shared browser/
-worker runtime and its mutation/lifecycle invalidation. Then record responsive
-image-source selection/acquisition and remaining computed CSS/SVG/runtime loads.
+Next, join compiled body installations with complete rendered-output correspondence.
+Then record responsive image-source selection/acquisition and remaining computed
+CSS/SVG/runtime loads.
 Connect the prepared native read set to host transaction admission only after complete
 dependency evidence. Combine that dependency closure with map rewrite ownership before
 widening Studio admission.

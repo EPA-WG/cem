@@ -73,6 +73,7 @@ mod xpath_artifact;
 pub use xpath_artifact::retained_xpath_artifact;
 mod documents;
 mod html_base_host;
+mod stylesheet_execution;
 pub use documents::retained_cem_document;
 #[cfg(feature = "debug-control")]
 use crate::worker_control::{

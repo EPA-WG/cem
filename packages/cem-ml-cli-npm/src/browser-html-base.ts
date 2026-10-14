@@ -1,5 +1,7 @@
 import * as runtime from '@epa-wg/cem-ml/wasm';
 
+import { BrowserStylesheetHost, type BrowserStylesheetResponse, type BrowserStylesheetOptions, type BrowserStylesheetSelectionOptions } from './browser-stylesheets.js';
+
 const HTML = 'http://www.w3.org/1999/xhtml';
 const owners = new WeakMap<Document, BrowserHtmlBaseHost>();
 
@@ -29,6 +31,7 @@ export async function createBrowserHtmlBaseHost(document: Document, options: Bro
  * certify an existing freeze. capture explicitly reassigns the first href before
  * confirming native evidence. No resource-load closure or edit grant is implied. */
 export class BrowserHtmlBaseHost {
+    readonly #stylesheets = new Set<BrowserStylesheetHost>();
     readonly #document: Document;
     readonly #native: runtime.HtmlBaseExecutionHost;
     readonly #observer: MutationObserver;
@@ -41,6 +44,7 @@ export class BrowserHtmlBaseHost {
     #nextIdentity = 1;
     #url: string;
     #busy = false;
+    #pending?: AbortController;
     #revoked = false;
     #disposed = false;
     #captured = false;
@@ -71,6 +75,7 @@ export class BrowserHtmlBaseHost {
      * Supply the resulting native execution snapshot at the next capture. */
     changeContext(change: () => void): void {
         this.#run(() => {
+            this.#disposeStylesheets();
             this.#native.invalidate();
             this.#captured = false;
             const result: unknown = change();
@@ -86,6 +91,7 @@ export class BrowserHtmlBaseHost {
      * templates represent inert content outside this document topology. */
     capture(nativeDocument: number, policy: BrowserHtmlBasePolicy): string {
         return this.#run(() => {
+            this.#disposeStylesheets();
             this.#captured = false;
             this.#resetSlots();
             const stamp = policy.stamp;
@@ -114,6 +120,7 @@ export class BrowserHtmlBaseHost {
 
     /** Consume only a current, synchronously revalidated read set. */
     read(): string {
+        if (this.#pending) throw new Error('HTML stylesheet transition pending');
         if (this.#busy) { this.#revoke(); throw new Error('HTML base host reentry rejected'); }
         this.#checkQuiet();
         if (!this.#captured) throw new Error('HTML base host needs a fresh capture after a context change');
@@ -121,6 +128,61 @@ export class BrowserHtmlBaseHost {
             this.#resetSlots();
             return this.#native.validate(this.#matchSlot, this.#document.baseURI);
         });
+    }
+
+    /** Capture the bounded native HTML CSS forest against its live installation. */
+    captureStylesheets(responses: readonly BrowserStylesheetResponse[], options: BrowserStylesheetOptions): BrowserStylesheetHost {
+        this.read();
+        // Dispose superseded sessions before publishing a replacement.
+        this.#disposeStylesheets();
+        const host = this.#run(() => new BrowserStylesheetHost({
+            document: this.#document, native: this.#native, matches: this.#matchSlot,
+            node: (id) => this.#slots.get(id), run: (work) => this.#run(work),
+        }, responses, options));
+        try {
+            host.capture();
+            this.#stylesheets.add(host);
+            return host;
+        } catch (error) { host.dispose(); throw error; }
+    }
+    /** Explicit external titled-set activation. Empty title disables all titled
+     * sheets. No read/capture/write is admitted while links are loading. */
+    async selectStylesheets(nativeDocument: number, policy: BrowserHtmlBasePolicy, responses: readonly BrowserStylesheetResponse[], title: string, options: BrowserStylesheetSelectionOptions): Promise<BrowserStylesheetHost> {
+        this.read();
+        this.#disposeStylesheets();
+        const lifetime = new AbortController();
+        const signal = options.signal ? AbortSignal.any([options.signal, lifetime.signal]) : lifetime.signal;
+        let host: BrowserStylesheetHost | undefined;
+        try {
+            host = this.#run(() => new BrowserStylesheetHost({
+                document: this.#document, native: this.#native, matches: this.#matchSlot,
+                node: (id) => this.#slots.get(id), run: (work) => this.#run(work),
+            }, responses, { ownership: options.ownership, signal }));
+            const preparedHost = host;
+            const selection = this.#run(() => preparedHost.prepareSelection(title, options.timeoutMs ?? 10_000));
+            let loaded: Promise<void> | undefined;
+            this.changeContext(() => { loaded = selection.start(); });
+            this.#pending = lifetime;
+            await loaded;
+            this.#checkQuiet();
+            if (signal.aborted) throw new Error('Stylesheet selection lifecycle ended');
+            this.#pending = undefined;
+            this.capture(nativeDocument, policy);
+            this.#run(() => selection.finish());
+            host.capture();
+            this.#stylesheets.add(host);
+            return host;
+        } catch (error) {
+            host?.dispose();
+            this.#revoke();
+            throw error;
+        } finally {
+            this.#pending = undefined;
+        }
+    }
+    #disposeStylesheets(): void {
+        for (const host of this.#stylesheets) host.dispose();
+        this.#stylesheets.clear();
     }
 
     dispose(): void {
@@ -135,6 +197,7 @@ export class BrowserHtmlBaseHost {
     }
 
     #run<T>(work: () => T): T {
+        if (this.#pending) throw new Error('HTML stylesheet transition pending');
         if (this.#busy) { this.#revoke(); throw new Error('HTML base host reentry rejected'); }
         this.#checkQuiet();
         this.#busy = true;
@@ -165,6 +228,8 @@ export class BrowserHtmlBaseHost {
         } catch (error) { this.#revoke(); throw error; }
     }
     #revoke(): void {
+        this.#pending?.abort();
+        this.#disposeStylesheets();
         this.#revoked = true;
         this.#captured = false;
         this.#observer.disconnect();
@@ -179,6 +244,7 @@ export class BrowserHtmlBaseHost {
     // identities; it never stores native names/values or a projected AST.
     readonly #matchSlot = (id: number, parent: number | null, index: number, kind: number,
         namespace: string, name: string, value: string, children: number, attributes: number): number => {
+        if (parent === null) this.#resetSlots(); // Native dependency validation makes repeated complete passes.
         const owner = parent === null ? null : this.#slots.get(parent);
         const node = parent === null ? this.#document : kind === 2
             ? this.#attributes(owner)[index] : this.#children(owner)[index];
