@@ -227,6 +227,7 @@ impl WasmRecordedOutputSession {
             self.inner.image_replay_bound(),
             self.inner.svg_computed_slots(),
             self.inner.svg_paint_counts(),
+            self.inner.svg_paint_content_counts(),
         ))
     }
     pub fn read(
@@ -271,6 +272,7 @@ impl WasmRecordedOutputSession {
             self.inner.image_replay_bound(),
             self.inner.svg_computed_slots(),
             self.inner.svg_paint_counts(),
+            self.inner.svg_paint_content_counts(),
         ))
     }
 }
@@ -281,6 +283,7 @@ fn summary(
     replay_bound: bool,
     svg: usize,
     paint: (usize, usize),
+    content: (usize, usize),
 ) -> String {
     if images > 0 && !replay_bound {
         blockers.push("image-browser-response-identity-required".into());
@@ -295,7 +298,7 @@ fn summary(
             .map(str::to_owned),
         );
     }
-    serde_json::json!({"blockers":blockers, "imageAcquisitions": images, "imageDeliveries": deliveries, "svgComputedSlots": svg, "svgPaintRoots": paint.0, "svgPaintLinks": paint.1}).to_string()
+    serde_json::json!({"blockers":blockers, "imageAcquisitions": images, "imageDeliveries": deliveries, "svgComputedSlots": svg, "svgPaintRoots": paint.0, "svgPaintLinks": paint.1, "svgPaintServers": content.0, "svgPaintContentNodes": content.1}).to_string()
 }
 fn error(e: impl AsRef<str>) -> JsValue {
     JsValue::from_str(e.as_ref())

@@ -3835,10 +3835,18 @@ plan. Entries retain the original inventory and require its original host/resolv
 validation for live use; source inspection after invalidation grants no authority.
 
 Content evaluation, cloned-instance style provenance, rendering, winning-source
-and acquired-body evidence remain blocked. This initial native content contract
-is not yet attached to browser preparation. Browser integration must retain the
-same ownership and add mutation/parity fixtures before claiming live content
-coverage. No component style or public theme-token default is introduced.
+and acquired-body evidence remain blocked. Browser preparation constructs the
+content plan from the same retained traversal before publishing the validated
+session. Failed capture, invalidated reads, cancellation and closure release both
+plans. The existing complete DOM/base/stylesheet validation owns their lifetime;
+even restored stop values, pattern text/children and ancestor style/class changes
+revoke the preparation.
+
+`svgPaintServers` and `svgPaintContentNodes` expose only bounded diagnostic
+counts (256 servers and 4096 node memberships). Chromium fixtures exercise both
+capture paths, compare gradient/template and pattern membership, and reject
+mutation or pool closure without revival. Native source ancestry is never
+serialized. No component style or public theme-token default is introduced.
 
 ### Shared browser stylesheet observation host
 

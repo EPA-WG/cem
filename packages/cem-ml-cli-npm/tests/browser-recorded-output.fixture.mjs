@@ -94,6 +94,31 @@ globalThis.runRecordedOutputFixture = async version => {
             rejects(() => host.read(), 'paint graph revival accepted');
         }, mode === 'pool');
     }
+    for (const mode of ['stop-value', 'stop-replace', 'pattern-text', 'pattern-child', 'ancestor-style', 'ancestor-class', 'pool']) {
+        await run(`paint-content-lifetime-${mode}`, async ({ request, doc, capture, captureAsync, pool }) => {
+            const pattern = mode.startsWith('pattern');
+            paintRequest(request, doc, pattern
+                ? '{pattern @id=a @width=1 @height=1 | {title | Pattern}{g | {rect @width=1 @height=1}}}'
+                : '{linearGradient @id=a @href="#b" | {stop @stop-color=red}}{linearGradient @id=b | {stop @stop-color=blue}}');
+            const host = mode === 'stop-value' ? capture() : await captureAsync();
+            const summary = host.read();
+            check(summary.svgPaintServers === (pattern ? 1 : 2), 'content servers not bound to traversal');
+            check(summary.svgPaintContentNodes === (pattern ? 5 : 4), 'retained content membership differs');
+            check(summary.blockers.includes('svg-paint-clone-style-provenance-required')
+                && summary.blockers.includes('svg-paint-content-evaluation-required')
+                && summary.blockers.includes('atomic-host-transaction-required'), 'content plan granted rendered closure');
+            const stop = doc.querySelector('stop'), defs = doc.querySelector('defs');
+            if (mode === 'stop-value') { stop.setAttribute('stop-color', 'blue'); stop.setAttribute('stop-color', 'red'); }
+            if (mode === 'stop-replace') stop.replaceWith(stop.cloneNode(true));
+            if (mode === 'pattern-text') { const text = doc.querySelector('title').firstChild; text.data = 'Changed'; text.data = 'Pattern'; }
+            if (mode === 'pattern-child') { const rect = doc.querySelector('pattern rect'); rect.remove(); doc.querySelector('pattern g').append(rect); }
+            if (mode === 'ancestor-style') { defs.setAttribute('style', 'color:blue'); defs.removeAttribute('style'); }
+            if (mode === 'ancestor-class') { defs.classList.add('changed'); defs.classList.remove('changed'); }
+            if (mode === 'pool') await pool.close();
+            rejects(() => host.read(), 'mutated content retained preparation');
+            rejects(() => host.read(), 'restored content revived preparation');
+        }, mode === 'pool');
+    }
     const addSvg = (request, extra = '') => {
         const svg = "{result-element @name=svg @namespace='http://www.w3.org/2000/svg' | {result-element @name=path @namespace='http://www.w3.org/2000/svg' | {result-attribute @name=fill | red}} " + extra + "}";
         request.sources[0].source = source.replace('p{color:rgb(1,2,3)}', 'p{color:rgb(1,2,3)}path{fill:blue}').replace('| Card}', '| Card ' + svg + '}');

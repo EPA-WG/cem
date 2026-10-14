@@ -6,6 +6,7 @@ use cem_ml::html_image_execution::{
 };
 use cem_ml::import::svg_presentation::RetainedSvgPresentationAttribute;
 use cem_ml::svg_computed_execution::{SvgComputedEvidence, SvgComputedHost, SvgComputedObserver};
+use cem_ml::svg_paint_content::SvgPaintContentPlan;
 use cem_ml::svg_paint_dependencies::{PaintTarget, SvgPaintPlan};
 use cem_ml::{
     css_emission::CssManagedScope,
@@ -89,7 +90,8 @@ pub struct RecordedOutputSession {
     svg_sources: Option<Vec<RetainedSvgPresentationAttribute>>,
     svg_host: SvgComputedHost,
     svg_evidence: Option<SvgComputedEvidence>,
-    paint: Option<SvgPaintPlan>,
+    paint: Option<Arc<SvgPaintPlan>>,
+    paint_content: Option<SvgPaintContentPlan>,
     image_delivery: Option<ImageDeliveryCapture>,
     delivered_images: usize,
     replay_nonce: Option<String>,
@@ -232,6 +234,7 @@ impl RecordedOutputSession {
             svg_host: SvgComputedHost::default(),
             svg_evidence: None,
             paint: None,
+            paint_content: None,
             image_delivery: None,
             delivered_images: 0,
             replay_nonce: None,
@@ -287,6 +290,7 @@ impl RecordedOutputSession {
         self.svg_sources = None;
         self.svg_evidence = None;
         self.paint = None;
+        self.paint_content = None;
         let _ = self.svg_host.invalidate();
         self.image_delivery = None;
         self.delivered_images = 0;
@@ -694,12 +698,29 @@ impl RecordedOutputSession {
             )
         })
     }
+    /// Bounded diagnostics; retained content and source ancestry stay native.
+    pub fn svg_paint_content_counts(&self) -> (usize, usize) {
+        if self.stage != Stage::Captured || self.cancel.is_aborted() {
+            return (0, 0);
+        }
+        self.paint_content.as_ref().map_or((0, 0), |p| {
+            (
+                p.servers().len(),
+                p.servers().iter().map(|s| s.nodes.len()).sum(),
+            )
+        })
+    }
     fn paint_blockers(&self, mut blockers: Vec<String>) -> Vec<String> {
         let Some(plan) = &self.paint else {
             return blockers;
         };
         if plan.roots().is_empty() {
             return blockers;
+        }
+        if let Some(content) = &self.paint_content {
+            if !content.servers().is_empty() {
+                blockers.extend(content.blockers().iter().map(|b| (*b).to_owned()));
+            }
         }
         blockers.extend(plan.blockers().iter().map(|b| (*b).to_owned()));
         for target in plan
@@ -764,7 +785,8 @@ impl RecordedOutputSession {
                 &mut matches,
                 base,
             )?);
-            let paint = SvgPaintPlan::from_inventory(document.clone(), 1_000_000)?;
+            let paint = Arc::new(SvgPaintPlan::from_inventory(document.clone(), 1_000_000)?);
+            let content = SvgPaintContentPlan::new(paint.clone(), 1_000_000)?;
             let handle = s.worker.prepare(
                 s.output.as_ref().unwrap().clone(),
                 html,
@@ -778,6 +800,7 @@ impl RecordedOutputSession {
             let blockers = s.worker.read(&handle, observer, matches, base)?;
             s.handle = Some(handle);
             s.paint = Some(paint);
+            s.paint_content = Some(content);
             s.stage = Stage::Captured;
             Ok(s.paint_blockers(blockers))
         })

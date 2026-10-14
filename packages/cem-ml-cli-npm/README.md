@@ -364,6 +364,12 @@ the owning document/base/style read set; target or href mutations and lifetime
 changes revoke the plan. Missing/ambiguous targets, cycles, base uncertainty and
 untraversed URLs remain explicit blockers. Counts do not prove rendering or
 resource acquisition, and the graph never crosses the native boundary.
+`read().svgPaintServers` and `read().svgPaintContentNodes` count distinct local
+servers and retained source-node memberships (bounded at 256 and 4096). Content
+plans share preparation ownership: stop, pattern-descendant and ancestor-style
+mutations revoke them, including changes restored before a read. Cloned-content
+style provenance, effective content selection and rendered resource evidence
+remain explicit blockers.
 
 `read().svgComputedSlots` counts retained SVG presentation attributes whose
 computed values were captured and revalidated by the native session. Both capture
