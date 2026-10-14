@@ -368,3 +368,22 @@ blockers. Native seals never travel through worker messages. The transport is
 bounded to 32 concurrent client sessions with a 30-second preparation deadline.
 Controller replacement, document/DOM changes, abort and pool disposal revoke
 native execution evidence and close the private transport.
+
+
+Use `imageDelivery: 'service-worker-replay'` when the caller explicitly permits
+new delivery URLs. The controlling worker generates a fresh random namespace;
+native render-plan composition replaces only image candidate URL spans and keeps
+the authored tree, candidate ordinals and descriptors. The worker receives the
+native alias-to-source routes before composed HTML is installed. Every selected
+alias must have a native receipt before publication. Alias responses are immutable
+within that execution, so reuse of that alias identifies the same captured body.
+Duplicate authored URLs have distinct candidate aliases. Stale and foreign
+reserved routes fail without a network fallback.
+
+This profile uses the reserved same-origin `/__cem_image_delivery/` path, accepts
+at most 256 native routes, and removes only the image response-identity blocker
+once selected receipts join. Other dependency and transaction blockers remain.
+It is a new execution, **not transparent historical capture**: reflected src and
+currentSrc values, URL-based CSS selectors and cache-dependent source selection
+can differ. Authored source URLs and provenance remain native. Normal delivery
+and post-load observation retain their existing identity limitations.

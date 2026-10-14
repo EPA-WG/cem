@@ -3,6 +3,7 @@
  * Messages carry acquired bytes, never native trees or preparation seals. */
 export function installImageDeliveryTransport(scope: ServiceWorkerGlobalScope): void {
     const sessions = new Map<string, {
+        nonce: string; replay: boolean; configured: boolean; routes: Map<string, string>;
         port: MessagePort; abort: AbortController; sealed: boolean; bytes: number;
         responses: Map<string, Promise<{ bytes: Uint8Array; type: string }>>;
         receipts: Map<number, { resolve: () => void; reject: () => void }>; next: number;
@@ -20,7 +21,7 @@ export function installImageDeliveryTransport(scope: ServiceWorkerGlobalScope): 
         if (!client || !('id' in client) || !port || client.url !== data.url
             || !Number.isSafeInteger(data.timeout) || data.timeout < 1 || data.timeout > 30_000
             || sessions.has(client.id) || sessions.size >= 32) { port?.postMessage({ kind: 'error' }); return; }
-        const s = { port, abort: new AbortController(), sealed: false, bytes: 0,
+        const s = { nonce: crypto.randomUUID().replaceAll('-', ''), replay: data.replay === true, configured: false, routes: new Map<string, string>(), port, abort: new AbortController(), sealed: false, bytes: 0,
             responses: new Map<string, Promise<{ bytes: Uint8Array; type: string }>>(),
             receipts: new Map<number, { resolve: () => void; reject: () => void }>(), next: 0,
             timer: setTimeout(() => { port.postMessage({ kind: 'error' }); close(client.id); }, data.timeout),
@@ -34,6 +35,19 @@ export function installImageDeliveryTransport(scope: ServiceWorkerGlobalScope): 
                 if (!receipt) { port.postMessage({ kind: 'error' }); close(client.id); return; }
                 s.receipts.delete(command.id);
                 if (command.ok === true) receipt.resolve(); else { receipt.reject(); close(client.id); }
+            } else if (command?.kind === 'configure') {
+                try {
+                    if (!s.replay || s.configured || s.sealed || !Array.isArray(command.routes) || command.routes.length > 256) throw new Error('Bounded fresh routes required');
+                    for (const [index, pair] of command.routes.entries()) {
+                        if (!Array.isArray(pair) || pair.length !== 2 || typeof pair[0] !== 'string' || typeof pair[1] !== 'string') throw new Error('Invalid route');
+                        const source = new URL(pair[1]);
+                        if (pair[0] !== `${scope.location.origin}/__cem_image_delivery/${s.nonce}/${index}`
+                            || source.origin !== scope.location.origin || source.hash || source.username || source.password
+                            || source.href.length > 4096 || source.pathname.startsWith('/__cem_image_delivery/')) throw new Error('Foreign replay route');
+                        s.routes.set(pair[0], source.href);
+                    }
+                    s.configured = true; port.postMessage({ kind: 'configured' });
+                } catch { port.postMessage({ kind: 'error' }); close(client.id); }
             } else if (command?.kind === 'seal' && !s.sealed) {
                 s.sealed = true;
                 void Promise.all(s.responses.values()).then(() => {
@@ -43,23 +57,29 @@ export function installImageDeliveryTransport(scope: ServiceWorkerGlobalScope): 
             }
         };
         port.onmessageerror = () => close(client.id);
-        port.start(); port.postMessage({ kind: 'ready' });
+        port.start(); port.postMessage({ kind: 'ready', nonce: s.nonce });
     });
     scope.addEventListener('fetch', event => {
         const s = sessions.get(event.clientId);
-        if (!s || event.request.destination !== 'image') return;
+        const reserved = new URL(event.request.url).pathname.startsWith('/__cem_image_delivery/');
+        if (reserved && (!s || !s.replay || !s.routes.has(event.request.url) || event.request.destination !== 'image')) {
+            event.respondWith(Response.error()); return;
+        }
+        if (!s || event.request.destination !== 'image' || (s.replay && !reserved)) return;
         event.respondWith((async () => {
             try {
                 const request = event.request, url = new URL(request.url);
+                const source = s.replay ? s.routes.get(url.href) : url.href;
+                if (!source) throw new Error('Unbound replay route');
                 if (s.sealed || request.method !== 'GET' || url.origin !== scope.location.origin || url.hash
                     || !/^https?:$/u.test(url.protocol) || url.href.length > 4096) throw new Error('Unsupported image delivery');
                 let pending = s.responses.get(url.href);
                 if (!pending) {
                     if (s.responses.size >= 256) throw new Error('Image delivery count exceeded');
                     pending = (async () => {
-                        const response = await fetch(new Request(request, { cache: 'no-store', redirect: 'error', signal: s.abort.signal }));
+                        const response = await fetch(new Request(source, { headers: request.headers, credentials: request.credentials, mode: request.mode, referrer: request.referrer, referrerPolicy: request.referrerPolicy, integrity: request.integrity, cache: 'no-store', redirect: 'error', signal: s.abort.signal }));
                         const type = response.headers.get('content-type') ?? '';
-                        if (response.status !== 200 || response.url !== url.href || !response.body || type.length > 256
+                        if (response.status !== 200 || response.url !== source || !response.body || type.length > 256
                             || !/^image\/(?:png|jpeg|gif|webp|avif)(?:;|$)/iu.test(type)) throw new Error('Direct raster response required');
                         const reader = response.body.getReader(), chunks: Uint8Array[] = [];
                         let length = 0;

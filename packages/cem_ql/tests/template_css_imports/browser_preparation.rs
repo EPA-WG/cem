@@ -371,3 +371,73 @@ fn image_delivery_ingress_cannot_outlive_or_precede_its_session() {
     assert!(s.accept_image_delivery(foreign).is_err());
     assert!(s.accept_image_delivery(response()).is_err());
 }
+
+#[test]
+fn staged_replay_routes_bind_new_delivery_to_retained_output() {
+    use cem_ml::html_image_execution::{ImageObservation, ImageResponse};
+    let mut value: serde_json::Value = serde_json::from_str(&request()).unwrap();
+    for source in value["sources"].as_array_mut().unwrap() {
+        source["source"] = source["source"]
+            .as_str()
+            .unwrap()
+            .lines()
+            .skip(1)
+            .collect::<Vec<_>>()
+            .join("\n")
+            .replace(
+                "{p @style='background:url(./document.svg)'",
+                "{img @src='a.png'} {p",
+            )
+            .into();
+    }
+    value["choices"] = serde_json::json!([]);
+    let mut s = RecordedOutputSession::from_json(&value.to_string(), 1, 1).unwrap();
+    s.begin_image_delivery().unwrap();
+    s.enable_image_replay(&"a".repeat(32)).unwrap();
+    compose(&mut s);
+    let routes = s.image_replay_routes().unwrap();
+    assert_eq!(routes.len(), 1);
+    assert_eq!(routes[0].1, format!("{BASE}a.png"));
+    assert!(s.html().unwrap().contains(&routes[0].0));
+    s.accept_image_delivery(ImageResponse {
+        requested_url: routes[0].0.clone(),
+        final_url: routes[0].0.clone(),
+        revision: String::new(),
+        content_type: "image/png".into(),
+        bytes: vec![1],
+    })
+    .unwrap();
+    s.prepare_base(slots, |_| Ok(HtmlBasePolicyDecision::Allow))
+        .unwrap();
+    s.prepare_stylesheets(BASE, slots, None).unwrap();
+    let observation = ImageObservation {
+        url: routes[0].0.clone(),
+        width: 1,
+        height: 1,
+        complete: true,
+    };
+    let selected = s.select_images(|_| Ok(observation.clone())).unwrap();
+    assert_eq!(selected.len(), 1);
+    s.record_delivered_images("env", |_| Ok(observation.clone()))
+        .unwrap();
+    assert_eq!(s.image_deliveries(), 1);
+    assert!(s.image_replay_bound());
+    assert_eq!(s.image_acquisitions(), 1);
+    s.capture(BASE, slots, &mut OutputObserver { wrong: false })
+        .unwrap();
+    s.validate_images("env", |_| Ok(observation.clone()))
+        .unwrap();
+    assert!(s
+        .read(
+            BASE,
+            |_| Err("DOM changed".into()),
+            &mut OutputObserver { wrong: false }
+        )
+        .is_err());
+    assert!(s
+        .validate_images("env", |_| Ok(observation.clone()))
+        .is_err());
+    assert_eq!(s.image_acquisitions(), 0);
+    assert_eq!(s.image_deliveries(), 0);
+    assert!(!s.image_replay_bound());
+}

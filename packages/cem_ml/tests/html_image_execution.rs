@@ -266,3 +266,69 @@ fn delivery_missing_changed_oversized_and_redirected_bodies_fail_closed() {
         assert!(ledger.seal(&["https://test/a.png".into()]).is_err());
     }
 }
+
+#[test]
+fn replay_routes_keep_occurrences_and_descriptors_under_native_ownership() {
+    let tree = import_data_bytes(
+        br#"<img xmlns="http://www.w3.org/1999/xhtml" srcset="a.png 1x, ./a.png 2x" src="a.png"/>"#,
+        "application/xml",
+        "cem",
+        "https://test/source",
+    )
+    .unwrap();
+    let replay = ImageReplayPlan::new(
+        tree.clone(),
+        "https://test/",
+        "https://test/page",
+        &"a".repeat(32),
+    )
+    .unwrap();
+    assert!(std::sync::Arc::ptr_eq(replay.tree(), &tree));
+    assert_eq!(replay.routes().len(), 3);
+    assert!(replay
+        .routes()
+        .iter()
+        .all(|r| r.source == "https://test/a.png"));
+    assert_ne!(replay.routes()[0].url, replay.routes()[1].url);
+    let (_, _, srcset) = &replay.replacements()[0];
+    assert!(srcset.contains(" 1x, ") && srcset.ends_with(" 2x"));
+    let second = ImageReplayPlan::new(
+        tree.clone(),
+        "https://test/",
+        "https://test/page",
+        &"b".repeat(32),
+    )
+    .unwrap();
+    assert_ne!(replay.routes()[0].url, second.routes()[0].url);
+    assert!(ImageReplayPlan::new(
+        tree.clone(),
+        "https://foreign/",
+        "https://test/page",
+        &"a".repeat(32)
+    )
+    .is_err());
+    assert!(ImageReplayPlan::new(tree, "https://test/", "https://test/page", "bad").is_err());
+}
+
+#[test]
+fn replay_rejects_reserved_sources_and_aggregate_route_overflow() {
+    let plan = |xml: String| {
+        let tree = import_data_bytes(
+            xml.as_bytes(),
+            "application/xml",
+            "cem",
+            "https://test/source",
+        )
+        .unwrap();
+        ImageReplayPlan::new(tree, "https://test/", "https://test/page", &"a".repeat(32))
+    };
+    assert!(plan(
+        r#"<img xmlns="http://www.w3.org/1999/xhtml" src="/__cem_image_delivery/old/0"/>"#.into()
+    )
+    .is_err());
+    let candidates = (1..=129)
+        .map(|i| format!("{i}.png {i}x"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    assert!(plan(format!(r#"<html xmlns="http://www.w3.org/1999/xhtml"><img srcset="{candidates}"/><img srcset="{candidates}"/></html>"#)).is_err());
+}

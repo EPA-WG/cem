@@ -2469,8 +2469,8 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       theme/forced-color behavior is changed by the observation service; visual
       theme checks are inapplicable. Physical browser/device/AT acceptance remains
       independent.
-    - [ ] Bind selected images to the browser's actual acquired response identity
-      and disambiguate repeated source occurrences before closing image load history.
+    - [x] Bind selected image responses and disambiguate repeated source
+      occurrences within the explicit new-delivery replay profile below.
       - [x] Fixture retained candidate occurrences and reject ambiguous selected URLs,
         including equivalent relative URLs, picture sources and src fallbacks.
       - [x] Fixture Chromium duplicate selection rejection and changed reacquisition
@@ -2487,12 +2487,10 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       iframe layout before capture; earlier runs hit delayed viewport invalidation.
       Native tests assert the ambiguity diagnostic; browser tests assert rejection
       because disposal can mask that diagnostic with cancellation.
-      Original-response identity remains OPEN: the current post-load adapter has
-      no body handle for the original browser request. Reacquired hashes, sizes,
-      dimensions and validators cannot repair that missing observation. The
-      pre-delivery transport below now supplies actual intercepted bodies, but
-      cache-safe per-consumer/request identity remains required. Controlled replay
-      is a new delivery, never historical proof.
+      Observation-only modes retain their original-response identity blocker:
+      reacquired hashes, sizes, dimensions and validators cannot recover a missing
+      body observation. The explicit replay profile below binds consumers for a
+      new delivery; it never claims historical proof for unchanged authored URLs.
       CEM review: retained native source ownership and bounded variation govern
       rejection; no app/component workaround, public token or theme behavior
       changes. Visual/theme/forced-color checks do not apply to this service.
@@ -2525,8 +2523,8 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       metadata differs from an image-loader request.
       Limits: available-image caches may bypass interception, so receipts prove
       intercepted deliveries, not every img consumer's actual historical response.
-      Keep `image-browser-response-identity-required` until cache-safe per-consumer
-      binding exists. Redirects, cross-origin/custom policies, SVG and broader
+      The plain service-worker mode keeps `image-browser-response-identity-required`;
+      the separate replay profile below supplies cache-safe per-consumer binding. Redirects, cross-origin/custom policies, SVG and broader
       runtime loads stay outside the profile. Original HTTP header/wire encoding
       identity is not asserted by reconstructed decoded-body responses.
       CEM audit: shared transport and native retained source/lifetime owners govern
@@ -2534,6 +2532,37 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       override, accessibility or theme behavior changed. Visual/forced-color
       checks are inapplicable to this resource service. Deferred presentation and
       physical browser/device/AT work remain preserved.
+    - [x] Bind selected image consumers through an explicit native replay URL profile.
+      - [x] Fixture native candidate-to-route provenance, descriptor-preserving
+        replacement, source ownership, bounds and independent execution nonces.
+      - [x] Fixture Chromium cache reuse, duplicate source candidates, replay
+        receipts, stale/foreign routes and lifetime invalidation.
+
+      Implemented `service-worker-replay`: a trusted worker generates a fresh
+      execution nonce, native `ImageReplayPlan` retains candidate/source provenance,
+      and native render-plan composition replaces URL spans with at most 256
+      same-origin reserved routes. The composed output retains the replay owner.
+      The adapter installs native route pairs before delivery; selected aliases
+      join native receipts and immutable per-route bodies, so same-execution cache
+      reuse cannot substitute an older authored-URL response. Duplicate srcset and
+      picture source URLs retain distinct occurrence identities. Stale/foreign
+      reserved routes reject without network fallback. Only the image identity
+      blocker is removed after the replay receipt join; broader admission remains
+      blocked. Unchanged-URL modes preserve their prior limitations.
+      Verification: 71 focused native tests pass (10 ML image, 46 QL template CSS,
+      11 execution-record and four installation tests). All 73 production Chromium
+      preparation cases and the full Nx browser gate pass. Replay fixtures warm
+      the source cache, serve different subsequent bytes, cover duplicate density
+      and picture candidates plus shared-source consumers, and require fresh
+      routes on the next execution. Builds, lint, rustfmt and diff checks pass.
+      CEM review: native source ownership, bounded variation and shared transport
+      remain authoritative; no component behavior or public token definitions
+      change. Replay is explicitly a new delivery and changes reflected URLs;
+      URL-attribute CSS selectors and cache-dependent image choices may differ.
+      Callers needing unchanged URL reflection must use observation-only modes.
+      This is not a historical-capture claim or a theme override. No styling was
+      added, so visual/theme/forced-color checks are inapplicable; physical
+      browser/device/AT acceptance stays independent.
     - [ ] Record remaining computed CSS/SVG and general runtime resource loads,
       before claiming complete execution dependency closure.
   - [ ] Establish execution-owned lookup provenance for relative run-config inputs,
@@ -2541,12 +2570,10 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, bind selected image consumers to intercepted deliveries across browser
-cache reuse; receipts now retain actual pre-delivery bytes under native execution
-lifetimes, but currentSrc alone cannot distinguish a cached same-URL consumer.
-Ambiguous source occurrences reject; broader duplicate support needs occurrence
-evidence. Then cover remaining computed
-CSS/SVG and general runtime resource loads.
+Next, cover remaining computed CSS/SVG and general runtime resource loads.
+Selected image response/candidate binding is available through explicit native
+replay; unchanged-URL observation deliberately retains its historical-identity
+blocker.
 Connect the prepared native read set to host transaction admission only after complete
 dependency evidence. Combine that dependency closure with map rewrite ownership before
 widening Studio admission.

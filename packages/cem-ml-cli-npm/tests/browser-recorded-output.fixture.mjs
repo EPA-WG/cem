@@ -343,6 +343,47 @@ globalThis.runRecordedOutputFixture = async version => {
                 host.dispose(); rejects(() => host.read(), 'disposed delivery retained native evidence');
             });
         }
+        for (const mode of ['warm-cache', 'duplicate-density', 'duplicate-picture', 'shared-consumers']) {
+            await run(`image-replay-${mode}`, async ({ captureAsync, request, doc, install }) => {
+                const url = `/recorded-images/replay.png?execution=${crypto.randomUUID()}`;
+                const warm = doc.createElement('img'); warm.src = url; doc.body.append(warm); await warm.decode(); warm.remove();
+                const markup = mode === 'duplicate-density' ? `{img @srcset='${url} 1x, ${url} 2x' @alt=Example}` :
+                    mode === 'duplicate-picture' ? `{picture | {source @media=screen @srcset='${url}'} {img @src='${url}' @alt=Example}}` :
+                    `{img @src='${url}' @alt=Example}` + (mode === 'shared-consumers' ? ` {img @src='${url}' @alt=Second}` : '');
+                addImage(request, markup);
+                let receipts = 0;
+                const configure = session => {
+                    const accept = session.acceptImageDelivery.bind(session);
+                    session.acceptImageDelivery = (alias, type, bytes) => {
+                        check(alias.includes('/__cem_image_delivery/'), 'replay receipt used an authored URL');
+                        check(new TextDecoder().decode(bytes.slice(-13)) === 'replayed-body', 'replay reused the old cached body');
+                        accept(alias, type, bytes); receipts++;
+                    };
+                };
+                const host = await captureAsync({ imageDelivery: 'service-worker-replay' }, install, configure);
+                const selected = doc.querySelector('img').currentSrc;
+                check(selected.includes('/__cem_image_delivery/'), 'selected consumer escaped replay namespace');
+                const count = mode === 'shared-consumers' ? 2 : 1;
+                check(receipts === count && host.read().imageDeliveries === count, 'replay receipts did not bind selected consumers');
+                check(!host.read().blockers.includes('image-browser-response-identity-required'), 'bounded replay still lacks response binding');
+                check(host.read().blockers.includes('atomic-host-transaction-required'), 'image replay granted transaction admission');
+                host.dispose();
+                const next = await captureAsync({ imageDelivery: 'service-worker-replay' }, install, configure);
+                check(doc.querySelector('img').currentSrc !== selected, 'new execution reused old replay routes');
+                let staleRejected = false;
+                try { await fetch(selected); } catch { staleRejected = true; }
+                check(staleRejected, 'stale replay route reached the network');
+                next.read();
+                doc.querySelector('img').setAttribute('src', selected);
+                rejects(() => next.read(), 'stale route mutation retained replay evidence');
+            });
+        }
+        await run('image-replay-foreign-source', async ({ captureAsync, request }) => {
+            addImage(request, "{img @src='https://foreign.invalid/image.png' @alt=Example}");
+            let failed = false;
+            try { await captureAsync({ imageDelivery: 'service-worker-replay' }); } catch { failed = true; }
+            check(failed, 'foreign replay source admitted');
+        });
         await run('image-delivery-missing-receipt', async ({ captureAsync, request, doc, install }) => {
             addImage(request, `{img @src='/recorded-images/bypass.png?execution=${crypto.randomUUID()}' @alt=Example}`);
             let failed = false, diagnostic = '';

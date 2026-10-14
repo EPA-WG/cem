@@ -5,10 +5,12 @@ export class BrowserImageDelivery {
     #controller?: ServiceWorker;
     #pending?: { resolve: () => void; reject: (reason: Error) => void };
     #closed = false;
+    #nonce = '';
+    get nonce(): string { return this.#nonce; }
     readonly #changed = () => { this.dispose(); this.revoke(); };
     constructor(readonly document: Document, readonly accept: (url: string, type: string, bytes: Uint8Array) => void,
         readonly revoke: () => void) {}
-    async open(deadline: number): Promise<void> {
+    async open(deadline: number, replay = false): Promise<void> {
         const container = this.document.defaultView?.navigator.serviceWorker, controller = container?.controller;
         const timeout = Math.floor(deadline - performance.now());
         if (this.#closed || this.#port || !container || !controller || timeout <= 0) throw new Error('Active image delivery service worker required');
@@ -20,7 +22,11 @@ export class BrowserImageDelivery {
             const data = event.data;
             try {
                 this.validate();
-                if (data?.kind === 'ready' || data?.kind === 'sealed') {
+                if (data?.kind === 'ready' || data?.kind === 'sealed' || data?.kind === 'configured') {
+                    if (data.kind === 'ready') {
+                        if (typeof data.nonce !== 'string' || !/^[a-f0-9]{32}$/u.test(data.nonce)) throw new Error('Fresh transport nonce required');
+                        this.#nonce = data.nonce;
+                    }
                     if (!this.#pending) throw new Error('Unexpected delivery acknowledgement');
                     const pending = this.#pending; this.#pending = undefined; pending.resolve();
                 } else if (data?.kind === 'body') {
@@ -36,12 +42,19 @@ export class BrowserImageDelivery {
         channel.port1.onmessageerror = this.#changed;
         channel.port1.start();
         const timer = setTimeout(this.#changed, timeout);
-        controller.postMessage({ kind: 'cem-image-delivery-open', url: this.document.URL, timeout }, [channel.port2]);
+        controller.postMessage({ kind: 'cem-image-delivery-open', url: this.document.URL, timeout, replay }, [channel.port2]);
         try { await ready; this.validate(); } finally { clearTimeout(timer); }
     }
     #wait(): Promise<void> {
         if (this.#pending) throw new Error('Image transport command already pending');
         return new Promise((resolve, reject) => { this.#pending = { resolve, reject }; });
+    }
+    async configure(routes: readonly (readonly [string, string])[], deadline: number): Promise<void> {
+        this.validate();
+        const done = this.#wait();
+        const timer = setTimeout(this.#changed, Math.max(0, deadline - performance.now()));
+        this.#port?.postMessage({ kind: 'configure', routes });
+        try { await done; this.validate(); } finally { clearTimeout(timer); }
     }
     async seal(deadline: number): Promise<void> {
         this.validate();

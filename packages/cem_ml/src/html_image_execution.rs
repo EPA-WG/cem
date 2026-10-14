@@ -409,3 +409,113 @@ impl ImageDeliveryCapture {
             .collect())
     }
 }
+
+/// Explicit new-delivery URLs. The source tree and parsed occurrence provenance
+/// remain native; these routes are transport controls, never historical seals.
+pub struct ImageReplayRoute {
+    pub url: String,
+    pub source: String,
+    pub owner: AstNodeId,
+    pub attribute: AstNodeId,
+    pub ordinal: usize,
+}
+pub struct ImageReplayPlan {
+    plan: Arc<ImagePlan>,
+    routes: Vec<ImageReplayRoute>,
+    replacements: Vec<(AstNodeId, AstNodeId, String)>,
+}
+impl ImageReplayPlan {
+    pub fn new(
+        tree: Arc<RetainedCemTree>,
+        base: &str,
+        document: &str,
+        nonce: &str,
+    ) -> Result<Self, String> {
+        if nonce.len() != 32
+            || !nonce
+                .bytes()
+                .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
+        {
+            return Err("fresh bounded image replay nonce required".into());
+        }
+        let document =
+            url::Url::parse(document).map_err(|_| "absolute replay document required")?;
+        if !matches!(document.scheme(), "http" | "https") {
+            return Err("HTTP replay document required".into());
+        }
+        let plan = ImagePlan::from_tree(tree, base, 10_000, 256)?;
+        let mut routes = Vec::new();
+        let mut edits =
+            BTreeMap::<AstNodeId, (AstNodeId, Vec<(std::ops::Range<usize>, String)>)>::new();
+        let mut seen = std::collections::BTreeSet::new();
+        for target in plan.targets() {
+            for occurrence in &target.occurrences {
+                if !seen.insert((occurrence.attribute, occurrence.ordinal)) {
+                    continue;
+                }
+                let source = url::Url::parse(&occurrence.url)
+                    .map_err(|_| "absolute replay source required")?;
+                if source.origin() != document.origin()
+                    || source.fragment().is_some()
+                    || !source.username().is_empty()
+                    || source.password().is_some()
+                    || source.path().starts_with("/__cem_image_delivery/")
+                    || routes.len() >= 256
+                {
+                    return Err("bounded same-origin original replay sources required".into());
+                }
+                let alias = document
+                    .join(&format!("/__cem_image_delivery/{nonce}/{}", routes.len()))
+                    .map_err(|_| "invalid replay route")?
+                    .to_string();
+                let attribute = plan
+                    .tree()
+                    .node(occurrence.attribute)
+                    .ok_or("replay source attribute missing")?;
+                let range = occurrence
+                    .candidate
+                    .as_ref()
+                    .map_or(0..attribute.value.len(), |c| c.url_range.clone());
+                edits
+                    .entry(occurrence.attribute)
+                    .or_insert_with(|| (occurrence.owner, vec![]))
+                    .1
+                    .push((range, alias.clone()));
+                routes.push(ImageReplayRoute {
+                    url: alias,
+                    source: source.to_string(),
+                    owner: occurrence.owner,
+                    attribute: occurrence.attribute,
+                    ordinal: occurrence.ordinal,
+                });
+            }
+        }
+        let mut replacements = Vec::new();
+        let mut budget = 4usize * 1024 * 1024;
+        for (attribute, (owner, mut edits)) in edits {
+            let mut value = plan.tree().node(attribute).unwrap().value.clone();
+            edits.sort_by_key(|(range, _)| std::cmp::Reverse(range.start));
+            for (range, replacement) in edits {
+                value.replace_range(range, &replacement);
+            }
+            budget = budget
+                .checked_sub(value.len())
+                .ok_or("replay attribute byte bound exceeded")?;
+            replacements.push((owner, attribute, value));
+        }
+        Ok(Self {
+            plan,
+            routes,
+            replacements,
+        })
+    }
+    pub fn tree(&self) -> &Arc<RetainedCemTree> {
+        self.plan.tree()
+    }
+    pub fn routes(&self) -> &[ImageReplayRoute] {
+        &self.routes
+    }
+    pub fn replacements(&self) -> &[(AstNodeId, AstNodeId, String)] {
+        &self.replacements
+    }
+}

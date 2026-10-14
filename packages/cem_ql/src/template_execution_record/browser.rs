@@ -2,7 +2,7 @@
 //! observation. All semantic trees and preparation evidence stay native.
 use super::*;
 use cem_ml::html_image_execution::{
-    ImageDeliveryCapture, ImageObservation, ImagePlan, ImageRecord, ImageResponse,
+    ImageDeliveryCapture, ImageObservation, ImagePlan, ImageRecord, ImageReplayPlan, ImageResponse,
 };
 use cem_ml::{
     css_emission::CssManagedScope,
@@ -85,6 +85,8 @@ pub struct RecordedOutputSession {
     image_plan: Option<Arc<ImagePlan>>,
     image_delivery: Option<ImageDeliveryCapture>,
     delivered_images: usize,
+    replay_nonce: Option<String>,
+    replay: Option<Arc<ImageReplayPlan>>,
     image_record: Option<ImageRecord>,
     pending_images: Option<Vec<ImageObservation>>,
     snapshot: Arc<TemplateSourceSnapshot>,
@@ -221,6 +223,8 @@ impl RecordedOutputSession {
             image_plan: None,
             image_delivery: None,
             delivered_images: 0,
+            replay_nonce: None,
+            replay: None,
             image_record: None,
             pending_images: None,
             snapshot,
@@ -271,6 +275,8 @@ impl RecordedOutputSession {
         self.image_plan = None;
         self.image_delivery = None;
         self.delivered_images = 0;
+        self.replay_nonce = None;
+        self.replay = None;
         self.image_record = None;
         self.pending_images = None;
     }
@@ -383,12 +389,30 @@ impl RecordedOutputSession {
                     })
                 })
                 .ok_or("native output head required")?;
-            s.output = Some(installations.compose_output_with_hosts(
-                &vec![head; installations.len()],
-                &s.host_paths,
-                MAX_NODES,
-                MAX_BYTES,
-            )?);
+            s.output = Some(if let Some(nonce) = &s.replay_nonce {
+                let replay = Arc::new(ImageReplayPlan::new(
+                    s.execution.tree().clone(),
+                    base,
+                    &s.output_uri,
+                    nonce,
+                )?);
+                let output = installations.compose_output_with_image_replay(
+                    &vec![head; installations.len()],
+                    &s.host_paths,
+                    &replay,
+                    MAX_NODES,
+                    MAX_BYTES,
+                )?;
+                s.replay = Some(replay);
+                output
+            } else {
+                installations.compose_output_with_hosts(
+                    &vec![head; installations.len()],
+                    &s.host_paths,
+                    MAX_NODES,
+                    MAX_BYTES,
+                )?
+            });
             s.stage = Stage::Composed;
             s.html()
         })
@@ -461,6 +485,38 @@ impl RecordedOutputSession {
             };
             Ok((sources, actions))
         })
+    }
+    pub fn enable_image_replay(&mut self, nonce: &str) -> Result<(), String> {
+        self.run(|s| {
+            if s.stage != Stage::Original
+                || s.image_delivery.is_none()
+                || s.replay_nonce.is_some()
+                || nonce.len() != 32
+                || !nonce
+                    .bytes()
+                    .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
+            {
+                return Err("fresh pre-delivery image replay nonce required".into());
+            }
+            s.replay_nonce = Some(nonce.into());
+            Ok(())
+        })
+    }
+    pub fn image_replay_routes(&self) -> Result<Vec<(String, String)>, String> {
+        if self.stage != Stage::Composed || self.cancel.is_aborted() {
+            return Err("composed replay routes required".into());
+        }
+        Ok(self
+            .replay
+            .as_ref()
+            .ok_or("native replay required")?
+            .routes()
+            .iter()
+            .map(|r| (r.url.clone(), r.source.clone()))
+            .collect())
+    }
+    pub fn image_replay_bound(&self) -> bool {
+        self.replay.is_some() && self.image_record.is_some() && self.delivered_images > 0
     }
     pub fn begin_image_delivery(&mut self) -> Result<(), String> {
         self.run(|s| {

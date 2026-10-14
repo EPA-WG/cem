@@ -4037,6 +4037,37 @@ cache-safe consumer/request binding exists. This is distinct from the completed
 pre-delivery capture/lifetime join; complete resource history and transaction
 admission remain blocked independently.
 
+The explicit `service-worker-replay` delivery profile closes selected-response
+identity for a new execution. The trusted controlling worker generates a fresh
+128-bit random namespace. Native `ImageReplayPlan` retains the original tree,
+attribute/candidate ordinals and descriptors, resolves source URLs against the
+confirmed original base, and creates at most 256 same-origin routes under
+`/__cem_image_delivery/<nonce>/<ordinal>`. Native render-plan composition replaces
+candidate URL spans only; it retains the replay plan on the composed output owner.
+The original semantic tree is never rewritten by JavaScript. Route pairs are an
+explicit transport-control boundary, not AST or evidence serialization.
+
+The adapter installs those routes before composed HTML delivery. The worker
+fetches each selected route's original source, holds the decoded body for native
+acceptance, and serves the identical body under the fresh route. Repeated use of
+one route within the execution refers to one immutable response; previous
+executions cannot have populated the fresh namespace. Selected currentSrc values
+therefore join unambiguously to both native candidate occurrences and delivery
+receipts, including duplicate authored URLs. Native reads continue to revalidate
+DOM/selection/lifetime. Missing receipts, foreign sources, authored reserved
+routes, expired sessions and unknown reserved routes reject; there is no network
+fallback for reserved URLs. Only the image response-identity blocker is removed
+once native replay receipts join; all remaining resource/admission blockers stay.
+
+Replay is an opt-in **new delivery**, not proof of an earlier image load. It
+changes reflected image URLs and can affect URL-attribute selectors and the
+browser's cache-dependent candidate choice. It does not preserve original HTTP
+headers or encoded wire bytes. Applications requiring unchanged URL reflection
+must use the existing observation profiles and retain their identity blocker.
+Original source authorization, source-map rewrite ownership and complete runtime
+closure remain separate requirements before transaction admission. Private/shared
+CEM scope, token ownership and declarative component contracts are unchanged.
+
 The QL WASM `CompiledStylesheetSession(artifact, consumer, indicesJson)` binds
 current retained-template consumers inside that WASM realm. The shared browser
 `captureBrowserCompiledStylesheets(document, nativeSession, styleNodes, options)`

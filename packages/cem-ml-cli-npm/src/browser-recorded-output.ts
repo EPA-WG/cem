@@ -7,6 +7,8 @@ type NativeDomPredicate = BrowserDomCorrespondence['matchSlot'];
 
 /** Actual realm-local QL WASM session; result messages cannot replace this owner. */
 export interface NativeRecordedOutputSession extends NativeImagePreparation {
+    enableImageReplay(nonce: string): void;
+    imageReplayRoutes(route: (alias: string, source: string) => void): void;
     url(): string;
     html(): string;
     prepareBase(matches: NativeDomPredicate, decide: (candidate: string, fallback: string, stamp: string) => boolean): number;
@@ -24,7 +26,7 @@ export interface BrowserRecordedOutputOptions {
     /** Async capture only: exact external title, or empty to disable all titles. */
     readonly stylesheetTitle?: string;
     /** Opt-in pre-delivery capture through an already controlling shared worker. */
-    readonly imageDelivery?: 'service-worker';
+    readonly imageDelivery?: 'service-worker' | 'service-worker-replay';
     /** Async capture's whole load deadline; 1..30,000 ms. */
     readonly timeoutMs?: number;
 }
@@ -68,7 +70,7 @@ export class BrowserRecordedOutputHost {
     };
     constructor(document: Document, native: NativeRecordedOutputSession, options: BrowserRecordedOutputOptions) {
         const view = document.defaultView;
-        if ((options.imageDelivery !== undefined && options.imageDelivery !== 'service-worker')
+        if ((options.imageDelivery !== undefined && options.imageDelivery !== 'service-worker' && options.imageDelivery !== 'service-worker-replay')
             || !view || view.document !== document || documentOwned(document) || options.ownership !== 'exclusive'
             || options.signal?.aborted || document.contentType !== 'text/html' || document.characterSet !== 'UTF-8'
             || !/^https?:/u.test(document.URL) || document.URL !== native.url()) throw new Error('Recorded output requires an exclusive live UTF-8 HTTP(S) document matching its native URL');
@@ -118,13 +120,20 @@ export class BrowserRecordedOutputHost {
             if (this.#options.imageDelivery) {
                 this.#delivery = new BrowserImageDelivery(this.#document,
                     (url, type, bytes) => this.#run(() => this.#native.acceptImageDelivery(url, type, bytes)), this.#revoke);
-                await this.#delivery.open(deadline);
+                await this.#delivery.open(deadline, this.#options.imageDelivery === 'service-worker-replay');
+                if (this.#options.imageDelivery === 'service-worker-replay') this.#run(() => this.#native.enableImageReplay(this.#delivery?.nonce ?? ''));
             }
-            this.#run(() => {
+            const composed = this.#run(() => {
                 this.#deliver(this.#native.html(), 'original', install);
                 this.#freeze();
-                const composed = this.#native.compose(this.#document.baseURI, this.#match);
-                this.#quiet();
+                return this.#native.compose(this.#document.baseURI, this.#match);
+            });
+            if (this.#options.imageDelivery === 'service-worker-replay') {
+                const routes: [string, string][] = [];
+                this.#run(() => this.#native.imageReplayRoutes((alias, source) => { routes.push([alias, source]); }));
+                await this.#delivery?.configure(routes, deadline);
+            }
+            this.#run(() => {
                 this.#deliver(composed, 'composed', install);
                 this.#freeze();
             });

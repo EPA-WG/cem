@@ -25,6 +25,7 @@ pub struct RecordedTemplateOutput {
     tree: Arc<RetainedCemTree>,
     stylesheet_nodes: Vec<AstNodeId>,
     max_bytes: usize,
+    replay: Option<Arc<cem_ml::html_image_execution::ImageReplayPlan>>,
 }
 #[derive(Default)]
 pub struct RecordedTemplateOutputHost {
@@ -56,7 +57,7 @@ impl RecordedBodyStylesheetInstallations {
         max_nodes: usize,
         max_bytes: usize,
     ) -> Result<Arc<RecordedTemplateOutput>, String> {
-        self.compose_output_profile(parents, None, max_nodes, max_bytes)
+        self.compose_output_profile(parents, None, None, max_nodes, max_bytes)
     }
     /// Explicit element-ordinal paths into the original native output, one list
     /// per stylesheet. Context-sensitive declarations require produced hosts.
@@ -70,12 +71,28 @@ impl RecordedBodyStylesheetInstallations {
         if hosts.len() != self.len() {
             return Err("complete stylesheet host binding lists required".into());
         }
-        self.compose_output_profile(parents, Some(hosts), max_nodes, max_bytes)
+        self.compose_output_profile(parents, Some(hosts), None, max_nodes, max_bytes)
+    }
+    pub fn compose_output_with_image_replay(
+        self: &Arc<Self>,
+        parents: &[AstNodeId],
+        hosts: &[Vec<Vec<usize>>],
+        replay: &Arc<cem_ml::html_image_execution::ImageReplayPlan>,
+        max_nodes: usize,
+        max_bytes: usize,
+    ) -> Result<Arc<RecordedTemplateOutput>, String> {
+        if hosts.len() != self.len()
+            || !Arc::ptr_eq(replay.tree(), &self.source.preparation.execution.tree)
+        {
+            return Err("native replay source owner mismatch".into());
+        }
+        self.compose_output_profile(parents, Some(hosts), Some(replay), max_nodes, max_bytes)
     }
     fn compose_output_profile(
         self: &Arc<Self>,
         parents: &[AstNodeId],
         hosts: Option<&[Vec<Vec<usize>>]>,
+        replay: Option<&Arc<cem_ml::html_image_execution::ImageReplayPlan>>,
         max_nodes: usize,
         max_bytes: usize,
     ) -> Result<Arc<RecordedTemplateOutput>, String> {
@@ -237,6 +254,33 @@ impl RecordedBodyStylesheetInstallations {
                 source_map: Default::default(),
             });
         }
+        if let Some(replay) = replay {
+            for (owner, attribute, value) in replay.replacements() {
+                let source = execution
+                    .tree
+                    .node(*attribute)
+                    .ok_or("replay attribute missing")?;
+                let name = source
+                    .name
+                    .as_ref()
+                    .ok_or("replay attribute name missing")?;
+                let path = element_path(&execution.tree, *owner)?;
+                let attributes = plan_attributes(&mut plan.nodes, &path)?;
+                let target = attributes
+                    .iter_mut()
+                    .find(|a| {
+                        a.name == name.local_name && a.namespace.as_deref().unwrap_or("").is_empty()
+                    })
+                    .ok_or("replay plan attribute missing")?;
+                if target.value != source.value {
+                    return Err("replay attribute correspondence mismatch".into());
+                }
+                target.value = value.clone();
+                target.value_stream = crate::eval::ItemStream::once(crate::eval::Item::Atomic(
+                    crate::eval::AtomValue::String(value.clone()),
+                ));
+            }
+        }
         let mut sheet_paths = Vec::new();
         for (index, path) in paths.iter().enumerate() {
             let children = plan_children(&mut plan.nodes, path)?;
@@ -320,10 +364,14 @@ impl RecordedBodyStylesheetInstallations {
             tree,
             stylesheet_nodes,
             max_bytes,
+            replay: replay.cloned(),
         }))
     }
 }
 impl RecordedTemplateOutput {
+    pub fn image_replay(&self) -> Option<&Arc<cem_ml::html_image_execution::ImageReplayPlan>> {
+        self.replay.as_ref()
+    }
     pub fn tree(&self) -> &Arc<RetainedCemTree> {
         &self.tree
     }

@@ -92,6 +92,21 @@ impl WasmRecordedOutputSession {
         }
         Ok(())
     }
+    #[wasm_bindgen(js_name = "enableImageReplay")]
+    pub fn enable_image_replay(&mut self, nonce: &str) -> Result<(), JsValue> {
+        self.inner.enable_image_replay(nonce).map_err(error)
+    }
+    #[wasm_bindgen(js_name = "imageReplayRoutes")]
+    pub fn image_replay_routes(&mut self, route: &Function) -> Result<(), JsValue> {
+        for (alias, source) in self.inner.image_replay_routes().map_err(error)? {
+            if !matches!(route.call2(&JsValue::NULL, &alias.into(), &source.into()), Ok(v) if v.is_undefined())
+            {
+                self.inner.close();
+                return Err(error("synchronous image replay route ingress required"));
+            }
+        }
+        Ok(())
+    }
     #[wasm_bindgen(js_name = "beginImageDelivery")]
     pub fn begin_image_delivery(&mut self) -> Result<(), JsValue> {
         self.inner.begin_image_delivery().map_err(error)
@@ -195,6 +210,7 @@ impl WasmRecordedOutputSession {
             result,
             self.inner.image_acquisitions(),
             self.inner.image_deliveries(),
+            self.inner.image_replay_bound(),
         ))
     }
     pub fn read(
@@ -223,11 +239,17 @@ impl WasmRecordedOutputSession {
             result,
             self.inner.image_acquisitions(),
             self.inner.image_deliveries(),
+            self.inner.image_replay_bound(),
         ))
     }
 }
-fn summary(mut blockers: Vec<String>, images: usize, deliveries: usize) -> String {
-    if images > 0 {
+fn summary(
+    mut blockers: Vec<String>,
+    images: usize,
+    deliveries: usize,
+    replay_bound: bool,
+) -> String {
+    if images > 0 && !replay_bound {
         blockers.push("image-browser-response-identity-required".into());
     }
     serde_json::json!({"blockers":blockers, "imageAcquisitions": images, "imageDeliveries": deliveries}).to_string()
