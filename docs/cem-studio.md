@@ -3956,7 +3956,14 @@ malformed/incomplete candidates, foreign URLs, unresolved or unloaded selections
 and exceeded bounds reject. Browser choice remains a live engine observation:
 the adapter records `currentSrc`, completion and natural dimensions after
 `decode()`; it does not implement the browser's sizes/media/DPR algorithm or infer
-which occurrence won when candidates share a URL.
+which occurrence won when candidates share a URL. Each occurrence retains its
+native owner, attribute, ordinal, resolved URL and parsed descriptor/ranges.
+A selected URL matching multiple occurrences rejects with
+`ambiguous selected image candidate occurrence`, including equivalent relative
+URLs, different picture sources and src/srcset fallback collisions. This is a
+conservative bounded profile: it does not eliminate inactive candidates by
+reimplementing browser selection. Repeated URLs on different img targets are
+independent; their byte reacquisitions may still be shared.
 
 The async host then separately reacquires each distinct selected URL, with a
 shared 4 MiB streaming byte limit and the same whole preparation deadline.
@@ -3982,6 +3989,19 @@ transport/response binding must supply that missing evidence before image
 dependency closure or transaction admission. SVG images, image preloads,
 cross-origin/redirected acquisition and other runtime loads remain outside this
 profile.
+
+Original-response binding must begin before the initial image request. The
+[HTML currentSrc contract](https://html.spec.whatwg.org/multipage/embedded-content.html#dom-img-currentsrc)
+exposes the current request URL, not response bytes or candidate identity;
+[Resource Timing](https://www.w3.org/TR/resource-timing/) supplies timing/size
+metadata rather than a response-body handle. Neither matching dimensions,
+matching timing/size, a reacquired digest, nor a server validator alone is an
+original-response seal. The present post-load adapter cannot recover that proof.
+The next transport must retain the actual delivered body before consumption,
+bind it to the execution/document/request lifetime, cover cache and redirects,
+and revoke on transport loss. A controlled replay would be a **new** delivery
+with native source mapping, never proof about the earlier browser load. The
+current API does not accept caller-supplied historical-identity assertions.
 
 The QL WASM `CompiledStylesheetSession(artifact, consumer, indicesJson)` binds
 current retained-template consumers inside that WASM realm. The shared browser

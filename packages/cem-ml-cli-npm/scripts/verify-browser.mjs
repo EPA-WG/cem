@@ -66,6 +66,10 @@ try {
             if (pathname.endsWith('/oversized.png') && acquisition) {
                 response.writeHead(200, { 'content-type': 'image/png' }).end(Buffer.alloc(4 * 1024 * 1024 + 1)); return;
             }
+            // A different body at the same URL must never establish historical identity.
+            if (pathname.endsWith('/changed.png') && acquisition) {
+                response.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'no-store' }).end(Buffer.concat([body, Buffer.from('different response')])); return;
+            }
             const send = () => response.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'no-store' }).end(body);
             if (pathname.endsWith('/pending.png') && acquisition) setTimeout(send, 250); else send();
             return;
@@ -388,7 +392,7 @@ try {
     const compiledStylesheets = await page.evaluate(() => globalThis.runCompiledStylesheetsFixture());
     assert.equal(compiledStylesheets.cases.length, 20);
     const recordedPreparations = await page.evaluate(version => globalThis.runRecordedOutputFixture(version), browser.version());
-    assert.equal(recordedPreparations.cases.length, 52);
+    assert.equal(recordedPreparations.cases.length, 56);
     console.log(`Verified ${recordedPreparations.cases.length} production native preparation host cases.`);
     const recordedOutput = await verifyRecordedOutput(browser, workspaceRoot);
     const stylesheetSelection = await page.evaluate((version) => globalThis.runStylesheetSelectionFixture(version), browser.version());

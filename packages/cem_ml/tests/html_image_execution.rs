@@ -153,3 +153,66 @@ fn acquisition_bounds_owner_and_callback_cancellation_are_enforced() {
     )
     .is_err());
 }
+
+#[test]
+fn repeated_candidate_occurrences_cannot_be_inferred_from_current_url() {
+    for markup in [
+        r#"<img srcset="a.png 1x, ./a.png 2x"/>"#,
+        r#"<img src="a.png" srcset="a.png 2x"/>"#,
+        r#"<picture><source srcset="a.png"/><img src="a.png"/></picture>"#,
+    ] {
+        let xml = format!(r#"<html xmlns="http://www.w3.org/1999/xhtml">{markup}</html>"#);
+        let tree = import_data_bytes(
+            xml.as_bytes(),
+            "application/xml",
+            "cem",
+            "https://test/source",
+        )
+        .unwrap();
+        let plan = ImagePlan::from_tree(tree, "https://test/", 100, 4).unwrap();
+        assert_eq!(plan.targets()[0].occurrences.len(), 2);
+        let error = plan
+            .observe(|_| {
+                Ok(ImageObservation {
+                    url: "https://test/a.png".into(),
+                    width: 1,
+                    height: 1,
+                    complete: true,
+                })
+            })
+            .unwrap_err();
+        assert!(error.contains("ambiguous"), "{error}");
+    }
+}
+
+#[test]
+fn candidate_occurrences_retain_source_attribute_and_descriptor() {
+    let tree = import_data_bytes(
+        br#"<img xmlns="http://www.w3.org/1999/xhtml" srcset="a.png 1x, b.png 2x" src="c.png"/>"#,
+        "application/xml",
+        "cem",
+        "https://test/source",
+    )
+    .unwrap();
+    let plan = ImagePlan::from_tree(tree, "https://test/", 100, 4).unwrap();
+    let occurrences = &plan.targets()[0].occurrences;
+    assert_eq!(occurrences.len(), 3);
+    assert_eq!(occurrences[1].ordinal, 1);
+    assert_eq!(occurrences[1].candidate.as_ref().unwrap().url_range, 10..15);
+    assert_eq!(
+        occurrences[1].candidate.as_ref().unwrap().descriptor,
+        cem_ml::import::srcset::SrcsetDescriptor::Density(2.0)
+    );
+    assert_eq!(occurrences[0].attribute, occurrences[1].attribute);
+    assert_ne!(occurrences[0].attribute, occurrences[2].attribute);
+    assert!(occurrences[2].candidate.is_none());
+    assert!(plan.tree().node(occurrences[1].owner).is_some());
+    assert!(plan
+        .observe(|_| Ok(ImageObservation {
+            url: "https://test/b.png".into(),
+            width: 1,
+            height: 1,
+            complete: true
+        }))
+        .is_ok());
+}

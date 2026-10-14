@@ -16,6 +16,9 @@ globalThis.runRecordedOutputFixture = async version => {
         try {
             await loaded;
             const doc = frame.contentDocument, view = frame.contentWindow;
+            // Initial iframe layout can queue resize after load. Capture a settled
+            // viewport; subsequent resize must still revoke the production host.
+            await new Promise(resolve => view.requestAnimationFrame(() => view.requestAnimationFrame(resolve)));
             if (withPool) pool = await createBrowserWorkerPool({ workerCount: 1, hardCancelGraceMs: 10 });
             const rootUri = new URL('/templates/recorded.cemt', location.href).href;
             const request = {
@@ -245,6 +248,24 @@ globalThis.runRecordedOutputFixture = async version => {
             check(failed, 'failed/stale image acquisition published preparation');
         }, mode === 'pool-close');
     }
+
+    for (const [mode, markup] of [
+        ['density', "{img @srcset='/recorded-images/a.png 1x, /recorded-images/./a.png 2x' @alt=Example}"],
+        ['fallback', "{img @src='/recorded-images/a.png' @srcset='/recorded-images/a.png 2x' @alt=Example}"],
+        ['picture', "{picture | {source @media=screen @srcset='/recorded-images/a.png'} {img @src='/recorded-images/a.png' @alt=Example}}"],
+    ]) {
+        await run(`image-ambiguous-${mode}`, async ({ captureAsync, request }) => {
+            addImage(request, markup);
+            let error;
+            try { await captureAsync(); } catch (value) { error = value; }
+            check(error !== undefined, 'duplicate URL published an image preparation');
+        });
+    }
+    await run('image-changed-response-stays-unbound', async ({ captureAsync, request }) => {
+        addImage(request, "{img @src='/recorded-images/changed.png' @alt=Example}");
+        const host = await captureAsync();
+        check(host.read().blockers.includes('image-browser-response-identity-required'), 'changed response acquired historical identity');
+    });
 
     await run('image-media-revocation', async ({ captureAsync, request, view }) => {
         addImage(request, "{picture | {source @media=screen @srcset='/recorded-images/b.png'} {img @src='/recorded-images/a.png' @alt=Example}}");

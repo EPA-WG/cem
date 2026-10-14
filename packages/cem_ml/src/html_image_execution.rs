@@ -2,14 +2,25 @@
 //! A reacquisition is NOT proof of the browser's historical response identity.
 use crate::{
     html_stylesheet_links::attribute,
-    import::srcset::import_srcset_attribute,
+    import::srcset::{import_srcset_attribute, SrcsetCandidate},
     parser::{tree::RetainedCemTree, AstNodeId},
     scheduler::AbortSignal,
 };
 use std::{collections::BTreeMap, sync::Arc};
+/// One authored source occurrence, retained before URL deduplication.
+/// Candidate ranges address the decoded native attribute, not source-file edits.
+pub struct ImageOccurrence {
+    pub owner: AstNodeId,
+    pub attribute: AstNodeId,
+    pub ordinal: usize,
+    pub url: String,
+    /// None identifies the img src fallback.
+    pub candidate: Option<SrcsetCandidate>,
+}
 pub struct ImageTarget {
     pub owner: AstNodeId,
     pub urls: Vec<String>,
+    pub occurrences: Vec<ImageOccurrence>,
 }
 pub struct ImagePlan {
     tree: Arc<RetainedCemTree>,
@@ -84,6 +95,7 @@ impl ImagePlan {
             }
             owners.push(id);
             let mut urls = Vec::new();
+            let mut occurrences = Vec::new();
             for owner in owners {
                 if let Some((attr, _)) = attribute(&tree, owner, "srcset") {
                     let srcset = import_srcset_attribute(
@@ -98,28 +110,45 @@ impl ImagePlan {
                     if !srcset.parsed().complete || !srcset.parsed().issues.is_empty() {
                         return Err("complete well-formed image candidate profile required".into());
                     }
-                    for candidate in &srcset.parsed().candidates {
+                    for (ordinal, candidate) in srcset.parsed().candidates.iter().enumerate() {
                         if urls.len() >= 256 {
                             return Err("image candidate count exceeded".into());
                         }
-                        urls.push(
-                            base.join(&candidate.url)
-                                .map_err(|_| "invalid image candidate URL")?
-                                .to_string(),
-                        );
+                        let url = base
+                            .join(&candidate.url)
+                            .map_err(|_| "invalid image candidate URL")?
+                            .to_string();
+                        occurrences.push(ImageOccurrence {
+                            owner,
+                            attribute: attr,
+                            ordinal,
+                            url: url.clone(),
+                            candidate: Some(candidate.clone()),
+                        });
+                        urls.push(url);
                     }
                 }
             }
             if urls.len() > 256 {
                 return Err("image candidate count exceeded".into());
             }
-            if let Some((_, src)) = attribute(&tree, id, "src") {
+            if let Some((attr, src)) = attribute(&tree, id, "src") {
                 if !src.is_empty() {
-                    urls.push(
-                        base.join(src)
-                            .map_err(|_| "invalid image fallback URL")?
-                            .to_string(),
-                    );
+                    if occurrences.len() >= 256 {
+                        return Err("image candidate count exceeded".into());
+                    }
+                    let url = base
+                        .join(src)
+                        .map_err(|_| "invalid image fallback URL")?
+                        .to_string();
+                    occurrences.push(ImageOccurrence {
+                        owner: id,
+                        attribute: attr,
+                        ordinal: 0,
+                        url: url.clone(),
+                        candidate: None,
+                    });
+                    urls.push(url);
                 }
             }
             for url in &urls {
@@ -138,7 +167,11 @@ impl ImagePlan {
             if urls.len() > 256 || targets.len() >= images {
                 return Err("image candidate/count budget exceeded".into());
             }
-            targets.push(ImageTarget { owner: id, urls });
+            targets.push(ImageTarget {
+                owner: id,
+                urls,
+                occurrences,
+            });
         }
         Ok(Arc::new(Self { tree, targets }))
     }
@@ -166,6 +199,17 @@ impl ImagePlan {
                     || value.height == 0
                 {
                     return Err("loaded native image candidate required".into());
+                }
+                // currentSrc identifies a request URL, never the winning authored
+                // occurrence. Do not guess from descriptor, dimensions or source order.
+                if target
+                    .occurrences
+                    .iter()
+                    .filter(|c| c.url == value.url)
+                    .count()
+                    != 1
+                {
+                    return Err("ambiguous selected image candidate occurrence".into());
                 }
                 Ok(value)
             })

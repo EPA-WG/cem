@@ -334,5 +334,9 @@ revision and request/final metadata, and validate selection on every read.
 timeout, abort and pool replacement revoke the record. Redirects, custom request
 policies, SVG and cross-origin image acquisition remain outside this profile.
 Reacquisition does not prove the browser's original response bytes; that identity
-and duplicate-candidate occurrence evidence remain required before dependency
-closure or transaction admission.
+remains required before dependency closure or transaction admission. Native plans
+retain authored candidate occurrences; selection rejects when multiple occurrences
+resolve to currentSrc, including src/srcset and picture collisions. This bounded
+profile intentionally does not guess the winner from dimensions or source order.
+Original-response proof requires transport observation before initial delivery;
+post-load reacquisition cannot supply it.

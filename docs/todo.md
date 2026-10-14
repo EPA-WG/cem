@@ -2471,6 +2471,31 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       independent.
     - [ ] Bind selected images to the browser's actual acquired response identity
       and disambiguate repeated source occurrences before closing image load history.
+      - [x] Fixture retained candidate occurrences and reject ambiguous selected URLs,
+        including equivalent relative URLs, picture sources and src fallbacks.
+      - [x] Fixture Chromium duplicate selection rejection and changed reacquisition
+        bytes without promoting them to original-response evidence.
+
+      Native candidates now retain owner/attribute/ordinal and parsed descriptor
+      ranges before URL deduplication. The bounded currentSrc profile rejects a
+      selected URL with multiple authored occurrences, including src fallbacks
+      and resolved relative-URL aliases; it does not guess browser source choice.
+      Verification: all 64 focused native tests (six ML image, 43 QL template CSS,
+      11 execution-record and four installation cases), all 56 production Chromium
+      preparation cases, the full Nx browser regression gate, CLI lint, builds,
+      focused rustfmt and diff checks pass. The browser fixture now waits for initial
+      iframe layout before capture; earlier runs hit delayed viewport invalidation.
+      Native tests assert the ambiguity diagnostic; browser tests assert rejection
+      because disposal can mask that diagnostic with cancellation.
+      Original-response identity remains OPEN: the current post-load adapter has
+      no body handle for the original browser request. Reacquired hashes, sizes,
+      dimensions and validators cannot repair that missing observation. Begin
+      transport observation before image delivery; bind actual delivered bytes
+      to the execution/document/request lifetime, including cache and redirect
+      policy. Controlled replay is a new delivery, never historical proof.
+      CEM review: retained native source ownership and bounded variation govern
+      rejection; no app/component workaround, public token or theme behavior
+      changes. Visual/theme/forced-color checks do not apply to this service.
     - [ ] Record remaining computed CSS/SVG and general runtime resource loads,
       before claiming complete execution dependency closure.
   - [ ] Establish execution-owned lookup provenance for relative run-config inputs,
@@ -2478,8 +2503,10 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, bind recorded selected images to the browser's original acquired response
-and disambiguate repeated source occurrences. Then cover remaining computed
+Next, add image response observation before initial browser delivery, binding
+actual delivered bytes to native execution/document/request lifetimes. Post-load
+reacquisition cannot establish original-response identity. Ambiguous source
+occurrences now reject; broader duplicate support needs occurrence evidence. Then cover remaining computed
 CSS/SVG and general runtime resource loads.
 Connect the prepared native read set to host transaction admission only after complete
 dependency evidence. Combine that dependency closure with map rewrite ownership before
