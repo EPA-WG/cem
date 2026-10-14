@@ -4,6 +4,8 @@ use super::*;
 use cem_ml::html_image_execution::{
     ImageDeliveryCapture, ImageObservation, ImagePlan, ImageRecord, ImageReplayPlan, ImageResponse,
 };
+use cem_ml::import::svg_presentation::RetainedSvgPresentationAttribute;
+use cem_ml::svg_computed_execution::{SvgComputedEvidence, SvgComputedHost, SvgComputedObserver};
 use cem_ml::{
     css_emission::CssManagedScope,
     css_import_snapshot::{CssSnapshotSource, CssSourceSnapshot},
@@ -83,6 +85,9 @@ enum Stage {
 pub struct RecordedOutputSession {
     stage: Stage,
     image_plan: Option<Arc<ImagePlan>>,
+    svg_sources: Option<Vec<RetainedSvgPresentationAttribute>>,
+    svg_host: SvgComputedHost,
+    svg_evidence: Option<SvgComputedEvidence>,
     image_delivery: Option<ImageDeliveryCapture>,
     delivered_images: usize,
     replay_nonce: Option<String>,
@@ -221,6 +226,9 @@ impl RecordedOutputSession {
         Ok(Self {
             stage: Stage::Original,
             image_plan: None,
+            svg_sources: None,
+            svg_host: SvgComputedHost::default(),
+            svg_evidence: None,
             image_delivery: None,
             delivered_images: 0,
             replay_nonce: None,
@@ -273,6 +281,9 @@ impl RecordedOutputSession {
         self.handle = None;
         self.output = None;
         self.image_plan = None;
+        self.svg_sources = None;
+        self.svg_evidence = None;
+        let _ = self.svg_host.invalidate();
         self.image_delivery = None;
         self.delivered_images = 0;
         self.replay_nonce = None;
@@ -450,6 +461,13 @@ impl RecordedOutputSession {
                 &mut matches,
                 base,
             )?);
+            s.svg_sources = Some(
+                document
+                    .svg_presentations()
+                    .iter()
+                    .map(|p| p.source.clone())
+                    .collect(),
+            );
             s.image_plan = Some(ImagePlan::from_tree(
                 document.document().tree.clone(),
                 base,
@@ -633,6 +651,35 @@ impl RecordedOutputSession {
             )?);
             Ok(())
         })
+    }
+    pub fn record_svg(&mut self, observer: &mut impl SvgComputedObserver) -> Result<(), String> {
+        self.run(|s| {
+            if s.stage != Stage::ComposedBase || s.svg_evidence.is_some() {
+                return Err("fresh composed SVG preparation required".into());
+            }
+            let sources = s
+                .svg_sources
+                .as_ref()
+                .ok_or("SVG source preparation required")?;
+            s.svg_evidence = Some(s.svg_host.capture(sources, observer)?);
+            Ok(())
+        })
+    }
+    pub fn validate_svg(&mut self, observer: &mut impl SvgComputedObserver) -> Result<(), String> {
+        self.run(|s| {
+            let evidence = s
+                .svg_evidence
+                .as_ref()
+                .ok_or("SVG computed capture required")?;
+            let sources = s
+                .svg_sources
+                .as_ref()
+                .ok_or("SVG source preparation required")?;
+            s.svg_host.validate(evidence, sources, observer)
+        })
+    }
+    pub fn svg_computed_slots(&self) -> usize {
+        self.svg_evidence.as_ref().map_or(0, |e| e.values().len())
     }
     pub fn validate_images(
         &mut self,

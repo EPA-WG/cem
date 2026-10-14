@@ -188,3 +188,29 @@ fn mixed_documents_and_changed_environment_during_capture_are_rejected() {
     }
     assert!(host.capture(&sources, &mut Changing(0)).is_err());
 }
+
+#[test]
+fn svg_namespace_declarations_are_import_owned_not_semantic_attributes() {
+    let sources = sources();
+    let tree = sources[0].document();
+    let mut pending = vec![0];
+    let mut found = false;
+    while let Some(id) = pending.pop() {
+        let node = tree.node(id).unwrap();
+        pending.extend(node.children.iter().copied());
+        if node.name.as_ref().is_some_and(|n| {
+            n.local_name == "svg" && n.namespace_uri == "http://www.w3.org/2000/svg"
+        }) {
+            found = true;
+            assert!(node.attributes.iter().all(|id| tree
+                .node(*id)
+                .unwrap()
+                .name
+                .as_ref()
+                .unwrap()
+                .local_name
+                != "xmlns"));
+        }
+    }
+    assert!(found);
+}

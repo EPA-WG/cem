@@ -358,6 +358,14 @@ for one URL share the first body within the session. Selection joins only
 received bodies; it performs no second fetch in this mode. Missing receipts,
 redirects, failures, unsupported MIME and cancellation reject capture. Sealing
 closes ingress; further intercepted image loads revoke the preparation.
+`read().svgComputedSlots` counts retained SVG presentation attributes whose
+computed values were captured and revalidated by the native session. Both capture
+paths support static values, including cascade overrides. Active animations and
+SMIL are rejected for this profile; owner/style/input-state changes revoke the
+record. Use `host.change` before controlled writes, including changes restored to
+their original value. These observations do not identify winning declarations or
+consumed resource bytes, and do not grant transaction admission.
+
 `read().imageDeliveries` counts selected URLs with pre-delivery receipts.
 
 This is evidence of intercepted responses, not complete image-cache history.

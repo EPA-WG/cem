@@ -441,3 +441,55 @@ fn staged_replay_routes_bind_new_delivery_to_retained_output() {
     assert_eq!(s.image_deliveries(), 0);
     assert!(!s.image_replay_bound());
 }
+
+struct SvgObserver(&'static str);
+impl cem_ml::svg_computed_execution::SvgComputedObserver for SvgObserver {
+    fn environment_revision(&mut self) -> Result<String, String> {
+        Ok("svg:1".into())
+    }
+    fn observe(
+        &mut self,
+        slot: cem_ml::svg_computed_execution::SvgComputedSlot<'_>,
+    ) -> Result<String, String> {
+        assert_eq!(slot.property, "fill");
+        Ok(self.0.into())
+    }
+}
+fn svg_session() -> RecordedOutputSession {
+    let mut value: serde_json::Value = serde_json::from_str(&request()).unwrap();
+    for source in value["sources"].as_array_mut().unwrap() {
+        source["source"] = source["source"].as_str().unwrap().lines().skip(1).collect::<Vec<_>>().join("\n")
+            .replace("{p @style='background:url(./document.svg)'", "{result-element @name=svg @namespace='http://www.w3.org/2000/svg' | {result-element @name=path @namespace='http://www.w3.org/2000/svg' | {result-attribute @name=fill | red}}} {p").into();
+    }
+    value["choices"] = serde_json::json!([]);
+    let mut s = RecordedOutputSession::from_json(&value.to_string(), 1, 1).unwrap();
+    compose(&mut s);
+    s.prepare_base(slots, |_| Ok(HtmlBasePolicyDecision::Allow))
+        .unwrap();
+    s.prepare_stylesheets(BASE, slots, None).unwrap();
+    s
+}
+#[test]
+fn composed_svg_evidence_is_bound_to_session_lifetime() {
+    let mut s = svg_session();
+    s.record_svg(&mut SvgObserver("rgb(0, 0, 255)")).unwrap();
+    assert!(s.svg_computed_slots() > 0);
+    s.capture(BASE, slots, &mut OutputObserver { wrong: false })
+        .unwrap();
+    s.validate_svg(&mut SvgObserver("rgb(0, 0, 255)")).unwrap();
+    assert!(s.validate_svg(&mut SvgObserver("rgb(255, 0, 0)")).is_err());
+    assert!(s.html().is_err());
+    assert!(s.validate_svg(&mut SvgObserver("rgb(0, 0, 255)")).is_err());
+}
+#[test]
+fn svg_capture_requires_preparation_and_cannot_be_repeated() {
+    let mut s = session();
+    assert!(s.record_svg(&mut SvgObserver("none")).is_err());
+    assert!(s.html().is_err());
+    let mut s = svg_session();
+    s.record_svg(&mut SvgObserver("none")).unwrap();
+    assert!(s.record_svg(&mut SvgObserver("none")).is_err());
+    assert!(s.html().is_err());
+    let mut s = svg_session();
+    assert!(s.validate_svg(&mut SvgObserver("none")).is_err());
+}

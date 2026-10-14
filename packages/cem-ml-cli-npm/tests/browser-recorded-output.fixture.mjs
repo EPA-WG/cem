@@ -51,6 +51,68 @@ globalThis.runRecordedOutputFixture = async version => {
         } catch (error) { throw new Error(`${name}: ${String(error)}`, { cause: error }); }
         finally { hosts.forEach(host => host.dispose()); await pool?.close(); frame.remove(); }
     };
+    const addSvg = (request, extra = '') => {
+        const svg = "{result-element @name=svg @namespace='http://www.w3.org/2000/svg' | {result-element @name=path @namespace='http://www.w3.org/2000/svg' | {result-attribute @name=fill | red}} " + extra + "}";
+        request.sources[0].source = source.replace('p{color:rgb(1,2,3)}', 'p{color:rgb(1,2,3)}path{fill:blue}').replace('| Card}', '| Card ' + svg + '}');
+    };
+    for (const mode of ['sync', 'async', 'pool']) {
+        await run(`svg-computed-${mode}`, async ({ request, capture, captureAsync, doc, view, pool }) => {
+            addSvg(request);
+            const host = mode === 'sync' ? capture() : await captureAsync();
+            const summary = host.read();
+            check(summary.svgComputedSlots === 1, 'missing computed SVG slot');
+            check(view.getComputedStyle(doc.querySelector('svg path')).fill === 'rgb(0, 0, 255)', 'cascade override missing');
+            check(summary.blockers.includes('svg-computed-resource-acquisition-required') && summary.blockers.includes('atomic-host-transaction-required'), 'SVG observation widened admission');
+            if (pool) { await pool.close(); rejects(() => host.read(), 'pool closure retained SVG evidence'); }
+        }, mode === 'pool');
+    }
+    for (const mode of ['owner', 'cssom', 'focus', 'animation']) {
+        await run(`svg-computed-${mode}`, ({ request, capture, doc, view }) => {
+            addSvg(request);
+            const host = capture(), path = doc.querySelector('svg path');
+            if (mode === 'owner') path.replaceWith(path.cloneNode(true));
+            if (mode === 'cssom') doc.querySelector('style').sheet.insertRule('path{fill:green}', 0);
+            if (mode === 'focus') path.dispatchEvent(new view.FocusEvent('focusin', { bubbles: true }));
+            if (mode === 'animation') path.animate([{ fill: 'red' }, { fill: 'green' }], { duration: 10000 });
+            rejects(() => host.read(), 'changed SVG state accepted');
+            for (const animation of doc.getAnimations()) animation.cancel();
+            rejects(() => host.read(), 'restoration revived SVG evidence');
+        });
+    }
+    await run('svg-computed-smil', ({ request, capture }) => {
+        addSvg(request, "{result-element @name=animate @namespace='http://www.w3.org/2000/svg' | {result-attribute @name=attributeName | fill}}");
+        rejects(() => capture(), 'SMIL acquired static evidence');
+    });
+    await run('svg-computed-preference', ({ request, capture, view }) => {
+        addSvg(request);
+        const original = view.matchMedia.bind(view), queries = [];
+        view.matchMedia = query => { const result = original(query); queries.push(result); return result; };
+        const host = capture();
+        const forced = queries.find(query => query.media === '(forced-colors: active)');
+        check(forced, 'SVG preference listener missing');
+        forced.dispatchEvent(new Event('change'));
+        rejects(() => host.read(), 'SVG preference transition retained evidence');
+    });
+    await run('svg-computed-namespace', ({ request, capture, install, doc }) => {
+        addSvg(request);
+        rejects(() => capture({}, html => {
+            install(html);
+            doc.querySelector('svg').setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns', 'urn:wrong');
+        }), 'incorrect SVG namespace declaration was ignored');
+    });
+    await run('svg-computed-post-read', async ({ request, captureAsync }) => {
+        addSvg(request);
+        const host = await captureAsync({}, undefined, session => {
+            const read = session.read.bind(session);
+            session.read = (...args) => {
+                const observe = args[5]; let calls = 0;
+                args[5] = (...slot) => ++calls === 1 ? observe(...slot) : 'none';
+                return read(...args);
+            };
+        });
+        rejects(() => host.read(), 'post-read computed change accepted');
+        rejects(() => host.read(), 'post-read failure did not latch closed');
+    });
     await run('native-whole-output-scope', async ({ capture, doc, view }) => {
         const host = capture();
         await new Promise(resolve => setTimeout(resolve, 25));
@@ -186,8 +248,9 @@ globalThis.runRecordedOutputFixture = async version => {
         const original = view.matchMedia.bind(view), queries = [];
         view.matchMedia = query => { const result = original(query); queries.push(result); return result; };
         const host = await captureAsync();
-        check(queries.length > 0, 'media listener not installed');
-        queries[0].dispatchEvent(new Event('change'));
+        const screen = queries.find(query => query.media === 'screen');
+        check(screen, 'screen media listener not installed');
+        screen.dispatchEvent(new Event('change'));
         rejects(() => host.read(), 'media environment event retained evidence');
     });
     await run('active-inline-title-rejected', async ({ captureAsync, request }) => {

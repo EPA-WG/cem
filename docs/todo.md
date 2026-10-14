@@ -2575,9 +2575,30 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       CEM audit: shared native ownership and bounded inputs are preserved. No UI,
       public tokens, inherited theme values or scoped CSS are changed; visual and
       forced-color checks do not apply to this native evidence-only increment.
-    - [ ] Wire computed SVG observations into the shared browser/native preparation
+    - [x] Add native session fixtures and wire computed SVG observations into the shared browser/native preparation
       lifetime with exact element correspondence, style/environment invalidation,
       before/after read validation and Chromium cascade/owner-transition fixtures.
+      Include native namespace-consumption and Chromium SVG declaration parity
+      fixtures, rejecting nonmatching namespace declarations.
+      Native sessions retain source owners and computed evidence through both
+      browser capture paths; reads validate before and after native whole-output
+      checks. Static SVG observation rejects animations/SMIL and revokes on owner,
+      CSSOM, input-state, preference and session/pool lifetime changes. SVG XMLNS
+      delivery equivalence is limited to the exact SVG namespace on SVG roots.
+      Verification: 62 native tests pass (nine computed SVG, five SVG import and
+      48 QL template CSS tests); all 84 production Chromium preparation cases and
+      the full Nx browser gate pass. Builds, lint, focused rustfmt and diff checks
+      pass. Eleven new browser cases cover scoped cascade overrides, both capture
+      paths, pool closure, owner/CSSOM/focus/animation changes, SMIL rejection,
+      preference changes, namespace mismatch and post-read value changes.
+      CEM audit: shared native evidence and scoped stylesheet ownership remain
+      authoritative; no component-local behavior, public tokens or theme defaults
+      change. The preference fixture verifies invalidation, not visual forced-color
+      acceptance. Winning-source/resource-body evidence and general runtime closure
+      remain blocked; physical browser/device/AT acceptance remains independent.
+    - [ ] Define bounded local SVG paint-server dependency traversal, starting with
+      native fixtures for fragment ownership, fallback, cycles and external edges.
+      Keep computed values separate from winning-source and acquired-body evidence.
     - [ ] Record remaining computed CSS/SVG and general runtime resource loads,
       before claiming complete execution dependency closure.
   - [ ] Establish execution-owned lookup provenance for relative run-config inputs,
@@ -2585,9 +2606,9 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, wire the native computed SVG observation contract into shared browser
-preparation and verify cascade/owner transitions in Chromium. Then cover remaining
-computed CSS/SVG selection and general runtime resource loads.
+Next, define bounded local SVG paint-server dependency traversal with native
+fixtures. Then bind computed CSS/SVG resource selections to acquired bodies and
+cover general runtime resource loads.
 Selected image response/candidate binding is available through explicit native
 replay; unchanged-URL observation deliberately retains its historical-identity
 blocker.

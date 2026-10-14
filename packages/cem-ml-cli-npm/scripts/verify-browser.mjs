@@ -407,7 +407,7 @@ try {
     const compiledStylesheets = await page.evaluate(() => globalThis.runCompiledStylesheetsFixture());
     assert.equal(compiledStylesheets.cases.length, 20);
     const recordedPreparations = await page.evaluate(version => globalThis.runRecordedOutputFixture(version), browser.version());
-    assert.equal(recordedPreparations.cases.length, 73);
+    assert.equal(recordedPreparations.cases.length, 84);
     console.log(`Verified ${recordedPreparations.cases.length} production native preparation host cases.`);
     const recordedOutput = await verifyRecordedOutput(browser, workspaceRoot);
     const stylesheetSelection = await page.evaluate((version) => globalThis.runStylesheetSelectionFixture(version), browser.version());

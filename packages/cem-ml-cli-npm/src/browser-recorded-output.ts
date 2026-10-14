@@ -1,3 +1,4 @@
+import { BrowserSvgComputedObservation, type SvgComputedPredicate } from './browser-svg-computed.js';
 import { BrowserImageDelivery } from './browser-image-delivery.js';
 import { BrowserImageObservation, type ImagePredicate, type NativeImagePreparation } from './browser-images.js';
 import { BrowserDomCorrespondence, claimDocument, documentOwned, releaseDocument } from './browser-dom-correspondence.js';
@@ -14,8 +15,8 @@ export interface NativeRecordedOutputSession extends NativeImagePreparation {
     prepareBase(matches: NativeDomPredicate, decide: (candidate: string, fallback: string, stamp: string) => boolean): number;
     compose(base: string, matches: NativeDomPredicate): string;
     prepareStylesheets(base: string, matches: NativeDomPredicate, title: string | undefined, command: (owner: number, link: boolean, selected: boolean) => void): void;
-    capture(base: string, matches: NativeDomPredicate, revision: () => string, observe: StylesheetPredicate, images: ImagePredicate): string;
-    read(base: string, matches: NativeDomPredicate, revision: () => string, observe: StylesheetPredicate, images: ImagePredicate): string;
+    capture(base: string, matches: NativeDomPredicate, revision: () => string, observe: StylesheetPredicate, images: ImagePredicate, svg: SvgComputedPredicate): string;
+    read(base: string, matches: NativeDomPredicate, revision: () => string, observe: StylesheetPredicate, images: ImagePredicate, svg: SvgComputedPredicate): string;
     close(): void;
     free(): void;
 }
@@ -30,7 +31,7 @@ export interface BrowserRecordedOutputOptions {
     /** Async capture's whole load deadline; 1..30,000 ms. */
     readonly timeoutMs?: number;
 }
-export interface BrowserRecordedOutputSummary { readonly blockers: readonly string[]; readonly imageAcquisitions: number; readonly imageDeliveries: number; }
+export interface BrowserRecordedOutputSummary { readonly blockers: readonly string[]; readonly imageAcquisitions: number; readonly imageDeliveries: number; readonly svgComputedSlots: number; }
 /** The installer delivers native HTML into this document synchronously. It must
  * preserve the Document/URL and must not start unowned context or CSS mutations. */
 export type RecordedOutputInstaller = (html: string, stage: 'original' | 'composed') => void;
@@ -46,6 +47,7 @@ export class BrowserRecordedOutputHost {
     readonly #stamp: string;
     readonly #observation: BrowserStylesheetObservation;
     readonly #images: BrowserImageObservation;
+    readonly #svg: BrowserSvgComputedObservation;
     #delivery?: BrowserImageDelivery;
     readonly #initialLoads = new Set<Element>();
     readonly #waitingLinks = new Set<Element>();
@@ -77,6 +79,7 @@ export class BrowserRecordedOutputHost {
         this.#document = document; this.#view = view; this.#native = native; this.#options = options;
         this.#url = document.URL; this.#stamp = options.policy.stamp;
         this.#dom = new BrowserDomCorrespondence(document, 10_000);
+        this.#svg = new BrowserSvgComputedObservation(document, id => this.#dom.node(id), () => this.#quiet(), this.#revoke);
         this.#images = new BrowserImageObservation(document, id => this.#dom.node(id), () => this.#quiet(), this.#revoke, work => this.#run(work));
         this.#observation = new BrowserStylesheetObservation(document, id => this.#dom.node(id), this.#revoke);
         this.#observer = new MutationObserver(records => { if (records.length) this.dispose(); });
@@ -99,7 +102,7 @@ export class BrowserRecordedOutputHost {
             this.#deliver(composed, 'composed', install);
             this.#freeze();
             this.#native.prepareStylesheets(this.#document.baseURI, this.#match, undefined, () => { throw new Error('Unexpected selection command'); });
-            const summary = this.#summary(this.#native.capture(this.#document.baseURI, this.#match, this.#revision, this.#observe, this.#images.observe));
+            const summary = this.#summary(this.#native.capture(this.#document.baseURI, this.#match, this.#revision, this.#observe, this.#images.observe, this.#svg.observe));
             this.#observation.validateSeen();
             this.#captured = true;
             return summary;
@@ -178,7 +181,7 @@ export class BrowserRecordedOutputHost {
                     this.#observation.activeTitled = active;
                     this.#observation.titledDisabled = title === '';
                 }
-                const result = this.#summary(this.#native.capture(this.#document.baseURI, this.#match, this.#revision, this.#observe, this.#images.observe));
+                const result = this.#summary(this.#native.capture(this.#document.baseURI, this.#match, this.#revision, this.#observe, this.#images.observe, this.#svg.observe));
                 this.#observation.validateSeen();
                 this.#captured = true; this.#pending = false;
                 return result;
@@ -227,7 +230,7 @@ export class BrowserRecordedOutputHost {
     read(): BrowserRecordedOutputSummary {
         return this.#run(() => {
             if (!this.#captured) throw new Error('Recorded output capture required');
-            return this.#summary(this.#native.read(this.#document.baseURI, this.#match, this.#revision, this.#observe, this.#images.observe));
+            return this.#summary(this.#native.read(this.#document.baseURI, this.#match, this.#revision, this.#observe, this.#images.observe, this.#svg.observe));
         });
     }
     /** Revoke before all controlled writes, including synchronous A-B-A changes. */
@@ -244,7 +247,7 @@ export class BrowserRecordedOutputHost {
         this.#view.removeEventListener('pagehide', this.#revoke); this.#view.removeEventListener('resize', this.#revoke); this.#view.removeEventListener('orientationchange', this.#revoke);
         this.#document.removeEventListener('load', this.#load, true); this.#document.removeEventListener('error', this.#revoke, true);
         this.#options.signal?.removeEventListener('abort', this.#revoke);
-        this.#delivery?.dispose(); releaseDocument(this.#document, this); this.#cancelWait?.(); this.#images.dispose(); this.#observation.dispose(); this.#initialLoads.clear();
+        this.#delivery?.dispose(); releaseDocument(this.#document, this); this.#cancelWait?.(); this.#images.dispose(); this.#svg.dispose(); this.#observation.dispose(); this.#initialLoads.clear();
         if (!this.#busy) this.#free();
     }
     #free(): void { if (!this.#freed) { this.#freed = true; try { this.#native.close(); } finally { this.#native.free(); } } }
@@ -304,10 +307,11 @@ export class BrowserRecordedOutputHost {
     };
     #summary(json: string): BrowserRecordedOutputSummary {
         const value = JSON.parse(json) as BrowserRecordedOutputSummary;
-        if (!Array.isArray(value.blockers) || !value.blockers.every(b => typeof b === 'string')
+        if (!Number.isInteger(value.svgComputedSlots) || value.svgComputedSlots < 0 || value.svgComputedSlots > 256
+            || !Array.isArray(value.blockers) || !value.blockers.every(b => typeof b === 'string')
             || !Number.isInteger(value.imageDeliveries) || value.imageDeliveries < 0 || value.imageDeliveries > value.imageAcquisitions
             || !Number.isInteger(value.imageAcquisitions) || value.imageAcquisitions < 0 || value.imageAcquisitions > 256) throw new Error('Invalid native preparation diagnostic summary');
-        return Object.freeze({ blockers: Object.freeze([...value.blockers]), imageAcquisitions: value.imageAcquisitions, imageDeliveries: value.imageDeliveries });
+        return Object.freeze({ blockers: Object.freeze([...value.blockers]), imageAcquisitions: value.imageAcquisitions, imageDeliveries: value.imageDeliveries, svgComputedSlots: value.svgComputedSlots });
     }
 }
 /** Takes ownership of the native session, including failed construction/capture. */

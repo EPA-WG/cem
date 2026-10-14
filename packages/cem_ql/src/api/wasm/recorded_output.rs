@@ -1,6 +1,7 @@
 //! Source ingress, HTML delivery and scalar live predicates. No AST/evidence DTO.
 use crate::template_execution_record::browser::RecordedOutputSession;
 use cem_ml::html_image_execution::{ImageObservation, ImageResponse};
+use cem_ml::svg_computed_execution::{SvgComputedObserver, SvgComputedSlot};
 use cem_ml::{
     api::wasm::{match_html_base_slot, BrowserStylesheetObserver},
     browser_stylesheet_sources::BrowserStylesheetSource,
@@ -191,7 +192,14 @@ impl WasmRecordedOutputSession {
         revision: &Function,
         observe: &Function,
         images: &Function,
+        svg: &Function,
     ) -> Result<String, JsValue> {
+        self.inner
+            .record_svg(&mut SvgObserver {
+                revision,
+                observe: svg,
+            })
+            .map_err(error)?;
         self.verify_images(revision, images)?;
         let result = self
             .inner
@@ -206,11 +214,18 @@ impl WasmRecordedOutputSession {
             )
             .map_err(error)?;
         self.verify_images(revision, images)?;
+        self.inner
+            .validate_svg(&mut SvgObserver {
+                revision,
+                observe: svg,
+            })
+            .map_err(error)?;
         Ok(summary(
             result,
             self.inner.image_acquisitions(),
             self.inner.image_deliveries(),
             self.inner.image_replay_bound(),
+            self.inner.svg_computed_slots(),
         ))
     }
     pub fn read(
@@ -220,7 +235,14 @@ impl WasmRecordedOutputSession {
         revision: &Function,
         observe: &Function,
         images: &Function,
+        svg: &Function,
     ) -> Result<String, JsValue> {
+        self.inner
+            .validate_svg(&mut SvgObserver {
+                revision,
+                observe: svg,
+            })
+            .map_err(error)?;
         self.verify_images(revision, images)?;
         let result = self
             .inner
@@ -235,11 +257,18 @@ impl WasmRecordedOutputSession {
             )
             .map_err(error)?;
         self.verify_images(revision, images)?;
+        self.inner
+            .validate_svg(&mut SvgObserver {
+                revision,
+                observe: svg,
+            })
+            .map_err(error)?;
         Ok(summary(
             result,
             self.inner.image_acquisitions(),
             self.inner.image_deliveries(),
             self.inner.image_replay_bound(),
+            self.inner.svg_computed_slots(),
         ))
     }
 }
@@ -248,11 +277,22 @@ fn summary(
     images: usize,
     deliveries: usize,
     replay_bound: bool,
+    svg: usize,
 ) -> String {
     if images > 0 && !replay_bound {
         blockers.push("image-browser-response-identity-required".into());
     }
-    serde_json::json!({"blockers":blockers, "imageAcquisitions": images, "imageDeliveries": deliveries}).to_string()
+    if svg > 0 {
+        blockers.extend(
+            [
+                "svg-computed-winning-source-required",
+                "svg-computed-resource-acquisition-required",
+                "general-runtime-resource-coverage-required",
+            ]
+            .map(str::to_owned),
+        );
+    }
+    serde_json::json!({"blockers":blockers, "imageAcquisitions": images, "imageDeliveries": deliveries, "svgComputedSlots": svg}).to_string()
 }
 fn error(e: impl AsRef<str>) -> JsValue {
     JsValue::from_str(e.as_ref())
@@ -299,4 +339,29 @@ fn image_observation(observe: &Function, id: u32) -> Result<ImageObservation, St
         height: number(2)?,
         complete: values.get(3).as_bool().ok_or("image completion required")?,
     })
+}
+
+struct SvgObserver<'a> {
+    revision: &'a Function,
+    observe: &'a Function,
+}
+impl SvgComputedObserver for SvgObserver<'_> {
+    fn environment_revision(&mut self) -> Result<String, String> {
+        self.revision
+            .call0(&JsValue::NULL)
+            .map_err(|_| "SVG environment callback failed")?
+            .as_string()
+            .ok_or_else(|| "synchronous SVG environment string required".into())
+    }
+    fn observe(&mut self, slot: SvgComputedSlot<'_>) -> Result<String, String> {
+        self.observe
+            .call2(
+                &JsValue::NULL,
+                &slot.source.owner().into(),
+                &slot.property.into(),
+            )
+            .map_err(|_| "SVG computed callback failed")?
+            .as_string()
+            .ok_or_else(|| "synchronous SVG computed string required".into())
+    }
 }

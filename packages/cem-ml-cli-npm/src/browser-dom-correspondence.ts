@@ -73,10 +73,14 @@ export class BrowserDomCorrespondence {
         const cached = this.#attributeLists.get(node);
         if (cached) return cached;
         const attributes = Array.from(element.attributes).filter((attribute) => {
-            // XML import consumes the root's namespace declaration. In text/html
-            // it is an inert ordinary attribute; admit only this exact equivalent.
-            return !(element === this.#document.documentElement && attribute.name === 'xmlns'
-                && attribute.value === HTML && !attribute.namespaceURI && element.namespaceURI === HTML);
+            // XML import consumes namespace declarations. HTML retains the root
+            // declaration as an ordinary attribute and SVG's as an XMLNS attribute.
+            // Admit only these exact namespace-equivalent delivery forms.
+            const htmlRoot = element === this.#document.documentElement && attribute.value === HTML
+                && !attribute.namespaceURI && element.namespaceURI === HTML;
+            const svgRoot = element.localName === 'svg' && element.namespaceURI === 'http://www.w3.org/2000/svg'
+                && attribute.value === element.namespaceURI && attribute.namespaceURI === 'http://www.w3.org/2000/xmlns/';
+            return !(attribute.name === 'xmlns' && (htmlRoot || svgRoot));
         });
         this.#attributeLists.set(node, attributes);
         return attributes;

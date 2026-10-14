@@ -3715,11 +3715,26 @@ explicit winning-source, acquisition and general-runtime coverage blockers.
 The supplied subset is not proof of complete document coverage. The caller must
 also validate its document/base/style evidence before and after consumption.
 
-This native contract is not yet wired into the browser/worker preparation host.
-It does not cover SVG properties without authored presentation attributes,
-pseudo-elements, SMIL sampling, paint-server traversal, general CSS resource
-selection or response delivery. Those require separate bounded contracts and
-browser acceptance before transaction admission can widen.
+Shared `BrowserRecordedOutputHost` now supplies exact native-owner scalar
+computed-property reads for both synchronous and asynchronous capture. The native
+session retains the SVG sources and evidence; the WASM boundary captures before
+whole-output preparation and validates afterward, then validates before and after
+each read. Worker-pool replacement, cancellation and disposal close the same
+session. `svgComputedSlots` is a diagnostic count, never transferable evidence.
+
+The browser profile requires static live SVG owners. It rejects document Web
+Animations/CSS animations and SMIL elements when SVG slots are observed. Document
+mutations, input/focus/pointer state events and watched platform preference changes
+revoke the host; computed values are also reread during validation. As with CSSOM
+ownership, callers must use `host.change` before controlled changes, including
+same-value restoration. Polling a value cannot establish unobserved transition
+history. Observations of inherited values and cascade overrides do not identify
+winning declarations or acquired response bodies.
+
+Properties without authored presentation attributes, pseudo-elements, SMIL
+sampling, paint-server traversal, general CSS resource selection and response
+delivery remain outside this bounded profile. Their blockers and transaction
+admission restrictions remain in place.
 
 ### Shared browser stylesheet observation host
 
