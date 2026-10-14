@@ -376,49 +376,12 @@ impl CssImportClosure {
         let request = self.request(id)?.clone();
         let validated = (|| {
             let url = self.validate_final_url(&request, &response.uri)?;
-            let hint = request.resolution.content_type_hint.as_deref();
-            for mime in [hint, response.content_type.as_deref()]
-                .into_iter()
-                .flatten()
-            {
-                if crate::schema::registry::content_type_essence(mime) != "text/css" {
-                    return Err(failure(
-                        "cem.css.import_content_type",
-                        "CSS imports require text/css",
-                    ));
-                }
-            }
-            let total = self
-                .received_bytes
-                .checked_add(response.bytes.len())
-                .ok_or_else(|| {
-                    failure(
-                        "cem.css.import_byte_limit",
-                        "CSS import byte count overflow",
-                    )
-                })?;
-            if response.bytes.len()
-                > policy
-                    .max_response_bytes
-                    .min(crate::import::MAX_DOCUMENT_BYTES)
-                || total > policy.max_total_bytes
-            {
-                return Err(failure(
-                    "cem.css.import_byte_limit",
-                    "CSS imports exceed response or aggregate byte limits",
-                ));
-            }
-            if let Some(integrity) = &request.resolution.integrity {
-                crate::resource_integrity::verify_resource_integrity(&response.bytes, integrity)
-                    .map_err(|e| failure("cem.css.import_integrity", e))?;
-            }
-            let mime = response
-                .content_type
-                .as_deref()
-                .or(hint)
-                .unwrap_or("text/css");
-            let tree = crate::import::import_data_bytes(&response.bytes, mime, "cem", &url)
-                .map_err(|e| failure("cem.css.import_parse_failed", e))?;
+            let response = crate::resolver::ResolvedRead {
+                uri: url.clone(),
+                ..response
+            };
+            let (tree, total) =
+                import_css_response(&response, &request.resolution, policy, self.received_bytes)?;
             Ok((tree, url, total))
         })();
         match validated {
@@ -649,4 +612,57 @@ fn at_import(
         }
     }
     error
+}
+
+/// Shared response admission for imported sheets and external HTML stylesheet roots.
+/// Callers first validate the final URL with their execution capability.
+pub(crate) fn import_css_response(
+    response: &crate::resolver::ResolvedRead,
+    resolution: &CemModuleUrlResolution,
+    policy: &CssImportResponsePolicy,
+    received_bytes: usize,
+) -> Result<(Arc<RetainedCemTree>, usize), CssImportFailure> {
+    let hint = resolution.content_type_hint.as_deref();
+    for mime in [hint, response.content_type.as_deref()]
+        .into_iter()
+        .flatten()
+    {
+        if crate::schema::registry::content_type_essence(mime) != "text/css" {
+            return Err(failure(
+                "cem.css.import_content_type",
+                "CSS imports require text/css",
+            ));
+        }
+    }
+    let total = received_bytes
+        .checked_add(response.bytes.len())
+        .ok_or_else(|| {
+            failure(
+                "cem.css.import_byte_limit",
+                "CSS import byte count overflow",
+            )
+        })?;
+    if response.bytes.len()
+        > policy
+            .max_response_bytes
+            .min(crate::import::MAX_DOCUMENT_BYTES)
+        || total > policy.max_total_bytes
+    {
+        return Err(failure(
+            "cem.css.import_byte_limit",
+            "CSS imports exceed response or aggregate byte limits",
+        ));
+    }
+    if let Some(integrity) = &resolution.integrity {
+        crate::resource_integrity::verify_resource_integrity(&response.bytes, integrity)
+            .map_err(|e| failure("cem.css.import_integrity", e))?;
+    }
+    let mime = response
+        .content_type
+        .as_deref()
+        .or(hint)
+        .unwrap_or("text/css");
+    let tree = crate::import::import_data_bytes(&response.bytes, mime, "cem", &response.uri)
+        .map_err(|e| failure("cem.css.import_parse_failed", e))?;
+    Ok((tree, total))
 }

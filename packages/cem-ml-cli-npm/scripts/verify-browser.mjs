@@ -9,6 +9,7 @@ import { chromium } from 'playwright';
 import { build } from 'vite';
 import { verifyHtmlBaseParity, emitNativeHtmlBaseEvidence } from './verify-html-base.mjs';
 import { verifyHtmlBaseFreezeEvidence } from './verify-html-base-evidence.mjs';
+import { verifyStylesheetSvg } from './verify-stylesheet-svg.mjs';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workspaceRoot = resolve(projectRoot, '../..');
@@ -290,6 +291,7 @@ try {
     });
 
     const htmlBase = await verifyHtmlBaseParity(browser, workspaceRoot);
+    const stylesheetSvg = await verifyStylesheetSvg(browser, workspaceRoot);
     const htmlBaseFreeze = await verifyHtmlBaseFreezeEvidence(browser, workspaceRoot);
     const htmlBaseHost = await page.evaluate((version) => globalThis.runHtmlBaseHostFixture(version), browser.version());
     assert.equal(htmlBaseHost.cases.length, 18);
@@ -313,6 +315,7 @@ try {
                 htmlBaseFreeze,
                 htmlBaseHost,
                 htmlExecutionInventory,
+                stylesheetSvg,
             },
             null,
             2,

@@ -701,3 +701,52 @@ fn html_css_snapshot_aggregate_limits_and_dom_drift_reject_publication() {
         }
     }
 }
+
+#[test]
+fn css_capture_latches_recorded_policy_drift_even_without_stylesheets() {
+    for source in [
+        "<html xmlns='http://www.w3.org/1999/xhtml'/>",
+        "<html xmlns='http://www.w3.org/1999/xhtml'><style>p{color:red}</style></html>",
+    ] {
+        let revision = Arc::new(AtomicUsize::new(1));
+        let cap = CemModuleUrlResolutionCapability::new(
+            Arc::new(ObservedResolver {
+                delegate: capability(false),
+                calls: Arc::new(AtomicUsize::new(0)),
+                revision: revision.clone(),
+                drift: false,
+                cacheable: true,
+            }),
+            CemResolutionContextHandle::new("execution"),
+        );
+        let (mut host, base) = host(
+            source,
+            "https://example.test/docs/page.html",
+            HtmlBaseCompatibilityProfile::StandardAgreement,
+        );
+        let document = Arc::new(
+            host.inspect_dependencies(&base, &cap, 100, slots, base.effective_url())
+                .unwrap(),
+        );
+        let snapshot = CssSourceSnapshot::new(vec![], Default::default()).unwrap();
+        let css = host
+            .inspect_css_imports(
+                document,
+                &cap,
+                snapshot.clone(),
+                Default::default(),
+                cem_ml::scheduler::AbortSignal::new(),
+                slots,
+                base.effective_url(),
+            )
+            .unwrap();
+        revision.store(2, Ordering::SeqCst);
+        assert!(host
+            .validate_css_imports(&css, &cap, &snapshot, slots, base.effective_url())
+            .is_err());
+        revision.store(1, Ordering::SeqCst);
+        assert!(host
+            .validate_css_imports(&css, &cap, &snapshot, slots, base.effective_url())
+            .is_err());
+    }
+}

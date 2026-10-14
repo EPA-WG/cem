@@ -207,6 +207,7 @@ pub struct DocumentStylesheetOccurrence {
 pub struct DocumentStylesheetInventory {
     pub document: DocumentDependencyInspection,
     pub stylesheets: Vec<DocumentStylesheetOccurrence>,
+    pub presentations: Vec<crate::import::svg_presentation::SvgPresentationPlan>,
     pub blockers: Vec<String>,
 }
 /// `document_url` is the host's effective final document URL, never a synthetic
@@ -280,6 +281,7 @@ fn inspect_stylesheets(
     let mut result = DocumentStylesheetInventory {
         document,
         stylesheets: Vec::new(),
+        presentations: Vec::new(),
         blockers: vec!["css-import-and-runtime-closure-required".into()],
     };
     if url::Url::parse(document_url).is_err() {
@@ -292,6 +294,7 @@ fn inspect_stylesheets(
         b.contains("budget")
             || b.contains("invalid-retained")
             || b == "srcset-numeric-profile-incomplete"
+            || b == "svg-presentation-analysis-incomplete"
             || (base == StylesheetBase::Fixed && b == "document-base-context-required")
             || b == "document-import-diagnostics"
     }) {
@@ -340,6 +343,29 @@ fn inspect_stylesheets(
             {
                 candidates.push((id, *attr_id, true));
             }
+        }
+    }
+    for source in &result.document.presentations {
+        let url = if base == StylesheetBase::ImportedXml {
+            tree.node_base_uri(source.owner())
+        } else {
+            Some(document_url)
+        };
+        match url
+            .ok_or_else(|| "missing SVG presentation base".to_string())
+            .and_then(|url| resolve_css_resources(source.css().clone(), capability, url))
+        {
+            Ok(resources) => {
+                result
+                    .presentations
+                    .push(crate::import::svg_presentation::SvgPresentationPlan {
+                        source: source.clone(),
+                        resources,
+                    })
+            }
+            Err(_) => result
+                .blockers
+                .push("svg-presentation-base-unresolved".into()),
         }
     }
     for (owner, source_node, attribute) in candidates {

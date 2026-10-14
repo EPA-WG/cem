@@ -1,5 +1,6 @@
 //! External document syntax is resolved only here, into retained typed CEM trees.
 pub mod srcset;
+pub mod svg_presentation;
 use crate::{
     diagnostics::Diagnostic,
     lifecycle::LoadedInputAstStream,

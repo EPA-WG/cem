@@ -2075,24 +2075,91 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       behavior change. Public tokens, accessibility and inherited styles are
       unaffected; theme/forced-color checks are inapplicable and physical AT
       acceptance remains independently open.
-    - [ ] Capture external HTML link stylesheet roots from execution-owned link
+    - [x] Capture external HTML link stylesheet roots from execution-owned link
       occurrences and immutable response snapshots, preserving link eligibility,
       confirmed href/base ownership, final URL policy, conditions and bounded
       import closure. Keep stylesheet installation/load history separate.
-    - [ ] Bind stylesheet selection, installation and load history to native
+      - [x] Add native fixtures for link rel/type/namespace/inert eligibility,
+        confirmed bases, repeated/redirected roots, source ownership, integrity,
+        missing/denied responses, aggregate bounds and stale captures.
+      Delivered exact retained link occurrences and immutable external response
+      roots through `HtmlExecutionCssImports`. Confirmed HTML bases determine
+      hrefs; native policy may restrict but cannot remap them. Shared response
+      admission enforces MIME, integrity and byte bounds before native import;
+      nested imports retain final URL bases. Link metadata, source owners,
+      revisions and repeated occurrences survive, including disabled/alternate
+      candidates. Inline, external and body roots share all capture budgets.
+      Missing acquisitions never fall back to I/O; failed/incomplete captures
+      cannot publish. Combined preparations discharge external closure coverage
+      while retaining transport, runtime, installation and edit requirements.
+      Contract: [external stylesheet snapshot roots](cem-studio.md#external-stylesheet-snapshot-roots).
+    - [x] Bind stylesheet selection, installation and load history to native
       execution evidence for document, body and external-link roots before
       discharging their conditions/execution-history blockers.
+      - [x] Add native execution-host fixtures for complete root/import observations,
+        load/source and installation identity, conditional/disabled selection,
+        epochs, foreign evidence, callback failure/drift and bounded work; verify
+        actual stylesheet observations in Chromium.
+      Delivered exclusive `StylesheetExecutionHost` epochs and sealed complete
+      observations, bound to HTML and recorded-template CSS preparations. Native
+      probes retain exact source owners, root/import conditions, body scopes and
+      selection metadata. Actual execution adapters must verify loaded sources,
+      installation identities and condition outcomes; source descriptors alone
+      are insufficient. Inactive imports cannot contradict their ancestors;
+      active occurrences require load/install evidence. Bounds, callbacks,
+      source/owner substitution and environment drift reject or revoke capture.
+      Observed drift stays invalid after restoration, including empty HTML CSS
+      forests. Combined results discharge only installation/import-condition
+      history; inner-rule/computed-resource runtime coverage and edits stay blocked.
+      Production browser/worker observation wiring follows this native contract.
+      Contract: [exclusive stylesheet execution observations](cem-studio.md#exclusive-stylesheet-execution-observations).
+    - [x] Inventory SVG presentation URL references through shared native CSS
+      import and execution-owned bases, preserving source and policy evidence.
+      - [x] Add SVG fixtures for paint/filter/clip/mask/marker/cursor values,
+        CSS escapes and decoded sources, local fragments, namespace and SMIL
+        guards, malformed values, bounds, native ownership and Chromium parity.
+      Delivered retained `fill`, `stroke`, `filter`, `clip-path`, `mask`, marker
+      endpoint and cursor values through the shared CSS import boundary. Native
+      syntax owns escapes, URL candidates and diagnostic offsets; no downstream
+      CSS string parser was added. Declaration injection, top-level separators,
+      `!important`, malformed syntax and bounded-work exhaustion reject analysis.
+      Exact document/attribute/CSS owners survive, with decoded-value coordinates
+      kept separate from edit locations. HTML execution uses the confirmed base;
+      explicit XML uses import-owned bases. Denials remain visible, local fragments
+      remain local dependencies and SMIL/computed SVG behavior remains blocked.
+      Contract: [retained SVG presentation URL values](cem-studio.md#retained-svg-presentation-url-values).
+      Verification for these three slices: 68 native CSS/import/HTML/SVG tests,
+      211 document regressions and 26 CEM-QL preparation/execution tests pass
+      (305 total). The Chromium fixture checks five stylesheet occurrences,
+      actual loaded bytes/URLs, disabled/alternate roots, disable/restore/media
+      transitions, SVG paint/fragment parity and two native stale rejections.
+      `cem_ql:build:wasm`, CLI lint, new-file `rustfmt --check` and
+      `git diff --check` pass.
+      The rebuilt Nx `@epa-wg/cem-ml-cli:test:browser` gate passes the new
+      stylesheet/SVG fixture plus 24 base confirmations, eight freeze transitions,
+      18 execution-host cases and existing worker/command regressions.
+      CEM review: shared native import/loading semantics, bounded variation and
+      explicit execution/source ownership; no app-local behavior/parser or JSON
+      AST handoff. Public tokens, inherited overrides and accessibility remain
+      unchanged. Theme/forced-color checks are inapplicable; physical AT remains
+      independently open. Browser transport policy and atomic edit admission
+      remain separate requirements.
+    - [ ] Connect the exclusive stylesheet observer to the shared browser/worker
+      runtime, including CSSOM, load, selection, environment and lifecycle
+      invalidation before exposing production stylesheet execution evidence.
+    - [ ] Record responsive image-source selection and acquisition, followed by
+      remaining computed CSS/SVG and general runtime resource loads, before
+      claiming complete execution dependency closure.
   - [ ] Establish execution-owned lookup provenance for relative run-config inputs,
     including invocation/default origins, before widening relocation admission.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, capture external HTML link stylesheet roots and their bounded import closure
-from execution-owned link occurrences and immutable response snapshots. Then bind
-stylesheet selection, installation and load history to native execution evidence.
+Next, connect the native stylesheet observation protocol to the shared browser/
+worker runtime and its mutation/lifecycle invalidation. Then record responsive
+image-source selection/acquisition and remaining computed CSS/SVG/runtime loads.
 Connect the prepared native read set to host transaction admission only after complete
-dependency evidence. Complete SVG presentation, responsive-source selection and
-runtime dependency closure and combine it with map rewrite ownership before
+dependency evidence. Combine that dependency closure with map rewrite ownership before
 widening Studio admission.
 Relative run-config input provenance and grouped operation/graph authoring follow.
 Expanded/resizable panes and larger-data controls must follow the same library-first

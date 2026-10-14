@@ -38,10 +38,23 @@ pub struct HtmlExecutionInventory {
     stylesheets: DocumentStylesheetInventory,
     references: Vec<HtmlReferenceProvenance>,
     srcsets: Vec<HtmlSrcsetProvenance>,
+    links: Vec<crate::html_stylesheet_links::HtmlStylesheetLink>,
     blockers: Vec<String>,
 }
 
 impl HtmlExecutionInventory {
+    pub(crate) fn validate_recorded_policy(&self) -> Result<(), String> {
+        if resolver_identity(&self.capability)? != self.resolver_identity {
+            return Err("recorded HTML resolver policy changed".into());
+        }
+        Ok(())
+    }
+    pub fn svg_presentations(&self) -> &[crate::import::svg_presentation::SvgPresentationPlan] {
+        &self.stylesheets.presentations
+    }
+    pub fn stylesheet_links(&self) -> &[crate::html_stylesheet_links::HtmlStylesheetLink] {
+        &self.links
+    }
     pub fn base(&self) -> &CapturedHtmlBaseEvidence {
         &self.base
     }
@@ -76,6 +89,8 @@ impl HtmlBaseExecutionHost {
     ) -> Result<HtmlExecutionInventory, String> {
         self.validate(evidence, &mut matches, base_uri)?;
         let resolver_identity = resolver_identity(capability)?;
+        let links =
+            crate::html_stylesheet_links::collect(&evidence.native_resolution().tree, budget)?;
         let stylesheets = inspect_html_execution_stylesheets(evidence, capability, budget);
         if stylesheets
             .blockers
@@ -130,11 +145,15 @@ impl HtmlBaseExecutionHost {
                 b.as_str() != "document-base-context-required"
                     && b.as_str() != "reference-base-and-policy-required"
                     && b.as_str() != "srcset-base-and-policy-required"
+                    && b.as_str() != "svg-presentation-base-and-policy-required"
             })
             .chain(stylesheets.blockers.iter())
             .cloned()
             .collect();
         blockers.extend(evidence.blockers().iter().map(|b| (*b).into()));
+        if !links.is_empty() {
+            blockers.push("external-stylesheet-closure-required".into());
+        }
         blockers.extend(
             [
                 "document-reference-policy-required",
@@ -145,6 +164,13 @@ impl HtmlBaseExecutionHost {
         );
         if references.iter().any(|r| r.resolved_uri.is_err()) {
             blockers.push("document-reference-resolution-incomplete".into());
+        }
+        if stylesheets
+            .presentations
+            .iter()
+            .any(|p| p.resources.references.iter().any(|r| r.resolution.is_err()))
+        {
+            blockers.push("svg-presentation-resolution-incomplete".into());
         }
         if srcsets
             .iter()
@@ -168,6 +194,7 @@ impl HtmlBaseExecutionHost {
             stylesheets,
             references,
             srcsets,
+            links,
             blockers,
         };
         self.validate_dependencies(&result, capability, matches, base_uri)?;

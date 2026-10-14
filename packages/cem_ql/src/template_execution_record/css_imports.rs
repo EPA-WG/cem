@@ -1,4 +1,5 @@
 //! Snapshot CSS closures bound to the roots and resolver contexts of a native execution.
+mod execution;
 use super::{ExecutedHtmlTemplatePreparation, SnapshotTemplateExecution};
 use cem_ml::{
     css_import_snapshot::{
@@ -11,6 +12,7 @@ use cem_ml::{
     module_resolution::CemModuleUrlResolutionCapability,
     template_snapshot::TemplateSourceSnapshot,
 };
+pub use execution::ExecutedTemplateStylesheets;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -142,7 +144,10 @@ impl ExecutedHtmlTemplatePreparation {
             base_uri,
         )?;
         let document = self.preparation.document_owner();
-        let mut root_count = 0usize;
+        let mut root_count = document.stylesheet_links().len();
+        if root_count > limits.imports.max_sheets {
+            return Err("recorded template CSS root/sheet limit exceeded".into());
+        }
         let mut root_nodes = 0usize;
         let mut count_root = |nodes: usize| -> Result<(), String> {
             root_count = root_count.checked_add(1).ok_or("CSS root count overflow")?;
@@ -186,19 +191,9 @@ impl ExecutedHtmlTemplatePreparation {
             base_uri,
         )?;
         let mut remaining = limits;
-        let mut consume = |closure: &SnapshotCssImportClosure| {
-            remaining.imports.max_sheets -= closure.closure().sheets().len();
-            remaining.responses.max_total_bytes -= closure.closure().received_bytes();
-            remaining.max_root_nodes -= closure.closure().sheets()[0]
-                .resources
-                .tree
-                .ast()
-                .nodes
-                .len();
-        };
-        for closure in document.closures() {
-            consume(closure);
-        }
+        remaining.imports.max_sheets -= document.sheet_count();
+        remaining.responses.max_total_bytes -= document.received_bytes();
+        remaining.max_root_nodes -= document.root_nodes();
         let mut bodies = Vec::new();
         for body in &self.execution.bodies.bodies {
             let mut closures = Vec::new();
@@ -235,6 +230,7 @@ impl ExecutedHtmlTemplatePreparation {
                 "stylesheet-owner-context-required"
                     | "template-stylesheet-import-closure-required"
                     | "css-import-and-runtime-closure-required"
+                    | "external-stylesheet-closure-required"
             )
         });
         blockers.sort();

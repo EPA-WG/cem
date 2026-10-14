@@ -24,6 +24,7 @@ pub struct DocumentDependencyInspection {
     pub tree: Arc<RetainedCemTree>,
     pub references: Vec<DocumentReference>,
     pub srcsets: Vec<RetainedSrcsetAttribute>,
+    pub presentations: Vec<crate::import::svg_presentation::RetainedSvgPresentationAttribute>,
     pub blockers: Vec<String>,
     pub body_analysis_required: bool,
 }
@@ -44,6 +45,7 @@ pub fn inspect_document_dependencies(
     const SVG: &str = "http://www.w3.org/2000/svg";
     let mut references = Vec::new();
     let mut srcsets = Vec::new();
+    let mut presentations = Vec::new();
     let mut blockers = Vec::new();
     let mut remaining = budget;
     let mut pending = vec![0];
@@ -71,6 +73,14 @@ pub fn inspect_document_dependencies(
                 };
                 let namespace = name.namespace_uri.as_str();
                 let local = name.local_name.as_str();
+                if namespace == SVG
+                    && matches!(
+                        local,
+                        "animate" | "animateMotion" | "animateTransform" | "set" | "discard"
+                    )
+                {
+                    block(&mut blockers, "svg-animation-runtime-analysis-required");
+                }
                 if !matches!(namespace, HTML | SVG) {
                     block(&mut blockers, "unknown-document-vocabulary");
                 }
@@ -165,7 +175,29 @@ pub fn inspect_document_dependencies(
                     }
                     // SVG presentation values can contain CSS resource references.
                     // Do not parse CSS syntax by searching document strings.
-                    if namespace == SVG && !svg_direct_resource_slot(field) {
+                    if namespace == SVG
+                        && attr_ns.is_empty()
+                        && crate::import::svg_presentation::presentation_slot(local, field)
+                    {
+                        if attr.value.len() > remaining {
+                            block(&mut blockers, "inspection-budget-exceeded");
+                            break 'nodes;
+                        }
+                        remaining -= attr.value.len();
+                        match crate::import::svg_presentation::import_svg_presentation_attribute(
+                            tree.clone(),
+                            id,
+                            *attribute,
+                            attr.value.len(),
+                        ) {
+                            Ok(source) => {
+                                presentations.push(source);
+                                block(&mut blockers, "svg-presentation-base-and-policy-required");
+                                block(&mut blockers, "svg-presentation-runtime-analysis-required");
+                            }
+                            Err(_) => block(&mut blockers, "svg-presentation-analysis-incomplete"),
+                        }
+                    } else if namespace == SVG && matches!(field, "color-profile" | "marker") {
                         block(&mut blockers, "svg-presentation-analysis-required");
                     }
                     let role = if namespace == HTML
@@ -219,6 +251,7 @@ pub fn inspect_document_dependencies(
         tree,
         references,
         srcsets,
+        presentations,
         blockers,
         body_analysis_required: true,
     }

@@ -3,11 +3,18 @@
 mod fixture;
 #[path = "../tests/support/html_execution_inventory_fixture.rs"]
 mod inventory;
+#[path = "../tests/support/stylesheet_svg_fixture.rs"]
+mod stylesheets;
 #[path = "../tests/support/html_base_freeze_trace.rs"]
 mod trace;
 
 fn main() {
     let result = match std::env::args().nth(1).as_deref() {
+        Some("--verify-stylesheet-svg") => {
+            vec![stylesheets::verify(
+                serde_json::from_reader(std::io::stdin()).unwrap(),
+            )]
+        }
         None => fixture::run_cases(),
         Some("--confirm-observations") => {
             let observations =

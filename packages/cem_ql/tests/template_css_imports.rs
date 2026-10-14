@@ -702,3 +702,86 @@ fn consumption_latches_body_policy_changes_observed_during_dom_callbacks() {
         )
         .is_err());
 }
+
+#[test]
+fn stylesheet_execution_joins_document_link_and_body_owners() {
+    use cem_ml::stylesheet_execution::*;
+    struct Observer;
+    impl StylesheetExecutionObserver for Observer {
+        fn environment_revision(&mut self) -> Result<String, String> {
+            Ok("viewport:1;cssom:1".into())
+        }
+        fn observe(
+            &mut self,
+            slot: StylesheetExecutionSlot<'_>,
+        ) -> Result<StylesheetObservation, String> {
+            Ok(StylesheetObservation {
+                selected: true,
+                conditions_match: true,
+                loaded_source: Some(slot.source_key.into()),
+                installation: Some((slot.root * 100 + slot.sheet + 1) as u64),
+            })
+        }
+    }
+    let root = ROOT_SOURCE.replace(
+        "{head |",
+        "{head | {link @rel=stylesheet @href='https://templates.test/root.css'}",
+    );
+    let mut f = fixture(&root, CHILD_SOURCE, false);
+    let css = css_sources();
+    let captured = Arc::new(capture(&mut f, css.clone(), Default::default()).unwrap());
+    let mut host = StylesheetExecutionHost::default();
+    let evidence = captured
+        .record_execution(
+            &mut f.host,
+            &f.execution,
+            &f.snapshot,
+            &f.context,
+            &f.cap,
+            &css,
+            &mut host,
+            &mut Observer,
+            100,
+            slots,
+            BASE,
+        )
+        .unwrap();
+    assert_eq!(evidence.execution().observations().len(), 10);
+    assert!(!evidence
+        .blockers()
+        .iter()
+        .any(|b| b == "stylesheet-execution-history-required"));
+    assert!(evidence
+        .blockers()
+        .iter()
+        .any(|b| b == "css-runtime-dependency-closure-required"));
+    evidence
+        .validate(
+            &mut f.host,
+            &f.execution,
+            &f.snapshot,
+            &f.context,
+            &f.cap,
+            &css,
+            &mut host,
+            &mut Observer,
+            slots,
+            BASE,
+        )
+        .unwrap();
+    f.revision.store(1, Ordering::SeqCst);
+    assert!(evidence
+        .validate(
+            &mut f.host,
+            &f.execution,
+            &f.snapshot,
+            &f.context,
+            &f.cap,
+            &css,
+            &mut host,
+            &mut Observer,
+            slots,
+            BASE
+        )
+        .is_err());
+}

@@ -3526,9 +3526,9 @@ coverage. The combined blocker view retains CSS runtime closure, condition and
 installation/load history, ordinary resource-resolution failures and atomic edit
 admission. No conditions are evaluated and no CSS is installed by this API.
 
-External link stylesheet acquisition, SVG presentation references,
-responsive-source selection and general runtime loads require separate
-execution-owned evidence. Recorded template-body CSS uses the binding below.
+External link stylesheet roots, recorded template-body CSS and SVG presentation
+URL values use the integrations below. Responsive-source selection and general
+runtime loads still require separate execution-owned evidence.
 This extension does not widen
 Studio/browser-worker edit admission or convert CSS-local ranges into template
 rewrite locations. CEM review: shared native loading/import/source semantics and
@@ -3579,9 +3579,115 @@ remain unchanged. Resource denials, CSS conditions and installation/load history
 template/runtime dependency coverage and atomic transaction requirements stay
 explicit. These are potential dependencies across recorded bodies, including
 unused declarations; capture neither proves stylesheet installation nor authorizes
-source edits. External link roots and broader resource coverage remain separate.
+source edits. External link roots and stylesheet execution observations use the
+additional bindings below; broader runtime resource coverage remains separate.
 
 CEM review: shared native import/loading semantics, explicit retained ownership
 and bounded variation are preserved. No UI behavior, public token, accessibility
 or inherited-style contract changes; theme/forced-color checks are inapplicable
 and physical AT acceptance remains independently open.
+
+### External stylesheet snapshot roots
+
+`HtmlExecutionInventory::stylesheet_links` records HTML-namespace `link` occurrences
+whose ASCII-case-insensitive `rel` tokens include `stylesheet`. It retains the
+href attribute owner and authored media, title, alternate, disabled, type and
+integrity metadata. This follows the [HTML stylesheet link contract](https://html.spec.whatwg.org/multipage/links.html#link-type-stylesheet).
+Inert template descendants do not become link roots; the current HTML host also
+rejects unseparated template content. Foreign namespaces and other link relations
+remain outside this root inventory. Missing/empty href, untitled alternate links
+and unsupported types prevent publication of this bounded capture.
+
+`inspect_css_imports` now captures external roots alongside retained inline CSS.
+The confirmed HTML base resolves the href; module maps may restrict that absolute
+URL but cannot replace it. Requested and final response URLs require execution
+policy approval. Root responses use the same native MIME, integrity, byte-bound
+and CSS import admission as nested imports, with the link's integrity expectation
+checked additionally. Exact snapshot response owners and revisions are retained.
+Relative imports use final response URLs. Repeated links remain separate roots,
+including disabled and alternate candidates; acquisition does not imply selection.
+
+Inline, external and recorded body roots share occurrence, root-node and cumulative
+response-byte budgets; external response bytes count as well as imported bytes.
+Known retained roots are bounded before new resolution, and external roots pass
+response/import bounds before traversal. Missing snapshots never trigger I/O.
+Current snapshot, capability, HTML host and DOM ownership are rechecked at
+consumption. The combined view clears only external stylesheet closure coverage.
+Browser transport/CORS/CSP policy and actual installation require independent
+host evidence; no stylesheet is fetched or installed by this capture API.
+
+### Exclusive stylesheet execution observations
+
+`StylesheetExecutionHost` records a bounded observation of every root and imported
+sheet occurrence. `StylesheetExecutionObserver` is a trusted execution adapter:
+it compares actual loaded sources and installed occurrences with the native
+requests and reports selection, effective condition results, loaded source keys
+and stable installation identities. Requests include native trees, final URLs,
+root owners, media/title/alternate/disabled metadata and native import conditions.
+The adapter must verify the actual bytes/compiled-source correspondence before
+returning a source key; echoing that key is not an observation implementation.
+
+The host requires complete observations, unique nonzero installation identities,
+correct loaded source fingerprints, load/installation evidence for active sheets
+and consistency with disabled roots and inactive import ancestors. Imported
+conditions are observed by the execution engine; native capture does not emulate
+media/supports evaluation or infer stylesheet activation from source text. Inner
+rule conditions, computed values and resource loads remain runtime coverage.
+
+Each capture supersedes the previous epoch. Its environment revision must cover
+CSSOM edits, stylesheet/load replacement, selection, media/supports changes and
+installation changes. The adapter must invalidate before controlled changes,
+including same-value transitions; observed mismatches or callback failure revoke
+the evidence permanently. Unsupported observation, untracked external writers,
+shared installation handles and missing source correspondence fail this profile.
+Two capture passes and later consumption probes reject changing observations.
+Public diagnostic records cannot construct the sealed execution evidence.
+
+`HtmlExecutionCssImports::record_execution` and
+`ExecutedTemplateCssImports::record_execution` bind this evidence to the original
+CSS preparation, source snapshots and live HTML host. The template form includes
+recorded body capabilities and stylesheet scopes, including unused declarations
+whose inactive status must be observed. Original candidate blockers remain intact;
+only the combined result clears stylesheet/import-condition history requirements.
+Runtime loads and atomic edit admission remain blocked. These native APIs record
+host observations; they neither install CSS nor provide the production browser
+mutation/lifecycle adapter. That adapter is the next integration step.
+
+The shared Chromium fixture supplies actual CSSOM/load observations for five
+inline/link/import occurrences, including a disabled alternate root. It verifies
+loaded bytes, active styles, disable/restore/media transitions and native stale
+rejection. This bounded parity evidence does not certify arbitrary browser writers
+or every conditional stylesheet grammar.
+
+### Retained SVG presentation URL values
+
+The shared `import::svg_presentation` boundary imports the URL-capable SVG
+presentation slots `fill`, `stroke`, `filter`, `clip-path`, `mask`, `marker-start`,
+`marker-mid`, `marker-end` and `cursor`. SVG presentation values use CSS property
+syntax, as specified by [SVG styling](https://www.w3.org/TR/SVG/styling.html#PresentationAttributes).
+Only unqualified attributes on SVG elements are admitted. SMIL elements retain
+animation/runtime requirements; legacy `color-profile` and `marker` shorthand
+retain explicit analysis requirements.
+
+The importer retains the exact document, attribute and native CSS owners. It
+accepts a single property value and rejects declaration injection, `!important`,
+malformed CSS and bounded-work exhaustion. CSS escapes, quoted URLs, fallbacks,
+local fragments and multiple cursor candidates are handled by shared native CSS
+syntax, with no downstream string scanning. Offsets can be projected into the
+**decoded attribute value** by subtracting the import-owned property prefix;
+entity decoding means these are not source-file edit coordinates.
+
+Document inspection charges decoded value bytes against its work budget. Complete
+analysis precedes resolution callbacks. HTML execution uses its confirmed base;
+explicit XML inspection uses the import-owned per-node XML base chain. Resolver
+policy failures remain in native plans and combined blockers; stale HTML hosts
+cannot consume them. The Chromium fixture compares SVG paint URL resolution and
+local-fragment computed-style serialization with the same native source.
+
+This is a potential dependency inventory, not CSS property conformance, computed
+style, filter/pattern traversal, SVG animation execution or resource-load history.
+Those runtime requirements remain visible. Across these additions, CEM review
+confirms shared native import/loading services, bounded inputs and explicit source
+and execution ownership. UI behavior, accessibility, public theme tokens and
+inherited overrides are unaffected. Theme/forced-color checks are inapplicable;
+physical device/AT acceptance remains independently open.
