@@ -6,6 +6,7 @@ use cem_ml::html_image_execution::{
 };
 use cem_ml::import::svg_presentation::RetainedSvgPresentationAttribute;
 use cem_ml::svg_computed_execution::{SvgComputedEvidence, SvgComputedHost, SvgComputedObserver};
+use cem_ml::svg_paint_dependencies::{PaintTarget, SvgPaintPlan};
 use cem_ml::{
     css_emission::CssManagedScope,
     css_import_snapshot::{CssSnapshotSource, CssSourceSnapshot},
@@ -88,6 +89,7 @@ pub struct RecordedOutputSession {
     svg_sources: Option<Vec<RetainedSvgPresentationAttribute>>,
     svg_host: SvgComputedHost,
     svg_evidence: Option<SvgComputedEvidence>,
+    paint: Option<SvgPaintPlan>,
     image_delivery: Option<ImageDeliveryCapture>,
     delivered_images: usize,
     replay_nonce: Option<String>,
@@ -229,6 +231,7 @@ impl RecordedOutputSession {
             svg_sources: None,
             svg_host: SvgComputedHost::default(),
             svg_evidence: None,
+            paint: None,
             image_delivery: None,
             delivered_images: 0,
             replay_nonce: None,
@@ -283,6 +286,7 @@ impl RecordedOutputSession {
         self.image_plan = None;
         self.svg_sources = None;
         self.svg_evidence = None;
+        self.paint = None;
         let _ = self.svg_host.invalidate();
         self.image_delivery = None;
         self.delivered_images = 0;
@@ -678,6 +682,47 @@ impl RecordedOutputSession {
             s.svg_host.validate(evidence, sources, observer)
         })
     }
+    /// Diagnostic counts only; the plan and its inventory never leave the session.
+    pub fn svg_paint_counts(&self) -> (usize, usize) {
+        if self.stage != Stage::Captured || self.cancel.is_aborted() {
+            return (0, 0);
+        }
+        self.paint.as_ref().map_or((0, 0), |p| {
+            (
+                p.roots().len(),
+                p.roots().iter().map(|r| r.links.len()).sum(),
+            )
+        })
+    }
+    fn paint_blockers(&self, mut blockers: Vec<String>) -> Vec<String> {
+        let Some(plan) = &self.paint else {
+            return blockers;
+        };
+        if plan.roots().is_empty() {
+            return blockers;
+        }
+        blockers.extend(plan.blockers().iter().map(|b| (*b).to_owned()));
+        for target in plan
+            .roots()
+            .iter()
+            .flat_map(|r| std::iter::once(&r.target).chain(r.links.iter().map(|l| &l.target)))
+        {
+            let blocker = match target {
+                PaintTarget::Local(_) => continue,
+                PaintTarget::Missing => "svg-paint-target-missing",
+                PaintTarget::Ambiguous => "svg-paint-target-ambiguous",
+                PaintTarget::WrongKind(_) => "svg-paint-target-kind-unsupported",
+                PaintTarget::Cycle(_) => "svg-paint-template-cycle",
+                PaintTarget::UnsupportedFragment => "svg-paint-fragment-unsupported",
+                PaintTarget::UntraversedUrl => "svg-paint-url-untraversed",
+                PaintTarget::BaseContextRequired => "svg-paint-base-context-required",
+            };
+            blockers.push(blocker.into());
+        }
+        blockers.sort();
+        blockers.dedup();
+        blockers
+    }
     pub fn svg_computed_slots(&self) -> usize {
         self.svg_evidence.as_ref().map_or(0, |e| e.values().len())
     }
@@ -719,6 +764,7 @@ impl RecordedOutputSession {
                 &mut matches,
                 base,
             )?);
+            let paint = SvgPaintPlan::from_inventory(document.clone(), 1_000_000)?;
             let handle = s.worker.prepare(
                 s.output.as_ref().unwrap().clone(),
                 html,
@@ -731,8 +777,9 @@ impl RecordedOutputSession {
             )?;
             let blockers = s.worker.read(&handle, observer, matches, base)?;
             s.handle = Some(handle);
+            s.paint = Some(paint);
             s.stage = Stage::Captured;
-            Ok(blockers)
+            Ok(s.paint_blockers(blockers))
         })
     }
     pub fn read(
@@ -745,8 +792,10 @@ impl RecordedOutputSession {
             if s.stage != Stage::Captured {
                 return Err("recorded read requires capture".into());
             }
-            s.worker
-                .read(s.handle.as_ref().unwrap(), observer, matches, base)
+            let blockers = s
+                .worker
+                .read(s.handle.as_ref().unwrap(), observer, matches, base)?;
+            Ok(s.paint_blockers(blockers))
         })
     }
 }

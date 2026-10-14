@@ -3736,6 +3736,71 @@ sampling, paint-server traversal, general CSS resource selection and response
 delivery remain outside this bounded profile. Their blockers and transaction
 admission restrictions remain in place.
 
+### Local SVG paint-server dependency plans
+
+`cem_ml::svg_paint_dependencies::SvgPaintPlan::from_inventory` defines a
+conservative candidate graph over one retained HTML execution inventory. Roots
+come only from native CSS resource references in SVG `fill` and `stroke`
+presentation attributes. Each root retains the exact document, attribute, imported
+CSS owner and CSS reference node. The full authored property value preserves any
+fallback syntax; the plan does not decide whether that fallback is valid or used.
+It does not parse computed CSS strings or infer which declaration won the cascade.
+
+For literal ASCII fragment IDs, lookup spans the active document, including
+foreign-namespace elements that can cause ID collisions. A unique SVG
+`linearGradient`, `radialGradient` or `pattern` is a local candidate. Duplicate IDs
+remain ambiguous instead of guessing browser selection. Missing IDs, unsupported
+fragments and wrong element types are explicit outcomes. HTML template content is
+excluded. Encoded/Unicode/SVG-view fragments and non-fragment URL aliases remain
+untraversed in this initial profile.
+
+Template edges retain their native element and attribute owners. Unqualified
+`href` takes precedence over `xlink:href`, including an empty modern attribute.
+Gradient chains may connect either gradient type; patterns may template only
+patterns. Per-root visited sets terminate self-links and longer cycles without
+mistaking shared targets across roots for cycles. The plan conservatively records
+potential template links even when authored attributes or child content might
+make their values unnecessary. Effective attribute inheritance and cloned-content
+style evaluation are separate work. These choices follow the relevant
+[SVG paint-server](https://www.w3.org/TR/SVG2/pservers.html) and
+[linking contracts](https://www.w3.org/TR/SVG2/linking.html).
+
+CSS fragment-only URLs remain local candidates. Template `href` fragments use a
+stricter bounded profile: traversal requires an HTTP(S) document fallback and
+confirmed HTML base to agree after removing fragments. A different base or an
+embedded document yields `BaseContextRequired`. Every non-fragment edge retains
+its authored URL as `UntraversedUrl`, including possible same-document aliases;
+there is no fetch, module-map substitution or external-document import. XML
+execution with per-element bases is outside this HTML inventory API.
+
+Construction is atomic on budget exhaustion: at most 256 roots, 64 template links
+per root, and a caller work budget capped at one million units. Document nodes,
+attributes and value bytes plus graph visits are charged. The plan retains its
+original inventory; live consumers must validate that inventory through its
+original HTML host and resolver capability. The plan supplies no execution seal.
+Rendering, paint-content dependencies, winning-source and acquired-body blockers
+remain. Pattern children, gradient stops, inherited styles, animation and external
+resources therefore cannot disappear from dependency requirements just because a
+local template chain was found.
+
+Recorded browser preparation now constructs the plan from the exact native
+inventory passed to whole-output preparation. The plan stays inside that session;
+publication follows successful preparation and a validated read. Subsequent reads
+revalidate the same document/base/resolver/style read set before returning plan
+diagnostics. Target replacement, ID or template-link mutation, base changes,
+cancellation and worker-pool closure invalidate the session and release the plan.
+Synchronous and asynchronous browser capture share this path.
+
+`svgPaintRoots` and `svgPaintLinks` report bounded diagnostic counts only. Unresolved
+target, cycle, base-context and untraversed-URL diagnostics join the existing
+blockers. No native graph, source owner or evidence seal is serialized to JavaScript
+or worker messages. Chromium fixtures compare DOM fragment lookup, template href
+reflection and computed fragment/fallback serialization with native candidate
+classifications. Duplicate IDs deliberately remain ambiguous even when Chromium
+returns a first element. Different-base template references remain unresolved.
+This verifies candidate correspondence and invalidation, not effective paint
+inheritance, pixels, winning declarations or acquired resource bodies.
+
 ### Shared browser stylesheet observation host
 
 `BrowserHtmlBaseHost.captureStylesheets(responses, { ownership: 'exclusive' })`

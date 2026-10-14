@@ -2596,9 +2596,51 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       change. The preference fixture verifies invalidation, not visual forced-color
       acceptance. Winning-source/resource-body evidence and general runtime closure
       remain blocked; physical browser/device/AT acceptance remains independent.
-    - [ ] Define bounded local SVG paint-server dependency traversal, starting with
+    - [x] Define and implement bounded local SVG paint-server dependency traversal, starting with
       native fixtures for fragment ownership, fallback, cycles and external edges.
       Keep computed values separate from winning-source and acquired-body evidence.
+      `SvgPaintPlan` retains the original HTML inventory and native presentation/CSS
+      owners. Fill/stroke fragment candidates resolve through document-wide IDs;
+      missing, duplicate, wrong-kind, encoded and non-fragment references remain
+      explicit. Gradient/pattern template links retain exact href owners and modern
+      href precedence, terminate cycles and require document/base agreement before
+      following fragment hrefs. Fallback syntax remains in the retained property;
+      no rendered fallback, effective inheritance or resource consumption is inferred.
+      Construction caps roots at 256, template depth at 64 and work at one million
+      units; exhaustion publishes no partial plan. Eleven new native fixtures cover
+      these boundaries, source ownership and stale inventory validation.
+      Verification: all 42 focused native tests across seven SVG/stylesheet suites
+      pass, plus rustfmt and diff checks. Browser/WASM integration is pending; this
+      native-only step does not change browser behavior or admission.
+      CEM audit: shared native source ownership, bounded variation and inherited
+      theme semantics remain intact. Paint-server inheritance is not replaced with
+      consumer-side styling. No UI, public tokens or visual styling change, so
+      visual/forced-color checks are inapplicable; physical AT acceptance remains
+      independent. Contract: docs/cem-studio.md#local-svg-paint-server-dependency-plans.
+    - [x] Add native session lifecycle fixtures, bind local paint-server plans to browser preparation lifetimes and add
+      Chromium parity fixtures for fragment targets, template href/base behavior,
+      duplicates, cycles and target mutation before consuming these candidates.
+      Plans now retain the exact inventory passed into whole-output preparation
+      and remain private to the native session. Publication follows validated
+      capture; every read validates the original document/base/resolver/style read
+      set before exposing bounded root/link counts and unresolved-edge diagnostics.
+      Failed capture, target/link/base mutation, cancellation and pool closure
+      release the plan. No AST, graph or evidence seal crosses the WASM boundary.
+      Verification: 75 focused native tests pass (50 QL preparation/template CSS,
+      11 paint traversal, nine computed SVG and five SVG import). All 97 production
+      Chromium preparation cases, including 13 new paint cases, and the full Nx
+      browser gate pass. CLI/WASM builds, lint, focused rustfmt and diff checks pass.
+      Chromium parity covers candidate lookup, template href and computed
+      fragment/fallback serialization; duplicates deliberately remain ambiguous
+      despite browser first-match lookup. This is not pixel/rendered-paint parity
+      or acquired-body evidence. Rendering, content-dependency and admission
+      blockers remain. CEM audit: shared native ownership and bounded variation
+      are preserved; no component behavior, public tokens, inherited styles or
+      visual/theme defaults change. Visual/forced-color and physical AT acceptance
+      remain independent of these candidate/lifetime checks.
+    - [ ] Define retained paint-content dependencies and inherited-style provenance
+      for gradient stops and pattern content, starting with native fixtures; preserve
+      rendering and acquired-body blockers until the relevant evidence is joined.
     - [ ] Record remaining computed CSS/SVG and general runtime resource loads,
       before claiming complete execution dependency closure.
   - [ ] Establish execution-owned lookup provenance for relative run-config inputs,
@@ -2606,9 +2648,9 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, define bounded local SVG paint-server dependency traversal with native
-fixtures. Then bind computed CSS/SVG resource selections to acquired bodies and
-cover general runtime resource loads.
+Next, define retained paint-content dependencies and inherited-style provenance
+for gradient stops and patterns with native fixtures. Then bind computed CSS/SVG
+resource selections to acquired bodies before covering general runtime loads.
 Selected image response/candidate binding is available through explicit native
 replay; unchanged-URL observation deliberately retains its historical-identity
 blocker.

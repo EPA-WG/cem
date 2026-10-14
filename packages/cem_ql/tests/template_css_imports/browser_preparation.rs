@@ -493,3 +493,63 @@ fn svg_capture_requires_preparation_and_cannot_be_repeated() {
     let mut s = svg_session();
     assert!(s.validate_svg(&mut SvgObserver("none")).is_err());
 }
+
+fn paint_session() -> RecordedOutputSession {
+    let mut value: serde_json::Value = serde_json::from_str(&request()).unwrap();
+    value["choices"] = serde_json::json!([]);
+    value["sources"] = serde_json::json!([{"uri": ROOT, "revision":"1", "contentType":"text/cem-ml", "source": format!("{{result-element @name=html @namespace='http://www.w3.org/1999/xhtml' | {{result-element @name=head @namespace='http://www.w3.org/1999/xhtml' | {{result-element @name=base @namespace='http://www.w3.org/1999/xhtml' | {{result-attribute @name=href | {BASE}}}}}}}{{result-element @name=body @namespace='http://www.w3.org/1999/xhtml' | {{svg @xmlns='http://www.w3.org/2000/svg' | {{linearGradient @id=a @href='#b'}}{{linearGradient @id=b}}{{path @fill='url(#a) red'}}}}}}}}")}]);
+    let mut s = RecordedOutputSession::from_json(&value.to_string(), 1, 1).unwrap();
+    compose(&mut s);
+    s.prepare_base(slots, |_| Ok(HtmlBasePolicyDecision::Allow))
+        .unwrap();
+    s.prepare_stylesheets(BASE, slots, None).unwrap();
+    s
+}
+#[test]
+fn paint_plan_is_published_only_with_validated_output_and_revoked_with_it() {
+    let mut s = paint_session();
+    assert_eq!(s.svg_paint_counts(), (0, 0));
+    let blockers = s
+        .capture(BASE, slots, &mut OutputObserver { wrong: false })
+        .unwrap();
+    assert_eq!(s.svg_paint_counts(), (1, 1));
+    assert!(blockers
+        .iter()
+        .any(|b| b == "svg-paint-base-context-required"));
+    assert!(blockers
+        .iter()
+        .any(|b| b == "svg-paint-rendering-evidence-required"));
+    assert_eq!(
+        s.read(BASE, slots, &mut OutputObserver { wrong: false })
+            .unwrap(),
+        blockers
+    );
+    assert!(s
+        .read(
+            BASE,
+            |_| Err("paint target changed".into()),
+            &mut OutputObserver { wrong: false }
+        )
+        .is_err());
+    assert_eq!(s.svg_paint_counts(), (0, 0));
+    assert!(s
+        .read(BASE, slots, &mut OutputObserver { wrong: false })
+        .is_err());
+}
+#[test]
+fn failed_capture_and_close_do_not_publish_paint_candidates() {
+    let mut s = paint_session();
+    assert!(s
+        .capture(
+            BASE,
+            |_| Err("target detached".into()),
+            &mut OutputObserver { wrong: false }
+        )
+        .is_err());
+    assert_eq!(s.svg_paint_counts(), (0, 0));
+    let mut s = paint_session();
+    s.capture(BASE, slots, &mut OutputObserver { wrong: false })
+        .unwrap();
+    s.close();
+    assert_eq!(s.svg_paint_counts(), (0, 0));
+}

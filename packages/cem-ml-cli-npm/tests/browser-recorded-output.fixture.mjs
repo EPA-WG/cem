@@ -51,6 +51,49 @@ globalThis.runRecordedOutputFixture = async version => {
         } catch (error) { throw new Error(`${name}: ${String(error)}`, { cause: error }); }
         finally { hosts.forEach(host => host.dispose()); await pool?.close(); frame.remove(); }
     };
+    const paintRequest = (request, doc, defs, fill = 'url(#a) red', base = doc.URL) => {
+        request.choices = [];
+        request.sources[0].contentType = 'text/cem-ml';
+        request.sources[0].source = `{result-element @name=html @namespace='http://www.w3.org/1999/xhtml' | {result-element @name=head @namespace='http://www.w3.org/1999/xhtml' | {result-element @name=base @namespace='http://www.w3.org/1999/xhtml' | {result-attribute @name=href | ${base}}}}{result-element @name=body @namespace='http://www.w3.org/1999/xhtml' | {svg @xmlns='http://www.w3.org/2000/svg' @width=16 @height=16 | {defs | ${defs}}{rect @width=16 @height=16 @fill='${fill}'}}}}`;
+    };
+    for (const mode of ['local', 'chain', 'cycle', 'duplicate', 'missing', 'wrong-kind', 'base', 'nonfragment']) {
+        await run(`paint-candidate-${mode}`, ({ request, doc, view, capture }) => {
+            let defs = '{linearGradient @id=a | {stop @stop-color=red}}', links = 0, blocker;
+            if (mode === 'chain' || mode === 'base') { defs = '{linearGradient @id=a @href="#b"}{radialGradient @id=b | {stop @stop-color=blue}}'; links = 1; }
+            if (mode === 'base') blocker = 'svg-paint-base-context-required';
+            if (mode === 'cycle') { defs = '{linearGradient @id=a @href="#b"}{radialGradient @id=b @href="#a"}'; links = 2; blocker = 'svg-paint-template-cycle'; }
+            if (mode === 'duplicate') { defs += '{pattern @id=a}'; blocker = 'svg-paint-target-ambiguous'; }
+            if (mode === 'missing') { defs = ''; blocker = 'svg-paint-target-missing'; }
+            if (mode === 'wrong-kind') { defs = '{path @id=a}'; blocker = 'svg-paint-target-kind-unsupported'; }
+            if (mode === 'nonfragment') blocker = 'svg-paint-url-untraversed';
+            paintRequest(request, doc, defs, mode === 'nonfragment' ? `url(${doc.URL}#a) red` : 'url(#a) red', mode === 'base' ? new URL('../assets/', doc.URL).href : doc.URL);
+            const host = capture(), summary = host.read();
+            check(summary.svgPaintRoots === 1 && summary.svgPaintLinks === links, 'native paint traversal counts differ');
+            if (blocker) check(summary.blockers.includes(blocker), 'unresolved paint edge disappeared');
+            check(summary.blockers.includes('svg-paint-rendering-evidence-required') && summary.blockers.includes('svg-paint-content-dependencies-required') && summary.blockers.includes('atomic-host-transaction-required'), 'paint candidate granted closure');
+            const target = doc.getElementById('a');
+            check(Boolean(target) === (mode !== 'missing'), 'Chromium fragment lookup mismatch');
+            if (mode === 'duplicate') check(doc.querySelectorAll('[id="a"]').length === 2 && target.localName === 'linearGradient', 'duplicate fixture lost browser first-match behavior');
+            if (links) check(target.href.baseVal === '#b' && doc.getElementById('b') instanceof view.SVGRadialGradientElement, 'Chromium template href/target mismatch');
+            const paint = view.getComputedStyle(doc.querySelector('rect')).fill;
+            check(paint.includes('#a') && paint.includes('rgb(255, 0, 0)'), 'Chromium computed fragment/fallback serialization mismatch');
+        });
+    }
+    for (const mode of ['target-id', 'target-replace', 'template-href', 'base', 'pool']) {
+        await run(`paint-lifetime-${mode}`, async ({ request, doc, captureAsync, pool }) => {
+            paintRequest(request, doc, '{linearGradient @id=a @href="#b"}{linearGradient @id=b}');
+            const host = await captureAsync();
+            check(host.read().svgPaintLinks === 1, 'paint plan not published');
+            const target = doc.getElementById('a');
+            if (mode === 'target-id') { target.id = 'away'; target.id = 'a'; }
+            if (mode === 'target-replace') target.replaceWith(target.cloneNode(true));
+            if (mode === 'template-href') { target.setAttribute('href', '#a'); target.setAttribute('href', '#b'); }
+            if (mode === 'base') doc.querySelector('base').setAttribute('href', doc.URL);
+            if (mode === 'pool') await pool.close();
+            rejects(() => host.read(), 'stale paint graph retained evidence');
+            rejects(() => host.read(), 'paint graph revival accepted');
+        }, mode === 'pool');
+    }
     const addSvg = (request, extra = '') => {
         const svg = "{result-element @name=svg @namespace='http://www.w3.org/2000/svg' | {result-element @name=path @namespace='http://www.w3.org/2000/svg' | {result-attribute @name=fill | red}} " + extra + "}";
         request.sources[0].source = source.replace('p{color:rgb(1,2,3)}', 'p{color:rgb(1,2,3)}path{fill:blue}').replace('| Card}', '| Card ' + svg + '}');

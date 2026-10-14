@@ -14,7 +14,19 @@ pub fn setup(
     Arc<HtmlExecutionInventory>,
     CemModuleUrlResolutionCapability,
 ) {
-    let source=format!("<html xmlns='http://www.w3.org/1999/xhtml'><head><base href='../assets/'/>{body}</head><body/></html>");
+    setup_with_base(body, "../assets/", BASE)
+}
+#[allow(dead_code)]
+pub fn setup_with_base(
+    body: &str,
+    href: &str,
+    confirmed_base: &str,
+) -> (
+    HtmlBaseExecutionHost,
+    Arc<HtmlExecutionInventory>,
+    CemModuleUrlResolutionCapability,
+) {
+    let source=format!("<html xmlns='http://www.w3.org/1999/xhtml'><head><base href='{href}'/>{body}</head><body/></html>");
     let tree = cem_ml::import::import_data_bytes(
         source.as_bytes(),
         "application/xml",
@@ -45,7 +57,7 @@ pub fn setup(
         |_| Ok(HtmlBasePolicyDecision::Allow),
     )
     .unwrap();
-    let base = host.confirm(BASE.into()).unwrap();
+    let base = host.confirm(confirmed_base.into()).unwrap();
     let handle = CemResolutionContextHandle::new("fixture");
     let mut frame = CemModuleUrlFrame::new("fixture", "https://maps.test/");
     frame.allowed_schemes = Some(["https".into()].into());
@@ -70,7 +82,7 @@ pub fn setup(
         handle,
     );
     let inventory = Arc::new(
-        host.inspect_dependencies(&base, &cap, 10_000, slots, BASE)
+        host.inspect_dependencies(&base, &cap, 10_000, slots, confirmed_base)
             .unwrap(),
     );
     (host, inventory, cap)

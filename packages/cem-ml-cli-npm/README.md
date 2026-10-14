@@ -358,6 +358,13 @@ for one URL share the first body within the session. Selection joins only
 received bodies; it performs no second fetch in this mode. Missing receipts,
 redirects, failures, unsupported MIME and cancellation reject capture. Sealing
 closes ingress; further intercepted image loads revoke the preparation.
+`read().svgPaintRoots` and `read().svgPaintLinks` count native paint-server
+candidates and template edges retained by the preparation session. Reads validate
+the owning document/base/style read set; target or href mutations and lifetime
+changes revoke the plan. Missing/ambiguous targets, cycles, base uncertainty and
+untraversed URLs remain explicit blockers. Counts do not prove rendering or
+resource acquisition, and the graph never crosses the native boundary.
+
 `read().svgComputedSlots` counts retained SVG presentation attributes whose
 computed values were captured and revalidated by the native session. Both capture
 paths support static values, including cascade overrides. Active animations and
