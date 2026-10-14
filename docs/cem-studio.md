@@ -3848,6 +3848,55 @@ capture paths, compare gradient/template and pattern membership, and reject
 mutation or pool closure without revival. Native source ancestry is never
 serialized. No component style or public theme-token default is introduced.
 
+### Cloned paint-template style provenance
+
+The native `cem_ml::svg_paint_style::SvgPaintStylePlan` defines structural
+provenance candidates for the SVG 2 paint-template model. It retains the original
+`Arc<SvgPaintContentPlan>`; no source tree, CSS owner, source map or URL base is
+copied into JavaScript. This is a specification-profile plan, not browser-observed
+clone evidence. The [SVG 2 template contract](https://www.w3.org/TR/SVG2/pservers.html#PaintServerTemplates)
+allows cloned children to inherit differently from their source elements.
+
+Each reached local server has a separate host context. Selection records:
+authored content (`Own`), a local template source (`Template`), no relevant
+content (`Empty`), or the unresolved native target classification. Under this
+profile, a direct element child other than SVG `title`, `desc` or `metadata`
+selects authored content. Text/comments alone do not; similarly named elements
+in other namespaces are not descriptive SVG elements. Descriptive-only servers
+follow the retained href chain. Own content ends content selection even if
+template links remain relevant to attribute inheritance. External, ambiguous,
+wrong-kind and unknown targets retain their unresolved classification.
+
+A selected template contributes its retained descendants, including descriptive
+content, without cloning its server node. Each prospective instance records its
+native source node and either the receiving host or another instance's source
+node as its parent. Instance identity is therefore **plan + host + source node**,
+never source node alone. Direct children inherit through the receiving server;
+nested children keep their internal instance-parent relationships. Indirect
+templates lead directly to the final source content: intermediate servers are
+recorded through href attribute IDs, not inserted as inheritance parents.
+Selection detects cycles per host after testing authored content.
+
+The source plan continues to own lexical source ancestry, declarations, resource
+bases and source frames. The style plan separately records the receiving server's
+lexical ancestors. Neither is replaced with the graphics consumer's ancestry.
+A future style evaluator must distinguish source declaration/selector provenance
+from instance inheritance, including custom properties, `currentColor`,
+explicit inheritance and selector scope across the template boundary. Source
+`getComputedStyle` values cannot stand in for instance styles. This API does not
+apply selectors, evaluate values, inherit gradient attributes, choose rendered
+resources, or materialize browser shadow trees.
+
+The profile permits at most 256 hosts, 64 template edges per selection and 4096
+aggregate prospective instance nodes; shared sources count once per receiving
+host. Work is capped at one million units, with scans, edges, ancestry copying
+and instance memberships charged. Limit failures publish no partial plan.
+The original inventory still requires its original host/resolver validation.
+Browser preparation integration, mutation parity and clone-style compatibility
+evidence remain pending. Style evaluation, browser compatibility, winning
+declarations, rendering and acquired resource bodies remain explicit blockers.
+This native structural contract changes no component behavior or theme defaults.
+
 ### Shared browser stylesheet observation host
 
 `BrowserHtmlBaseHost.captureStylesheets(responses, { ownership: 'exclusive' })`

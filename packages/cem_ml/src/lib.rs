@@ -33,6 +33,7 @@ pub mod stylesheet_execution;
 pub mod svg_computed_execution;
 pub mod svg_paint_dependencies;
 pub mod svg_paint_content;
+pub mod svg_paint_style;
 pub mod browser_stylesheet_sources;
 pub mod document_reference_provenance;
 pub mod xml_reference_transaction;

@@ -2673,8 +2673,28 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       inherited theme provenance remain native; no component behavior, theme
       defaults or public tokens change. Clone-style evaluation, rendered-resource
       evidence and physical/forced-color/AT acceptance remain separate.
-    - [ ] Define cloned paint-template content style provenance, with native
+    - [x] Define cloned paint-template content style provenance, with native
       fixtures distinguishing source ancestry from instantiated inheritance.
+      Fixture scope: shared source/distinct hosts, own/descriptive-only/indirect
+      content, pattern instance parents, cycles, unresolved/empty targets,
+      namespace-sensitive descriptive elements, atomic bounds and stale inventory.
+      Completed: native SvgPaintStylePlan retains the original content plan,
+      separates source ancestry from receiving-host inheritance, records per-host
+      selection/link provenance and prospective instance parent identities.
+      Own content stops selection; descriptive-only chains select source children;
+      per-host cycle checks preserve valid content on cyclic template graphs.
+      Bounds: 256 hosts, 64 selection edges, 4096 aggregate instance memberships,
+      one-million-unit work cap. Nine new fixtures and all 42 focused native SVG
+      tests pass; focused rustfmt and diff checks pass. CEM audit: original source
+      and theme ownership remain intact, shared templates preserve distinct host
+      inheritance, and no copied computed style or consumer ancestry substitutes
+      for instance evaluation. No component behavior or public tokens change.
+      Browser integration, style evaluation and rendered-resource evidence remain
+      pending; visual/forced-color and physical AT acceptance remain independent.
+      Contract: docs/cem-studio.md#cloned-paint-template-style-provenance.
+    - [ ] Bind clone-style provenance plans to browser preparation and verify
+      mutation lifetimes and SVG 2/Chromium compatibility before treating source
+      observations as instance evidence.
     - [ ] Bind computed CSS/SVG selections to acquired resource bodies before
       claiming rendered-resource closure.
     - [ ] Record remaining computed CSS/SVG and general runtime resource loads,
@@ -2684,9 +2704,10 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, define cloned paint-template content style provenance with native fixtures.
-Then bind computed CSS/SVG selections to acquired resource bodies and cover
-general runtime loads before claiming complete dependency closure.
+Next, bind clone-style provenance plans to browser preparation and verify mutation
+lifetimes and SVG 2/Chromium compatibility. Then establish instance-style evaluation
+and bind computed CSS/SVG selections to acquired resource bodies. General runtime
+loads remain required before claiming complete dependency closure.
 Selected image response/candidate binding is available through explicit native
 replay; unchanged-URL observation deliberately retains its historical-identity
 blocker.
