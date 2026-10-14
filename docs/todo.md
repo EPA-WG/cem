@@ -2638,9 +2638,28 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       are preserved; no component behavior, public tokens, inherited styles or
       visual/theme defaults change. Visual/forced-color and physical AT acceptance
       remain independent of these candidate/lifetime checks.
-    - [ ] Define retained paint-content dependencies and inherited-style provenance
+    - [x] Define retained paint-content dependencies and inherited-style provenance
       for gradient stops and pattern content, starting with native fixtures; preserve
       rendering and acquired-body blockers until the relevant evidence is joined.
+      Added `SvgPaintContentPlan`, retaining the native paint plan and distinct
+      candidate servers, source-order content nodes, direct SVG gradient stops,
+      direct URI attribute owners and lexical source ancestry. Own/template content
+      stays separate; no effective content, clone inheritance or computed value is
+      inferred. Bounds: 256 servers, 4096 node memberships, 128 ancestors per node
+      and a caller work budget capped at one million units, with atomic failure.
+      Eight new fixtures cover ancestry, template cycles/shared roots, stop ownership,
+      pattern content/URI provenance, unknown targets, external template boundaries,
+      budget exhaustion and stale inventory validation. All 33 focused native SVG
+      tests pass, plus rustfmt and diff checks. Browser/WASM integration is pending;
+      the existing browser preparation path is unchanged by this native-only step.
+      CEM audit: source ownership and inherited-style semantics stay authoritative;
+      consumer styles are not substituted for paint-server ancestry. No component
+      behavior, public tokens or theme defaults change. Visual/forced-color and
+      physical AT acceptance remain independent. Contract:
+      docs/cem-studio.md#retained-svg-paint-content-and-source-ancestry.
+    - [ ] Bind retained paint-content plans to browser preparation, with native
+      lifecycle and Chromium fixtures for stop/pattern/ancestor-style mutations;
+      keep clone-style and rendered-resource evidence separate.
     - [ ] Record remaining computed CSS/SVG and general runtime resource loads,
       before claiming complete execution dependency closure.
   - [ ] Establish execution-owned lookup provenance for relative run-config inputs,
@@ -2648,9 +2667,10 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, define retained paint-content dependencies and inherited-style provenance
-for gradient stops and patterns with native fixtures. Then bind computed CSS/SVG
-resource selections to acquired bodies before covering general runtime loads.
+Next, bind retained paint-content plans to browser preparation and verify stop,
+pattern and ancestor-style mutation lifetimes. Then establish cloned-content style
+provenance and bind computed CSS/SVG selections to acquired resource bodies before
+covering general runtime loads.
 Selected image response/candidate binding is available through explicit native
 replay; unchanged-URL observation deliberately retains its historical-identity
 blocker.

@@ -3801,6 +3801,45 @@ returns a first element. Different-base template references remain unresolved.
 This verifies candidate correspondence and invalidation, not effective paint
 inheritance, pixels, winning declarations or acquired resource bodies.
 
+### Retained SVG paint content and source ancestry
+
+`cem_ml::svg_paint_content::SvgPaintContentPlan` retains an `Arc<SvgPaintPlan>`
+and inventories authored content for each distinct local candidate server reached
+by that plan. Repeated roots and template cycles share one server entry. Unknown,
+external and unresolved template targets do not create invented content. Local
+and template-server entries stay separate even when a server has its own stops
+or children; this is a conservative source inventory, not effective-content
+selection or gradient attribute inheritance.
+
+Entries retain native node IDs in source order, including the server, descendant
+text and descriptive content. Only direct SVG `stop` children of gradient elements
+are classified as gradient stops. Pattern subtrees keep nested groups, styling,
+images and other content. HTML template contents remain excluded. Direct URI
+attribute owners are joined from the existing native document-reference inventory;
+CSS URL resolution, nested resource execution and load receipts remain separate.
+The original tree keeps all attributes, source maps and imported CSS owners alive.
+
+Each content node records its lexical source ancestors, nearest parent first.
+This preserves the authored context for inherited style analysis without copying
+values from the referencing graphics element. It does not evaluate `currentColor`,
+custom properties, cascade rules or properties inherited by cloned template
+content. SVG templates can create instances with different inherited styles;
+that distinction remains an explicit blocker, following the
+[SVG paint-server contract](https://www.w3.org/TR/SVG2/pservers.html#PaintServerTemplates).
+
+Construction admits at most 256 distinct servers, 4096 node memberships across
+server entries, 128 ancestors per node and a caller work budget capped at one
+million units. Node/attribute values, ancestry visits and direct-reference scans
+are charged. Exceeding any bound returns an error without publishing a partial
+plan. Entries retain the original inventory and require its original host/resolver
+validation for live use; source inspection after invalidation grants no authority.
+
+Content evaluation, cloned-instance style provenance, rendering, winning-source
+and acquired-body evidence remain blocked. This initial native content contract
+is not yet attached to browser preparation. Browser integration must retain the
+same ownership and add mutation/parity fixtures before claiming live content
+coverage. No component style or public theme-token default is introduced.
+
 ### Shared browser stylesheet observation host
 
 `BrowserHtmlBaseHost.captureStylesheets(responses, { ownership: 'exclusive' })`
