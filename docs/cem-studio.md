@@ -3829,10 +3829,41 @@ changes remain outside the exclusive-owner contract. The original execution's
 `html_output()` provides the corresponding explicit HTML projection, preserving
 empty template elements when delivering to a text/html document.
 
-This is a native integration surface. Its Chromium fixture keeps the preparation
-and joined evidence in a live Rust process and exchanges individual scalar
-predicates with the browser; its JSON test protocol cannot transfer a seal.
-Production worker-owned preparation handles remain a separate integration step.
+`RecordedPreparationWorker` owns a bounded registry (1–256 live preparations)
+for one native execution realm and worker generation. Its `prepare` takes the
+exact composed output and inventory, transfers the HTML host into the registry,
+and captures the joined record with a privately owned stylesheet host. Only a
+native `RecordedPreparationHandle` leaves the registry. The handle has no public
+constructor or serialization path: an equal worker address, local ID, output
+string or blocker report cannot recreate its private owner identity. Retained
+records keep the source snapshots, lexical policies, output tree, source frames
+and installation evidence alive without depending on caller-owned variables.
+
+`read` revalidates the complete DOM/CSS record and checks worker, handle and
+cancellation lifetimes before and after each scalar observer callback. It returns
+diagnostic blockers only. A failed read removes the record permanently; callback
+unwinding also releases it. `release` revokes all clones of a handle, while `close`
+and worker drop revoke the generation and discard its records. A cloneable
+`lifetime()` control permits immediate revocation from callbacks or host shutdown;
+flagged records are reclaimed at the next registry operation or worker drop.
+Capacity is checked before observations, released entries are reclaimed before
+new preparation, and local IDs are never reused within a generation.
+
+The host must close the lifetime before worker failure/termination and release
+affected handles before any controlled DOM/CSS/context write, including same-value
+writes. `replace` accepts only the next address for the same slot, as issued by the
+shared worker coordinator; it closes the old identity before creating the new one.
+Old handles and old lifetime controls cannot act on replacement records, even
+when local IDs repeat. Fresh preparations are required after replacement.
+Cancellation also remains bound to the original native execution and its sources;
+empty stylesheet sets receive the same lifecycle and policy checks.
+
+This remains a native integration surface. The Chromium fixture keeps the worker
+registry in a live Rust process and exchanges individual scalar predicates with
+the browser. Its JSON test controls cannot transfer a seal. Exposing preparation
+requests through the production browser/worker runtime still requires a bounded
+observation bridge with exclusive DOM ownership and failure/cancellation wiring;
+the current serialized operation-result protocol cannot supply that authority.
 Compiled scope/inner-condition applicability, responsive images, computed CSS/SVG
 resources, other runtime loads and atomic transaction admission retain their
 blockers. A joined DOM/CSS record is not complete dependency closure.

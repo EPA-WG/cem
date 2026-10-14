@@ -293,8 +293,12 @@ compilation binding is also available through the native QL API. Native
 `RecordedBodyStylesheetInstallations::compose_output(...)` creates a new retained
 whole output with ordered declaration styles; `RecordedTemplateOutput::capture`
 and its sealed evidence join complete HTML correspondence with those exact
-installations. XML/HTML exports remain delivery artifacts. Production worker
-preparation handles and remaining runtime resource loads are still required before
+installations. The native `RecordedPreparationWorker` retains this joined record
+behind realm-local handles with bounded capacity, generation replacement,
+release/close/drop and cancellation guards. Every read revalidates the live record
+and returns diagnostic blockers; failed reads permanently revoke the handle.
+XML/HTML exports remain delivery artifacts. The production browser/worker
+preparation bridge and remaining runtime resource loads are still required before
 transaction admission.
 See the [full observation contract](../../docs/cem-studio.md#shared-browser-stylesheet-observation-host)
 and [compiled installation contract](../../docs/cem-studio.md#compiled-template-and-body-stylesheet-installations).

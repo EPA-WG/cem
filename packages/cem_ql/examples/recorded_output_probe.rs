@@ -1,9 +1,18 @@
 //! Interactive Chromium fixture. JSON carries one scalar predicate/reply at a
 //! time; retained sources and joined evidence never leave this native process.
 use cem_ml::{
-    css_emission::CssManagedScope, css_import_snapshot::CssSourceSnapshot, engine::EngineContext,
-    html_base::*, html_base_evidence::*, html_base_host::*, module_resolution::*,
-    parser::tree::CemTreeNodeKind, stylesheet_execution::*, template_snapshot::*,
+    css_emission::CssManagedScope,
+    css_import_snapshot::CssSourceSnapshot,
+    engine::EngineContext,
+    html_base::*,
+    html_base_evidence::*,
+    html_base_host::*,
+    module_resolution::*,
+    parser::tree::CemTreeNodeKind,
+    scheduler::AbortSignal,
+    stylesheet_execution::*,
+    template_snapshot::*,
+    worker_control::{WorkerCoordinator, WorkerSlotId},
 };
 use cem_ql::template_execution_record::*;
 use serde_json::{json, Value};
@@ -230,20 +239,57 @@ fn run() -> Result<(), String> {
         .to_owned();
     let base = html.confirm(base)?;
     let document = Arc::new(html.inspect_dependencies(&base, &cap, 10000, slots, BASE)?);
-    let mut joined = RecordedTemplateOutputHost::default();
-    let evidence = output.capture(
-        &mut html,
+    let mut coordinator = WorkerCoordinator::new(1).map_err(|e| e.to_string())?;
+    let address = coordinator
+        .worker(WorkerSlotId::from_raw(1))
+        .map_err(|e| e.to_string())?;
+    let mut worker = RecordedPreparationWorker::new(address, 1)?;
+    let lifetime = worker.lifetime();
+    let cancel = AbortSignal::new();
+    let handle = worker.prepare(
+        output.clone(),
+        html,
         document,
-        &mut joined,
+        cancel.clone(),
         &mut Observer(&output),
         slots,
         BASE,
         Default::default(),
     )?;
+    let blockers = worker.read(&handle, &mut Observer(&output), slots, BASE)?;
     let action = exchange(json!({"kind":"ready", "sheets":output.stylesheet_nodes().len()}))?;
-    let expected_valid = action.as_bool().ok_or("expected outcome required")?;
-    let valid = evidence
-        .validate(&mut html, &mut joined, &mut Observer(&output), slots, BASE)
+    let expected_valid = action["expectedValid"]
+        .as_bool()
+        .ok_or("expected outcome required")?;
+    let mode = action["mode"].as_str().ok_or("fixture mode required")?;
+    match mode {
+        "release" => worker.release(&handle)?,
+        "cancel" => cancel.abort(),
+        "close" => worker.close(),
+        "generation" => {
+            let replacement = coordinator
+                .replace_worker(address.slot)
+                .map_err(|e| e.to_string())?;
+            worker.replace(replacement.replacement)?;
+        }
+        _ => {}
+    }
+    let valid = worker
+        .read(
+            &handle,
+            &mut Observer(&output),
+            |slot| {
+                let identity = slots(slot)?;
+                match mode {
+                    "callback-cancel" => cancel.abort(),
+                    "callback-close" => lifetime.close(),
+                    "callback-release" => handle.release(),
+                    _ => {}
+                }
+                Ok(identity)
+            },
+            BASE,
+        )
         .is_ok();
     if valid != expected_valid {
         return Err(format!(
@@ -252,8 +298,11 @@ fn run() -> Result<(), String> {
     }
     if !valid {
         exchange(json!({"kind":"restore"}))?;
-        if evidence
-            .validate(&mut html, &mut joined, &mut Observer(&output), slots, BASE)
+        if !handle.is_revoked() || !worker.is_empty() {
+            return Err("failed preparation read retained a live handle".into());
+        }
+        if worker
+            .read(&handle, &mut Observer(&output), slots, BASE)
             .is_ok()
         {
             return Err("restoration revived evidence".into());
@@ -261,7 +310,7 @@ fn run() -> Result<(), String> {
     }
     println!(
         "{}",
-        json!({"kind":"result", "valid":valid, "sheets":3, "blockers":evidence.blockers()})
+        json!({"kind":"result", "valid":valid, "sheets":3, "blockers":blockers, "generation":worker.address().generation.get()})
     );
     Ok(())
 }

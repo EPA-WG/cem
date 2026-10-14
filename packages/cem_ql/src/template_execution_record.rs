@@ -4,8 +4,10 @@
 mod css_imports;
 pub use css_imports::{
     BodyStylesheetInstallation, ExecutedTemplateCssImports, ExecutedTemplateStylesheets,
-    RecordedBodyStylesheetEvidence, RecordedBodyStylesheetInstallations, RecordedTemplateOutput,
+    RecordedBodyStylesheetEvidence, RecordedBodyStylesheetInstallations, RecordedPreparationHandle,
+    RecordedPreparationLifetime, RecordedPreparationWorker, RecordedTemplateOutput,
     RecordedTemplateOutputEvidence, RecordedTemplateOutputHost, TemplateBodyCssImports,
+    MAX_RECORDED_PREPARATIONS,
 };
 
 use crate::{

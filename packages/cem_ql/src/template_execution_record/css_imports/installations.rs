@@ -1,11 +1,13 @@
 //! Compiled output retains the exact recorded body roots and lexical policies.
 mod output;
+mod worker;
 use super::*;
 use crate::{
     render::TemplateArtifact, retained_template::RetainedTemplate, stylesheet_installation::*,
 };
 use cem_ml::{css_emission::CssManagedScope, scheduler::AbortSignal};
 pub use output::*;
+pub use worker::*;
 pub struct BodyStylesheetInstallation {
     pub body_uri: String,
     pub index: usize,

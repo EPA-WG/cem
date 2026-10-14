@@ -1327,3 +1327,5 @@ fn recorded_html_delivery_keeps_empty_templates_closed_and_rechecks_native_polic
     f.revision.store(1, Ordering::SeqCst);
     assert!(f.execution.html_output().is_err());
 }
+#[path = "template_css_imports/worker_preparation.rs"]
+mod worker_preparation;

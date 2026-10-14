@@ -2300,9 +2300,44 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       accessibility or theme ownership changes; theme/forced-color checks are
       inapplicable and physical AT remains independent. Runtime resource closure
       and atomic host transaction admission remain blocked.
-    - [ ] Carry joined output records through worker-owned preparation handles,
+    - [x] Add native worker-owned preparation handles for joined output records,
       with generation, release and cancellation invalidation. Keep native owners
       in their execution realm and never reconstruct seals from result DTOs.
+      - [x] Add native registry fixtures for exact owner/generation binding,
+        bounded retention, release/close/drop, cancellation during capture/read,
+        failed-read revocation, replacement recovery and empty-style policies.
+      - [x] Route the live-native Chromium fixture through retained preparation
+        handles and verify lifecycle revocation alongside DOM/CSS drift.
+
+      Implemented `RecordedPreparationWorker`, which retains the complete native
+      output evidence and owns both observation hosts behind private native
+      handles. Each read revalidates the DOM/CSS record, checks lifetimes around
+      every scalar callback, and returns diagnostic blockers only. Failed reads
+      and callback unwinding remove the record permanently. Release, abort,
+      close/drop and consecutive worker generation replacement revoke all
+      applicable handles; equal addresses/IDs and old lifetime controls cannot
+      substitute for owner identity or act on a replacement generation.
+      Retention is bounded to 1–256 live records, capacity rejects before
+      callbacks, and revoked entries are reclaimed before new preparation.
+      The host must revoke before controlled same-value writes or termination.
+      Native sources/policies and empty stylesheet contexts remain authoritative.
+      Verification: 45 focused QL native tests pass (12 new lifecycle tests).
+      All 15 live-native Chromium output/preparation cases pass, including seven
+      new lifecycle cases and existing real scoped-style/DOM/CSS checks. The full
+      Nx browser gate passes HTML-base, SVG, stylesheet selection/installation,
+      worker-pool and command regressions. QL WASM build, CLI lint, focused Rust
+      formatting and `git diff --check` pass. Remaining resource closure and
+      atomic transaction admission retain their blockers.
+      CEM review: the shared native service preserves semantic/source ownership
+      and bounded variation; no AST or seal crosses a result DTO. Existing
+      private/shared scope rules, public token defaults, inherited overrides,
+      accessibility and theme ownership are unchanged. Theme/forced-color checks
+      are inapplicable; physical AT acceptance remains independent.
+    - [ ] Expose native preparation requests through the production browser/worker
+      runtime with a bounded observation bridge and exclusive DOM ownership.
+      Wire cancellation, release, host failure and replacement before publishing
+      handles; keep native owners in one realm and diagnostic results separate
+      from evidence. The live-native Chromium fixture is not this production bridge.
     - [ ] Record responsive image-source selection and acquisition, followed by
       remaining computed CSS/SVG and general runtime resource loads, before
       claiming complete execution dependency closure.
@@ -2311,8 +2346,8 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, carry joined output records through worker-owned preparation handles and
-generation/lifetime guards.
+Next, expose the native preparation registry through the production browser/worker
+runtime with bounded observation and exclusive DOM ownership.
 Then record responsive image-source selection/acquisition and remaining computed
 CSS/SVG/runtime loads.
 Connect the prepared native read set to host transaction admission only after complete

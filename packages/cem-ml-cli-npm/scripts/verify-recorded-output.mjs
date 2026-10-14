@@ -12,7 +12,7 @@ export async function verifyRecordedOutput(browser, workspaceRoot) {
         cwd: workspaceRoot, env: { ...process.env, CARGO_TARGET_DIR: 'dist/target' }, maxBuffer: 4 * 1024 * 1024,
     });
     const cases = [];
-    for (const mode of ['unchanged', 'text', 'extra-node', 'cssom', 'disabled', 'move-style', 'environment', 'callback-write']) {
+    for (const mode of ['unchanged', 'text', 'extra-node', 'cssom', 'disabled', 'move-style', 'environment', 'callback-write', 'release', 'cancel', 'close', 'generation', 'callback-cancel', 'callback-close', 'callback-release']) {
         const context = await browser.newContext();
         const page = await context.newPage();
         let markup = '', result, stderr = '';
@@ -53,7 +53,7 @@ export async function verifyRecordedOutput(browser, workspaceRoot) {
                         if (mode === 'move-style') { const style = document.querySelector('style'); const next = style.nextSibling; document.body.append(style); state.undo = () => document.head.insertBefore(style, next); }
                         if (mode === 'environment') { state.revision++; state.undo = () => { state.revision--; }; }
                         if (mode === 'callback-write') { state.mutateOnSheet = true; state.undo = () => { text.nodeValue = original; }; }
-                        return mode === 'unchanged';
+                        return { expectedValid: mode === 'unchanged', mode };
                     }, mode);
                 } else {
                     reply = await page.evaluate(request => {
@@ -99,6 +99,7 @@ export async function verifyRecordedOutput(browser, workspaceRoot) {
             await done;
             assert.ok(result, `${mode}: missing native result`);
             assert.equal(result.valid, mode === 'unchanged');
+            assert.equal(result.generation, mode === 'generation' ? 2 : 1);
             assert.ok(result.blockers.includes('atomic-host-transaction-required'));
             assert.ok(result.blockers.includes('css-runtime-dependency-closure-required'));
             cases.push(mode);
