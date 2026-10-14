@@ -148,3 +148,72 @@ fn missing_acquired_css_cannot_fall_back_to_network() {
     assert!(s.compose(BASE, slots).is_err());
     assert!(s.html().is_err());
 }
+
+#[test]
+fn staged_stylesheet_projection_and_selection_retain_native_acquisition() {
+    let mut s = session();
+    compose(&mut s);
+    s.prepare_base(slots, |_| Ok(HtmlBasePolicyDecision::Allow))
+        .unwrap();
+    let (sources, actions) = s.prepare_stylesheets(BASE, slots, Some("")).unwrap();
+    assert!(sources.is_empty() && actions.is_empty());
+    s.capture(BASE, slots, &mut OutputObserver { wrong: false })
+        .unwrap();
+    assert!(s
+        .read(BASE, slots, &mut OutputObserver { wrong: false })
+        .is_ok());
+}
+
+#[test]
+fn staged_selection_rejects_unknown_titles_and_latches_closed() {
+    let mut s = session();
+    compose(&mut s);
+    s.prepare_base(slots, |_| Ok(HtmlBasePolicyDecision::Allow))
+        .unwrap();
+    assert!(s.prepare_stylesheets(BASE, slots, Some("missing")).is_err());
+    assert!(s.html().is_err());
+}
+
+#[test]
+fn external_titled_media_sources_and_commands_are_native_owned() {
+    let mut value: serde_json::Value = serde_json::from_str(&request()).unwrap();
+    for source in value["sources"].as_array_mut().unwrap() {
+        let body = source["source"].as_str().unwrap().lines().skip(1).collect::<Vec<_>>().join("\n")
+            .replace(" @style='background:url(./document.svg)'", "")
+            .replace("{head |", "{head | {link @rel='alternate stylesheet' @href='theme.css' @title=night @media=screen}");
+        source["source"] = body.into();
+    }
+    value["choices"] = serde_json::json!([]);
+    value["stylesheets"] = serde_json::json!([
+        {"requestedUrl":format!("{BASE}theme.css"),"finalUrl":format!("{BASE}theme.css"),
+         "revision":"1","source":"@import 'child.css' screen; p{color:red}","contentType":"text/css"},
+        {"requestedUrl":format!("{BASE}child.css"),"finalUrl":format!("{BASE}child.css"),
+         "revision":"1","source":"p{font-style:italic}","contentType":"text/css"}
+    ]);
+    let mut s = RecordedOutputSession::from_json(&value.to_string(), 1, 1).unwrap();
+    compose(&mut s);
+    s.prepare_base(slots, |_| Ok(HtmlBasePolicyDecision::Allow))
+        .unwrap();
+    let (sources, actions) = s.prepare_stylesheets(BASE, slots, Some("night")).unwrap();
+    assert_eq!(sources.len(), 2);
+    assert_eq!(sources[0].url, format!("{BASE}theme.css"));
+    assert_eq!(sources[1].parent_sheet, Some(0));
+    assert_eq!(sources[1].import_index, Some(0));
+    assert_eq!(sources[1].text, "p{font-style:italic}");
+    assert_eq!(actions.len(), 1);
+    assert!(actions[0].link && actions[0].selected);
+    s.capture(BASE, slots, &mut OutputObserver { wrong: false })
+        .unwrap();
+    assert!(s
+        .read(BASE, slots, &mut OutputObserver { wrong: false })
+        .is_ok());
+    // Repeated source/selection preparation cannot mutate an existing record.
+    assert!(s.prepare_stylesheets(BASE, slots, Some("")).is_err());
+    assert!(s.html().is_err());
+    value["stylesheets"] = serde_json::json!([]);
+    let mut missing = RecordedOutputSession::from_json(&value.to_string(), 1, 1).unwrap();
+    missing
+        .prepare_base(slots, |_| Ok(HtmlBasePolicyDecision::Allow))
+        .unwrap();
+    assert!(missing.compose(BASE, slots).is_err());
+}

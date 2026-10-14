@@ -1265,3 +1265,5 @@ mod tests {
 pub fn plan_resource_rebind(json: &str) -> String {
     crate::resource_rebind::plan_resource_rebind_json(json)
 }
+
+pub use stylesheet_execution::Observer as BrowserStylesheetObserver;

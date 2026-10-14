@@ -54,6 +54,13 @@ try {
     const sendNight = response => { response.writeHead(200, { 'content-type': 'text/css; charset=utf-8', 'cache-control': 'no-store' }); response.end('p{color:rgb(40,30,20)}'); };
     server = createServer((request, response) => {
         const pathname = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
+        if (pathname === '/styles/recorded-error.css') {
+            response.writeHead(404).end(); return;
+        }
+        if (pathname === '/styles/recorded-pending.css') {
+            setTimeout(() => { response.writeHead(200, { 'content-type': 'text/css' }).end('p{color:rgb(20,30,40)}'); }, 250);
+            return;
+        }
         if (pathname === '/docs/browser-recorded-output.html') {
             response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
             response.end('<!doctype html><html><head></head><body></body></html>');
@@ -365,7 +372,7 @@ try {
     const compiledStylesheets = await page.evaluate(() => globalThis.runCompiledStylesheetsFixture());
     assert.equal(compiledStylesheets.cases.length, 20);
     const recordedPreparations = await page.evaluate(version => globalThis.runRecordedOutputFixture(version), browser.version());
-    assert.equal(recordedPreparations.cases.length, 22);
+    assert.equal(recordedPreparations.cases.length, 37);
     console.log(`Verified ${recordedPreparations.cases.length} production native preparation host cases.`);
     const recordedOutput = await verifyRecordedOutput(browser, workspaceRoot);
     const stylesheetSelection = await page.evaluate((version) => globalThis.runStylesheetSelectionFixture(version), browser.version());

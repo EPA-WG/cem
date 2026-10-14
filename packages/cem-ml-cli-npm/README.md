@@ -311,8 +311,16 @@ DOM observation realm; worker result messages contain no evidence authority.
 Context-sensitive stylesheet choices require explicit `hostPaths` into the native
 output; native composition validates produced-host scope/island membership and
 adds the resolver-context marker. Browser code does not patch semantic attributes.
-The initial profile excludes external/titled/outer-media document sheets and
-shadow/adopted styles. Remaining runtime resource loads and transaction admission
-retain their blockers.
+The async factories `captureBrowserRecordedOutputAsync(...)` and
+`pool.captureRecordedOutputAsync(...)` wait for external stylesheet loads before
+publishing evidence. Supply the complete acquired CSS snapshot, an optional
+`stylesheetTitle` (exact external title, or empty to disable titles), and
+`timeoutMs` (1–30000, default 5000). The HTML installer remains synchronous.
+Native selection commands, fresh link installations, acquired/imported CSSOM,
+outer media and complete DOM ownership are verified before capture. Active inline
+titled sheets, shadow/adopted sheets and unreadable CSSOM remain unsupported.
+Changing an existing title/stylesheet preparation revokes it and requires a fresh
+native session. Media changes, load failure, timeout, abort and pool generation
+changes fail closed; runtime resource closure and atomic admission stay blocked.
 See the [full observation contract](../../docs/cem-studio.md#shared-browser-stylesheet-observation-host)
 and [compiled installation contract](../../docs/cem-studio.md#compiled-template-and-body-stylesheet-installations).

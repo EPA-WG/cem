@@ -1,22 +1,26 @@
 //! Source ingress, HTML delivery and scalar live predicates. No AST/evidence DTO.
 use crate::template_execution_record::browser::RecordedOutputSession;
 use cem_ml::{
-    api::wasm::match_html_base_slot, html_base::HtmlBasePolicyDecision,
-    parser::tree::RetainedCemTree, stylesheet_execution::*,
+    api::wasm::{match_html_base_slot, BrowserStylesheetObserver},
+    browser_stylesheet_sources::BrowserStylesheetSource,
+    html_base::HtmlBasePolicyDecision,
 };
-use js_sys::{Array, Function};
-use std::sync::Arc;
+use js_sys::Function;
 use wasm_bindgen::prelude::*;
 #[wasm_bindgen(js_name = "RecordedOutputSession")]
 pub struct WasmRecordedOutputSession {
     inner: RecordedOutputSession,
+    sources: Vec<BrowserStylesheetSource>,
 }
 #[wasm_bindgen(js_class = "RecordedOutputSession")]
 impl WasmRecordedOutputSession {
     #[wasm_bindgen(constructor)]
     pub fn new(request: &str, slot: u32, generation: u32) -> Result<Self, JsValue> {
         RecordedOutputSession::from_json(request, slot, generation)
-            .map(|inner| Self { inner })
+            .map(|inner| Self {
+                inner,
+                sources: Vec::new(),
+            })
             .map_err(error)
     }
     pub fn url(&self) -> String {
@@ -56,6 +60,33 @@ impl WasmRecordedOutputSession {
             .compose(base, |s| match_html_base_slot(matches, s))
             .map_err(error)
     }
+    #[wasm_bindgen(js_name = "prepareStylesheets")]
+    pub fn prepare_stylesheets(
+        &mut self,
+        base: &str,
+        matches: &Function,
+        title: Option<String>,
+        command: &Function,
+    ) -> Result<(), JsValue> {
+        let (sources, actions) = self
+            .inner
+            .prepare_stylesheets(base, |s| match_html_base_slot(matches, s), title.as_deref())
+            .map_err(error)?;
+        self.sources = sources;
+        for action in actions {
+            let result = command.call3(
+                &JsValue::NULL,
+                &action.owner.into(),
+                &action.link.into(),
+                &action.selected.into(),
+            );
+            if !matches!(result, Ok(ref value) if value.is_undefined()) {
+                self.inner.close();
+                return Err(error("synchronous stylesheet selection command required"));
+            }
+        }
+        Ok(())
+    }
     pub fn capture(
         &mut self,
         base: &str,
@@ -63,13 +94,12 @@ impl WasmRecordedOutputSession {
         revision: &Function,
         observe: &Function,
     ) -> Result<String, JsValue> {
-        let tree = self.inner.output_tree().map_err(error)?;
         self.inner
             .capture(
                 base,
                 |s| match_html_base_slot(matches, s),
-                &mut Observer {
-                    tree,
+                &mut BrowserStylesheetObserver {
+                    sources: &self.sources,
                     revision,
                     observe,
                 },
@@ -84,13 +114,12 @@ impl WasmRecordedOutputSession {
         revision: &Function,
         observe: &Function,
     ) -> Result<String, JsValue> {
-        let tree = self.inner.output_tree().map_err(error)?;
         self.inner
             .read(
                 base,
                 |s| match_html_base_slot(matches, s),
-                &mut Observer {
-                    tree,
+                &mut BrowserStylesheetObserver {
+                    sources: &self.sources,
                     revision,
                     observe,
                 },
@@ -104,76 +133,4 @@ fn summary(blockers: Vec<String>) -> String {
 }
 fn error(e: impl AsRef<str>) -> JsValue {
     JsValue::from_str(e.as_ref())
-}
-struct Observer<'a> {
-    tree: Arc<RetainedCemTree>,
-    revision: &'a Function,
-    observe: &'a Function,
-}
-impl StylesheetExecutionObserver for Observer<'_> {
-    fn environment_revision(&mut self) -> Result<String, String> {
-        self.revision
-            .call0(&JsValue::NULL)
-            .map_err(|_| "recorded revision callback failed")?
-            .as_string()
-            .ok_or("synchronous recorded revision required".into())
-    }
-    fn observe(
-        &mut self,
-        slot: StylesheetExecutionSlot<'_>,
-    ) -> Result<StylesheetObservation, String> {
-        let StylesheetOwner::Document { owner, source_node } = slot.owner else {
-            return Err("recorded browser supports document style roots only".into());
-        };
-        let node = self
-            .tree
-            .node(*owner)
-            .ok_or("recorded style owner missing")?;
-        if owner != source_node
-            || slot.parent_sheet.is_some()
-            || !slot.media.is_empty()
-            || !slot.title.is_empty()
-            || slot.alternate
-            || !node.name.as_ref().is_some_and(|n| {
-                n.local_name == "style" && n.namespace_uri == "http://www.w3.org/1999/xhtml"
-            })
-        {
-            return Err(
-                "recorded browser requires untitled flattened inline stylesheet roots".into(),
-            );
-        }
-        let text = self
-            .tree
-            .text_fragments(*owner)
-            .ok_or("native style text missing")?
-            .collect::<String>();
-        let result = self
-            .observe
-            .call2(&JsValue::NULL, &(*owner).into(), &text.into())
-            .map_err(|_| "recorded CSS predicate failed")?;
-        if !Array::is_array(&result) {
-            return Err("synchronous recorded stylesheet tuple required".into());
-        }
-        let a = Array::from(&result);
-        if a.length() != 3 {
-            return Err("recorded stylesheet tuple length".into());
-        }
-        let id = a
-            .get(0)
-            .as_f64()
-            .ok_or("recorded stylesheet identity required")?;
-        if !id.is_finite() || id < 1.0 || id > u32::MAX as f64 || id.fract() != 0.0 {
-            return Err("recorded stylesheet identity out of bounds".into());
-        }
-        Ok(StylesheetObservation {
-            installation: Some(id as u64),
-            selected: a.get(1).as_bool().ok_or("selection required")?,
-            conditions_match: true,
-            loaded_source: a
-                .get(2)
-                .as_bool()
-                .ok_or("source predicate required")?
-                .then(|| slot.source_key.into()),
-        })
-    }
 }

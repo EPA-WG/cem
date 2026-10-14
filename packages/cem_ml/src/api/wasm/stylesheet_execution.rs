@@ -227,10 +227,10 @@ impl WasmHtmlStylesheetSession {
         Ok(serde_json::json!({"occurrences": e.execution().observations().len(), "blockers": e.blockers()}).to_string())
     }
 }
-struct Observer<'a> {
-    sources: &'a [BrowserStylesheetSource],
-    revision: &'a Function,
-    observe: &'a Function,
+pub struct Observer<'a> {
+    pub sources: &'a [BrowserStylesheetSource],
+    pub revision: &'a Function,
+    pub observe: &'a Function,
 }
 impl StylesheetExecutionObserver for Observer<'_> {
     fn environment_revision(&mut self) -> Result<String, String> {

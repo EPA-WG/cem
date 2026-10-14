@@ -1,5 +1,5 @@
 import { BrowserDomCorrespondence, claimDocument, documentOwned, releaseDocument } from './browser-dom-correspondence.js';
-import { cssomText, type CssomBudget } from './browser-cssom.js';
+import { BrowserStylesheetObservation, type StylesheetPredicate } from './browser-stylesheet-observation.js';
 import type { BrowserHtmlBasePolicy } from './browser-html-base.js';
 type NativeDomPredicate = BrowserDomCorrespondence['matchSlot'];
 
@@ -9,8 +9,9 @@ export interface NativeRecordedOutputSession {
     html(): string;
     prepareBase(matches: NativeDomPredicate, decide: (candidate: string, fallback: string, stamp: string) => boolean): number;
     compose(base: string, matches: NativeDomPredicate): string;
-    capture(base: string, matches: NativeDomPredicate, revision: () => string, observe: (owner: number, css: string) => [number, boolean, boolean]): string;
-    read(base: string, matches: NativeDomPredicate, revision: () => string, observe: (owner: number, css: string) => [number, boolean, boolean]): string;
+    prepareStylesheets(base: string, matches: NativeDomPredicate, title: string | undefined, command: (owner: number, link: boolean, selected: boolean) => void): void;
+    capture(base: string, matches: NativeDomPredicate, revision: () => string, observe: StylesheetPredicate): string;
+    read(base: string, matches: NativeDomPredicate, revision: () => string, observe: StylesheetPredicate): string;
     close(): void;
     free(): void;
 }
@@ -18,6 +19,10 @@ export interface BrowserRecordedOutputOptions {
     readonly ownership: 'exclusive';
     readonly policy: BrowserHtmlBasePolicy;
     readonly signal?: AbortSignal;
+    /** Async capture only: exact external title, or empty to disable all titles. */
+    readonly stylesheetTitle?: string;
+    /** Async capture's whole load deadline; 1..30,000 ms. */
+    readonly timeoutMs?: number;
 }
 export interface BrowserRecordedOutputSummary { readonly blockers: readonly string[]; }
 /** The installer delivers native HTML into this document synchronously. It must
@@ -33,19 +38,23 @@ export class BrowserRecordedOutputHost {
     readonly #options: BrowserRecordedOutputOptions;
     readonly #url: string;
     readonly #stamp: string;
-    readonly #parser: Document;
-    readonly #expected = new Map<number, CSSStyleSheet>();
-    readonly #sheets = new WeakMap<CSSStyleSheet, number>();
-    readonly #initialLoads = new Set<HTMLStyleElement>();
-    #nextSheet = 1;
+    readonly #observation: BrowserStylesheetObservation;
+    readonly #initialLoads = new Set<Element>();
+    readonly #waitingLinks = new Set<Element>();
+    #cancelWait?: () => void;
+    #pending = false;
+    #started = false;
     #busy = false;
     #disposed = false;
     #freed = false;
     #captured = false;
-    #budget: CssomBudget = { rules: 0, bytes: 0 };
     readonly #revoke = () => this.dispose();
     readonly #load = (event: Event) => {
-        const node = event.target as HTMLStyleElement;
+        const node = event.target as Element;
+        if (event.isTrusted && this.#pending && (this.#waitingLinks.has(node) || this.#initialLoads.delete(node))) {
+            try { this.#quiet(); } catch { this.dispose(); }
+            return;
+        }
         if (!event.isTrusted || this.#busy || !this.#captured || !this.#initialLoads.delete(node)) { this.dispose(); return; }
         // Inline sheets are synchronously installed, but their initial load event
         // may arrive later. Preserve the record only after complete native reread.
@@ -59,26 +68,133 @@ export class BrowserRecordedOutputHost {
         this.#document = document; this.#view = view; this.#native = native; this.#options = options;
         this.#url = document.URL; this.#stamp = options.policy.stamp;
         this.#dom = new BrowserDomCorrespondence(document, 10_000);
-        this.#parser = document.implementation.createHTMLDocument('');
+        this.#observation = new BrowserStylesheetObservation(document, id => this.#dom.node(id), this.#revoke);
         this.#observer = new MutationObserver(records => { if (records.length) this.dispose(); });
         this.#observer.observe(document, { subtree: true, attributes: true, characterData: true, childList: true });
-        view.addEventListener('pagehide', this.#revoke); view.addEventListener('resize', this.#revoke);
+        view.addEventListener('pagehide', this.#revoke); view.addEventListener('resize', this.#revoke); view.addEventListener('orientationchange', this.#revoke);
         document.addEventListener('load', this.#load, true); document.addEventListener('error', this.#revoke, true);
         options.signal?.addEventListener('abort', this.#revoke, { once: true });
         claimDocument(document, this);
     }
     capture(install: RecordedOutputInstaller): BrowserRecordedOutputSummary {
         return this.#run(() => {
-            if (this.#captured) throw new Error('Recorded output already captured');
+            if (this.#started) throw new Error('Recorded output already started');
+            this.#started = true;
+            if (this.#options.stylesheetTitle !== undefined) throw new Error('Title selection requires asynchronous capture');
             this.#deliver(this.#native.html(), 'original', install);
             this.#freeze();
             const composed = this.#native.compose(this.#document.baseURI, this.#match);
             this.#quiet();
             this.#deliver(composed, 'composed', install);
             this.#freeze();
+            this.#native.prepareStylesheets(this.#document.baseURI, this.#match, undefined, () => { throw new Error('Unexpected selection command'); });
             const summary = this.#summary(this.#native.capture(this.#document.baseURI, this.#match, this.#revision, this.#observe));
+            this.#observation.validateSeen();
             this.#captured = true;
             return summary;
+        });
+    }
+    /** Own the document through initial loading and explicit native title commands.
+     * No evidence is published until all asynchronous work has settled. */
+    async captureAsync(install: RecordedOutputInstaller): Promise<BrowserRecordedOutputSummary> {
+        const timeout = this.#options.timeoutMs ?? 5000;
+        const deadline = performance.now() + timeout;
+        const title = this.#options.stylesheetTitle;
+        try {
+            this.#run(() => {
+                if (this.#started || !Number.isSafeInteger(timeout) || timeout < 1 || timeout > 30_000) throw new Error('Fresh bounded asynchronous capture required');
+                this.#started = true; this.#pending = true;
+                this.#deliver(this.#native.html(), 'original', install);
+                this.#freeze();
+                const composed = this.#native.compose(this.#document.baseURI, this.#match);
+                this.#quiet();
+                this.#deliver(composed, 'composed', install);
+                this.#freeze();
+            });
+            const links = [...this.#document.querySelectorAll('link')].filter(node => [...node.relList].some(t => t.toLowerCase() === 'stylesheet'));
+            if (links.length > 256) throw new Error('Recorded stylesheet root bound');
+            const loaded = await this.#waitLinks(links, deadline);
+            for (const [node, sheet] of loaded) if (node.sheet !== sheet) throw new Error('Initial stylesheet installation changed');
+            const actions: { node: HTMLStyleElement | HTMLLinkElement; selected: boolean; sheet: CSSStyleSheet }[] = [];
+            this.#run(() => {
+                this.#native.prepareStylesheets(this.#document.baseURI, this.#match, title,
+                    (owner, link, selected) => {
+                        this.#quiet();
+                        const node = this.#dom.node(owner) as HTMLStyleElement | HTMLLinkElement;
+                        if (!node || node.localName !== (link ? 'link' : 'style') || !node.sheet || node.sheet.ownerNode !== node) throw new Error('Loaded native selection owner required');
+                        actions.push({ node, selected, sheet: node.sheet });
+                    });
+            });
+            const selected = actions.filter(a => a.selected);
+            const activated = await this.#waitLinks(selected.map(a => a.node as HTMLLinkElement), deadline, () => {
+                for (const action of actions) {
+                    if (!action.selected) action.sheet.disabled = true;
+                    else {
+                        const link = action.node as HTMLLinkElement;
+                        link.disabled = true; link.disabled = false;
+                    }
+                }
+                // Only the native command's disabled toggles may be consumed.
+                const mutations = this.#observer.takeRecords();
+                if (mutations.some(r => r.type !== 'attributes' || r.attributeName !== 'disabled' || r.attributeNamespace !== null
+                    || !selected.some(a => a.node === r.target))) throw new Error('Unexpected selection mutation');
+            });
+            return this.#run(() => {
+                const active = new Map<Node, CSSStyleSheet>();
+                for (const action of actions) {
+                    const sheet = action.node.sheet;
+                    if (!sheet || sheet.disabled !== !action.selected || sheet.ownerNode !== action.node
+                        || (action.selected ? sheet === action.sheet || sheet !== activated.get(action.node as HTMLLinkElement) : sheet !== action.sheet)) throw new Error('Native selection did not install the expected stylesheet');
+                    if (action.selected) active.set(action.node, sheet);
+                }
+                if (title !== undefined) {
+                    this.#observation.activeTitled = active;
+                    this.#observation.titledDisabled = title === '';
+                }
+                const result = this.#summary(this.#native.capture(this.#document.baseURI, this.#match, this.#revision, this.#observe));
+                this.#observation.validateSeen();
+                this.#captured = true; this.#pending = false;
+                return result;
+            });
+        } catch (error) { this.dispose(); throw error; }
+    }
+    #waitLinks(nodes: HTMLLinkElement[], deadline: number, write?: () => void): Promise<Map<HTMLLinkElement, CSSStyleSheet>> {
+        this.#quiet();
+        return new Promise((resolve, reject) => {
+            const cleanup: (() => void)[] = [];
+            const loadedSheets = new Map<HTMLLinkElement, CSSStyleSheet>();
+            let remaining = nodes.length, settled = false;
+            const finish = (error?: Error) => {
+                if (settled) return;
+                settled = true; cleanup.forEach(remove => remove());
+                this.#waitingLinks.clear(); this.#cancelWait = undefined;
+                if (error) reject(error); else resolve(loadedSheets);
+            };
+            this.#cancelWait = () => finish(new Error('Recorded stylesheet loading cancelled'));
+            const timer = setTimeout(() => finish(new Error('Recorded stylesheet load timed out')), Math.max(0, deadline - performance.now()));
+            cleanup.push(() => clearTimeout(timer));
+            try {
+                if (performance.now() >= deadline) throw new Error('Recorded stylesheet deadline elapsed');
+                for (const node of nodes) {
+                    this.#waitingLinks.add(node);
+                    const loaded = (event: Event) => {
+                        if (!event.isTrusted || event.target !== node) { this.dispose(); return; }
+                        try {
+                            this.#quiet();
+                            if (!node.sheet || node.sheet.ownerNode !== node) throw new Error('Recorded stylesheet did not load');
+                            loadedSheets.set(node, node.sheet);
+                            this.#waitingLinks.delete(node);
+                            node.removeEventListener('load', loaded);
+                            if (--remaining === 0) finish();
+                        } catch (error) { finish(error instanceof Error ? error : new Error(String(error))); }
+                    };
+                    node.addEventListener('load', loaded);
+                    cleanup.push(() => node.removeEventListener('load', loaded));
+                }
+                write?.();
+                this.#quiet();
+                if (!remaining) finish();
+            } catch (error) { finish(error instanceof Error ? error : new Error(String(error))); }
         });
     }
     read(): BrowserRecordedOutputSummary {
@@ -98,17 +214,16 @@ export class BrowserRecordedOutputHost {
     dispose(): void {
         if (this.#disposed) return;
         this.#disposed = true; this.#captured = false; this.#observer.disconnect();
-        this.#view.removeEventListener('pagehide', this.#revoke); this.#view.removeEventListener('resize', this.#revoke);
+        this.#view.removeEventListener('pagehide', this.#revoke); this.#view.removeEventListener('resize', this.#revoke); this.#view.removeEventListener('orientationchange', this.#revoke);
         this.#document.removeEventListener('load', this.#load, true); this.#document.removeEventListener('error', this.#revoke, true);
         this.#options.signal?.removeEventListener('abort', this.#revoke);
-        releaseDocument(this.#document, this); this.#expected.clear(); this.#initialLoads.clear(); this.#parser.head.replaceChildren();
+        releaseDocument(this.#document, this); this.#cancelWait?.(); this.#observation.dispose(); this.#initialLoads.clear();
         if (!this.#busy) this.#free();
     }
     #free(): void { if (!this.#freed) { this.#freed = true; try { this.#native.close(); } finally { this.#native.free(); } } }
     #run<T>(work: () => T): T {
         if (this.#busy) { this.dispose(); throw new Error('Recorded output reentry'); }
         this.#busy = true;
-        this.#budget = { rules: 0, bytes: 0 };
         try { this.#quiet(); const result = work(); this.#quiet(); return result; }
         catch (error) { this.dispose(); throw error; }
         finally { this.#busy = false; if (this.#disposed) this.#free(); }
@@ -124,6 +239,8 @@ export class BrowserRecordedOutputHost {
         if (result !== undefined) throw new Error('Recorded HTML installation must be synchronous');
         this.#observer.takeRecords();
         this.#quiet(); this.#dom.reset();
+        this.#initialLoads.clear();
+        for (const node of this.#document.querySelectorAll('style')) this.#initialLoads.add(node);
     }
     #freeze(): void {
         const selected = this.#native.prepareBase(this.#match, (candidate, fallback, stamp) => {
@@ -149,28 +266,12 @@ export class BrowserRecordedOutputHost {
     };
     readonly #revision = (): string => {
         this.#quiet();
-        if (this.#document.adoptedStyleSheets.length || [...this.#document.querySelectorAll('*')].some(node => node.shadowRoot)
-            || this.#document.querySelector('link[rel~="stylesheet"]')) throw new Error('Recorded observation excludes external, adopted and shadow sheets');
+        this.#observation.validateUniverse();
         return `${this.#view.innerWidth}:${this.#view.innerHeight}:${this.#view.devicePixelRatio}`;
     };
-    readonly #observe = (owner: number, css: string): [number, boolean, boolean] => {
+    readonly #observe: StylesheetPredicate = (...args) => {
         this.#quiet();
-        const node = this.#dom.node(owner) as HTMLStyleElement | undefined;
-        const sheet = node?.sheet;
-        if (!node || node.localName !== 'style' || node.namespaceURI !== 'http://www.w3.org/1999/xhtml'
-            || !node.isConnected || node.ownerDocument !== this.#document || node.getRootNode() !== this.#document
-            || !sheet || sheet.ownerNode !== node || sheet.href !== null || node.media || node.hasAttribute('title') || sheet.media.mediaText) throw new Error('Recorded inline stylesheet changed');
-        let expected = this.#expected.get(owner);
-        if (!expected) {
-            if (this.#expected.size >= 256) throw new Error('Recorded stylesheet count limit');
-            const style = this.#parser.createElement('style'); style.textContent = css; this.#parser.head.append(style);
-            if (!style.sheet || Array.from(style.sheet.cssRules).some(rule => rule.type === 3)) throw new Error('Recorded styles must have flattened imports');
-            expected = style.sheet; this.#expected.set(owner, expected);
-        }
-        let identity = this.#sheets.get(sheet);
-        if (!identity) { if (this.#nextSheet > 0xffff_ffff) throw new Error('Recorded stylesheet identity exhausted'); identity = this.#nextSheet++; this.#sheets.set(sheet, identity); }
-        const result: [number, boolean, boolean] = [identity, !sheet.disabled, cssomText(sheet, this.#budget) === cssomText(expected, this.#budget)];
-        if (!this.#captured) this.#initialLoads.add(node);
+        const result = this.#observation.observe(...args);
         this.#quiet(); return result;
     };
     #summary(json: string): BrowserRecordedOutputSummary {
@@ -183,5 +284,12 @@ export class BrowserRecordedOutputHost {
 export function captureBrowserRecordedOutput(document: Document, native: NativeRecordedOutputSession, install: RecordedOutputInstaller, options: BrowserRecordedOutputOptions): BrowserRecordedOutputHost {
     let host: BrowserRecordedOutputHost | undefined;
     try { host = new BrowserRecordedOutputHost(document, native, options); host.capture(install); return host; }
+    catch (error) { if (host) host.dispose(); else { try { native.close(); } finally { native.free(); } } throw error; }
+}
+
+/** Takes ownership immediately, including cancellation during pending loads. */
+export async function captureBrowserRecordedOutputAsync(document: Document, native: NativeRecordedOutputSession, install: RecordedOutputInstaller, options: BrowserRecordedOutputOptions): Promise<BrowserRecordedOutputHost> {
+    let host: BrowserRecordedOutputHost | undefined;
+    try { host = new BrowserRecordedOutputHost(document, native, options); await host.captureAsync(install); return host; }
     catch (error) { if (host) host.dispose(); else { try { native.close(); } finally { native.free(); } } throw error; }
 }

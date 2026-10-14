@@ -227,13 +227,6 @@ impl RecordedOutputSession {
             browser: r.browser,
         })
     }
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) fn output_tree(&self) -> Result<Arc<RetainedCemTree>, String> {
-        self.output
-            .as_ref()
-            .map(|o| o.tree().clone())
-            .ok_or("composed native output required".into())
-    }
     pub fn url(&self) -> &str {
         &self.output_uri
     }
@@ -330,7 +323,10 @@ impl RecordedOutputSession {
                 return Err("recorded composition out of order".into());
             }
             let mut html = s.html.take().ok_or("original HTML host missing")?;
-            let evidence = html.confirm(base.into())?;
+            let evidence = match html.current() {
+                Some(e) => e.clone(),
+                None => html.confirm(base.into())?,
+            };
             let document = Arc::new(html.inspect_dependencies(
                 &evidence,
                 &s.cap,
@@ -379,6 +375,69 @@ impl RecordedOutputSession {
             s.html()
         })
     }
+    /// Native scalar source predicates and bounded selection commands, before
+    /// any preparation evidence exists. A later capture revalidates the full DOM.
+    pub fn prepare_stylesheets(
+        &mut self,
+        base: &str,
+        mut matches: impl FnMut(HtmlBaseDomSlot<'_>) -> Result<u32, String>,
+        title: Option<&str>,
+    ) -> Result<
+        (
+            Vec<cem_ml::browser_stylesheet_sources::BrowserStylesheetSource>,
+            Vec<cem_ml::html_stylesheet_selection::TitledStylesheetAction>,
+        ),
+        String,
+    > {
+        self.run(|s| {
+            if s.stage != Stage::ComposedBase {
+                return Err("composed base required for stylesheet preparation".into());
+            }
+            let html = s.html.as_mut().ok_or("composed HTML host missing")?;
+            if html.current().is_some() {
+                return Err("stylesheet preparation already started".into());
+            }
+            let evidence = match html.current() {
+                Some(e) => e.clone(),
+                None => html.confirm(base.into())?,
+            };
+            let document = Arc::new(html.inspect_dependencies(
+                &evidence,
+                &s.cap,
+                MAX_NODES,
+                &mut matches,
+                base,
+            )?);
+            let css = Arc::new(html.inspect_css_imports(
+                document,
+                &s.cap,
+                s.css.clone(),
+                Default::default(),
+                s.cancel.clone(),
+                matches,
+                base,
+            )?);
+            let sources = cem_ml::browser_stylesheet_sources::browser_stylesheet_sources(
+                &css, 256, MAX_BYTES,
+            )?;
+            let actions = if let Some(title) = title {
+                cem_ml::html_stylesheet_selection::HtmlStylesheetSelection::new(css, title, 256)?
+                    .actions()
+                    .iter()
+                    .map(
+                        |a| cem_ml::html_stylesheet_selection::TitledStylesheetAction {
+                            owner: a.owner,
+                            link: a.link,
+                            selected: a.selected,
+                        },
+                    )
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            Ok((sources, actions))
+        })
+    }
     pub fn capture(
         &mut self,
         base: &str,
@@ -390,7 +449,10 @@ impl RecordedOutputSession {
                 return Err("recorded capture out of order".into());
             }
             let mut html = s.html.take().ok_or("composed HTML host missing")?;
-            let evidence = html.confirm(base.into())?;
+            let evidence = match html.current() {
+                Some(e) => e.clone(),
+                None => html.confirm(base.into())?,
+            };
             let document = Arc::new(html.inspect_dependencies(
                 &evidence,
                 &s.cap,

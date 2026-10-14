@@ -2387,9 +2387,50 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       ownership changes; theme/forced-color checks are inapplicable and physical AT
       acceptance remains independent. Resource closure and atomic admission stay
       blocked.
-    - [ ] Extend whole-output preparation observations to external/titled and
+    - [x] Extend whole-output preparation observations to external/titled and
       outer-media document stylesheets, reusing native acquisition/selection
       records and controlled recapture without relaxing complete DOM ownership.
+      - [x] Add native staged source/selection fixtures for external, titled and
+        outer-media roots, missing acquisition, and fail-closed lifecycle.
+      - [x] Add production Chromium fixtures for acquired imports, title selection,
+        media observations, failed/pending loads, cancellation and fresh recapture.
+
+      Implemented `captureBrowserRecordedOutputAsync` and the pool equivalent:
+      exclusive ownership spans initial external loads, native title commands,
+      fresh selected-link installations and final native capture. The HTML
+      installer stays synchronous. A bounded whole deadline (1–30000 ms, default
+      5000), cancellation, errors, policy/DOM drift and pool lifetime changes
+      prevent publication. External roots and imported occurrences reuse native
+      acquired-source projections and the shared CSSOM observer, including final
+      URLs, source comparison, import conditions and outer media. Media listeners
+      and orientation/viewport changes revoke evidence. Exact external titles
+      activate eligible roots; an empty title disables all titled roots, including
+      inline ones. Commands preserve persistent sheets and never activate
+      authored-disabled roots. Captured records cannot be reused for selection:
+      controlled changes revoke first and fresh sessions perform complete
+      delivery/base/source/DOM validation.
+
+      Verification: 57 focused native tests pass (three new staged acquisition/
+      selection cases). All 37 production Chromium preparation cases pass,
+      including actual imported CSS effect, active preferred/alternate titles,
+      disabled titles, fresh recapture, screen/print media, source mismatch,
+      missing acquisition, load failure, timeout, abort and pending pool closure.
+      The full Nx browser gate passes all existing stylesheet/selection,
+      compiled/live-native output, HTML-base, worker and command regressions.
+      TypeScript and WASM builds, CLI lint, focused Rust formatting and
+      `git diff --check` pass.
+      Limits: readable UTF-8 external CSSOM and loaded roots remain required;
+      active inline titled sheets, shadow/adopted styles and nonempty inert
+      template correspondence remain unsupported. Native owners/seals remain in
+      the DOM observation realm. Remaining runtime resources and atomic host
+      transaction admission retain their blockers.
+      CEM review: shared native acquisition/selection contracts remain authoritative;
+      bounded inputs and exclusive ownership preserve semantic intent and
+      lifecycle guarantees. Native private/shared declaration scoping remains
+      verified by real browser effects. No component behavior, public token
+      definitions, inherited overrides, accessibility or theme ownership changed;
+      theme/forced-color checks are inapplicable to these observation services.
+      Physical browser/device/AT acceptance stays independently open.
     - [ ] Record responsive image-source selection and acquisition, followed by
       remaining computed CSS/SVG and general runtime resource loads, before
       claiming complete execution dependency closure.
@@ -2398,10 +2439,8 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, extend production whole-output preparation observations to external/titled
-and outer-media document stylesheet installations.
-Then record responsive image-source selection/acquisition and remaining computed
-CSS/SVG/runtime loads.
+Next, record responsive image-source selection and acquisition.
+Then cover remaining computed CSS/SVG and general runtime resource loads.
 Connect the prepared native read set to host transaction admission only after complete
 dependency evidence. Combine that dependency closure with map rewrite ownership before
 widening Studio admission.

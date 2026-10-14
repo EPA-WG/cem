@@ -1,4 +1,4 @@
-import { cssomText, type CssomBudget } from './browser-cssom.js';
+import { BrowserStylesheetObservation } from './browser-stylesheet-observation.js';
 import * as runtime from '@epa-wg/cem-ml/wasm';
 
 /** Immutable acquisition input. The adapter independently compares actual CSSOM;
@@ -34,34 +34,23 @@ export interface StylesheetDomBoundary {
     readonly matches: (...args: [number, number | null, number, number, string, string, string, number, number]) => number;
     readonly node: (id: number) => Node | undefined;
 }
-type State = { sheet: CSSStyleSheet | null; selected: boolean; conditions: boolean };
-const MAX_RULES = 65_536;
 const MAX_BYTES = 4 * 1024 * 1024;
 
 /** Main-thread native evidence remains local to its live DOM. Worker lifecycle
  * signals revoke it; neither summaries nor worker messages carry an edit grant. */
 export class BrowserStylesheetHost {
-    readonly #dom: StylesheetDomBoundary;
-    readonly #native: runtime.HtmlStylesheetSession;
-    readonly #parser: Document;
     readonly #view: Window;
-    readonly #identities = new WeakMap<object, number>();
-    readonly #expected = new Map<string, CSSStyleSheet | CSSStyleDeclaration>();
-    readonly #states = new Map<string, State>();
-    readonly #media = new Map<string, MediaQueryList>();
-    readonly #seen = new Set<CSSStyleSheet>();
+    readonly #dom: StylesheetDomBoundary;
+    readonly #observation: BrowserStylesheetObservation;
+    readonly #native: runtime.HtmlStylesheetSession;
     readonly #signal?: AbortSignal;
-    #nextIdentity = 1;
     #epoch = 1;
     #busy = false;
     #disposed = false;
     #captured = false;
-    #titledDisabled = false;
-    #activeTitled?: Map<Node, CSSStyleSheet>;
-    #budget: CssomBudget = { rules: 0, bytes: 0 };
     readonly #invalidate = () => {
         this.#captured = false;
-        this.#activeTitled = undefined;
+        this.#observation.activeTitled = undefined;
         this.#epoch += 1;
         if (!this.#busy && !this.#disposed) this.#native.invalidate();
     };
@@ -75,7 +64,7 @@ export class BrowserStylesheetHost {
         this.#view = view;
         this.#dom = dom;
         this.#signal = options.signal;
-        this.#parser = dom.document.implementation.createHTMLDocument('');
+        this.#observation = new BrowserStylesheetObservation(dom.document, dom.node, this.#invalidate);
         // Bounds precede JSON serialization and native import. JS strings use
         // at most three UTF-8 bytes per code unit (surrogate pairs use four).
         let bytes = 0;
@@ -171,8 +160,8 @@ export class BrowserStylesheetHost {
                         || action.node.sheet?.disabled !== !action.selected) throw new Error('Stylesheet selection changed during load');
                 }
                 this.#native.recaptureSelection(this.#dom.native, this.#dom.matches, this.#dom.document.baseURI);
-                this.#activeTitled = active;
-                this.#titledDisabled = title === '';
+                this.#observation.activeTitled = active;
+                this.#observation.titledDisabled = title === '';
             },
         };
     }
@@ -199,7 +188,7 @@ export class BrowserStylesheetHost {
     #disableTitled(): void {
         const sheets = Array.from(this.#dom.document.styleSheets);
         for (const sheet of sheets) if (sheet.title) sheet.disabled = true;
-        this.#titledDisabled = true;
+        this.#observation.titledDisabled = true;
     }
 
     dispose(): void {
@@ -213,9 +202,7 @@ export class BrowserStylesheetHost {
         doc.defaultView?.removeEventListener('orientationchange', this.#invalidate);
         doc.defaultView?.removeEventListener('pagehide', this.#abort);
         this.#signal?.removeEventListener('abort', this.#abort);
-        for (const query of this.#media.values()) query.removeEventListener('change', this.#invalidate);
-        this.#media.clear(); this.#expected.clear(); this.#states.clear(); this.#seen.clear();
-        this.#parser.head.replaceChildren();
+        this.#observation.dispose();
         if (!this.#busy) this.#native.free();
     }
     #guard(): void {
@@ -229,9 +216,9 @@ export class BrowserStylesheetHost {
             this.#busy = true;
             try {
                 const raw = this.#native[capture ? 'capture' : 'read'](this.#dom.native, this.#dom.matches,
-                    this.#dom.document.baseURI, this.#revision, this.#observe);
+                    this.#dom.document.baseURI, this.#revision, this.#observation.observe);
                 if (this.#disposed) throw new Error('Stylesheet lifecycle ended during observation');
-                for (const sheet of this.#dom.document.styleSheets) if (!this.#seen.has(sheet)) throw new Error('Unrecorded stylesheet installation');
+                this.#observation.validateSeen();
                 this.#captured = true;
                 const summary = JSON.parse(raw) as BrowserStylesheetSummary;
                 return Object.freeze({ occurrences: summary.occurrences, blockers: Object.freeze([...summary.blockers]) });
@@ -241,104 +228,9 @@ export class BrowserStylesheetHost {
     }
     readonly #revision = (): string => {
         if (this.#disposed || this.#signal?.aborted) throw new Error('Stylesheet lifecycle ended');
-        const doc = this.#dom.document;
-        if (doc.adoptedStyleSheets.length || doc.querySelectorAll('*').length > MAX_RULES) throw new Error('Unsupported stylesheet installation universe');
-        for (const element of doc.querySelectorAll('*')) if (element.shadowRoot) throw new Error('Shadow stylesheet installations require their own execution host');
-        if (this.#states.size) {
-            for (const sheet of doc.styleSheets) if (!this.#seen.has(sheet)) throw new Error('Unrecorded stylesheet installation');
-        }
+        this.#observation.validateUniverse();
         const view = this.#view;
         return `${this.#epoch}:${view.innerWidth}:${view.innerHeight}:${view.devicePixelRatio}`;
     };
-    #matches(query: string): boolean {
-        if (!query) return true;
-        let media = this.#media.get(query);
-        if (!media) {
-            if (this.#media.size >= 256) throw new Error('Stylesheet media query bound exceeded');
-            media = this.#view.matchMedia(query);
-            media.addEventListener('change', this.#invalidate);
-            this.#media.set(query, media);
-        }
-        return media.matches;
-    }
-    readonly #observe = (root: number, index: number, owner: number, attribute: boolean,
-        parent: number | null, importIndex: number | null, url: string, text: string, media: string, title: string, disabled: boolean): [boolean, boolean, boolean, number | null] => {
-        if (root === 0 && index === 0) { this.#states.clear(); this.#seen.clear(); this.#budget = { rules: 0, bytes: 0 }; }
-        const key = `${root}:${index}`;
-        const element = this.#dom.node(owner) as HTMLElement | SVGElement | undefined;
-        if (!element || element.nodeType !== 1) throw new Error('Native stylesheet owner has no DOM installation');
-        let expected = this.#expected.get(key);
-        if (!expected) {
-            if (attribute) {
-                const style = this.#parser.createElement('span').style;
-                style.cssText = text;
-                expected = style;
-            } else {
-                const style = this.#parser.createElement('style');
-                style.textContent = text;
-                if (parent === null) style.media = media;
-                this.#parser.head.append(style);
-                if (!style.sheet) throw new Error('Browser source comparison parser unavailable');
-                expected = style.sheet;
-            }
-            this.#expected.set(key, expected);
-        }
-        if (attribute) {
-            if (element.style.cssText !== (expected as CSSStyleDeclaration).cssText) throw new Error('Inline CSSOM differs from native source');
-            return [true, true, true, this.#identity(element.style)];
-        }
-        let selected: boolean;
-        let conditions: boolean;
-        let sheet: CSSStyleSheet | null;
-        if (parent === null) {
-            sheet = (element as HTMLStyleElement | HTMLLinkElement).sheet;
-            if (!sheet || sheet.ownerNode !== element) throw new Error('Stylesheet root is not loaded');
-            if (element.localName === 'link' && sheet.href !== url) throw new Error('Loaded stylesheet final URL mismatch');
-            if (element.localName !== 'link' && sheet.href !== null) throw new Error('Inline stylesheet base mismatch');
-            if (sheet.media.mediaText !== (expected as CSSStyleSheet).media.mediaText) throw new Error('Stylesheet media changed outside its native document metadata');
-            if (title) {
-                const active = this.#activeTitled?.get(element);
-                if (sheet.title !== title || (active ? active !== sheet || sheet.disabled
-                    : (!this.#titledDisabled && !this.#activeTitled) || !sheet.disabled)) throw new Error('Controlled titled stylesheet selection required');
-            }
-            if (element.localName === 'link' && Array.from((element as HTMLLinkElement).relList).some(token => token.toLowerCase() === 'alternate') && !title) throw new Error('Untitled alternate stylesheet selection is unsupported');
-            if (disabled && !sheet.disabled) throw new Error('Authored disabled stylesheet was enabled');
-            selected = !sheet.disabled;
-            conditions = this.#matches(media);
-        } else {
-            const previous = this.#states.get(`${root}:${parent}`);
-            if (!previous || importIndex === null) throw new Error('Stylesheet import parent missing');
-            const expectedParent = this.#expected.get(`${root}:${parent}`) as CSSStyleSheet;
-            const expectedRule = (Array.from(expectedParent.cssRules).filter(r => r.type === 3) as CSSImportRule[])[importIndex];
-            if (!expectedRule) throw new Error('Native import occurrence absent from browser grammar');
-            const rule = previous.sheet ? (Array.from(previous.sheet.cssRules).filter(r => r.type === 3) as CSSImportRule[])[importIndex] : null;
-            if (previous.sheet && (!rule || rule.cssText !== expectedRule.cssText)) throw new Error('Native import occurrence mismatch');
-            const conditionRule = rule ?? expectedRule;
-            const supports = (conditionRule as CSSImportRule & { supportsText?: string | null }).supportsText;
-            conditions = this.#matches(conditionRule.media.mediaText) && (!supports || CSS.supports(supports) || CSS.supports(`(${supports})`));
-            selected = previous.selected && previous.conditions;
-            sheet = rule?.styleSheet ?? null;
-            if (!sheet) {
-                if (selected && conditions) throw new Error('Active imported stylesheet is unloaded');
-                this.#states.set(key, { sheet: null, selected, conditions });
-                return [selected, conditions, false, null];
-            }
-            if (sheet.href !== url) throw new Error('Imported stylesheet final URL differs');
-            selected = selected && !sheet.disabled;
-        }
-        if (this.#rulesText(sheet) !== this.#rulesText(expected as CSSStyleSheet)) throw new Error('Loaded CSSOM differs from native acquired source');
-        this.#states.set(key, { sheet, selected, conditions });
-        this.#seen.add(sheet);
-        return [selected, conditions, true, this.#identity(sheet)];
-    };
-    #rulesText(sheet: CSSStyleSheet): string { return cssomText(sheet, this.#budget); }
-    #identity(object: object): number {
-        let id = this.#identities.get(object);
-        if (!id) {
-            if (this.#nextIdentity > 0xffff_ffff) throw new Error('Stylesheet identities exhausted');
-            id = this.#nextIdentity++;
-            this.#identities.set(object, id);
-        }
-        return id;
-    }
+
 }

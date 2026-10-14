@@ -3908,11 +3908,36 @@ An initial browser-generated load notification for a captured inline sheet may
 arrive after synchronous delivery. It preserves the record only after a complete
 native reread. Later or synthetic load notifications and all errors revoke it.
 
-The bounded stylesheet profile accepts flattened, untitled inline HTML styles
-without outer media, shadow roots or adopted sheets. Body imports are resolved
-from the supplied immutable snapshots and flattened natively. External document
-stylesheets, titled/outer-media selection and unflattened document imports still
-require bridge extensions; unsupported cases fail closed. Pool closure, worker
+For external sheets use
+`await captureBrowserRecordedOutputAsync(document, native, install, options)`
+or `await pool.captureRecordedOutputAsync(...)`. The installer itself remains
+synchronous. The host owns the document during initial link loads, with a whole
+load deadline (`timeoutMs`, default 5000, bounded 1–30000). Every link root must
+load; unreadable CSSOM, missing acquisitions, failed loads, timeouts, DOM/policy
+drift, reentry and cancellation reject and release ownership. Imported sheets
+are compared occurrence by occurrence against the native acquired snapshot,
+including final URLs and import conditions. Inactive unloaded imports retain the
+existing bounded observation rules. Source text alone never proves installation.
+
+Supply `stylesheetTitle` for explicit selection: an exact external title activates
+its eligible roots; an empty string disables all titled roots. Commands come from
+the existing native `HtmlStylesheetSelection` contract. Persistent sheets remain
+outside those commands and authored-disabled roots cannot be activated. Selected
+external links must complete a fresh browser load and install a different enabled
+CSSStyleSheet. Active inline titled sheets remain unsupported; inline titled
+sheets can be explicitly disabled. Omitting the option rejects titled roots.
+Selection occurs before the first preparation capture: native DOM/base/source
+validation runs again before publication. Changing an existing preparation,
+including selecting the same title again, requires `change(write)`/disposal and a
+fresh native session; an old record cannot be revived or recaptured in place.
+
+Both hosts reuse the shared CSSOM source/selection observer. Outer media is
+checked against native metadata and live matchMedia results; media changes,
+orientation changes, CSSOM mutations and selection drift revoke evidence.
+Shadow roots and adopted sheets remain outside the profile. Body imports remain
+flattened natively into their private/shared compiled installations. No public
+theme variables or inherited overrides are rewritten by the observation layer.
+Pool closure, worker
 failure and generation replacement revoke these main-realm dependencies before
 new work can publish; fresh capture resumes only after pool recovery. Dedicated
 workers never receive a DOM/evidence DTO or consume this native seal. Moving the

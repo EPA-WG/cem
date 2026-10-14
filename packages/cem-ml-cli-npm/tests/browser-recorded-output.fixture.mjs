@@ -1,4 +1,4 @@
-import { BrowserRecordedOutputHost, captureBrowserRecordedOutput, createBrowserWorkerPool, createBrowserHtmlBaseHost } from '../dist/browser.js';
+import { BrowserRecordedOutputHost, captureBrowserRecordedOutput, captureBrowserRecordedOutputAsync, createBrowserWorkerPool, createBrowserHtmlBaseHost } from '../dist/browser.js';
 import * as ql from '../../cem_ql/dist/wasm/cem_ql.js';
 const source = "{style |```p{color:rgb(1,2,3)}```}\n{style @scope=widgets |```p{font-weight:700}```}\n{style |```p{background-color:rgb(4,5,6)}```}\n{result-element @name=html @namespace='http://www.w3.org/1999/xhtml' |\n {result-element @name=head @namespace='http://www.w3.org/1999/xhtml' |\n  {result-element @name=base @namespace='http://www.w3.org/1999/xhtml' | {result-attribute @name=href | ../assets/}}}\n {result-element @name=body @namespace='http://www.w3.org/1999/xhtml' |\n  {result-element @name=cem-card @namespace='http://www.w3.org/1999/xhtml' |\n   {result-attribute @name=scope | widgets}\n   {result-element @name=template @namespace='http://www.w3.org/1999/xhtml' | {result-attribute @name=data-cem-island | instance}}\n   {result-element @name=p @namespace='http://www.w3.org/1999/xhtml' | Card}\n   {result-element @name=cem-inner @namespace='http://www.w3.org/1999/xhtml' |\n    {result-element @name=template @namespace='http://www.w3.org/1999/xhtml' | {result-attribute @name=data-cem-island | instance}}\n    {result-element @name=p @namespace='http://www.w3.org/1999/xhtml' | Inner}}}\n  {result-element @name=p @namespace='http://www.w3.org/1999/xhtml' | Outside}}}";
 const check = (value, message) => { if (!value) throw new Error(message); };
@@ -37,7 +37,12 @@ globalThis.runRecordedOutputFixture = async version => {
                 const host = pool ? pool.captureRecordedOutput(doc, session, installer, options) : captureBrowserRecordedOutput(doc, session, installer, options);
                 hosts.push(host); return host;
             };
-            await test({ doc, view, capture, policy, native, install, hosts, pool, request });
+            const captureAsync = async (extra = {}, installer = install) => {
+                const session = native(), options = { ownership: 'exclusive', policy, ...extra };
+                const host = await (pool ? pool.captureRecordedOutputAsync(doc, session, installer, options) : captureBrowserRecordedOutputAsync(doc, session, installer, options));
+                hosts.push(host); return host;
+            };
+            await test({ doc, view, captureAsync, capture, policy, native, install, hosts, pool, request });
             cases.push(name);
         } catch (error) { throw new Error(`${name}: ${String(error)}`, { cause: error }); }
         finally { hosts.forEach(host => host.dispose()); await pool?.close(); frame.remove(); }
@@ -119,6 +124,90 @@ globalThis.runRecordedOutputFixture = async version => {
         check(session.html().includes('title="day"'), 'fixture did not author a titled output stylesheet');
         rejects(() => captureBrowserRecordedOutput(doc, session, install, { ownership: 'exclusive', policy }), 'unsupported titled output admitted');
     });
+
+    const addHead = (request, markup) => {
+        request.sources[0].source = request.sources[0].source.replace('{result-element @name=base', markup.replaceAll('} {result-attribute', '}\n{result-attribute') + ' {result-element @name=base');
+    };
+    const addLink = (request, path, extra = '') => {
+        const url = new URL(path, location.href).href;
+        addHead(request, `{link @rel=stylesheet @href='${url}' ${extra ? '@title=day' : ''}}`);
+        return url;
+    };
+    const acquired = (request, path, text, final = path) => {
+        request.stylesheets.push({ requestedUrl: new URL(path, location.href).href, finalUrl: new URL(final, location.href).href,
+            revision: '1', source: text, contentType: 'text/css' });
+    };
+    await run('external-acquired-imports', async ({ captureAsync, request, doc, view }) => {
+        addLink(request, '/styles/theme.css');
+        acquired(request, '/styles/theme.css', '@import "child.css" supports(display: grid) screen and (min-width: 200px); p{background-color:rgb(4,5,6)}');
+        acquired(request, '/styles/child.css', 'p{border-style:solid}');
+        const host = await captureAsync();
+        check(host.read().blockers.length > 0 && view.getComputedStyle(doc.querySelector('body > p')).borderStyle === 'solid', 'acquired imports did not apply');
+        doc.querySelector('link').sheet.cssRules[0].styleSheet.insertRule('p{color:red}', 0);
+        rejects(() => host.read(), 'imported CSSOM mutation retained evidence');
+    });
+    for (const media of ['screen', 'print']) {
+        await run(`outer-media-${media}`, async ({ captureAsync, request, doc, view }) => {
+            addHead(request, `{result-element @name=style @namespace='http://www.w3.org/1999/xhtml' | {result-attribute @name=media | ${media}} \`\`\`body > p{font-style:italic}\`\`\`}`);
+            const host = await captureAsync();
+            check((view.getComputedStyle(doc.querySelector('body > p')).fontStyle === 'italic') === (media === 'screen'), 'outer media application mismatch');
+            host.read();
+            doc.querySelector('style').sheet.media.mediaText = media === 'screen' ? 'print' : 'screen';
+            rejects(() => host.read(), 'outer media change retained evidence');
+        });
+    }
+    await run('titled-inline-disabled', async ({ captureAsync, request, doc, view }) => {
+        addHead(request, "{result-element @name=style @namespace='http://www.w3.org/1999/xhtml' | {result-attribute @name=title | day} ```body > p{font-style:italic}```}");
+        const host = await captureAsync({ stylesheetTitle: '' });
+        check(doc.querySelector('style').sheet.disabled && view.getComputedStyle(doc.querySelector('body > p')).fontStyle !== 'italic', 'inline title not disabled');
+        host.read();
+    });
+    for (const title of ['day', '', 'alternate']) {
+        await run(`external-title-${title || 'disabled'}`, async ({ captureAsync, request, doc, view }) => {
+            addLink(request, '/styles/day.css', '{result-attribute @name=title | day}');
+            if (title === 'alternate') request.sources[0].source = request.sources[0].source.replace('@rel=stylesheet', "@rel='alternate stylesheet'");
+            acquired(request, '/styles/day.css', 'p{color:rgb(20,30,40)}');
+            const host = await captureAsync({ stylesheetTitle: title === 'alternate' ? 'day' : title });
+            host.read();
+            check((view.getComputedStyle(doc.querySelector('body > p')).color === 'rgb(20, 30, 40)') === !!title, 'native title selection application mismatch');
+            host.change(() => { doc.querySelector('link').sheet.disabled = true; });
+            rejects(() => host.read(), 'controlled title change retained evidence');
+            const fresh = await captureAsync({ stylesheetTitle: title === 'alternate' ? 'day' : title });
+            fresh.read();
+        });
+    }
+
+    await run('outer-media-environment-revocation', async ({ captureAsync, request, view }) => {
+        addHead(request, "{result-element @name=style @namespace='http://www.w3.org/1999/xhtml' | {result-attribute @name=media | screen} ```p{font-style:italic}```}");
+        const original = view.matchMedia.bind(view), queries = [];
+        view.matchMedia = query => { const result = original(query); queries.push(result); return result; };
+        const host = await captureAsync();
+        check(queries.length > 0, 'media listener not installed');
+        queries[0].dispatchEvent(new Event('change'));
+        rejects(() => host.read(), 'media environment event retained evidence');
+    });
+    await run('active-inline-title-rejected', async ({ captureAsync, request }) => {
+        addHead(request, "{result-element @name=style @namespace='http://www.w3.org/1999/xhtml' | {result-attribute @name=title | day} ```p{color:red}```}");
+        let failed = false;
+        try { await captureAsync({ stylesheetTitle: 'day' }); } catch { failed = true; }
+        check(failed, 'unsupported inline title activation accepted');
+    });
+    for (const kind of ['missing-source', 'wrong-source', 'load-error', 'timeout', 'abort', 'pool-close']) {
+        await run(`external-${kind}`, async ({ captureAsync, request, pool, doc }) => {
+            const path = kind === 'load-error' ? '/styles/recorded-error.css' :
+                ['timeout', 'abort', 'pool-close'].includes(kind) ? '/styles/recorded-pending.css' : '/styles/day.css';
+            addLink(request, path);
+            if (kind !== 'missing-source') acquired(request, path, kind === 'wrong-source' ? 'p{color:red}' : 'p{color:rgb(20,30,40)}');
+            const controller = new AbortController();
+            let failed = false;
+            const promise = captureAsync({ signal: controller.signal, timeoutMs: kind === 'timeout' ? 20 : 5000 }).catch(() => { failed = true; });
+            if (kind === 'abort') controller.abort();
+            if (kind === 'pool-close') await pool.close();
+            await promise;
+            check(failed, 'invalid/pending external stylesheet published evidence');
+            check(doc.URL.includes('browser-recorded-output'), 'fixture navigated document');
+        }, kind === 'pool-close');
+    }
     await run('snapshot-import-flattening', ({ capture, request, doc, view }) => {
         request.sources[0].source = source.replace('p{color:rgb(1,2,3)}', "@import './child.css'; p{color:rgb(1,2,3)}");
         const url = new URL('./child.css', request.rootUri).href;
