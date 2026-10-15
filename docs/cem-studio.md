@@ -4270,8 +4270,8 @@ byte-binding step. It joins current observed CSS URL references in SVG `fill`
 and `stroke` slots to separately acquired, immutable SVG snapshots. It performs
 no fetch and grants no URL access. A caller-provided acquisition snapshot is
 not proof of the response the browser received or the resource it painted.
-Native preparation lifetime integration is available; browser ingress remains
-a separate next step.
+Native preparation lifetime integration and explicit browser snapshot ingress
+are available. Browser response identity remains a separate next step.
 
 Capture retains the original `Arc<SvgComputedEvidence>`, validates it against
 its original `SvgComputedHost` before and after the join, and imports each
@@ -4316,8 +4316,7 @@ The enclosing document/base/stylesheet/policy preparation still needs validation
 Native fixtures cover exact bytes/digest/source identity, shared bodies with
 distinct fragments, CSS escapes, invalid or missing acquisition inputs, profile
 rejections, byte/count bounds, foreign/stale computed hosts, restored values,
-body release, pre-abort and cancellation during final observation. Existing
-browser behavior and summary fields are unchanged. Preparation binding, browser
+body release, pre-abort and cancellation during final observation. Browser
 response identity, actual consumption, fragment-target resolution, transitive
 SVG dependencies, winning sources and general runtime closure remain explicit
 blockers. This partial native binding does not remove existing execution blockers
@@ -4336,9 +4335,31 @@ operation closes preparation and releases bindings. Explicit close, computed
 validation failure, and enclosing DOM/base/stylesheet failure also close the
 session. Closing preparation does not abort a caller's shared acquisition owner.
 Only a captured live preparation exposes a binding count. All resource blockers
-remain conservative, including the preparation-binding blocker until browser
-host wiring and acceptance are complete. There is no WASM ingress or automatic
-network acquisition in this step, and no response-identity claim.
+remain conservative, including the conservative preparation-binding blocker until response-bound
+preparation is established. There is no automatic network acquisition or
+response-identity claim.
+
+Browser preparation accepts `svgSnapshots: { responses, signal }` explicitly
+on both synchronous and asynchronous capture. Each response supplies
+`requestedUrl`, `finalUrl`, `contentType`, `revision`, and `Uint8Array` entity
+`bytes`. The required signal belongs to acquisition; aborting it disposes the
+preparation without aborting other owners. Preparation cancellation, worker
+closure, and DOM mutation also revoke the binding. The host pins this signal
+and copies inputs into WASM during construction, before installation callbacks;
+subsequent edits to caller buffers or response arrays cannot alter native bytes.
+Callers must abort acquisition to indicate snapshot invalidation.
+
+WASM `beginSvgSnapshots` / `addSvgSnapshot` accept only bounded raw source
+inputs (256 responses, four MiB including metadata), before capture begins.
+Repeated begin, unopened add, late ingress, and bound failures close the session.
+Explicit empty ingress fails native binding capture; omitted ingress preserves
+existing computed-only capture. Native import and URL matching run after SVG
+computed capture, and validation brackets the enclosing preparation read.
+The public summary adds only `svgResourceBindings`; no tree, digest, byte body,
+or evidence handle crosses back to JavaScript. This boundary does not fetch or
+replay bytes and cannot attest that supplied bytes match a browser response.
+Chromium fixtures intentionally assert binding and lifetime behavior separately
+from paint pixels and retain all consumption/response-identity blockers.
 
 CEM audit: authored source and theme ownership remain separate from observations
 and acquired bytes. No copied computed value becomes a declaration, no component

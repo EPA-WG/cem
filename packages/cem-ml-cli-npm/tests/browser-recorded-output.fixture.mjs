@@ -57,6 +57,54 @@ globalThis.runRecordedOutputFixture = async version => {
         request.sources[0].contentType = 'text/cem-ml';
         request.sources[0].source = `{result-element @name=html @namespace='http://www.w3.org/1999/xhtml' | {result-element @name=head @namespace='http://www.w3.org/1999/xhtml' | {result-element @name=base @namespace='http://www.w3.org/1999/xhtml' | {result-attribute @name=href | ${base}}}}{result-element @name=body @namespace='http://www.w3.org/1999/xhtml' | {svg @xmlns='http://www.w3.org/2000/svg' @width=16 @height=16 | {defs | ${defs}}{rect @width=16 @height=16 @fill='${fill}'}}}}`;
     };
+    for (const mode of ['unopened', 'repeat', 'closed']) {
+        await run(`svg-snapshot-ingress-${mode}`, ({ native }) => {
+            const session = native();
+            try {
+                if (mode === 'repeat') session.beginSvgSnapshots();
+                if (mode === 'closed') session.close();
+                if (mode === 'unopened') rejects(() => session.addSvgSnapshot('https://example.test/a.svg', 'https://example.test/a.svg', 'image/svg+xml', '1', new Uint8Array()), 'unopened ingress accepted');
+                else rejects(() => session.beginSvgSnapshots(), 'repeated/closed ingress accepted');
+                rejects(() => session.html(), 'invalid ingress failed to close session');
+            } finally { session.close(); session.free(); }
+        });
+    }
+    for (const mode of ['sync', 'async', 'copy', 'abort', 'mutation', 'pool', 'missing', 'duplicate', 'mime', 'bounds', 'preabort', 'empty']) {
+        await run(`svg-snapshot-${mode}`, async ({ request, doc, capture, captureAsync, pool, install }) => {
+            paintRequest(request, doc, '', `url(${doc.URL}#p)`);
+            const controller = new AbortController();
+            const bytes = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"><linearGradient id="p"/></svg>');
+            const response = { requestedUrl: doc.URL, finalUrl: doc.URL, revision: 'snapshot:1', contentType: 'image/svg+xml', bytes };
+            const responses = [response];
+            if (mode === 'missing') response.requestedUrl = response.finalUrl = new URL('/missing.svg', doc.URL).href;
+            if (mode === 'duplicate') responses.push(response);
+            if (mode === 'mime') response.contentType = 'text/html';
+            if (mode === 'bounds') response.bytes = new Uint8Array(4 * 1024 * 1024);
+            if (mode === 'empty') responses.length = 0;
+            if (mode === 'preabort') controller.abort();
+            const options = { svgSnapshots: { responses, signal: controller.signal } };
+            if (['missing', 'duplicate', 'mime', 'bounds', 'preabort', 'empty'].includes(mode)) {
+                rejects(() => capture(options), 'invalid SVG snapshot accepted');
+                return;
+            }
+            const installer = html => {
+                if (mode === 'copy') { bytes.fill(0); response.revision = 'changed'; responses.length = 0; }
+                install(html);
+            };
+            const host = ['async', 'pool'].includes(mode) ? await captureAsync(options, installer) : capture(options, installer);
+            const result = host.read();
+            check(result.svgResourceBindings === 1, 'native SVG binding missing');
+            check(result.blockers.includes('svg-resource-browser-response-identity-required')
+                && result.blockers.includes('svg-resource-consumption-required'), 'snapshot claimed consumption');
+            if (mode === 'abort') controller.abort();
+            if (mode === 'mutation') { const rect = doc.querySelector('rect'); const fill = rect.getAttribute('fill'); rect.setAttribute('fill', 'red'); rect.setAttribute('fill', fill); }
+            if (mode === 'pool') await pool.close();
+            if (['abort', 'mutation', 'pool'].includes(mode)) {
+                rejects(() => host.read(), 'revoked SVG acquisition survived');
+                rejects(() => host.read(), 'revoked SVG acquisition revived');
+            }
+        }, mode === 'pool');
+    }
     for (const mode of ['local', 'chain', 'cycle', 'duplicate', 'missing', 'wrong-kind', 'base', 'nonfragment']) {
         await run(`paint-candidate-${mode}`, ({ request, doc, view, capture }) => {
             let defs = '{linearGradient @id=a | {stop @stop-color=red}}', links = 0, blocker;

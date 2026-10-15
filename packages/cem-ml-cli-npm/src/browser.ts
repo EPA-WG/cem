@@ -1,6 +1,6 @@
 import { captureBrowserRecordedOutputAsync, captureBrowserRecordedOutput, type NativeRecordedOutputSession, type BrowserRecordedOutputHost, type RecordedOutputInstaller, type BrowserRecordedOutputOptions } from './browser-recorded-output.js';
 export { BrowserRecordedOutputHost, captureBrowserRecordedOutput, captureBrowserRecordedOutputAsync } from './browser-recorded-output.js';
-export type { NativeRecordedOutputSession, BrowserRecordedOutputOptions, BrowserRecordedOutputSummary, RecordedOutputInstaller } from './browser-recorded-output.js';
+export type { NativeRecordedOutputSession, BrowserRecordedOutputOptions, BrowserRecordedOutputSummary, BrowserSvgSnapshot, RecordedOutputInstaller } from './browser-recorded-output.js';
 import { captureBrowserCompiledStylesheets, type NativeCompiledStylesheetSession, type BrowserCompiledStylesheetHost } from './browser-compiled-stylesheets.js';
 export { BrowserCompiledStylesheetHost, captureBrowserCompiledStylesheets } from './browser-compiled-stylesheets.js';
 export type { NativeCompiledStylesheetSession } from './browser-compiled-stylesheets.js';

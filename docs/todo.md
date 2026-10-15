@@ -2922,6 +2922,22 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       ownership and bounded variation; no UI/default/public-token changes.
       Browser ingress and response identity remain open; this native stage does
       not claim consumed bytes or complete preparation/transaction admission.
+    - [x] Add explicit WASM/browser SVG snapshot ingress and Chromium fixtures
+      for sync/async capture, immutable copies, cancellation, mutations, bounds,
+      malformed inputs and worker lifetime; keep consumption blockers.
+      Completed: explicit svgSnapshots ingress copies bounded raw entity bytes
+      to WASM before installers run, pins acquisition cancellation, binds after
+      computed capture and validates around reads. Native bytes/trees/evidence
+      remain private; only svgResourceBindings joins diagnostic summaries.
+      Fifteen new Chromium fixtures cover both capture paths, copied buffers,
+      abort, restored DOM mutation, worker closure, invalid/empty/duplicate/MIME
+      inputs, bounds and unopened/repeated/closed native ingress. All 60 native
+      preparation tests and all 187 Chromium preparation cases pass, with the
+      full browser gate, WASM/CLI builds, lint and diff checks. CEM audit keeps
+      semantic/source/theme ownership native and variation bounded; no UI,
+      token/default changes or broader forced-color/device/AT claims.
+      Supplied snapshots do not attest to browser responses or painting;
+      response identity, consumption and broader closure blockers stay open.
     - [ ] Integrate computed SVG byte bindings with preparation/acquisition
       lifetime and verify browser response identity before claiming consumption.
     - [ ] Bind computed CSS/SVG selections to acquired resource bodies before
@@ -2933,10 +2949,9 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, expose explicit acquired-SVG snapshot ingress through WASM and the browser
-preparation host, using the native preparation/acquisition lifetime binding and
-Chromium cancellation/mutation fixtures. Then establish browser response identity
-for consumed bytes. Extend fragment/embedded SVG dependencies and broader CSS selections
+Next, establish browser response identity for SVG resource bytes before claiming
+consumption, using the explicit snapshot ingress and preparation/acquisition
+lifetime binding. Extend fragment/embedded SVG dependencies and broader CSS selections
 afterward. General runtime loads and broader cascade evidence remain required
 before complete dependency closure or wider transaction admission.
 Selected image response/candidate binding is available through explicit native

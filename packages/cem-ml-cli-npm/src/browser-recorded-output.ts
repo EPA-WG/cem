@@ -8,6 +8,8 @@ type NativeDomPredicate = BrowserDomCorrespondence['matchSlot'];
 
 /** Actual realm-local QL WASM session; result messages cannot replace this owner. */
 export interface NativeRecordedOutputSession extends NativeImagePreparation {
+    beginSvgSnapshots(): void;
+    addSvgSnapshot(requested: string, finalUrl: string, contentType: string, revision: string, bytes: Uint8Array): void;
     enableImageReplay(nonce: string): void;
     imageReplayRoutes(route: (alias: string, source: string) => void): void;
     url(): string;
@@ -22,7 +24,18 @@ export interface NativeRecordedOutputSession extends NativeImagePreparation {
     close(): void;
     free(): void;
 }
+/** Trusted acquired entity bytes, never a browser response receipt. */
+export interface BrowserSvgSnapshot {
+    readonly requestedUrl: string;
+    readonly finalUrl: string;
+    readonly contentType: string;
+    readonly revision: string;
+    readonly bytes: Uint8Array;
+}
 export interface BrowserRecordedOutputOptions {
+    /** Explicit immutable snapshot ingress. Abort when the acquisition lifetime ends. */
+    readonly svgSnapshots?: { readonly responses: readonly BrowserSvgSnapshot[]; readonly signal: AbortSignal };
+
     /** Explicit compatibility report; not an execution seal. Probe order:
      * own/inherited/descriptive gradient, then own/inherited/descriptive pattern.
      * Each synchronous callback returns source RGBA, host RGBA, pixel RGBA. */
@@ -42,7 +55,7 @@ export interface BrowserRecordedOutputOptions {
     /** Async capture's whole load deadline; 1..30,000 ms. */
     readonly timeoutMs?: number;
 }
-export interface BrowserRecordedOutputSummary { readonly blockers: readonly string[]; readonly imageAcquisitions: number; readonly imageDeliveries: number; readonly svgComputedSlots: number; readonly svgPaintRoots: number; readonly svgPaintLinks: number; readonly svgPaintServers: number; readonly svgPaintContentNodes: number; readonly svgPaintStyleHosts: number; readonly svgPaintStyleInstances: number; readonly svgCloneProfileConfirmed: boolean; readonly svgPaintColors: number; readonly svgPaintSuppressedHosts: number; }
+export interface BrowserRecordedOutputSummary { readonly blockers: readonly string[]; readonly imageAcquisitions: number; readonly imageDeliveries: number; readonly svgComputedSlots: number; readonly svgResourceBindings: number; readonly svgPaintRoots: number; readonly svgPaintLinks: number; readonly svgPaintServers: number; readonly svgPaintContentNodes: number; readonly svgPaintStyleHosts: number; readonly svgPaintStyleInstances: number; readonly svgCloneProfileConfirmed: boolean; readonly svgPaintColors: number; readonly svgPaintSuppressedHosts: number; }
 /** The installer delivers native HTML into this document synchronously. It must
  * preserve the Document/URL and must not start unowned context or CSS mutations. */
 export type RecordedOutputInstaller = (html: string, stage: 'original' | 'composed') => void;
@@ -54,6 +67,7 @@ export class BrowserRecordedOutputHost {
     readonly #dom: BrowserDomCorrespondence;
     readonly #observer: MutationObserver;
     readonly #options: BrowserRecordedOutputOptions;
+    readonly #svgSignal?: AbortSignal;
     readonly #url: string;
     readonly #stamp: string;
     readonly #observation: BrowserStylesheetObservation;
@@ -85,8 +99,24 @@ export class BrowserRecordedOutputHost {
         const view = document.defaultView;
         if ((options.imageDelivery !== undefined && options.imageDelivery !== 'service-worker' && options.imageDelivery !== 'service-worker-replay')
             || !view || view.document !== document || documentOwned(document) || options.ownership !== 'exclusive'
-            || options.signal?.aborted || document.contentType !== 'text/html' || document.characterSet !== 'UTF-8'
+            || options.signal?.aborted || options.svgSnapshots?.signal.aborted || document.contentType !== 'text/html' || document.characterSet !== 'UTF-8'
             || !/^https?:/u.test(document.URL) || document.URL !== native.url()) throw new Error('Recorded output requires an exclusive live UTF-8 HTTP(S) document matching its native URL');
+        const snapshots = options.svgSnapshots;
+        this.#svgSignal = snapshots?.signal;
+        if (snapshots) {
+            if (!snapshots.signal || !Array.isArray(snapshots.responses) || snapshots.responses.length > 256) throw new Error('Bounded SVG snapshots and acquisition signal required');
+            native.beginSvgSnapshots();
+            let size = 0;
+            const encoder = new TextEncoder();
+            for (const response of snapshots.responses) {
+                const metadata = [response.requestedUrl, response.finalUrl, response.contentType, response.revision];
+                if (!metadata.every(v => typeof v === 'string') || !ArrayBuffer.isView(response.bytes)
+                    || Object.prototype.toString.call(response.bytes) !== '[object Uint8Array]') throw new Error('SVG snapshot requires strings and entity bytes');
+                size += response.bytes.byteLength + metadata.reduce((n, v) => n + encoder.encode(v).length, 0);
+                if (size > 4 * 1024 * 1024 || snapshots.signal.aborted) throw new Error('SVG snapshot bounds or lifetime exceeded');
+                native.addSvgSnapshot(response.requestedUrl, response.finalUrl, response.contentType, response.revision, response.bytes);
+            }
+        }
         this.#document = document; this.#view = view; this.#native = native; this.#options = options;
         this.#url = document.URL; this.#stamp = options.policy.stamp;
         this.#dom = new BrowserDomCorrespondence(document, 10_000);
@@ -98,6 +128,7 @@ export class BrowserRecordedOutputHost {
         view.addEventListener('pagehide', this.#revoke); view.addEventListener('resize', this.#revoke); view.addEventListener('orientationchange', this.#revoke);
         document.addEventListener('load', this.#load, true); document.addEventListener('error', this.#revoke, true);
         options.signal?.addEventListener('abort', this.#revoke, { once: true });
+        this.#svgSignal?.addEventListener('abort', this.#revoke, { once: true });
         claimDocument(document, this);
     }
     capture(install: RecordedOutputInstaller): BrowserRecordedOutputSummary {
@@ -260,6 +291,7 @@ export class BrowserRecordedOutputHost {
         this.#view.removeEventListener('pagehide', this.#revoke); this.#view.removeEventListener('resize', this.#revoke); this.#view.removeEventListener('orientationchange', this.#revoke);
         this.#document.removeEventListener('load', this.#load, true); this.#document.removeEventListener('error', this.#revoke, true);
         this.#options.signal?.removeEventListener('abort', this.#revoke);
+        this.#svgSignal?.removeEventListener('abort', this.#revoke);
         this.#delivery?.dispose(); releaseDocument(this.#document, this); this.#cancelWait?.(); this.#images.dispose(); this.#svg.dispose(); this.#observation.dispose(); this.#initialLoads.clear();
         if (!this.#busy) this.#free();
     }
@@ -273,7 +305,7 @@ export class BrowserRecordedOutputHost {
     }
     #quiet(): void {
         this.#delivery?.validate();
-        if (this.#disposed || this.#options.signal?.aborted || this.#document.defaultView?.document !== this.#document
+        if (this.#disposed || this.#svgSignal?.aborted || this.#options.signal?.aborted || this.#document.defaultView?.document !== this.#document
             || this.#document.URL !== this.#url || this.#options.policy.stamp !== this.#stamp
             || this.#observer.takeRecords().length) throw new Error('Recorded document, policy or lifetime changed');
     }
@@ -333,7 +365,8 @@ export class BrowserRecordedOutputHost {
     }
     #summary(json: string): BrowserRecordedOutputSummary {
         const value = JSON.parse(json) as BrowserRecordedOutputSummary;
-        if (typeof value.svgCloneProfileConfirmed !== 'boolean'
+        if (!Number.isInteger(value.svgResourceBindings) || value.svgResourceBindings < 0 || value.svgResourceBindings > value.svgComputedSlots
+            || typeof value.svgCloneProfileConfirmed !== 'boolean'
             || !Number.isInteger(value.svgPaintColors) || value.svgPaintColors < 0
             || !Number.isInteger(value.svgPaintSuppressedHosts) || value.svgPaintSuppressedHosts < 0
             || value.svgPaintColors + value.svgPaintSuppressedHosts > value.svgPaintStyleHosts
@@ -350,7 +383,7 @@ export class BrowserRecordedOutputHost {
             || !Array.isArray(value.blockers) || !value.blockers.every(b => typeof b === 'string')
             || !Number.isInteger(value.imageDeliveries) || value.imageDeliveries < 0 || value.imageDeliveries > value.imageAcquisitions
             || !Number.isInteger(value.imageAcquisitions) || value.imageAcquisitions < 0 || value.imageAcquisitions > 256) throw new Error('Invalid native preparation diagnostic summary');
-        return Object.freeze({ blockers: Object.freeze([...value.blockers]), imageAcquisitions: value.imageAcquisitions, imageDeliveries: value.imageDeliveries, svgComputedSlots: value.svgComputedSlots, svgPaintRoots: value.svgPaintRoots, svgPaintLinks: value.svgPaintLinks, svgPaintServers: value.svgPaintServers, svgPaintContentNodes: value.svgPaintContentNodes, svgPaintStyleHosts: value.svgPaintStyleHosts, svgPaintStyleInstances: value.svgPaintStyleInstances, svgCloneProfileConfirmed: value.svgCloneProfileConfirmed, svgPaintColors: value.svgPaintColors, svgPaintSuppressedHosts: value.svgPaintSuppressedHosts });
+        return Object.freeze({ blockers: Object.freeze([...value.blockers]), imageAcquisitions: value.imageAcquisitions, imageDeliveries: value.imageDeliveries, svgComputedSlots: value.svgComputedSlots, svgResourceBindings: value.svgResourceBindings, svgPaintRoots: value.svgPaintRoots, svgPaintLinks: value.svgPaintLinks, svgPaintServers: value.svgPaintServers, svgPaintContentNodes: value.svgPaintContentNodes, svgPaintStyleHosts: value.svgPaintStyleHosts, svgPaintStyleInstances: value.svgPaintStyleInstances, svgCloneProfileConfirmed: value.svgCloneProfileConfirmed, svgPaintColors: value.svgPaintColors, svgPaintSuppressedHosts: value.svgPaintSuppressedHosts });
     }
 }
 /** Takes ownership of the native session, including failed construction/capture. */
