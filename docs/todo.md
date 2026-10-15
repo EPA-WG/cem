@@ -3110,10 +3110,26 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       build. External integration dependency: this workspace has no Chromium engine
       checkout/build target and stock CDP/debugger primitives failed admission.
       Keep production admission disabled; do not substitute native mocks or polling.
-    - [ ] Implement bounded external SVG fragment-target validation against native
+    - [x] Verify native external-fragment fixtures for retained target/source identity,
+      all three paint kinds, missing/duplicate/wrong-kind and unsupported IDs,
+      work exhaustion, cancellation, shared-body slots, atomic failure and
+      observation revocation.
+    - [x] Implement bounded external SVG fragment-target validation against native
       acquired snapshots, with fixtures for missing/duplicate/wrong-kind targets
       and retained source/fragment ownership. This can proceed independently of
       the engine admission dependency and must retain consumption blockers.
+      Native opt-in validation retains target IDs in the acquisition record and
+      shares the local literal-ASCII fragment profile. CEM audit: semantic/source
+      ownership remains native; no theme defaults, public tokens, UI behavior or
+      accessibility override policy changed. Browser consumption stays blocked.
+      Verification: 171 native checks, WASM/CLI builds, lint and full Chromium
+      regression gate pass (202 preparation cases, 12 replay, 14 origin-provider
+      and five engine-primitive probes). New fragment API has native fixtures;
+      browser integration/parity coverage belongs to the following ingress step.
+    - [ ] Bind external fragment validation to preparation ingress and read-set
+      lifetimes; add mutation, cancellation and browser compatibility fixtures.
+    - [ ] Extend acquired-target plans with bounded same-body paint-template
+      traversal, cycle/duplicate diagnostics and retained dependency ownership.
     - [ ] Bind verified origin leases to the recorded preparation's HTML base/policy
       seals, native author plan and browser/worker lifetime; test wrong-session
       binding and revocation before exposing production admission.
@@ -3131,8 +3147,10 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, implement bounded native external SVG fragment-target validation while
-engine admission remains gated on a maintained instrumented Chromium build.
+Next, bind native external SVG fragment validation to preparation ingress and
+read-set lifetimes, then extend acquired targets with bounded same-body paint
+template traversal. Engine admission remains gated on a maintained instrumented
+Chromium build.
 The engine hook contract is specified; isolated-world media reads are useful
 observations, but debugger pause demonstrably fails mutation exclusion.
 After real engine guarantees are verified, bind the provider to native

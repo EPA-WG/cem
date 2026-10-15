@@ -134,6 +134,7 @@ pub struct SvgResourceRecord {
     bindings: Vec<SvgResourceBinding>,
     cancel: AbortSignal,
     revoked: bool,
+    fragment_targets: Vec<AstNodeId>,
     delivery: Option<AbortSignal>,
 }
 impl SvgResourceRecord {
@@ -156,6 +157,106 @@ impl SvgResourceRecord {
             "svg-computed-winning-source-required",
             "general-runtime-resource-coverage-required",
         ]
+    }
+    /// Inspection of a target in the exact retained acquired body. This does
+    /// not authorize replay. Revalidate the record and enclosing preparation
+    /// before use; cancellation immediately hides these results.
+    pub fn fragment_target(&self, index: usize) -> Option<(&SvgResourceBinding, AstNodeId)> {
+        if self.revoked
+            || self.cancel.is_aborted()
+            || self.delivery.as_ref().is_some_and(AbortSignal::is_aborted)
+        {
+            return None;
+        }
+        Some((
+            self.bindings.get(index)?,
+            *self.fragment_targets.get(index)?,
+        ))
+    }
+
+    /// Opt-in, all-or-nothing literal-ID paint target validation. The bounded
+    /// profile deliberately shares local paint traversal's ASCII fragment rule.
+    /// No percent decoding, view fragments, href traversal or style evaluation.
+    pub fn validate_fragments(
+        &mut self,
+        host: &mut SvgComputedHost,
+        observer: &mut impl SvgComputedObserver,
+        budget: usize,
+    ) -> Result<(), String> {
+        let result = (|| {
+            self.validate(host, observer)?;
+            let mut remaining = budget.min(1_000_000);
+            let mut spend = |amount: usize| -> Result<(), String> {
+                remaining = remaining
+                    .checked_sub(amount)
+                    .ok_or("SVG fragment work budget exceeded")?;
+                Ok(())
+            };
+            let mut indexes = BTreeMap::new();
+            let mut targets = Vec::new();
+            for binding in &self.bindings {
+                active(&self.cancel)?;
+                spend(1)?;
+                let fragment = binding
+                    .fragment
+                    .as_deref()
+                    .filter(|id| crate::svg_paint_dependencies::literal_fragment(id))
+                    .ok_or("unsupported SVG paint fragment")?;
+                spend(fragment.len())?;
+                if !indexes.contains_key(binding.body.url()) {
+                    let tree = binding.body.tree();
+                    let mut ids: BTreeMap<String, Vec<AstNodeId>> = BTreeMap::new();
+                    let mut pending = vec![0];
+                    while let Some(id) = pending.pop() {
+                        active(&self.cancel)?;
+                        let node = tree.node(id).ok_or("invalid SVG fragment node")?;
+                        spend(1 + node.value.len() + node.children.len() + node.attributes.len())?;
+                        for attr in &node.attributes {
+                            let attr = tree.node(*attr).ok_or("invalid SVG fragment attribute")?;
+                            spend(1 + attr.value.len())?;
+                            if node.kind == CemTreeNodeKind::Element
+                                && attr.name.as_ref().is_some_and(|n| {
+                                    n.namespace_uri.is_empty() && n.local_name == "id"
+                                })
+                            {
+                                ids.entry(attr.value.clone()).or_default().push(id);
+                            }
+                        }
+                        pending.extend(node.children.iter().copied());
+                    }
+                    indexes.insert(binding.body.url().to_owned(), ids);
+                }
+                let ids = &indexes[binding.body.url()];
+                let matches = ids.get(fragment).ok_or("missing SVG fragment target")?;
+                if matches.len() != 1 {
+                    return Err("ambiguous SVG fragment target".into());
+                }
+                let target = matches[0];
+                if !binding
+                    .body
+                    .tree()
+                    .node(target)
+                    .and_then(|n| n.name.as_ref())
+                    .is_some_and(|n| {
+                        n.namespace_uri == "http://www.w3.org/2000/svg"
+                            && matches!(
+                                n.local_name.as_str(),
+                                "linearGradient" | "radialGradient" | "pattern"
+                            )
+                    })
+                {
+                    return Err("SVG fragment target is not a paint server".into());
+                }
+                targets.push(target);
+            }
+            self.validate(host, observer)?;
+            self.fragment_targets = targets;
+            Ok(())
+        })();
+        if result.is_err() {
+            self.close();
+        }
+        result
     }
     pub fn capture(
         computed: Arc<SvgComputedEvidence>,
@@ -291,6 +392,7 @@ impl SvgResourceRecord {
             bindings,
             cancel,
             revoked: false,
+            fragment_targets: Vec::new(),
             delivery: None,
         })
     }
@@ -378,6 +480,7 @@ impl SvgResourceRecord {
     }
     pub fn close(&mut self) {
         self.revoked = true;
+        self.fragment_targets.clear();
         self.bindings.clear();
         self.delivery = None;
     }

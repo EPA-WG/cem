@@ -4291,6 +4291,31 @@ fragment stays separate from the fragment-free request/body key; it is not yet
 a decoded ID or a resolved SVG target. Multiple slots or fragments can share one
 retained body without collapsing their individual references.
 
+Native callers can opt into `SvgResourceRecord::validate_fragments` after
+capture. It validates every binding atomically against the retained acquired
+tree, indexing each distinct body once. The bounded profile shares local paint
+traversal's literal ASCII identifier rule (letters, digits, underscore, hyphen,
+dot and colon; nonempty, at most 4096 bytes). It performs no percent decoding,
+Unicode normalization, SVG view-fragment or XPointer interpretation. Only a
+unique unqualified `id` on an SVG-namespace `linearGradient`, `radialGradient`
+or `pattern` is accepted; missing, duplicate, wrong-kind and unsupported
+fragments reject the entire record. An explicit work budget, capped at one
+million units, accounts for nodes, attribute values, child edges and lookups.
+
+`fragment_target(index)` borrows the original binding and returns a target node
+ID in that binding's retained body tree, preserving the computed slot, CSS
+reference, original serialized fragment, source evidence, byte digest and
+revision. There is no copied document or independently transferable validation
+lease. Capture alone continues to permit unresolved targets. Validation checks
+the original computed host before and after the operation; errors clear both
+bindings and target results. Acquisition/delivery cancellation immediately hides
+targets, and observation changes revoke them on record revalidation. Callers
+must revalidate the record and its enclosing preparation before use. This
+native inspection API is not yet wired to preparation ingress; the conservative
+fragment/preparation blockers remain. Target identity establishes neither
+template traversal, styles, nested resources, winner attribution, original
+browser response identity nor consumption.
+
 Acquisition inputs contain requested/final URL, revision, MIME and SVG entity
 bytes. Encoded wire bytes and HTTP response headers are outside this profile.
 The initial profile requires equal canonical requested/final HTTP(S) URLs,
@@ -4299,7 +4324,7 @@ parameters. Duplicate, missing or unused responses reject atomically. Redirects
 and other media types need later profiles. The native record computes a BLAKE3
 digest from the retained bytes and imports those exact bytes through the shared
 XML importer, requiring an SVG-namespace document root. Its imported tree and
-original bytes remain together. It does not execute scripts, resolve fragment
+original bytes remain together. Capture does not execute scripts, resolve fragment
 targets or traverse nested dependencies. Parsing a body does not establish that
 its referenced paint server exists or that a browser consumed it.
 

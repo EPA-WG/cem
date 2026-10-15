@@ -453,3 +453,142 @@ fn delivery_receipt_count_is_bounded_and_final_observation_cannot_publish_after_
     assert_eq!(record.delivered_bindings(), 0);
     assert!(record.bindings().is_empty());
 }
+
+#[test]
+fn external_fragment_targets_retain_snapshot_and_source_identity() {
+    for kind in ["linearGradient", "radialGradient", "pattern"] {
+        let mut host = SvgComputedHost::default();
+        let mut o = Observer::default();
+        let e = Arc::new(host.capture(&sources(), &mut o).unwrap());
+        let cancel = AbortSignal::new();
+        let mut r = response();
+        r.bytes =
+            format!("<svg xmlns='http://www.w3.org/2000/svg'><{kind} id='p'/></svg>").into_bytes();
+        let mut record =
+            SvgResourceRecord::capture(e.clone(), &mut host, &mut o, vec![r], cancel.clone())
+                .unwrap();
+        assert!(record.fragment_target(0).is_none());
+        record.validate_fragments(&mut host, &mut o, 10000).unwrap();
+        let (binding, target) = record.fragment_target(0).unwrap();
+        assert!(std::ptr::eq(binding, &record.bindings()[0]));
+        assert_eq!(
+            binding
+                .body
+                .tree()
+                .node(target)
+                .unwrap()
+                .name
+                .as_ref()
+                .unwrap()
+                .local_name,
+            kind
+        );
+        assert_eq!(binding.fragment.as_deref(), Some("p"));
+        assert!(Arc::ptr_eq(record.computed(), &e));
+        assert!(record
+            .blockers()
+            .contains(&"svg-resource-consumption-required"));
+        cancel.abort();
+        assert!(record.fragment_target(0).is_none());
+        assert!(record.validate(&mut host, &mut o).is_err());
+    }
+}
+#[test]
+fn external_fragment_failures_revoke_the_record() {
+    for (fragment, children, budget, message) in [
+        ("#missing", "<linearGradient id='p'/>", 10000, "missing"),
+        (
+            "#p",
+            "<linearGradient id='p'/><pattern id='p'/>",
+            10000,
+            "ambiguous",
+        ),
+        ("#p", "<path id='p'/>", 10000, "paint server"),
+        (
+            "#p",
+            "<linearGradient xmlns='urn:other' id='p'/>",
+            10000,
+            "paint server",
+        ),
+        ("#p", "<linearGradient xml:id='p'/>", 10000, "missing"),
+        ("", "<linearGradient id='p'/>", 10000, "fragment"),
+        ("#", "<linearGradient id='p'/>", 10000, "fragment"),
+        ("#%70", "<linearGradient id='p'/>", 10000, "fragment"),
+        (
+            "#svgView(viewBox(0,0,1,1))",
+            "<linearGradient id='p'/>",
+            10000,
+            "fragment",
+        ),
+        ("#p", "<linearGradient id='p'/>", 0, "budget"),
+    ] {
+        let mut host = SvgComputedHost::default();
+        let mut o = Observer {
+            value: format!("url(\"{URL}{fragment}\")"),
+            ..Default::default()
+        };
+        let e = Arc::new(host.capture(&sources(), &mut o).unwrap());
+        let mut r = response();
+        r.bytes = format!("<svg xmlns='http://www.w3.org/2000/svg'>{children}</svg>").into_bytes();
+        let mut record =
+            SvgResourceRecord::capture(e, &mut host, &mut o, vec![r], AbortSignal::new()).unwrap();
+        let error = record
+            .validate_fragments(&mut host, &mut o, budget)
+            .unwrap_err();
+        assert!(error.contains(message), "{error}");
+        assert!(record.fragment_target(0).is_none());
+        assert!(record.bindings().is_empty());
+    }
+}
+#[test]
+fn external_fragment_validation_rechecks_observation_lifetime() {
+    let mut host = SvgComputedHost::default();
+    let mut o = Observer::default();
+    let e = Arc::new(host.capture(&sources(), &mut o).unwrap());
+    let mut record =
+        SvgResourceRecord::capture(e, &mut host, &mut o, vec![response()], AbortSignal::new())
+            .unwrap();
+    record.validate_fragments(&mut host, &mut o, 10000).unwrap();
+    o.revision = "changed".into();
+    assert!(record.validate(&mut host, &mut o).is_err());
+    assert!(record.fragment_target(0).is_none());
+}
+
+#[test]
+fn external_fragment_targets_preserve_shared_body_slots_and_reject_partial_results() {
+    let mut host = SvgComputedHost::default();
+    let mut o = Observer {
+        dual: true,
+        ..Default::default()
+    };
+    let e = Arc::new(host.capture(&sources(), &mut o).unwrap());
+    let mut r = response();
+    r.bytes =
+        b"<svg xmlns='http://www.w3.org/2000/svg'><linearGradient id='p'/><pattern id='q'/></svg>"
+            .to_vec();
+    let mut record =
+        SvgResourceRecord::capture(e, &mut host, &mut o, vec![r], AbortSignal::new()).unwrap();
+    record.validate_fragments(&mut host, &mut o, 10000).unwrap();
+    let (a, first) = record.fragment_target(0).unwrap();
+    let (b, second) = record.fragment_target(1).unwrap();
+    assert!(Arc::ptr_eq(&a.body, &b.body));
+    assert_ne!(a.slot, b.slot);
+    assert_ne!(first, second);
+    assert_eq!(a.fragment.as_deref(), Some("p"));
+    assert_eq!(b.fragment.as_deref(), Some("q"));
+    assert!(record.fragment_target(2).is_none());
+    assert!(record.validate_fragments(&mut host, &mut o, 0).is_err());
+    assert!(record.fragment_target(0).is_none());
+    assert!(record.fragment_target(1).is_none());
+
+    let e = Arc::new(host.capture(&sources(), &mut o).unwrap());
+    let mut record =
+        SvgResourceRecord::capture(e, &mut host, &mut o, vec![response()], AbortSignal::new())
+            .unwrap();
+    assert!(record
+        .validate_fragments(&mut host, &mut o, 10000)
+        .unwrap_err()
+        .contains("missing"));
+    assert!(record.fragment_target(0).is_none());
+    assert!(record.bindings().is_empty());
+}

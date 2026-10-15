@@ -198,12 +198,7 @@ fn lookup(
     };
     // No percent-decoding, Unicode normalization or SVG view-fragment guessing.
     // This initial profile admits only literal ASCII identifiers.
-    if fragment.is_empty()
-        || fragment.len() > 4096
-        || !fragment
-            .bytes()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'_' | b'-' | b'.' | b':'))
-    {
+    if !literal_fragment(fragment) {
         return PaintTarget::UnsupportedFragment;
     }
     let Some(nodes) = ids.get(fragment) else {
@@ -233,4 +228,13 @@ fn href(tree: &RetainedCemTree, owner: AstNodeId) -> Option<AstNodeId> {
         }
     }
     None
+}
+
+// Shared bounded identifier profile for local and acquired external paint.
+pub(crate) fn literal_fragment(fragment: &str) -> bool {
+    !fragment.is_empty()
+        && fragment.len() <= 4096
+        && fragment
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'_' | b'-' | b'.' | b':'))
 }
