@@ -3892,9 +3892,28 @@ aggregate prospective instance nodes; shared sources count once per receiving
 host. Work is capped at one million units, with scans, edges, ancestry copying
 and instance memberships charged. Limit failures publish no partial plan.
 The original inventory still requires its original host/resolver validation.
-Browser preparation integration, mutation parity and clone-style compatibility
-evidence remain pending. Style evaluation, browser compatibility, winning
-declarations, rendering and acquired resource bodies remain explicit blockers.
+Browser preparation now constructs this plan from its retained content plan before
+publication. Failed capture, stale reads, cancellation and closure release it with
+the owning preparation. Complete DOM/base/stylesheet validation covers source
+and host ancestry, content and template links; restored mutations cannot revive
+a plan. The bounded `svgPaintStyleHosts` and `svgPaintStyleInstances` diagnostics
+expose counts only, never source identities, instance graphs or evidence seals.
+
+Chromium compatibility fixtures compare native selection counts and actual
+source/host computed colors, then rasterize an isolated serialization of the
+fixture SVG into a canvas. These are regression probes, not pixel evidence for
+the prepared execution. With a red source and blue receiving host, Chromium
+148 renders inherited gradient and pattern children red; own children render
+blue. A descriptive-only gradient still renders red, while a descriptive-only
+pattern renders transparent. This differs from the structural SVG 2 clone
+inheritance/profile expectation and is retained as an explicit compatibility
+boundary. The fixtures fail if those observations change, requiring profile
+review rather than automatically widening admission.
+
+Source/host style, href and temporary own-child mutations (including restoration)
+and pool closure revoke the live plan. Style evaluation, browser compatibility,
+winning declarations, rendering and acquired resource bodies remain explicit
+blockers. No source computed values are promoted into instance evidence.
 This native structural contract changes no component behavior or theme defaults.
 
 ### Shared browser stylesheet observation host

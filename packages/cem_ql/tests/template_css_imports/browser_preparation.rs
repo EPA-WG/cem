@@ -495,9 +495,23 @@ fn svg_capture_requires_preparation_and_cannot_be_repeated() {
 }
 
 fn paint_session() -> RecordedOutputSession {
+    paint_session_with_clone(false)
+}
+fn paint_session_with_clone(clone: bool) -> RecordedOutputSession {
     let mut value: serde_json::Value = serde_json::from_str(&request()).unwrap();
     value["choices"] = serde_json::json!([]);
     value["sources"] = serde_json::json!([{"uri": ROOT, "revision":"1", "contentType":"text/cem-ml", "source": format!("{{result-element @name=html @namespace='http://www.w3.org/1999/xhtml' | {{result-element @name=head @namespace='http://www.w3.org/1999/xhtml' | {{result-element @name=base @namespace='http://www.w3.org/1999/xhtml' | {{result-attribute @name=href | {BASE}}}}}}}{{result-element @name=body @namespace='http://www.w3.org/1999/xhtml' | {{svg @xmlns='http://www.w3.org/2000/svg' | {{linearGradient @id=a @href='#b' | {{stop @stop-color=red}}}}{{linearGradient @id=b}}{{path @fill='url(#a) red'}}}}}}}}")}]);
+    if clone {
+        value["outputUri"] = BASE.into();
+        value["sources"][0]["source"] = value["sources"][0]["source"]
+            .as_str()
+            .unwrap()
+            .replace(
+                "{linearGradient @id=a @href='#b' | {stop @stop-color=red}}{linearGradient @id=b}",
+                "{linearGradient @id=a @href='#b'}{linearGradient @id=b | {stop @stop-color=red}}",
+            )
+            .into();
+    }
     let mut s = RecordedOutputSession::from_json(&value.to_string(), 1, 1).unwrap();
     compose(&mut s);
     s.prepare_base(slots, |_| Ok(HtmlBasePolicyDecision::Allow))
@@ -510,11 +524,16 @@ fn paint_plan_is_published_only_with_validated_output_and_revoked_with_it() {
     let mut s = paint_session();
     assert_eq!(s.svg_paint_counts(), (0, 0));
     assert_eq!(s.svg_paint_content_counts(), (0, 0));
+    assert_eq!(s.svg_paint_style_counts(), (0, 0));
     let blockers = s
         .capture(BASE, slots, &mut OutputObserver { wrong: false })
         .unwrap();
     assert_eq!(s.svg_paint_counts(), (1, 1));
     assert_eq!(s.svg_paint_content_counts(), (1, 2));
+    assert_eq!(s.svg_paint_style_counts(), (1, 0));
+    assert!(blockers
+        .iter()
+        .any(|b| b == "svg-paint-clone-browser-compatibility-required"));
     assert!(blockers
         .iter()
         .any(|b| b == "svg-paint-clone-style-provenance-required"));
@@ -538,6 +557,7 @@ fn paint_plan_is_published_only_with_validated_output_and_revoked_with_it() {
         .is_err());
     assert_eq!(s.svg_paint_counts(), (0, 0));
     assert_eq!(s.svg_paint_content_counts(), (0, 0));
+    assert_eq!(s.svg_paint_style_counts(), (0, 0));
     assert!(s
         .read(BASE, slots, &mut OutputObserver { wrong: false })
         .is_err());
@@ -554,10 +574,34 @@ fn failed_capture_and_close_do_not_publish_paint_candidates() {
         .is_err());
     assert_eq!(s.svg_paint_counts(), (0, 0));
     assert_eq!(s.svg_paint_content_counts(), (0, 0));
+    assert_eq!(s.svg_paint_style_counts(), (0, 0));
     let mut s = paint_session();
     s.capture(BASE, slots, &mut OutputObserver { wrong: false })
         .unwrap();
     s.close();
     assert_eq!(s.svg_paint_counts(), (0, 0));
     assert_eq!(s.svg_paint_content_counts(), (0, 0));
+    assert_eq!(s.svg_paint_style_counts(), (0, 0));
+}
+
+#[test]
+fn clone_contexts_publish_and_revoke_with_the_original_preparation() {
+    let mut s = paint_session_with_clone(true);
+    assert_eq!(s.svg_paint_style_counts(), (0, 0));
+    s.capture(BASE, slots, &mut OutputObserver { wrong: false })
+        .unwrap();
+    assert_eq!(s.svg_paint_style_counts(), (2, 1));
+    s.read(BASE, slots, &mut OutputObserver { wrong: false })
+        .unwrap();
+    assert!(s
+        .read(
+            BASE,
+            |_| Err("clone source changed".into()),
+            &mut OutputObserver { wrong: false }
+        )
+        .is_err());
+    assert_eq!(s.svg_paint_style_counts(), (0, 0));
+    assert!(s
+        .read(BASE, slots, &mut OutputObserver { wrong: false })
+        .is_err());
 }

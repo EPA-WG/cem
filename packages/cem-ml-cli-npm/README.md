@@ -370,6 +370,12 @@ plans share preparation ownership: stop, pattern-descendant and ancestor-style
 mutations revoke them, including changes restored before a read. Cloned-content
 style provenance, effective content selection and rendered resource evidence
 remain explicit blockers.
+`read().svgPaintStyleHosts` and `read().svgPaintStyleInstances` count native
+SVG 2 provenance contexts and prospective cloned nodes, bounded at 256 and 4096.
+They share the preparation lifetime. Chromium currently differs from the
+structural profile for inherited colors and descriptive-only patterns; isolated
+raster fixtures record that boundary. These counts do not assert browser clone
+identity, instance computed style or rendered-resource closure.
 
 `read().svgComputedSlots` counts retained SVG presentation attributes whose
 computed values were captured and revalidated by the native session. Both capture

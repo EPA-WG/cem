@@ -119,6 +119,50 @@ globalThis.runRecordedOutputFixture = async version => {
             rejects(() => host.read(), 'restored content revived preparation');
         }, mode === 'pool');
     }
+    for (const kind of ['gradient', 'pattern']) {
+        for (const mode of ['clone', 'own', 'title']) {
+            await run(`paint-clone-compatibility-${kind}-${mode}`, async ({ request, doc, view, capture }) => {
+                const tag = kind === 'gradient' ? 'linearGradient' : 'pattern';
+                const attrs = kind === 'pattern' ? ' @width=1 @height=1 @viewBox="0 0 16 16"' : '';
+                const child = kind === 'gradient' ? '{stop @stop-color=currentColor}' : '{rect @width=16 @height=16 @fill=currentColor}';
+                paintRequest(request, doc, `{${tag} @id=a @href="#b" @color=blue${attrs} | ${mode === 'own' ? child : mode === 'title' ? '{title | Host}' : ''}}{${tag} @id=b @color=red${attrs} | ${child}}`);
+                const host = capture(), summary = host.read();
+                check(summary.svgPaintStyleHosts === 2 && summary.svgPaintStyleInstances === (mode === 'own' ? 0 : 1), 'native SVG 2 clone selection differs');
+                check(summary.blockers.includes('svg-paint-clone-browser-compatibility-required')
+                    && summary.blockers.includes('svg-paint-clone-style-evaluation-required'), 'clone compatibility granted authority');
+                check(view.getComputedStyle(doc.getElementById('a')).color === 'rgb(0, 0, 255)'
+                    && view.getComputedStyle(doc.getElementById('b')).color === 'rgb(255, 0, 0)', 'source/host style contexts lost');
+                // Isolated SVG-image raster probe: no receipt or pixel evidence is
+                // attached to the prepared document's native execution.
+                const svg = new view.XMLSerializer().serializeToString(doc.querySelector('svg'));
+                const img = new Image(); img.src = 'data:image/svg+xml,' + encodeURIComponent(svg); await img.decode();
+                const canvas = document.createElement('canvas'); canvas.width = canvas.height = 16;
+                const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0);
+                const pixel = [...ctx.getImageData(8, 8, 1, 1).data];
+                const expected = mode === 'own' ? [0, 0, 255, 255]
+                    : kind === 'pattern' && mode === 'title' ? [0, 0, 0, 0] : [255, 0, 0, 255];
+                check(pixel.every((n, i) => n === expected[i]), `Chromium clone compatibility changed: ${pixel}; review SVG 2 profile before changing expectation`);
+                host.read();
+            });
+        }
+    }
+    for (const mode of ['source-style', 'host-style', 'href', 'own-child', 'pool']) {
+        await run(`paint-clone-lifetime-${mode}`, async ({ request, doc, captureAsync, pool }) => {
+            paintRequest(request, doc, '{linearGradient @id=a @href="#b" @color=blue}{linearGradient @id=b @color=red | {stop @stop-color=currentColor}}');
+            const host = await captureAsync();
+            check(host.read().svgPaintStyleInstances === 1, 'clone plan missing');
+            const a = doc.getElementById('a'), b = doc.getElementById('b');
+            if (mode === 'source-style' || mode === 'host-style') {
+                const target = mode === 'source-style' ? b : a, color = target.getAttribute('color');
+                target.setAttribute('color', 'green'); target.setAttribute('color', color);
+            }
+            if (mode === 'href') { a.setAttribute('href', '#a'); a.setAttribute('href', '#b'); }
+            if (mode === 'own-child') { const child = doc.querySelector('stop').cloneNode(true); a.append(child); child.remove(); }
+            if (mode === 'pool') await pool.close();
+            rejects(() => host.read(), 'stale clone context accepted');
+            rejects(() => host.read(), 'clone context revived');
+        }, mode === 'pool');
+    }
     const addSvg = (request, extra = '') => {
         const svg = "{result-element @name=svg @namespace='http://www.w3.org/2000/svg' | {result-element @name=path @namespace='http://www.w3.org/2000/svg' | {result-attribute @name=fill | red}} " + extra + "}";
         request.sources[0].source = source.replace('p{color:rgb(1,2,3)}', 'p{color:rgb(1,2,3)}path{fill:blue}').replace('| Card}', '| Card ' + svg + '}');

@@ -2692,9 +2692,33 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       Browser integration, style evaluation and rendered-resource evidence remain
       pending; visual/forced-color and physical AT acceptance remain independent.
       Contract: docs/cem-studio.md#cloned-paint-template-style-provenance.
-    - [ ] Bind clone-style provenance plans to browser preparation and verify
+    - [x] Bind clone-style provenance plans to browser preparation and verify
       mutation lifetimes and SVG 2/Chromium compatibility before treating source
       observations as instance evidence.
+      Fixture scope: native atomic publication/revocation of style plans;
+      Chromium source/host style and template-link mutations, pool closure,
+      and isolated SVG raster probes for own, inherited and descriptive content.
+      Completed: the native session constructs the style plan from its retained
+      content plan before publication and releases it with failed/stale/closed
+      preparation. Only bounded host/instance counts cross the WASM boundary.
+      51 native preparation and 42 focused SVG tests pass; WASM/CLI builds, lint,
+      rustfmt/diff checks and the full Chromium gate pass, including 115 production
+      preparation cases (11 new). An overlapping build initially collided on
+      generated declarations; the sequential browser rerun passed.
+      Chromium 148 compatibility evidence: inherited gradient/pattern content
+      uses source color; own children use host color; descriptive-only gradients
+      inherit content while descriptive-only patterns render transparent.
+      Isolated raster probes are regression evidence, not execution receipts.
+      SVG 2 structural provenance remains separate from browser behavior;
+      compatibility/style-evaluation/resource blockers stay explicit.
+      CEM audit: source/theme ownership and bounded host contexts are preserved;
+      consumer styles never replace paint-server ancestry. No UI behavior, theme
+      defaults or tokens change. Forced-color/visual and physical AT acceptance
+      remain independent.
+    - [ ] Define an explicit clone-style browser compatibility profile covering
+      inherited colors and descriptive-only patterns before evaluating instances.
+    - [ ] Evaluate bounded paint-instance styles with retained declaration,
+      inheritance and winning-source provenance under the selected profile.
     - [ ] Bind computed CSS/SVG selections to acquired resource bodies before
       claiming rendered-resource closure.
     - [ ] Record remaining computed CSS/SVG and general runtime resource loads,
@@ -2704,10 +2728,10 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, bind clone-style provenance plans to browser preparation and verify mutation
-lifetimes and SVG 2/Chromium compatibility. Then establish instance-style evaluation
-and bind computed CSS/SVG selections to acquired resource bodies. General runtime
-loads remain required before claiming complete dependency closure.
+Next, define an explicit clone-style browser compatibility profile for the observed
+Chromium/SVG 2 differences. Then evaluate bounded instance styles and bind computed
+CSS/SVG selections to acquired resource bodies. General runtime loads remain
+required before claiming complete dependency closure.
 Selected image response/candidate binding is available through explicit native
 replay; unchanged-URL observation deliberately retains its historical-identity
 blocker.

@@ -8,6 +8,7 @@ use cem_ml::import::svg_presentation::RetainedSvgPresentationAttribute;
 use cem_ml::svg_computed_execution::{SvgComputedEvidence, SvgComputedHost, SvgComputedObserver};
 use cem_ml::svg_paint_content::SvgPaintContentPlan;
 use cem_ml::svg_paint_dependencies::{PaintTarget, SvgPaintPlan};
+use cem_ml::svg_paint_style::SvgPaintStylePlan;
 use cem_ml::{
     css_emission::CssManagedScope,
     css_import_snapshot::{CssSnapshotSource, CssSourceSnapshot},
@@ -91,7 +92,8 @@ pub struct RecordedOutputSession {
     svg_host: SvgComputedHost,
     svg_evidence: Option<SvgComputedEvidence>,
     paint: Option<Arc<SvgPaintPlan>>,
-    paint_content: Option<SvgPaintContentPlan>,
+    paint_content: Option<Arc<SvgPaintContentPlan>>,
+    paint_style: Option<SvgPaintStylePlan>,
     image_delivery: Option<ImageDeliveryCapture>,
     delivered_images: usize,
     replay_nonce: Option<String>,
@@ -235,6 +237,7 @@ impl RecordedOutputSession {
             svg_evidence: None,
             paint: None,
             paint_content: None,
+            paint_style: None,
             image_delivery: None,
             delivered_images: 0,
             replay_nonce: None,
@@ -291,6 +294,7 @@ impl RecordedOutputSession {
         self.svg_evidence = None;
         self.paint = None;
         self.paint_content = None;
+        self.paint_style = None;
         let _ = self.svg_host.invalidate();
         self.image_delivery = None;
         self.delivered_images = 0;
@@ -710,6 +714,18 @@ impl RecordedOutputSession {
             )
         })
     }
+    /// Prospective contexts only; no browser clone or computed-style evidence.
+    pub fn svg_paint_style_counts(&self) -> (usize, usize) {
+        if self.stage != Stage::Captured || self.cancel.is_aborted() {
+            return (0, 0);
+        }
+        self.paint_style.as_ref().map_or((0, 0), |p| {
+            (
+                p.hosts().len(),
+                p.hosts().iter().map(|h| h.instances.len()).sum(),
+            )
+        })
+    }
     fn paint_blockers(&self, mut blockers: Vec<String>) -> Vec<String> {
         let Some(plan) = &self.paint else {
             return blockers;
@@ -720,6 +736,11 @@ impl RecordedOutputSession {
         if let Some(content) = &self.paint_content {
             if !content.servers().is_empty() {
                 blockers.extend(content.blockers().iter().map(|b| (*b).to_owned()));
+            }
+        }
+        if let Some(style) = &self.paint_style {
+            if !style.hosts().is_empty() {
+                blockers.extend(style.blockers().iter().map(|b| (*b).to_owned()));
             }
         }
         blockers.extend(plan.blockers().iter().map(|b| (*b).to_owned()));
@@ -786,7 +807,8 @@ impl RecordedOutputSession {
                 base,
             )?);
             let paint = Arc::new(SvgPaintPlan::from_inventory(document.clone(), 1_000_000)?);
-            let content = SvgPaintContentPlan::new(paint.clone(), 1_000_000)?;
+            let content = Arc::new(SvgPaintContentPlan::new(paint.clone(), 1_000_000)?);
+            let style = SvgPaintStylePlan::new(content.clone(), 1_000_000)?;
             let handle = s.worker.prepare(
                 s.output.as_ref().unwrap().clone(),
                 html,
@@ -801,6 +823,7 @@ impl RecordedOutputSession {
             s.handle = Some(handle);
             s.paint = Some(paint);
             s.paint_content = Some(content);
+            s.paint_style = Some(style);
             s.stage = Stage::Captured;
             Ok(s.paint_blockers(blockers))
         })
