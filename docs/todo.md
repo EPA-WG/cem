@@ -2715,8 +2715,28 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       consumer styles never replace paint-server ancestry. No UI behavior, theme
       defaults or tokens change. Forced-color/visual and physical AT acceptance
       remain independent.
-    - [ ] Define an explicit clone-style browser compatibility profile covering
+    - [x] Define an explicit clone-style browser compatibility profile covering
       inherited colors and descriptive-only patterns before evaluating instances.
+      Fixture scope: exact browser identity; six named solid-currentColor probes;
+      source/host color context checks; duplicate, missing and mismatched probes;
+      unknown versions and preservation of evaluation/resource blockers.
+      Completed: native SvgPaintCloneProfile pins Chromium 148.0.7778.96 with
+      no default, alias or version fallback. It validates exactly six named
+      reports, including source/host computed colors and pixel channels; missing,
+      duplicate, extra or mismatched reports fail without latched acceptance.
+      This fixed-size compatibility catalog does not generalize source-color
+      behavior into arbitrary CSS rules, change the SVG 2 structural plan, or
+      grant execution authority. Six new fixtures and all 48 focused native SVG
+      tests pass; rustfmt/diff checks pass. Browser behavior is unchanged in this
+      native-only step; the previously verified 115-case gate remains prior
+      integration evidence, not a new run. CEM audit: original source/theme
+      ownership and bounded variation are preserved; no component behavior,
+      token defaults or source dependency pruning changes. Live profile binding,
+      instance evaluation and rendered-resource evidence remain pending.
+      Contract: docs/cem-studio.md#explicit-clone-style-browser-compatibility-profile.
+    - [ ] Wire explicit clone-profile selection and complete native probe report
+      validation into browser preparation; reject unknown identities/mismatches
+      while preserving source, instance and execution-evidence boundaries.
     - [ ] Evaluate bounded paint-instance styles with retained declaration,
       inheritance and winning-source provenance under the selected profile.
     - [ ] Bind computed CSS/SVG selections to acquired resource bodies before
@@ -2728,8 +2748,8 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, define an explicit clone-style browser compatibility profile for the observed
-Chromium/SVG 2 differences. Then evaluate bounded instance styles and bind computed
+Next, wire explicit clone-profile selection and native probe verification into
+browser preparation. Then evaluate bounded instance styles and bind computed
 CSS/SVG selections to acquired resource bodies. General runtime loads remain
 required before claiming complete dependency closure.
 Selected image response/candidate binding is available through explicit native

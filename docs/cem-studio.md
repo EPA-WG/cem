@@ -3916,6 +3916,61 @@ winning declarations, rendering and acquired resource bodies remain explicit
 blockers. No source computed values are promoted into instance evidence.
 This native structural contract changes no component behavior or theme defaults.
 
+### Explicit clone-style browser compatibility profile
+
+`cem_ml::svg_paint_clone_profile::SvgPaintCloneProfile` is the explicit native
+compatibility contract for the six existing Chromium raster probes.
+`for_browser(engine, version)` accepts only lowercase `chromium` with exact
+version `148.0.7778.96`. There is no default, major-version fallback, browser
+alias, caller-supplied behavior override or inference from a matching pixel.
+Unsupported identities fail before profile use. This pin is independent of the
+HTML base compatibility profile, even though both currently verify the same
+browser build.
+
+The profile applies only to the following isolated fixture shape: a 16-by-16 SVG
+with two same-kind paint servers in `defs`, an opaque red source and opaque blue
+receiving host referencing that source through local `href`. Gradient content
+is one `stop` with `stop-color=currentColor`; pattern content is a 16-by-16 rect
+with `fill=currentColor`, with pattern width/height 1 and viewBox `0 0 16 16`.
+The host has either that own content, no children, or one SVG `title`. An outer
+16-by-16 rect consumes the host. The fixture serializes the SVG as a data-URL
+image, decodes it, draws it to a cleared 16-by-16 canvas and samples pixel (8,8).
+Source and host computed `color` must respectively be opaque red and blue.
+
+| Native probe | Expected sRGB RGBA pixel |
+| --- | --- |
+| OwnGradient | 0, 0, 255, 255 |
+| InheritedGradient | 255, 0, 0, 255 |
+| DescriptiveGradient | 255, 0, 0, 255 |
+| OwnPattern | 0, 0, 255, 255 |
+| InheritedPattern | 255, 0, 0, 255 |
+| DescriptivePattern | 0, 0, 0, 0 |
+
+`verify_probes` requires exactly one observation for each of the six named
+cases, in any order. It checks both color contexts and every pixel channel.
+Missing, duplicate, extra or mismatched observations fail. A previous successful
+check does not latch acceptance of later reports. Work and storage are fixed
+by the six-case input limit. A changed browser expectation requires explicit
+profile revision and reviewed browser fixtures, not an automatic fallback.
+
+These measurements do **not** establish a general rule that all cloned styles
+use the source's computed values. Custom properties, explicit `inherit`,
+selectors, indirect templates, gradients with multiple stops, animation, external
+resources, nested content and other rendering environments remain outside this
+profile. A transparent descriptive-pattern probe does not authorize pruning its
+source dependencies. The SVG 2 structural plan remains unchanged, including its
+prospective host inheritance and descriptive-content selection. Native source
+ancestry and template paths continue to be retained alongside that plan.
+
+A profile is configuration; the public observation report is compatibility data.
+Verification returns no execution seal, does not authenticate the caller's
+browser identity or fixture shape, and cannot discharge live DOM/CSS validation,
+instance-style evaluation, winning-source or resource-acquisition requirements.
+The browser preparation host still retains its compatibility blocker. Explicit
+profile selection and native probe verification must be wired into that host
+before any live compatibility claim; browser probes remain regression checks
+until then. No new UI behavior, public token or theme default is introduced.
+
 ### Shared browser stylesheet observation host
 
 `BrowserHtmlBaseHost.captureStylesheets(responses, { ownership: 'exclusive' })`
