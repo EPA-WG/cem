@@ -605,3 +605,69 @@ fn clone_contexts_publish_and_revoke_with_the_original_preparation() {
         .read(BASE, slots, &mut OutputObserver { wrong: false })
         .is_err());
 }
+
+fn clone_probe(
+    case: cem_ml::svg_paint_clone_profile::CloneProbe,
+) -> Result<cem_ml::svg_paint_clone_profile::CloneProbeObservation, String> {
+    use cem_ml::svg_paint_clone_profile::*;
+    let profile =
+        SvgPaintCloneProfile::for_browser("chromium", CHROMIUM_CLONE_PROFILE_VERSION).unwrap();
+    Ok(CloneProbeObservation {
+        case,
+        source_color: [255, 0, 0, 255],
+        host_color: [0, 0, 255, 255],
+        pixel: profile.expected_pixel(case),
+    })
+}
+#[test]
+fn explicit_clone_profile_confirmation_shares_preparation_lifetime() {
+    let mut s = paint_session_with_clone(true);
+    assert!(!s.clone_profile_confirmed());
+    s.confirm_clone_profile("chromium-148-solid-currentcolor-v1", clone_probe)
+        .unwrap();
+    assert!(!s.clone_profile_confirmed()); // no publication before capture
+    let blockers = s
+        .capture(BASE, slots, &mut OutputObserver { wrong: false })
+        .unwrap();
+    assert!(s.clone_profile_confirmed());
+    assert!(blockers
+        .iter()
+        .any(|b| b == "svg-paint-clone-execution-evidence-required"));
+    s.read(BASE, slots, &mut OutputObserver { wrong: false })
+        .unwrap();
+    assert!(s
+        .read(
+            BASE,
+            |_| Err("mutated".into()),
+            &mut OutputObserver { wrong: false }
+        )
+        .is_err());
+    assert!(!s.clone_profile_confirmed());
+}
+#[test]
+fn clone_profile_rejects_unknown_repeated_mismatched_and_out_of_order_requests() {
+    let name = "chromium-148-solid-currentcolor-v1";
+    let mut s = paint_session_with_clone(true);
+    assert!(s.confirm_clone_profile("unknown", clone_probe).is_err());
+    assert!(s.html().is_err());
+    let mut s = paint_session_with_clone(true);
+    s.confirm_clone_profile(name, clone_probe).unwrap();
+    assert!(s.confirm_clone_profile(name, clone_probe).is_err());
+    assert!(s.html().is_err());
+    let mut s = paint_session_with_clone(true);
+    assert!(s
+        .confirm_clone_profile(name, |case| {
+            let mut value = clone_probe(case)?;
+            value.pixel[0] ^= 1;
+            Ok(value)
+        })
+        .is_err());
+    assert!(s.html().is_err());
+    let mut s = session();
+    assert!(s.confirm_clone_profile(name, clone_probe).is_err());
+    let mut s = paint_session_with_clone(true);
+    s.capture(BASE, slots, &mut OutputObserver { wrong: false })
+        .unwrap();
+    assert!(!s.clone_profile_confirmed());
+    assert!(s.confirm_clone_profile(name, clone_probe).is_err());
+}

@@ -2,6 +2,7 @@
 use crate::template_execution_record::browser::RecordedOutputSession;
 use cem_ml::html_image_execution::{ImageObservation, ImageResponse};
 use cem_ml::svg_computed_execution::{SvgComputedObserver, SvgComputedSlot};
+use cem_ml::svg_paint_clone_profile::{CloneProbe, CloneProbeObservation};
 use cem_ml::{
     api::wasm::{match_html_base_slot, BrowserStylesheetObserver},
     browser_stylesheet_sources::BrowserStylesheetSource,
@@ -185,6 +186,45 @@ impl WasmRecordedOutputSession {
             })
             .map_err(error)
     }
+    #[wasm_bindgen(js_name = "confirmCloneProfile")]
+    pub fn confirm_clone_profile(&mut self, name: &str, observe: &Function) -> Result<(), JsValue> {
+        self.inner
+            .confirm_clone_profile(name, |case| {
+                let index = CloneProbe::ALL
+                    .iter()
+                    .position(|c| *c == case)
+                    .ok_or("unknown clone probe")?;
+                let raw = observe
+                    .call1(&JsValue::NULL, &JsValue::from_f64(index as f64))
+                    .map_err(|_| "clone probe callback failed")?;
+                if !Array::is_array(&raw) {
+                    return Err("clone probe requires scalar array".into());
+                }
+                let array = Array::from(&raw);
+                if array.length() != 12 {
+                    return Err("clone probe requires twelve RGBA channels".into());
+                }
+                let mut bytes = [0u8; 12];
+                for (i, byte) in bytes.iter_mut().enumerate() {
+                    let value = array
+                        .get(i as u32)
+                        .as_f64()
+                        .ok_or("clone probe channel must be numeric")?;
+                    if !value.is_finite() || value.fract() != 0.0 || !(0.0..=255.0).contains(&value)
+                    {
+                        return Err("clone probe channel out of range".into());
+                    }
+                    *byte = value as u8;
+                }
+                Ok(CloneProbeObservation {
+                    case,
+                    source_color: bytes[0..4].try_into().unwrap(),
+                    host_color: bytes[4..8].try_into().unwrap(),
+                    pixel: bytes[8..12].try_into().unwrap(),
+                })
+            })
+            .map_err(error)
+    }
     pub fn capture(
         &mut self,
         base: &str,
@@ -229,6 +269,7 @@ impl WasmRecordedOutputSession {
             self.inner.svg_paint_counts(),
             self.inner.svg_paint_content_counts(),
             self.inner.svg_paint_style_counts(),
+            self.inner.clone_profile_confirmed(),
         ))
     }
     pub fn read(
@@ -275,6 +316,7 @@ impl WasmRecordedOutputSession {
             self.inner.svg_paint_counts(),
             self.inner.svg_paint_content_counts(),
             self.inner.svg_paint_style_counts(),
+            self.inner.clone_profile_confirmed(),
         ))
     }
 }
@@ -287,6 +329,7 @@ fn summary(
     paint: (usize, usize),
     content: (usize, usize),
     style: (usize, usize),
+    clone_profile: bool,
 ) -> String {
     if images > 0 && !replay_bound {
         blockers.push("image-browser-response-identity-required".into());
@@ -301,7 +344,7 @@ fn summary(
             .map(str::to_owned),
         );
     }
-    serde_json::json!({"blockers":blockers, "imageAcquisitions": images, "imageDeliveries": deliveries, "svgComputedSlots": svg, "svgPaintRoots": paint.0, "svgPaintLinks": paint.1, "svgPaintServers": content.0, "svgPaintContentNodes": content.1, "svgPaintStyleHosts": style.0, "svgPaintStyleInstances": style.1}).to_string()
+    serde_json::json!({"blockers":blockers, "imageAcquisitions": images, "imageDeliveries": deliveries, "svgComputedSlots": svg, "svgPaintRoots": paint.0, "svgPaintLinks": paint.1, "svgPaintServers": content.0, "svgPaintContentNodes": content.1, "svgPaintStyleHosts": style.0, "svgPaintStyleInstances": style.1, "svgCloneProfileConfirmed": clone_profile}).to_string()
 }
 fn error(e: impl AsRef<str>) -> JsValue {
     JsValue::from_str(e.as_ref())

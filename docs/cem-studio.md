@@ -3966,10 +3966,33 @@ A profile is configuration; the public observation report is compatibility data.
 Verification returns no execution seal, does not authenticate the caller's
 browser identity or fixture shape, and cannot discharge live DOM/CSS validation,
 instance-style evaluation, winning-source or resource-acquisition requirements.
-The browser preparation host still retains its compatibility blocker. Explicit
-profile selection and native probe verification must be wired into that host
-before any live compatibility claim; browser probes remain regression checks
-until then. No new UI behavior, public token or theme default is introduced.
+Browser preparation accepts an optional explicit `cloneProfile` with name
+`chromium-148-solid-currentcolor-v1` and a synchronous `observe(index)`
+callback. There is no implicit selection when it is absent. Native code requests
+indices 0..5 in the table's order; each response is an array of exactly twelve
+integer channels in 0..255: source RGBA, host RGBA, then sampled pixel RGBA.
+This is a named scalar compatibility-report boundary, not an AST/evidence DTO.
+Callers collect the isolated raster probes before capture; the callback only
+delivers those measurements synchronously. Async callbacks are rejected.
+
+After source preparation and before capture, the native session checks the
+profile name and its recorded exact browser identity, verifies all six reports,
+and retains the selected profile. Unknown names/identities, repeated selection,
+out-of-order calls, exceptions, malformed arrays and mismatches close the
+session. Browser quiet-state checks surround callback delivery, so mutations
+including restoration cannot be hidden during confirmation. Both sync and async
+capture use the same path. A native `svgCloneProfileConfirmed` diagnostic is
+published only after successful capture; stale reads, cancellation and closure
+revoke the owning preparation and clear that state.
+
+Confirmation means only that this preparation selected the pinned configuration
+and accepted its complete report. Reports are not rerun on every read and do not
+authenticate the browser or prove arbitrary instance behavior. Existing live
+document/base/style validation still governs reads. The browser compatibility
+and style-evaluation blockers remain, and opted-in sessions additionally retain
+`svg-paint-clone-execution-evidence-required`. Matching reports do not change the
+SVG 2 structural plan or the historical resource-identity requirements.
+No new UI behavior, public token or theme default is introduced.
 
 ### Shared browser stylesheet observation host
 

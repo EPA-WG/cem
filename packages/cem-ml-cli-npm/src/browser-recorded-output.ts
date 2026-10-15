@@ -15,12 +15,20 @@ export interface NativeRecordedOutputSession extends NativeImagePreparation {
     prepareBase(matches: NativeDomPredicate, decide: (candidate: string, fallback: string, stamp: string) => boolean): number;
     compose(base: string, matches: NativeDomPredicate): string;
     prepareStylesheets(base: string, matches: NativeDomPredicate, title: string | undefined, command: (owner: number, link: boolean, selected: boolean) => void): void;
+    confirmCloneProfile(name: string, observe: (index: number) => readonly number[]): void;
     capture(base: string, matches: NativeDomPredicate, revision: () => string, observe: StylesheetPredicate, images: ImagePredicate, svg: SvgComputedPredicate): string;
     read(base: string, matches: NativeDomPredicate, revision: () => string, observe: StylesheetPredicate, images: ImagePredicate, svg: SvgComputedPredicate): string;
     close(): void;
     free(): void;
 }
 export interface BrowserRecordedOutputOptions {
+    /** Explicit compatibility report; not an execution seal. Probe order:
+     * own/inherited/descriptive gradient, then own/inherited/descriptive pattern.
+     * Each synchronous callback returns source RGBA, host RGBA, pixel RGBA. */
+    readonly cloneProfile?: {
+        readonly name: 'chromium-148-solid-currentcolor-v1';
+        readonly observe: (index: number) => readonly number[];
+    };
     readonly ownership: 'exclusive';
     readonly policy: BrowserHtmlBasePolicy;
     readonly signal?: AbortSignal;
@@ -31,7 +39,7 @@ export interface BrowserRecordedOutputOptions {
     /** Async capture's whole load deadline; 1..30,000 ms. */
     readonly timeoutMs?: number;
 }
-export interface BrowserRecordedOutputSummary { readonly blockers: readonly string[]; readonly imageAcquisitions: number; readonly imageDeliveries: number; readonly svgComputedSlots: number; readonly svgPaintRoots: number; readonly svgPaintLinks: number; readonly svgPaintServers: number; readonly svgPaintContentNodes: number; readonly svgPaintStyleHosts: number; readonly svgPaintStyleInstances: number; }
+export interface BrowserRecordedOutputSummary { readonly blockers: readonly string[]; readonly imageAcquisitions: number; readonly imageDeliveries: number; readonly svgComputedSlots: number; readonly svgPaintRoots: number; readonly svgPaintLinks: number; readonly svgPaintServers: number; readonly svgPaintContentNodes: number; readonly svgPaintStyleHosts: number; readonly svgPaintStyleInstances: number; readonly svgCloneProfileConfirmed: boolean; }
 /** The installer delivers native HTML into this document synchronously. It must
  * preserve the Document/URL and must not start unowned context or CSS mutations. */
 export type RecordedOutputInstaller = (html: string, stage: 'original' | 'composed') => void;
@@ -102,6 +110,7 @@ export class BrowserRecordedOutputHost {
             this.#deliver(composed, 'composed', install);
             this.#freeze();
             this.#native.prepareStylesheets(this.#document.baseURI, this.#match, undefined, () => { throw new Error('Unexpected selection command'); });
+            this.#confirmCloneProfile();
             const summary = this.#summary(this.#native.capture(this.#document.baseURI, this.#match, this.#revision, this.#observe, this.#images.observe, this.#svg.observe));
             this.#observation.validateSeen();
             this.#captured = true;
@@ -181,6 +190,7 @@ export class BrowserRecordedOutputHost {
                     this.#observation.activeTitled = active;
                     this.#observation.titledDisabled = title === '';
                 }
+                this.#confirmCloneProfile();
                 const result = this.#summary(this.#native.capture(this.#document.baseURI, this.#match, this.#revision, this.#observe, this.#images.observe, this.#svg.observe));
                 this.#observation.validateSeen();
                 this.#captured = true; this.#pending = false;
@@ -305,9 +315,21 @@ export class BrowserRecordedOutputHost {
         const result = this.#observation.observe(...args);
         this.#quiet(); return result;
     };
+    #confirmCloneProfile(): void {
+        this.#quiet();
+        const profile = this.#options.cloneProfile;
+        if (profile) this.#native.confirmCloneProfile(profile.name, index => {
+            this.#quiet();
+            const result = profile.observe(index);
+            this.#quiet();
+            return result;
+        });
+        this.#quiet();
+    }
     #summary(json: string): BrowserRecordedOutputSummary {
         const value = JSON.parse(json) as BrowserRecordedOutputSummary;
-        if (!Number.isInteger(value.svgPaintRoots) || value.svgPaintRoots < 0 || value.svgPaintRoots > 256
+        if (typeof value.svgCloneProfileConfirmed !== 'boolean'
+            || !Number.isInteger(value.svgPaintRoots) || value.svgPaintRoots < 0 || value.svgPaintRoots > 256
             || !Number.isInteger(value.svgPaintLinks) || value.svgPaintLinks < 0 || value.svgPaintLinks > value.svgPaintRoots * 64
             || !Number.isInteger(value.svgPaintServers) || value.svgPaintServers < 0 || value.svgPaintServers > 256
             || !Number.isInteger(value.svgPaintContentNodes) || value.svgPaintContentNodes < value.svgPaintServers || value.svgPaintContentNodes > 4096
@@ -319,7 +341,7 @@ export class BrowserRecordedOutputHost {
             || !Array.isArray(value.blockers) || !value.blockers.every(b => typeof b === 'string')
             || !Number.isInteger(value.imageDeliveries) || value.imageDeliveries < 0 || value.imageDeliveries > value.imageAcquisitions
             || !Number.isInteger(value.imageAcquisitions) || value.imageAcquisitions < 0 || value.imageAcquisitions > 256) throw new Error('Invalid native preparation diagnostic summary');
-        return Object.freeze({ blockers: Object.freeze([...value.blockers]), imageAcquisitions: value.imageAcquisitions, imageDeliveries: value.imageDeliveries, svgComputedSlots: value.svgComputedSlots, svgPaintRoots: value.svgPaintRoots, svgPaintLinks: value.svgPaintLinks, svgPaintServers: value.svgPaintServers, svgPaintContentNodes: value.svgPaintContentNodes, svgPaintStyleHosts: value.svgPaintStyleHosts, svgPaintStyleInstances: value.svgPaintStyleInstances });
+        return Object.freeze({ blockers: Object.freeze([...value.blockers]), imageAcquisitions: value.imageAcquisitions, imageDeliveries: value.imageDeliveries, svgComputedSlots: value.svgComputedSlots, svgPaintRoots: value.svgPaintRoots, svgPaintLinks: value.svgPaintLinks, svgPaintServers: value.svgPaintServers, svgPaintContentNodes: value.svgPaintContentNodes, svgPaintStyleHosts: value.svgPaintStyleHosts, svgPaintStyleInstances: value.svgPaintStyleInstances, svgCloneProfileConfirmed: value.svgCloneProfileConfirmed });
     }
 }
 /** Takes ownership of the native session, including failed construction/capture. */

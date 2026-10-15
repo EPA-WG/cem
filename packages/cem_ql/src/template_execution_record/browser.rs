@@ -6,6 +6,7 @@ use cem_ml::html_image_execution::{
 };
 use cem_ml::import::svg_presentation::RetainedSvgPresentationAttribute;
 use cem_ml::svg_computed_execution::{SvgComputedEvidence, SvgComputedHost, SvgComputedObserver};
+use cem_ml::svg_paint_clone_profile::{CloneProbe, CloneProbeObservation, SvgPaintCloneProfile};
 use cem_ml::svg_paint_content::SvgPaintContentPlan;
 use cem_ml::svg_paint_dependencies::{PaintTarget, SvgPaintPlan};
 use cem_ml::svg_paint_style::SvgPaintStylePlan;
@@ -94,6 +95,7 @@ pub struct RecordedOutputSession {
     paint: Option<Arc<SvgPaintPlan>>,
     paint_content: Option<Arc<SvgPaintContentPlan>>,
     paint_style: Option<SvgPaintStylePlan>,
+    clone_profile: Option<SvgPaintCloneProfile>,
     image_delivery: Option<ImageDeliveryCapture>,
     delivered_images: usize,
     replay_nonce: Option<String>,
@@ -238,6 +240,7 @@ impl RecordedOutputSession {
             paint: None,
             paint_content: None,
             paint_style: None,
+            clone_profile: None,
             image_delivery: None,
             delivered_images: 0,
             replay_nonce: None,
@@ -295,6 +298,7 @@ impl RecordedOutputSession {
         self.paint = None;
         self.paint_content = None;
         self.paint_style = None;
+        self.clone_profile = None;
         let _ = self.svg_host.invalidate();
         self.image_delivery = None;
         self.delivered_images = 0;
@@ -726,7 +730,45 @@ impl RecordedOutputSession {
             )
         })
     }
+    /// Compatibility configuration/report validation, never an execution seal.
+    pub fn confirm_clone_profile(
+        &mut self,
+        name: &str,
+        mut observe: impl FnMut(CloneProbe) -> Result<CloneProbeObservation, String>,
+    ) -> Result<(), String> {
+        self.run(|s| {
+            if s.stage != Stage::ComposedBase {
+                return Err("clone profile requires composed base preparation".into());
+            }
+            if s.svg_sources.is_none() || s.clone_profile.is_some() {
+                return Err("clone profile requires prepared sources and one confirmation".into());
+            }
+            if name != "chromium-148-solid-currentcolor-v1" {
+                return Err("unknown SVG clone compatibility profile".into());
+            }
+            let profile = SvgPaintCloneProfile::for_browser(&s.browser.engine, &s.browser.version)?;
+            let mut observations = Vec::new();
+            for case in CloneProbe::ALL {
+                let observation = observe(case)?;
+                if observation.case != case {
+                    return Err("clone probe identity mismatch".into());
+                }
+                observations.push(observation);
+            }
+            profile.verify_probes(&observations)?;
+            s.clone_profile = Some(profile);
+            Ok(())
+        })
+    }
+    pub fn clone_profile_confirmed(&self) -> bool {
+        self.stage == Stage::Captured && !self.cancel.is_aborted() && self.clone_profile.is_some()
+    }
     fn paint_blockers(&self, mut blockers: Vec<String>) -> Vec<String> {
+        if let Some(profile) = &self.clone_profile {
+            blockers.extend(profile.blockers().iter().map(|b| (*b).to_owned()));
+            blockers.sort();
+            blockers.dedup();
+        }
         let Some(plan) = &self.paint else {
             return blockers;
         };

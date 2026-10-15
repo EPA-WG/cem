@@ -6,6 +6,7 @@ const rejects = (work, message) => { let failed = false; try { work(); } catch {
 globalThis.runRecordedOutputFixture = async version => {
     await ql.default();
     const cases = [];
+    const cloneReports = new Map();
     const run = async (name, test, withPool = false) => {
         const frame = document.createElement('iframe');
         frame.src = '/docs/browser-recorded-output.html';
@@ -142,9 +143,44 @@ globalThis.runRecordedOutputFixture = async version => {
                 const expected = mode === 'own' ? [0, 0, 255, 255]
                     : kind === 'pattern' && mode === 'title' ? [0, 0, 0, 0] : [255, 0, 0, 255];
                 check(pixel.every((n, i) => n === expected[i]), `Chromium clone compatibility changed: ${pixel}; review SVG 2 profile before changing expectation`);
-                host.read();
+                const index = (kind === 'gradient' ? 0 : 3) + ({ own: 0, clone: 1, title: 2 })[mode];
+                const color = element => [...view.getComputedStyle(element).color.match(/\d+/g).map(Number), 255];
+                cloneReports.set(index, [...color(doc.getElementById('b')), ...color(doc.getElementById('a')), ...pixel]);
+                check(host.read().svgCloneProfileConfirmed === false, 'profile implicitly selected');
             });
         }
+    }
+    for (const mode of ['sync', 'async', 'pool', 'mismatch', 'malformed', 'short-report', 'callback-failure', 'unknown', 'mutating-callback']) {
+        await run(`clone-profile-${mode}`, async ({ request, doc, capture, captureAsync, pool }) => {
+            paintRequest(request, doc, '{linearGradient @id=a @href="#b"}{linearGradient @id=b | {stop @stop-color=currentColor}}');
+            const cloneProfile = {
+                name: mode === 'unknown' ? 'unknown' : 'chromium-148-solid-currentcolor-v1',
+                observe(index) {
+                    const value = [...cloneReports.get(index)];
+                    if (mode === 'mismatch') value[8] ^= 1;
+                    if (mode === 'malformed') value[0] = 0.5;
+                    if (mode === 'short-report') return value.slice(0, 11);
+                    if (mode === 'callback-failure') throw new Error('probe unavailable');
+                    if (mode === 'mutating-callback') {
+                        doc.getElementById('a').setAttribute('color', 'blue');
+                        doc.getElementById('a').removeAttribute('color');
+                    }
+                    return value;
+                },
+            };
+            if (['mismatch', 'malformed', 'short-report', 'callback-failure', 'unknown', 'mutating-callback'].includes(mode)) {
+                rejects(() => capture({ cloneProfile }), 'invalid clone profile report accepted');
+                return;
+            }
+            const host = mode === 'sync' ? capture({ cloneProfile }) : await captureAsync({ cloneProfile });
+            const summary = host.read();
+            check(summary.svgCloneProfileConfirmed === true, 'explicit profile confirmation missing');
+            check(summary.blockers.includes('svg-paint-clone-execution-evidence-required')
+                && summary.blockers.includes('svg-paint-clone-style-evaluation-required'), 'compatibility report granted execution authority');
+            if (pool) await pool.close();
+            else { doc.getElementById('b').setAttribute('color', 'red'); doc.getElementById('b').removeAttribute('color'); }
+            rejects(() => host.read(), 'stale profile confirmation retained');
+        }, mode === 'pool');
     }
     for (const mode of ['source-style', 'host-style', 'href', 'own-child', 'pool']) {
         await run(`paint-clone-lifetime-${mode}`, async ({ request, doc, captureAsync, pool }) => {

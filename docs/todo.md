@@ -2734,9 +2734,29 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       token defaults or source dependency pruning changes. Live profile binding,
       instance evaluation and rendered-resource evidence remain pending.
       Contract: docs/cem-studio.md#explicit-clone-style-browser-compatibility-profile.
-    - [ ] Wire explicit clone-profile selection and complete native probe report
+    - [x] Wire explicit clone-profile selection and complete native probe report
       validation into browser preparation; reject unknown identities/mismatches
       while preserving source, instance and execution-evidence boundaries.
+      Fixture scope: native explicit selection, absent/unknown/repeated profile,
+      mismatched probe and stale-session rejection; browser actual six-case
+      reports, malformed scalar ingress, sync/async capture and mutation/pool
+      invalidation without converting compatibility reports into execution seals.
+      Completed: optional explicit cloneProfile name/callback feeds six native
+      requests through a twelve-byte scalar report boundary. The session checks
+      its exact browser identity and complete probe set before capture; unknown,
+      repeated, out-of-order, malformed and mismatched confirmations fail closed.
+      Quiet-state checks bracket callbacks. Both capture paths publish only the
+      svgCloneProfileConfirmed diagnostic; original lifetime validation remains
+      authoritative and stale/closed preparations clear confirmation.
+      All 53 native preparation and 48 focused SVG tests pass; WASM/CLI builds,
+      CLI lint, rustfmt/diff checks and the full Chromium gate pass, including
+      124 production preparation cases (nine new report-binding cases).
+      CEM audit: bounded native source/theme ownership remains intact; reports
+      never replace retained instance provenance or authorize copied computed
+      styles. No component behavior, defaults or tokens change. Compatibility,
+      style-evaluation and execution-evidence blockers remain; actual instance
+      styles and consumed resources still need separate evidence. Physical
+      device/AT and visual/forced-color acceptance remain independent.
     - [ ] Evaluate bounded paint-instance styles with retained declaration,
       inheritance and winning-source provenance under the selected profile.
     - [ ] Bind computed CSS/SVG selections to acquired resource bodies before
@@ -2748,10 +2768,11 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, wire explicit clone-profile selection and native probe verification into
-browser preparation. Then evaluate bounded instance styles and bind computed
-CSS/SVG selections to acquired resource bodies. General runtime loads remain
-required before claiming complete dependency closure.
+Next, evaluate bounded paint-instance styles with retained declaration,
+inheritance and winning-source provenance under the selected profile, starting
+with explicit colors/currentColor fixtures. Then bind computed CSS/SVG selections
+to acquired resource bodies. General runtime loads remain required before
+claiming complete dependency closure.
 Selected image response/candidate binding is available through explicit native
 replay; unchanged-URL observation deliberately retains its historical-identity
 blocker.

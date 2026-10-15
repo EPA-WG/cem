@@ -377,6 +377,16 @@ structural profile for inherited colors and descriptive-only patterns; isolated
 raster fixtures record that boundary. These counts do not assert browser clone
 identity, instance computed style or rendered-resource closure.
 
+Optional `cloneProfile: { name: 'chromium-148-solid-currentcolor-v1', observe }`
+selects the exact Chromium profile explicitly. Collect its six raster probes
+before capture; `observe(index)` synchronously returns twelve integer channels:
+source RGBA, host RGBA, pixel RGBA. Probe order is own/inherited/descriptive
+gradient, then own/inherited/descriptive pattern. Native validation rejects
+unknown identities, mismatches and malformed reports. Both capture paths publish
+`svgCloneProfileConfirmed` only after successful preparation, and revoke it
+with the preparation lifetime. It confirms a compatibility report, never
+instance-style or execution evidence; the compatibility/evaluation blockers stay.
+
 `read().svgComputedSlots` counts retained SVG presentation attributes whose
 computed values were captured and revalidated by the native session. Both capture
 paths support static values, including cascade overrides. Active animations and
