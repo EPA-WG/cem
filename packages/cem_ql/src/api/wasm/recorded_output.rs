@@ -225,6 +225,10 @@ impl WasmRecordedOutputSession {
             })
             .map_err(error)
     }
+    #[wasm_bindgen(js_name = "enableBoundedPaintColors")]
+    pub fn enable_bounded_paint_colors(&mut self) -> Result<(), JsValue> {
+        self.inner.enable_paint_colors().map_err(error)
+    }
     pub fn capture(
         &mut self,
         base: &str,
@@ -260,6 +264,7 @@ impl WasmRecordedOutputSession {
                 observe: svg,
             })
             .map_err(error)?;
+        self.verify_paint_colors(svg)?;
         Ok(summary(
             result,
             self.inner.image_acquisitions(),
@@ -270,6 +275,7 @@ impl WasmRecordedOutputSession {
             self.inner.svg_paint_content_counts(),
             self.inner.svg_paint_style_counts(),
             self.inner.clone_profile_confirmed(),
+            self.inner.paint_color_counts(),
         ))
     }
     pub fn read(
@@ -281,6 +287,7 @@ impl WasmRecordedOutputSession {
         images: &Function,
         svg: &Function,
     ) -> Result<String, JsValue> {
+        self.verify_paint_colors(svg)?;
         self.inner
             .validate_svg(&mut SvgObserver {
                 revision,
@@ -307,6 +314,7 @@ impl WasmRecordedOutputSession {
                 observe: svg,
             })
             .map_err(error)?;
+        self.verify_paint_colors(svg)?;
         Ok(summary(
             result,
             self.inner.image_acquisitions(),
@@ -317,6 +325,7 @@ impl WasmRecordedOutputSession {
             self.inner.svg_paint_content_counts(),
             self.inner.svg_paint_style_counts(),
             self.inner.clone_profile_confirmed(),
+            self.inner.paint_color_counts(),
         ))
     }
 }
@@ -330,6 +339,7 @@ fn summary(
     content: (usize, usize),
     style: (usize, usize),
     clone_profile: bool,
+    colors: (usize, usize),
 ) -> String {
     if images > 0 && !replay_bound {
         blockers.push("image-browser-response-identity-required".into());
@@ -344,13 +354,23 @@ fn summary(
             .map(str::to_owned),
         );
     }
-    serde_json::json!({"blockers":blockers, "imageAcquisitions": images, "imageDeliveries": deliveries, "svgComputedSlots": svg, "svgPaintRoots": paint.0, "svgPaintLinks": paint.1, "svgPaintServers": content.0, "svgPaintContentNodes": content.1, "svgPaintStyleHosts": style.0, "svgPaintStyleInstances": style.1, "svgCloneProfileConfirmed": clone_profile}).to_string()
+    serde_json::json!({"blockers":blockers, "imageAcquisitions": images, "imageDeliveries": deliveries, "svgComputedSlots": svg, "svgPaintRoots": paint.0, "svgPaintLinks": paint.1, "svgPaintServers": content.0, "svgPaintContentNodes": content.1, "svgPaintStyleHosts": style.0, "svgPaintStyleInstances": style.1, "svgCloneProfileConfirmed": clone_profile, "svgPaintColors": colors.0, "svgPaintSuppressedHosts": colors.1}).to_string()
 }
 fn error(e: impl AsRef<str>) -> JsValue {
     JsValue::from_str(e.as_ref())
 }
 
 impl WasmRecordedOutputSession {
+    fn verify_paint_colors(&mut self, svg: &Function) -> Result<(), JsValue> {
+        self.inner
+            .validate_paint_colors(|owner, property| {
+                svg.call2(&JsValue::NULL, &owner.into(), &property.into())
+                    .map_err(|_| "paint color observation failed")?
+                    .as_string()
+                    .ok_or_else(|| "synchronous paint color string required".into())
+            })
+            .map_err(error)
+    }
     fn verify_images(&mut self, revision: &Function, images: &Function) -> Result<(), JsValue> {
         let result = (|| {
             let env = revision

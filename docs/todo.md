@@ -2779,8 +2779,30 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       certified cascade winners or rendered pixels; full-cascade, forced-color,
       execution and resource evidence remain open.
       Contract: docs/cem-studio.md#bounded-paint-instance-color-derivations.
-    - [ ] Bind bounded color derivations to browser preparation and add Chromium
+    - [x] Bind bounded color derivations to browser preparation and add Chromium
       parity/mutation fixtures for literal colors and currentColor provenance.
+      Fixture scope: explicit evaluator opt-in requiring confirmed profile,
+      atomic failure and revocation; native-to-CSSOM color comparison; Chromium
+      literal/currentColor/transparent and suppressed-pattern raster parity,
+      declaration/ancestor mutations and unsupported author-cascade rejection.
+      Completed: explicit boundedPaintColors opt-in requires confirmed clone
+      profile. Native derivations retain the same style/content/inventory before
+      publication; unsupported evaluation fails capture. WASM validates source
+      fill/stop-color CSSOM against native values after capture and around reads.
+      Mismatch, invalidation and closure release derivations; only bounded color
+      and suppressed-host counts cross the summary boundary.
+      All 55 native preparation and 57 focused SVG tests pass; WASM/CLI builds,
+      lint, rustfmt/diff checks and the full Chromium gate pass, including 140
+      production preparation cases (16 new). Raster fixtures verify literals,
+      hex, source currentColor, forwarding/local overrides, transparent paint,
+      patterns and descriptive suppression. Restored source/host/declaration
+      mutations, replacement and pool closure revoke preparation.
+      CEM audit: inherited/source ownership stays native; consumer ancestry and
+      copied CSSOM values do not replace declarations. No component behavior,
+      public tokens or theme defaults change. Source CSSOM agreement and isolated
+      raster parity do not establish full-cascade winners, browser-private clone
+      identity or consumed bytes. Those blockers remain; general forced-color,
+      physical-device and AT acceptance remain independent.
     - [ ] Extend instance-style evaluation beyond the presentation-only subset
       with retained cascade/winning-declaration evidence; do not infer winners
       from computed values or compatibility reports.
@@ -2793,10 +2815,11 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, bind bounded paint-color derivations to browser preparation and verify
-Chromium parity and mutation lifetimes. Then extend retained cascade/winning-source
-coverage and bind computed CSS/SVG selections to acquired resource bodies.
-General runtime loads remain required before claiming complete dependency closure.
+Next, extend bounded instance-style evaluation with retained cascade and
+winning-declaration evidence, starting with inline declarations and their priority
+relative to presentation attributes. Then bind computed CSS/SVG selections to
+acquired resource bodies. General runtime loads remain required before claiming
+complete dependency closure.
 Selected image response/candidate binding is available through explicit native
 replay; unchanged-URL observation deliberately retains its historical-identity
 blocker.

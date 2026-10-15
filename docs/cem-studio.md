@@ -4045,10 +4045,33 @@ bytes, repeated lookups and inheritance steps consume the caller's work budget.
 Failures return no partial result. Color values do not incorporate stop opacity,
 geometry, compositing, resource acquisition or final pixels. Source plans and
 suppressed-host dependencies remain subject to their original inventory's live
-host/resolver validation. Browser binding and parity for this evaluator are
-pending; color-parity, execution, winning-source, rendering and acquisition
-blockers remain explicit. No theme tokens, component defaults or UI behavior
-change.
+host/resolver validation.
+
+Browser preparation accepts explicit `boundedPaintColors: true` only after a
+complete `cloneProfile` confirmation. Unsupported evaluation fails capture
+rather than silently omitting requested derivations. The native session builds
+and retains the color result from the same style/content/inventory chain before
+publishing preparation. Without this opt-in, existing structural preparation
+retains its prior scope. Diagnostics expose only bounded `svgPaintColors` and
+`svgPaintSuppressedHosts` counts; declaration/ancestor graphs remain native.
+
+The WASM host compares each derived color to the exact source element's live
+CSSOM `stop-color` or `fill`, using existing native-to-DOM correspondence.
+Comparison uses the pinned Chromium serialization for supported opaque sRGB or
+transparent values. It runs after capture and before/after reads. Missing owners,
+observation failures, mismatches and invalidated DOM/style lifetimes close the
+session and clear derivations. Source CSSOM comparison does not claim observation
+of browser-private clone instances. Suppressed hosts have no color observation;
+their native dependencies and complete document lifetime checks remain intact.
+
+Chromium fixtures separately rasterize isolated SVG copies for explicit colors,
+hexadecimal colors, source inheritance, currentColor forwarding, local overrides,
+transparency, patterns and descriptive-pattern suppression. Restored source/host
+colors, paint declarations, source replacement and pool closure revoke preparation;
+inline CSS, variables and absent profile confirmation reject requested evaluation.
+These bounded regression cases do not authorize general cascade or live rendered
+resource closure. Color-parity, execution, winning-source, rendering and acquisition
+blockers remain explicit. No theme tokens, component defaults or UI behavior change.
 
 ### Shared browser stylesheet observation host
 

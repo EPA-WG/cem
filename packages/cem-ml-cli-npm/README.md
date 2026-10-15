@@ -387,6 +387,14 @@ unknown identities, mismatches and malformed reports. Both capture paths publish
 with the preparation lifetime. It confirms a compatibility report, never
 instance-style or execution evidence; the compatibility/evaluation blockers stay.
 
+Set `boundedPaintColors: true` with a confirmed `cloneProfile` to request
+the strict native presentation-only evaluator. Unsupported content/cascade
+rejects capture. The host validates derived source `fill`/`stop-color` against
+live CSSOM at capture and around reads; mutations or mismatches revoke it.
+`svgPaintColors` and `svgPaintSuppressedHosts` are bounded diagnostic counts.
+Native declaration/inheritance provenance stays retained, and clone rendering,
+winning-source and resource-evidence requirements remain separate.
+
 `read().svgComputedSlots` counts retained SVG presentation attributes whose
 computed values were captured and revalidated by the native session. Both capture
 paths support static values, including cascade overrides. Active animations and

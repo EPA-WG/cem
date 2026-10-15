@@ -671,3 +671,41 @@ fn clone_profile_rejects_unknown_repeated_mismatched_and_out_of_order_requests()
     assert!(!s.clone_profile_confirmed());
     assert!(s.confirm_clone_profile(name, clone_probe).is_err());
 }
+
+#[test]
+fn bounded_colors_require_profile_and_revoke_on_observation_mismatch() {
+    let mut absent = paint_session_with_clone(true);
+    assert!(absent.enable_paint_colors().is_err());
+    assert!(absent.html().is_err());
+    let mut s = paint_session_with_clone(true);
+    s.confirm_clone_profile("chromium-148-solid-currentcolor-v1", clone_probe)
+        .unwrap();
+    s.enable_paint_colors().unwrap();
+    assert_eq!(s.paint_color_counts(), (0, 0));
+    s.capture(BASE, slots, &mut OutputObserver { wrong: false })
+        .unwrap();
+    assert_eq!(s.paint_color_counts(), (2, 0));
+    s.validate_paint_colors(|_, property| {
+        assert_eq!(property, "stop-color");
+        Ok("rgb(255, 0, 0)".into())
+    })
+    .unwrap();
+    assert!(s
+        .validate_paint_colors(|_, _| Ok("rgb(0, 0, 255)".into()))
+        .is_err());
+    assert_eq!(s.paint_color_counts(), (0, 0));
+    assert!(s.html().is_err());
+}
+#[test]
+fn bounded_color_opt_in_cannot_be_repeated_or_added_after_capture() {
+    let mut s = paint_session_with_clone(true);
+    s.confirm_clone_profile("chromium-148-solid-currentcolor-v1", clone_probe)
+        .unwrap();
+    s.enable_paint_colors().unwrap();
+    assert!(s.enable_paint_colors().is_err());
+    let mut s = paint_session_with_clone(true);
+    s.capture(BASE, slots, &mut OutputObserver { wrong: false })
+        .unwrap();
+    assert_eq!(s.paint_color_counts(), (0, 0));
+    assert!(s.enable_paint_colors().is_err());
+}

@@ -182,6 +182,61 @@ globalThis.runRecordedOutputFixture = async version => {
             rejects(() => host.read(), 'stale profile confirmation retained');
         }, mode === 'pool');
     }
+    const colorOptions = () => ({
+        boundedPaintColors: true,
+        cloneProfile: { name: 'chromium-148-solid-currentcolor-v1', observe: index => [...cloneReports.get(index)] },
+    });
+    for (const mode of ['literal', 'hex', 'current', 'forward', 'override', 'transparent', 'pattern', 'suppressed']) {
+        await run(`paint-color-parity-${mode}`, async ({ request, doc, view, capture, captureAsync }) => {
+            let defs = '{linearGradient @id=a | {stop @stop-color=blue}}', expected = [0, 0, 255, 255], count = 1, suppressed = 0;
+            if (mode === 'hex') { defs = '{linearGradient @id=a | {stop @stop-color="#1a2b3c"}}'; expected = [26, 43, 60, 255]; }
+            if (mode === 'current') { defs = '{linearGradient @id=a @href="#b" @color=blue}{linearGradient @id=b @color=red | {stop @stop-color=currentColor}}'; expected = [255, 0, 0, 255]; count = 2; }
+            if (mode === 'forward') { defs = '{g @color="#0f0" | {linearGradient @id=a @color=currentColor | {stop @color=currentColor @stop-color=currentColor}}}'; expected = [0, 255, 0, 255]; }
+            if (mode === 'override') defs = '{linearGradient @id=a @color=red | {stop @color=blue @stop-color=currentColor}}';
+            if (mode === 'transparent') { defs = '{linearGradient @id=a | {stop @stop-color=transparent}}'; expected = [0, 0, 0, 0]; }
+            if (mode === 'pattern') defs = '{pattern @id=a @width=1 @height=1 @viewBox="0 0 16 16" @color=blue | {rect @width=16 @height=16 @fill=currentColor}}';
+            if (mode === 'suppressed') { defs = '{pattern @id=a @href="#b" @width=1 @height=1 @viewBox="0 0 16 16" | {title | Host}}{pattern @id=b @width=1 @height=1 @viewBox="0 0 16 16" | {rect @width=16 @height=16 @fill=blue}}'; suppressed = 1; expected = [0, 0, 0, 0]; }
+            paintRequest(request, doc, defs);
+            const host = mode === 'literal' ? capture(colorOptions()) : await captureAsync(colorOptions());
+            const summary = host.read();
+            check(summary.svgPaintColors === count && summary.svgPaintSuppressedHosts === suppressed, 'native color derivations missing');
+            check(summary.blockers.includes('svg-computed-winning-source-required')
+                && summary.blockers.includes('svg-paint-rendering-evidence-required'), 'color derivations granted execution closure');
+            const img = new Image();
+            img.src = 'data:image/svg+xml,' + encodeURIComponent(new view.XMLSerializer().serializeToString(doc.querySelector('svg')));
+            await img.decode();
+            const canvas = document.createElement('canvas'); canvas.width = canvas.height = 16;
+            const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0);
+            const pixel = [...ctx.getImageData(8, 8, 1, 1).data];
+            check(pixel.every((n, i) => n === expected[i]), `paint color raster mismatch: ${mode}: ${pixel}`);
+            host.read();
+        });
+    }
+    for (const mode of ['source-color', 'host-color', 'stop-color', 'source-replace', 'pool']) {
+        await run(`paint-color-lifetime-${mode}`, async ({ request, doc, captureAsync, pool }) => {
+            paintRequest(request, doc, '{linearGradient @id=a @href="#b" @color=blue}{linearGradient @id=b @color=red | {stop @stop-color=currentColor}}');
+            const host = await captureAsync(colorOptions());
+            check(host.read().svgPaintColors === 2, 'color lifetime fixture missing derivations');
+            if (mode === 'source-color' || mode === 'host-color') {
+                const node = doc.getElementById(mode === 'source-color' ? 'b' : 'a'), before = node.getAttribute('color');
+                node.setAttribute('color', 'green'); node.setAttribute('color', before);
+            }
+            if (mode === 'stop-color') { const node = doc.querySelector('stop'); node.setAttribute('stop-color', 'blue'); node.setAttribute('stop-color', 'currentColor'); }
+            if (mode === 'source-replace') { const node = doc.getElementById('b'); node.replaceWith(node.cloneNode(true)); }
+            if (pool) await pool.close();
+            rejects(() => host.read(), 'stale paint color derivation retained');
+            rejects(() => host.read(), 'paint color derivation revived');
+        }, mode === 'pool');
+    }
+    for (const mode of ['inline-css', 'variable', 'missing-profile']) {
+        await run(`paint-color-reject-${mode}`, ({ request, doc, capture }) => {
+            paintRequest(request, doc, mode === 'inline-css'
+                ? '{linearGradient @id=a | {stop @style="stop-color:blue" @stop-color=red}}'
+                : mode === 'variable' ? '{linearGradient @id=a | {stop @stop-color="var(--paint)"}}'
+                : '{linearGradient @id=a | {stop @stop-color=red}}');
+            rejects(() => capture(mode === 'missing-profile' ? { boundedPaintColors: true } : colorOptions()), 'unsupported color evaluation accepted');
+        });
+    }
     for (const mode of ['source-style', 'host-style', 'href', 'own-child', 'pool']) {
         await run(`paint-clone-lifetime-${mode}`, async ({ request, doc, captureAsync, pool }) => {
             paintRequest(request, doc, '{linearGradient @id=a @href="#b" @color=blue}{linearGradient @id=b @color=red | {stop @stop-color=currentColor}}');

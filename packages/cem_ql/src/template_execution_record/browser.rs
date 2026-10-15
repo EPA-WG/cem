@@ -7,6 +7,7 @@ use cem_ml::html_image_execution::{
 use cem_ml::import::svg_presentation::RetainedSvgPresentationAttribute;
 use cem_ml::svg_computed_execution::{SvgComputedEvidence, SvgComputedHost, SvgComputedObserver};
 use cem_ml::svg_paint_clone_profile::{CloneProbe, CloneProbeObservation, SvgPaintCloneProfile};
+use cem_ml::svg_paint_colors::BoundedPaintColors;
 use cem_ml::svg_paint_content::SvgPaintContentPlan;
 use cem_ml::svg_paint_dependencies::{PaintTarget, SvgPaintPlan};
 use cem_ml::svg_paint_style::SvgPaintStylePlan;
@@ -94,7 +95,9 @@ pub struct RecordedOutputSession {
     svg_evidence: Option<SvgComputedEvidence>,
     paint: Option<Arc<SvgPaintPlan>>,
     paint_content: Option<Arc<SvgPaintContentPlan>>,
-    paint_style: Option<SvgPaintStylePlan>,
+    paint_style: Option<Arc<SvgPaintStylePlan>>,
+    paint_colors: Option<BoundedPaintColors>,
+    paint_colors_enabled: bool,
     clone_profile: Option<SvgPaintCloneProfile>,
     image_delivery: Option<ImageDeliveryCapture>,
     delivered_images: usize,
@@ -240,6 +243,8 @@ impl RecordedOutputSession {
             paint: None,
             paint_content: None,
             paint_style: None,
+            paint_colors: None,
+            paint_colors_enabled: false,
             clone_profile: None,
             image_delivery: None,
             delivered_images: 0,
@@ -298,6 +303,8 @@ impl RecordedOutputSession {
         self.paint = None;
         self.paint_content = None;
         self.paint_style = None;
+        self.paint_colors = None;
+        self.paint_colors_enabled = false;
         self.clone_profile = None;
         let _ = self.svg_host.invalidate();
         self.image_delivery = None;
@@ -763,9 +770,67 @@ impl RecordedOutputSession {
     pub fn clone_profile_confirmed(&self) -> bool {
         self.stage == Stage::Captured && !self.cancel.is_aborted() && self.clone_profile.is_some()
     }
+    pub fn enable_paint_colors(&mut self) -> Result<(), String> {
+        self.run(|s| {
+            if s.stage != Stage::ComposedBase || s.clone_profile.is_none() || s.paint_colors_enabled
+            {
+                return Err(
+                    "paint colors require confirmed profile and one pre-capture opt-in".into(),
+                );
+            }
+            s.paint_colors_enabled = true;
+            Ok(())
+        })
+    }
+    pub fn paint_color_counts(&self) -> (usize, usize) {
+        if self.stage != Stage::Captured || self.cancel.is_aborted() {
+            return (0, 0);
+        }
+        self.paint_colors
+            .as_ref()
+            .map_or((0, 0), |p| (p.colors().len(), p.suppressed_hosts().len()))
+    }
+    /// Compare source CSSOM values only, never claim to observe hidden clones.
+    pub fn validate_paint_colors(
+        &mut self,
+        mut observe: impl FnMut(cem_ml::parser::AstNodeId, &str) -> Result<String, String>,
+    ) -> Result<(), String> {
+        self.run(|s| {
+            if s.stage != Stage::Captured {
+                return Err("paint color validation requires capture".into());
+            }
+            if let Some(colors) = &s.paint_colors {
+                let tree = &colors.plan().content().paint().inventory().document().tree;
+                for color in colors.colors() {
+                    let property = &tree
+                        .node(color.paint_declaration)
+                        .and_then(|n| n.name.as_ref())
+                        .ok_or("paint color declaration missing")?
+                        .local_name;
+                    let [r, g, b, a] = color.rgba;
+                    let expected = if a == 255 {
+                        format!("rgb({r}, {g}, {b})")
+                    } else {
+                        format!("rgba({r}, {g}, {b}, 0)")
+                    };
+                    if observe(color.source, property)? != expected {
+                        return Err(
+                            "paint color source CSSOM disagrees with native derivation".into()
+                        );
+                    }
+                }
+            }
+            Ok(())
+        })
+    }
     fn paint_blockers(&self, mut blockers: Vec<String>) -> Vec<String> {
         if let Some(profile) = &self.clone_profile {
             blockers.extend(profile.blockers().iter().map(|b| (*b).to_owned()));
+            blockers.sort();
+            blockers.dedup();
+        }
+        if let Some(colors) = &self.paint_colors {
+            blockers.extend(colors.blockers().iter().map(|b| (*b).to_owned()));
             blockers.sort();
             blockers.dedup();
         }
@@ -850,7 +915,16 @@ impl RecordedOutputSession {
             )?);
             let paint = Arc::new(SvgPaintPlan::from_inventory(document.clone(), 1_000_000)?);
             let content = Arc::new(SvgPaintContentPlan::new(paint.clone(), 1_000_000)?);
-            let style = SvgPaintStylePlan::new(content.clone(), 1_000_000)?;
+            let style = Arc::new(SvgPaintStylePlan::new(content.clone(), 1_000_000)?);
+            let colors = if s.paint_colors_enabled {
+                Some(BoundedPaintColors::evaluate(
+                    style.clone(),
+                    s.clone_profile.ok_or("paint color profile missing")?,
+                    1_000_000,
+                )?)
+            } else {
+                None
+            };
             let handle = s.worker.prepare(
                 s.output.as_ref().unwrap().clone(),
                 html,
@@ -866,6 +940,7 @@ impl RecordedOutputSession {
             s.paint = Some(paint);
             s.paint_content = Some(content);
             s.paint_style = Some(style);
+            s.paint_colors = colors;
             s.stage = Stage::Captured;
             Ok(s.paint_blockers(blockers))
         })
