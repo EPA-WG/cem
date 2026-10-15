@@ -265,6 +265,66 @@ globalThis.runRecordedOutputFixture = async version => {
             }
         });
     }
+    const paintSheet = text => '{style |```' + text + '```}';
+    for (const mode of ['universal', 'specificity', 'list', 'important', 'inline-important', 'order', 'inheritance', 'clone', 'pattern', 'pool']) {
+        await run(`paint-sheet-parity-${mode}`, async ({ request, doc, view, capture, captureAsync }) => {
+            let css = 'stop{stop-color:blue}', attrs = '@id=s @class=hot @stop-color=red';
+            let gradient = '', extra = '';
+            if (mode === 'universal') css = '*{stop-color:blue}';
+            if (mode === 'specificity') css = '#s{stop-color:blue} .hot{stop-color:red}';
+            if (mode === 'list') css = '#missing, stop{stop-color:red} .hot, stop.hot{stop-color:blue}';
+            if (mode === 'important') { css = 'stop{stop-color:blue!important}'; attrs += ' @style="stop-color:red"'; }
+            if (mode === 'inline-important') { css = '#s{stop-color:red!important}'; attrs += ' @style="stop-color:blue!important"'; }
+            if (mode === 'order') { css = 'stop{stop-color:red}'; extra = paintSheet('stop{stop-color:blue}'); }
+            if (mode === 'inheritance') { css = '#a{color:red!important}stop{color:blue;stop-color:currentColor}'; }
+            if (mode === 'clone') { css = '#b{color:blue}stop{stop-color:currentColor}'; gradient = '{linearGradient @id=a @href="#b" @color=red}{linearGradient @id=b | {stop}}'; }
+            if (mode === 'pattern') { css = 'rect.tile{fill:blue}'; gradient = '{pattern @id=a @width=1 @height=1 @viewBox="0 0 16 16" | {rect @class=tile @width=16 @height=16 @fill=red}}'; }
+            paintRequest(request, doc, paintSheet(css) + (gradient || `{linearGradient @id=a | {stop ${attrs}}}`) + extra);
+            const host = mode === 'universal' ? capture(colorOptions()) : await captureAsync(colorOptions());
+            check(host.read().svgPaintColors === (mode === 'clone' ? 2 : 1), 'sheet color derivations missing');
+            const computed = view.getComputedStyle(doc.querySelector(mode === 'pattern' ? '.tile' : 'stop'));
+            check((mode === 'pattern' ? computed.fill : computed.stopColor) === 'rgb(0, 0, 255)', 'sheet CSSOM/native priority differs');
+            const img = new Image();
+            img.src = 'data:image/svg+xml,' + encodeURIComponent(new view.XMLSerializer().serializeToString(doc.querySelector('svg')));
+            await img.decode();
+            const canvas = document.createElement('canvas'); canvas.width = canvas.height = 16;
+            const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0);
+            check([...ctx.getImageData(8, 8, 1, 1).data].join(',') === '0,0,255,255', `sheet raster differs: ${mode}`);
+            host.read();
+        }, mode === 'pool');
+    }
+    for (const mode of ['class', 'id', 'rule-restore', 'priority-restore', 'disable-restore', 'replace', 'delete-rule', 'cssom-source', 'pool', 'abort']) {
+        await run(`paint-sheet-revoke-${mode}`, async ({ request, doc, captureAsync, pool }) => {
+            paintRequest(request, doc, paintSheet('stop.hot{stop-color:blue!important}') + '{linearGradient @id=a | {stop @id=s @class=hot}}');
+            const abort = new AbortController();
+            const host = await captureAsync({ ...colorOptions(), signal: abort.signal });
+            check(host.read().svgPaintColors === 1, 'sheet lifetime fixture missing');
+            const node = doc.querySelector('style'), sheet = node.sheet, stop = doc.querySelector('stop');
+            if (mode === 'class' || mode === 'id') { const before = stop.getAttribute(mode); stop.setAttribute(mode, 'changed'); stop.setAttribute(mode, before); }
+            // CSSOM change-and-restore requires the existing exclusive-owner write boundary.
+            if (mode === 'rule-restore') host.change(() => { sheet.insertRule('stop{stop-color:red}', 0); sheet.deleteRule(0); });
+            if (mode === 'priority-restore') host.change(() => { const style = sheet.cssRules[0].style; style.setProperty('stop-color', 'blue'); style.setProperty('stop-color', 'blue', 'important'); });
+            if (mode === 'disable-restore') host.change(() => { sheet.disabled = true; sheet.disabled = false; });
+            if (mode === 'replace') node.replaceWith(node.cloneNode(true));
+            if (mode === 'delete-rule') sheet.deleteRule(0);
+            if (mode === 'cssom-source') sheet.cssRules[0].style.setProperty('stop-color', 'red', 'important');
+            if (mode === 'pool') await pool.close();
+            if (mode === 'abort') abort.abort();
+            rejects(() => host.read(), 'stale sheet colors retained');
+            rejects(() => host.read(), 'sheet colors revived');
+        }, mode === 'pool');
+    }
+    for (const mode of ['disabled', 'tampered', 'media']) {
+        await run(`paint-sheet-reject-${mode}`, ({ request, doc, capture, install }) => {
+            const sheet = mode === 'media' ? '{style @media=all |```stop{stop-color:blue}```}' : paintSheet(mode === 'disabled' ? '.missing{stop-color:red}' : 'stop{stop-color:blue}');
+            paintRequest(request, doc, sheet + '{linearGradient @id=a | {stop @stop-color=blue}}');
+            rejects(() => capture(colorOptions(), html => {
+                install(html);
+                if (mode === 'disabled') doc.querySelector('style').sheet.disabled = true;
+                if (mode === 'tampered') doc.querySelector('style').sheet.cssRules[0].style.setProperty('stop-color', 'red');
+            }), 'invalid sheet installation accepted');
+        });
+    }
     for (const mode of ['source-style', 'host-style', 'href', 'own-child', 'pool']) {
         await run(`paint-clone-lifetime-${mode}`, async ({ request, doc, captureAsync, pool }) => {
             paintRequest(request, doc, '{linearGradient @id=a @href="#b" @color=blue}{linearGradient @id=b @color=red | {stop @stop-color=currentColor}}');

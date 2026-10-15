@@ -2859,9 +2859,30 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       CEM audit: retained semantic/source/theme ownership and inherited overrides
       remain intact; no UI behavior, public tokens or component defaults change.
       Full-cascade, forced-color/AT, clone-execution and resource blockers remain.
-    - [ ] Bind stylesheet color plans to installed browser preparation; add
+    - [x] Bind stylesheet color plans to installed browser preparation; add
       Chromium CSSOM/raster parity and restored class/ID/rule/priority/disablement/
       replacement mutations, cancellation and worker/pool lifetime fixtures.
+      Cover SVG-native default media through namespace-correct CSSOM parsing.
+      Completed: native capture/read joins every admitted sheet (including
+      nonmatching rules) to the same retained CSS tree, source key, exact document
+      owner and installed enabled/applicable root. Missing/inactive or changed
+      observations fail atomically and revoke the color plan with preparation.
+      Shared CSSOM comparison preserves SVG namespace and absent/empty media;
+      comparison-node cleanup includes SVG roots. No selector/winner evidence
+      leaves the native owner or is reconstructed from browser values.
+      All 57 native preparation and 72 focused SVG tests pass. Chromium verifies
+      172 preparation cases (23 new): gradient/pattern CSSOM and raster parity,
+      specificity/list/importance/inline/document-order/inheritance selection,
+      DOM changes, controlled CSSOM change-and-restore, raw CSSOM drift, disabled
+      nonmatching sheets, tampering, unsupported media, abort and pool closure.
+      WASM/CLI builds, CLI lint, focused rustfmt/diff checks and the complete
+      Chromium regression gate pass.
+      CEM audit: inherited overrides and original semantic/source/theme ownership
+      stay native; no UI behavior, defaults or public tokens change. Unreported
+      CSSOM history, full-cascade/forced-color handling, hidden clone identity,
+      actual rendered-resource bytes and physical-device/AT acceptance remain
+      separate. CSSOM restoration requires the existing exclusive-owner change
+      boundary; final equality alone cannot establish mutation history.
     - [ ] Extend instance-style evaluation beyond the bounded author-rule subset
       with retained cascade/winning-declaration evidence; do not infer winners
       from computed values or compatibility reports.
@@ -2874,10 +2895,10 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, bind native stylesheet color plans to installed browser preparation and
-verify Chromium parity and mutation revocation. Bind
-computed CSS/SVG selections to acquired resource bodies afterward; general runtime
-loads remain required before claiming complete dependency closure.
+Next, bind computed CSS/SVG selections to acquired resource bodies, preserving
+selection/source and execution lifetime identity. General runtime loads and
+broader cascade evidence remain required before claiming complete dependency
+closure or widening transaction admission.
 Selected image response/candidate binding is available through explicit native
 replay; unchanged-URL observation deliberately retains its historical-identity
 blocker.

@@ -912,20 +912,6 @@ impl RecordedOutputSession {
             let content = Arc::new(SvgPaintContentPlan::new(paint.clone(), 1_000_000)?);
             let style = Arc::new(SvgPaintStylePlan::new(content.clone(), 1_000_000)?);
             let colors = if s.paint_colors_enabled {
-                // Native rule matching is not installed-sheet execution evidence.
-                // Keep the browser profile bounded to presentation/inline until
-                // rule plans join the exact observed stylesheet installations.
-                if document.stylesheets().iter().any(|sheet| {
-                    document
-                        .document()
-                        .tree
-                        .node(sheet.source_node)
-                        .is_none_or(|node| {
-                            node.kind != cem_ml::parser::tree::CemTreeNodeKind::Attribute
-                        })
-                }) {
-                    return Err("stylesheet paint preparation binding required".into());
-                }
                 Some(BoundedPaintColors::evaluate(
                     style.clone(),
                     s.clone_profile.ok_or("paint color profile missing")?,
@@ -934,17 +920,19 @@ impl RecordedOutputSession {
             } else {
                 None
             };
+            let mut paint_observer = PaintStylesheetObserver::new(colors.as_ref(), observer);
             let handle = s.worker.prepare(
                 s.output.as_ref().unwrap().clone(),
                 html,
                 document,
                 s.cancel.clone(),
-                observer,
+                &mut paint_observer,
                 &mut matches,
                 base,
                 Default::default(),
             )?;
-            let blockers = s.worker.read(&handle, observer, matches, base)?;
+            let blockers = s.worker.read(&handle, &mut paint_observer, matches, base)?;
+            paint_observer.complete()?;
             s.handle = Some(handle);
             s.paint = Some(paint);
             s.paint_content = Some(content);
@@ -964,9 +952,15 @@ impl RecordedOutputSession {
             if s.stage != Stage::Captured {
                 return Err("recorded read requires capture".into());
             }
-            let blockers = s
-                .worker
-                .read(s.handle.as_ref().unwrap(), observer, matches, base)?;
+            let mut paint_observer =
+                PaintStylesheetObserver::new(s.paint_colors.as_ref(), observer);
+            let blockers = s.worker.read(
+                s.handle.as_ref().unwrap(),
+                &mut paint_observer,
+                matches,
+                base,
+            )?;
+            paint_observer.complete()?;
             Ok(s.paint_blockers(blockers))
         })
     }
@@ -974,5 +968,86 @@ impl RecordedOutputSession {
 impl Drop for RecordedOutputSession {
     fn drop(&mut self) {
         self.close();
+    }
+}
+
+/// Join author-rule derivations to the existing sealed whole-output stylesheet
+/// observations. These checks run inside capture/read, before any publication.
+struct PaintStylesheetObserver<'a, O> {
+    inner: &'a mut O,
+    required: Vec<(
+        cem_ml::parser::AstNodeId,
+        Arc<cem_ml::parser::tree::RetainedCemTree>,
+        bool,
+    )>,
+}
+impl<'a, O: StylesheetExecutionObserver> PaintStylesheetObserver<'a, O> {
+    fn new(colors: Option<&BoundedPaintColors>, inner: &'a mut O) -> Self {
+        let required = colors
+            .into_iter()
+            .flat_map(|c| c.plan().content().paint().inventory().stylesheets())
+            .filter_map(|sheet| {
+                // The evaluator has already checked successful imports, exact
+                // SVG owners and absence of selection/conditional metadata.
+                (sheet.owner == sheet.source_node).then(|| {
+                    (
+                        sheet.owner,
+                        sheet.resources.as_ref().unwrap().tree.clone(),
+                        false,
+                    )
+                })
+            })
+            .collect();
+        Self { inner, required }
+    }
+    fn complete(&self) -> Result<(), String> {
+        if self.required.iter().any(|(_, _, seen)| !seen) {
+            return Err("paint stylesheet installation observation missing".into());
+        }
+        Ok(())
+    }
+}
+impl<O: StylesheetExecutionObserver> StylesheetExecutionObserver
+    for PaintStylesheetObserver<'_, O>
+{
+    fn environment_revision(&mut self) -> Result<String, String> {
+        self.inner.environment_revision()
+    }
+    fn observe(
+        &mut self,
+        slot: cem_ml::stylesheet_execution::StylesheetExecutionSlot<'_>,
+    ) -> Result<cem_ml::stylesheet_execution::StylesheetObservation, String> {
+        use cem_ml::stylesheet_execution::StylesheetOwner;
+        let required = match slot.owner {
+            StylesheetOwner::Document { owner, source_node }
+                if owner == source_node && slot.parent_sheet.is_none() =>
+            {
+                self.required.iter_mut().find(|(id, _, _)| id == owner)
+            }
+            _ => None,
+        };
+        if let Some((_, tree, seen)) = required {
+            if !Arc::ptr_eq(tree, slot.tree)
+                || !slot.media.is_empty()
+                || !slot.title.is_empty()
+                || slot.disabled
+                || slot.alternate
+            {
+                return Err("paint stylesheet installation owner mismatch".into());
+            }
+            let key = slot.source_key.to_owned();
+            let observation = self.inner.observe(slot)?;
+            if !observation.selected
+                || !observation.conditions_match
+                || observation.installation.is_none_or(|id| id == 0)
+                || observation.loaded_source.as_deref() != Some(key.as_str())
+            {
+                return Err("paint stylesheet requires enabled source installation".into());
+            }
+            *seen = true;
+            Ok(observation)
+        } else {
+            self.inner.observe(slot)
+        }
     }
 }

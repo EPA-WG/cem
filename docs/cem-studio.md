@@ -4037,8 +4037,8 @@ author CSS or dynamic content. Unretained style elements, link/script/template/
 animation elements, processing instructions and event-handler attributes reject
 the entire evaluation, even when apparently unrelated. SVG inline styles and
 eligible SVG style elements use the bounded retained-declaration paths below;
-unretained or non-SVG owners fail. Browser preparation admits only the inline
-path until installed-sheet binding is verified.
+unretained or non-SVG owners fail. Browser preparation additionally requires
+every admitted stylesheet to join its observed installation.
 This deliberately narrow gate avoids silently selecting a presentation attribute
 over an authored rule. User/UA styles, injected CSSOM, environment overrides, forced colors and
 live execution still require separate evidence. Results preserve declaration
@@ -4128,8 +4128,8 @@ styles, theme defaults or public tokens.
 
 ### Bounded stylesheet matching and paint cascade contract
 
-Status: implemented in the native bounded evaluator; browser preparation still
-rejects stylesheet color evaluation until installation binding is verified.
+Status: implemented in the native bounded evaluator and bound to installed
+stylesheets during browser preparation and reads.
 Existing evidence blockers remain. Native matching consumes retained CSS nodes
 in `svg_paint_colors::cascade`; no new selector parser or browser DTO is added.
 
@@ -4202,8 +4202,7 @@ separate. `PaintDeclarationOrigin` replaces the attribute-only winner; redundant
 returns a document attribute or style-element owner; `css()` and
 `css_declaration()` access the optional CSS-local identity. Evaluated nonmatching
 and losing rules remain retained through the same inventory, along with the
-consulted element/color
-inheritance chain. Equal RGBA values with different winners must still preserve
+consulted element/color inheritance chain. Equal RGBA values with different winners must still preserve
 different origins. Native plans own all evidence; browser summaries expose
 counts only and cannot supply selector matches or winners.
 
@@ -4218,26 +4217,41 @@ limits; native bound fixtures spread declarations/rules across small sheets.
 Reusing an immutable rule index must not bypass lifetime
 validation or budget accounting for matching work.
 
-Browser integration is a separate required step. Before publication, join every
-admitted native sheet to its exact installed, enabled and untitled stylesheet
-using the existing stylesheet observation capability and original document
-correspondence. CSSOM/source/installation disagreement rejects capture. A style
-node's presence alone cannot establish application. Preserve source-property
-CSSOM checks, profile confirmation and exclusive CSSOM mutation ownership.
-Rule insertion/deletion, declaration/priority edits, sheet disablement or
-replacement, and ID/class/source changes must revoke, including change-and-
-restore mutations. Disposal and pool closure release both rule and color plans.
-Chromium fixtures must establish source CSSOM and isolated SVG raster parity;
-neither proves browser-private clone identity or actual consumed resource bytes.
+Before publication, `RecordedOutputSession` joins every admitted native sheet
+(including nonmatching/losing rules) to the existing whole-output stylesheet
+observation capability. The join checks original document owner/source-node
+identity, exact retained CSS tree identity, root installation metadata, matching
+loaded-source key, nonzero installation identity, enabled selection and true
+conditions. Missing observations or any mismatch reject capture atomically.
+The existing sealed worker preparation retains stylesheet/source/DOM identities;
+reads repeat the join within that validation boundary. An equal computed color
+cannot excuse an inactive, replaced or tampered installation. Native plans and
+all source/selector/declaration evidence remain in the owning realm.
+
+The shared browser adapter compares actual CSSOM with parsed native-owned source,
+preserves the verified owner namespace and absent/empty media distinction in
+its comparison parser (including SVG default `media=all`), observes the exact
+sheet on its corresponding DOM owner, and preserves existing
+source-property CSSOM checks and clone-profile confirmation. Observed ID/class/
+source mutations and replacement revoke, including DOM change-and-restore.
+Persistent CSSOM edits or selection drift fail revalidation. CSSOM changes
+restored before a read must use the exclusive-owner `host.change()` boundary,
+which invalidates before the write; unreported CSSOM history is not inferred
+from final equality. Rule insertion/deletion, declaration priority and disable-
+restore fixtures exercise that boundary. Abort, disposal and pool closure
+release the preparation and its color plans. Isolated SVG raster parity does
+not establish browser-private clone identity or actual consumed resource bytes.
 
 Native fixtures verify namespace/case/escape and
 class matching; selector-list matched specificity; universal versus presentation,
 inline versus rules at both importance levels, cross-sheet order and local
 inheritance; retained source identities even for identical colors; rejected
 selectors/rules/declarations; bounds and stale inventory. Native preparation
-fixtures verify rejection/closure until browser binding exists. Browser fixtures
-remain required for those priorities and restored DOM/CSSOM mutations in
-both direct and worker preparation. Broader selectors, HTML ancestry, layers,
+fixtures verify installed-source acceptance, inactive/missing installation
+rejection and drift revocation. Chromium fixtures cover source CSSOM and isolated
+raster parity for universal/compound/list specificity, importance versus inline,
+cross-sheet order and local/source inheritance, plus DOM/CSSOM changes and
+abort/pool lifetime in direct and worker-pool-owned preparation. Broader selectors, HTML ancestry, layers,
 conditional/external rules and complete origin/environment handling require
 separate profile extensions. Full-cascade winning-source, clone-execution,
 rendering and resource-acquisition blockers remain.

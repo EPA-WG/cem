@@ -388,7 +388,7 @@ with the preparation lifetime. It confirms a compatibility report, never
 instance-style or execution evidence; the compatibility/evaluation blockers stay.
 
 Set `boundedPaintColors: true` with a confirmed `cloneProfile` to request
-the strict native presentation/inline-color evaluator. Unsupported content/cascade
+the bounded native author-color evaluator. Unsupported content/cascade
 rejects capture. The host validates derived source `fill`/`stop-color` against
 live CSSOM at capture and around reads; mutations or mismatches revoke it.
 `svgPaintColors` and `svgPaintSuppressedHosts` are bounded diagnostic counts.
@@ -398,7 +398,13 @@ Inline SVG `color`, `fill` and `stop-color` declarations use retained native CSS
 inline beats presentation attributes, important beats normal, then later equal-
 priority declarations win. CSS winner/source identities stay native. Unsupported
 properties or values reject requested evaluation, even in losing declarations;
-full stylesheet cascade handling remains separate.
+SVG style elements additionally support bounded type/universal/ID/class compound
+selector lists. Rules use matched specificity, importance and source order;
+inline priority applies at equal importance. Each native stylesheet must join
+its exact enabled installation and source on capture/read. Nonmatching sheets
+are validated too. Conditional/external rules and full cascade remain separate.
+Use `host.change()` for CSSOM writes, including change-and-restore; final CSSOM
+equality cannot establish unreported mutation history.
 
 `read().svgComputedSlots` counts retained SVG presentation attributes whose
 computed values were captured and revalidated by the native session. Both capture

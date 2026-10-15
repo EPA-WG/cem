@@ -724,18 +724,51 @@ fn bounded_color_opt_in_cannot_be_repeated_or_added_after_capture() {
 }
 
 #[test]
-fn stylesheet_colors_wait_for_browser_installation_binding() {
+fn stylesheet_colors_bind_enabled_installations_and_revoke_on_drift() {
     let mut s = paint_session_with_sheet(true, true);
     s.confirm_clone_profile("chromium-148-solid-currentcolor-v1", clone_probe)
         .unwrap();
     s.enable_paint_colors().unwrap();
-    let error = s
-        .capture(BASE, slots, &mut OutputObserver { wrong: false })
-        .unwrap_err();
-    assert!(
-        error.contains("stylesheet paint preparation binding required"),
-        "{error}"
-    );
+    s.capture(BASE, slots, &mut OutputObserver { wrong: false })
+        .unwrap();
+    assert_eq!(s.paint_color_counts(), (2, 0));
+    s.read(BASE, slots, &mut OutputObserver { wrong: false })
+        .unwrap();
+    assert!(s
+        .read(BASE, slots, &mut OutputObserver { wrong: true })
+        .is_err());
     assert_eq!(s.paint_color_counts(), (0, 0));
-    assert!(s.html().is_err());
+}
+#[test]
+fn stylesheet_colors_reject_inactive_or_uninstalled_sources() {
+    use cem_ml::stylesheet_execution::*;
+    struct Observer {
+        mode: u8,
+    }
+    impl StylesheetExecutionObserver for Observer {
+        fn environment_revision(&mut self) -> Result<String, String> {
+            Ok("output:1".into())
+        }
+        fn observe(
+            &mut self,
+            slot: StylesheetExecutionSlot<'_>,
+        ) -> Result<StylesheetObservation, String> {
+            let mut o = OutputObserver { wrong: false }.observe(slot)?;
+            match self.mode {
+                0 => o.selected = false,
+                1 => o.conditions_match = false,
+                _ => o.installation = None,
+            }
+            Ok(o)
+        }
+    }
+    for mode in 0..3 {
+        let mut s = paint_session_with_sheet(true, true);
+        s.confirm_clone_profile("chromium-148-solid-currentcolor-v1", clone_probe)
+            .unwrap();
+        s.enable_paint_colors().unwrap();
+        assert!(s.capture(BASE, slots, &mut Observer { mode }).is_err());
+        assert_eq!(s.paint_color_counts(), (0, 0));
+        assert!(s.html().is_err());
+    }
 }

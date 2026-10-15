@@ -36,7 +36,7 @@ export class BrowserStylesheetObservation {
     dispose(): void {
         for (const query of this.#media.values()) query.removeEventListener('change', this.#invalidate);
         this.#media.clear(); this.#expected.clear(); this.#states.clear(); this.#seen.clear();
-        this.#parser.head.replaceChildren();
+        this.#parser.head.replaceChildren(); this.#parser.body.replaceChildren();
     }
     #matches(query: string): boolean {
         if (!query) return true;
@@ -62,10 +62,16 @@ export class BrowserStylesheetObservation {
                 style.cssText = text;
                 expected = style;
             } else {
-                const style = this.#parser.createElement('style');
+                // SVG style elements default to media="all" in Chromium;
+                // preserve both the owner namespace and absent versus empty media.
+                const svg = parent === null && element.namespaceURI === 'http://www.w3.org/2000/svg'
+                    ? this.#parser.createElementNS('http://www.w3.org/2000/svg', 'svg') : undefined;
+                const style = svg ? this.#parser.createElementNS(svg.namespaceURI, 'style') as SVGStyleElement
+                    : this.#parser.createElement('style');
                 style.textContent = text;
-                if (parent === null) style.media = media;
-                this.#parser.head.append(style);
+                if (parent === null && (media || element.hasAttribute('media'))) style.setAttribute('media', media);
+                if (svg) { svg.append(style); this.#parser.body.append(svg); }
+                else this.#parser.head.append(style);
                 if (!style.sheet) throw new Error('Browser source comparison parser unavailable');
                 expected = style.sheet;
             }

@@ -30,7 +30,7 @@ export interface BrowserRecordedOutputOptions {
         readonly name: 'chromium-148-solid-currentcolor-v1';
         readonly observe: (index: number) => readonly number[];
     };
-    /** Strict presentation/inline color derivation; requires cloneProfile. */
+    /** Bounded native author-color derivation with installed-sheet checks; requires cloneProfile. */
     readonly boundedPaintColors?: boolean;
     readonly ownership: 'exclusive';
     readonly policy: BrowserHtmlBasePolicy;
