@@ -3,7 +3,9 @@ use crate::template_execution_record::browser::RecordedOutputSession;
 use cem_ml::html_image_execution::{ImageObservation, ImageResponse};
 use cem_ml::svg_computed_execution::{SvgComputedObserver, SvgComputedSlot};
 use cem_ml::svg_paint_clone_profile::{CloneProbe, CloneProbeObservation};
-use cem_ml::svg_resource_acquisition::SvgResourceResponse;
+use cem_ml::svg_resource_acquisition::{
+    SvgDeliveryCapture, SvgDeliveryResponse, SvgResourceResponse,
+};
 use cem_ml::{
     api::wasm::{match_html_base_slot, BrowserStylesheetObserver},
     browser_stylesheet_sources::BrowserStylesheetSource,
@@ -19,6 +21,7 @@ pub struct WasmRecordedOutputSession {
     image_bytes: usize,
     svg_snapshots: Option<Vec<SvgResourceResponse>>,
     svg_bytes: usize,
+    svg_delivery: Option<SvgDeliveryCapture>,
     capture_started: bool,
 }
 #[wasm_bindgen(js_class = "RecordedOutputSession")]
@@ -33,6 +36,7 @@ impl WasmRecordedOutputSession {
                 image_bytes: 0,
                 svg_snapshots: None,
                 svg_bytes: 0,
+                svg_delivery: None,
                 capture_started: false,
             })
             .map_err(error)
@@ -46,6 +50,7 @@ impl WasmRecordedOutputSession {
     pub fn close(&mut self) {
         self.inner.close();
         self.svg_snapshots = None;
+        self.svg_delivery = None;
         self.capture_started = true;
     }
     #[wasm_bindgen(js_name = "prepareBase")]
@@ -163,6 +168,46 @@ impl WasmRecordedOutputSession {
             }
         }
         Ok(())
+    }
+    #[wasm_bindgen(js_name = "beginSvgDelivery")]
+    pub fn begin_svg_delivery(&mut self) -> Result<(), JsValue> {
+        if self.capture_started
+            || self.svg_delivery.is_some()
+            || self.svg_snapshots.is_none()
+            || self.inner.html().is_err()
+        {
+            self.close();
+            return Err(error("fresh SVG snapshots and delivery required"));
+        }
+        self.svg_delivery = Some(SvgDeliveryCapture::new(self.inner.cancellation()));
+        Ok(())
+    }
+    #[wasm_bindgen(js_name = "acceptSvgDelivery")]
+    pub fn accept_svg_delivery(
+        &mut self,
+        url: String,
+        content_type: String,
+        bytes: Vec<u8>,
+    ) -> Result<(), JsValue> {
+        let result = if self.capture_started {
+            Err("SVG delivery already sealed".into())
+        } else {
+            self.svg_delivery
+                .as_mut()
+                .ok_or_else(|| "SVG delivery not open".to_owned())
+                .and_then(|ledger| {
+                    ledger.accept(SvgDeliveryResponse {
+                        requested_url: url.clone(),
+                        final_url: url,
+                        content_type,
+                        bytes,
+                    })
+                })
+        };
+        if result.is_err() {
+            self.close();
+        }
+        result.map_err(error)
     }
     /// Raw source ingress only; not a browser delivery receipt.
     #[wasm_bindgen(js_name = "beginSvgSnapshots")]
@@ -312,6 +357,17 @@ impl WasmRecordedOutputSession {
                 )
                 .map_err(error)?;
         }
+        if let Some(ledger) = self.svg_delivery.take() {
+            self.inner
+                .bind_svg_delivery(
+                    ledger,
+                    &mut SvgObserver {
+                        revision,
+                        observe: svg,
+                    },
+                )
+                .map_err(error)?;
+        }
         self.verify_images(revision, images)?;
         let result = self
             .inner
@@ -340,6 +396,7 @@ impl WasmRecordedOutputSession {
             self.inner.image_replay_bound(),
             self.inner.svg_computed_slots(),
             self.inner.svg_resource_bindings(),
+            self.inner.svg_delivered_bindings(),
             self.inner.svg_paint_counts(),
             self.inner.svg_paint_content_counts(),
             self.inner.svg_paint_style_counts(),
@@ -391,6 +448,7 @@ impl WasmRecordedOutputSession {
             self.inner.image_replay_bound(),
             self.inner.svg_computed_slots(),
             self.inner.svg_resource_bindings(),
+            self.inner.svg_delivered_bindings(),
             self.inner.svg_paint_counts(),
             self.inner.svg_paint_content_counts(),
             self.inner.svg_paint_style_counts(),
@@ -406,6 +464,7 @@ fn summary(
     replay_bound: bool,
     svg: usize,
     svg_bindings: usize,
+    svg_delivered: usize,
     paint: (usize, usize),
     content: (usize, usize),
     style: (usize, usize),
@@ -425,7 +484,7 @@ fn summary(
             .map(str::to_owned),
         );
     }
-    serde_json::json!({"blockers":blockers, "imageAcquisitions": images, "imageDeliveries": deliveries, "svgComputedSlots": svg, "svgResourceBindings": svg_bindings, "svgPaintRoots": paint.0, "svgPaintLinks": paint.1, "svgPaintServers": content.0, "svgPaintContentNodes": content.1, "svgPaintStyleHosts": style.0, "svgPaintStyleInstances": style.1, "svgCloneProfileConfirmed": clone_profile, "svgPaintColors": colors.0, "svgPaintSuppressedHosts": colors.1}).to_string()
+    serde_json::json!({"blockers":blockers, "imageAcquisitions": images, "imageDeliveries": deliveries, "svgComputedSlots": svg, "svgResourceBindings": svg_bindings, "svgDeliveredBindings": svg_delivered, "svgPaintRoots": paint.0, "svgPaintLinks": paint.1, "svgPaintServers": content.0, "svgPaintContentNodes": content.1, "svgPaintStyleHosts": style.0, "svgPaintStyleInstances": style.1, "svgCloneProfileConfirmed": clone_profile, "svgPaintColors": colors.0, "svgPaintSuppressedHosts": colors.1}).to_string()
 }
 fn error(e: impl AsRef<str>) -> JsValue {
     JsValue::from_str(e.as_ref())

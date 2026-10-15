@@ -3,7 +3,7 @@
  * Messages carry acquired bytes, never native trees or preparation seals. */
 export function installImageDeliveryTransport(scope: ServiceWorkerGlobalScope): void {
     const sessions = new Map<string, {
-        nonce: string; replay: boolean; configured: boolean; routes: Map<string, string>;
+        svgUrls?: Set<string>; nonce: string; replay: boolean; configured: boolean; routes: Map<string, string>;
         port: MessagePort; abort: AbortController; sealed: boolean; bytes: number;
         responses: Map<string, Promise<{ bytes: Uint8Array; type: string }>>;
         receipts: Map<number, { resolve: () => void; reject: () => void }>; next: number;
@@ -21,7 +21,20 @@ export function installImageDeliveryTransport(scope: ServiceWorkerGlobalScope): 
         if (!client || !('id' in client) || !port || client.url !== data.url
             || !Number.isSafeInteger(data.timeout) || data.timeout < 1 || data.timeout > 30_000
             || sessions.has(client.id) || sessions.size >= 32) { port?.postMessage({ kind: 'error' }); return; }
-        const s = { nonce: crypto.randomUUID().replaceAll('-', ''), replay: data.replay === true, configured: false, routes: new Map<string, string>(), port, abort: new AbortController(), sealed: false, bytes: 0,
+        let svgUrls: Set<string> | undefined;
+        if (data.svgUrls !== undefined) {
+            try {
+                if (data.replay || !Array.isArray(data.svgUrls) || !data.svgUrls.length || data.svgUrls.length > 256) throw new Error('Bounded SVG URLs required');
+                svgUrls = new Set<string>();
+                for (const value of data.svgUrls) {
+                    const url = new URL(value);
+                    if (typeof value !== 'string' || value !== url.href || value.length > 4096 || url.origin !== scope.location.origin
+                        || url.hash || url.username || url.password || svgUrls.has(value)) throw new Error('Direct unique SVG URLs required');
+                    svgUrls.add(value);
+                }
+            } catch { port.postMessage({ kind: 'error' }); return; }
+        }
+        const s = { svgUrls, nonce: crypto.randomUUID().replaceAll('-', ''), replay: data.replay === true, configured: false, routes: new Map<string, string>(), port, abort: new AbortController(), sealed: false, bytes: 0,
             responses: new Map<string, Promise<{ bytes: Uint8Array; type: string }>>(),
             receipts: new Map<number, { resolve: () => void; reject: () => void }>(), next: 0,
             timer: setTimeout(() => { port.postMessage({ kind: 'error' }); close(client.id); }, data.timeout),
@@ -65,7 +78,7 @@ export function installImageDeliveryTransport(scope: ServiceWorkerGlobalScope): 
         if (reserved && (!s || !s.replay || !s.routes.has(event.request.url) || event.request.destination !== 'image')) {
             event.respondWith(Response.error()); return;
         }
-        if (!s || event.request.destination !== 'image' || (s.replay && !reserved)) return;
+        if (!s || event.request.destination !== 'image' || (s.replay && !reserved) || (s.svgUrls && !s.svgUrls.has(event.request.url))) return;
         event.respondWith((async () => {
             try {
                 const request = event.request, url = new URL(request.url);
@@ -74,13 +87,14 @@ export function installImageDeliveryTransport(scope: ServiceWorkerGlobalScope): 
                 if (s.sealed || request.method !== 'GET' || url.origin !== scope.location.origin || url.hash
                     || !/^https?:$/u.test(url.protocol) || url.href.length > 4096) throw new Error('Unsupported image delivery');
                 let pending = s.responses.get(url.href);
+                if (s.svgUrls && pending) throw new Error('Duplicate SVG delivery request');
                 if (!pending) {
                     if (s.responses.size >= 256) throw new Error('Image delivery count exceeded');
                     pending = (async () => {
                         const response = await fetch(new Request(source, { headers: request.headers, credentials: request.credentials, mode: request.mode, referrer: request.referrer, referrerPolicy: request.referrerPolicy, integrity: request.integrity, cache: 'no-store', redirect: 'error', signal: s.abort.signal }));
                         const type = response.headers.get('content-type') ?? '';
                         if (response.status !== 200 || response.url !== source || !response.body || type.length > 256
-                            || !/^image\/(?:png|jpeg|gif|webp|avif)(?:;|$)/iu.test(type)) throw new Error('Direct raster response required');
+                            || (s.svgUrls ? type.toLowerCase() !== 'image/svg+xml' : !/^image\/(?:png|jpeg|gif|webp|avif)(?:;|$)/iu.test(type))) throw new Error('Direct raster response required');
                         const reader = response.body.getReader(), chunks: Uint8Array[] = [];
                         let length = 0;
                         try {

@@ -2954,6 +2954,25 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       semantic/source/theme ownership and bounded variation, with no UI or
       public token/default changes. No adapter supplies these native receipts
       yet; browser response identity and consumption remain blocked.
+    - [x] Wire bounded SVG image-response transport to native delivery binding;
+      add native session and Chromium exact-byte, missing-response, changed-body,
+      cancellation and duplicate-request fixtures. Preserve paint-consumption limits.
+      Completed: explicit async svgDelivery service-worker mode pins snapshot
+      URLs, accepts only same-origin image-destination direct SVG responses,
+      awaits native ledger acceptance before release and seals before joining
+      exact bytes to snapshots. Native preparation owns the join; only a
+      delivered-binding count is public. Direct SVG image load/error listeners
+      cover Chromium's non-document load path and clean up on every exit.
+      All 61 preparation tests (one new session fixture), six new Chromium
+      delivery cases and all 193 preparation browser cases pass; full browser
+      regressions, WASM/CLI builds, lint and focused rustfmt/diff checks pass.
+      Native duplicate-receipt tests remain the ambiguity rejection contract.
+      CEM audit retains native semantic/source/theme ownership and bounded
+      variation, with no component defaults, UI or public token changes.
+      Exact same-session SVG image response delivery is verified, but cached
+      or independent fill/stroke selection is not. Response-identity and
+      paint-consumption blockers remain until selection-bound replay and
+      paint compatibility are established; no broad device/AT claims.
     - [ ] Integrate computed SVG byte bindings with preparation/acquisition
       lifetime and verify browser response identity before claiming consumption.
     - [ ] Bind computed CSS/SVG selections to acquired resource bodies before
@@ -2965,9 +2984,9 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, connect the native SVG delivery ledger to a withholding browser transport
-and establish its bounded request/response identity profile with Chromium
-checks before claiming consumed bytes. Extend fragment/embedded SVG dependencies and broader CSS selections
+Next, define and verify cache-isolated SVG replay bound to the actual selected
+consumer, including Chromium paint-reference compatibility, before removing
+paint response-identity/consumption blockers. Extend fragment/embedded SVG dependencies and broader CSS selections
 afterward. General runtime loads and broader cascade evidence remain required
 before complete dependency closure or wider transaction admission.
 Selected image response/candidate binding is available through explicit native

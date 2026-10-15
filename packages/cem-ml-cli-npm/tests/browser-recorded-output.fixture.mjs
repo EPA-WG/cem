@@ -721,6 +721,37 @@ globalThis.runRecordedOutputFixture = async version => {
     await navigator.serviceWorker.ready;
     if (!navigator.serviceWorker.controller) await new Promise(resolve => navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true }));
     try {
+        for (const mode of ['single', 'changed', 'missing', 'abort', 'controller', 'reject']) {
+            await run(`svg-delivery-${mode}`, async ({ captureAsync, request, doc, install }) => {
+                const url = new URL(`/recorded-svg/delivery.svg?execution=${crypto.randomUUID()}`, doc.URL).href;
+                const source = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="red"/></svg>';
+                paintRequest(request, doc, '', `url(${url}#p)`);
+                if (mode !== 'missing') request.sources[0].source = request.sources[0].source.replace('{defs | }', `{defs | }{image @href='${url}' @width=16 @height=16}`);
+                const controller = new AbortController();
+                const options = { svgDelivery: 'service-worker', svgSnapshots: { signal: controller.signal,
+                    responses: [{ requestedUrl: url, finalUrl: url, contentType: 'image/svg+xml', revision: '1', bytes: new TextEncoder().encode(source + (mode === 'changed' ? ' ' : '')) }] } };
+                let receipts = 0, loads = 0, host, error;
+                const installSvg = html => { install(html); for (const node of doc.querySelectorAll('image')) node.addEventListener('load', () => { loads++; }); };
+                try {
+                    host = await captureAsync(options, installSvg, session => {
+                        const accept = session.acceptSvgDelivery.bind(session);
+                        session.acceptSvgDelivery = (actual, type, bytes) => {
+                            check(actual === url && type === 'image/svg+xml' && new TextDecoder().decode(bytes) === source, 'transport response bytes or identity changed');
+                            check(loads === 0, 'SVG response released before native acceptance');
+                            if (mode === 'reject') throw new Error('reject receipt');
+                            accept(actual, type, bytes); receipts++;
+                        };
+                    });
+                } catch (value) { error = value; }
+                if (['changed', 'missing', 'reject'].includes(mode)) { check(error !== undefined, 'invalid delivery published'); return; }
+                if (error) throw error;
+                check(receipts === 1 && loads > 0 && host.read().svgDeliveredBindings === 1, 'native SVG delivery join missing');
+                check(host.read().blockers.includes('svg-resource-browser-response-identity-required') && host.read().blockers.includes('svg-resource-consumption-required'), 'delivery receipt claimed paint selection');
+                if (mode === 'abort') controller.abort();
+                if (mode === 'controller') doc.defaultView.navigator.serviceWorker.dispatchEvent(new Event('controllerchange'));
+                if (mode !== 'single') rejects(() => host.read(), 'transport lifetime revived');
+            });
+        }
         for (const mode of ['single', 'shared', 'empty']) {
             await run(`image-delivery-${mode}`, async ({ captureAsync, request, doc, install }) => {
                 const url = `/recorded-images/delivery.png?execution=${crypto.randomUUID()}`;

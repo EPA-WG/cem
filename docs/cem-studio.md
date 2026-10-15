@@ -4380,13 +4380,32 @@ rechecks it around subsequent validation. Cancellation hides delivered-binding
 counts immediately and the next validation releases resource bindings. Neither
 closing the record nor consuming the ledger aborts a shared transport owner.
 
-This API is native-only groundwork. Its count is diagnostic, never a transferable
-seal. No current browser adapter produces these receipts, and snapshots cannot
-promote themselves to browser delivery evidence. Browser request identity,
-cache/replay behavior, actual response release, fragment selection and painting
-remain unverified; **all existing response-identity and consumption blockers
-remain present**. The next step is to connect a withholding browser transport
-and establish a bounded request/response identity profile with Chromium checks.
+The asynchronous browser host connects this ledger through
+`svgDelivery: 'service-worker'`, together with explicit `svgSnapshots`.
+It requires an already controlling application-owned shared delivery worker;
+registration and scope remain application responsibilities. Raster `imageDelivery`
+and SVG delivery cannot be combined in one preparation. The SVG profile admits
+only same-origin, allowlisted `image`-destination GET requests, direct status-200
+responses with bare SVG MIME, bounded bytes and no redirects. URLs come from the
+pinned snapshot ingress. It does not initiate fetches or rewrite authored URLs.
+
+The worker retains each exact decoded response body, transfers an independent
+copy over its private client-bound channel, and waits for synchronous native
+ledger acceptance before returning that body to the browser. Duplicate requests
+fail rather than merging ambiguous receipts. Preparation waits for composed SVG
+image loads and transport sealing, then joins receipts to native snapshots and
+revalidates before publication. `svgDeliveredBindings` reports the count only.
+Missing receipts, changed bytes, receipt rejection, controller changes, late
+requests, acquisition cancellation and preparation disposal fail closed.
+
+This establishes same-session SVG image **response delivery**, not the response
+chosen by an independently observed fill/stroke reference. Cached resources can
+bypass the worker; absent receipts therefore reject. A delivered SVG image at
+the same URL does not prove a paint reference consumed it. No caller can turn a
+snapshot or diagnostic count into a transferable seal. **All existing paint
+response-identity and consumption blockers remain present.** A cache-isolated,
+selection-bound replay profile and Chromium paint compatibility evidence are
+still required before those blockers can be removed.
 
 CEM audit: authored source and theme ownership remain separate from observations
 and acquired bytes. No copied computed value becomes a declaration, no component

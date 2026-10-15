@@ -10,7 +10,7 @@ export class BrowserImageDelivery {
     readonly #changed = () => { this.dispose(); this.revoke(); };
     constructor(readonly document: Document, readonly accept: (url: string, type: string, bytes: Uint8Array) => void,
         readonly revoke: () => void) {}
-    async open(deadline: number, replay = false): Promise<void> {
+    async open(deadline: number, replay = false, svgUrls?: readonly string[]): Promise<void> {
         const container = this.document.defaultView?.navigator.serviceWorker, controller = container?.controller;
         const timeout = Math.floor(deadline - performance.now());
         if (this.#closed || this.#port || !container || !controller || timeout <= 0) throw new Error('Active image delivery service worker required');
@@ -42,7 +42,7 @@ export class BrowserImageDelivery {
         channel.port1.onmessageerror = this.#changed;
         channel.port1.start();
         const timer = setTimeout(this.#changed, timeout);
-        controller.postMessage({ kind: 'cem-image-delivery-open', url: this.document.URL, timeout, replay }, [channel.port2]);
+        controller.postMessage({ kind: 'cem-image-delivery-open', url: this.document.URL, timeout, replay, svgUrls }, [channel.port2]);
         try { await ready; this.validate(); } finally { clearTimeout(timer); }
     }
     #wait(): Promise<void> {

@@ -878,3 +878,32 @@ fn svg_snapshot_capture_rejects_missing_evidence_repetition_and_cancelled_owner(
         .is_err());
     assert!(s.html().is_err());
 }
+
+#[test]
+fn svg_transport_ledger_binds_only_inside_live_preparation() {
+    use cem_ml::svg_resource_acquisition::{SvgDeliveryCapture, SvgDeliveryResponse};
+    let (mut s, _) = bound_svg_session();
+    let mut ledger = SvgDeliveryCapture::new(s.cancellation());
+    let response = svg_response();
+    ledger
+        .accept(SvgDeliveryResponse {
+            requested_url: response.requested_url,
+            final_url: response.final_url,
+            content_type: response.content_type,
+            bytes: response.bytes,
+        })
+        .unwrap();
+    s.bind_svg_delivery(ledger, &mut SvgObserver(SVG_RESOURCE_VALUE))
+        .unwrap();
+    s.capture(BASE, slots, &mut OutputObserver { wrong: false })
+        .unwrap();
+    assert!(s.svg_delivered_bindings() > 0);
+    s.close();
+    assert_eq!(s.svg_delivered_bindings(), 0);
+    assert!(s
+        .bind_svg_delivery(
+            SvgDeliveryCapture::new(Default::default()),
+            &mut SvgObserver(SVG_RESOURCE_VALUE)
+        )
+        .is_err());
+}

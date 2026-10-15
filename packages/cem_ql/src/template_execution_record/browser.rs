@@ -11,7 +11,9 @@ use cem_ml::svg_paint_colors::BoundedPaintColors;
 use cem_ml::svg_paint_content::SvgPaintContentPlan;
 use cem_ml::svg_paint_dependencies::{PaintTarget, SvgPaintPlan};
 use cem_ml::svg_paint_style::SvgPaintStylePlan;
-use cem_ml::svg_resource_acquisition::{SvgResourceRecord, SvgResourceResponse};
+use cem_ml::svg_resource_acquisition::{
+    SvgDeliveryCapture, SvgResourceRecord, SvgResourceResponse,
+};
 use cem_ml::{
     css_emission::CssManagedScope,
     css_import_snapshot::{CssSnapshotSource, CssSourceSnapshot},
@@ -741,6 +743,29 @@ impl RecordedOutputSession {
             s.svg_resources = Some(resources);
             Ok(())
         })
+    }
+    pub fn bind_svg_delivery(
+        &mut self,
+        ledger: SvgDeliveryCapture,
+        observer: &mut impl SvgComputedObserver,
+    ) -> Result<(), String> {
+        self.run(|s| {
+            if s.stage != Stage::ComposedBase {
+                return Err("composed SVG delivery binding required".into());
+            }
+            s.svg_resources
+                .as_mut()
+                .ok_or("SVG snapshots required")?
+                .bind_delivery(ledger, &mut s.svg_host, observer)
+        })
+    }
+    pub fn svg_delivered_bindings(&self) -> usize {
+        if self.svg_resource_bindings() == 0 {
+            return 0;
+        }
+        self.svg_resources
+            .as_ref()
+            .map_or(0, |r| r.delivered_bindings())
     }
     /// Diagnostic only; bytes and retained source evidence remain native.
     pub fn svg_resource_bindings(&self) -> usize {
