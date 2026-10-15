@@ -2757,8 +2757,33 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       style-evaluation and execution-evidence blockers remain; actual instance
       styles and consumed resources still need separate evidence. Physical
       device/AT and visual/forced-color acceptance remain independent.
-    - [ ] Evaluate bounded paint-instance styles with retained declaration,
-      inheritance and winning-source provenance under the selected profile.
+    - [x] Evaluate the first bounded paint-instance style subset with retained
+      declaration/inheritance provenance under the selected profile; full-cascade
+      winning-source evidence remains a separate requirement.
+      Fixture scope: explicit named/hex colors, currentColor declaration ancestry,
+      own versus inherited flat gradient/pattern content, descriptive-pattern
+      suppression, unsupported cascade/content/value rejection, work bounds and
+      original inventory lifetime.
+      Completed: native BoundedPaintColors retains the style plan and selected
+      profile, derives flat stop-color/fill values from six named colors,
+      three/six-digit hex and currentColor, and records paint/color declaration
+      IDs plus consulted ancestors. Own and single-hop same-kind templates are
+      bounded; a title-only pattern host is recorded as suppressed without
+      dropping source dependencies. Competing CSS/dynamic content, unresolved
+      values, missing inherited color and unsupported shapes fail atomically.
+      All 57 focused native SVG tests pass, including nine new evaluator fixtures;
+      focused rustfmt and diff checks pass. No browser/WASM integration changed
+      in this native-only step. CEM audit: semantic source/theme ownership stays
+      native, consumer ancestry never substitutes for paint-server ancestry, and
+      no defaults or tokens change. These are authored-color derivations, not
+      certified cascade winners or rendered pixels; full-cascade, forced-color,
+      execution and resource evidence remain open.
+      Contract: docs/cem-studio.md#bounded-paint-instance-color-derivations.
+    - [ ] Bind bounded color derivations to browser preparation and add Chromium
+      parity/mutation fixtures for literal colors and currentColor provenance.
+    - [ ] Extend instance-style evaluation beyond the presentation-only subset
+      with retained cascade/winning-declaration evidence; do not infer winners
+      from computed values or compatibility reports.
     - [ ] Bind computed CSS/SVG selections to acquired resource bodies before
       claiming rendered-resource closure.
     - [ ] Record remaining computed CSS/SVG and general runtime resource loads,
@@ -2768,11 +2793,10 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, evaluate bounded paint-instance styles with retained declaration,
-inheritance and winning-source provenance under the selected profile, starting
-with explicit colors/currentColor fixtures. Then bind computed CSS/SVG selections
-to acquired resource bodies. General runtime loads remain required before
-claiming complete dependency closure.
+Next, bind bounded paint-color derivations to browser preparation and verify
+Chromium parity and mutation lifetimes. Then extend retained cascade/winning-source
+coverage and bind computed CSS/SVG selections to acquired resource bodies.
+General runtime loads remain required before claiming complete dependency closure.
 Selected image response/candidate binding is available through explicit native
 replay; unchanged-URL observation deliberately retains its historical-identity
 blocker.

@@ -3994,6 +3994,62 @@ and style-evaluation blockers remain, and opted-in sessions additionally retain
 SVG 2 structural plan or the historical resource-identity requirements.
 No new UI behavior, public token or theme default is introduced.
 
+### Bounded paint-instance color derivations
+
+`cem_ml::svg_paint_colors::BoundedPaintColors::evaluate` evaluates a small
+author-color subset over a retained `Arc<SvgPaintStylePlan>` and an explicitly
+selected `SvgPaintCloneProfile`. It retains both. This is a native derivation
+candidate, not a browser computed-style snapshot, full-cascade winner certificate
+or rendering receipt. The six-probe compatibility catalog remains unchanged;
+it does not automatically certify the additional value cases admitted here.
+
+The initial content profile allows one direct SVG `stop` in a gradient or one
+direct SVG `rect` in a pattern. Own content and one local same-kind template hop
+are supported. Indirect links, unresolved selection, cross-kind templates,
+multiple source children and nested elements fail atomically. A template pattern
+whose receiving host contains only one SVG `title` records a suppressed host,
+consistent with the pinned observation; the original source/template dependency
+plans remain retained, and source entries are still evaluated independently.
+
+Each admitted child requires an explicit `stop-color` or `fill` presentation
+attribute. The shared native CSS tokenizer accepts a single color token:
+`red`, `blue`, `green`, `black`, `white`, `transparent`, three- or six-digit
+hexadecimal sRGB, or `currentColor`. Keyword case and CSS comments follow that
+tokenizer. Other named colors, color functions, variables, CSS-wide keywords,
+URL paints, context paint and trailing tokens remain unsupported in this step.
+
+A literal yields its RGBA value and original paint-attribute ID. For
+`currentColor`, evaluation walks the source child's SVG lexical ancestry until
+it reaches a supported literal `color` attribute. A `color=currentColor`
+declaration forwards that lookup to the parent, following the
+[CSS Color contract](https://www.w3.org/TR/css-color/#valdef-color-currentcolor).
+Every consulted ancestor and color declaration is retained nearest-first.
+No implicit initial/system color is invented. The receiving host and source
+child IDs remain distinct in each result; source ancestry supplies the pinned
+Chromium derivation candidate for inherited content, while the separate SVG 2
+instance-parent plan remains intact. Consumer graphics styles are never used as
+a substitute for paint-server inheritance.
+
+Before evaluation, the retained document is scanned conservatively for competing
+author CSS or dynamic content. Style/link/script/template/animation elements,
+processing instructions, inline style attributes and event-handler attributes
+reject the entire evaluation, even when apparently unrelated. This deliberately
+narrow gate avoids silently selecting a presentation attribute over an authored
+rule. User/UA styles, injected CSSOM, environment overrides, forced colors and
+live execution still require separate evidence. Results preserve declaration
+IDs and source maps as provenance; they do not claim a full-cascade winner.
+
+The underlying plan bounds hosts at 256. Evaluation additionally caps ancestry
+at 128 nodes and total work at one million units; document scans, attribute value
+bytes, repeated lookups and inheritance steps consume the caller's work budget.
+Failures return no partial result. Color values do not incorporate stop opacity,
+geometry, compositing, resource acquisition or final pixels. Source plans and
+suppressed-host dependencies remain subject to their original inventory's live
+host/resolver validation. Browser binding and parity for this evaluator are
+pending; color-parity, execution, winning-source, rendering and acquisition
+blockers remain explicit. No theme tokens, component defaults or UI behavior
+change.
+
 ### Shared browser stylesheet observation host
 
 `BrowserHtmlBaseHost.captureStylesheets(responses, { ownership: 'exclusive' })`
