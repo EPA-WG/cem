@@ -44,11 +44,14 @@ fn literal_color_retains_its_exact_declaration_and_native_tree() {
     assert!(Arc::ptr_eq(e.plan(), &p));
     let v = &e.colors()[0];
     assert_eq!(v.rgba, [26, 43, 60, 255]);
-    assert!(v.color_declarations.is_empty());
+    assert!(v.color_winners.is_empty());
     let tree = &p.content().paint().inventory().document().tree;
-    assert_eq!(tree.node(v.paint_declaration).unwrap().value, "#1a2b3c");
+    assert_eq!(
+        tree.node(v.paint_winner.document_source()).unwrap().value,
+        "#1a2b3c"
+    );
     assert!(!tree
-        .node(v.paint_declaration)
+        .node(v.paint_winner.document_source())
         .unwrap()
         .source
         .frames
@@ -62,8 +65,16 @@ fn cloned_currentcolor_uses_source_ancestry_without_losing_host_identity() {
     assert_ne!(e.colors()[0].host, e.colors()[1].host);
     assert_eq!(e.colors()[0].source, e.colors()[1].source);
     assert_eq!(
-        e.colors()[0].color_declarations,
-        e.colors()[1].color_declarations
+        e.colors()[0]
+            .color_winners
+            .iter()
+            .map(|w| w.document_source())
+            .collect::<Vec<_>>(),
+        e.colors()[1]
+            .color_winners
+            .iter()
+            .map(|w| w.document_source())
+            .collect::<Vec<_>>()
     );
     assert!(e
         .blockers()
@@ -73,7 +84,7 @@ fn cloned_currentcolor_uses_source_ancestry_without_losing_host_identity() {
 fn currentcolor_on_color_inherits_and_records_every_consulted_declaration() {
     let e = evaluate("<svg xmlns='http://www.w3.org/2000/svg' color='#0f0'><linearGradient id='a' color='currentColor'><stop color='currentColor' stop-color='currentColor'/></linearGradient><path fill='url(#a)'/></svg>").unwrap();
     assert_eq!(e.colors()[0].rgba, [0, 255, 0, 255]);
-    assert_eq!(e.colors()[0].color_declarations.len(), 3);
+    assert_eq!(e.colors()[0].color_winners.len(), 3);
     assert_eq!(e.colors()[0].inheritance_nodes.len(), 3);
 }
 #[test]
@@ -87,7 +98,7 @@ fn pattern_descriptive_host_is_suppressed_but_its_source_is_retained() {
 #[test]
 fn unsupported_cascade_values_and_shapes_fail_without_partial_evaluation() {
     for body in [
-        "<style>stop{stop-color:blue}</style><linearGradient id='a'><stop stop-color='red'/></linearGradient>",
+        "<style>g stop{stop-color:blue}</style><linearGradient id='a'><stop stop-color='red'/></linearGradient>",
         "<linearGradient id='a'><stop style='filter:blur(1px)' stop-color='red'/></linearGradient>",
         "<linearGradient id='a'><stop stop-color='var(--paint)'/></linearGradient>",
         "<linearGradient id='a'><stop stop-color='currentColor'/></linearGradient>",
@@ -182,7 +193,7 @@ fn local_color_override_wins_within_the_presentation_only_profile() {
     let value = &e.colors()[0];
     assert_eq!(value.rgba, [0, 0, 255, 255]);
     assert_eq!(value.inheritance_nodes, vec![value.source]);
-    assert_eq!(value.color_declarations.len(), 1);
+    assert_eq!(value.color_winners.len(), 1);
 }
 
 #[test]
@@ -192,8 +203,8 @@ fn inline_winner_retains_css_declaration_and_host_attribute() {
     assert_eq!(c.rgba, [0, 0, 255, 255]);
     assert_eq!(c.property, "stop-color");
     let winner = &c.paint_winner;
-    let css = winner.css.as_ref().unwrap();
-    let node = css.node(winner.css_declaration.unwrap()).unwrap();
+    let css = winner.css().unwrap();
+    let node = css.node(winner.css_declaration().unwrap()).unwrap();
     assert!(!node.source.frames.is_empty());
     assert!(node.range.length > 0);
     assert_eq!(winner.order, 0);
@@ -205,7 +216,7 @@ fn inline_winner_retains_css_declaration_and_host_attribute() {
             .inventory()
             .document()
             .tree
-            .node(winner.attribute)
+            .node(winner.document_source())
             .unwrap()
             .value,
         "stop-color:blue"
@@ -246,7 +257,7 @@ fn inline_only_paint_and_currentcolor_inheritance_keep_both_winners() {
     let e=evaluate("<svg xmlns='http://www.w3.org/2000/svg'><pattern id='a' color='red' style='color:blue!important'><rect style='fill:currentColor'/></pattern><path fill='url(#a)'/></svg>").unwrap();
     let c = &e.colors()[0];
     assert_eq!(c.rgba, [0, 0, 255, 255]);
-    assert!(c.paint_winner.css.is_some());
+    assert!(c.paint_winner.css().is_some());
     assert!(c.color_winners[0].important);
     assert_eq!(c.color_winners.len(), 1);
 }
@@ -273,5 +284,5 @@ fn unsupported_or_invalid_inline_declarations_do_not_fall_back_silently() {
 fn empty_inline_style_keeps_presentation_provenance() {
     let e=evaluate("<svg xmlns='http://www.w3.org/2000/svg'><pattern id='a'><rect fill='blue' style='/*empty*/'/></pattern><path fill='url(#a)'/></svg>").unwrap();
     assert_eq!(e.colors()[0].rgba, [0, 0, 255, 255]);
-    assert!(e.colors()[0].paint_winner.css.is_none());
+    assert!(e.colors()[0].paint_winner.css().is_none());
 }

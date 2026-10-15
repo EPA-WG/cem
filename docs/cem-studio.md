@@ -4012,16 +4012,17 @@ consistent with the pinned observation; the original source/template dependency
 plans remain retained, and source entries are still evaluated independently.
 
 Each admitted child requires an explicit `stop-color` or `fill` declaration
-from a presentation attribute or a retained inline style. The shared native CSS
-tokenizer accepts a single color token:
+from a presentation attribute, retained inline style, or supported native
+stylesheet rule as specified below. The shared native CSS tokenizer accepts a
+single color token:
 `red`, `blue`, `green`, `black`, `white`, `transparent`, three- or six-digit
 hexadecimal sRGB, or `currentColor`. Keyword case and CSS comments follow that
 tokenizer. Other named colors, color functions, variables, CSS-wide keywords,
 URL paints, context paint and trailing tokens remain unsupported in this step.
 
-A literal yields its RGBA value and original paint-attribute ID. For
+A literal yields its RGBA value and tagged declaration origin. For
 `currentColor`, evaluation walks the source child's SVG lexical ancestry until
-it reaches a supported literal `color` attribute. A `color=currentColor`
+it reaches a supported literal `color` declaration. A `color=currentColor`
 declaration forwards that lookup to the parent, following the
 [CSS Color contract](https://www.w3.org/TR/css-color/#valdef-color-currentcolor).
 Every consulted ancestor and color declaration is retained nearest-first.
@@ -4032,10 +4033,12 @@ instance-parent plan remains intact. Consumer graphics styles are never used as
 a substitute for paint-server inheritance.
 
 Before evaluation, the retained document is scanned conservatively for competing
-author CSS or dynamic content. Style/link/script/template/animation elements,
-processing instructions and event-handler attributes reject the entire evaluation,
-even when apparently unrelated. SVG inline styles are admitted only through the
-bounded retained-declaration path below; unretained or non-SVG inline owners fail.
+author CSS or dynamic content. Unretained style elements, link/script/template/
+animation elements, processing instructions and event-handler attributes reject
+the entire evaluation, even when apparently unrelated. SVG inline styles and
+eligible SVG style elements use the bounded retained-declaration paths below;
+unretained or non-SVG owners fail. Browser preparation admits only the inline
+path until installed-sheet binding is verified.
 This deliberately narrow gate avoids silently selecting a presentation attribute
 over an authored rule. User/UA styles, injected CSSOM, environment overrides, forced colors and
 live execution still require separate evidence. Results preserve declaration
@@ -4096,13 +4099,13 @@ not displaced by an ancestor's important color. Inline `color=currentColor`
 continues to forward to the parent, and paint `currentColor` uses that selected
 color chain.
 
-Each result carries `property` explicitly and a `PaintDeclarationWinner`:
-the original document attribute, retained CSS tree and CSS declaration node
-(for inline winners), important flag and zero-based declaration order excluding
-comments. Presentation winners retain their document attribute with no CSS-local
-declaration identity. Color inheritance records corresponding winners as well
-as the consulted ancestor/attribute chain. The original inventory retains losing
-declarations and source frames/ranges, so no CSS node ID is confused with a
+Each result carries `property` explicitly and a `PaintDeclarationWinner` with
+a tagged `PaintDeclarationOrigin`: the original presentation attribute, or the
+inline attribute plus retained CSS tree and declaration node. Winners carry an
+important flag and zero-based declaration order excluding comments. Presentation
+winners have no CSS-local declaration identity. Color inheritance records
+corresponding tagged winners and the consulted ancestor chain. The original
+inventory retains losing declarations and source frames/ranges, so no CSS node ID is confused with a
 document node ID. Source CSSOM validation requests the result's property rather
 than interpreting an inline `style` attribute as a property name.
 
@@ -4117,18 +4120,20 @@ but unsupported declaration and silently fall back to a presentation attribute.
 Chromium fixtures check CSSOM and isolated raster agreement for normal/important
 overrides, duplicate order, inline-only paint and currentColor inheritance. Style
 and priority changes restored before read still revoke preparation. Stylesheet
-rules, user/UA overrides, layers, selector specificity and general cascade
-winning-source evidence remain outside this subset; existing blockers remain.
+rules and selector specificity are handled by the separate native extension
+below. User/UA overrides, layers and general cascade winning-source evidence
+remain outside these subsets; existing blockers remain.
 The change enables retained author override provenance without adding component
 styles, theme defaults or public tokens.
 
 ### Bounded stylesheet matching and paint cascade contract
 
-Status: design accepted for the next implementation increment. The current
-bounded evaluator still rejects style elements. This contract does not widen
-browser preparation or remove any existing evidence blocker by itself.
+Status: implemented in the native bounded evaluator; browser preparation still
+rejects stylesheet color evaluation until installation binding is verified.
+Existing evidence blockers remain. Native matching consumes retained CSS nodes
+in `svg_paint_colors::cascade`; no new selector parser or browser DTO is added.
 
-The first rule profile will admit document-owned SVG `style` elements with
+The first rule profile admits document-owned SVG `style` elements with
 absent or CSS type, no title and no outer media, alongside the existing SVG
 presentation attributes and inline declarations. Each style must have exactly
 one successful `DocumentStylesheetOccurrence` from the same retained inventory.
@@ -4186,26 +4191,31 @@ CSS declaration, including nonmatching rules and losers, without implementing
 browser error recovery. Only `color`, `fill` and `stop-color` and the current
 bounded value grammar are admitted.
 
-Winner provenance must use a native tagged origin: presentation attribute,
+Winner provenance uses a native tagged origin: presentation attribute,
 inline declaration, or stylesheet rule declaration. Each CSS origin retains its
 original document occurrence, CSS tree Arc and declaration ID; a rule origin
 also retains rule ID, matching selector IDs, specificity, importance and
 sheet/rule/declaration ordinals. Document IDs and CSS-local IDs must remain
-separate. Refactor the existing attribute-only winner and derived
-`paint_declaration`/`color_declarations` fields rather than putting a style-element
-ID into a field claiming to be an attribute. Retain evaluated nonmatching and
-losing rules through the same inventory, and keep the consulted element/color
+separate. `PaintDeclarationOrigin` replaces the attribute-only winner; redundant
+`paint_declaration`/`color_declarations` fields are removed. `paint_winner` and
+`color_winners` retain complete tagged origins. `document_source()` explicitly
+returns a document attribute or style-element owner; `css()` and
+`css_declaration()` access the optional CSS-local identity. Evaluated nonmatching
+and losing rules remain retained through the same inventory, along with the
+consulted element/color
 inheritance chain. Equal RGBA values with different winners must still preserve
 different origins. Native plans own all evidence; browser summaries expose
 counts only and cannot supply selector matches or winners.
 
-Use at most 256 style elements, 1024 rules, 4096 selector branches, 64 simple
+The evaluator admits at most 256 style elements, 1024 rules, 4096 selector branches, 64 simple
 selectors per compound and 4096 total CSS declarations across inline styles and
 sheets. These are additional caps within the existing one-million-unit work
 budget, 256-host and 128-ancestor bounds. Charge validation, value bytes,
 selector comparisons, class scans and repeated inheritance lookups to the same
 budget. Exhaustion, unsupported structure or missing provenance fails atomically
-with no partial plan. Reusing an immutable rule index must not bypass lifetime
+with no partial plan. Shared CSS import limits apply before these aggregate
+limits; native bound fixtures spread declarations/rules across small sheets.
+Reusing an immutable rule index must not bypass lifetime
 validation or budget accounting for matching work.
 
 Browser integration is a separate required step. Before publication, join every
@@ -4220,12 +4230,13 @@ restore mutations. Disposal and pool closure release both rule and color plans.
 Chromium fixtures must establish source CSSOM and isolated SVG raster parity;
 neither proves browser-private clone identity or actual consumed resource bytes.
 
-Acceptance proceeds through native fixtures first: namespace/case/escape and
+Native fixtures verify namespace/case/escape and
 class matching; selector-list matched specificity; universal versus presentation,
 inline versus rules at both importance levels, cross-sheet order and local
 inheritance; retained source identities even for identical colors; rejected
-selectors/rules/declarations; bounds, cancellation and stale inventory. Then
-browser fixtures cover those priorities and restored DOM/CSSOM mutations in
+selectors/rules/declarations; bounds and stale inventory. Native preparation
+fixtures verify rejection/closure until browser binding exists. Browser fixtures
+remain required for those priorities and restored DOM/CSSOM mutations in
 both direct and worker preparation. Broader selectors, HTML ancestry, layers,
 conditional/external rules and complete origin/environment handling require
 separate profile extensions. Full-cascade winning-source, clone-execution,

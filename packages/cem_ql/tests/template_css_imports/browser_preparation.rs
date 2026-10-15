@@ -498,6 +498,9 @@ fn paint_session() -> RecordedOutputSession {
     paint_session_with_clone(false)
 }
 fn paint_session_with_clone(clone: bool) -> RecordedOutputSession {
+    paint_session_with_sheet(clone, false)
+}
+fn paint_session_with_sheet(clone: bool, sheet: bool) -> RecordedOutputSession {
     let mut value: serde_json::Value = serde_json::from_str(&request()).unwrap();
     value["choices"] = serde_json::json!([]);
     value["sources"] = serde_json::json!([{"uri": ROOT, "revision":"1", "contentType":"text/cem-ml", "source": format!("{{result-element @name=html @namespace='http://www.w3.org/1999/xhtml' | {{result-element @name=head @namespace='http://www.w3.org/1999/xhtml' | {{result-element @name=base @namespace='http://www.w3.org/1999/xhtml' | {{result-attribute @name=href | {BASE}}}}}}}{{result-element @name=body @namespace='http://www.w3.org/1999/xhtml' | {{svg @xmlns='http://www.w3.org/2000/svg' | {{linearGradient @id=a @href='#b' | {{stop @stop-color=red}}}}{{linearGradient @id=b}}{{path @fill='url(#a) red'}}}}}}}}")}]);
@@ -509,6 +512,16 @@ fn paint_session_with_clone(clone: bool) -> RecordedOutputSession {
             .replace(
                 "{linearGradient @id=a @href='#b' | {stop @stop-color=red}}{linearGradient @id=b}",
                 "{linearGradient @id=a @href='#b'}{linearGradient @id=b | {stop @stop-color=red}}",
+            )
+            .into();
+    }
+    if sheet {
+        value["sources"][0]["source"] = value["sources"][0]["source"]
+            .as_str()
+            .unwrap()
+            .replace(
+                "{path @fill=",
+                "{style |```stop{stop-color:red}```}{path @fill=",
             )
             .into();
     }
@@ -708,4 +721,21 @@ fn bounded_color_opt_in_cannot_be_repeated_or_added_after_capture() {
         .unwrap();
     assert_eq!(s.paint_color_counts(), (0, 0));
     assert!(s.enable_paint_colors().is_err());
+}
+
+#[test]
+fn stylesheet_colors_wait_for_browser_installation_binding() {
+    let mut s = paint_session_with_sheet(true, true);
+    s.confirm_clone_profile("chromium-148-solid-currentcolor-v1", clone_probe)
+        .unwrap();
+    s.enable_paint_colors().unwrap();
+    let error = s
+        .capture(BASE, slots, &mut OutputObserver { wrong: false })
+        .unwrap_err();
+    assert!(
+        error.contains("stylesheet paint preparation binding required"),
+        "{error}"
+    );
+    assert_eq!(s.paint_color_counts(), (0, 0));
+    assert!(s.html().is_err());
 }

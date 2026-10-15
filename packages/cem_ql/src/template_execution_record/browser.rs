@@ -912,6 +912,20 @@ impl RecordedOutputSession {
             let content = Arc::new(SvgPaintContentPlan::new(paint.clone(), 1_000_000)?);
             let style = Arc::new(SvgPaintStylePlan::new(content.clone(), 1_000_000)?);
             let colors = if s.paint_colors_enabled {
+                // Native rule matching is not installed-sheet execution evidence.
+                // Keep the browser profile bounded to presentation/inline until
+                // rule plans join the exact observed stylesheet installations.
+                if document.stylesheets().iter().any(|sheet| {
+                    document
+                        .document()
+                        .tree
+                        .node(sheet.source_node)
+                        .is_none_or(|node| {
+                            node.kind != cem_ml::parser::tree::CemTreeNodeKind::Attribute
+                        })
+                }) {
+                    return Err("stylesheet paint preparation binding required".into());
+                }
                 Some(BoundedPaintColors::evaluate(
                     style.clone(),
                     s.clone_profile.ok_or("paint color profile missing")?,
