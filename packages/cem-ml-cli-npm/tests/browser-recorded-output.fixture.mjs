@@ -139,7 +139,7 @@ globalThis.runRecordedOutputFixture = async version => {
             const installer = html => { if (mode === 'copy') bytes.fill(0); install(html); };
             const host = ['async', 'pool'].includes(mode) ? await captureAsync(options, installer) : capture(options, installer);
             const result = host.read();
-            check(result.svgFragmentTargets === 1 && result.svgResourceBindings === 1, 'native fragment target count differs');
+            check(result.svgFragmentTargets === 1 && result.svgResourceBindings === 1 && result.svgPaintTemplateBindings === 0 && result.svgPaintTemplateLinks === 0, 'native fragment-only counts differ');
             check(!result.blockers.includes('svg-resource-fragment-target-required'), 'validated target remained unresolved');
             check(result.blockers.includes('svg-resource-consumption-required')
                 && result.blockers.includes('svg-resource-transitive-dependencies-required')
@@ -164,6 +164,78 @@ globalThis.runRecordedOutputFixture = async version => {
                 if (mode === 'closed') session.close();
                 rejects(() => session.enableSvgFragmentValidation(), 'invalid fragment opt-in accepted');
                 rejects(() => session.html(), 'invalid opt-in retained session');
+            } finally { session.close(); session.free(); }
+        });
+    }
+    for (const mode of ['chain', 'pattern', 'xlink', 'precedence', 'leaf', 'both', 'abort', 'mutation', 'base', 'policy', 'pool', 'async', 'copy', 'cycle', 'missing', 'duplicate', 'kind', 'xml-base', 'alias', 'no-snapshots']) {
+        await run(`svg-template-preparation-${mode}`, async ({ request, doc, view, capture, captureAsync, pool, policy, install }) => {
+            let child = '<linearGradient id="p" href="#q"/><radialGradient id="q" href="#r"/><linearGradient id="r"><stop stop-color="red"/></linearGradient>';
+            if (mode === 'pattern') child = '<pattern id="p" href="#q"/><pattern id="q" href="#r"/><pattern id="r" patternUnits="userSpaceOnUse" width="16" height="16"><rect width="16" height="16" fill="red"/></pattern>';
+            if (mode === 'xlink') child = child.replace('id="p" href=', 'id="p" xlink:href=');
+            if (mode === 'precedence') child = child.replace('id="p" href=', 'id="p" xlink:href="#blue" href=') + '<linearGradient id="blue"><stop stop-color="blue"/></linearGradient>';
+            if (mode === 'leaf') child = '<linearGradient id="p"><stop stop-color="red"/></linearGradient>';
+            if (mode === 'cycle') child = '<linearGradient id="p" href="#q"/><radialGradient id="q" href="#p"/>';
+            if (mode === 'missing') child = '<linearGradient id="p" href="#missing"/>';
+            if (mode === 'duplicate') child += '<linearGradient id="q"/>';
+            if (mode === 'kind') child = '<linearGradient id="p" href="#q"/><pattern id="q"/>';
+            if (mode === 'xml-base') child = '<g xml:base="https://other.test/">' + child + '</g>';
+            if (mode === 'alias') child = child.replace('href="#q"', 'href="paint.svg#q"');
+            const xml = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="16" height="16"><defs>${child}</defs><rect width="16" height="16" fill="url(#p)"/></svg>`;
+            const invalid = ['cycle', 'missing', 'duplicate', 'kind', 'xml-base', 'alias', 'no-snapshots'].includes(mode);
+            if (!invalid) {
+                // Independent Chromium SVGAnimatedString href resolution and
+                // isolated snapshot rendering; never a production paint receipt.
+                const parsed = new view.DOMParser().parseFromString(xml, 'image/svg+xml');
+                let target = parsed.getElementById('p'), links = 0;
+                while (target.href.baseVal) {
+                    check(links < 3 && target.href.baseVal.startsWith('#'), 'unexpected browser chain');
+                    target = parsed.getElementById(target.href.baseVal.slice(1));
+                    check(target, 'browser template target absent'); links++;
+                }
+                check(links === (mode === 'leaf' ? 0 : 2), 'Chromium href chain differs');
+                const url = URL.createObjectURL(new Blob([xml], { type: 'image/svg+xml' }));
+                try {
+                    const image = new Image(); image.src = url; await image.decode();
+                    const canvas = document.createElement('canvas'); canvas.width = canvas.height = 16;
+                    const context = canvas.getContext('2d'); context.drawImage(image, 0, 0);
+                    check([...context.getImageData(8, 8, 1, 1).data].join(',') === '255,0,0,255', 'Chromium template paint differs');
+                } finally { URL.revokeObjectURL(url); }
+            }
+            paintRequest(request, doc, '', `url(${doc.URL}#p)`);
+            const controller = new AbortController(), bytes = new TextEncoder().encode(xml);
+            const options = { validateSvgPaintTemplates: true, svgSnapshots: { signal: controller.signal,
+                responses: [{ requestedUrl: doc.URL, finalUrl: doc.URL, revision: 'template:1', contentType: 'image/svg+xml', bytes }] } };
+            if (mode === 'both') options.validateSvgFragments = true;
+            if (mode === 'no-snapshots') delete options.svgSnapshots;
+            if (invalid) { rejects(() => capture(options), 'invalid template preparation accepted'); return; }
+            const installer = html => { if (mode === 'copy') bytes.fill(0); install(html); };
+            const host = ['async', 'pool'].includes(mode) ? await captureAsync(options, installer) : capture(options, installer);
+            const result = host.read();
+            check(result.svgPaintTemplateBindings === 1 && result.svgPaintTemplateLinks === (mode === 'leaf' ? 0 : 2)
+                && result.svgFragmentTargets === 1, 'native traversal counts differ');
+            check(result.blockers.includes('svg-resource-consumption-required')
+                && result.blockers.includes('svg-resource-transitive-dependencies-required')
+                && result.blockers.includes('svg-resource-browser-response-identity-required'), 'traversal claimed closure');
+            if (mode === 'abort') controller.abort();
+            if (mode === 'mutation') { const rect = doc.querySelector('rect'); const fill = rect.getAttribute('fill'); rect.setAttribute('fill', 'red'); rect.setAttribute('fill', fill); }
+            if (mode === 'base') doc.querySelector('base').setAttribute('href', '/changed/');
+            if (mode === 'policy') policy.stamp = 'changed';
+            if (mode === 'pool') await pool.close();
+            if (['abort', 'mutation', 'base', 'policy', 'pool'].includes(mode)) {
+                rejects(() => host.read(), 'traversal survived revocation');
+                rejects(() => host.read(), 'traversal revived');
+            }
+        }, mode === 'pool');
+    }
+    for (const mode of ['unopened', 'repeat', 'closed']) {
+        await run(`svg-template-opt-in-${mode}`, ({ native }) => {
+            const session = native();
+            try {
+                if (mode !== 'unopened') session.beginSvgSnapshots();
+                if (mode === 'repeat') session.enableSvgPaintTemplateValidation();
+                if (mode === 'closed') session.close();
+                rejects(() => session.enableSvgPaintTemplateValidation(), 'invalid traversal opt-in accepted');
+                rejects(() => session.html(), 'invalid traversal opt-in retained session');
             } finally { session.close(); session.free(); }
         });
     }
@@ -296,6 +368,115 @@ globalThis.runRecordedOutputFixture = async version => {
         boundedPaintColors: true,
         cloneProfile: { name: 'chromium-148-solid-currentcolor-v1', observe: index => [...cloneReports.get(index)] },
     });
+    for (const mode of ['inherited', 'own', 'descriptive-gradient', 'pattern', 'descriptive-pattern', 'currentcolor', 'inline', 'stylesheet', 'attributes', 'empty', 'abort', 'mutation', 'policy', 'pool', 'async', 'copy', 'no-profile', 'active', 'xml-base', 'foreign']) {
+        await run(`svg-acquired-content-${mode}`, async ({ request, doc, capture, captureAsync, pool, policy, install }) => {
+            let defs = '<linearGradient id="p" href="#q" color="blue"/><linearGradient id="q" color="red"><stop stop-color="red"/></linearGradient>';
+            let expected = [255, 0, 0, 255], inherited = 1, differences = 0, colors = 1, nodes = 1;
+            if (mode === 'own') { defs = defs.replace('color="blue"/>', 'color="blue"><stop stop-color="blue"/></linearGradient>'); expected = [0, 0, 255, 255]; inherited = 0; }
+            if (mode === 'descriptive-gradient') defs = defs.replace('color="blue"/>', 'color="blue"><title>note</title></linearGradient>');
+            if (mode === 'currentcolor') defs = defs.replace('stop-color="red"', 'stop-color="currentColor"');
+            if (mode === 'inline') { defs = defs.replace('<stop ', '<stop style="stop-color:blue" '); expected = [0, 0, 255, 255]; }
+            if (mode === 'stylesheet') { defs = '<style>stop { stop-color:blue !important }</style>' + defs.replace('<stop ', '<stop style="stop-color:red" '); expected = [0, 0, 255, 255]; }
+            if (mode === 'attributes') { defs = '<linearGradient id="p" href="#q" x2="50%"/><linearGradient id="q" x2="100%"><stop offset="0" stop-color="red"/><stop offset="1" stop-color="blue"/></linearGradient>'; colors = nodes = 2; expected = [0, 0, 255, 255]; }
+            if (mode === 'pattern' || mode === 'descriptive-pattern') {
+                defs = '<pattern id="p" href="#q">' + (mode === 'descriptive-pattern' ? '<title>note</title>' : '') + '</pattern><pattern id="q" patternUnits="userSpaceOnUse" width="16" height="16"><rect width="16" height="16" fill="red"/></pattern>';
+                if (mode === 'descriptive-pattern') { expected = [0, 0, 0, 0]; inherited = 0; differences = 1; colors = 0; nodes = 2; }
+            }
+            if (mode === 'empty') { defs = '<linearGradient id="p"/>'; expected = [0, 0, 0, 0]; inherited = colors = nodes = 0; }
+            if (mode === 'active') defs += '<script/>';
+            if (mode === 'foreign') defs += '<foreignObject/>';
+            const xml = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" ${mode === 'xml-base' ? 'xml:base="other/"' : ''}><defs>${defs}</defs><rect width="16" height="16" fill="url(#p)"/></svg>`;
+            const invalid = ['no-profile', 'active', 'xml-base', 'foreign'].includes(mode);
+            if (!invalid) {
+                const url = URL.createObjectURL(new Blob([xml], { type: 'image/svg+xml' }));
+                try {
+                    const image = new Image(); image.src = url; await image.decode();
+                    const canvas = document.createElement('canvas'); canvas.width = canvas.height = 16;
+                    const context = canvas.getContext('2d'); context.drawImage(image, 0, 0);
+                    check([...context.getImageData(12, 8, 1, 1).data].join(',') === expected.join(','), 'acquired content raster differs');
+                } finally { URL.revokeObjectURL(url); }
+            }
+            paintRequest(request, doc, '', `url(${doc.URL}#p)`);
+            const controller = new AbortController(), bytes = new TextEncoder().encode(xml);
+            const options = { prepareSvgPaintContent: true, cloneProfile: colorOptions().cloneProfile,
+                svgSnapshots: { signal: controller.signal, responses: [{ requestedUrl: doc.URL, finalUrl: doc.URL, revision: 'content:1', contentType: 'image/svg+xml', bytes }] } };
+            if (mode === 'no-profile') delete options.cloneProfile;
+            if (invalid) { rejects(() => capture(options), 'invalid acquired content accepted'); return; }
+            const installer = html => { if (mode === 'copy') bytes.fill(0); install(html); };
+            const host = ['async', 'pool'].includes(mode) ? await captureAsync(options, installer) : capture(options, installer);
+            const result = host.read();
+            check(result.svgAcquiredContentBindings === 1 && result.svgAcquiredContentNodes === nodes
+                && result.svgAcquiredInheritedBindings === inherited && result.svgAcquiredCompatibilityDifferences === differences
+                && result.svgAcquiredColors === colors, 'native acquired content/style counts differ');
+            check(result.blockers.includes('svg-resource-consumption-required') && result.blockers.includes('svg-acquired-style-evaluation-required'), 'candidate plan claimed consumption');
+            if (mode === 'abort') controller.abort();
+            if (mode === 'mutation') { const rect = doc.querySelector('rect'); const value = rect.getAttribute('fill'); rect.setAttribute('fill', 'red'); rect.setAttribute('fill', value); }
+            if (mode === 'policy') policy.stamp = 'changed';
+            if (mode === 'pool') await pool.close();
+            if (['abort', 'mutation', 'policy', 'pool'].includes(mode)) {
+                rejects(() => host.read(), 'acquired content survived revocation');
+                rejects(() => host.read(), 'acquired content revived');
+            }
+        }, mode === 'pool');
+    }
+    for (const mode of ['success', 'async', 'pool', 'copy', 'abort', 'parent-abort', 'mutation', 'missing', 'unused', 'duplicate', 'redirect', 'mime', 'no-content', 'preabort', 'empty', 'active']) {
+        await run(`svg-nested-snapshots-${mode}`, async ({ request, doc, capture, captureAsync, pool, install }) => {
+            paintRequest(request, doc, '', `url(${doc.URL}#p)`);
+            const parent = new AbortController(), nested = new AbortController();
+            const encode = value => new TextEncoder().encode(value);
+            const snapshot = (path, type, value) => { const url = new URL(path, doc.URL).href; return { requestedUrl: url, finalUrl: url, revision: 'nested:1', contentType: type, bytes: encode(value) }; };
+            const root = snapshot(doc.URL, 'image/svg+xml', '<svg xmlns="http://www.w3.org/2000/svg"><style>@import "./theme.css";</style><pattern id="p"><image href="./nested.svg"/></pattern></svg>');
+            const responses = [
+                snapshot('./theme.css', 'text/css', '@import "./theme.css"; image { fill:url(./nested.svg#p) }'),
+                snapshot('./nested.svg', 'image/svg+xml', '<svg xmlns="http://www.w3.org/2000/svg"><image href="./pixel.png"/></svg>'),
+                snapshot('./pixel.png', 'image/png', 'opaque fixture bytes'),
+            ];
+            if (mode === 'missing') responses.pop();
+            if (mode === 'unused') responses.push(snapshot('./unused.png', 'image/png', 'unused'));
+            if (mode === 'duplicate') responses.push(responses[0]);
+            if (mode === 'redirect') responses[0].finalUrl += '?redirect';
+            if (mode === 'mime') responses[0].contentType = 'image/png';
+            if (mode === 'empty') responses.length = 0;
+            if (mode === 'active') responses[1].bytes = encode('<svg xmlns="http://www.w3.org/2000/svg"><script/></svg>');
+            if (mode === 'preabort') nested.abort();
+            const options = { prepareSvgPaintContent: true, cloneProfile: colorOptions().cloneProfile,
+                svgSnapshots: { signal: parent.signal, responses: [root] },
+                svgNestedSnapshots: { signal: nested.signal, responses } };
+            if (mode === 'no-content') options.prepareSvgPaintContent = false;
+            if (['missing', 'unused', 'duplicate', 'redirect', 'mime', 'no-content', 'preabort', 'empty', 'active'].includes(mode)) {
+                rejects(() => capture(options), 'invalid nested snapshots accepted'); return;
+            }
+            const installer = html => { if (mode === 'copy') { root.bytes.fill(0); responses.forEach(r => r.bytes.fill(0)); responses.length = 0; } install(html); };
+            const host = ['async', 'pool'].includes(mode) ? await captureAsync(options, installer) : capture(options, installer);
+            const result = host.read();
+            check(result.svgAcquiredContentBindings === 1 && result.svgNestedBodies === 3 && result.svgAcquiredDependencies === 2, 'nested graph counts differ');
+            check(result.blockers.includes('svg-resource-transitive-dependencies-required') && result.blockers.includes('svg-resource-consumption-required'), 'snapshots claimed runtime closure');
+            if (mode === 'abort') nested.abort();
+            if (mode === 'parent-abort') parent.abort();
+            if (mode === 'mutation') doc.querySelector('rect').setAttribute('fill', 'red');
+            if (mode === 'pool') await pool.close();
+            if (['abort', 'parent-abort', 'mutation', 'pool'].includes(mode)) {
+                rejects(() => host.read(), 'nested graph survived revocation');
+                rejects(() => host.read(), 'nested graph revived');
+            }
+        }, mode === 'pool');
+    }
+    for (const feature of ['content', 'nested']) for (const mode of ['unopened', 'repeat', 'closed']) {
+        await run(`svg-${feature}-ingress-${mode}`, ({ native }) => {
+            const session = native();
+            try {
+                if (mode !== 'unopened') {
+                    session.beginSvgSnapshots();
+                    if (feature === 'nested') session.enableSvgPaintContent();
+                }
+                const enable = () => feature === 'content' ? session.enableSvgPaintContent() : session.beginSvgNestedSnapshots();
+                if (mode === 'repeat') enable();
+                if (mode === 'closed') session.close();
+                rejects(enable, 'invalid acquired content/nested opt-in accepted');
+                rejects(() => session.html(), 'invalid acquired ingress retained session');
+            } finally { session.close(); session.free(); }
+        });
+    }
     for (const mode of ['literal', 'hex', 'current', 'forward', 'override', 'transparent', 'pattern', 'suppressed']) {
         await run(`paint-color-parity-${mode}`, async ({ request, doc, view, capture, captureAsync }) => {
             let defs = '{linearGradient @id=a | {stop @stop-color=blue}}', expected = [0, 0, 255, 255], count = 1, suppressed = 0;

@@ -99,6 +99,7 @@ pub struct RecordedOutputSession {
     svg_evidence: Option<Arc<SvgComputedEvidence>>,
     svg_resources: Option<SvgResourceRecord>,
     svg_acquisition: Option<AbortSignal>,
+    svg_nested_acquisition: Option<AbortSignal>,
     svg_replay_nonce: Option<String>,
     svg_replay: Option<SvgReplayAuthorPlan>,
     paint: Option<Arc<SvgPaintPlan>>,
@@ -250,6 +251,7 @@ impl RecordedOutputSession {
             svg_evidence: None,
             svg_resources: None,
             svg_acquisition: None,
+            svg_nested_acquisition: None,
             svg_replay_nonce: None,
             svg_replay: None,
             paint: None,
@@ -291,6 +293,10 @@ impl RecordedOutputSession {
         if self.stage == Stage::Closed
             || self.cancel.is_aborted()
             || self
+                .svg_nested_acquisition
+                .as_ref()
+                .is_some_and(AbortSignal::is_aborted)
+            || self
                 .svg_acquisition
                 .as_ref()
                 .is_some_and(AbortSignal::is_aborted)
@@ -322,6 +328,7 @@ impl RecordedOutputSession {
             resources.close();
         }
         self.svg_acquisition = None;
+        self.svg_nested_acquisition = None;
         self.svg_replay = None;
         self.svg_replay_nonce = None;
         self.paint = None;
@@ -342,6 +349,10 @@ impl RecordedOutputSession {
         let result = if self.stage == Stage::Closed
             || self.cancel.is_aborted()
             || self
+                .svg_nested_acquisition
+                .as_ref()
+                .is_some_and(AbortSignal::is_aborted)
+            || self
                 .svg_acquisition
                 .as_ref()
                 .is_some_and(AbortSignal::is_aborted)
@@ -350,6 +361,10 @@ impl RecordedOutputSession {
         } else {
             work(self).and_then(|value| {
                 if self.cancel.is_aborted()
+                    || self
+                        .svg_nested_acquisition
+                        .as_ref()
+                        .is_some_and(AbortSignal::is_aborted)
                     || self
                         .svg_acquisition
                         .as_ref()
@@ -579,7 +594,13 @@ impl RecordedOutputSession {
         })
     }
     pub fn image_replay_routes(&self) -> Result<Vec<(String, String)>, String> {
-        if self.stage != Stage::Composed || self.cancel.is_aborted() {
+        if self.stage != Stage::Composed
+            || self.cancel.is_aborted()
+            || self
+                .svg_nested_acquisition
+                .as_ref()
+                .is_some_and(AbortSignal::is_aborted)
+        {
             return Err("composed replay routes required".into());
         }
         Ok(self
@@ -766,6 +787,112 @@ impl RecordedOutputSession {
                 .validate_fragments(&mut s.svg_host, observer, 1_000_000)
         })
     }
+    /// Validate acquired targets and their bounded same-body template chains.
+    pub fn validate_svg_paint_templates(
+        &mut self,
+        observer: &mut impl SvgComputedObserver,
+    ) -> Result<(), String> {
+        self.run(|s| {
+            if s.stage != Stage::ComposedBase {
+                return Err("composed SVG template preparation required".into());
+            }
+            s.svg_resources
+                .as_mut()
+                .ok_or("SVG snapshots required")?
+                .validate_paint_templates(&mut s.svg_host, observer, 1_000_000)
+        })
+    }
+    pub fn prepare_svg_paint_content(
+        &mut self,
+        observer: &mut impl SvgComputedObserver,
+    ) -> Result<(), String> {
+        self.run(|s| {
+            if s.stage != Stage::ComposedBase {
+                return Err("composed acquired content preparation required".into());
+            }
+            let profile = s
+                .clone_profile
+                .ok_or("confirmed clone compatibility profile required")?;
+            s.svg_resources
+                .as_mut()
+                .ok_or("SVG snapshots required")?
+                .prepare_paint_content(&mut s.svg_host, observer, profile, &s.cap, 1_000_000)
+        })
+    }
+    pub fn bind_svg_nested_snapshots(
+        &mut self,
+        responses: Vec<SvgResourceResponse>,
+        acquisition: AbortSignal,
+        observer: &mut impl SvgComputedObserver,
+    ) -> Result<(), String> {
+        self.run(|s| {
+            if s.stage != Stage::ComposedBase {
+                return Err("composed nested snapshot preparation required".into());
+            }
+            s.svg_resources
+                .as_mut()
+                .ok_or("SVG snapshots required")?
+                .bind_nested_snapshots(
+                    &mut s.svg_host,
+                    observer,
+                    &s.cap,
+                    responses,
+                    acquisition.clone(),
+                )?;
+            s.svg_nested_acquisition = Some(acquisition);
+            Ok(())
+        })
+    }
+    /// Counts only: binding plans, selected nodes, direct dependency occurrences,
+    /// and unique nested snapshot bodies. No used-paint or execution authority.
+    pub fn svg_acquired_content_counts(&self) -> (usize, usize, usize, usize) {
+        if self.svg_resource_bindings() == 0 {
+            return (0, 0, 0, 0);
+        }
+        self.svg_resources.as_ref().map_or((0, 0, 0, 0), |r| {
+            let (plans, nodes, dependencies) = (0..r.bindings().len())
+                .filter_map(|i| r.paint_content(i))
+                .fold((0, 0, 0), |(p, n, d), (_, c)| {
+                    (p + 1, n + c.nodes.len(), d + c.dependencies.len())
+                });
+            (
+                plans,
+                nodes,
+                dependencies,
+                r.nested_snapshots().map_or(0, |g| g.bodies().len()),
+            )
+        })
+    }
+    pub fn svg_acquired_style_counts(&self) -> (usize, usize, usize) {
+        if self.svg_resource_bindings() == 0 {
+            return (0, 0, 0);
+        }
+        self.svg_resources.as_ref().map_or((0, 0, 0), |r| {
+            (0..r.bindings().len())
+                .filter_map(|i| r.paint_content(i))
+                .fold((0, 0, 0), |(colors, inherited, differences), (_, c)| {
+                    (
+                        colors + c.colors.as_ref().map_or(0, |v| v.len()),
+                        inherited
+                            + usize::from(c.content_owner.is_some_and(|owner| owner != c.host)),
+                        differences + usize::from(c.content_owner != c.svg2_content_owner),
+                    )
+                })
+        })
+    }
+    /// Validated binding and edge counts only; no detached proof or AST export.
+    pub fn svg_paint_template_counts(&self) -> (usize, usize) {
+        if self.svg_resource_bindings() == 0 {
+            return (0, 0);
+        }
+        self.svg_resources.as_ref().map_or((0, 0), |r| {
+            (0..r.bindings().len())
+                .filter_map(|i| r.paint_template_links(i))
+                .fold((0, 0), |(bindings, links), (_, chain)| {
+                    (bindings + 1, links + chain.len())
+                })
+        })
+    }
     /// Diagnostic only. Exact targets and their source/body owners remain native.
     pub fn svg_fragment_targets(&self) -> usize {
         if self.svg_resource_bindings() == 0 {
@@ -805,6 +932,10 @@ impl RecordedOutputSession {
         if self.stage != Stage::Captured
             || self.cancel.is_aborted()
             || self
+                .svg_nested_acquisition
+                .as_ref()
+                .is_some_and(AbortSignal::is_aborted)
+            || self
                 .svg_acquisition
                 .as_ref()
                 .is_some_and(AbortSignal::is_aborted)
@@ -836,6 +967,10 @@ impl RecordedOutputSession {
         if self.stage != Stage::Captured
             || self.cancel.is_aborted()
             || self
+                .svg_nested_acquisition
+                .as_ref()
+                .is_some_and(AbortSignal::is_aborted)
+            || self
                 .svg_acquisition
                 .as_ref()
                 .is_some_and(AbortSignal::is_aborted)
@@ -866,7 +1001,13 @@ impl RecordedOutputSession {
     }
     /// Diagnostic counts only; the plan and its inventory never leave the session.
     pub fn svg_paint_counts(&self) -> (usize, usize) {
-        if self.stage != Stage::Captured || self.cancel.is_aborted() {
+        if self.stage != Stage::Captured
+            || self.cancel.is_aborted()
+            || self
+                .svg_nested_acquisition
+                .as_ref()
+                .is_some_and(AbortSignal::is_aborted)
+        {
             return (0, 0);
         }
         self.paint.as_ref().map_or((0, 0), |p| {
@@ -878,7 +1019,13 @@ impl RecordedOutputSession {
     }
     /// Bounded diagnostics; retained content and source ancestry stay native.
     pub fn svg_paint_content_counts(&self) -> (usize, usize) {
-        if self.stage != Stage::Captured || self.cancel.is_aborted() {
+        if self.stage != Stage::Captured
+            || self.cancel.is_aborted()
+            || self
+                .svg_nested_acquisition
+                .as_ref()
+                .is_some_and(AbortSignal::is_aborted)
+        {
             return (0, 0);
         }
         self.paint_content.as_ref().map_or((0, 0), |p| {
@@ -890,7 +1037,13 @@ impl RecordedOutputSession {
     }
     /// Prospective contexts only; no browser clone or computed-style evidence.
     pub fn svg_paint_style_counts(&self) -> (usize, usize) {
-        if self.stage != Stage::Captured || self.cancel.is_aborted() {
+        if self.stage != Stage::Captured
+            || self.cancel.is_aborted()
+            || self
+                .svg_nested_acquisition
+                .as_ref()
+                .is_some_and(AbortSignal::is_aborted)
+        {
             return (0, 0);
         }
         self.paint_style.as_ref().map_or((0, 0), |p| {
@@ -931,7 +1084,13 @@ impl RecordedOutputSession {
         })
     }
     pub fn clone_profile_confirmed(&self) -> bool {
-        self.stage == Stage::Captured && !self.cancel.is_aborted() && self.clone_profile.is_some()
+        self.stage == Stage::Captured
+            && !self.cancel.is_aborted()
+            && !self
+                .svg_nested_acquisition
+                .as_ref()
+                .is_some_and(AbortSignal::is_aborted)
+            && self.clone_profile.is_some()
     }
     pub fn enable_paint_colors(&mut self) -> Result<(), String> {
         self.run(|s| {
@@ -946,7 +1105,13 @@ impl RecordedOutputSession {
         })
     }
     pub fn paint_color_counts(&self) -> (usize, usize) {
-        if self.stage != Stage::Captured || self.cancel.is_aborted() {
+        if self.stage != Stage::Captured
+            || self.cancel.is_aborted()
+            || self
+                .svg_nested_acquisition
+                .as_ref()
+                .is_some_and(AbortSignal::is_aborted)
+        {
             return (0, 0);
         }
         self.paint_colors
@@ -997,6 +1162,11 @@ impl RecordedOutputSession {
         }
         if let Some(resources) = &self.svg_resources {
             blockers.extend(resources.blockers().iter().map(|b| (*b).to_owned()));
+            for index in 0..resources.bindings().len() {
+                if let Some((_, content)) = resources.paint_content(index) {
+                    blockers.extend(content.blockers.iter().cloned());
+                }
+            }
             blockers.sort();
             blockers.dedup();
         }

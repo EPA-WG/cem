@@ -340,3 +340,80 @@ impl Work {
         Ok(())
     }
 }
+
+// The acquired profile uses lexical source styles in the pinned Chromium
+// model. Keep declaration and currentColor winner coordinates in their original
+// document/CSS trees; no invented clones or default paint declarations.
+pub(crate) fn evaluate_acquired(
+    plan: &crate::svg_resource_acquisition::paint::AcquiredPaintContent,
+    budget: usize,
+) -> (Result<Vec<PaintColorDerivation>, String>, usize) {
+    let budget = budget.min(1_000_000);
+    let mut work = Work(budget);
+    let result = (|| {
+        let tree = &plan.inventory.document.tree;
+        let cascade = Cascade::from_sources(tree, &plan.inventory.stylesheets, &mut work)?;
+        let Some(source) = plan.content_owner else {
+            return Ok(Vec::new());
+        };
+        let kind = local(tree, plan.host)?;
+        let mut colors = Vec::new();
+        for child in elements(tree, source, &mut work)? {
+            let child_kind = local(tree, child)?;
+            if matches!(child_kind, "title" | "desc" | "metadata") {
+                continue;
+            }
+            let property = match (kind, child_kind) {
+                ("linearGradient" | "radialGradient", "stop") => "stop-color",
+                ("pattern", "rect") => "fill",
+                _ => return Err("acquired color child outside bounded profile".into()),
+            };
+            if !elements(tree, child, &mut work)?.is_empty() {
+                return Err("acquired color nested children unsupported".into());
+            }
+            let (value, paint_winner) = cascade
+                .winner(tree, child, property, &mut work)?
+                .ok_or("acquired color requires explicit paint declaration")?;
+            let mut color_winners = Vec::new();
+            let mut inheritance_nodes = Vec::new();
+            let rgba = match value {
+                Expression::Literal(rgba) => rgba,
+                Expression::Current => {
+                    let mut next = Some(child);
+                    loop {
+                        work.spend(1)?;
+                        let id =
+                            next.ok_or("acquired currentColor requires explicit source color")?;
+                        if inheritance_nodes.len() >= 128 {
+                            return Err("acquired color ancestry bound exceeded".into());
+                        }
+                        inheritance_nodes.push(id);
+                        let node = tree.node(id).ok_or("acquired color ancestor missing")?;
+                        if node.name.as_ref().is_some_and(|n| n.namespace_uri == SVG) {
+                            if let Some((value, winner)) =
+                                cascade.winner(tree, id, "color", &mut work)?
+                            {
+                                color_winners.push(winner);
+                                if let Expression::Literal(rgba) = value {
+                                    break rgba;
+                                }
+                            }
+                        }
+                        next = node.parent;
+                    }
+                }
+            };
+            colors.push(PaintColorDerivation {
+                host: plan.host,
+                source: child,
+                property,
+                paint_winner,
+                color_winners,
+                rgba,
+                inheritance_nodes,
+            });
+        }
+        Ok(colors)
+    })();
+    (result, budget - work.0)
+}

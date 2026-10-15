@@ -736,3 +736,330 @@ fn acquired_paint_templates_preserve_slots_and_share_only_body_coordinates() {
     assert!(record.paint_template_links(0).is_none());
     assert!(record.paint_template_links(1).is_none());
 }
+
+fn profile() -> cem_ml::svg_paint_clone_profile::SvgPaintCloneProfile {
+    cem_ml::svg_paint_clone_profile::SvgPaintCloneProfile::for_browser("chromium", "148.0.7778.96")
+        .unwrap()
+}
+#[test]
+fn acquired_content_attributes_and_children_keep_distinct_sources() {
+    let (mut r, mut host, mut o, _) = template_record("<linearGradient id='p' x2='50%' href='#q'/><radialGradient id='q' gradientUnits='userSpaceOnUse' href='#r'/><linearGradient id='r' x1='10%' x2='90%'><stop stop-color='red'/></linearGradient>");
+    let (_, _, cap) = fixture::setup("<p/>");
+    r.prepare_paint_content(&mut host, &mut o, profile(), &cap, 100000)
+        .unwrap();
+    let (binding, plan) = r.paint_content(0).unwrap();
+    let field = |name| {
+        plan.attributes
+            .iter()
+            .find(|a| a.name == name)
+            .unwrap()
+            .source
+            .unwrap()
+    };
+    assert_eq!(
+        binding.body.tree().node(field("x2").1).unwrap().value,
+        "50%"
+    );
+    assert_eq!(
+        binding.body.tree().node(field("x1").1).unwrap().value,
+        "10%"
+    );
+    assert_ne!(field("x2").0, field("x1").0);
+    assert!(plan
+        .attributes
+        .iter()
+        .find(|a| a.name == "y1")
+        .unwrap()
+        .source
+        .is_none());
+    assert_eq!(plan.content_owner, Some(field("x1").0));
+    assert_eq!(plan.svg2_content_owner, plan.content_owner);
+    assert_eq!(plan.nodes.len(), 1);
+    assert_eq!(
+        plan.nodes[0].source_ancestors[0],
+        plan.content_owner.unwrap()
+    );
+    assert_ne!(plan.host, plan.content_owner.unwrap());
+    assert!(Arc::ptr_eq(
+        &plan.inventory.document.tree,
+        binding.body.tree()
+    ));
+}
+#[test]
+fn acquired_content_selection_records_pinned_browser_differences() {
+    let (_, _, cap) = fixture::setup("<p/>");
+    for (kind, child, own) in [
+        ("linearGradient", "<title>note</title>", false),
+        ("linearGradient", "<stop stop-color='blue'/>", true),
+        ("pattern", "<title>note</title>", true),
+        ("pattern", "", false),
+    ] {
+        let terminal = if kind == "pattern" {
+            "<rect width='16' height='16'/>"
+        } else {
+            "<stop/>"
+        };
+        let (mut r, mut h, mut o, _) = template_record(&format!(
+            "<{kind} id='p' href='#q'>{child}</{kind}><{kind} id='q'>{terminal}</{kind}>"
+        ));
+        r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+            .unwrap();
+        let (_, plan) = r.paint_content(0).unwrap();
+        assert_eq!(plan.content_owner == Some(plan.host), own);
+        if kind == "pattern" && !child.is_empty() {
+            assert_ne!(plan.svg2_content_owner, plan.content_owner);
+        }
+    }
+}
+#[test]
+fn acquired_content_styles_and_nested_dependencies_keep_body_base_and_policy() {
+    let (_, _, cap) = fixture::setup("<p/>");
+    let (mut r, mut h, mut o, _) = template_record("<style>image { filter:url(./effects.svg#f) }</style><pattern id='p' href='#q' color='blue'/><pattern id='q' color='red' style='opacity:1'><image href='./image.svg' style='fill:url(./nested.svg#p)'/></pattern>");
+    r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+        .unwrap();
+    let (binding, plan) = r.paint_content(0).unwrap();
+    assert!(plan
+        .style_sources
+        .iter()
+        .any(|s| s.source_node == plan.content_owner.unwrap()
+            || binding.body.tree().node(s.source_node).unwrap().parent == plan.content_owner));
+    let urls: Vec<_> = plan
+        .dependencies
+        .iter()
+        .map(|d| d.resolution.as_ref().unwrap().resolved_url.as_str())
+        .collect();
+    for url in [
+        "https://page.test/effects.svg#f",
+        "https://page.test/image.svg",
+        "https://page.test/nested.svg#p",
+    ] {
+        assert!(urls.contains(&url), "{urls:?}");
+    }
+    for d in &plan.dependencies {
+        assert_eq!(d.resolution.as_ref().unwrap().resource_policy_stamp, "v1");
+        assert_eq!(d.base_url, URL);
+        assert!(binding.body.tree().node(d.source_node).is_some());
+    }
+    assert!(plan
+        .blockers
+        .iter()
+        .any(|s| s == "svg-acquired-style-evaluation-required"));
+}
+#[test]
+fn acquired_content_rejects_active_contexts_and_revokes_atomically() {
+    let (_, _, cap) = fixture::setup("<p/>");
+    for source in [
+        "<linearGradient id='p'/><script/>",
+        "<linearGradient id='p'><animate attributeName='x2'/></linearGradient>",
+        "<linearGradient id='p' onload='x()'/>",
+        "<g xml:base='other/'><linearGradient id='p'/></g>",
+        "<linearGradient id='p'/><foreignObject/>",
+    ] {
+        let (mut r, mut h, mut o, _) = template_record(source);
+        assert!(r
+            .prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+            .is_err());
+        assert!(r.paint_content(0).is_none());
+        assert!(r.bindings().is_empty());
+    }
+    let (mut r, mut h, mut o, cancel) =
+        template_record("<linearGradient id='p'><stop/></linearGradient>");
+    r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+        .unwrap();
+    cancel.abort();
+    assert!(r.paint_content(0).is_none());
+    assert!(r.validate(&mut h, &mut o).is_err());
+}
+#[test]
+fn acquired_content_budget_and_narrower_revalidation_clear_plans() {
+    let (_, _, cap) = fixture::setup("<p/>");
+    for mode in 0..3 {
+        let (mut r, mut h, mut o, _) = template_record("<linearGradient id='p'/>");
+        r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+            .unwrap();
+        assert!(r.paint_content(0).unwrap().1.content_owner.is_none());
+        match mode {
+            0 => {
+                assert!(r
+                    .prepare_paint_content(&mut h, &mut o, profile(), &cap, 0)
+                    .is_err());
+            }
+            1 => {
+                r.validate_paint_templates(&mut h, &mut o, 100000).unwrap();
+            }
+            _ => {
+                o.revision = "changed".into();
+                assert!(r.validate(&mut h, &mut o).is_err());
+            }
+        }
+        assert!(r.paint_content(0).is_none());
+    }
+}
+
+fn nested_response(url: &str, content_type: &str, bytes: &[u8]) -> SvgResourceResponse {
+    SvgResourceResponse {
+        requested_url: url.into(),
+        final_url: url.into(),
+        revision: "nested:1".into(),
+        content_type: content_type.into(),
+        bytes: bytes.to_vec(),
+    }
+}
+#[test]
+fn acquired_nested_graph_preserves_transitive_sources_and_lifetime() {
+    let (_, _, cap) = fixture::setup("<p/>");
+    let (mut r, mut h, mut o, _) = template_record("<style>@import './theme.css';</style><pattern id='p'><image href='./nested.svg'/></pattern>");
+    r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+        .unwrap();
+    let cancel = AbortSignal::new();
+    r.bind_nested_snapshots(
+        &mut h,
+        &mut o,
+        &cap,
+        vec![
+            nested_response(
+                "https://page.test/theme.css",
+                "text/css",
+                b"@import './theme.css'; image { filter:url(./nested.svg#f) }",
+            ),
+            nested_response(
+                "https://page.test/nested.svg",
+                "image/svg+xml",
+                b"<svg xmlns='http://www.w3.org/2000/svg'><image href='./pixel.png'/></svg>",
+            ),
+            nested_response(
+                "https://page.test/pixel.png",
+                "image/png",
+                b"opaque fixture bytes",
+            ),
+        ],
+        cancel.clone(),
+    )
+    .unwrap();
+    let graph = r.nested_snapshots().unwrap();
+    assert_eq!(graph.bodies().len(), 3);
+    assert!(graph.edges().len() >= 5);
+    for edge in graph.edges() {
+        assert!(edge.source.node(edge.node).is_some());
+        assert_eq!(edge.resolution.resource_policy_stamp, "v1");
+    }
+    let body = &graph.bodies()["https://page.test/pixel.png"];
+    assert_eq!(body.bytes(), b"opaque fixture bytes");
+    assert_eq!(
+        body.digest(),
+        cem_ml::content_cache::ContentHash::from_blake3(body.bytes()).header_value()
+    );
+    cancel.abort();
+    assert!(r.nested_snapshots().is_none());
+    assert!(r.paint_content(0).is_none());
+    assert!(r.validate(&mut h, &mut o).is_err());
+}
+#[test]
+fn acquired_nested_graph_rejects_incomplete_or_inconsistent_snapshots() {
+    let (_, _, cap) = fixture::setup("<p/>");
+    for mode in 0..5 {
+        let (mut r, mut h, mut o, _) = template_record(
+            "<style>@import './theme.css';</style><linearGradient id='p'><stop/></linearGradient>",
+        );
+        r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+            .unwrap();
+        let mut response = nested_response(
+            "https://page.test/theme.css",
+            "text/css",
+            b"stop { stop-color:red }",
+        );
+        match mode {
+            0 => response.requested_url = "https://page.test/other.css".into(),
+            1 => response.content_type = "text/html".into(),
+            2 => response.bytes = b"@import './missing.css';".to_vec(),
+            3 => response.revision.clear(),
+            _ => response.final_url = "https://page.test/redirect.css".into(),
+        }
+        assert!(r
+            .bind_nested_snapshots(&mut h, &mut o, &cap, vec![response], AbortSignal::new())
+            .is_err());
+        assert!(r.nested_snapshots().is_none());
+        assert!(r.bindings().is_empty());
+    }
+}
+
+#[test]
+fn acquired_nested_graph_requires_original_resolution_owner() {
+    let (_, _, cap) = fixture::setup("<p/>");
+    let (_, _, other) = fixture::setup("<p/>");
+    let (mut r, mut h, mut o, _) = template_record("<linearGradient id='p'/>");
+    r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+        .unwrap();
+    assert!(r
+        .bind_nested_snapshots(&mut h, &mut o, &other, vec![], AbortSignal::new())
+        .is_err());
+    assert!(r.paint_content(0).is_none());
+}
+
+#[test]
+fn acquired_color_winners_reuse_source_cascade_and_current_color_ancestry() {
+    let (_, _, cap) = fixture::setup("<p/>");
+    for (style, expected) in [
+        ("", [255, 0, 0, 255]),
+        (
+            "<style>stop {stop-color:blue !important}</style>",
+            [0, 0, 255, 255],
+        ),
+    ] {
+        let (mut r, mut h, mut o, _) = template_record(&format!("{style}<linearGradient id='p' color='blue' href='#q'/><linearGradient id='q' color='red'><stop style='stop-color:currentColor' /></linearGradient>"));
+        r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+            .unwrap();
+        let (binding, plan) = r.paint_content(0).unwrap();
+        let colors = plan.colors.as_ref().unwrap();
+        assert_eq!(colors.len(), 1);
+        assert_eq!(colors[0].rgba, expected);
+        assert_eq!(colors[0].host, plan.host);
+        assert_eq!(colors[0].source, plan.nodes[0].source);
+        assert!(binding
+            .body
+            .tree()
+            .node(colors[0].paint_winner.document_source())
+            .is_some());
+        if style.is_empty() {
+            assert!(colors[0]
+                .inheritance_nodes
+                .contains(&plan.content_owner.unwrap()));
+            assert!(!colors[0].inheritance_nodes.contains(&plan.host));
+        }
+    }
+}
+
+#[test]
+fn acquired_nested_graph_preserves_denied_policy_and_rejects_extra_bodies() {
+    let (_, _, cap) = fixture::setup("<p/>");
+    let (mut r, mut h, mut o, _) = template_record("<style>@import 'https://page.test/assets/denied.css';</style><linearGradient id='p'><stop/></linearGradient>");
+    r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+        .unwrap();
+    assert!(r.paint_content(0).unwrap().1.dependencies[0]
+        .resolution
+        .is_err());
+    assert!(r
+        .bind_nested_snapshots(&mut h, &mut o, &cap, vec![], AbortSignal::new())
+        .is_err());
+    for duplicate in [false, true] {
+        let (mut r, mut h, mut o, _) = template_record("<linearGradient id='p'/>");
+        r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+            .unwrap();
+        let mut responses = vec![nested_response(
+            "https://page.test/unused.png",
+            "image/png",
+            b"opaque",
+        )];
+        if duplicate {
+            responses.push(nested_response(
+                "https://page.test/unused.png",
+                "image/png",
+                b"opaque",
+            ));
+        }
+        assert!(r
+            .bind_nested_snapshots(&mut h, &mut o, &cap, responses, AbortSignal::new())
+            .is_err());
+        assert!(r.paint_content(0).is_none());
+    }
+}

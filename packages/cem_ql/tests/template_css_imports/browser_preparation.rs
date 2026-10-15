@@ -1077,3 +1077,197 @@ fn svg_fragment_preparation_rejects_missing_snapshots_targets_and_late_calls() {
     assert_eq!(s.svg_fragment_targets(), 0);
     assert!(s.html().is_err());
 }
+
+#[test]
+fn acquired_template_preparation_follows_capture_and_read_lifetimes() {
+    for mode in 0..4 {
+        let mut s = svg_session();
+        let acquisition = cem_ml::scheduler::AbortSignal::new();
+        s.record_svg(&mut SvgObserver(SVG_RESOURCE_VALUE)).unwrap();
+        let mut response = svg_response();
+        response.bytes = b"<svg xmlns='http://www.w3.org/2000/svg'><linearGradient id='p' href='#q'/><radialGradient id='q'/></svg>".to_vec();
+        s.record_svg_resources(
+            vec![response],
+            acquisition.clone(),
+            &mut SvgObserver(SVG_RESOURCE_VALUE),
+        )
+        .unwrap();
+        s.validate_svg_paint_templates(&mut SvgObserver(SVG_RESOURCE_VALUE))
+            .unwrap();
+        assert_eq!(s.svg_paint_template_counts(), (0, 0));
+        let blockers = s
+            .capture(BASE, slots, &mut OutputObserver { wrong: false })
+            .unwrap();
+        let count = s.svg_resource_bindings();
+        assert!(count > 0);
+        assert_eq!(s.svg_paint_template_counts(), (count, count));
+        assert!(blockers
+            .iter()
+            .any(|b| b == "svg-resource-transitive-dependencies-required"));
+        assert!(blockers
+            .iter()
+            .any(|b| b == "svg-resource-consumption-required"));
+        s.validate_svg(&mut SvgObserver(SVG_RESOURCE_VALUE))
+            .unwrap();
+        s.read(BASE, slots, &mut OutputObserver { wrong: false })
+            .unwrap();
+        match mode {
+            0 => {
+                acquisition.abort();
+                assert_eq!(s.svg_paint_template_counts(), (0, 0));
+                assert!(s
+                    .read(BASE, slots, &mut OutputObserver { wrong: false })
+                    .is_err());
+            }
+            1 => {
+                assert!(s
+                    .validate_svg(&mut SvgObserver(
+                        "url(https://example.test/paint.svg#other)"
+                    ))
+                    .is_err());
+            }
+            2 => {
+                assert!(s
+                    .read(
+                        BASE,
+                        |_| Err("DOM changed".into()),
+                        &mut OutputObserver { wrong: false }
+                    )
+                    .is_err());
+            }
+            _ => s.close(),
+        }
+        assert_eq!(s.svg_paint_template_counts(), (0, 0));
+        assert!(s.html().is_err());
+    }
+}
+#[test]
+fn acquired_template_preparation_rejects_invalid_stage_and_cycles() {
+    let mut s = svg_session();
+    assert!(s
+        .validate_svg_paint_templates(&mut SvgObserver(SVG_RESOURCE_VALUE))
+        .is_err());
+    assert!(s.html().is_err());
+    let (mut s, _) = bound_svg_session();
+    s.capture(BASE, slots, &mut OutputObserver { wrong: false })
+        .unwrap();
+    assert!(s
+        .validate_svg_paint_templates(&mut SvgObserver(SVG_RESOURCE_VALUE))
+        .is_err());
+    assert!(s.html().is_err());
+    let mut s = svg_session();
+    s.record_svg(&mut SvgObserver(SVG_RESOURCE_VALUE)).unwrap();
+    let mut response = svg_response();
+    response.bytes =
+        b"<svg xmlns='http://www.w3.org/2000/svg'><linearGradient id='p' href='#p'/></svg>"
+            .to_vec();
+    s.record_svg_resources(
+        vec![response],
+        Default::default(),
+        &mut SvgObserver(SVG_RESOURCE_VALUE),
+    )
+    .unwrap();
+    assert!(s
+        .validate_svg_paint_templates(&mut SvgObserver(SVG_RESOURCE_VALUE))
+        .is_err());
+    assert_eq!(s.svg_paint_template_counts(), (0, 0));
+    assert!(s.html().is_err());
+}
+#[test]
+fn acquired_template_preparation_distinguishes_leaves_and_fragment_only_validation() {
+    let (mut s, _) = bound_svg_session();
+    s.validate_svg_paint_templates(&mut SvgObserver(SVG_RESOURCE_VALUE))
+        .unwrap();
+    s.capture(BASE, slots, &mut OutputObserver { wrong: false })
+        .unwrap();
+    assert_eq!(
+        s.svg_paint_template_counts(),
+        (s.svg_resource_bindings(), 0)
+    );
+    let (mut s, _) = bound_svg_session();
+    s.validate_svg_paint_templates(&mut SvgObserver(SVG_RESOURCE_VALUE))
+        .unwrap();
+    s.validate_svg_fragments(&mut SvgObserver(SVG_RESOURCE_VALUE))
+        .unwrap();
+    s.capture(BASE, slots, &mut OutputObserver { wrong: false })
+        .unwrap();
+    assert_eq!(s.svg_paint_template_counts(), (0, 0));
+}
+
+#[test]
+fn acquired_content_and_nested_graph_follow_preparation_lifetimes() {
+    for mode in 0..3 {
+        let mut s = svg_session();
+        let mut response = svg_response();
+        response.bytes = b"<svg xmlns='http://www.w3.org/2000/svg'><pattern id='p'><image href='./image.png'/></pattern></svg>".to_vec();
+        s.record_svg(&mut SvgObserver(SVG_RESOURCE_VALUE)).unwrap();
+        s.record_svg_resources(
+            vec![response],
+            Default::default(),
+            &mut SvgObserver(SVG_RESOURCE_VALUE),
+        )
+        .unwrap();
+        s.confirm_clone_profile("chromium-148-solid-currentcolor-v1", clone_probe)
+            .unwrap();
+        s.prepare_svg_paint_content(&mut SvgObserver(SVG_RESOURCE_VALUE))
+            .unwrap();
+        let signal = cem_ml::scheduler::AbortSignal::new();
+        let mut nested = svg_response();
+        nested.requested_url = "https://example.test/image.png".into();
+        nested.final_url = nested.requested_url.clone();
+        nested.content_type = "image/png".into();
+        nested.bytes = b"opaque bytes".to_vec();
+        s.bind_svg_nested_snapshots(
+            vec![nested],
+            signal.clone(),
+            &mut SvgObserver(SVG_RESOURCE_VALUE),
+        )
+        .unwrap();
+        assert_eq!(s.svg_acquired_content_counts(), (0, 0, 0, 0));
+        let blockers = s
+            .capture(BASE, slots, &mut OutputObserver { wrong: false })
+            .unwrap();
+        let (bindings, nodes, dependencies, bodies) = s.svg_acquired_content_counts();
+        assert!(bindings > 0 && nodes > 0 && dependencies > 0);
+        assert_eq!(bodies, 1);
+        assert!(blockers
+            .iter()
+            .any(|b| b == "svg-acquired-style-evaluation-required"));
+        assert!(blockers
+            .iter()
+            .any(|b| b == "svg-resource-consumption-required"));
+        if mode == 0 {
+            signal.abort();
+            assert!(s
+                .read(BASE, slots, &mut OutputObserver { wrong: false })
+                .is_err());
+        } else if mode == 1 {
+            assert!(s
+                .validate_svg(&mut SvgObserver(
+                    "url(https://example.test/paint.svg#other)"
+                ))
+                .is_err());
+        } else {
+            s.close();
+        }
+        assert_eq!(s.svg_acquired_content_counts(), (0, 0, 0, 0));
+        assert!(s.html().is_err());
+    }
+}
+#[test]
+fn acquired_content_requires_confirmed_profile_and_snapshot_order() {
+    let (mut s, _) = bound_svg_session();
+    assert!(s
+        .prepare_svg_paint_content(&mut SvgObserver(SVG_RESOURCE_VALUE))
+        .is_err());
+    assert!(s.html().is_err());
+    let (mut s, _) = bound_svg_session();
+    assert!(s
+        .bind_svg_nested_snapshots(
+            vec![],
+            Default::default(),
+            &mut SvgObserver(SVG_RESOURCE_VALUE)
+        )
+        .is_err());
+    assert!(s.html().is_err());
+}

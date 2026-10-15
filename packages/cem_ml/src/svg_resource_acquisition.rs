@@ -14,6 +14,9 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
+pub mod nested;
+pub mod paint;
+
 const MAX_BYTES: usize = 4 * 1024 * 1024;
 /// Trusted acquisition input. This API performs no fetch and grants no URL access.
 pub struct SvgResourceResponse {
@@ -143,6 +146,12 @@ pub struct SvgResourceRecord {
     revoked: bool,
     fragment_targets: Vec<AstNodeId>,
     template_links: Option<Vec<Vec<SvgPaintTemplateLink>>>,
+    content: Option<Vec<paint::AcquiredPaintContent>>,
+    nested: Option<nested::NestedSnapshots>,
+    content_context: Option<(
+        crate::module_resolution::CemModuleUrlResolutionCapability,
+        String,
+    )>,
     delivery: Option<AbortSignal>,
 }
 impl SvgResourceRecord {
@@ -173,6 +182,11 @@ impl SvgResourceRecord {
         if self.revoked
             || self.cancel.is_aborted()
             || self.delivery.as_ref().is_some_and(AbortSignal::is_aborted)
+            || self.nested.as_ref().is_some_and(|n| n.cancel.is_aborted())
+            || self
+                .content_context
+                .as_ref()
+                .is_some_and(|(cap, identity)| cap.cache_identity().as_ref() != Some(identity))
         {
             return None;
         }
@@ -204,6 +218,109 @@ impl SvgResourceRecord {
         budget: usize,
     ) -> Result<(), String> {
         self.validate_targets(host, observer, budget, true)
+    }
+
+    /// Candidate content/style/dependency provenance under an explicit pinned
+    /// compatibility profile. Includes bounded author-color derivation, never
+    /// live cascade proof or automatic nested resource acquisition.
+    pub fn prepare_paint_content(
+        &mut self,
+        host: &mut SvgComputedHost,
+        observer: &mut impl SvgComputedObserver,
+        profile: crate::svg_paint_clone_profile::SvgPaintCloneProfile,
+        capability: &crate::module_resolution::CemModuleUrlResolutionCapability,
+        budget: usize,
+    ) -> Result<(), String> {
+        let result = (|| {
+            // Bound traversal and content work separately within the total cap.
+            let identity = capability
+                .cache_identity()
+                .ok_or("stable acquired content resolution context required")?;
+            let budget = budget.min(1_000_000);
+            self.validate_paint_templates(host, observer, budget / 2)?;
+            let mut work = paint::Work(budget - budget / 2);
+            let mut inventories = BTreeMap::new();
+            let mut content = Vec::new();
+            for (index, binding) in self.bindings.iter().enumerate() {
+                active(&self.cancel)?;
+                if !inventories.contains_key(binding.body.url()) {
+                    inventories.insert(
+                        binding.body.url().to_owned(),
+                        paint::inventory(&binding.body, capability, &mut work, &self.cancel)?,
+                    );
+                }
+                content.push(paint::build(
+                    binding,
+                    self.fragment_targets[index],
+                    &self
+                        .template_links
+                        .as_ref()
+                        .ok_or("template links missing")?[index],
+                    inventories[binding.body.url()].clone(),
+                    profile,
+                    capability,
+                    &mut work,
+                    &self.cancel,
+                )?);
+            }
+            self.validate(host, observer)?;
+            if capability.cache_identity().as_ref() != Some(&identity) {
+                return Err("acquired content policy changed".into());
+            }
+            self.content_context = Some((capability.clone(), identity));
+            self.content = Some(content);
+            Ok(())
+        })();
+        if result.is_err() {
+            self.close();
+        }
+        result
+    }
+    /// Borrowed inspection only, governed by the original acquisition lifetime.
+    pub fn paint_content(
+        &self,
+        index: usize,
+    ) -> Option<(&SvgResourceBinding, &paint::AcquiredPaintContent)> {
+        let (binding, _) = self.fragment_target(index)?;
+        Some((binding, self.content.as_ref()?.get(index)?))
+    }
+
+    /// Bind explicitly supplied nested bodies to resolved source references.
+    /// Recurses through bounded CSS/SVG snapshots, never fetches or authorizes replay.
+    pub fn bind_nested_snapshots(
+        &mut self,
+        host: &mut SvgComputedHost,
+        observer: &mut impl SvgComputedObserver,
+        capability: &crate::module_resolution::CemModuleUrlResolutionCapability,
+        responses: Vec<SvgResourceResponse>,
+        cancel: AbortSignal,
+    ) -> Result<(), String> {
+        let result = (|| {
+            self.validate(host, observer)?;
+            if self.nested.is_some() {
+                return Err("fresh nested snapshot binding required".into());
+            }
+            let (owner, _) = self
+                .content_context
+                .as_ref()
+                .ok_or("acquired content context required")?;
+            if !owner.same_owner(capability) {
+                return Err("nested snapshot resolution owner mismatch".into());
+            }
+            let nested = nested::NestedSnapshots::capture(self, capability, responses, cancel)?;
+            self.validate(host, observer)?;
+            active(&nested.cancel)?;
+            self.nested = Some(nested);
+            Ok(())
+        })();
+        if result.is_err() {
+            self.close();
+        }
+        result
+    }
+    pub fn nested_snapshots(&self) -> Option<&nested::NestedSnapshots> {
+        self.fragment_target(0)?;
+        self.nested.as_ref()
     }
 
     /// Opt-in, all-or-nothing literal-ID paint target validation. The bounded
@@ -301,6 +418,9 @@ impl SvgResourceRecord {
                 targets.push(target);
             }
             self.validate(host, observer)?;
+            self.content = None;
+            self.nested = None;
+            self.content_context = None;
             self.fragment_targets = targets;
             self.template_links = templates.then_some(template_links);
             Ok(())
@@ -446,6 +566,9 @@ impl SvgResourceRecord {
             revoked: false,
             fragment_targets: Vec::new(),
             template_links: None,
+            content: None,
+            nested: None,
+            content_context: None,
             delivery: None,
         })
     }
@@ -515,12 +638,32 @@ impl SvgResourceRecord {
             if self.revoked {
                 return Err("revoked SVG resource record".into());
             }
+            if self
+                .content_context
+                .as_ref()
+                .is_some_and(|(cap, identity)| cap.cache_identity().as_ref() != Some(identity))
+            {
+                return Err("acquired content resolution context changed".into());
+            }
             active(&self.cancel)?;
+            if let Some(nested) = &self.nested {
+                active(&nested.cancel)?;
+            }
             if let Some(delivery) = &self.delivery {
                 active(delivery)?;
             }
             host.validate(&self.computed, self.computed.sources(), observer)?;
+            if self
+                .content_context
+                .as_ref()
+                .is_some_and(|(cap, identity)| cap.cache_identity().as_ref() != Some(identity))
+            {
+                return Err("acquired content resolution context changed".into());
+            }
             active(&self.cancel)?;
+            if let Some(nested) = &self.nested {
+                active(&nested.cancel)?;
+            }
             if let Some(delivery) = &self.delivery {
                 active(delivery)?;
             }
@@ -535,6 +678,9 @@ impl SvgResourceRecord {
         self.revoked = true;
         self.fragment_targets.clear();
         self.template_links = None;
+        self.content = None;
+        self.nested = None;
+        self.content_context = None;
         self.bindings.clear();
         self.delivery = None;
     }

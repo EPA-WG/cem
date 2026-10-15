@@ -4346,8 +4346,124 @@ a narrower validation pass.
 This traversal records candidate template edges only. It does not compute
 inherited attributes, cloned content or styles, load nested resources or prove
 browser consumption. All resource/transitive/origin blockers remain. The new
-native traversal API is not yet a preparation ingress option; binding its
-results to browser preparation and verifying compatibility is the next step.
+native traversal API also participates in preparation through the explicit
+`validateSvgPaintTemplates: true` option. It requires snapshots and includes
+fragment validation, whether or not `validateSvgFragments` is also enabled.
+The WASM `enableSvgPaintTemplateValidation()` opt-in requires open snapshot
+ingress and rejects repeated, closed or capture-started use. Native
+`validate_svg_paint_templates` requires composed preparation with snapshots and
+runs before capture publication. Read revalidates the owning observation and
+preparation; acquisition cancellation, source/DOM/base/policy drift and worker
+disposal revoke traversal with the enclosing record.
+
+Only scalar `svgPaintTemplateBindings` and `svgPaintTemplateLinks` counts cross
+the browser boundary. Binding counts distinguish validated leaves (zero links)
+from fragment-only records (zero validated template bindings). Counts remain
+zero before capture and after revocation. No chain, target coordinate or detached
+proof is exported. Successful traversal does not remove the transitive-resource,
+consumption, response-identity or origin/transaction blockers.
+
+Pinned Chromium fixtures independently follow SVGAnimatedString href values in
+the snapshot document and render bounded gradient/pattern chains into a canvas.
+They verify gradient cross-kind links, pattern chains, XLink fallback,
+unqualified href precedence and leaves. The fixture Blob URL is an isolated
+rendering probe, never a replay route or proof of production response identity.
+Further cases verify invalid targets/cycles/base/alias exclusions, sync/async
+capture, copied ingress, combined fragment/traversal options, cancellation,
+same-value DOM mutations, base/policy changes and worker disposal. These are
+bounded compatibility checks, not a general SVG inheritance/style algorithm.
+
+#### Acquired content, style provenance and nested snapshot graphs
+
+`SvgResourceRecord::prepare_paint_content` adds bounded content selection,
+attribute-source candidates, lexical style provenance and nested dependency
+inventory to the same native acquisition owner. It requires an explicit
+`SvgPaintCloneProfile` and the actual resolution capability with a stable cache
+identity. The exact resolver owner and identity are retained and rechecked;
+matching labels on a different resolver cannot bind nested resources.
+
+The attribute candidates retain the first specified eligible source in each
+chain. Gradient coordinate fields are taken only from the corresponding
+gradient kind; shared gradient fields and pattern fields keep their original
+owner/attribute IDs. Absent attributes have no fabricated source or default.
+These are authored candidates, not parsed geometric values: invalid numeric
+values, context-dependent defaults and transforms remain outside this evaluation.
+
+The plan separately records SVG 2 non-descriptive-child selection and the pinned
+Chromium selection (direct stops for gradients, first element-containing pattern
+content). This follows the distinction between the
+[SVG 2 template model](https://www.w3.org/TR/SVG2/pservers.html#PaintServerTemplates)
+and the previously measured Chromium descriptive-pattern behavior. Selected
+nodes retain lexical source ancestry as well as prospective structural instance
+parents. The receiving paint host and source server never become interchangeable
+with the graphics consumer.
+
+Stylesheets are imported by the existing shared retained-document CSS inventory.
+Inline and presentation sources preserve their original document owners; rule
+sources retain their CSS trees and coordinates. The existing bounded native
+author-color cascade is reused for explicit stop/rectangle colors, literals,
+`currentColor`, inline priority, importance and supported compound selectors.
+Derivations retain selected declarations, selector specificity and every
+currentColor source ancestor. Unsupported declarations/selectors/content retain
+an explicit unresolved result; they are not treated as absent styling. Even
+successful derivations are author candidates rather than all-origin browser
+winner evidence. General style/geometry/opacity/filter evaluation remains open.
+
+The static acquired-body profile rejects scripts, animation, foreign content,
+event handlers, processing instructions and XML base changes throughout the
+body. Traversal and content work share a one-million-unit cap split between the
+two phases; selected subtrees are limited to 4096 nodes per binding, ancestry to
+128 levels, and stylesheets to 256 per body. Exhaustion revokes the whole record.
+Narrower fragment/traversal validation clears prior content and nested plans.
+
+Direct resource slots and CSS URL/import references retain the original body
+URL, source coordinates and resolution policy evidence. All global stylesheet
+candidates are included conservatively; local inline/presentation declarations
+are restricted to selected content, template hosts and their lexical ancestors.
+This inventory can overapproximate resources and is never a fetch request.
+
+`bind_nested_snapshots` joins explicit response inputs to these references,
+then recursively inventories imported CSS and SVG bodies. It retains each
+reference edge and parses each distinct body only once, so CSS import cycles
+terminate without merging their source coordinates. SVG processing uses the
+same shared import boundary and static-context exclusions. Raster/font bodies
+remain opaque bytes, not decoded images or validated fonts.
+
+The graph accepts at most 256 direct, fragment-free, nonredirected HTTP(S)
+snapshots and 4 MiB including metadata; it retains at most 4096 edges.
+Missing, duplicate, unused or conflicting snapshots reject atomically.
+Resolution failures, MIME hints and CSS-import MIME constraints are enforced.
+Integrity-bearing mappings currently reject pending integrity verification.
+Supported entity types are CSS, SVG, PNG, JPEG, GIF, WebP, AVIF, WOFF and WOFF2;
+other types, redirects and encoded-wire metadata require later profiles.
+Each body retains exact bytes, BLAKE3 digest, revision and any native imported
+tree. Root-body references reuse the original acquisition; fragments remain
+on their reference edges. This does not validate arbitrary nested fragment
+targets or prove full transitive rendering closure.
+
+Browser preparation opts in with `prepareSvgPaintContent: true`, explicit
+`svgSnapshots` and the existing confirmed `cloneProfile` report. Content
+preparation includes fragment and template validation. Optional
+`svgNestedSnapshots: { responses, signal }` supplies the recursive snapshots.
+Both ingresses copy bytes before installation. Unopened, repeated, late or
+closed ingress rejects; either acquisition signal, DOM/base/policy changes,
+worker disposal or native validation failure revokes the enclosing session.
+
+Only scalar counts cross WASM: acquired content bindings/nodes/dependency
+occurrences, bounded color derivations, inherited bindings, compatibility
+differences and unique nested bodies. Native plans, trees, source coordinates,
+resolver ownership and byte digests remain native. Browser fixtures compare
+supported source-color/content behavior with isolated raster probes, and test
+recursive graph binding and revocation. Those probes and snapshots do not
+establish original-response identity, consumption, USER/UA origin admission or
+atomic alias installation.
+
+The production origin-provider dependency remains external: this repository
+has no maintained instrumented Chromium integration, and the existing CDP and
+debugger probes fail the required all-origin observation and all-writer
+exclusion guarantees. Production alias installation and transaction admission
+remain disabled. Runtime-generated URLs, unsupported style contexts and broader
+CSS/SVG coverage remain explicit blockers rather than inferred closed sets.
 
 Acquisition inputs contain requested/final URL, revision, MIME and SVG entity
 bytes. Encoded wire bytes and HTTP response headers are outside this profile.

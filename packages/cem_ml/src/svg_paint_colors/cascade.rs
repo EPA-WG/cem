@@ -33,7 +33,13 @@ pub(super) struct Cascade {
 impl Cascade {
     pub fn new(plan: &SvgPaintStylePlan, work: &mut Work) -> Result<Self, String> {
         let inv = plan.content().paint().inventory();
-        let doc = &inv.document().tree;
+        Self::from_sources(&inv.document().tree, inv.stylesheets(), work)
+    }
+    pub(super) fn from_sources(
+        doc: &Arc<RetainedCemTree>,
+        sources: &[crate::document_stylesheet_dependencies::DocumentStylesheetOccurrence],
+        work: &mut Work,
+    ) -> Result<Self, String> {
         // Explicit document order, independent of allocation IDs and inventory order.
         let mut positions = BTreeMap::new();
         let mut pending = vec![0];
@@ -48,7 +54,7 @@ impl Cascade {
                     .rev(),
             );
         }
-        let mut sheets: Vec<_> = inv.stylesheets().iter().collect();
+        let mut sheets: Vec<_> = sources.iter().collect();
         sheets.sort_by_key(|s| positions.get(&s.owner).copied().unwrap_or(usize::MAX));
         let mut result = Self {
             inline: BTreeMap::new(),

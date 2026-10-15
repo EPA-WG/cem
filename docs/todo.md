@@ -3156,10 +3156,59 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       native fixtures; browser wiring/parity is the next item. CEM audit keeps
       semantic/source ownership native and leaves theme tokens, UI defaults and
       accessibility overrides unchanged. Content/style/consumption blockers remain.
-    - [ ] Bind acquired paint-template traversal to preparation lifetimes and
+    - [x] Verify traversal preparation fixtures for stage ordering, leaf/chain
+      counts, atomic failure, capture/read cancellation and mutation revocation;
+      compare Chromium href precedence and bounded gradient/pattern rendering.
+    - [x] Bind acquired paint-template traversal to preparation lifetimes and
       verify Chromium chain/precedence compatibility and mutation revocation.
-    - [ ] Define acquired paint-template content/style and nested resource
+      Explicit `validateSvgPaintTemplates` includes fragment validation and
+      retains all chains in the native session. Only validated-binding/link
+      counts cross WASM; capture/read, acquisition and worker lifetimes revoke
+      together. Leaf counts and fragment-only records remain distinguishable.
+      Verification: 107 native checks, WASM/CLI builds, lint and full Chromium
+      gate pass with 245 preparation cases (23 new). Snapshot SVG href identity
+      and bounded gradient/pattern rendering agree, including XLink fallback and
+      href precedence. Isolated fixture rendering is not a production response
+      or consumption receipt. CEM audit preserves native semantic/source owners,
+      public theme tokens and accessibility overrides; no UI defaults or origin
+      admission changed. Transitive/content/style/consumption requirements remain.
+    - [x] Verify acquired content/provenance fixtures: per-attribute ownership,
+      own/template/empty selection, Chromium descriptive-content differences,
+      lexical style ancestry, bounded author-color winners/currentColor,
+      CSS/direct nested URLs and exact policy/base ownership,
+      bounded work, unsupported active contexts, atomic failure and revocation.
+    - [x] Verify nested snapshot graph fixtures for direct/CSS/SVG transitive
+      edges, original referrer/policy/source coordinates, exact bytes, cycles,
+      missing/unused/redirected inputs, MIME/integrity exclusions and cancellation.
+    - [x] Implement bounded nested snapshot graph binding and browser ingress;
+      retain response/consumption and dynamic-resource blockers.
+    - [x] Implement acquired content/style/dependency plans and preparation/WASM
+      ingress with Chromium rendering, copy/abort/mutation/worker fixtures.
+    - [x] Define acquired paint-template content/style and nested resource
       dependencies after traversal, preserving original body/base/source ownership.
+      Native plans retain per-attribute and selected-child source coordinates,
+      lexical ancestry, SVG2 structural parents and explicit pinned Chromium
+      content-selection differences. Bounded author colors reuse the native
+      cascade, including inline/important winners and source-ancestor currentColor.
+      Explicit nested CSS/SVG snapshots recurse through shared import/resolution;
+      exact bytes, revisions, digests and dependency edges remain native. Missing,
+      unused, redirected, wrong-MIME and integrity-bearing inputs reject.
+      Preparation, WASM and browser hosts expose opt-in ingress and scalar counts;
+      cancellation, policy changes, mutations and worker closure revoke the owner.
+      Verification: 192 focused native checks, WASM/CLI builds, lint and the full
+      Chromium gate pass, including 287 preparation cases (42 added here).
+      CEM audit preserves semantic/source ownership and public theme ownership;
+      no component defaults, theme overrides or accessibility policy changed.
+      Unsupported CSS/theme/forced-color contexts remain outside the bounded
+      author-color profile; these derivations do not replace browser winning styles.
+      General style, runtime dependency, response/consumption and origin-admission
+      blockers remain explicit. The graph records supplied candidates, not a
+      browser delivery or complete rendering closure.
+    - [ ] Extend acquired style/geometry evaluation beyond the explicit bounded
+      author-color profile; verify opacity/transforms, complex content/selectors
+      and nested fragment semantics before claiming rendering closure.
+    - [ ] Verify integrity-bearing nested snapshots and unsupported URL/MIME/base
+      profiles before widening the explicit acquired graph.
     - [ ] Bind verified origin leases to the recorded preparation's HTML base/policy
       seals, native author plan and browser/worker lifetime; test wrong-session
       binding and revocation before exposing production admission.
@@ -3177,12 +3226,14 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, bind acquired paint-template traversal to preparation lifetimes and
-verify Chromium compatibility, then define retained content/style and nested
-resource dependencies. Fragment
-validation now participates in preparation capture/read lifetimes and Chromium
-target identity checks. Engine admission remains gated on a maintained
-instrumented Chromium build.
+The bounded acquired content/provenance and nested snapshot implementation is
+available with native ownership and preparation lifetime validation. General
+style/geometry evaluation, integrity-bearing acquisitions, nested fragment
+semantics and dynamic resource coverage remain open.
+Production SVG replay is blocked on a maintained instrumented Chromium
+integration; the workspace contains feasibility probes but no engine checkout
+or integration target. Do not treat snapshot closure or compatibility pixels as
+browser consumption, origin admission or compare/apply exclusion.
 The engine hook contract is specified; isolated-world media reads are useful
 observations, but debugger pause demonstrably fails mutation exclusion.
 After real engine guarantees are verified, bind the provider to native
