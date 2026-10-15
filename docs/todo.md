@@ -3064,10 +3064,31 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       the sole provider implementation is cfg(test). CEM audit preserves native
       source/theme ownership and bounded variation; unsupported environments reject
       without changing accessibility settings, UI defaults or public tokens.
-    - [ ] Prototype a privileged browser-origin provider and verify exact winner
-      correspondence, user/UA/injected same-value overrides, initial forced colors,
-      same-value environment changes and mutation-interval ordering in Chromium.
-      Retain the origin blocker if provider guarantees cannot be established.
+    - [x] Add privileged CDP feasibility fixtures for presentation slots, real
+      extension AUTHOR/USER same-value overrides, UA rule visibility, forced colors,
+      A-to-B-to-A mutations, stale nodes/disconnect and the observation/write gap.
+      Record unsupported guarantees explicitly without minting admission leases.
+    - [x] Prototype a privileged browser-origin observer and assess its ability to
+      verify winner correspondence, origin changes, environment and mutation order.
+      Completed: fourteen pinned Chromium CDP probes run through an isolated
+      extension-capable context. Real AUTHOR and USER rules report injected and
+      user-agent respectively; same-URL overrides retain the original computed
+      URL after an alias attribute write. USER add/remove restoration escapes the
+      subscribed revision stream. A competing write succeeds between observation
+      and installation, and page-derived media observations remain spoofable.
+      UA rule visibility is observed, not complete UA winner coverage. Native
+      provider admission stays sealed: this prototype fails the production contract.
+      Focused probes, syntax/lint/diff checks and the full Chromium gate pass,
+      including 14 provider probes, 202 preparation cases and 12 paint compatibility
+      cases. The aggregate report records svgOriginProvider; Nx inputs include
+      the new helper. No native transformation or production provider code changed.
+      Reports retain explicit blockers and executionSeal/productionAdmission false;
+      no runtime AST, lease, transport or transaction authority crosses the harness.
+      CEM audit preserves semantic source/theme ownership and accessibility settings;
+      fixture emulation/injection is isolated, with no UI/token/default changes.
+    - [ ] Specify and prototype engine-backed winner/environment observations,
+      pre-mutation invalidation and an enforceable mutation interval to close the
+      CDP feasibility gaps. Require verified guarantees before native admission.
     - [ ] Bind verified origin leases to the recorded preparation's HTML base/policy
       seals, native author plan and browser/worker lifetime; test wrong-session
       binding and revocation before exposing production admission.
@@ -3085,9 +3106,10 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, prototype and verify the privileged browser-origin provider, including
-same-value override and mutation-interval cases. Then bind verified native leases
-to recorded preparation's base/policy seals and browser/worker lifetime.
+Next, specify and prototype engine-backed winner/environment observations,
+pre-mutation invalidation and mutation exclusion: the CDP observer fails the
+admission contract. Then bind a verified provider to native preparation's
+base/policy seals and browser/worker lifetime.
 Ordinary web hosts remain preparation-only; caller assertions and compatibility
 reports cannot replace provider evidence. Once admission is verified, implement
 controlled alias installation, rollback/disposal, delivery receipts and revocation.

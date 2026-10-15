@@ -80,6 +80,7 @@
                 "{projectRoot}/scripts/verify-html-base-evidence.mjs",
                 "{projectRoot}/scripts/verify-stylesheet-svg.mjs",
                 "{projectRoot}/scripts/verify-svg-replay.mjs",
+                "{projectRoot}/scripts/verify-svg-origin-provider.mjs",
                 "{projectRoot}/scripts/verify-recorded-output.mjs",
                 "{workspaceRoot}/packages/cem_ql/examples/recorded_output_probe.rs",
                 "{workspaceRoot}/packages/cem_ml/tests/fixtures/stylesheet-svg.xhtml",

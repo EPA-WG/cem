@@ -4651,10 +4651,61 @@ provider replacement/disconnect/revision changes, computed disagreement,
 pre/postvalidation preparation failures, observation races, cancellation,
 disposal and fresh recapture. Installation intervals, alias writes and
 replay-bound publication remain future work, along with real delivery receipts.
-Next verify the actual provider's provenance and invalidation guarantees using
-browser-origin injection and same-value counterexamples. No existing adapter is
-asserted to satisfy this contract; provider feasibility remains the integration
-gate ahead of alias installation. Compatibility reports remain non-authoritative.
+The privileged CDP prototype below tests actual browser-origin injection and
+same-value counterexamples. It does not satisfy the admission contract; a provider
+with stronger engine guarantees remains the gate ahead of session integration
+and alias installation. Compatibility reports remain non-authoritative.
+
+#### Privileged CDP provider feasibility
+
+`scripts/verify-svg-origin-provider.mjs` prototypes a Node-owned DevTools session,
+separate from page JavaScript, against Chromium `148.0.7778.96`. It holds a live
+CDP node/backend identity, reads presentation/matched/computed styles and tracks
+CSS/DOM notification revisions. It is a test-only diagnostic observer, never a
+native `OriginProvider` implementation. No CDP rule objects enter native AST or
+lease ingress. All reports contain `executionSeal: false` and
+`productionAdmission: false`, including baseline cases with no competing rules.
+The full browser gate saves the report as `svgOriginProvider` in
+`dist/reports/cem-ml-platform-parity.browser.json`; the helper is an explicit Nx
+input so changes invalidate the gate's cache.
+
+Fourteen probes exercise presentation fill/stroke, visible UA rules, real
+extension AUTHOR and USER overrides, USER add/remove restoration, initial and
+restored forced colors, spoofed page media observation, DOM restoration,
+observation/write interleaving, navigation, explicit closure and transport loss.
+The extension runs only in a temporary persistent test context with loopback
+host permissions; the context and extension directory are removed afterward.
+It uses `chrome.scripting.insertCSS` with explicit AUTHOR/USER origins, rather
+than relabeling author CSS as user CSS. The protocol's rule-origin categories and
+matched-style surface are documented in the
+[DevTools CSS domain](https://chromedevtools.github.io/devtools-protocol/tot/CSS/).
+Actual pinned-browser observations determine the following findings:
+
+| Observation | Admission implication |
+| --- | --- |
+| Presentation values and computed URLs are visible; UA rules are listed on the SVG root | Useful correspondence data, not a complete winning-source proof |
+| An extension AUTHOR rule reports `injected`; its USER rule reports `user-agent` | The CDP label cannot be treated as the actual CSS cascade origin |
+| Either important override can have exactly the presentation URL; changing the attribute to an alias leaves the computed original URL | Computed equality does not establish presentation ownership |
+| A same-value USER insert/remove cycle changes the matched rule list but leaves the subscribed CSS/DOM revision unchanged | This event stream cannot maintain the native lease's all-origin revision |
+| A USER write succeeds between the probe read and the CDP attribute write | Observation followed by a write establishes no mutation-exclusion interval |
+| Initial forced colors is observable, but page code can spoof `matchMedia` even when called through CDP Runtime.evaluate | Privileged transport does not authenticate page-derived environment data |
+| DOM A-to-B-to-A increments the observed revision; navigation and detachment reject stale reads | These covered paths do not repair the missing origin/environment guarantees |
+
+The prototype therefore retains explicit completeness, revision, mutation-interval
+and environment-provenance blockers. The USER-origin event assertion deliberately
+fails if a later browser begins reporting that transition, requiring review rather
+than silently assuming that one improvement proves complete admission. The tests
+observe a real UA rule but do not inject a UA paint override or prove complete UA
+coverage. The interleaving probe disproves this observer's read/write sequence as
+an exclusive interval; it does not claim that every possible privileged browser
+integration is incapable of exclusion.
+
+Next specify and prototype an engine-backed adapter for actual cascade winner
+identity, authenticated environment state, pre-mutation invalidation and enforceable
+mutation exclusion. Verify these guarantees before connecting the native admission
+protocol to preparation seals. Do not compensate with polling, accepting a CDP
+origin label as authoritative, public trust flags, or a page media callback.
+No runtime admission blocker is removed by this feasibility result.
 
 CEM audit: native source/theme ownership remains authoritative; replay cannot
 outvote user overrides to preserve a fixture result. Variation is bounded by the

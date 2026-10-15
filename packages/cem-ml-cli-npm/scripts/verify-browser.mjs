@@ -11,6 +11,7 @@ import { verifyHtmlBaseParity, emitNativeHtmlBaseEvidence } from './verify-html-
 import { verifyHtmlBaseFreezeEvidence } from './verify-html-base-evidence.mjs';
 import { verifyStylesheetSvg } from './verify-stylesheet-svg.mjs';
 import { verifySvgReplayCompatibility } from './verify-svg-replay.mjs';
+import { verifySvgOriginProvider } from './verify-svg-origin-provider.mjs';
 import { verifyRecordedOutput } from './verify-recorded-output.mjs';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -406,6 +407,7 @@ try {
     const htmlBase = await verifyHtmlBaseParity(browser, workspaceRoot);
     const stylesheetSvg = await verifyStylesheetSvg(browser, workspaceRoot);
     const svgReplayCompatibility = await verifySvgReplayCompatibility(browser);
+    const svgOriginProvider = await verifySvgOriginProvider(browser);
     const htmlBaseFreeze = await verifyHtmlBaseFreezeEvidence(browser, workspaceRoot);
     const browserStylesheets = await page.evaluate((version) => globalThis.runBrowserStylesheetsFixture(version), browser.version());
     assert.equal(browserStylesheets.cases.length, 18);
@@ -446,6 +448,7 @@ try {
                 htmlExecutionInventory,
                 stylesheetSvg,
                 svgReplayCompatibility,
+                svgOriginProvider,
                 browserStylesheets,
                 compiledStylesheets,
                 stylesheetSelection,
