@@ -2973,6 +2973,26 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       or independent fill/stroke selection is not. Response-identity and
       paint-consumption blockers remain until selection-bound replay and
       paint compatibility are established; no broad device/AT claims.
+    - [x] Verify selection-bound SVG replay feasibility with real Chromium
+      document pixels, local paint controls, fresh aliases and warm-cache image
+      consumers and retargeting. Record the compatibility boundary without
+      enabling replay-based paint consumption claims.
+      Completed: the pinned Chromium 148.0.7778.96 compatibility gate checks
+      twelve live-document screenshot/request cases: gradient and pattern local
+      controls, fresh URLs, warm image-cache reuse, fresh aliases, and fresh/alias
+      variants without fallback paint. External cases have no local definitions.
+      Green alias versus magenta cached-source paint, blue image pixels and four
+      retargeting checks distinguish actual consumer selection. Requests use the
+      image destination; warm reuse and retargeting issue no second request.
+      All twelve probes, all 194 preparation cases (including rejection of
+      unimplemented SVG replay admission), the full browser gate, lint and diff
+      checks pass. The helper is included in Nx target inputs; observations are
+      saved under svgReplayCompatibility in the platform-parity browser report.
+      CEM audit: fixture colors only, no UI/public-token/default changes; authored
+      source/theme ownership and existing execution blockers remain intact.
+      These are compatibility observations, not native replay plans or execution
+      seals. Production source/alias/fragment ownership and receipt binding remain
+      open; no broader CSS, cross-origin, device or AT acceptance is claimed.
     - [ ] Integrate computed SVG byte bindings with preparation/acquisition
       lifetime and verify browser response identity before claiming consumption.
     - [ ] Bind computed CSS/SVG selections to acquired resource bodies before
@@ -2984,9 +3004,10 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, define and verify cache-isolated SVG replay bound to the actual selected
-consumer, including Chromium paint-reference compatibility, before removing
-paint response-identity/consumption blockers. Extend fragment/embedded SVG dependencies and broader CSS selections
+Next, implement bounded native SVG replay plans retaining authored consumer,
+source URL and fragment provenance, then bind fresh aliases to browser delivery
+and revocation. The pinned paint compatibility profile is verified; it does not
+remove response-identity/consumption blockers or authorize replay by itself. Extend fragment/embedded SVG dependencies and broader CSS selections
 afterward. General runtime loads and broader cascade evidence remain required
 before complete dependency closure or wider transaction admission.
 Selected image response/candidate binding is available through explicit native

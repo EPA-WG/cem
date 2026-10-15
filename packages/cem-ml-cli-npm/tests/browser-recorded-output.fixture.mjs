@@ -712,6 +712,18 @@ globalThis.runRecordedOutputFixture = async version => {
         check(pool.workers[0].generation > 1, 'fixture failed to replace worker');
         check(capture().read().blockers.length > 0, 'replacement did not admit fresh preparation');
     }, true);
+    await run('svg-replay-not-admitted', async ({ captureAsync, request, doc }) => {
+        paintRequest(request, doc, '', `url(${doc.URL}#p)`);
+        let failed = false;
+        try {
+            await captureAsync({ svgDelivery: 'service-worker-replay', svgSnapshots: {
+                signal: new AbortController().signal,
+                responses: [{ requestedUrl: doc.URL, finalUrl: doc.URL, contentType: 'image/svg+xml', revision: '1',
+                    bytes: new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"/>') }],
+            } });
+        } catch { failed = true; }
+        check(failed, 'compatibility-only replay admitted production evidence');
+    });
     await run('image-delivery-no-controller', async ({ captureAsync }) => {
         let failed = false;
         try { await captureAsync({ imageDelivery: 'service-worker' }); } catch { failed = true; }

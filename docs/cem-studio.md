@@ -4407,6 +4407,39 @@ response-identity and consumption blockers remain present.** A cache-isolated,
 selection-bound replay profile and Chromium paint compatibility evidence are
 still required before those blockers can be removed.
 
+The pinned compatibility profile `chromium-148-external-paint-replay-v1` is
+verified against Chromium `148.0.7778.96` by
+`packages/cem-ml-cli-npm/scripts/verify-svg-replay.mjs`. Twelve cases cover gradients
+and patterns, each as a local control, a fresh external resource, a resource
+warmed by an image consumer, and a fresh alias alongside a warmed source. Fresh and replay cases also run
+without fallback paint, matching the bounded native URL profile.
+External cases contain **no local paint definitions**. Local/fresh/alias paint
+is green, warmed-source paint is magenta, and the standalone SVG image is blue.
+The fallback-control cases use red; cases without fallback use the white
+page background to distinguish missing paint from successful outcomes. Tests sample actual live-document screenshots rather than
+serialize the document into an SVG image, and assert exact request URLs,
+`image` fetch destinations, computed fragment references and RGBA pixels.
+
+Chromium renders both external gradients and patterns in this bounded profile.
+Warming an SVG image allows its response to be reused by an external paint
+reference without another network request. A fresh alias selects its separately
+served body; retargeting back to the warmed source restores magenta without a
+new request. These four retargeting checks establish that the sampled paint
+tracks the selected URL, rather than the visible SVG image or a local definition.
+The fixtures use fixed responses at isolated server URLs; they do not implement
+production source-to-alias rewriting or authenticate an arbitrary transport.
+
+The shared browser gate records these observations under `svgReplayCompatibility`
+in `dist/reports/cem-ml-platform-parity.browser.json`, with `executionSeal: false`.
+A browser-version change fails the profile until its evidence is reviewed. A
+separate preparation fixture rejects `svgDelivery: 'service-worker-replay'`:
+compatibility alone cannot admit replay. Production replay still requires native
+retained winning-source/fragment ownership, bounded alias generation and
+rewriting, receipt/selection binding, and revocation on source, consumer or
+transport changes. Existing response-identity/consumption blockers stay intact.
+No broader CSS, filters, markers, masks, inheritance, cross-origin, animation or
+physical-device compatibility is inferred from these gradient/pattern probes.
+
 CEM audit: authored source and theme ownership remain separate from observations
 and acquired bytes. No copied computed value becomes a declaration, no component
 behavior/default/public token changes, and no general forced-color or device/AT

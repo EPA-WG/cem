@@ -10,6 +10,7 @@ import { build } from 'vite';
 import { verifyHtmlBaseParity, emitNativeHtmlBaseEvidence } from './verify-html-base.mjs';
 import { verifyHtmlBaseFreezeEvidence } from './verify-html-base-evidence.mjs';
 import { verifyStylesheetSvg } from './verify-stylesheet-svg.mjs';
+import { verifySvgReplayCompatibility } from './verify-svg-replay.mjs';
 import { verifyRecordedOutput } from './verify-recorded-output.mjs';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -404,6 +405,7 @@ try {
 
     const htmlBase = await verifyHtmlBaseParity(browser, workspaceRoot);
     const stylesheetSvg = await verifyStylesheetSvg(browser, workspaceRoot);
+    const svgReplayCompatibility = await verifySvgReplayCompatibility(browser);
     const htmlBaseFreeze = await verifyHtmlBaseFreezeEvidence(browser, workspaceRoot);
     const browserStylesheets = await page.evaluate((version) => globalThis.runBrowserStylesheetsFixture(version), browser.version());
     assert.equal(browserStylesheets.cases.length, 18);
@@ -411,7 +413,7 @@ try {
     const compiledStylesheets = await page.evaluate(() => globalThis.runCompiledStylesheetsFixture());
     assert.equal(compiledStylesheets.cases.length, 20);
     const recordedPreparations = await page.evaluate(version => globalThis.runRecordedOutputFixture(version), browser.version());
-    assert.equal(recordedPreparations.cases.length, 193);
+    assert.equal(recordedPreparations.cases.length, 194);
     console.log(`Verified ${recordedPreparations.cases.length} production native preparation host cases.`);
     const recordedOutput = await verifyRecordedOutput(browser, workspaceRoot);
     const stylesheetSelection = await page.evaluate((version) => globalThis.runStylesheetSelectionFixture(version), browser.version());
@@ -443,6 +445,7 @@ try {
                 htmlBaseHost,
                 htmlExecutionInventory,
                 stylesheetSvg,
+                svgReplayCompatibility,
                 browserStylesheets,
                 compiledStylesheets,
                 stylesheetSelection,
