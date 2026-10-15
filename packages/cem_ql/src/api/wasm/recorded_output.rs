@@ -325,6 +325,10 @@ impl WasmRecordedOutputSession {
             })
             .map_err(error)
     }
+    #[wasm_bindgen(js_name = "enableSvgReplayPlan")]
+    pub fn enable_svg_replay_plan(&mut self, nonce: &str) -> Result<(), JsValue> {
+        self.inner.enable_svg_replay_plan(nonce).map_err(error)
+    }
     #[wasm_bindgen(js_name = "enableBoundedPaintColors")]
     pub fn enable_bounded_paint_colors(&mut self) -> Result<(), JsValue> {
         self.inner.enable_paint_colors().map_err(error)
@@ -395,6 +399,7 @@ impl WasmRecordedOutputSession {
             self.inner.image_deliveries(),
             self.inner.image_replay_bound(),
             self.inner.svg_computed_slots(),
+            self.inner.svg_replay_candidates(),
             self.inner.svg_resource_bindings(),
             self.inner.svg_delivered_bindings(),
             self.inner.svg_paint_counts(),
@@ -447,6 +452,7 @@ impl WasmRecordedOutputSession {
             self.inner.image_deliveries(),
             self.inner.image_replay_bound(),
             self.inner.svg_computed_slots(),
+            self.inner.svg_replay_candidates(),
             self.inner.svg_resource_bindings(),
             self.inner.svg_delivered_bindings(),
             self.inner.svg_paint_counts(),
@@ -463,6 +469,7 @@ fn summary(
     deliveries: usize,
     replay_bound: bool,
     svg: usize,
+    svg_replay: usize,
     svg_bindings: usize,
     svg_delivered: usize,
     paint: (usize, usize),
@@ -484,7 +491,7 @@ fn summary(
             .map(str::to_owned),
         );
     }
-    serde_json::json!({"blockers":blockers, "imageAcquisitions": images, "imageDeliveries": deliveries, "svgComputedSlots": svg, "svgResourceBindings": svg_bindings, "svgDeliveredBindings": svg_delivered, "svgPaintRoots": paint.0, "svgPaintLinks": paint.1, "svgPaintServers": content.0, "svgPaintContentNodes": content.1, "svgPaintStyleHosts": style.0, "svgPaintStyleInstances": style.1, "svgCloneProfileConfirmed": clone_profile, "svgPaintColors": colors.0, "svgPaintSuppressedHosts": colors.1}).to_string()
+    serde_json::json!({"blockers":blockers, "imageAcquisitions": images, "imageDeliveries": deliveries, "svgComputedSlots": svg, "svgReplayCandidates": svg_replay, "svgResourceBindings": svg_bindings, "svgDeliveredBindings": svg_delivered, "svgPaintRoots": paint.0, "svgPaintLinks": paint.1, "svgPaintServers": content.0, "svgPaintContentNodes": content.1, "svgPaintStyleHosts": style.0, "svgPaintStyleInstances": style.1, "svgCloneProfileConfirmed": clone_profile, "svgPaintColors": colors.0, "svgPaintSuppressedHosts": colors.1}).to_string()
 }
 fn error(e: impl AsRef<str>) -> JsValue {
     JsValue::from_str(e.as_ref())

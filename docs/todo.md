@@ -3014,6 +3014,24 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       variation, with no UI/default/public-token changes or broader AT claims.
       Plans are authored candidates: winner/base-policy proof, alias installation,
       native preparation binding, receipt matching and consumption stay blocked.
+    - [x] Bind replay candidates to preparation under a closed presentation-only
+      author-winner profile, with native fixtures for competing/active sources,
+      computed mismatch, stale DOM/base and cancellation, plus Chromium policy
+      coverage. Keep all-origin proof and alias installation separately blocked.
+      Completed: SvgReplayAuthorPlan retains presentation-origin winner identities
+      under a bounded inert HTML/SVG allowlist. Competing styles (even unrelated),
+      scripts, animation, custom/active contexts and SVG use reject. Preparation
+      uses its sealed effective base and original source inventory; computed URLs
+      must independently agree. Worker DOM/base/policy checks precede publication;
+      live computed validation and failure/cancellation/disposal revoke candidates.
+      Browser svgReplayPlan opt-in passes only a nonce, with a scalar candidate
+      count; routes and proof remain native. No alias installation or transaction
+      authority is granted. Full browser-origin, response/consumption, fragment and
+      nested-dependency blockers remain. All 92 focused SVG tests, 63 preparation
+      tests, WASM/CLI builds, lint and the full Chromium gate pass, including 202
+      preparation cases and 12 replay compatibility probes. CEM audit preserves
+      original semantic/source/theme ownership, with no UI, defaults or public
+      token changes and no broader browser/device/AT acceptance claim.
     - [ ] Integrate computed SVG byte bindings with preparation/acquisition
       lifetime and verify browser response identity before claiming consumption.
     - [ ] Bind computed CSS/SVG selections to acquired resource bodies before
@@ -3025,12 +3043,13 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, bind native SVG replay plans to preparation with retained winning-source
-and live base/policy proof before applying alias replacements. Then connect fresh
-alias routes to browser delivery receipts and mutation revocation. Native plans
-and pinned paint compatibility do not independently remove response-identity/
-consumption blockers or authorize replay. Extend fragment/embedded SVG dependencies and broader CSS selections
-afterward. General runtime loads and broader cascade evidence remain required
+Next, define the browser-origin compatibility/admission contract for the bounded
+presentation-author replay profile. Then implement controlled native alias
+installation and connect fresh alias routes to browser delivery receipts and
+mutation revocation. Preparation-bound author candidates and pinned paint
+compatibility do not independently remove response-identity/consumption blockers
+or authorize replay. Extend fragment/embedded SVG dependencies and broader CSS
+winner selections afterward. General runtime loads and broader cascade evidence remain required
 before complete dependency closure or wider transaction admission.
 Selected image response/candidate binding is available through explicit native
 replay; unchanged-URL observation deliberately retains its historical-identity

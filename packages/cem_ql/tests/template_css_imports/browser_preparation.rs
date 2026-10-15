@@ -907,3 +907,88 @@ fn svg_transport_ledger_binds_only_inside_live_preparation() {
         )
         .is_err());
 }
+
+const REPLAY_URL_VALUE: &str = "url(https://output.test/assets/paint.svg#p)";
+fn replay_session(extra: &str) -> RecordedOutputSession {
+    replay_session_value(extra, REPLAY_URL_VALUE)
+}
+fn replay_session_value(extra: &str, computed: &'static str) -> RecordedOutputSession {
+    let mut value: serde_json::Value = serde_json::from_str(&request()).unwrap();
+    value["choices"] = serde_json::json!([]);
+    value["sources"] = serde_json::json!([{"uri": ROOT, "revision":"1", "contentType":"text/cem-ml", "source": format!("{{result-element @name=html @namespace='http://www.w3.org/1999/xhtml' | {{result-element @name=head @namespace='http://www.w3.org/1999/xhtml' | {{result-element @name=base @namespace='http://www.w3.org/1999/xhtml' | {{result-attribute @name=href | {BASE}}}}}}}{{result-element @name=body @namespace='http://www.w3.org/1999/xhtml' | {{svg @xmlns='http://www.w3.org/2000/svg' | {extra}{{path @fill='url(paint.svg#p)'}}}}}}}}")}]);
+    let mut s = RecordedOutputSession::from_json(&value.to_string(), 1, 1).unwrap();
+    compose(&mut s);
+    s.prepare_base(slots, |_| Ok(HtmlBasePolicyDecision::Allow))
+        .unwrap();
+    s.prepare_stylesheets(BASE, slots, None).unwrap();
+    s.enable_svg_replay_plan("0123456789abcdef0123456789abcdef")
+        .unwrap();
+    s.record_svg(&mut SvgObserver(computed)).unwrap();
+    s
+}
+#[test]
+fn replay_author_plan_is_published_only_with_live_preparation() {
+    for failure in ["dom", "base", "computed", "cancel"] {
+        let mut s = replay_session("");
+        assert_eq!(s.svg_replay_candidates(), 0);
+        s.capture(BASE, slots, &mut OutputObserver { wrong: false })
+            .unwrap();
+        assert_eq!(s.svg_replay_candidates(), 1);
+        s.read(BASE, slots, &mut OutputObserver { wrong: false })
+            .unwrap();
+        match failure {
+            "dom" => {
+                assert!(s
+                    .read(
+                        BASE,
+                        |_| Err("changed".into()),
+                        &mut OutputObserver { wrong: false }
+                    )
+                    .is_err());
+            }
+            "base" => {
+                assert!(s
+                    .read(
+                        "https://output.test/changed/",
+                        slots,
+                        &mut OutputObserver { wrong: false }
+                    )
+                    .is_err());
+            }
+            "computed" => {
+                assert!(s
+                    .validate_svg(&mut SvgObserver("url(https://output.test/other.svg#p)"))
+                    .is_err());
+            }
+            "cancel" => {
+                s.cancellation().abort();
+                assert!(s
+                    .read(BASE, slots, &mut OutputObserver { wrong: false })
+                    .is_err());
+            }
+            _ => unreachable!(),
+        }
+        assert_eq!(s.svg_replay_candidates(), 0);
+    }
+}
+#[test]
+fn replay_preparation_rejects_competing_author_style_and_computed_mismatch() {
+    let mut mismatch = replay_session_value("", "url(https://output.test/other.svg#p)");
+    assert!(mismatch
+        .capture(BASE, slots, &mut OutputObserver { wrong: false })
+        .is_err());
+    assert_eq!(mismatch.svg_replay_candidates(), 0);
+    let mut s = replay_session("{style |```path{fill:red}```}");
+    assert!(s
+        .capture(BASE, slots, &mut OutputObserver { wrong: false })
+        .is_err());
+    assert!(s.html().is_err());
+    let mut s = replay_session("");
+    assert!(s
+        .enable_svg_replay_plan("0123456789abcdef0123456789abcdef")
+        .is_err());
+    let mut s = session();
+    assert!(s
+        .enable_svg_replay_plan("0123456789abcdef0123456789abcdef")
+        .is_err());
+}

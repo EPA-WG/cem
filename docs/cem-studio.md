@@ -4480,6 +4480,32 @@ must not rewrite them or substitute a computed winner without separate proof.
 No WASM ingress, browser alias installation or transaction admission is added by
 this native planning step.
 
+Recorded preparation can now opt into `svgReplayPlan: { nonce }` through the
+browser host. WASM passes only that scalar nonce to the native session;
+`svgReplayCandidates` reports a diagnostic count, never routes or evidence DTOs.
+`SvgReplayAuthorPlan` retains presentation-origin `PaintDeclarationWinner`
+identities under a closed static author profile: an explicit inert HTML/SVG
+allowlist, at most 10,000 retained nodes, and no stylesheet elements, inline
+styles, scripts, event handlers, custom elements, animation, or SVG `use`.
+Even unrelated/nonmatching styles reject. This proves the direct presentation
+attribute wins within this bounded author universe; it does not prove precedence
+over user/UA/extension origins or broader browser behavior.
+
+Capture constructs the plan from the same retained presentation inventory and
+sealed HTML base evidence used by preparation. Original source URLs must agree
+with separately imported computed URLs; equality is a consistency check, never
+the source of author-winner authority. The worker must validate the live DOM,
+base/policy and stylesheet state before publishing the plan. Browser capture and
+reads also validate the live computed host. Failed capture/read, changed DOM or
+base/policy, computed disagreement, cancellation and disposal revoke the owning
+session and its candidates. Source identity checks continue on native reads.
+
+This preparation-only option never installs replacements, claims nonce freshness,
+creates transport routes, or authorizes a transaction. Browser-origin proof,
+controlled alias installation, original-response/alias receipt matching, fragment
+targets, nested dependencies and actual consumption remain explicit obligations.
+The existing full winning-source blocker remains conservative for browser origins.
+
 CEM audit: authored source and theme ownership remain separate from observations
 and acquired bytes. No copied computed value becomes a declaration, no component
 behavior/default/public token changes, and no general forced-color or device/AT

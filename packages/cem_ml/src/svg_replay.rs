@@ -229,3 +229,144 @@ fn http_url(value: &str) -> Result<url::Url, String> {
     }
     Ok(url)
 }
+
+/// Closed presentation-only author cascade. Browser/user origins and actual
+/// alias consumption remain separate obligations, even when computed URLs agree.
+pub struct SvgReplayAuthorPlan {
+    plan: SvgReplayPlan,
+    winners: Vec<crate::svg_paint_colors::PaintDeclarationWinner>,
+}
+impl SvgReplayAuthorPlan {
+    pub fn new(plan: SvgReplayPlan) -> Result<Self, String> {
+        use crate::parser::tree::CemTreeNodeKind;
+        use crate::svg_paint_colors::{PaintDeclarationOrigin, PaintDeclarationWinner};
+        let document = plan
+            .routes()
+            .first()
+            .ok_or("live replay plan required")?
+            .consumer
+            .document();
+        if document.ast().nodes.len() > 10_000 {
+            return Err("replay author universe bound exceeded".into());
+        }
+        for id in 0..document.ast().nodes.len() {
+            if plan.cancel.is_aborted() {
+                return Err("SVG replay cancelled".into());
+            }
+            let Some(node) = document.node(id as AstNodeId) else {
+                continue;
+            };
+            match node.kind {
+                CemTreeNodeKind::Element => {
+                    let name = node.name.as_ref().ok_or("unnamed replay element")?;
+                    let allowed = match name.namespace_uri.as_str() {
+                        "http://www.w3.org/1999/xhtml" => matches!(
+                            name.local_name.as_str(),
+                            "html"
+                                | "head"
+                                | "body"
+                                | "base"
+                                | "title"
+                                | "div"
+                                | "span"
+                                | "p"
+                                | "main"
+                                | "section"
+                        ),
+                        "http://www.w3.org/2000/svg" => matches!(
+                            name.local_name.as_str(),
+                            "svg"
+                                | "g"
+                                | "path"
+                                | "rect"
+                                | "circle"
+                                | "ellipse"
+                                | "line"
+                                | "polyline"
+                                | "polygon"
+                                | "defs"
+                                | "title"
+                                | "desc"
+                                | "linearGradient"
+                                | "radialGradient"
+                                | "stop"
+                                | "pattern"
+                                | "image"
+                        ),
+                        _ => false,
+                    };
+                    if !allowed {
+                        return Err("replay requires closed static author universe".into());
+                    }
+                }
+                CemTreeNodeKind::Attribute => {
+                    let name = node.name.as_ref().ok_or("unnamed replay attribute")?;
+                    let local = name.local_name.to_ascii_lowercase();
+                    if local == "style" || local == "is" || local.starts_with("on") {
+                        return Err(
+                            "replay competing or active author attribute unsupported".into()
+                        );
+                    }
+                }
+                CemTreeNodeKind::Reference | CemTreeNodeKind::ProcessingInstruction => {
+                    return Err("replay active source unsupported".into())
+                }
+                _ => {}
+            }
+        }
+        let winners = plan
+            .routes()
+            .iter()
+            .map(|r| PaintDeclarationWinner {
+                origin: PaintDeclarationOrigin::Presentation {
+                    attribute: r.consumer.attribute(),
+                },
+                important: false,
+                order: 0,
+            })
+            .collect();
+        Ok(Self { plan, winners })
+    }
+    pub fn winners(&self) -> &[crate::svg_paint_colors::PaintDeclarationWinner] {
+        if self.plan.routes().is_empty() {
+            &[]
+        } else {
+            &self.winners
+        }
+    }
+    pub fn validate(
+        &mut self,
+        evidence: &crate::svg_computed_execution::SvgComputedEvidence,
+    ) -> Result<(), String> {
+        let result = (|| {
+            self.plan.validate(evidence.sources())?;
+            if evidence.values().len() != self.plan.routes().len() {
+                return Err("replay observation count changed".into());
+            }
+            for (slot, (route, value)) in
+                self.plan.routes().iter().zip(evidence.values()).enumerate()
+            {
+                let property = &route
+                    .consumer
+                    .document()
+                    .node(route.consumer.attribute())
+                    .unwrap()
+                    .name
+                    .as_ref()
+                    .unwrap()
+                    .local_name;
+                let (_, _, url) =
+                    crate::svg_resource_acquisition::computed_url(property, value, slot)?;
+                if url.as_str() != route.source_url {
+                    return Err("replay computed URL disagrees with author winner".into());
+                }
+            }
+            Ok(())
+        })();
+        if result.is_err() {
+            self.plan.close();
+            self.winners.clear();
+        }
+        result
+    }
+}

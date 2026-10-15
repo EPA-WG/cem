@@ -11,6 +11,7 @@ use cem_ml::svg_paint_colors::BoundedPaintColors;
 use cem_ml::svg_paint_content::SvgPaintContentPlan;
 use cem_ml::svg_paint_dependencies::{PaintTarget, SvgPaintPlan};
 use cem_ml::svg_paint_style::SvgPaintStylePlan;
+use cem_ml::svg_replay::{SvgReplayAuthorPlan, SvgReplayPlan};
 use cem_ml::svg_resource_acquisition::{
     SvgDeliveryCapture, SvgResourceRecord, SvgResourceResponse,
 };
@@ -98,6 +99,8 @@ pub struct RecordedOutputSession {
     svg_evidence: Option<Arc<SvgComputedEvidence>>,
     svg_resources: Option<SvgResourceRecord>,
     svg_acquisition: Option<AbortSignal>,
+    svg_replay_nonce: Option<String>,
+    svg_replay: Option<SvgReplayAuthorPlan>,
     paint: Option<Arc<SvgPaintPlan>>,
     paint_content: Option<Arc<SvgPaintContentPlan>>,
     paint_style: Option<Arc<SvgPaintStylePlan>>,
@@ -247,6 +250,8 @@ impl RecordedOutputSession {
             svg_evidence: None,
             svg_resources: None,
             svg_acquisition: None,
+            svg_replay_nonce: None,
+            svg_replay: None,
             paint: None,
             paint_content: None,
             paint_style: None,
@@ -317,6 +322,8 @@ impl RecordedOutputSession {
             resources.close();
         }
         self.svg_acquisition = None;
+        self.svg_replay = None;
+        self.svg_replay_nonce = None;
         self.paint = None;
         self.paint_content = None;
         self.paint_style = None;
@@ -782,6 +789,35 @@ impl RecordedOutputSession {
             .as_ref()
             .map_or(0, |r| r.bindings().len())
     }
+    /// Opt in to preparation-only candidates; this never installs aliases.
+    pub fn enable_svg_replay_plan(&mut self, nonce: &str) -> Result<(), String> {
+        self.run(|s| {
+            if s.stage != Stage::ComposedBase
+                || s.svg_sources.is_none()
+                || s.svg_replay_nonce.is_some()
+                || nonce.len() != 32
+                || !nonce
+                    .bytes()
+                    .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
+            {
+                return Err("bounded replay preparation opt-in out of order or invalid".into());
+            }
+            s.svg_replay_nonce = Some(nonce.into());
+            Ok(())
+        })
+    }
+    pub fn svg_replay_candidates(&self) -> usize {
+        if self.stage != Stage::Captured
+            || self.cancel.is_aborted()
+            || self
+                .svg_acquisition
+                .as_ref()
+                .is_some_and(AbortSignal::is_aborted)
+        {
+            return 0;
+        }
+        self.svg_replay.as_ref().map_or(0, |p| p.winners().len())
+    }
     pub fn validate_svg(&mut self, observer: &mut impl SvgComputedObserver) -> Result<(), String> {
         self.run(|s| {
             let evidence = s
@@ -793,6 +829,9 @@ impl RecordedOutputSession {
                 .as_ref()
                 .ok_or("SVG source preparation required")?;
             s.svg_host.validate(evidence, sources, observer)?;
+            if let Some(plan) = &mut s.svg_replay {
+                plan.validate(evidence)?;
+            }
             if let Some(resources) = &mut s.svg_resources {
                 resources.validate(&mut s.svg_host, observer)?;
             }
@@ -917,6 +956,19 @@ impl RecordedOutputSession {
         })
     }
     fn paint_blockers(&self, mut blockers: Vec<String>) -> Vec<String> {
+        if self.svg_replay.is_some() {
+            blockers.extend(
+                [
+                    "svg-replay-browser-origin-proof-required",
+                    "svg-replay-alias-installation-required",
+                    "svg-resource-browser-response-identity-required",
+                    "svg-resource-consumption-required",
+                    "svg-resource-fragment-target-required",
+                    "svg-resource-transitive-dependencies-required",
+                ]
+                .map(str::to_owned),
+            );
+        }
         if let Some(resources) = &self.svg_resources {
             blockers.extend(resources.blockers().iter().map(|b| (*b).to_owned()));
             blockers.sort();
@@ -1011,6 +1063,25 @@ impl RecordedOutputSession {
                 &mut matches,
                 base,
             )?);
+            // inspect_dependencies above seals the live base/policy and exact DOM
+            // correspondence; publish the author plan only after worker validation.
+            let replay = if let Some(nonce) = &s.svg_replay_nonce {
+                let mut plan = SvgReplayAuthorPlan::new(SvgReplayPlan::new(
+                    s.svg_sources.as_ref().ok_or("replay sources missing")?,
+                    evidence.effective_url(),
+                    &s.output_uri,
+                    nonce,
+                    s.cancel.clone(),
+                )?)?;
+                plan.validate(
+                    s.svg_evidence
+                        .as_ref()
+                        .ok_or("replay computed evidence required")?,
+                )?;
+                Some(plan)
+            } else {
+                None
+            };
             let paint = Arc::new(SvgPaintPlan::from_inventory(document.clone(), 1_000_000)?);
             let content = Arc::new(SvgPaintContentPlan::new(paint.clone(), 1_000_000)?);
             let style = Arc::new(SvgPaintStylePlan::new(content.clone(), 1_000_000)?);
@@ -1037,6 +1108,7 @@ impl RecordedOutputSession {
             let blockers = s.worker.read(&handle, &mut paint_observer, matches, base)?;
             paint_observer.complete()?;
             s.handle = Some(handle);
+            s.svg_replay = replay;
             s.paint = Some(paint);
             s.paint_content = Some(content);
             s.paint_style = Some(style);
@@ -1054,6 +1126,9 @@ impl RecordedOutputSession {
         self.run(|s| {
             if s.stage != Stage::Captured {
                 return Err("recorded read requires capture".into());
+            }
+            if let Some(plan) = &mut s.svg_replay {
+                plan.validate(s.svg_evidence.as_ref().ok_or("replay evidence missing")?)?;
             }
             let mut paint_observer =
                 PaintStylesheetObserver::new(s.paint_colors.as_ref(), observer);

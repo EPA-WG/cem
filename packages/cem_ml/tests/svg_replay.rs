@@ -194,3 +194,38 @@ fn per_element_xml_base_cannot_be_flattened_into_document_base() {
         .collect();
     assert!(plan(&sources, Default::default()).is_err());
 }
+
+#[test]
+fn author_winners_require_closed_static_style_universe() {
+    use cem_ml::svg_replay::SvgReplayAuthorPlan;
+    let original = sources("url(a.svg#p)");
+    let proof = SvgReplayAuthorPlan::new(plan(&original, Default::default()).unwrap()).unwrap();
+    assert_eq!(proof.winners().len(), 2);
+    for (winner, source) in proof.winners().iter().zip(&original) {
+        assert_eq!(winner.document_source(), source.attribute());
+        assert!(!winner.important);
+    }
+    for extra in [
+        "<style>path {fill: red}</style>",
+        "<style/>",
+        "<link rel='stylesheet' href='x.css'/>",
+        "<script/>",
+        "<g style='fill:blue'/>",
+        "<animate attributeName='fill'/>",
+        "<use href='#p'/>",
+        "<g onclick='x()'/>",
+    ] {
+        let (_, inv, _) = fixture::setup(&format!(
+            "<svg xmlns='http://www.w3.org/2000/svg'>{extra}<path fill='url(a.svg#p)'/></svg>"
+        ));
+        let sources: Vec<_> = inv
+            .svg_presentations()
+            .iter()
+            .map(|p| p.source.clone())
+            .collect();
+        assert!(
+            SvgReplayAuthorPlan::new(plan(&sources, Default::default()).unwrap()).is_err(),
+            "{extra}"
+        );
+    }
+}

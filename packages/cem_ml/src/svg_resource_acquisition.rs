@@ -403,7 +403,7 @@ fn absolute(value: &str) -> Result<url::Url, String> {
     }
     Ok(url)
 }
-fn computed_url(
+pub(crate) fn computed_url(
     property: &str,
     value: &str,
     slot: usize,

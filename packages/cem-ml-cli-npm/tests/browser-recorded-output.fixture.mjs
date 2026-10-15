@@ -712,6 +712,33 @@ globalThis.runRecordedOutputFixture = async version => {
         check(pool.workers[0].generation > 1, 'fixture failed to replace worker');
         check(capture().read().blockers.length > 0, 'replacement did not admit fresh preparation');
     }, true);
+    for (const mode of ['live', 'style', 'inline', 'computed', 'base', 'policy', 'mutation', 'abort']) {
+        await run(`svg-replay-author-preparation-${mode}`, ({ capture, request, doc, install, policy, view }) => {
+            const url = new URL('/replay-original.svg#p', doc.URL).href;
+            paintRequest(request, doc, mode === 'style' ? paintSheet('rect{fill:red}') : '', `url(${url})`);
+            if (mode === 'inline') request.sources[0].source = request.sources[0].source.replace('@fill=', '@style="fill:red" @fill=');
+            const controller = new AbortController();
+            const options = { svgReplayPlan: { nonce: '0123456789abcdef0123456789abcdef' }, signal: controller.signal };
+            if (['style', 'inline', 'computed'].includes(mode)) {
+                const original = view.getComputedStyle;
+                try {
+                    if (mode === 'computed') view.getComputedStyle = () => ({ getPropertyValue: () => 'url("https://other.test/paint.svg#p")' });
+                    rejects(() => capture(options, install), 'unproven replay author source accepted');
+                } finally { view.getComputedStyle = original; }
+                return;
+            }
+            const host = capture(options), summary = host.read();
+            check(summary.svgReplayCandidates === 1, 'replay candidate missing');
+            check(summary.blockers.includes('svg-replay-browser-origin-proof-required') && summary.blockers.includes('svg-replay-alias-installation-required'), 'bounded proof claimed replay authority');
+            check(doc.querySelector('rect').getAttribute('fill') === `url(${url})`, 'preparation installed alias');
+            if (mode === 'live') return;
+            if (mode === 'base') doc.querySelector('base').href = '/changed/';
+            if (mode === 'policy') policy.stamp = 'changed';
+            if (mode === 'mutation') { const rect = doc.querySelector('rect'); rect.setAttribute('fill', 'red'); rect.setAttribute('fill', `url(${url})`); }
+            if (mode === 'abort') controller.abort();
+            rejects(() => host.read(), 'stale replay preparation survived');
+        });
+    }
     await run('svg-replay-not-admitted', async ({ captureAsync, request, doc }) => {
         paintRequest(request, doc, '', `url(${doc.URL}#p)`);
         let failed = false;
