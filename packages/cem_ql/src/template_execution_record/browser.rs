@@ -11,6 +11,7 @@ use cem_ml::svg_paint_colors::BoundedPaintColors;
 use cem_ml::svg_paint_content::SvgPaintContentPlan;
 use cem_ml::svg_paint_dependencies::{PaintTarget, SvgPaintPlan};
 use cem_ml::svg_paint_style::SvgPaintStylePlan;
+use cem_ml::svg_resource_acquisition::{SvgResourceRecord, SvgResourceResponse};
 use cem_ml::{
     css_emission::CssManagedScope,
     css_import_snapshot::{CssSnapshotSource, CssSourceSnapshot},
@@ -92,7 +93,9 @@ pub struct RecordedOutputSession {
     image_plan: Option<Arc<ImagePlan>>,
     svg_sources: Option<Vec<RetainedSvgPresentationAttribute>>,
     svg_host: SvgComputedHost,
-    svg_evidence: Option<SvgComputedEvidence>,
+    svg_evidence: Option<Arc<SvgComputedEvidence>>,
+    svg_resources: Option<SvgResourceRecord>,
+    svg_acquisition: Option<AbortSignal>,
     paint: Option<Arc<SvgPaintPlan>>,
     paint_content: Option<Arc<SvgPaintContentPlan>>,
     paint_style: Option<Arc<SvgPaintStylePlan>>,
@@ -240,6 +243,8 @@ impl RecordedOutputSession {
             svg_sources: None,
             svg_host: SvgComputedHost::default(),
             svg_evidence: None,
+            svg_resources: None,
+            svg_acquisition: None,
             paint: None,
             paint_content: None,
             paint_style: None,
@@ -276,7 +281,13 @@ impl RecordedOutputSession {
         self.cancel.clone()
     }
     pub fn html(&self) -> Result<String, String> {
-        if self.stage == Stage::Closed || self.cancel.is_aborted() {
+        if self.stage == Stage::Closed
+            || self.cancel.is_aborted()
+            || self
+                .svg_acquisition
+                .as_ref()
+                .is_some_and(AbortSignal::is_aborted)
+        {
             return Err("recorded session closed".into());
         }
         let text = if let Some(output) = &self.output {
@@ -300,6 +311,10 @@ impl RecordedOutputSession {
         self.image_plan = None;
         self.svg_sources = None;
         self.svg_evidence = None;
+        if let Some(mut resources) = self.svg_resources.take() {
+            resources.close();
+        }
+        self.svg_acquisition = None;
         self.paint = None;
         self.paint_content = None;
         self.paint_style = None;
@@ -315,11 +330,22 @@ impl RecordedOutputSession {
         self.pending_images = None;
     }
     fn run<T>(&mut self, work: impl FnOnce(&mut Self) -> Result<T, String>) -> Result<T, String> {
-        let result = if self.stage == Stage::Closed || self.cancel.is_aborted() {
+        let result = if self.stage == Stage::Closed
+            || self.cancel.is_aborted()
+            || self
+                .svg_acquisition
+                .as_ref()
+                .is_some_and(AbortSignal::is_aborted)
+        {
             Err("recorded session closed".into())
         } else {
             work(self).and_then(|value| {
-                if self.cancel.is_aborted() {
+                if self.cancel.is_aborted()
+                    || self
+                        .svg_acquisition
+                        .as_ref()
+                        .is_some_and(AbortSignal::is_aborted)
+                {
                     Err("recorded session cancelled during observation".into())
                 } else {
                     Ok(value)
@@ -684,9 +710,52 @@ impl RecordedOutputSession {
                 .svg_sources
                 .as_ref()
                 .ok_or("SVG source preparation required")?;
-            s.svg_evidence = Some(s.svg_host.capture(sources, observer)?);
+            s.svg_evidence = Some(Arc::new(s.svg_host.capture(sources, observer)?));
             Ok(())
         })
+    }
+    /// Join trusted acquired snapshots to this preparation's computed observations.
+    /// This does not attest to browser response identity or actual consumption.
+    pub fn record_svg_resources(
+        &mut self,
+        responses: Vec<SvgResourceResponse>,
+        acquisition: AbortSignal,
+        observer: &mut impl SvgComputedObserver,
+    ) -> Result<(), String> {
+        self.run(|s| {
+            if s.stage != Stage::ComposedBase || s.svg_resources.is_some() {
+                return Err("fresh composed SVG resource preparation required".into());
+            }
+            let evidence = s
+                .svg_evidence
+                .as_ref()
+                .ok_or("SVG computed capture required")?;
+            let resources = SvgResourceRecord::capture(
+                evidence.clone(),
+                &mut s.svg_host,
+                observer,
+                responses,
+                acquisition.clone(),
+            )?;
+            s.svg_acquisition = Some(acquisition);
+            s.svg_resources = Some(resources);
+            Ok(())
+        })
+    }
+    /// Diagnostic only; bytes and retained source evidence remain native.
+    pub fn svg_resource_bindings(&self) -> usize {
+        if self.stage != Stage::Captured
+            || self.cancel.is_aborted()
+            || self
+                .svg_acquisition
+                .as_ref()
+                .is_some_and(AbortSignal::is_aborted)
+        {
+            return 0;
+        }
+        self.svg_resources
+            .as_ref()
+            .map_or(0, |r| r.bindings().len())
     }
     pub fn validate_svg(&mut self, observer: &mut impl SvgComputedObserver) -> Result<(), String> {
         self.run(|s| {
@@ -698,7 +767,11 @@ impl RecordedOutputSession {
                 .svg_sources
                 .as_ref()
                 .ok_or("SVG source preparation required")?;
-            s.svg_host.validate(evidence, sources, observer)
+            s.svg_host.validate(evidence, sources, observer)?;
+            if let Some(resources) = &mut s.svg_resources {
+                resources.validate(&mut s.svg_host, observer)?;
+            }
+            Ok(())
         })
     }
     /// Diagnostic counts only; the plan and its inventory never leave the session.
@@ -819,6 +892,11 @@ impl RecordedOutputSession {
         })
     }
     fn paint_blockers(&self, mut blockers: Vec<String>) -> Vec<String> {
+        if let Some(resources) = &self.svg_resources {
+            blockers.extend(resources.blockers().iter().map(|b| (*b).to_owned()));
+            blockers.sort();
+            blockers.dedup();
+        }
         if let Some(profile) = &self.clone_profile {
             blockers.extend(profile.blockers().iter().map(|b| (*b).to_owned()));
             blockers.sort();

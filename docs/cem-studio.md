@@ -4270,7 +4270,8 @@ byte-binding step. It joins current observed CSS URL references in SVG `fill`
 and `stroke` slots to separately acquired, immutable SVG snapshots. It performs
 no fetch and grants no URL access. A caller-provided acquisition snapshot is
 not proof of the response the browser received or the resource it painted.
-Browser preparation integration remains a separate next step.
+Native preparation lifetime integration is available; browser ingress remains
+a separate next step.
 
 Capture retains the original `Arc<SvgComputedEvidence>`, validates it against
 its original `SvgComputedHost` before and after the join, and imports each
@@ -4321,6 +4322,23 @@ response identity, actual consumption, fragment-target resolution, transitive
 SVG dependencies, winning sources and general runtime closure remain explicit
 blockers. This partial native binding does not remove existing execution blockers
 or authorize edits/transactions.
+
+The native `RecordedOutputSession::record_svg_resources` method binds these
+snapshots after computed SVG capture and before enclosing preparation capture.
+It accepts raw acquisition inputs and a separate acquisition-owner cancellation
+signal, retains the same computed evidence, and rejects repeated/out-of-order
+calls. The record never escapes the session. `validate_svg` revalidates both
+computed evidence and resource bindings; callers must bracket enclosing
+capture/read with SVG validation, as with existing image/computed observations.
+Every staged operation checks acquisition cancellation before and after work.
+Cancellation hides diagnostic binding counts immediately; the next mutable
+operation closes preparation and releases bindings. Explicit close, computed
+validation failure, and enclosing DOM/base/stylesheet failure also close the
+session. Closing preparation does not abort a caller's shared acquisition owner.
+Only a captured live preparation exposes a binding count. All resource blockers
+remain conservative, including the preparation-binding blocker until browser
+host wiring and acceptance are complete. There is no WASM ingress or automatic
+network acquisition in this step, and no response-identity claim.
 
 CEM audit: authored source and theme ownership remain separate from observations
 and acquired bytes. No copied computed value becomes a declaration, no component

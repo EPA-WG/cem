@@ -772,3 +772,109 @@ fn stylesheet_colors_reject_inactive_or_uninstalled_sources() {
         assert!(s.html().is_err());
     }
 }
+
+fn svg_response() -> cem_ml::svg_resource_acquisition::SvgResourceResponse {
+    cem_ml::svg_resource_acquisition::SvgResourceResponse {
+        requested_url: "https://example.test/paint.svg".into(),
+        final_url: "https://example.test/paint.svg".into(),
+        revision: "snapshot:1".into(),
+        content_type: "image/svg+xml".into(),
+        bytes: b"<svg xmlns='http://www.w3.org/2000/svg'><linearGradient id='p'/></svg>".to_vec(),
+    }
+}
+const SVG_RESOURCE_VALUE: &str = "url(https://example.test/paint.svg#p)";
+fn bound_svg_session() -> (RecordedOutputSession, cem_ml::scheduler::AbortSignal) {
+    let mut s = svg_session();
+    let acquisition = cem_ml::scheduler::AbortSignal::default();
+    s.record_svg(&mut SvgObserver(SVG_RESOURCE_VALUE)).unwrap();
+    s.record_svg_resources(
+        vec![svg_response()],
+        acquisition.clone(),
+        &mut SvgObserver(SVG_RESOURCE_VALUE),
+    )
+    .unwrap();
+    (s, acquisition)
+}
+#[test]
+fn svg_snapshots_follow_preparation_and_acquisition_lifetimes() {
+    let (mut s, acquisition) = bound_svg_session();
+    assert_eq!(s.svg_resource_bindings(), 0); // no publication before capture
+    let blockers = s
+        .capture(BASE, slots, &mut OutputObserver { wrong: false })
+        .unwrap();
+    assert!(s.svg_resource_bindings() > 0);
+    assert!(blockers
+        .iter()
+        .any(|b| b == "svg-resource-browser-response-identity-required"));
+    assert!(blockers
+        .iter()
+        .any(|b| b == "svg-resource-consumption-required"));
+    s.validate_svg(&mut SvgObserver(SVG_RESOURCE_VALUE))
+        .unwrap();
+    s.read(BASE, slots, &mut OutputObserver { wrong: false })
+        .unwrap();
+    acquisition.abort();
+    assert_eq!(s.svg_resource_bindings(), 0);
+    assert!(s
+        .read(BASE, slots, &mut OutputObserver { wrong: false })
+        .is_err());
+    assert!(s.html().is_err());
+}
+#[test]
+fn svg_snapshot_drift_and_enclosing_failure_revoke_all_bindings() {
+    for drift in [true, false] {
+        let (mut s, _) = bound_svg_session();
+        s.capture(BASE, slots, &mut OutputObserver { wrong: false })
+            .unwrap();
+        if drift {
+            assert!(s
+                .validate_svg(&mut SvgObserver("url(https://example.test/other.svg#p)"))
+                .is_err());
+        } else {
+            assert!(s
+                .read(
+                    BASE,
+                    |_| Err("DOM changed".into()),
+                    &mut OutputObserver { wrong: false }
+                )
+                .is_err());
+        }
+        assert_eq!(s.svg_resource_bindings(), 0);
+        assert!(s
+            .validate_svg(&mut SvgObserver(SVG_RESOURCE_VALUE))
+            .is_err());
+    }
+}
+#[test]
+fn svg_snapshot_capture_rejects_missing_evidence_repetition_and_cancelled_owner() {
+    let mut s = svg_session();
+    assert!(s
+        .record_svg_resources(
+            vec![svg_response()],
+            Default::default(),
+            &mut SvgObserver(SVG_RESOURCE_VALUE)
+        )
+        .is_err());
+    assert!(s.html().is_err());
+    let (mut s, _) = bound_svg_session();
+    assert!(s
+        .record_svg_resources(
+            vec![svg_response()],
+            Default::default(),
+            &mut SvgObserver(SVG_RESOURCE_VALUE)
+        )
+        .is_err());
+    assert!(s.html().is_err());
+    let mut s = svg_session();
+    s.record_svg(&mut SvgObserver(SVG_RESOURCE_VALUE)).unwrap();
+    let acquisition = cem_ml::scheduler::AbortSignal::default();
+    acquisition.abort();
+    assert!(s
+        .record_svg_resources(
+            vec![svg_response()],
+            acquisition,
+            &mut SvgObserver(SVG_RESOURCE_VALUE)
+        )
+        .is_err());
+    assert!(s.html().is_err());
+}
