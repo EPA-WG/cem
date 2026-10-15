@@ -23,6 +23,77 @@ pub struct SvgResourceResponse {
     pub content_type: String,
     pub bytes: Vec<u8>,
 }
+/// Raw entity bytes from an adapter withholding delivery until acceptance.
+/// No caller-provided digest, revision or transferable receipt is trusted.
+pub struct SvgDeliveryResponse {
+    pub requested_url: String,
+    pub final_url: String,
+    pub content_type: String,
+    pub bytes: Vec<u8>,
+}
+/// Execution-owned ingress. An adapter must establish request/delivery identity;
+/// this native ledger alone does not attest to browser requests or painting.
+pub struct SvgDeliveryCapture {
+    responses: BTreeMap<String, SvgDeliveryResponse>,
+    cancel: AbortSignal,
+    bytes: usize,
+    closed: bool,
+}
+impl SvgDeliveryCapture {
+    pub fn new(cancel: AbortSignal) -> Self {
+        Self {
+            responses: BTreeMap::new(),
+            cancel,
+            bytes: 0,
+            closed: false,
+        }
+    }
+    pub fn accept(&mut self, response: SvgDeliveryResponse) -> Result<(), String> {
+        let result = (|| {
+            active(&self.cancel)?;
+            if self.closed {
+                return Err("closed SVG delivery ingress".into());
+            }
+            let requested = absolute(&response.requested_url)?;
+            let final_url = absolute(&response.final_url)?;
+            let size = response
+                .bytes
+                .len()
+                .saturating_add(response.requested_url.len())
+                .saturating_add(response.final_url.len())
+                .saturating_add(response.content_type.len());
+            if requested.fragment().is_some()
+                || requested != final_url
+                || response.requested_url != requested.as_str()
+                || response.final_url != final_url.as_str()
+                || !response.content_type.eq_ignore_ascii_case("image/svg+xml")
+                || response.bytes.is_empty()
+                || self.responses.len() >= 256
+                || self.bytes.saturating_add(size) > MAX_BYTES
+            {
+                return Err("bounded canonical direct SVG delivery required".into());
+            }
+            // Even identical repeated receipts are ambiguous until an adapter
+            // can bind an individual request to the browser's selected response.
+            if self.responses.contains_key(&response.requested_url) {
+                return Err("duplicate SVG delivery request".into());
+            }
+            self.bytes += size;
+            self.responses
+                .insert(response.requested_url.clone(), response);
+            active(&self.cancel)
+        })();
+        if result.is_err() {
+            self.close();
+        }
+        result
+    }
+    pub fn close(&mut self) {
+        self.closed = true;
+        self.responses.clear();
+        self.bytes = 0;
+    }
+}
 pub struct SvgAcquiredBody {
     response: SvgResourceResponse,
     tree: Arc<RetainedCemTree>,
@@ -63,6 +134,7 @@ pub struct SvgResourceRecord {
     bindings: Vec<SvgResourceBinding>,
     cancel: AbortSignal,
     revoked: bool,
+    delivery: Option<AbortSignal>,
 }
 impl SvgResourceRecord {
     /// Inspection only; callers must validate this record and their enclosing
@@ -219,7 +291,65 @@ impl SvgResourceRecord {
             bindings,
             cancel,
             revoked: false,
+            delivery: None,
         })
+    }
+    /// Consume one ledger, joining exact entity bytes to every retained body.
+    /// Browser adapter/response identity and consumption remain explicit blockers.
+    pub fn bind_delivery(
+        &mut self,
+        mut delivery: SvgDeliveryCapture,
+        host: &mut SvgComputedHost,
+        observer: &mut impl SvgComputedObserver,
+    ) -> Result<(), String> {
+        let result = (|| {
+            self.validate(host, observer)?;
+            active(&delivery.cancel)?;
+            if delivery.closed || self.delivery.is_some() {
+                return Err("fresh SVG delivery evidence required".into());
+            }
+            let mut used = BTreeSet::new();
+            for binding in &self.bindings {
+                let body = &binding.body;
+                let response = delivery
+                    .responses
+                    .get(body.url())
+                    .ok_or("missing SVG delivery body")?;
+                if response.bytes != body.bytes()
+                    || !response
+                        .content_type
+                        .eq_ignore_ascii_case(body.content_type())
+                {
+                    return Err("SVG delivered bytes differ from acquired snapshot".into());
+                }
+                used.insert(body.url());
+            }
+            if used.len() != delivery.responses.len() {
+                return Err("unused SVG delivery body".into());
+            }
+            self.validate(host, observer)?;
+            active(&delivery.cancel)?;
+            self.delivery = Some(delivery.cancel.clone());
+            Ok(())
+        })();
+        delivery.close();
+        if result.is_err() {
+            self.close();
+        }
+        result
+    }
+    /// Diagnostic only, never a transferable response or consumption seal.
+    pub fn delivered_bindings(&self) -> usize {
+        if self.revoked
+            || self.cancel.is_aborted()
+            || !self
+                .delivery
+                .as_ref()
+                .is_some_and(|signal| !signal.is_aborted())
+        {
+            return 0;
+        }
+        self.bindings.len()
     }
     pub fn validate(
         &mut self,
@@ -231,8 +361,15 @@ impl SvgResourceRecord {
                 return Err("revoked SVG resource record".into());
             }
             active(&self.cancel)?;
+            if let Some(delivery) = &self.delivery {
+                active(delivery)?;
+            }
             host.validate(&self.computed, self.computed.sources(), observer)?;
-            active(&self.cancel)
+            active(&self.cancel)?;
+            if let Some(delivery) = &self.delivery {
+                active(delivery)?;
+            }
+            Ok(())
         })();
         if result.is_err() {
             self.close();
@@ -242,6 +379,7 @@ impl SvgResourceRecord {
     pub fn close(&mut self) {
         self.revoked = true;
         self.bindings.clear();
+        self.delivery = None;
     }
 }
 fn active(cancel: &AbortSignal) -> Result<(), String> {

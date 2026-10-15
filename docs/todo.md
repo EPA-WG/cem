@@ -2938,6 +2938,22 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       token/default changes or broader forced-color/device/AT claims.
       Supplied snapshots do not attest to browser responses or painting;
       response identity, consumption and broader closure blockers stay open.
+    - [x] Define native SVG delivery evidence with fixtures for exact body joins,
+      missing/changed/duplicate receipts, bounds, closed/stale owners and transport
+      cancellation. Keep browser response identity blocked until transport wiring.
+      Completed: SvgDeliveryCapture owns bounded direct-response inputs and
+      rejects duplicate receipts, redirects, invalid MIME, noncanonical URLs,
+      credentials, empty/oversized bodies and excess receipts irreversibly.
+      SvgResourceRecord consumes the ledger once, joins exact bytes to existing
+      retained bodies, validates computed ownership around the join and keeps
+      transport cancellation live. Missing/extra/changed receipts and stale
+      owners revoke bindings. All 84 focused SVG tests (four new delivery
+      fixtures) and all 60 preparation tests pass. WASM/CLI builds, focused
+      rustfmt/diff checks and the full Chromium gate pass (187 existing
+      preparation cases). CEM audit preserves native
+      semantic/source/theme ownership and bounded variation, with no UI or
+      public token/default changes. No adapter supplies these native receipts
+      yet; browser response identity and consumption remain blocked.
     - [ ] Integrate computed SVG byte bindings with preparation/acquisition
       lifetime and verify browser response identity before claiming consumption.
     - [ ] Bind computed CSS/SVG selections to acquired resource bodies before
@@ -2949,9 +2965,9 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, establish browser response identity for SVG resource bytes before claiming
-consumption, using the explicit snapshot ingress and preparation/acquisition
-lifetime binding. Extend fragment/embedded SVG dependencies and broader CSS selections
+Next, connect the native SVG delivery ledger to a withholding browser transport
+and establish its bounded request/response identity profile with Chromium
+checks before claiming consumed bytes. Extend fragment/embedded SVG dependencies and broader CSS selections
 afterward. General runtime loads and broader cascade evidence remain required
 before complete dependency closure or wider transaction admission.
 Selected image response/candidate binding is available through explicit native

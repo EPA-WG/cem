@@ -282,3 +282,174 @@ fn cancellation_during_final_observation_cannot_publish_bindings() {
     };
     assert!(SvgResourceRecord::capture(e, &mut host, &mut o, vec![response()], cancel).is_err());
 }
+
+fn acquired() -> (SvgResourceRecord, SvgComputedHost, Observer) {
+    let mut host = SvgComputedHost::default();
+    let mut observer = Observer::default();
+    let evidence = Arc::new(host.capture(&sources(), &mut observer).unwrap());
+    let record = SvgResourceRecord::capture(
+        evidence,
+        &mut host,
+        &mut observer,
+        vec![response()],
+        AbortSignal::new(),
+    )
+    .unwrap();
+    (record, host, observer)
+}
+fn delivery() -> cem_ml::svg_resource_acquisition::SvgDeliveryResponse {
+    cem_ml::svg_resource_acquisition::SvgDeliveryResponse {
+        requested_url: URL.into(),
+        final_url: URL.into(),
+        content_type: "image/svg+xml".into(),
+        bytes: SVG.as_bytes().to_vec(),
+    }
+}
+#[test]
+fn delivery_bytes_join_native_bindings_and_transport_lifetime() {
+    use cem_ml::svg_resource_acquisition::SvgDeliveryCapture;
+    let (mut record, mut host, mut observer) = acquired();
+    let cancel = AbortSignal::new();
+    let mut ledger = SvgDeliveryCapture::new(cancel.clone());
+    ledger.accept(delivery()).unwrap();
+    record
+        .bind_delivery(ledger, &mut host, &mut observer)
+        .unwrap();
+    assert_eq!(record.delivered_bindings(), 2);
+    assert!(record
+        .blockers()
+        .contains(&"svg-resource-browser-response-identity-required"));
+    record.validate(&mut host, &mut observer).unwrap();
+    cancel.abort();
+    assert_eq!(record.delivered_bindings(), 0);
+    assert!(record.validate(&mut host, &mut observer).is_err());
+    assert!(record.bindings().is_empty());
+}
+#[test]
+fn delivery_missing_changed_extra_and_stale_evidence_revoke_record() {
+    use cem_ml::svg_resource_acquisition::SvgDeliveryCapture;
+    for mode in ["missing", "changed", "extra", "stale", "cancel", "repeat"] {
+        let (mut record, mut host, mut observer) = acquired();
+        let cancel = AbortSignal::new();
+        let mut ledger = SvgDeliveryCapture::new(cancel.clone());
+        if mode != "missing" {
+            let mut input = delivery();
+            if mode == "changed" {
+                input.bytes.extend_from_slice(b" ");
+            }
+            ledger.accept(input).unwrap();
+        }
+        if mode == "extra" {
+            let mut input = delivery();
+            input.requested_url = "https://page.test/extra.svg".into();
+            input.final_url = input.requested_url.clone();
+            ledger.accept(input).unwrap();
+        }
+        if mode == "stale" {
+            observer.revision = "changed".into();
+        }
+        if mode == "cancel" {
+            cancel.abort();
+        }
+        if mode == "repeat" {
+            let mut first = SvgDeliveryCapture::new(AbortSignal::new());
+            first.accept(delivery()).unwrap();
+            record
+                .bind_delivery(first, &mut host, &mut observer)
+                .unwrap();
+        }
+        assert!(
+            record
+                .bind_delivery(ledger, &mut host, &mut observer)
+                .is_err(),
+            "{mode}"
+        );
+        assert!(record.bindings().is_empty(), "{mode}");
+        assert_eq!(record.delivered_bindings(), 0);
+    }
+}
+#[test]
+fn delivery_ingress_rejects_ambiguity_metadata_and_bounds_irreversibly() {
+    use cem_ml::svg_resource_acquisition::SvgDeliveryCapture;
+    for mode in [
+        "duplicate",
+        "redirect",
+        "fragment",
+        "mime",
+        "empty",
+        "bounds",
+        "credentials",
+        "closed",
+    ] {
+        let mut ledger = SvgDeliveryCapture::new(AbortSignal::new());
+        let mut input = delivery();
+        match mode {
+            "duplicate" => ledger.accept(delivery()).unwrap(),
+            "redirect" => input.final_url = "https://page.test/other.svg".into(),
+            "fragment" => {
+                input.requested_url.push_str("#p");
+                input.final_url = input.requested_url.clone();
+            }
+            "mime" => input.content_type = "text/html".into(),
+            "empty" => input.bytes.clear(),
+            "bounds" => input.bytes = vec![0; 4 * 1024 * 1024],
+            "credentials" => {
+                input.requested_url = "https://user@page.test/a.svg".into();
+                input.final_url = input.requested_url.clone();
+            }
+            "closed" => ledger.close(),
+            _ => unreachable!(),
+        }
+        assert!(ledger.accept(input).is_err(), "{mode}");
+        assert!(ledger.accept(delivery()).is_err(), "{mode}");
+        let (mut record, mut host, mut observer) = acquired();
+        assert!(
+            record
+                .bind_delivery(ledger, &mut host, &mut observer)
+                .is_err(),
+            "{mode}"
+        );
+    }
+}
+
+#[test]
+fn delivery_receipt_count_is_bounded_and_final_observation_cannot_publish_after_abort() {
+    use cem_ml::svg_resource_acquisition::SvgDeliveryCapture;
+    let mut ledger = SvgDeliveryCapture::new(AbortSignal::new());
+    for index in 0..256 {
+        let mut input = delivery();
+        input.requested_url = format!("https://page.test/{index}.svg");
+        input.final_url = input.requested_url.clone();
+        ledger.accept(input).unwrap();
+    }
+    assert!(ledger.accept(delivery()).is_err());
+    let (mut record, mut host, mut observer) = acquired();
+    let cancel = AbortSignal::new();
+    let mut ledger = SvgDeliveryCapture::new(cancel.clone());
+    ledger.accept(delivery()).unwrap();
+    struct Cancelling<'a> {
+        observer: &'a mut Observer,
+        cancel: AbortSignal,
+    }
+    impl SvgComputedObserver for Cancelling<'_> {
+        fn environment_revision(&mut self) -> Result<String, String> {
+            self.observer.environment_revision()
+        }
+        fn observe(&mut self, slot: SvgComputedSlot<'_>) -> Result<String, String> {
+            self.cancel.abort();
+            self.observer.observe(slot)
+        }
+    }
+    assert!(record
+        .bind_delivery(
+            ledger,
+            &mut host,
+            &mut Cancelling {
+                observer: &mut observer,
+                cancel
+            }
+        )
+        .is_err());
+    assert_eq!(record.delivered_bindings(), 0);
+    assert!(record.bindings().is_empty());
+}

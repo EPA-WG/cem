@@ -4361,6 +4361,33 @@ replay bytes and cannot attest that supplied bytes match a browser response.
 Chromium fixtures intentionally assert binding and lifetime behavior separately
 from paint pixels and retain all consumption/response-identity blockers.
 
+The native delivery-evidence prerequisite is `SvgDeliveryCapture`. A trusted
+transport adapter may supply `SvgDeliveryResponse` entity bytes only while it
+withholds the response pending native acceptance. The ledger admits at most
+256 canonical fragment-free HTTP(S) responses and four MiB including metadata;
+it rejects credentials, redirects, empty bodies and non-SVG MIME. It accepts
+no caller-provided digest or revision as evidence. Duplicate request URLs reject
+even for identical bytes because request multiplicity is unresolved. Any ingress
+error or explicit close irreversibly clears the ledger.
+
+`SvgResourceRecord::bind_delivery` consumes the ledger exactly once, validates
+its original computed owner before and after joining, and requires exact byte
+and MIME equality with every retained acquired body. Missing, extra or changed
+receipts revoke the resource record. Shared fragment/slot references still point
+to the same imported native body; delivery does not re-import it or replace its
+source provenance. Binding retains the transport cancellation signal and
+rechecks it around subsequent validation. Cancellation hides delivered-binding
+counts immediately and the next validation releases resource bindings. Neither
+closing the record nor consuming the ledger aborts a shared transport owner.
+
+This API is native-only groundwork. Its count is diagnostic, never a transferable
+seal. No current browser adapter produces these receipts, and snapshots cannot
+promote themselves to browser delivery evidence. Browser request identity,
+cache/replay behavior, actual response release, fragment selection and painting
+remain unverified; **all existing response-identity and consumption blockers
+remain present**. The next step is to connect a withholding browser transport
+and establish a bounded request/response identity profile with Chromium checks.
+
 CEM audit: authored source and theme ownership remain separate from observations
 and acquired bytes. No copied computed value becomes a declaration, no component
 behavior/default/public token changes, and no general forced-color or device/AT
