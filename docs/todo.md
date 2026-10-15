@@ -2993,6 +2993,27 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       These are compatibility observations, not native replay plans or execution
       seals. Production source/alias/fragment ownership and receipt binding remain
       open; no broader CSS, cross-origin, device or AT acceptance is claimed.
+    - [x] Add native SVG replay-plan fixtures for retained consumer/CSS/source/
+      fragment identity, distinct occurrence aliases, safe replacements, relative
+      resolution, bounds and cancellation/foreign-owner revocation; retain
+      winning-source, preparation and consumption blockers.
+      Completed: SvgReplayPlan retains each original presentation consumer and
+      CSS reference, resolved source/request URL, opaque fragment, per-occurrence
+      alias request/URL and proposed escaped whole-attribute replacement. Shared
+      bodies do not collapse consumer aliases; original trees remain unchanged.
+      Native inspection reuses shared retained CSS URL validation. Plans reject
+      foreign/duplicate owners, local or same-document fragments (including
+      whitespace-normalized fragments), cross-origin/credentialed/non-HTTP URLs,
+      missing fragments, fallback paint, reserved routes and XML-base contexts.
+      Bounds cover routes, ancestry, URLs, replacement values and aggregate bytes.
+      Cancellation and foreign/reordered source validation revoke routes.
+      All 91 focused SVG tests (seven new replay fixtures), 61 preparation tests,
+      final WASM/CLI builds, rustfmt/diff checks and the full Chromium gate pass,
+      including 194 preparation cases and 12 replay compatibility probes.
+      CEM audit preserves native semantic/source/theme ownership and bounded
+      variation, with no UI/default/public-token changes or broader AT claims.
+      Plans are authored candidates: winner/base-policy proof, alias installation,
+      native preparation binding, receipt matching and consumption stay blocked.
     - [ ] Integrate computed SVG byte bindings with preparation/acquisition
       lifetime and verify browser response identity before claiming consumption.
     - [ ] Bind computed CSS/SVG selections to acquired resource bodies before
@@ -3004,10 +3025,11 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, implement bounded native SVG replay plans retaining authored consumer,
-source URL and fragment provenance, then bind fresh aliases to browser delivery
-and revocation. The pinned paint compatibility profile is verified; it does not
-remove response-identity/consumption blockers or authorize replay by itself. Extend fragment/embedded SVG dependencies and broader CSS selections
+Next, bind native SVG replay plans to preparation with retained winning-source
+and live base/policy proof before applying alias replacements. Then connect fresh
+alias routes to browser delivery receipts and mutation revocation. Native plans
+and pinned paint compatibility do not independently remove response-identity/
+consumption blockers or authorize replay. Extend fragment/embedded SVG dependencies and broader CSS selections
 afterward. General runtime loads and broader cascade evidence remain required
 before complete dependency closure or wider transaction admission.
 Selected image response/candidate binding is available through explicit native

@@ -424,6 +424,16 @@ fn computed_url(
         "cem",
         &uri,
     )?;
+    let (reference, value) = single_url(&css, property)?;
+    let url = absolute(&value)?;
+    Ok((css, reference, url))
+}
+/// Inspect the retained shared CSS import; never substitute an observation tree
+/// for authored-source provenance. Relative URL resolution belongs to the caller.
+pub(crate) fn single_url(
+    css: &Arc<RetainedCemTree>,
+    property: &str,
+) -> Result<(AstNodeId, String), String> {
     if css
         .ast_owner()
         .diagnostics
@@ -475,6 +485,5 @@ fn computed_url(
     let Some((value, CssResourceKind::Url)) = resource_reference(&css, reference)? else {
         return Err("computed SVG URL required".into());
     };
-    let url = absolute(&value)?;
-    Ok((css, reference, url))
+    Ok((reference, value))
 }

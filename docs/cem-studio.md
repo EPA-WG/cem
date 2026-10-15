@@ -4440,6 +4440,46 @@ transport changes. Existing response-identity/consumption blockers stay intact.
 No broader CSS, filters, markers, masks, inheritance, cross-origin, animation or
 physical-device compatibility is inferred from these gradient/pattern probes.
 
+`cem_ml::svg_replay::SvgReplayPlan` now records bounded native **authored replay
+candidates** before browser preparation. Inputs are retained SVG presentation
+attributes, the effective base and document URL, an owner-supplied lowercase
+32-hex nonce, and cancellation. Native inspection uses the original imported
+CSS tree, not computed-observation CSS. Each route retains the original consumer
+owner/attribute, CSS reference node (with its source frames/ranges), resolved
+source URL, fragment-free source request, opaque URL-serialized fragment,
+fragment-free alias request, alias URL with fragment, and a proposed whole
+attribute replacement. The original source tree is never modified.
+
+Only a single static `fill`/`stroke` URL with a nonempty external fragment is
+admitted. Relative sources resolve against the retained base string; document
+and source URLs must be credential-free HTTP(S), with same-origin sources.
+Local references, same-document URLs, fallback paints, unsupported properties,
+missing fragments, cross-origin sources and reserved replay paths reject.
+Per-element/ancestor `xml:base` rejects until its resolution evidence is retained.
+The plan bounds ancestry to 256, occurrences to 256, URLs and replacement values
+to 4096 bytes, and retained route strings to four MiB. All sources must belong
+to the same native document with distinct attribute identities.
+
+Every occurrence receives a separate `/__cem_svg_delivery/<nonce>/<index>`
+alias, even when several consumers share a source body. Fragments stay attached
+to their individual aliases without being decoded or resolved as IDs. Proposed
+CSS values quote and escape the serialized alias; shared-import round trips
+verify opaque fragments cannot change CSS structure. Replacement coordinates
+are whole decoded attributes, never source-file patch ranges. Nonce validation
+checks shape only: the future preparation/transport owner must supply fresh
+nonces and enforce their lifetime; construction alone proves no freshness.
+
+Validation requires the same ordered retained document/CSS owners and source
+identities. Cancellation, explicit close or mismatched validation irreversibly
+revokes the plan; cancelled plans expose no routes, and close/failing validation
+releases retained routes. Stored base/document strings are provenance, not live
+base-policy evidence. Cascade winners, live base/policy, source-to-alias rewrite
+admission, fragment target resolution, browser receipt matching and consumption
+remain blockers. Stylesheets can override these candidate attributes: this API
+must not rewrite them or substitute a computed winner without separate proof.
+No WASM ingress, browser alias installation or transaction admission is added by
+this native planning step.
+
 CEM audit: authored source and theme ownership remain separate from observations
 and acquired bytes. No copied computed value becomes a declaration, no component
 behavior/default/public token changes, and no general forced-color or device/AT

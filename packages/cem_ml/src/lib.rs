@@ -32,6 +32,7 @@ pub mod html_stylesheet_selection;
 pub mod stylesheet_execution;
 pub mod svg_computed_execution;
 pub mod svg_resource_acquisition;
+pub mod svg_replay;
 pub mod svg_paint_dependencies;
 pub mod svg_paint_content;
 pub mod svg_paint_style;
