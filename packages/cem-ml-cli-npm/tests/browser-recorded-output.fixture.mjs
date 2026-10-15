@@ -228,13 +228,41 @@ globalThis.runRecordedOutputFixture = async version => {
             rejects(() => host.read(), 'paint color derivation revived');
         }, mode === 'pool');
     }
-    for (const mode of ['inline-css', 'variable', 'missing-profile']) {
+    for (const mode of ['unsupported-inline-css', 'variable', 'missing-profile']) {
         await run(`paint-color-reject-${mode}`, ({ request, doc, capture }) => {
-            paintRequest(request, doc, mode === 'inline-css'
-                ? '{linearGradient @id=a | {stop @style="stop-color:blue" @stop-color=red}}'
+            paintRequest(request, doc, mode === 'unsupported-inline-css'
+                ? '{linearGradient @id=a | {stop @style="filter:blur(1px)" @stop-color=red}}'
                 : mode === 'variable' ? '{linearGradient @id=a | {stop @stop-color="var(--paint)"}}'
                 : '{linearGradient @id=a | {stop @stop-color=red}}');
             rejects(() => capture(mode === 'missing-profile' ? { boundedPaintColors: true } : colorOptions()), 'unsupported color evaluation accepted');
+        });
+    }
+    for (const mode of ['normal', 'last', 'important', 'important-last', 'inline-only', 'inheritance', 'child-local', 'style-restore', 'priority-restore']) {
+        await run(`paint-inline-${mode}`, async ({ request, doc, view, capture, captureAsync }) => {
+            let style = 'stop-color:blue', attrs = '@stop-color=red', parent = '';
+            if (mode === 'last') style = 'stop-color:red;stop-color:blue';
+            if (mode === 'important' || mode === 'priority-restore') style = 'stop-color:blue!important;stop-color:red';
+            if (mode === 'important-last') style = 'stop-color:red!important;stop-color:blue!important';
+            if (mode === 'inline-only') attrs = '';
+            if (mode === 'inheritance') { style = 'stop-color:currentColor'; parent = '@color=red @style="color:blue!important"'; }
+            if (mode === 'child-local') { style = 'color:blue;stop-color:currentColor'; parent = '@style="color:red!important"'; }
+            paintRequest(request, doc, `{linearGradient @id=a ${parent} | {stop ${attrs} @style="${style}"}}`);
+            const host = mode === 'normal' ? capture(colorOptions()) : await captureAsync(colorOptions());
+            check(host.read().svgPaintColors === 1, 'inline derivation missing');
+            const stop = doc.querySelector('stop');
+            check(view.getComputedStyle(stop).stopColor === 'rgb(0, 0, 255)', 'inline priority differs from native');
+            const img = new Image();
+            img.src = 'data:image/svg+xml,' + encodeURIComponent(new view.XMLSerializer().serializeToString(doc.querySelector('svg')));
+            await img.decode();
+            const canvas = document.createElement('canvas'); canvas.width = canvas.height = 16;
+            const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0);
+            check([...ctx.getImageData(8, 8, 1, 1).data].join(',') === '0,0,255,255', 'inline paint raster differs');
+            host.read();
+            if (mode === 'style-restore' || mode === 'priority-restore') {
+                stop.style.setProperty('stop-color', 'red', 'important');
+                stop.setAttribute('style', style);
+                rejects(() => host.read(), 'restored inline declaration revived preparation');
+            }
         });
     }
     for (const mode of ['source-style', 'host-style', 'href', 'own-child', 'pool']) {

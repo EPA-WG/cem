@@ -2803,7 +2803,30 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       raster parity do not establish full-cascade winners, browser-private clone
       identity or consumed bytes. Those blockers remain; general forced-color,
       physical-device and AT acceptance remain independent.
-    - [ ] Extend instance-style evaluation beyond the presentation-only subset
+    - [x] Add bounded inline color declarations and priority over presentation
+      attributes, with native fixtures for duplicates, important priority,
+      currentColor inheritance, retained CSS winner provenance and rejected
+      unsupported declarations; verify Chromium parity and style mutations.
+      Completed: evaluator consumes existing retained inline CSS trees for SVG
+      color/fill/stop-color. Inline declarations beat presentation attributes;
+      importance precedes source order among duplicates. Inheritance consults
+      local winners before ancestors, without carrying ancestor importance to
+      children. Winners retain document attribute, CSS tree/declaration identity,
+      source order and importance; CSSOM validation uses an explicit property.
+      Unsupported declarations fail atomically, even when losing. Total inline
+      declarations are bounded at 4096 under the existing work budget.
+      All 55 preparation and 63 focused SVG tests pass, including six new native
+      fixtures. WASM/CLI builds, CLI lint, rustfmt/diff checks and full Chromium
+      gate pass, including 149 preparation cases (nine new inline cases).
+      CSSOM/raster checks cover overrides, duplicates, importance, inline-only
+      paint and inheritance; restored style/priority mutations revoke preparation.
+      CEM audit: original declaration/theme ownership and inherited overrides
+      remain native; no copied CSSOM value substitutes for winner provenance.
+      No component behavior, theme defaults or public tokens change. Stylesheet
+      cascade, user/UA/environment overrides, general forced-color/AT acceptance
+      and rendered-resource evidence remain open.
+      Contract: docs/cem-studio.md#inline-paint-color-declarations-and-priority.
+    - [ ] Extend instance-style evaluation beyond the presentation/inline subset
       with retained cascade/winning-declaration evidence; do not infer winners
       from computed values or compatibility reports.
     - [ ] Bind computed CSS/SVG selections to acquired resource bodies before
@@ -2815,11 +2838,10 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, extend bounded instance-style evaluation with retained cascade and
-winning-declaration evidence, starting with inline declarations and their priority
-relative to presentation attributes. Then bind computed CSS/SVG selections to
-acquired resource bodies. General runtime loads remain required before claiming
-complete dependency closure.
+Next, define bounded stylesheet-rule matching and cascade precedence with retained
+selector/declaration provenance, extending the presentation/inline subset. Then
+bind computed CSS/SVG selections to acquired resource bodies. General runtime
+loads remain required before claiming complete dependency closure.
 Selected image response/candidate binding is available through explicit native
 replay; unchanged-URL observation deliberately retains its historical-identity
 blocker.

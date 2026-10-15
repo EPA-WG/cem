@@ -88,7 +88,7 @@ fn pattern_descriptive_host_is_suppressed_but_its_source_is_retained() {
 fn unsupported_cascade_values_and_shapes_fail_without_partial_evaluation() {
     for body in [
         "<style>stop{stop-color:blue}</style><linearGradient id='a'><stop stop-color='red'/></linearGradient>",
-        "<linearGradient id='a'><stop style='stop-color:blue' stop-color='red'/></linearGradient>",
+        "<linearGradient id='a'><stop style='filter:blur(1px)' stop-color='red'/></linearGradient>",
         "<linearGradient id='a'><stop stop-color='var(--paint)'/></linearGradient>",
         "<linearGradient id='a'><stop stop-color='currentColor'/></linearGradient>",
         "<linearGradient id='a'><stop stop-color='red'/><stop stop-color='blue'/></linearGradient>",
@@ -183,4 +183,95 @@ fn local_color_override_wins_within_the_presentation_only_profile() {
     assert_eq!(value.rgba, [0, 0, 255, 255]);
     assert_eq!(value.inheritance_nodes, vec![value.source]);
     assert_eq!(value.color_declarations.len(), 1);
+}
+
+#[test]
+fn inline_winner_retains_css_declaration_and_host_attribute() {
+    let e = evaluate("<svg xmlns='http://www.w3.org/2000/svg'><linearGradient id='a'><stop stop-color='red' style='stop-color:blue'/></linearGradient><path fill='url(#a)'/></svg>").unwrap();
+    let c = &e.colors()[0];
+    assert_eq!(c.rgba, [0, 0, 255, 255]);
+    assert_eq!(c.property, "stop-color");
+    let winner = &c.paint_winner;
+    let css = winner.css.as_ref().unwrap();
+    let node = css.node(winner.css_declaration.unwrap()).unwrap();
+    assert!(!node.source.frames.is_empty());
+    assert!(node.range.length > 0);
+    assert_eq!(winner.order, 0);
+    assert!(!winner.important);
+    assert_eq!(
+        e.plan()
+            .content()
+            .paint()
+            .inventory()
+            .document()
+            .tree
+            .node(winner.attribute)
+            .unwrap()
+            .value,
+        "stop-color:blue"
+    );
+}
+#[test]
+fn inline_duplicates_respect_importance_before_source_order() {
+    for (style, expected, important, order) in [
+        ("stop-color:red;stop-color:blue", [0, 0, 255, 255], false, 1),
+        (
+            "stop-color:blue!important;stop-color:red",
+            [0, 0, 255, 255],
+            true,
+            0,
+        ),
+        (
+            "stop-color:red!important;stop-color:blue!IMPORTANT",
+            [0, 0, 255, 255],
+            true,
+            1,
+        ),
+        (
+            "/*before*/ STOP-COLOR:blue ! /*gap*/ important;",
+            [0, 0, 255, 255],
+            true,
+            0,
+        ),
+    ] {
+        let e=evaluate(&format!("<svg xmlns='http://www.w3.org/2000/svg'><linearGradient id='a'><stop stop-color='green' style='{style}'/></linearGradient><path fill='url(#a)'/></svg>")).unwrap();
+        let c = &e.colors()[0];
+        assert_eq!(c.rgba, expected);
+        assert_eq!(c.paint_winner.important, important);
+        assert_eq!(c.paint_winner.order, order);
+    }
+}
+#[test]
+fn inline_only_paint_and_currentcolor_inheritance_keep_both_winners() {
+    let e=evaluate("<svg xmlns='http://www.w3.org/2000/svg'><pattern id='a' color='red' style='color:blue!important'><rect style='fill:currentColor'/></pattern><path fill='url(#a)'/></svg>").unwrap();
+    let c = &e.colors()[0];
+    assert_eq!(c.rgba, [0, 0, 255, 255]);
+    assert!(c.paint_winner.css.is_some());
+    assert!(c.color_winners[0].important);
+    assert_eq!(c.color_winners.len(), 1);
+}
+#[test]
+fn child_color_beats_inherited_important_declaration() {
+    let e=evaluate("<svg xmlns='http://www.w3.org/2000/svg'><pattern id='a' style='color:red!important'><rect color='green' style='color:blue;fill:currentColor'/></pattern><path fill='url(#a)'/></svg>").unwrap();
+    assert_eq!(e.colors()[0].rgba, [0, 0, 255, 255]);
+    assert!(!e.colors()[0].color_winners[0].important);
+}
+#[test]
+fn unsupported_or_invalid_inline_declarations_do_not_fall_back_silently() {
+    for style in [
+        "fill:var(--paint)",
+        "color:red;all:unset",
+        "fill:red;fill:orange",
+        "fill:red;fill:",
+        "fill:red;@media screen{fill:blue}",
+        "fill:red;--paint:blue",
+    ] {
+        assert!(evaluate(&format!("<svg xmlns='http://www.w3.org/2000/svg'><pattern id='a'><rect fill='blue' style='{style}'/></pattern><path fill='url(#a)'/></svg>")).is_err(),"{style}");
+    }
+}
+#[test]
+fn empty_inline_style_keeps_presentation_provenance() {
+    let e=evaluate("<svg xmlns='http://www.w3.org/2000/svg'><pattern id='a'><rect fill='blue' style='/*empty*/'/></pattern><path fill='url(#a)'/></svg>").unwrap();
+    assert_eq!(e.colors()[0].rgba, [0, 0, 255, 255]);
+    assert!(e.colors()[0].paint_winner.css.is_none());
 }

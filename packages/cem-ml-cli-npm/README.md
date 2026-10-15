@@ -388,12 +388,17 @@ with the preparation lifetime. It confirms a compatibility report, never
 instance-style or execution evidence; the compatibility/evaluation blockers stay.
 
 Set `boundedPaintColors: true` with a confirmed `cloneProfile` to request
-the strict native presentation-only evaluator. Unsupported content/cascade
+the strict native presentation/inline-color evaluator. Unsupported content/cascade
 rejects capture. The host validates derived source `fill`/`stop-color` against
 live CSSOM at capture and around reads; mutations or mismatches revoke it.
 `svgPaintColors` and `svgPaintSuppressedHosts` are bounded diagnostic counts.
 Native declaration/inheritance provenance stays retained, and clone rendering,
 winning-source and resource-evidence requirements remain separate.
+Inline SVG `color`, `fill` and `stop-color` declarations use retained native CSS:
+inline beats presentation attributes, important beats normal, then later equal-
+priority declarations win. CSS winner/source identities stay native. Unsupported
+properties or values reject requested evaluation, even in losing declarations;
+full stylesheet cascade handling remains separate.
 
 `read().svgComputedSlots` counts retained SVG presentation attributes whose
 computed values were captured and revalidated by the native session. Both capture

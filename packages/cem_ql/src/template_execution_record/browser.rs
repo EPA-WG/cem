@@ -800,13 +800,8 @@ impl RecordedOutputSession {
                 return Err("paint color validation requires capture".into());
             }
             if let Some(colors) = &s.paint_colors {
-                let tree = &colors.plan().content().paint().inventory().document().tree;
                 for color in colors.colors() {
-                    let property = &tree
-                        .node(color.paint_declaration)
-                        .and_then(|n| n.name.as_ref())
-                        .ok_or("paint color declaration missing")?
-                        .local_name;
+                    let property = color.property;
                     let [r, g, b, a] = color.rgba;
                     let expected = if a == 255 {
                         format!("rgb({r}, {g}, {b})")

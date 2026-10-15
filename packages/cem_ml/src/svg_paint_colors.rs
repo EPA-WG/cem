@@ -10,13 +10,29 @@ use crate::{
     svg_paint_style::{PaintContentSelection, SvgPaintStylePlan},
 };
 use cssparser::{Parser, ParserInput, Token};
-use std::sync::Arc;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 const SVG: &str = "http://www.w3.org/2000/svg";
 
+#[derive(Clone)]
+pub struct PaintDeclarationWinner {
+    /// Document presentation/style attribute, never a CSS-local node ID.
+    pub attribute: AstNodeId,
+    pub css: Option<Arc<RetainedCemTree>>,
+    pub css_declaration: Option<AstNodeId>,
+    pub important: bool,
+    /// Zero-based declaration order within this style attribute, excluding comments.
+    pub order: usize,
+}
 pub struct PaintColorDerivation {
     pub host: AstNodeId,
     pub source: AstNodeId,
     pub paint_declaration: AstNodeId,
+    pub property: &'static str,
+    pub paint_winner: PaintDeclarationWinner,
+    pub color_winners: Vec<PaintDeclarationWinner>,
     pub rgba: [u8; 4],
     /// Nearest first, including currentColor forwarding declarations.
     pub color_declarations: Vec<AstNodeId>,
@@ -57,6 +73,7 @@ impl BoundedPaintColors {
     ) -> Result<Self, String> {
         let tree = &plan.content().paint().inventory().document().tree;
         let mut work = Work(budget.min(1_000_000));
+        let (inline, inline_attributes) = inline_declarations(&plan, &mut work)?;
         // A deliberately strict author-only profile: no hidden competing author
         // cascade, scripted mutation, animation or template insertion.
         let mut pending = vec![0];
@@ -87,11 +104,13 @@ impl BoundedPaintColors {
                 work.spend(1)?;
                 let a = tree.node(*id).ok_or("paint color attribute missing")?;
                 work.spend(a.value.len())?;
-                if a.name
-                    .as_ref()
-                    .is_some_and(|n| n.local_name == "style" || n.local_name.starts_with("on"))
-                {
-                    return Err("paint color inline cascade or event handler unsupported".into());
+                if a.name.as_ref().is_some_and(|n| {
+                    n.local_name.starts_with("on")
+                        || (n.local_name == "style" && !inline_attributes.contains(id))
+                }) {
+                    return Err(
+                        "paint color unretained inline style or event handler unsupported".into(),
+                    );
                 }
             }
             pending.extend(n.children.iter().rev().copied());
@@ -132,10 +151,12 @@ impl BoundedPaintColors {
             if !elements(tree, child, &mut work)?.is_empty() {
                 return Err("paint color nested content unsupported".into());
             }
-            let declaration = attribute(tree, child, property, &mut work)?
-                .ok_or("paint color requires explicit paint declaration")?;
-            let paint_expression = expression(&tree.node(declaration).unwrap().value)?;
+            let (paint_expression, paint_winner) =
+                winner(tree, &inline, child, property, &mut work)?
+                    .ok_or("paint color requires explicit paint declaration")?;
+            let declaration = paint_winner.attribute;
             let mut color_declarations = Vec::new();
+            let mut color_winners = Vec::new();
             let mut inheritance_nodes = Vec::new();
             let rgba = match paint_expression {
                 Expression::Literal(value) => value,
@@ -152,9 +173,12 @@ impl BoundedPaintColors {
                         inheritance_nodes.push(id);
                         let n = tree.node(id).ok_or("paint color ancestor missing")?;
                         if n.name.as_ref().is_some_and(|n| n.namespace_uri == SVG) {
-                            if let Some(a) = attribute(tree, id, "color", &mut work)? {
-                                color_declarations.push(a);
-                                match expression(&tree.node(a).unwrap().value)? {
+                            if let Some((value, selected)) =
+                                winner(tree, &inline, id, "color", &mut work)?
+                            {
+                                color_declarations.push(selected.attribute);
+                                color_winners.push(selected);
+                                match value {
                                     Expression::Literal(value) => break value,
                                     Expression::Current => {}
                                 }
@@ -168,6 +192,9 @@ impl BoundedPaintColors {
                 host: host.host,
                 source: child,
                 paint_declaration: declaration,
+                property,
+                paint_winner,
+                color_winners,
                 rgba,
                 color_declarations,
                 inheritance_nodes,
@@ -180,6 +207,117 @@ impl BoundedPaintColors {
             suppressed,
         })
     }
+}
+type InlineWinners = BTreeMap<(AstNodeId, String), (Expression, PaintDeclarationWinner)>;
+fn inline_declarations(
+    plan: &SvgPaintStylePlan,
+    work: &mut Work,
+) -> Result<(InlineWinners, BTreeSet<AstNodeId>), String> {
+    use crate::css_resources::{attribute as css_attr, named};
+    let inventory = plan.content().paint().inventory();
+    let document = &inventory.document().tree;
+    let mut winners: InlineWinners = BTreeMap::new();
+    let mut attributes = BTreeSet::new();
+    let mut count = 0;
+    for sheet in inventory.stylesheets() {
+        work.spend(1)?;
+        local(document, sheet.owner)?; // only SVG inline declarations in this profile
+        let source = document
+            .node(sheet.source_node)
+            .ok_or("inline source missing")?;
+        if !source
+            .name
+            .as_ref()
+            .is_some_and(|n| n.namespace_uri.is_empty() && n.local_name == "style")
+            || source.kind != CemTreeNodeKind::Attribute
+        {
+            return Err("paint color stylesheet cascade unsupported".into());
+        }
+        if !attributes.insert(sheet.source_node) {
+            return Err("duplicate inline source owner".into());
+        }
+        let css = &sheet
+            .resources
+            .as_ref()
+            .map_err(|_| "inline CSS import failed")?
+            .tree;
+        let roots = &css.node(0).ok_or("inline CSS document missing")?.children;
+        if roots.len() != 1 || !named(css, roots[0], "style-attribute") {
+            return Err("paint color requires retained inline declaration list".into());
+        }
+        let mut order = 0;
+        for id in &css.node(roots[0]).unwrap().children {
+            work.spend(1)?;
+            if named(css, *id, "comment") {
+                continue;
+            }
+            if !named(css, *id, "declaration") {
+                return Err("paint color inline rule unsupported".into());
+            }
+            count += 1;
+            if count > 4096 {
+                return Err("paint color inline declaration bound exceeded".into());
+            }
+            let name = css_attr(css, *id, "name")
+                .ok_or("inline property missing")?
+                .to_ascii_lowercase();
+            let value = css_attr(css, *id, "value").ok_or("inline value missing")?;
+            work.spend(name.len() + value.len() + css.node(*id).unwrap().attributes.len())?;
+            if !matches!(name.as_str(), "color" | "fill" | "stop-color") {
+                return Err("paint color inline property unsupported".into());
+            }
+            // Unsupported/invalid values fail the bounded profile even when
+            // losing; never reinterpret them as absent browser declarations.
+            let value = expression(value)?;
+            let important = css_attr(css, *id, "important") == Some("true");
+            let key = (sheet.owner, name);
+            let replace = winners
+                .get(&key)
+                .is_none_or(|(_, previous)| !previous.important || important);
+            if replace {
+                winners.insert(
+                    key,
+                    (
+                        value,
+                        PaintDeclarationWinner {
+                            attribute: sheet.source_node,
+                            css: Some(css.clone()),
+                            css_declaration: Some(*id),
+                            important,
+                            order,
+                        },
+                    ),
+                );
+            }
+            order += 1;
+        }
+    }
+    Ok((winners, attributes))
+}
+fn winner(
+    tree: &RetainedCemTree,
+    inline: &InlineWinners,
+    owner: AstNodeId,
+    property: &str,
+    work: &mut Work,
+) -> Result<Option<(Expression, PaintDeclarationWinner)>, String> {
+    work.spend(1)?;
+    if let Some(value) = inline.get(&(owner, property.to_owned())) {
+        return Ok(Some(value.clone()));
+    }
+    let Some(attribute) = attribute(tree, owner, property, work)? else {
+        return Ok(None);
+    };
+    Ok(Some((
+        expression(&tree.node(attribute).unwrap().value)?,
+        PaintDeclarationWinner {
+            attribute,
+            css: None,
+            css_declaration: None,
+            important: false,
+            order: 0,
+        },
+    )))
 }
 fn local(tree: &RetainedCemTree, id: AstNodeId) -> Result<&str, String> {
     let name = tree
@@ -224,6 +362,7 @@ fn attribute(
     }
     Ok(None)
 }
+#[derive(Clone)]
 enum Expression {
     Literal([u8; 4]),
     Current,
