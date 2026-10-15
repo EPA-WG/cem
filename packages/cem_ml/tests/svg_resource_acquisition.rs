@@ -1598,3 +1598,239 @@ fn pattern_compositing_rejects_unmodeled_inherited_effects() {
         }
     }
 }
+
+#[test]
+fn calculation_observations_bind_consumers_and_revoke_on_geometry_mutation() {
+    let (mut r, mut h, o, _) = template_record("<linearGradient id='p'/>");
+    let (_, _, cap) = fixture::setup("<p/>");
+    let mut o = CalculationObserver {
+        base: o,
+        width: 20.,
+        calls: 0,
+        drift: false,
+        fault: 0,
+        cancel: None,
+    };
+    r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+        .unwrap();
+    r.prepare_calculations(&mut h, &mut o, AbortSignal::new())
+        .unwrap();
+    let (binding, evaluation) = r.gradient_calculation(0).unwrap();
+    assert_eq!(binding.slot, 0);
+    assert_eq!(evaluation.context.bounding_box, [0., 0., 20., 10.]);
+    r.validate(&mut h, &mut o).unwrap();
+    o.width = 30.;
+    assert!(r.validate(&mut h, &mut o).is_err());
+    assert!(r.gradient_calculation(0).is_none());
+    assert!(r.paint_content(0).is_none());
+}
+struct CalculationObserver {
+    base: Observer,
+    width: f64,
+    calls: usize,
+    drift: bool,
+    fault: u8,
+    cancel: Option<AbortSignal>,
+}
+impl SvgComputedObserver for CalculationObserver {
+    fn environment_revision(&mut self) -> Result<String, String> {
+        self.base.environment_revision()
+    }
+    fn observe(&mut self, slot: SvgComputedSlot<'_>) -> Result<String, String> {
+        self.base.observe(slot)
+    }
+    fn observe_calculation(
+        &mut self,
+        slot: cem_ml::svg_resource_acquisition::calculations::CalculationSlot<'_>,
+    ) -> Result<cem_ml::svg_resource_acquisition::calculations::CalculationObservation, String>
+    {
+        use cem_ml::svg_resource_acquisition::{calculations::*, geometry::GeometryContext};
+        assert_eq!(
+            slot.consumer.value(),
+            if slot.binding.slot == 0 {
+                "url(authored.svg#x)"
+            } else {
+                "url(other.svg#x)"
+            }
+        );
+        assert!(std::sync::Arc::ptr_eq(
+            slot.binding.body.tree(),
+            &slot.plan.inventory.document.tree
+        ));
+        self.calls += 1;
+        if self.fault == 3 {
+            self.base.revision = self.calls.to_string();
+        }
+        if self.fault == 4 {
+            self.cancel.as_ref().unwrap().abort();
+        }
+        Ok(CalculationObservation {
+            context: GeometryContext {
+                viewport: [if self.fault == 6 { 99. } else { 100. }, 100.],
+                bounding_box: [
+                    0.,
+                    0.,
+                    self.width + if self.drift { self.calls as f64 } else { 0. },
+                    10.,
+                ],
+            },
+            view_box: Some(ViewBoxObservation {
+                view_box: [0., 0., 100., 100.],
+                viewport: [0., 0., 1000., 1000.],
+                aspect: "none".into(),
+                observed_matrix: [if self.fault == 2 { 11. } else { 10. }, 0., 0., 10., 0., 0.],
+            }),
+            sample: if slot.paint_sources.is_empty() {
+                None
+            } else {
+                Some(SampleObservation {
+                    point: [if self.fault == 7 { f64::INFINITY } else { 5. }, 5.],
+                    covered: vec![
+                        self.fault != 5 || slot.binding.slot == 0;
+                        if self.fault == 1 {
+                            0
+                        } else {
+                            slot.paint_sources.len()
+                        }
+                    ],
+                })
+            },
+        })
+    }
+}
+#[test]
+fn calculation_capture_is_atomic_and_cancellation_hides_results() {
+    for mode in 0..4 {
+        let (mut r, mut h, o, _) = template_record("<linearGradient id='p'/>");
+        let (_, _, cap) = fixture::setup("<p/>");
+        let mut o = CalculationObserver {
+            base: o,
+            width: if mode == 3 { f64::NAN } else { 20. },
+            calls: 0,
+            drift: mode == 0,
+            fault: 0,
+            cancel: None,
+        };
+        r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+            .unwrap();
+        let cancel = AbortSignal::new();
+        if mode == 1 {
+            cancel.abort();
+        }
+        let result = r.prepare_calculations(&mut h, &mut o, cancel.clone());
+        if mode == 2 {
+            result.unwrap();
+            cancel.abort();
+            assert!(r.gradient_calculation(0).is_none());
+            assert!(r.validate(&mut h, &mut o).is_err());
+        } else {
+            assert!(result.is_err());
+        }
+        assert!(r.paint_content(0).is_none());
+    }
+}
+
+#[test]
+fn calculation_coverage_keeps_shared_body_consumers_separate() {
+    let (mut r, mut h, o, _) = template_record("<pattern id='p'><g opacity='.5'><rect width='10' height='10' fill='red'/><rect width='10' height='10' fill='blue'/></g></pattern>");
+    let (_, _, cap) = fixture::setup("<p/>");
+    let mut o = CalculationObserver {
+        base: o,
+        width: 20.,
+        calls: 0,
+        drift: false,
+        fault: 5,
+        cancel: None,
+    };
+    r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+        .unwrap();
+    r.prepare_calculations(&mut h, &mut o, AbortSignal::new())
+        .unwrap();
+    assert_eq!(
+        r.pattern_calculation(0).unwrap().1.premultiplied_rgba,
+        [0., 0., 0.5, 0.5]
+    );
+    assert_eq!(
+        r.pattern_calculation(1).unwrap().1.premultiplied_rgba,
+        [0.; 4]
+    );
+    assert_eq!(r.pattern_calculation(0).unwrap().1.contributors.len(), 2);
+    assert!(r.gradient_calculation(0).is_none());
+    o.fault = 0; // Only second consumer's coverage changes.
+    assert!(r.validate(&mut h, &mut o).is_err());
+    assert!(r.pattern_calculation(0).is_none());
+}
+#[test]
+fn calculation_capture_rejects_partial_coverage_matrix_mismatch_and_callback_transitions() {
+    for fault in [1, 2, 3, 4, 6, 7] {
+        let (mut r, mut h, o, _) =
+            template_record("<pattern id='p'><rect width='10' height='10' fill='red'/></pattern>");
+        let (_, _, cap) = fixture::setup("<p/>");
+        let signal = AbortSignal::new();
+        let mut o = CalculationObserver {
+            base: o,
+            width: 20.,
+            calls: 0,
+            drift: false,
+            fault,
+            cancel: Some(signal.clone()),
+        };
+        r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+            .unwrap();
+        assert!(
+            r.prepare_calculations(&mut h, &mut o, signal).is_err(),
+            "fault {fault}"
+        );
+        assert!(r.calculation_observation(0).is_none());
+        assert!(r.paint_content(0).is_none());
+    }
+}
+#[test]
+fn calculation_revisions_hosts_and_narrower_validation_cannot_reuse_observations() {
+    for mode in 0..4 {
+        let (mut r, mut h, o, _) = template_record("<linearGradient id='p'/>");
+        let (_, _, cap) = fixture::setup("<p/>");
+        let mut o = CalculationObserver {
+            base: o,
+            width: 20.,
+            calls: 0,
+            drift: false,
+            fault: 0,
+            cancel: None,
+        };
+        r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+            .unwrap();
+        r.prepare_calculations(&mut h, &mut o, AbortSignal::new())
+            .unwrap();
+        match mode {
+            0 => {
+                o.base.revision = "restored-geometry-after-resize".into();
+                assert!(r.validate(&mut h, &mut o).is_err());
+            }
+            1 => {
+                assert!(r.validate(&mut SvgComputedHost::default(), &mut o).is_err());
+            }
+            2 => {
+                r.validate_fragments(&mut h, &mut o, 10000).unwrap();
+            }
+            _ => {
+                assert!(r
+                    .prepare_calculations(&mut h, &mut o, AbortSignal::new())
+                    .is_err());
+            }
+        }
+        assert!(r.calculation_observation(0).is_none());
+    }
+}
+#[test]
+fn calculation_observation_requires_opt_in_live_adapter() {
+    let (mut r, mut h, mut o, _) = template_record("<linearGradient id='p'/>");
+    let (_, _, cap) = fixture::setup("<p/>");
+    r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+        .unwrap();
+    assert!(r
+        .prepare_calculations(&mut h, &mut o, AbortSignal::new())
+        .unwrap_err()
+        .contains("verified SVG calculation observer required"));
+    assert!(r.paint_content(0).is_none());
+}

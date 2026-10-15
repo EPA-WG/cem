@@ -14,6 +14,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
+pub mod calculations;
 pub mod composite;
 pub mod geometry;
 pub mod nested;
@@ -155,6 +156,7 @@ pub struct SvgResourceRecord {
         String,
     )>,
     delivery: Option<AbortSignal>,
+    calculations: Option<calculations::Calculations>,
 }
 impl SvgResourceRecord {
     /// Inspection only; callers must validate this record and their enclosing
@@ -183,6 +185,10 @@ impl SvgResourceRecord {
     pub fn fragment_target(&self, index: usize) -> Option<(&SvgResourceBinding, AstNodeId)> {
         if self.revoked
             || self.cancel.is_aborted()
+            || self
+                .calculations
+                .as_ref()
+                .is_some_and(|c| c.cancel.is_aborted())
             || self.delivery.as_ref().is_some_and(AbortSignal::is_aborted)
             || self.nested.as_ref().is_some_and(|n| n.cancel.is_aborted())
             || self
@@ -420,6 +426,7 @@ impl SvgResourceRecord {
                 targets.push(target);
             }
             self.validate(host, observer)?;
+            self.calculations = None;
             self.content = None;
             self.nested = None;
             self.content_context = None;
@@ -572,6 +579,7 @@ impl SvgResourceRecord {
             nested: None,
             content_context: None,
             delivery: None,
+            calculations: None,
         })
     }
     /// Consume one ledger, joining exact entity bytes to every retained body.
@@ -622,6 +630,10 @@ impl SvgResourceRecord {
     pub fn delivered_bindings(&self) -> usize {
         if self.revoked
             || self.cancel.is_aborted()
+            || self
+                .calculations
+                .as_ref()
+                .is_some_and(|c| c.cancel.is_aborted())
             || !self
                 .delivery
                 .as_ref()
@@ -648,6 +660,9 @@ impl SvgResourceRecord {
                 return Err("acquired content resolution context changed".into());
             }
             active(&self.cancel)?;
+            if let Some(calculations) = &self.calculations {
+                active(&calculations.cancel)?;
+            }
             if let Some(nested) = &self.nested {
                 active(&nested.cancel)?;
             }
@@ -655,6 +670,10 @@ impl SvgResourceRecord {
                 active(delivery)?;
             }
             host.validate(&self.computed, self.computed.sources(), observer)?;
+            if self.calculations.is_some() {
+                self.validate_calculations(observer)?;
+                host.validate(&self.computed, self.computed.sources(), observer)?;
+            }
             if self
                 .content_context
                 .as_ref()
@@ -663,6 +682,9 @@ impl SvgResourceRecord {
                 return Err("acquired content resolution context changed".into());
             }
             active(&self.cancel)?;
+            if let Some(calculations) = &self.calculations {
+                active(&calculations.cancel)?;
+            }
             if let Some(nested) = &self.nested {
                 active(&nested.cancel)?;
             }
@@ -678,6 +700,7 @@ impl SvgResourceRecord {
     }
     pub fn close(&mut self) {
         self.revoked = true;
+        self.calculations = None;
         self.fragment_targets.clear();
         self.template_links = None;
         self.content = None;

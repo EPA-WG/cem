@@ -1277,3 +1277,75 @@ fn acquired_content_requires_confirmed_profile_and_snapshot_order() {
         .is_err());
     assert!(s.html().is_err());
 }
+
+struct GeometryObserver {
+    width: f64,
+}
+impl cem_ml::svg_computed_execution::SvgComputedObserver for GeometryObserver {
+    fn environment_revision(&mut self) -> Result<String, String> {
+        Ok("svg:1".into())
+    }
+    fn observe(
+        &mut self,
+        slot: cem_ml::svg_computed_execution::SvgComputedSlot<'_>,
+    ) -> Result<String, String> {
+        SvgObserver(SVG_RESOURCE_VALUE).observe(slot)
+    }
+    fn observe_calculation(
+        &mut self,
+        slot: cem_ml::svg_resource_acquisition::calculations::CalculationSlot<'_>,
+    ) -> Result<cem_ml::svg_resource_acquisition::calculations::CalculationObservation, String>
+    {
+        assert_eq!(slot.consumer.value(), "red");
+        Ok(
+            cem_ml::svg_resource_acquisition::calculations::CalculationObservation {
+                context: cem_ml::svg_resource_acquisition::geometry::GeometryContext {
+                    viewport: [100., 100.],
+                    bounding_box: [0., 0., self.width, 10.],
+                },
+                view_box: None,
+                sample: None,
+            },
+        )
+    }
+}
+#[test]
+fn calculation_bindings_follow_preparation_mutation_and_cancellation() {
+    for mode in 0..4 {
+        let (mut s, _) = bound_svg_session();
+        let mut o = GeometryObserver { width: 20. };
+        s.confirm_clone_profile("chromium-148-solid-currentcolor-v1", clone_probe)
+            .unwrap();
+        s.prepare_svg_paint_content(&mut o).unwrap();
+        let signal = cem_ml::scheduler::AbortSignal::new();
+        s.prepare_svg_calculations(&mut o, signal.clone()).unwrap();
+        assert_eq!(s.svg_calculation_bindings(), 0);
+        s.capture(BASE, slots, &mut OutputObserver { wrong: false })
+            .unwrap();
+        assert_eq!(s.svg_calculation_bindings(), s.svg_resource_bindings());
+        assert!(s.svg_calculation_bindings() > 0);
+        s.validate_svg(&mut o).unwrap();
+        match mode {
+            0 => {
+                signal.abort();
+                assert!(s.html().is_err());
+                assert!(s
+                    .read(BASE, slots, &mut OutputObserver { wrong: false })
+                    .is_err());
+            }
+            1 => {
+                o.width = 21.;
+                assert!(s.validate_svg(&mut o).is_err());
+            }
+            2 => {
+                assert!(s
+                    .validate_svg(&mut SvgObserver(SVG_RESOURCE_VALUE))
+                    .is_err());
+            }
+            _ => s.close(),
+        }
+        assert_eq!(s.svg_calculation_bindings(), 0);
+        assert!(s.html().is_err());
+        assert!(!s.clone_profile_confirmed());
+    }
+}

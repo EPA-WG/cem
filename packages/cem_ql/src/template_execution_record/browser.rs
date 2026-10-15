@@ -100,6 +100,7 @@ pub struct RecordedOutputSession {
     svg_resources: Option<SvgResourceRecord>,
     svg_acquisition: Option<AbortSignal>,
     svg_nested_acquisition: Option<AbortSignal>,
+    svg_calculation_cancel: Option<AbortSignal>,
     svg_replay_nonce: Option<String>,
     svg_replay: Option<SvgReplayAuthorPlan>,
     paint: Option<Arc<SvgPaintPlan>>,
@@ -252,6 +253,7 @@ impl RecordedOutputSession {
             svg_resources: None,
             svg_acquisition: None,
             svg_nested_acquisition: None,
+            svg_calculation_cancel: None,
             svg_replay_nonce: None,
             svg_replay: None,
             paint: None,
@@ -293,6 +295,10 @@ impl RecordedOutputSession {
         if self.stage == Stage::Closed
             || self.cancel.is_aborted()
             || self
+                .svg_calculation_cancel
+                .as_ref()
+                .is_some_and(AbortSignal::is_aborted)
+            || self
                 .svg_nested_acquisition
                 .as_ref()
                 .is_some_and(AbortSignal::is_aborted)
@@ -329,6 +335,7 @@ impl RecordedOutputSession {
         }
         self.svg_acquisition = None;
         self.svg_nested_acquisition = None;
+        self.svg_calculation_cancel = None;
         self.svg_replay = None;
         self.svg_replay_nonce = None;
         self.paint = None;
@@ -349,6 +356,10 @@ impl RecordedOutputSession {
         let result = if self.stage == Stage::Closed
             || self.cancel.is_aborted()
             || self
+                .svg_calculation_cancel
+                .as_ref()
+                .is_some_and(AbortSignal::is_aborted)
+            || self
                 .svg_nested_acquisition
                 .as_ref()
                 .is_some_and(AbortSignal::is_aborted)
@@ -361,6 +372,10 @@ impl RecordedOutputSession {
         } else {
             work(self).and_then(|value| {
                 if self.cancel.is_aborted()
+                    || self
+                        .svg_calculation_cancel
+                        .as_ref()
+                        .is_some_and(AbortSignal::is_aborted)
                     || self
                         .svg_nested_acquisition
                         .as_ref()
@@ -597,6 +612,10 @@ impl RecordedOutputSession {
         if self.stage != Stage::Composed
             || self.cancel.is_aborted()
             || self
+                .svg_calculation_cancel
+                .as_ref()
+                .is_some_and(AbortSignal::is_aborted)
+            || self
                 .svg_nested_acquisition
                 .as_ref()
                 .is_some_and(AbortSignal::is_aborted)
@@ -819,6 +838,35 @@ impl RecordedOutputSession {
                 .prepare_paint_content(&mut s.svg_host, observer, profile, &s.cap, 1_000_000)
         })
     }
+    /// Native observer only: no JavaScript geometry DTO is accepted as proof.
+    pub fn prepare_svg_calculations(
+        &mut self,
+        observer: &mut impl SvgComputedObserver,
+        cancel: AbortSignal,
+    ) -> Result<(), String> {
+        self.run(|s| {
+            if s.stage != Stage::ComposedBase {
+                return Err("composed SVG calculation preparation required".into());
+            }
+            s.svg_resources
+                .as_mut()
+                .ok_or("SVG snapshots required")?
+                .prepare_calculations(&mut s.svg_host, observer, cancel.clone())?;
+            s.svg_calculation_cancel = Some(cancel);
+            Ok(())
+        })
+    }
+    /// Diagnostic count only, never a rendering or consumption seal.
+    pub fn svg_calculation_bindings(&self) -> usize {
+        if self.svg_resource_bindings() == 0 {
+            return 0;
+        }
+        self.svg_resources.as_ref().map_or(0, |r| {
+            (0..r.bindings().len())
+                .filter(|i| r.calculation_observation(*i).is_some())
+                .count()
+        })
+    }
     pub fn bind_svg_nested_snapshots(
         &mut self,
         responses: Vec<SvgResourceResponse>,
@@ -959,6 +1007,10 @@ impl RecordedOutputSession {
         if self.stage != Stage::Captured
             || self.cancel.is_aborted()
             || self
+                .svg_calculation_cancel
+                .as_ref()
+                .is_some_and(AbortSignal::is_aborted)
+            || self
                 .svg_nested_acquisition
                 .as_ref()
                 .is_some_and(AbortSignal::is_aborted)
@@ -993,6 +1045,10 @@ impl RecordedOutputSession {
     pub fn svg_replay_candidates(&self) -> usize {
         if self.stage != Stage::Captured
             || self.cancel.is_aborted()
+            || self
+                .svg_calculation_cancel
+                .as_ref()
+                .is_some_and(AbortSignal::is_aborted)
             || self
                 .svg_nested_acquisition
                 .as_ref()
@@ -1031,6 +1087,10 @@ impl RecordedOutputSession {
         if self.stage != Stage::Captured
             || self.cancel.is_aborted()
             || self
+                .svg_calculation_cancel
+                .as_ref()
+                .is_some_and(AbortSignal::is_aborted)
+            || self
                 .svg_nested_acquisition
                 .as_ref()
                 .is_some_and(AbortSignal::is_aborted)
@@ -1049,6 +1109,10 @@ impl RecordedOutputSession {
         if self.stage != Stage::Captured
             || self.cancel.is_aborted()
             || self
+                .svg_calculation_cancel
+                .as_ref()
+                .is_some_and(AbortSignal::is_aborted)
+            || self
                 .svg_nested_acquisition
                 .as_ref()
                 .is_some_and(AbortSignal::is_aborted)
@@ -1066,6 +1130,10 @@ impl RecordedOutputSession {
     pub fn svg_paint_style_counts(&self) -> (usize, usize) {
         if self.stage != Stage::Captured
             || self.cancel.is_aborted()
+            || self
+                .svg_calculation_cancel
+                .as_ref()
+                .is_some_and(AbortSignal::is_aborted)
             || self
                 .svg_nested_acquisition
                 .as_ref()
@@ -1114,6 +1182,10 @@ impl RecordedOutputSession {
         self.stage == Stage::Captured
             && !self.cancel.is_aborted()
             && !self
+                .svg_calculation_cancel
+                .as_ref()
+                .is_some_and(AbortSignal::is_aborted)
+            && !self
                 .svg_nested_acquisition
                 .as_ref()
                 .is_some_and(AbortSignal::is_aborted)
@@ -1134,6 +1206,10 @@ impl RecordedOutputSession {
     pub fn paint_color_counts(&self) -> (usize, usize) {
         if self.stage != Stage::Captured
             || self.cancel.is_aborted()
+            || self
+                .svg_calculation_cancel
+                .as_ref()
+                .is_some_and(AbortSignal::is_aborted)
             || self
                 .svg_nested_acquisition
                 .as_ref()

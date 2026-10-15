@@ -3233,9 +3233,31 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       Group opacity preserves paint order and grouping; unsupported inherited
       effects reject rather than dropping user overrides. No public theme tokens,
       accessibility/forced-color policy or production origin admission changed.
-    - [ ] Bind native gradient/viewBox and sample-compositing plans to recorded
-      consumer slots, verified viewport/bounding-box/coverage provenance and
-      preparation mutation/cancellation lifetimes before using execution evidence.
+    - [x] Add native calculation-observation fixtures for exact consumer/source
+      joins, viewBox matrix parity, exhaustive coverage, mutation during capture,
+      restored-value revisions, cancellation and atomic revocation.
+    - [x] Bind native gradient/viewBox and sample-compositing calculations to
+      exact recorded consumer/body/content slots through an opt-in native observer
+      contract; validate finite geometry, viewBox/context/matrix agreement and
+      exhaustive native-ordered point coverage. Compare repeated observations,
+      recheck on resource validation and revoke on revision/geometry/coverage,
+      host/policy changes or cancellation. Integrate into recorded preparation;
+      fail closed when the adapter cannot verify correspondence.
+      Verification: 78 native SVG tests and 71 recorded-template tests pass;
+      release WASM/package builds and the full Chromium gate pass, including
+      the existing 16 geometry/compositing parity probes and 299 preparation
+      cases. Observer lifecycle fixtures are native contract tests, not evidence
+      of a production browser geometry provider.
+      CEM audit: native source ownership and separate shared-body consumers remain
+      intact; initial geometry stays explicitly sourced, group opacity preserves
+      paint order, unsupported inherited effects still reject. No component/theme
+      defaults, public tokens or accessibility/forced-color rules changed.
+    - [ ] Supply a verified browser geometry/coverage provider for actual acquired
+      paint instances and connect it to the native preparation hook. Current
+      DOM/CDP and fixture observations do not establish that correspondence or
+      engine mutation lifetimes; do not expose scalar JS ingress as evidence.
+      Keep production origin, response identity and consumption admission blocked
+      until the instrumented browser provider exists.
     - [ ] Extend geometry to pattern tile/content mappings and CSS transform
       winners; verify radial focal limiting and additional paint/effect profiles
       before widening the bounded calculations.

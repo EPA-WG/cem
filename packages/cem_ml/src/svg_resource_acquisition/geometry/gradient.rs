@@ -2,7 +2,7 @@ use super::*;
 use crate::svg_resource_acquisition::paint::AcquiredPaintContent;
 /// Explicit numeric assumptions in the graphics consumer's local user space.
 /// This is not a browser layout receipt or transferable execution evidence.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GeometryContext {
     pub viewport: [f64; 2],
     pub bounding_box: [f64; 4],

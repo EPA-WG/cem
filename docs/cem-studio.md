@@ -4474,8 +4474,43 @@ transform/viewBox matrices, transformed gradient pixels and overlapping group
 samples. Continuous compositing values allow one 8-bit channel step for raster
 rounding, which cannot conceal incorrect group-opacity flattening. This export
 is not a runtime AST handoff, layout seal or rendering-consumption receipt.
-Preparation binding must still establish the consumer, geometry context, coverage
-and mutation lifetime before these calculations can contribute execution evidence.
+
+`SvgResourceRecord::prepare_calculations` now binds those calculations to each
+recorded computed consumer and its exact acquired body/fragment/content plan.
+The native `SvgComputedObserver::observe_calculation` hook receives borrowed
+native source slots, including an exhaustive ordered paint-leaf list. It must
+verify live consumer/instance correspondence before returning geometry or coverage;
+the default hook rejects. No JavaScript geometry/AST DTO ingress or automatic
+browser adapter is provided. This is a trusted observer contract, not independent
+proof that caller-supplied numbers came from browser layout.
+
+Capture compares two complete observations, bracketed by original computed-host,
+environment revision, resolver and acquisition checks. Viewport/bounding-box
+numbers must be finite and nonnegative in extent. An optional nearest-viewport
+viewBox observation must agree with the context dimensions and native mapping
+within the existing matrix parity tolerance; disabled mappings reject. Pattern
+samples require a finite point in instance content coordinates and exactly one
+coverage bit per native paint source, including uncovered leaves. The observer
+must reject unknown or partial coverage rather than round it into a Boolean.
+Native source-over evaluation still rejects unsupported effects. Shared acquired
+bodies never merge consumer observations.
+
+Every resource validation reobserves the calculation inputs. Revision changes
+must include layout, resize, animation, viewport, source-instance and coverage
+transitions, even when values are restored. Mismatches, unsupported observers,
+cancellation or host/policy changes revoke the entire record. Narrower target
+revalidation removes calculation plans. Borrowed gradient/sample results and
+observations are inspection APIs and require immediate enclosing preparation
+revalidation before use; they are not transferable execution seals.
+
+`RecordedOutputSession::prepare_svg_calculations` integrates this opt-in into the
+composed preparation stage. Calculation cancellation hides HTML and diagnostic
+counts and causes subsequent operations to close the session; `validate_svg`
+rechecks observations. Only the native adapter can opt in. A production browser
+provider must still establish actual acquired-instance geometry and coverage,
+mutation lifetimes and response/consumption authority before enabling this path.
+The current DOM/CDP probes and fixture scalars do not establish that authority;
+all existing winning-source, origin, delivery and consumption blockers remain.
 
 The static acquired-body profile rejects scripts, animation, foreign content,
 event handlers, processing instructions and XML base changes throughout the

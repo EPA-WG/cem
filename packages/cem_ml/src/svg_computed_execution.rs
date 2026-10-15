@@ -15,6 +15,17 @@ pub trait SvgComputedObserver {
     /// Verify the exact live element correspondence before reading its computed
     /// property. Detached/replaced owners and unsupported states must fail.
     fn observe(&mut self, slot: SvgComputedSlot<'_>) -> Result<String, String>;
+    /// Verify the exact consumer, acquired instance and native-listed paint leaves.
+    /// Geometry must use the consumer's local user space; sample coverage must
+    /// be exhaustive at one position in the selected instance's content space.
+    /// Include layout, viewport, animation and coverage transitions in revision.
+    /// DOM snapshots or fixture coordinates alone cannot establish correspondence.
+    fn observe_calculation(
+        &mut self,
+        _slot: crate::svg_resource_acquisition::calculations::CalculationSlot<'_>,
+    ) -> Result<crate::svg_resource_acquisition::calculations::CalculationObservation, String> {
+        Err("verified SVG calculation observer required".into())
+    }
 }
 #[derive(Default)]
 pub struct SvgComputedHost {
