@@ -1373,3 +1373,228 @@ fn nested_integrity_rechecks_reused_bodies_and_original_root_bytes() {
         }
     }
 }
+
+#[test]
+fn acquired_gradient_geometry_resolves_box_viewport_transform_and_origins() {
+    use cem_ml::svg_resource_acquisition::geometry::{
+        GeometryContext, GeometryOrigin, ResolvedGradient,
+    };
+    let (_, _, cap) = fixture::setup("<p/>");
+    let (mut r, mut h, mut o, _) = template_record("<linearGradient id='p' href='#q' gradientTransform='translate(.25 0) scale(.5)'/><linearGradient id='q' x2='100%'><stop stop-color='red'/></linearGradient>");
+    r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+        .unwrap();
+    let plan = r.paint_content(0).unwrap().1;
+    let result = plan
+        .resolve_gradient(GeometryContext {
+            viewport: [200., 100.],
+            bounding_box: [10., 20., 80., 40.],
+        })
+        .unwrap();
+    assert!(matches!(
+        result.shape,
+        ResolvedGradient::Linear {
+            start: [0., 0.],
+            end: [1., 0.]
+        }
+    ));
+    assert_eq!(
+        result.paint_to_user.map_point([0., 0.]).unwrap(),
+        [30., 20.]
+    );
+    assert_eq!(
+        result.paint_to_user.map_point([1., 0.]).unwrap(),
+        [70., 20.]
+    );
+    assert!(matches!(result.origins["x1"], GeometryOrigin::Initial));
+    assert!(matches!(
+        result.origins["x2"],
+        GeometryOrigin::Attribute { .. }
+    ));
+    assert!(std::ptr::eq(result.source, plan));
+}
+
+#[test]
+fn acquired_radial_resolution_keeps_normalized_radius_and_degenerate_bounds() {
+    use cem_ml::svg_resource_acquisition::geometry::{GeometryContext, ResolvedGradient};
+    let (_, _, cap) = fixture::setup("<p/>");
+    let (mut r, mut h, mut o, _) = template_record("<radialGradient id='p' gradientUnits='userSpaceOnUse' cx='25%' cy='50%' r='50%'><stop stop-color='red'/></radialGradient>");
+    r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+        .unwrap();
+    let plan = r.paint_content(0).unwrap().1;
+    let ctx = GeometryContext {
+        viewport: [80., 60.],
+        bounding_box: [0., 0., 0., 0.],
+    };
+    let result = plan.resolve_gradient(ctx).unwrap();
+    let ResolvedGradient::Radial {
+        center,
+        radius,
+        focus,
+        inner_radius,
+    } = result.shape
+    else {
+        panic!("radial expected")
+    };
+    assert_eq!(center, [20., 30.]);
+    assert_eq!(focus, center);
+    assert_eq!(inner_radius, 0.);
+    assert!((radius - 50. / 2f64.sqrt()).abs() < 1e-10);
+    assert!(!result.disabled);
+    assert!(plan
+        .resolve_gradient(GeometryContext {
+            viewport: [f64::NAN, 1.],
+            ..ctx
+        })
+        .is_err());
+}
+
+#[test]
+fn acquired_pattern_compositing_keeps_group_opacity_after_child_source_over() {
+    let (_, _, cap) = fixture::setup("<p/>");
+    let (mut r, mut h, mut o, _) = template_record(
+        "<pattern id='p'><g opacity='.5'><rect fill='red'/><rect fill='blue'/></g></pattern>",
+    );
+    r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+        .unwrap();
+    let plan = r.paint_content(0).unwrap().1;
+    let colors = plan.colors.as_ref().unwrap();
+    let coverage: Vec<_> = colors.iter().map(|v| v.source).collect();
+    let sample = plan.composite_pattern_sample(&coverage).unwrap();
+    assert_eq!(sample.premultiplied_rgba, [0., 0., 0.5, 0.5]);
+    assert_eq!(sample.contributors, coverage);
+    assert!(std::ptr::eq(sample.source, plan));
+    assert!(plan
+        .composite_pattern_sample(&[coverage[0], coverage[0]])
+        .is_err());
+    assert!(plan.composite_pattern_sample(&[plan.host]).is_err());
+    assert_eq!(
+        plan.composite_pattern_sample(&[])
+            .unwrap()
+            .premultiplied_rgba,
+        [0.; 4]
+    );
+}
+
+#[test]
+fn acquired_pattern_compositing_rejects_unmodeled_effects() {
+    let (_, _, cap) = fixture::setup("<p/>");
+    for attr in [
+        "filter='url(#f)'",
+        "fill-opacity='.5'",
+        "display='none'",
+        "clip-path='url(#c)'",
+        "mask='url(#m)'",
+        "style='mix-blend-mode:multiply'",
+    ] {
+        let (mut r, mut h, mut o, _) = template_record(&format!(
+            "<pattern id='p'><rect fill='red' {attr}/></pattern>"
+        ));
+        r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+            .unwrap();
+        let plan = r.paint_content(0).unwrap().1;
+        let id = plan.nodes[0].source;
+        assert!(plan.composite_pattern_sample(&[id]).is_err(), "{attr}");
+    }
+}
+#[test]
+fn gradient_context_exclusions_do_not_invent_used_geometry() {
+    use cem_ml::svg_resource_acquisition::geometry::GeometryContext;
+    let (_, _, cap) = fixture::setup("<p/>");
+    for (content, valid) in [
+        (
+            "<linearGradient id='p'><stop stop-color='red'/></linearGradient>",
+            true,
+        ),
+        (
+            "<linearGradient id='p' x2='1px'><stop stop-color='red'/></linearGradient>",
+            false,
+        ),
+        (
+            "<style>stop{stop-color:red}</style><linearGradient id='p'><stop/></linearGradient>",
+            false,
+        ),
+        (
+            "<radialGradient id='p' fx='200%'><stop stop-color='red'/></radialGradient>",
+            false,
+        ),
+    ] {
+        let (mut r, mut h, mut o, _) = template_record(content);
+        r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+            .unwrap();
+        let result = r
+            .paint_content(0)
+            .unwrap()
+            .1
+            .resolve_gradient(GeometryContext {
+                viewport: [100., 100.],
+                bounding_box: [0., 0., 0., 100.],
+            });
+        assert_eq!(result.is_ok(), valid);
+        if valid {
+            assert!(result.unwrap().disabled);
+        }
+    }
+}
+#[test]
+fn pattern_source_order_ignores_coverage_order_and_applies_leaf_opacity() {
+    let (_, _, cap) = fixture::setup("<p/>");
+    let (mut r, mut h, mut o, _) = template_record(
+        "<pattern id='p'><rect fill='red' opacity='.5'/><rect fill='blue' opacity='.5'/></pattern>",
+    );
+    r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+        .unwrap();
+    let p = r.paint_content(0).unwrap().1;
+    let colors = p.colors.as_ref().unwrap();
+    let result = p
+        .composite_pattern_sample(&[colors[1].source, colors[0].source])
+        .unwrap();
+    assert_eq!(result.premultiplied_rgba, [0.25, 0., 0.5, 0.75]);
+    assert_eq!(
+        result.contributors,
+        vec![colors[0].source, colors[1].source]
+    );
+}
+#[test]
+fn pattern_compositing_excludes_descriptive_subtrees() {
+    let (_, _, cap) = fixture::setup("<p/>");
+    let (mut r,mut h,mut o,_)=template_record("<pattern id='p'><metadata><rect fill='blue'/></metadata><g><rect fill='red'/></g></pattern>");
+    r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+        .unwrap();
+    let p = r.paint_content(0).unwrap().1;
+    let colors = p.colors.as_ref().unwrap();
+    assert_eq!(colors.len(), 1);
+    assert_eq!(
+        p.composite_pattern_sample(&[colors[0].source])
+            .unwrap()
+            .premultiplied_rgba,
+        [1., 0., 0., 1.]
+    );
+    assert!(p.composite_pattern_sample(&[p.nodes[1].source]).is_err());
+}
+#[test]
+fn pattern_compositing_rejects_unmodeled_inherited_effects() {
+    let (_, _, cap) = fixture::setup("<p/>");
+    for effect in [
+        "fill-opacity='.5'",
+        "stroke='blue'",
+        "visibility='hidden'",
+        "color-interpolation='linearRGB'",
+    ] {
+        for outside in [true, false] {
+            let content = if outside {
+                format!("<g {effect}><pattern id='p'><rect fill='red'/></pattern></g>")
+            } else {
+                format!("<pattern id='p' {effect}><rect fill='red'/></pattern>")
+            };
+            let (mut r, mut h, mut o, _) = template_record(&content);
+            r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+                .unwrap();
+            let p = r.paint_content(0).unwrap().1;
+            let source = p.colors.as_ref().unwrap()[0].source;
+            assert!(
+                p.composite_pattern_sample(&[source]).is_err(),
+                "{effect}, outside={outside}"
+            );
+        }
+    }
+}

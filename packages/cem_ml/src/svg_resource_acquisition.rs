@@ -14,6 +14,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
+pub mod composite;
 pub mod geometry;
 pub mod nested;
 pub mod paint;

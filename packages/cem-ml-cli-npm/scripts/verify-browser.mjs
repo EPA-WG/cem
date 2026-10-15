@@ -10,6 +10,7 @@ import { build } from 'vite';
 import { verifyHtmlBaseParity, emitNativeHtmlBaseEvidence } from './verify-html-base.mjs';
 import { verifyHtmlBaseFreezeEvidence } from './verify-html-base-evidence.mjs';
 import { verifyStylesheetSvg } from './verify-stylesheet-svg.mjs';
+import { verifySvgGeometry } from './verify-svg-geometry.mjs';
 import { verifySvgReplayCompatibility } from './verify-svg-replay.mjs';
 import { verifySvgOriginProvider } from './verify-svg-origin-provider.mjs';
 import { verifyRecordedOutput } from './verify-recorded-output.mjs';
@@ -407,6 +408,7 @@ try {
     const htmlBase = await verifyHtmlBaseParity(browser, workspaceRoot);
     const stylesheetSvg = await verifyStylesheetSvg(browser, workspaceRoot);
     const svgReplayCompatibility = await verifySvgReplayCompatibility(browser);
+    const svgGeometry = await verifySvgGeometry(browser, workspaceRoot);
     const svgOriginProvider = await verifySvgOriginProvider(browser);
     const htmlBaseFreeze = await verifyHtmlBaseFreezeEvidence(browser, workspaceRoot);
     const browserStylesheets = await page.evaluate((version) => globalThis.runBrowserStylesheetsFixture(version), browser.version());
@@ -415,7 +417,7 @@ try {
     const compiledStylesheets = await page.evaluate(() => globalThis.runCompiledStylesheetsFixture());
     assert.equal(compiledStylesheets.cases.length, 20);
     const recordedPreparations = await page.evaluate(version => globalThis.runRecordedOutputFixture(version), browser.version());
-    assert.equal(recordedPreparations.cases.length, 298);
+    assert.equal(recordedPreparations.cases.length, 299);
     console.log(`Verified ${recordedPreparations.cases.length} production native preparation host cases.`);
     const recordedOutput = await verifyRecordedOutput(browser, workspaceRoot);
     const stylesheetSelection = await page.evaluate((version) => globalThis.runStylesheetSelectionFixture(version), browser.version());
@@ -448,6 +450,7 @@ try {
                 htmlExecutionInventory,
                 stylesheetSvg,
                 svgReplayCompatibility,
+                svgGeometry,
                 svgOriginProvider,
                 browserStylesheets,
                 compiledStylesheets,

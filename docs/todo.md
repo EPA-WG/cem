@@ -3207,8 +3207,38 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
     - [ ] Extend acquired used-style/geometry evaluation beyond bounded authored
       values: transforms, opacity compositing, complex content/selectors and
       operation-specific nested fragment semantics before rendering closure.
-    - [ ] Define transform/viewport/bounding-box evaluation and opacity compositing
-      as native plans, then verify used geometry and pixel parity in Chromium.
+    - [x] Define transform/viewport/bounding-box evaluation and opacity compositing
+      as bounded native plans with explicit context/coverage assumptions, then
+      verify calculated geometry and pixel parity in Chromium.
+    - [x] Verify native transform-list order, finite/bounded parsing, gradient
+      viewport/bounding-box resolution, initial-value provenance and viewBox
+      alignment/meet/slice mappings, including degenerate and unsupported cases.
+    - [x] Verify native source-over compositing with retained pattern source order,
+      explicit sample coverage, nested group opacity and distinct leaf opacity;
+      reject unsupported effects and ambiguous coverage rather than flatten groups.
+    - [x] Verify native geometry/compositing calculations against Chromium matrix,
+      linear-gradient and overlapping-group raster probes through an explicit fixture export.
+      Native methods retain the acquired plan and attribute/initial/derived-field
+      provenance. Transform lists cap at 64 functions/4096 bytes; viewport and
+      bounding-box calculations reject invalid or unsupported inputs. Source-over
+      samples preserve group boundaries and original source order, and reject
+      unknown coverage, descriptive contributors and unmodeled ancestor effects.
+      Verification: 142 focused native checks, WASM/CLI builds, lint and the full
+      Chromium gate pass, including 16 transform/viewBox/linear-gradient/compositing
+      parity fixtures and 299 preparation cases (one new grouped-opacity case).
+      CSS geometry, pattern mappings, radial focal limiting and live context or
+      coverage evidence remain separate requirements; no rendering seal is issued.
+      CEM audit: calculations borrow retained semantic/source plans; SVG initial
+      values have explicit provenance and never become component/theme defaults.
+      Group opacity preserves paint order and grouping; unsupported inherited
+      effects reject rather than dropping user overrides. No public theme tokens,
+      accessibility/forced-color policy or production origin admission changed.
+    - [ ] Bind native gradient/viewBox and sample-compositing plans to recorded
+      consumer slots, verified viewport/bounding-box/coverage provenance and
+      preparation mutation/cancellation lifetimes before using execution evidence.
+    - [ ] Extend geometry to pattern tile/content mappings and CSS transform
+      winners; verify radial focal limiting and additional paint/effect profiles
+      before widening the bounded calculations.
     - [ ] Extend literal nested targets with operation-specific `use`, filter,
       mask and paint dependency traversal, preserving target kinds, source/base
       ownership and cycle/budget diagnostics before widening resource coverage.
@@ -3261,9 +3291,11 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 The bounded acquired content/provenance and nested snapshot implementation is
 available with native ownership and preparation lifetime validation. Nested
 integrity, typed authored geometry, explicit opacity winners and literal nested
-SVG target identity are implemented. Used geometry/transforms, compositing,
-operation-specific nested fragment semantics and dynamic resource coverage
-remain open.
+SVG target identity are implemented. Native transform/gradient/viewBox calculations
+and covered-pattern source-over samples are available under explicit numeric and
+coverage assumptions. Live consumer/context binding, CSS transform winners,
+pattern mappings, operation-specific nested fragment semantics and dynamic
+resource coverage remain open.
 Production SVG replay is blocked on a maintained instrumented Chromium
 integration; the workspace contains feasibility probes but no engine checkout
 or integration target. Do not treat snapshot closure or compatibility pixels as

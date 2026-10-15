@@ -368,7 +368,7 @@ globalThis.runRecordedOutputFixture = async version => {
         boundedPaintColors: true,
         cloneProfile: { name: 'chromium-148-solid-currentcolor-v1', observe: index => [...cloneReports.get(index)] },
     });
-    for (const mode of ['inherited', 'own', 'descriptive-gradient', 'pattern', 'descriptive-pattern', 'currentcolor', 'inline', 'stylesheet', 'attributes', 'empty', 'opacity', 'opacity-inline', 'opacity-important', 'opacity-low', 'opacity-high', 'geometry-pattern', 'geometry-viewbox', 'geometry-invalid', 'abort', 'mutation', 'policy', 'pool', 'async', 'copy', 'no-profile', 'active', 'xml-base', 'foreign']) {
+    for (const mode of ['inherited', 'own', 'descriptive-gradient', 'pattern', 'descriptive-pattern', 'currentcolor', 'inline', 'stylesheet', 'attributes', 'empty', 'opacity', 'opacity-inline', 'opacity-important', 'opacity-low', 'opacity-high', 'geometry-pattern', 'geometry-viewbox', 'geometry-invalid', 'group-opacity', 'abort', 'mutation', 'policy', 'pool', 'async', 'copy', 'no-profile', 'active', 'xml-base', 'foreign']) {
         await run(`svg-acquired-content-${mode}`, async ({ request, doc, capture, captureAsync, pool, policy, install }) => {
             let defs = '<linearGradient id="p" href="#q" color="blue"/><linearGradient id="q" color="red"><stop stop-color="red"/></linearGradient>';
             let expected = [255, 0, 0, 255], inherited = 1, differences = 0, colors = 1, nodes = 1;
@@ -400,6 +400,10 @@ globalThis.runRecordedOutputFixture = async version => {
                 defs = `<pattern id="p" href="#q"/><pattern id="q" patternUnits="userSpaceOnUse" width="${mode === 'geometry-invalid' ? '-1' : '16'}" height="16" ${mode === 'geometry-viewbox' ? 'viewBox="0 0 16 16"' : ''}><rect width="16" height="16" fill="red"/></pattern>`;
                 geometry = mode === 'geometry-viewbox' ? 4 : mode === 'geometry-invalid' ? 2 : 3;
                 if (mode === 'geometry-invalid') expected = [0, 0, 0, 0];
+            }
+            if (mode === 'group-opacity') {
+                defs = '<pattern id="p" patternUnits="userSpaceOnUse" width="16" height="16"><g opacity=".5"><rect width="16" height="16" fill="red"/><rect width="16" height="16" fill="blue"/></g></pattern>';
+                colors = 2; nodes = 3; inherited = 0; geometry = 3; opacity = 1; expected = [0, 0, 255, 128];
             }
             if (mode === 'active') defs += '<script/>';
             if (mode === 'foreign') defs += '<foreignObject/>';

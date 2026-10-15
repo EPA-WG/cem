@@ -364,9 +364,15 @@ pub(crate) fn evaluate_acquired(
         };
         let kind = local(tree, plan.host)?;
         let mut colors = Vec::new();
-        for child in elements(tree, source, &mut work)? {
+        let mut pending = elements(tree, source, &mut work)?;
+        pending.reverse();
+        while let Some(child) = pending.pop() {
             let child_kind = local(tree, child)?;
             if matches!(child_kind, "title" | "desc" | "metadata") {
+                continue;
+            }
+            if kind == "pattern" && child_kind == "g" {
+                pending.extend(elements(tree, child, &mut work)?.into_iter().rev());
                 continue;
             }
             let property = match (kind, child_kind) {

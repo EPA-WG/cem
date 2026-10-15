@@ -1,7 +1,12 @@
-//! Typed authored geometry candidates. Percentages remain unresolved and no
-//! consumer bounding box, viewport, defaults or CSS transform winner is invented.
+//! Typed authored candidates and bounded calculations with explicit contexts.
+//! Authored percentages remain unresolved until evaluated; initial values have
+//! distinct provenance. No browser layout or CSS transform winner is invented.
 use super::{paint::PaintAttributeSource, *};
 use cssparser::{Parser, ParserInput, Token};
+mod gradient;
+mod matrix;
+pub use gradient::{GeometryContext, GeometryOrigin, GradientEvaluation, ResolvedGradient};
+pub use matrix::{Matrix, ViewBoxMapping};
 #[derive(Debug, PartialEq)]
 pub enum GeometryValue {
     Number(f32),
@@ -9,6 +14,7 @@ pub enum GeometryValue {
     Percentage(f32),
     ViewBox([f32; 4]),
     Keyword(String),
+    Transform(Matrix),
 }
 pub struct GeometryCandidate {
     pub name: &'static str,
@@ -57,11 +63,11 @@ fn parse(name: &str, value: &str) -> Result<GeometryValue, String> {
             Err("unsupported geometry keyword".into())
         };
     }
-    if matches!(
-        name,
-        "gradientTransform" | "patternTransform" | "preserveAspectRatio"
-    ) {
-        return Err("geometry transform/aspect-ratio evaluation required".into());
+    if matches!(name, "gradientTransform" | "patternTransform") {
+        return Matrix::parse_svg(value).map(GeometryValue::Transform);
+    }
+    if name == "preserveAspectRatio" {
+        return Err("aspect-ratio context evaluation required".into());
     }
     // SVG geometry attributes do not accept CSS comments, escapes or functions.
     // Keep the accepted lexical profile narrower than cssparser's CSS grammar.

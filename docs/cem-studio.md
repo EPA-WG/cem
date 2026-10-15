@@ -4387,12 +4387,12 @@ chain. Gradient coordinate fields are taken only from the corresponding
 gradient kind; shared gradient fields and pattern fields keep their original
 owner/attribute IDs. Absent attributes have no fabricated source or default.
 Each candidate now also retains a typed geometry result: finite numbers,
-percentages, pixel lengths, coordinate-system/spread keywords or a four-number
-`viewBox`. Negative radii/dimensions and viewBox extents are rejected in that
+percentages, pixel lengths, coordinate-system/spread keywords, a four-number
+`viewBox` or a bounded SVG attribute transform matrix. Negative radii/dimensions and viewBox extents are rejected in that
 field's result. Missing fields remain absent; invalid or unsupported expressions
 remain explicit errors. Percentages are not resolved against a fabricated
-viewport or consumer bounding box. Transforms, aspect ratios, relative units,
-CSS geometry winners and context-dependent defaults still require evaluation.
+viewport or consumer bounding box. Relative units, CSS geometry winners and
+binding geometry to a live consumer still require evaluation.
 
 The plan separately records SVG 2 non-descriptive-child selection and the pinned
 Chromium selection (direct stops for gradients, first element-containing pattern
@@ -4417,12 +4417,65 @@ winner evidence. The acquired profile also derives explicit `opacity` and
 priority. Finite number/percentage values clamp to [0, 1]. Opacity declarations
 on lexical ancestors remain separate nodes; they are not inherited or multiplied
 into an invented pixel alpha. No default declaration is fabricated. Unsupported
-opacity expressions remain unresolved. Compositing, filters, complex selectors,
-transforms and general used-style/geometry evaluation remain open.
+opacity expressions remain unresolved. Filters, complex selectors, CSS transform
+winners and general used-style/geometry evaluation remain open.
 Pinned Chromium gradient raster probes distinguish these authored values from
 pixel quantization: solid red at 50% stop opacity reads back as RGBA
 `[253, 0, 0, 128]`, and at 25% as `[251, 0, 0, 64]`. Fixtures assert those exact
 pixels while native derivations retain red and the separate opacity fraction.
+
+#### Bounded transform, gradient and compositing calculations
+
+`Matrix::parse_svg` accepts finite SVG attribute `matrix`, `translate`, `scale`,
+`rotate` (including an explicit center), `skewX` and `skewY` functions. Lists
+post-multiply in source order and are bounded to 4096 bytes and 64 functions.
+Arguments require whitespace/comma separation; CSS units, functions, comments,
+escapes, nonfinite values, malformed arity and singular 90-degree skews reject.
+Matrix inversion rejects singular/nonfinite determinants. This is an attribute
+profile, not a CSS transform parser or cascade winner.
+
+`AcquiredPaintContent::resolve_gradient` borrows the original plan and takes an
+explicit `GeometryContext`: viewport dimensions and the consumer's untransformed
+bounding box in local user space. It resolves linear/radial coordinate candidates
+and returns their paint-to-user matrix. Object-bounding-box coordinates compose
+the box mapping before the authored transform. User-space percentages use viewport
+axes; radial percentages use the normalized viewport diagonal. Missing gradient
+values use specified initial values with `GeometryOrigin::Initial`; focal defaults
+record `DerivedFrom` center fields. Authored fields keep their owner/attribute IDs.
+No default gets a fabricated source location. Zero viewports, zero bounding-box
+dimensions in box units, zero radial radius and singular matrices report disabled
+geometry. Radial focal limiting, box-unit pixel lengths, pattern tile resolution
+and competing CSS remain outside the profile; stylesheet-bearing bodies reject.
+
+`ViewBoxMapping::resolve` implements `none` and all nine alignments with `meet` or
+`slice`, retaining a disabled result for zero extents and rejecting negative or
+nonfinite rectangles. Its numeric inputs are explicit assumptions. These mappings
+follow the [SVG coordinate-system algorithms](https://www.w3.org/TR/SVG2/coords.html);
+they do not observe browser layout or prove which viewport/bounding box applied.
+
+`composite_pattern_sample` borrows the acquired plan and takes an explicit set of
+covered rectangle source IDs. Nested `g`/`rect` content retains original paint
+order regardless of coverage order. Children composite source-over into a group
+before that group's opacity is applied; leaf opacity applies to its own source.
+The result retains contributors and continuous premultiplied RGBA values. Empty
+coverage is transparent; duplicate/unknown coverage and unsupported effects reject.
+Effect checks include lexical ancestors outside the selected subtree, so inherited
+fill opacity, stroke, visibility and color-interpolation cannot silently become
+default behavior.
+Descriptive subtrees never contribute paint. Explicit author colors and opacity
+winners remain native. The calculation is bounded by the retained content limits
+and an additional 8192-unit compositing work budget. Coverage is not a hit-test;
+filters, masks, clips, blending modes, general shapes and CSS geometry need further
+profiles. This ordering follows [source-over and group compositing](https://www.w3.org/TR/compositing-1/).
+
+The native `svg-geometry-parity-emit` example exports only fixture source and
+calculated scalars at an explicit JSON test boundary. Chromium probes compare
+transform/viewBox matrices, transformed gradient pixels and overlapping group
+samples. Continuous compositing values allow one 8-bit channel step for raster
+rounding, which cannot conceal incorrect group-opacity flattening. This export
+is not a runtime AST handoff, layout seal or rendering-consumption receipt.
+Preparation binding must still establish the consumer, geometry context, coverage
+and mutation lifetime before these calculations can contribute execution evidence.
 
 The static acquired-body profile rejects scripts, animation, foreign content,
 event handlers, processing instructions and XML base changes throughout the
