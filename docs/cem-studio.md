@@ -4512,6 +4512,129 @@ behavior/default/public token changes, and no general forced-color or device/AT
 acceptance is claimed. Broader selection and transport support must preserve the
 same native ownership and bounded variation.
 
+### Browser-origin admission for bounded SVG replay
+
+This is the accepted admission contract, not an implemented browser capability.
+The profile is named `svg-replay-presentation-origin-v1`; its initial compatibility
+baseline is Chromium `148.0.7778.96`. The existing web host remains
+**preparation-only**. Neither this profile name nor the existing
+`svgReplayPlan: { nonce }` option grants replay admission. Implement the native
+lifetime protocol and a verified browser-owned provider before enabling writes.
+
+SVG presentation attributes participate in the author cascade with zero
+specificity ([SVG styling](https://www.w3.org/TR/SVG/styling.html#PresentationAttributes)).
+Other origins and animation/transition precedence can change the result
+([CSS cascade](https://www.w3.org/TR/css-cascade-5/#cascade-sort)).
+`getComputedStyle` exposes resolved values rather than a declaration-origin
+record ([CSSOM](https://www.w3.org/TR/cssom-1/#dom-window-getcomputedstyle)).
+Consequently, CEM does not infer origin from matching URLs, a screenshot, empty
+`document.styleSheets`, a browser version string, or exclusive DOM ownership.
+An overriding declaration can resolve to the very same URL as the presentation
+attribute and still retain the original URL after that attribute is rewritten.
+That same-value override is a mandatory rejection fixture.
+
+**Admission evidence.** The only admitted source of browser-origin evidence is a
+privileged browser-owned provider bound to the execution host. It must establish
+its provider identity and revision outside page-controlled JavaScript and report
+complete winner provenance for each retained consumer/property. Native code owns
+an opaque, non-serializable lease joining that provider to the prepared document,
+worker generation, native author plan, base/policy evidence and cancellation.
+An application callback returning `true`, a supplied origin label, JSON report,
+profile string, or synthetic fixture provider cannot mint a production lease.
+The public WASM/browser options gain no `trusted`, `ignoreUserStyles`, or
+`allowUnprovenOrigins` escape hatch.
+
+For every route, the provider must identify the exact live element, property and
+winning presentation attribute, mapped through the existing native DOM slot
+correspondence to the original retained source. It must account for author,
+user, UA and injected declarations, animations and transitions; extension rules
+are classified by their actual cascade origin, not treated as a new CSS origin.
+Unknown, incomplete, inaccessible or ambiguous provenance rejects admission.
+A different winner rejects even when its value equals the expected source URL.
+Inherited or stylesheet winners are outside v1. Existing native URL, source,
+node-count, stylesheet and static-author restrictions remain prerequisites.
+The provider may inspect engine internals, but must not hand a CSS AST, copied
+rule tree or caller-authored evidence DTO to the native transformation runtime.
+A scalar correspondence predicate is useful only inside the authenticated lease.
+
+**Environment boundary.** Pin the browser build and provider protocol revision
+independently; the twelve paint compatibility probes remain observations with
+`executionSeal: false`. A version/protocol change requires fresh review and
+fixtures. Require a live rendered document and a stable screen/media context.
+V1 rejects active forced-colors mode and active animation/transition effects;
+unsupported media, print, navigation or rendering contexts reject. Track the
+existing theme/contrast/reduced-motion observations as lease revisions, including
+same-value transitions. Forced color adjustment can affect used colors
+([CSS color adjustment](https://www.w3.org/TR/css-color-adjust-1/#forced-colors-properties));
+a computed URL alone cannot attest to the resulting paint. Do not set
+`forced-color-adjust: none`, suppress user styles, turn off extensions, disable
+accessibility preferences, or add stronger declarations to obtain admission.
+Admission rejection leaves normal authored rendering available without a replay guarantee.
+This profile establishes selection provenance, not general visual or AT parity.
+
+**Lifetime and ordering.** The required native states are candidate, admitted,
+installing, replay-bound and revoked. They are a protocol design, not current
+session states. Only the provider can establish the origin portion of admitted;
+base/policy, source and computed validation must also succeed in the same lease.
+Validate provider/document/generation/revision both before and after capture and
+each read. Every origin-affecting change must invalidate the lease before it can
+be used again, including A-to-B-to-A changes that preserve the observed URL.
+Document replacement, worker replacement, source/base/policy changes, environment
+changes, provider disconnect, cancellation and disposal revoke irreversibly.
+Recapture creates a new lease; no old receipt or lease can be transferred.
+
+The future installer must acquire a provider-controlled mutation interval so
+there is no unchecked gap between validation and the authorized attribute writes.
+During installing, reads and external writes are unavailable. Only the native
+plan's exact consumer attributes and proposed alias values may change. Retain the
+original source identity; the installed alias is a projection, not a replacement
+source declaration. Revalidate the same presentation winner, the alias URL and
+all unchanged base/policy/origin conditions before publishing replay-bound.
+Unexpected mutation or loss of the interval revokes the whole attempt and its
+routes; no partially installed result may be published. A later installer design
+must specify safe rollback/disposal. A provider that offers only periodic polling
+or cannot order invalidation against this interval is insufficient for admission.
+
+**Authority remains separate.** A valid origin lease discharges only
+`svg-replay-browser-origin-proof-required` for its own bounded routes. The broader
+`svg-computed-winning-source-required` diagnostic can be removed only when every
+covered slot has the corresponding complete selection proof; unhandled slots
+retain it. Alias installation, fresh nonce/route ownership, response identity,
+fragment targets, transitive dependencies, consumption and transaction admission
+still require their own evidence. No receipt, candidate count, screenshot or
+origin lease substitutes for another obligation. Current runtime blockers stay
+unchanged until this protocol is implemented and verified.
+
+The following acceptance matrix is normative for implementation; it records
+required fixtures, not test results:
+
+| Case | Required outcome |
+| --- | --- |
+| Ordinary web host, matching computed URL, closed author plan | Candidate only; origin blocker retained |
+| Trusted provider, exact attribute winner, stable pinned environment | Origin lease only; no alias or consumption authority |
+| UA/user/injected winner with the same source URL | Reject despite identical computed output |
+| Author override, inherited winner, active animation/transition | Reject v1 admission |
+| Missing origin coverage, forged provider/report or wrong document/generation | Reject; no production lease |
+| Unsupported browser/provider revision or forced colors already active | Reject without changing user settings |
+| Origin/media/policy A-to-B-to-A, including between validation and write | Revoke; no replay-bound publication |
+| Provider disconnect, cancellation, navigation or worker replacement | Revoke and release the attempt's routes |
+| Exact alias write within the interval, same attribute still wins | Advance only after postvalidation and separate delivery requirements |
+| Unexpected write, partial install or mismatched alias observation | Revoke; no published partial result |
+| Fresh recapture after revocation | New lease; old leases/receipts remain invalid |
+
+Start with native fixtures using a private fake provider to exercise ownership,
+state transitions and revocation. Then verify the actual provider's provenance
+and invalidation guarantees using browser-origin injection and same-value
+counterexamples. Test-only fakes and compatibility reports must remain incapable
+of production admission. No existing adapter is asserted to satisfy this contract;
+provider feasibility is the next integration gate, ahead of alias installation.
+
+CEM audit: native source/theme ownership remains authoritative; replay cannot
+outvote user overrides to preserve a fixture result. Variation is bounded by the
+named profile, environment and existing source limits. Accessibility settings are
+preserved and unsupported cases keep ordinary rendering. No component behavior,
+public tokens, defaults or broad browser/device/AT acceptance change.
+
 ### Shared browser stylesheet observation host
 
 `BrowserHtmlBaseHost.captureStylesheets(responses, { ownership: 'exclusive' })`

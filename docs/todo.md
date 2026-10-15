@@ -3032,6 +3032,30 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       preparation cases and 12 replay compatibility probes. CEM audit preserves
       original semantic/source/theme ownership, with no UI, defaults or public
       token changes and no broader browser/device/AT acceptance claim.
+    - [x] Define browser-origin admission for the bounded replay profile.
+      Completed: the normative browser-origin admission section in cem-studio.md
+      defines svg-replay-presentation-origin-v1, privileged provider identity,
+      exact presentation-winner correspondence, opaque native leases, environment
+      limits, ordered invalidation and a controlled installation interval.
+      Same-value overrides reject; ordinary web hosts stay preparation-only.
+      The acceptance matrix specifies native fake-provider and real browser-origin
+      cases without claiming them implemented. Origin admission alone cannot
+      remove alias, response, fragment, dependency or consumption obligations.
+      Verified against existing host/plan boundaries and primary SVG/CSSOM/cascade/
+      color-adjustment specifications; documentation diff checks pass. CEM audit
+      preserves native source/theme ownership and user accessibility settings;
+      no force-color opt-out, stronger declaration, token/default or UI changes.
+    - [ ] Implement native origin-admission lease/state fixtures first: provider,
+      document/generation ownership, same-value wrong winners, unsupported context,
+      pre/postvalidation races, cancellation and irreversible revocation. Keep
+      fake providers unable to mint production authority.
+    - [ ] Prototype a privileged browser-origin provider and verify exact winner
+      correspondence, user/UA/injected same-value overrides, initial forced colors,
+      same-value environment changes and mutation-interval ordering in Chromium.
+      Retain the origin blocker if provider guarantees cannot be established.
+    - [ ] Implement controlled native alias installation only after origin-provider
+      admission is verified; specify partial-failure rollback/disposal and bind
+      fresh alias routes to delivery receipts and revocation fixtures.
     - [ ] Integrate computed SVG byte bindings with preparation/acquisition
       lifetime and verify browser response identity before claiming consumption.
     - [ ] Bind computed CSS/SVG selections to acquired resource bodies before
@@ -3043,14 +3067,15 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, define the browser-origin compatibility/admission contract for the bounded
-presentation-author replay profile. Then implement controlled native alias
-installation and connect fresh alias routes to browser delivery receipts and
-mutation revocation. Preparation-bound author candidates and pinned paint
-compatibility do not independently remove response-identity/consumption blockers
-or authorize replay. Extend fragment/embedded SVG dependencies and broader CSS
-winner selections afterward. General runtime loads and broader cascade evidence remain required
-before complete dependency closure or wider transaction admission.
+Next, implement native origin-admission leases and failure fixtures under the
+accepted browser-origin contract. Then prototype and verify the privileged
+browser provider, including same-value override and mutation-interval cases.
+Ordinary web hosts remain preparation-only; caller assertions and compatibility
+reports cannot replace provider evidence. Once admission is verified, implement
+controlled alias installation, rollback/disposal, delivery receipts and revocation.
+Fragment/embedded SVG dependencies and broader CSS winner selections follow.
+General runtime loads remain required before complete dependency closure or wider
+transaction admission.
 Selected image response/candidate binding is available through explicit native
 replay; unchanged-URL observation deliberately retains its historical-identity
 blocker.
