@@ -4518,8 +4518,8 @@ This is the accepted admission contract, not an implemented browser capability.
 The profile is named `svg-replay-presentation-origin-v1`; its initial compatibility
 baseline is Chromium `148.0.7778.96`. The existing web host remains
 **preparation-only**. Neither this profile name nor the existing
-`svgReplayPlan: { nonce }` option grants replay admission. Implement the native
-lifetime protocol and a verified browser-owned provider before enabling writes.
+`svgReplayPlan: { nonce }` option grants replay admission. Complete native session integration and verify a browser-owned provider before
+enabling writes.
 
 SVG presentation attributes participate in the author cascade with zero
 specificity ([SVG styling](https://www.w3.org/TR/SVG/styling.html#PresentationAttributes)).
@@ -4622,12 +4622,39 @@ required fixtures, not test results:
 | Unexpected write, partial install or mismatched alias observation | Revoke; no published partial result |
 | Fresh recapture after revocation | New lease; old leases/receipts remain invalid |
 
-Start with native fixtures using a private fake provider to exercise ownership,
-state transitions and revocation. Then verify the actual provider's provenance
-and invalidation guarantees using browser-origin injection and same-value
-counterexamples. Test-only fakes and compatibility reports must remain incapable
-of production admission. No existing adapter is asserted to satisfy this contract;
-provider feasibility is the next integration gate, ahead of alias installation.
+The native foundation is implemented in `cem_ml::svg_replay::admission`.
+`AdmissionOwner` binds one exact author-plan identity, retained document and
+nonzero worker generation;
+`AdmissionLease` consumes the author plan and holds a weak owner reference.
+Candidate, admitted and revoked states are implemented. Owners invalidate
+terminally before preparation changes, and dropping an owner invalidates its
+leases. Cancellation is visible immediately to state inspection; validation,
+explicit revocation or drop releases the retained plan. A new owner is required
+for recapture. Numeric generation equality cannot transfer a provider stamp
+between owners, even when they share a document.
+
+The private provider protocol checks its opaque identity, bound owner, revision,
+pinned engine/build/protocol and static screen/forced-color status before and
+after every capture/read. Every route requires the original retained document,
+CSS, element and attribute identities, an explicit presentation winner and a
+matching natively parsed computed URL. Preparation-current checks bracket the
+observations; a failure revokes and releases the plan. No public admission method,
+production provider implementation, WASM ingress or session integration exists.
+The only provider implementation is compiled under `cfg(test)`; it exercises the
+protocol without granting production authority. A compile-fail fixture protects
+the private admission boundary. This standalone foundation does not yet join
+actual HTML base/policy seals or authenticate a browser adapter.
+
+Native fixtures cover successful admission/read, out-of-order calls, foreign
+sources/owners/generations, same-value wrong winners, unsupported contexts,
+provider replacement/disconnect/revision changes, computed disagreement,
+pre/postvalidation preparation failures, observation races, cancellation,
+disposal and fresh recapture. Installation intervals, alias writes and
+replay-bound publication remain future work, along with real delivery receipts.
+Next verify the actual provider's provenance and invalidation guarantees using
+browser-origin injection and same-value counterexamples. No existing adapter is
+asserted to satisfy this contract; provider feasibility remains the integration
+gate ahead of alias installation. Compatibility reports remain non-authoritative.
 
 CEM audit: native source/theme ownership remains authoritative; replay cannot
 outvote user overrides to preserve a fixture result. Variation is bounded by the

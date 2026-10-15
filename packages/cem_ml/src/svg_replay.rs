@@ -1,5 +1,7 @@
 //! Authored SVG replay candidates. These plans preserve provenance but do not
 //! establish cascade winners, authorize edits, or prove browser consumption.
+pub mod admission;
+
 use crate::{
     import::svg_presentation::RetainedSvgPresentationAttribute, parser::AstNodeId,
     scheduler::AbortSignal, svg_resource_acquisition::single_url,
@@ -233,6 +235,7 @@ fn http_url(value: &str) -> Result<url::Url, String> {
 /// Closed presentation-only author cascade. Browser/user origins and actual
 /// alias consumption remain separate obligations, even when computed URLs agree.
 pub struct SvgReplayAuthorPlan {
+    identity: Arc<()>,
     plan: SvgReplayPlan,
     winners: Vec<crate::svg_paint_colors::PaintDeclarationWinner>,
 }
@@ -325,7 +328,11 @@ impl SvgReplayAuthorPlan {
                 order: 0,
             })
             .collect();
-        Ok(Self { plan, winners })
+        Ok(Self {
+            identity: Arc::new(()),
+            plan,
+            winners,
+        })
     }
     pub fn winners(&self) -> &[crate::svg_paint_colors::PaintDeclarationWinner] {
         if self.plan.routes().is_empty() {

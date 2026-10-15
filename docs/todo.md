@@ -3045,14 +3045,32 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       color-adjustment specifications; documentation diff checks pass. CEM audit
       preserves native source/theme ownership and user accessibility settings;
       no force-color opt-out, stronger declaration, token/default or UI changes.
-    - [ ] Implement native origin-admission lease/state fixtures first: provider,
+    - [x] Implement native origin-admission lease/state fixtures first: provider,
       document/generation ownership, same-value wrong winners, unsupported context,
       pre/postvalidation races, cancellation and irreversible revocation. Keep
       fake providers unable to mint production authority.
+      Completed: AdmissionOwner binds the exact opaque author-plan identity,
+      retained document and worker generation. AdmissionLease owns the plan and
+      holds a weak owner; candidate/admitted/revoked states enforce terminal
+      invalidation and fresh recapture. Private provider observations validate
+      owner/identity/revision, pinned environment, exact native winner provenance,
+      computed URLs and preparation currency before/after capture and reads.
+      Failure releases the plan; state inspection observes cancellation/disposal.
+      Eleven native fixtures and one compile-fail boundary check pass, together
+      with 92 focused SVG regressions and 63 preparation tests. Final WASM/CLI
+      builds, rustfmt/diff checks and the full Chromium gate pass, including 202
+      preparation cases and 12 replay compatibility probes. No production provider, public admission
+      API, WASM ingress, alias write grant or preparation-seal integration is added;
+      the sole provider implementation is cfg(test). CEM audit preserves native
+      source/theme ownership and bounded variation; unsupported environments reject
+      without changing accessibility settings, UI defaults or public tokens.
     - [ ] Prototype a privileged browser-origin provider and verify exact winner
       correspondence, user/UA/injected same-value overrides, initial forced colors,
       same-value environment changes and mutation-interval ordering in Chromium.
       Retain the origin blocker if provider guarantees cannot be established.
+    - [ ] Bind verified origin leases to the recorded preparation's HTML base/policy
+      seals, native author plan and browser/worker lifetime; test wrong-session
+      binding and revocation before exposing production admission.
     - [ ] Implement controlled native alias installation only after origin-provider
       admission is verified; specify partial-failure rollback/disposal and bind
       fresh alias routes to delivery receipts and revocation fixtures.
@@ -3067,9 +3085,9 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, implement native origin-admission leases and failure fixtures under the
-accepted browser-origin contract. Then prototype and verify the privileged
-browser provider, including same-value override and mutation-interval cases.
+Next, prototype and verify the privileged browser-origin provider, including
+same-value override and mutation-interval cases. Then bind verified native leases
+to recorded preparation's base/policy seals and browser/worker lifetime.
 Ordinary web hosts remain preparation-only; caller assertions and compatibility
 reports cannot replace provider evidence. Once admission is verified, implement
 controlled alias installation, rollback/disposal, delivery receipts and revocation.
