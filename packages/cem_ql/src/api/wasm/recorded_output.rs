@@ -21,6 +21,7 @@ pub struct WasmRecordedOutputSession {
     image_bytes: usize,
     svg_snapshots: Option<Vec<SvgResourceResponse>>,
     svg_bytes: usize,
+    svg_fragments: bool,
     svg_delivery: Option<SvgDeliveryCapture>,
     capture_started: bool,
 }
@@ -36,6 +37,7 @@ impl WasmRecordedOutputSession {
                 image_bytes: 0,
                 svg_snapshots: None,
                 svg_bytes: 0,
+                svg_fragments: false,
                 svg_delivery: None,
                 capture_started: false,
             })
@@ -219,6 +221,20 @@ impl WasmRecordedOutputSession {
         self.svg_snapshots = Some(Vec::new());
         Ok(())
     }
+    /// Opt in after opening snapshot ingress, before capture.
+    #[wasm_bindgen(js_name = "enableSvgFragmentValidation")]
+    pub fn enable_svg_fragment_validation(&mut self) -> Result<(), JsValue> {
+        if self.capture_started
+            || self.svg_snapshots.is_none()
+            || self.svg_fragments
+            || self.inner.html().is_err()
+        {
+            self.close();
+            return Err(error("fresh SVG fragment validation opt-in required"));
+        }
+        self.svg_fragments = true;
+        Ok(())
+    }
     #[wasm_bindgen(js_name = "addSvgSnapshot")]
     pub fn add_svg_snapshot(
         &mut self,
@@ -361,6 +377,14 @@ impl WasmRecordedOutputSession {
                 )
                 .map_err(error)?;
         }
+        if self.svg_fragments {
+            self.inner
+                .validate_svg_fragments(&mut SvgObserver {
+                    revision,
+                    observe: svg,
+                })
+                .map_err(error)?;
+        }
         if let Some(ledger) = self.svg_delivery.take() {
             self.inner
                 .bind_svg_delivery(
@@ -401,6 +425,7 @@ impl WasmRecordedOutputSession {
             self.inner.svg_computed_slots(),
             self.inner.svg_replay_candidates(),
             self.inner.svg_resource_bindings(),
+            self.inner.svg_fragment_targets(),
             self.inner.svg_delivered_bindings(),
             self.inner.svg_paint_counts(),
             self.inner.svg_paint_content_counts(),
@@ -454,6 +479,7 @@ impl WasmRecordedOutputSession {
             self.inner.svg_computed_slots(),
             self.inner.svg_replay_candidates(),
             self.inner.svg_resource_bindings(),
+            self.inner.svg_fragment_targets(),
             self.inner.svg_delivered_bindings(),
             self.inner.svg_paint_counts(),
             self.inner.svg_paint_content_counts(),
@@ -471,6 +497,7 @@ fn summary(
     svg: usize,
     svg_replay: usize,
     svg_bindings: usize,
+    svg_fragments: usize,
     svg_delivered: usize,
     paint: (usize, usize),
     content: (usize, usize),
@@ -491,7 +518,7 @@ fn summary(
             .map(str::to_owned),
         );
     }
-    serde_json::json!({"blockers":blockers, "imageAcquisitions": images, "imageDeliveries": deliveries, "svgComputedSlots": svg, "svgReplayCandidates": svg_replay, "svgResourceBindings": svg_bindings, "svgDeliveredBindings": svg_delivered, "svgPaintRoots": paint.0, "svgPaintLinks": paint.1, "svgPaintServers": content.0, "svgPaintContentNodes": content.1, "svgPaintStyleHosts": style.0, "svgPaintStyleInstances": style.1, "svgCloneProfileConfirmed": clone_profile, "svgPaintColors": colors.0, "svgPaintSuppressedHosts": colors.1}).to_string()
+    serde_json::json!({"blockers":blockers, "imageAcquisitions": images, "imageDeliveries": deliveries, "svgComputedSlots": svg, "svgReplayCandidates": svg_replay, "svgResourceBindings": svg_bindings, "svgFragmentTargets": svg_fragments, "svgDeliveredBindings": svg_delivered, "svgPaintRoots": paint.0, "svgPaintLinks": paint.1, "svgPaintServers": content.0, "svgPaintContentNodes": content.1, "svgPaintStyleHosts": style.0, "svgPaintStyleInstances": style.1, "svgCloneProfileConfirmed": clone_profile, "svgPaintColors": colors.0, "svgPaintSuppressedHosts": colors.1}).to_string()
 }
 fn error(e: impl AsRef<str>) -> JsValue {
     JsValue::from_str(e.as_ref())

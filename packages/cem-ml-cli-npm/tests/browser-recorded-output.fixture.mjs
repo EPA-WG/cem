@@ -93,7 +93,7 @@ globalThis.runRecordedOutputFixture = async version => {
             };
             const host = ['async', 'pool'].includes(mode) ? await captureAsync(options, installer) : capture(options, installer);
             const result = host.read();
-            check(result.svgResourceBindings === 1, 'native SVG binding missing');
+            check(result.svgResourceBindings === 1 && result.svgFragmentTargets === 0, 'native SVG binding or opt-in differs');
             check(result.blockers.includes('svg-resource-browser-response-identity-required')
                 && result.blockers.includes('svg-resource-consumption-required'), 'snapshot claimed consumption');
             if (mode === 'abort') controller.abort();
@@ -104,6 +104,68 @@ globalThis.runRecordedOutputFixture = async version => {
                 rejects(() => host.read(), 'revoked SVG acquisition revived');
             }
         }, mode === 'pool');
+    }
+    for (const mode of ['linearGradient', 'radialGradient', 'pattern', 'missing', 'duplicate', 'wrong-kind', 'namespace', 'encoded', 'empty', 'abort', 'mutation', 'base', 'policy', 'pool', 'async', 'copy', 'no-snapshots']) {
+        await run(`svg-fragment-preparation-${mode}`, async ({ request, doc, view, capture, captureAsync, pool, policy, install }) => {
+            let child = '<linearGradient id="p"/>';
+            if (['radialGradient', 'pattern'].includes(mode)) child = `<${mode} id="p"/>`;
+            if (mode === 'missing') child = '';
+            if (mode === 'duplicate') child += '<pattern id="p"/>';
+            if (mode === 'wrong-kind') child = '<path id="p"/>';
+            if (mode === 'namespace') child = '<linearGradient xmlns="urn:other" id="p"/>';
+            const fragment = mode === 'encoded' ? '%70' : mode === 'empty' ? '' : 'p';
+            const xml = `<svg xmlns="http://www.w3.org/2000/svg">${child}</svg>`;
+            // Independent test-only Chromium XML tree over the same acquired bytes.
+            // This compares target identity, not external fill/stroke consumption.
+            const parsed = new view.DOMParser().parseFromString(xml, 'image/svg+xml');
+            check(!parsed.querySelector('parsererror'), 'Chromium rejected SVG fixture');
+            const target = parsed.getElementById(decodeURIComponent(fragment));
+            const eligible = target?.namespaceURI === 'http://www.w3.org/2000/svg'
+                && ['linearGradient', 'radialGradient', 'pattern'].includes(target.localName);
+            if (['missing', 'empty', 'wrong-kind', 'namespace'].includes(mode)) check(!eligible, 'Chromium target classification differs');
+            else check(eligible, 'Chromium paint target missing');
+            // Duplicate IDs select a first element in DOM; encoded IDs decode.
+            // The bounded native profile intentionally rejects both ambiguities.
+            if (mode === 'duplicate') check(parsed.querySelectorAll('[id="p"]').length === 2, 'duplicate fixture absent');
+            paintRequest(request, doc, '', `url(${doc.URL}#${fragment})`);
+            const controller = new AbortController();
+            const bytes = new TextEncoder().encode(xml);
+            const options = { validateSvgFragments: true, svgSnapshots: { signal: controller.signal,
+                responses: [{ requestedUrl: doc.URL, finalUrl: doc.URL, revision: 'fragment:1', contentType: 'image/svg+xml', bytes }] } };
+            if (mode === 'no-snapshots') delete options.svgSnapshots;
+            if (['missing', 'duplicate', 'wrong-kind', 'namespace', 'encoded', 'empty', 'no-snapshots'].includes(mode)) {
+                rejects(() => capture(options), 'invalid fragment preparation accepted'); return;
+            }
+            const installer = html => { if (mode === 'copy') bytes.fill(0); install(html); };
+            const host = ['async', 'pool'].includes(mode) ? await captureAsync(options, installer) : capture(options, installer);
+            const result = host.read();
+            check(result.svgFragmentTargets === 1 && result.svgResourceBindings === 1, 'native fragment target count differs');
+            check(!result.blockers.includes('svg-resource-fragment-target-required'), 'validated target remained unresolved');
+            check(result.blockers.includes('svg-resource-consumption-required')
+                && result.blockers.includes('svg-resource-transitive-dependencies-required')
+                && result.blockers.includes('svg-resource-browser-response-identity-required'), 'fragment validation claimed closure');
+            if (mode === 'abort') controller.abort();
+            if (mode === 'mutation') { const rect = doc.querySelector('rect'); const fill = rect.getAttribute('fill'); rect.setAttribute('fill', 'red'); rect.setAttribute('fill', fill); }
+            if (mode === 'base') doc.querySelector('base').setAttribute('href', '/changed/');
+            if (mode === 'policy') policy.stamp = 'changed';
+            if (mode === 'pool') await pool.close();
+            if (['abort', 'mutation', 'base', 'policy', 'pool'].includes(mode)) {
+                rejects(() => host.read(), 'fragment target survived revocation');
+                rejects(() => host.read(), 'fragment target revived');
+            }
+        }, mode === 'pool');
+    }
+    for (const mode of ['unopened', 'repeat', 'closed']) {
+        await run(`svg-fragment-opt-in-${mode}`, ({ native }) => {
+            const session = native();
+            try {
+                if (mode !== 'unopened') session.beginSvgSnapshots();
+                if (mode === 'repeat') session.enableSvgFragmentValidation();
+                if (mode === 'closed') session.close();
+                rejects(() => session.enableSvgFragmentValidation(), 'invalid fragment opt-in accepted');
+                rejects(() => session.html(), 'invalid opt-in retained session');
+            } finally { session.close(); session.free(); }
+        });
     }
     for (const mode of ['local', 'chain', 'cycle', 'duplicate', 'missing', 'wrong-kind', 'base', 'nonfragment']) {
         await run(`paint-candidate-${mode}`, ({ request, doc, view, capture }) => {

@@ -992,3 +992,88 @@ fn replay_preparation_rejects_competing_author_style_and_computed_mismatch() {
         .enable_svg_replay_plan("0123456789abcdef0123456789abcdef")
         .is_err());
 }
+
+#[test]
+fn svg_fragment_preparation_targets_follow_read_set_lifetimes() {
+    for mode in 0..4 {
+        let (mut s, acquisition) = bound_svg_session();
+        s.validate_svg_fragments(&mut SvgObserver(SVG_RESOURCE_VALUE))
+            .unwrap();
+        assert_eq!(s.svg_fragment_targets(), 0);
+        let blockers = s
+            .capture(BASE, slots, &mut OutputObserver { wrong: false })
+            .unwrap();
+        assert!(s.svg_fragment_targets() > 0);
+        assert!(!blockers
+            .iter()
+            .any(|b| b == "svg-resource-fragment-target-required"));
+        assert!(blockers
+            .iter()
+            .any(|b| b == "svg-resource-consumption-required"));
+        s.validate_svg(&mut SvgObserver(SVG_RESOURCE_VALUE))
+            .unwrap();
+        s.read(BASE, slots, &mut OutputObserver { wrong: false })
+            .unwrap();
+        match mode {
+            0 => {
+                acquisition.abort();
+                assert_eq!(s.svg_fragment_targets(), 0);
+                assert!(s
+                    .read(BASE, slots, &mut OutputObserver { wrong: false })
+                    .is_err());
+            }
+            1 => {
+                assert!(s
+                    .validate_svg(&mut SvgObserver(
+                        "url(https://example.test/paint.svg#other)"
+                    ))
+                    .is_err());
+            }
+            2 => {
+                assert!(s
+                    .read(
+                        BASE,
+                        |_| Err("DOM changed".into()),
+                        &mut OutputObserver { wrong: false }
+                    )
+                    .is_err());
+            }
+            _ => s.close(),
+        }
+        assert_eq!(s.svg_fragment_targets(), 0);
+        assert!(s
+            .read(BASE, slots, &mut OutputObserver { wrong: false })
+            .is_err());
+    }
+}
+#[test]
+fn svg_fragment_preparation_rejects_missing_snapshots_targets_and_late_calls() {
+    let mut s = svg_session();
+    assert!(s
+        .validate_svg_fragments(&mut SvgObserver(SVG_RESOURCE_VALUE))
+        .is_err());
+    assert!(s.html().is_err());
+    let (mut s, _) = bound_svg_session();
+    s.capture(BASE, slots, &mut OutputObserver { wrong: false })
+        .unwrap();
+    assert_eq!(s.svg_fragment_targets(), 0);
+    assert!(s
+        .validate_svg_fragments(&mut SvgObserver(SVG_RESOURCE_VALUE))
+        .is_err());
+    assert!(s.html().is_err());
+    let mut s = svg_session();
+    s.record_svg(&mut SvgObserver(SVG_RESOURCE_VALUE)).unwrap();
+    let mut response = svg_response();
+    response.bytes = b"<svg xmlns='http://www.w3.org/2000/svg'/>".to_vec();
+    s.record_svg_resources(
+        vec![response],
+        Default::default(),
+        &mut SvgObserver(SVG_RESOURCE_VALUE),
+    )
+    .unwrap();
+    assert!(s
+        .validate_svg_fragments(&mut SvgObserver(SVG_RESOURCE_VALUE))
+        .is_err());
+    assert_eq!(s.svg_fragment_targets(), 0);
+    assert!(s.html().is_err());
+}

@@ -4310,9 +4310,8 @@ lease. Capture alone continues to permit unresolved targets. Validation checks
 the original computed host before and after the operation; errors clear both
 bindings and target results. Acquisition/delivery cancellation immediately hides
 targets, and observation changes revoke them on record revalidation. Callers
-must revalidate the record and its enclosing preparation before use. This
-native inspection API is not yet wired to preparation ingress; the conservative
-fragment/preparation blockers remain. Target identity establishes neither
+must revalidate the record and its enclosing preparation before use. Preparation ingress can now opt into this validation as described below;
+the independent acquisition API retains conservative blockers. Target identity establishes neither
 template traversal, styles, nested resources, winner attribution, original
 browser response identity nor consumption.
 
@@ -4380,7 +4379,36 @@ Repeated begin, unopened add, late ingress, and bound failures close the session
 Explicit empty ingress fails native binding capture; omitted ingress preserves
 existing computed-only capture. Native import and URL matching run after SVG
 computed capture, and validation brackets the enclosing preparation read.
-The public summary adds only `svgResourceBindings`; no tree, digest, byte body,
+Browser preparation additionally accepts `validateSvgFragments: true`, requiring
+explicit snapshots. It opens snapshot ingress, invokes the WASM
+`enableSvgFragmentValidation()` opt-in before capture, and validates targets after
+native snapshot binding. Unopened, repeated or closed opt-in rejects and closes
+the session. The native preparation method `validate_svg_fragments` only accepts
+the composed stage with acquired resources. Capture publishes target counts
+only after the enclosing DOM/base/policy and worker preparation checks pass.
+Read revalidates computed selection and resource lifetimes; source/DOM/base/policy
+changes, worker disposal and acquisition cancellation revoke the enclosing
+record, including target evidence. Snapshot input bytes are copied at ingress;
+callers abort the acquisition signal if the external snapshot lifetime changes.
+
+The scalar summary `svgFragmentTargets` counts validated bindings, not distinct
+target nodes. No target tree, node ID or transferable proof crosses into JS.
+Only complete live validation removes `svg-resource-fragment-target-required`
+from this preparation's blockers. Snapshot acquisition without opt-in still
+reports zero targets. Browser response identity, consumption, transitive
+dependencies, winner and transaction admission remain separate requirements.
+
+Chromium fixtures compare native classification against an independently parsed
+SVG document over the same bytes, exercising gradient/pattern identity, missing
+and wrong-kind/namespace targets. Duplicate IDs and percent-encoded fragments
+are explicit conservative exclusions: browser DOM lookup can select the first
+duplicate and a decoded identifier, while this native profile rejects both.
+These checks establish snapshot target identity compatibility, not external
+fill/stroke rendering or browser response identity. Additional fixtures verify
+sync/async capture, immutable ingress, cancellation, same-value DOM mutation,
+base/policy changes and worker disposal.
+
+The snapshot summary includes `svgResourceBindings`; no tree, digest, byte body,
 or evidence handle crosses back to JavaScript. This boundary does not fetch or
 replay bytes and cannot attest that supplied bytes match a browser response.
 Chromium fixtures intentionally assert binding and lifetime behavior separately

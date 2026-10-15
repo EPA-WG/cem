@@ -3126,10 +3126,24 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       regression gate pass (202 preparation cases, 12 replay, 14 origin-provider
       and five engine-primitive probes). New fragment API has native fixtures;
       browser integration/parity coverage belongs to the following ingress step.
-    - [ ] Bind external fragment validation to preparation ingress and read-set
+    - [x] Verify fragment preparation fixtures: opt-in ordering, atomic failures,
+      capture/read revocation, snapshot cancellation and Chromium target identity
+      parity with explicit duplicate/encoded-fragment compatibility exclusions.
+    - [x] Bind external fragment validation to preparation ingress and read-set
       lifetimes; add mutation, cancellation and browser compatibility fixtures.
+      Explicit `validateSvgFragments` requires snapshot ingress and retains
+      targets in the native owner; JS receives only `svgFragmentTargets`.
+      Complete validation removes only the fragment-target blocker.
+      Verification: 89 native checks, WASM/CLI builds, lint, and the full Chromium
+      gate pass with 222 preparation cases (20 new). Target identity parity is
+      separate from external paint consumption; duplicate IDs and encoded
+      fragments remain explicit conservative exclusions. CEM audit preserves
+      native semantic/source ownership, theme tokens and accessibility overrides;
+      no UI defaults or production origin admission changed.
     - [ ] Extend acquired-target plans with bounded same-body paint-template
       traversal, cycle/duplicate diagnostics and retained dependency ownership.
+    - [ ] Define acquired paint-template content/style and nested resource
+      dependencies after traversal, preserving original body/base/source ownership.
     - [ ] Bind verified origin leases to the recorded preparation's HTML base/policy
       seals, native author plan and browser/worker lifetime; test wrong-session
       binding and revocation before exposing production admission.
@@ -3147,10 +3161,11 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, bind native external SVG fragment validation to preparation ingress and
-read-set lifetimes, then extend acquired targets with bounded same-body paint
-template traversal. Engine admission remains gated on a maintained instrumented
-Chromium build.
+Next, extend acquired targets with bounded same-body paint-template traversal,
+then define retained content/style and nested resource dependencies. Fragment
+validation now participates in preparation capture/read lifetimes and Chromium
+target identity checks. Engine admission remains gated on a maintained
+instrumented Chromium build.
 The engine hook contract is specified; isolated-world media reads are useful
 observations, but debugger pause demonstrably fails mutation exclusion.
 After real engine guarantees are verified, bind the provider to native

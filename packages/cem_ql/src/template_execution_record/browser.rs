@@ -751,6 +751,32 @@ impl RecordedOutputSession {
             Ok(())
         })
     }
+    /// Explicit bounded target validation; owns no browser paint receipt.
+    pub fn validate_svg_fragments(
+        &mut self,
+        observer: &mut impl SvgComputedObserver,
+    ) -> Result<(), String> {
+        self.run(|s| {
+            if s.stage != Stage::ComposedBase {
+                return Err("composed SVG fragment preparation required".into());
+            }
+            s.svg_resources
+                .as_mut()
+                .ok_or("SVG snapshots required")?
+                .validate_fragments(&mut s.svg_host, observer, 1_000_000)
+        })
+    }
+    /// Diagnostic only. Exact targets and their source/body owners remain native.
+    pub fn svg_fragment_targets(&self) -> usize {
+        if self.svg_resource_bindings() == 0 {
+            return 0;
+        }
+        self.svg_resources.as_ref().map_or(0, |r| {
+            (0..r.bindings().len())
+                .filter(|i| r.fragment_target(*i).is_some())
+                .count()
+        })
+    }
     pub fn bind_svg_delivery(
         &mut self,
         ledger: SvgDeliveryCapture,
@@ -973,6 +999,11 @@ impl RecordedOutputSession {
             blockers.extend(resources.blockers().iter().map(|b| (*b).to_owned()));
             blockers.sort();
             blockers.dedup();
+        }
+        if self.svg_fragment_targets() > 0
+            && self.svg_fragment_targets() == self.svg_resource_bindings()
+        {
+            blockers.retain(|b| b != "svg-resource-fragment-target-required");
         }
         if let Some(profile) = &self.clone_profile {
             blockers.extend(profile.blockers().iter().map(|b| (*b).to_owned()));
