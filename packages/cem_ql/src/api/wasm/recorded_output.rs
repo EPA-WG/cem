@@ -539,6 +539,7 @@ impl WasmRecordedOutputSession {
             self.inner.svg_paint_template_counts(),
             self.inner.svg_acquired_content_counts(),
             self.inner.svg_acquired_style_counts(),
+            self.inner.svg_acquired_detail_counts(),
             self.inner.svg_delivered_bindings(),
             self.inner.svg_paint_counts(),
             self.inner.svg_paint_content_counts(),
@@ -596,6 +597,7 @@ impl WasmRecordedOutputSession {
             self.inner.svg_paint_template_counts(),
             self.inner.svg_acquired_content_counts(),
             self.inner.svg_acquired_style_counts(),
+            self.inner.svg_acquired_detail_counts(),
             self.inner.svg_delivered_bindings(),
             self.inner.svg_paint_counts(),
             self.inner.svg_paint_content_counts(),
@@ -617,6 +619,7 @@ fn summary(
     svg_templates: (usize, usize),
     svg_content: (usize, usize, usize, usize),
     svg_styles: (usize, usize, usize),
+    svg_details: (usize, usize, usize),
     svg_delivered: usize,
     paint: (usize, usize),
     content: (usize, usize),
@@ -637,7 +640,7 @@ fn summary(
             .map(str::to_owned),
         );
     }
-    serde_json::json!({"blockers":blockers, "imageAcquisitions": images, "imageDeliveries": deliveries, "svgComputedSlots": svg, "svgReplayCandidates": svg_replay, "svgResourceBindings": svg_bindings, "svgFragmentTargets": svg_fragments, "svgPaintTemplateBindings": svg_templates.0, "svgPaintTemplateLinks": svg_templates.1, "svgAcquiredContentBindings": svg_content.0, "svgAcquiredContentNodes": svg_content.1, "svgAcquiredDependencies": svg_content.2, "svgNestedBodies": svg_content.3, "svgAcquiredColors": svg_styles.0, "svgAcquiredInheritedBindings": svg_styles.1, "svgAcquiredCompatibilityDifferences": svg_styles.2, "svgDeliveredBindings": svg_delivered, "svgPaintRoots": paint.0, "svgPaintLinks": paint.1, "svgPaintServers": content.0, "svgPaintContentNodes": content.1, "svgPaintStyleHosts": style.0, "svgPaintStyleInstances": style.1, "svgCloneProfileConfirmed": clone_profile, "svgPaintColors": colors.0, "svgPaintSuppressedHosts": colors.1}).to_string()
+    serde_json::json!({"blockers":blockers, "imageAcquisitions": images, "imageDeliveries": deliveries, "svgComputedSlots": svg, "svgReplayCandidates": svg_replay, "svgResourceBindings": svg_bindings, "svgFragmentTargets": svg_fragments, "svgPaintTemplateBindings": svg_templates.0, "svgPaintTemplateLinks": svg_templates.1, "svgAcquiredContentBindings": svg_content.0, "svgAcquiredContentNodes": svg_content.1, "svgAcquiredDependencies": svg_content.2, "svgNestedBodies": svg_content.3, "svgAcquiredColors": svg_styles.0, "svgAcquiredInheritedBindings": svg_styles.1, "svgAcquiredCompatibilityDifferences": svg_styles.2, "svgAcquiredGeometryValues": svg_details.0, "svgAcquiredOpacityValues": svg_details.1, "svgNestedFragmentTargets": svg_details.2, "svgDeliveredBindings": svg_delivered, "svgPaintRoots": paint.0, "svgPaintLinks": paint.1, "svgPaintServers": content.0, "svgPaintContentNodes": content.1, "svgPaintStyleHosts": style.0, "svgPaintStyleInstances": style.1, "svgCloneProfileConfirmed": clone_profile, "svgPaintColors": colors.0, "svgPaintSuppressedHosts": colors.1}).to_string()
 }
 fn error(e: impl AsRef<str>) -> JsValue {
     JsValue::from_str(e.as_ref())

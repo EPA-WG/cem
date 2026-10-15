@@ -863,6 +863,33 @@ impl RecordedOutputSession {
             )
         })
     }
+    /// Parsed authored geometry, explicit opacity winners and nested SVG targets.
+    /// Counts expose no source trees and confer no rendering/consumption authority.
+    pub fn svg_acquired_detail_counts(&self) -> (usize, usize, usize) {
+        if self.svg_resource_bindings() == 0 {
+            return (0, 0, 0);
+        }
+        self.svg_resources.as_ref().map_or((0, 0, 0), |r| {
+            let (geometry, opacity) = (0..r.bindings().len())
+                .filter_map(|i| r.paint_content(i))
+                .fold((0, 0), |(g, o), (_, c)| {
+                    (
+                        g + c
+                            .geometry
+                            .iter()
+                            .filter(|g| matches!(&g.value, Ok(Some(_))))
+                            .count(),
+                        o + c.opacities.as_ref().map_or(0, |v| v.len()),
+                    )
+                });
+            (
+                geometry,
+                opacity,
+                r.nested_snapshots()
+                    .map_or(0, |g| g.fragment_targets().len()),
+            )
+        })
+    }
     pub fn svg_acquired_style_counts(&self) -> (usize, usize, usize) {
         if self.svg_resource_bindings() == 0 {
             return (0, 0, 0);

@@ -925,7 +925,7 @@ fn acquired_nested_graph_preserves_transitive_sources_and_lifetime() {
             nested_response(
                 "https://page.test/nested.svg",
                 "image/svg+xml",
-                b"<svg xmlns='http://www.w3.org/2000/svg'><image href='./pixel.png'/></svg>",
+                b"<svg xmlns='http://www.w3.org/2000/svg'><filter id='f'/><image href='./pixel.png'/></svg>",
             ),
             nested_response(
                 "https://page.test/pixel.png",
@@ -1061,5 +1061,315 @@ fn acquired_nested_graph_preserves_denied_policy_and_rejects_extra_bodies() {
             .bind_nested_snapshots(&mut h, &mut o, &cap, responses, AbortSignal::new())
             .is_err());
         assert!(r.paint_content(0).is_none());
+    }
+}
+
+fn integrity_cap(metadata: &str) -> cem_ml::module_resolution::CemModuleUrlResolutionCapability {
+    integrity_cap_pair(metadata, metadata)
+}
+fn integrity_cap_pair(
+    metadata: &str,
+    second: &str,
+) -> cem_ml::module_resolution::CemModuleUrlResolutionCapability {
+    use cem_ml::module_resolution::*;
+    let handle = CemResolutionContextHandle::new("integrity");
+    let mut frame = CemModuleUrlFrame::new("integrity", "https://page.test/");
+    for url in [
+        "https://page.test/nested.svg#a",
+        "https://page.test/nested.svg#b",
+        "https://page.test/paint.svg#p",
+    ] {
+        frame.specifiers.resources.insert(
+            url.into(),
+            CemModuleUrlMapping::target(url).with_integrity(if url.ends_with("#b") {
+                second
+            } else {
+                metadata
+            }),
+        );
+    }
+    CemModuleUrlResolutionCapability::new(
+        Arc::new(CemScopedModuleUrlResolver::new().with_context(
+            handle.clone(),
+            CemModuleUrlContext {
+                identity: "integrity".into(),
+                resolver_identity: "native".into(),
+                resource_policy_stamp: "v1".into(),
+                frames: vec![frame],
+            },
+        )),
+        handle,
+    )
+}
+
+#[test]
+fn nested_integrity_checks_exact_bytes_and_strongest_metadata() {
+    use base64::Engine;
+    use sha2::{Digest, Sha256, Sha512};
+    let bytes = b"<svg xmlns='http://www.w3.org/2000/svg'><g id='a'/><g id='b'/></svg>";
+    let b64 = base64::engine::general_purpose::STANDARD;
+    let good = format!(
+        "sha256-{} sha512-{}",
+        b64.encode(Sha256::digest(bytes)),
+        b64.encode(Sha512::digest(bytes))
+    );
+    let wrong = format!(
+        "sha256-{} sha512-{}",
+        b64.encode(Sha256::digest(bytes)),
+        b64.encode(Sha512::digest(b"wrong"))
+    );
+    for metadata in [
+        good.as_str(),
+        wrong.as_str(),
+        "sha256-broken",
+        "",
+        "md5-abc",
+    ] {
+        let cap = integrity_cap(metadata);
+        let (mut r, mut h, mut o, _) = template_record("<pattern id='p'><image href='./nested.svg#a'/><image href='./nested.svg#b'/></pattern>");
+        r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+            .unwrap();
+        let result = r.bind_nested_snapshots(
+            &mut h,
+            &mut o,
+            &cap,
+            vec![nested_response(
+                "https://page.test/nested.svg",
+                "image/svg+xml",
+                bytes,
+            )],
+            AbortSignal::new(),
+        );
+        assert_eq!(result.is_ok(), metadata == good, "{metadata}: {result:?}");
+        if result.is_ok() {
+            let graph = r.nested_snapshots().unwrap();
+            assert!(graph.fragment_targets().len() >= 2);
+            assert_eq!(
+                graph
+                    .fragment_targets()
+                    .iter()
+                    .map(|t| t.target)
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .len(),
+                2
+            );
+        } else {
+            assert!(r.bindings().is_empty());
+        }
+    }
+}
+
+#[test]
+fn nested_fragment_targets_are_unique_literal_svg_nodes() {
+    let (_, _, cap) = fixture::setup("<p/>");
+    for (fragment, content, valid) in [
+        ("p", "<g id='p'/>", true),
+        ("missing", "<g id='p'/>", false),
+        ("p", "<g id='p'/><g id='p'/>", false),
+        ("%70", "<g id='p'/>", false),
+        ("svgView(viewBox(0,0,1,1))", "<g id='p'/>", false),
+    ] {
+        let (mut r, mut h, mut o, _) = template_record(&format!(
+            "<pattern id='p'><image href='./nested.svg#{fragment}'/></pattern>"
+        ));
+        r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+            .unwrap();
+        let bytes = format!("<svg xmlns='http://www.w3.org/2000/svg'>{content}</svg>");
+        let result = r.bind_nested_snapshots(
+            &mut h,
+            &mut o,
+            &cap,
+            vec![nested_response(
+                "https://page.test/nested.svg",
+                "image/svg+xml",
+                bytes.as_bytes(),
+            )],
+            AbortSignal::new(),
+        );
+        assert_eq!(result.is_ok(), valid, "{fragment}: {result:?}");
+        if valid {
+            let target = &r.nested_snapshots().unwrap().fragment_targets()[0];
+            assert_eq!(
+                target
+                    .tree
+                    .node(target.target)
+                    .unwrap()
+                    .name
+                    .as_ref()
+                    .unwrap()
+                    .local_name,
+                "g"
+            );
+        } else {
+            assert!(r.paint_content(0).is_none());
+        }
+    }
+}
+
+#[test]
+fn acquired_geometry_keeps_units_values_and_original_attribute_owners() {
+    use cem_ml::svg_resource_acquisition::geometry::GeometryValue;
+    let (_, _, cap) = fixture::setup("<p/>");
+    let (mut r, mut h, mut o, _) = template_record("<pattern id='p' href='#q' x='25%'/><pattern id='q' width='16' height='8px' viewBox='0 0 32 16' patternUnits='userSpaceOnUse'><rect width='16' height='8'/></pattern>");
+    r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+        .unwrap();
+    let (binding, plan) = r.paint_content(0).unwrap();
+    let field = |name| plan.geometry.iter().find(|v| v.name == name).unwrap();
+    assert_eq!(field("x").value, Ok(Some(GeometryValue::Percentage(25.0))));
+    assert_eq!(field("width").value, Ok(Some(GeometryValue::Number(16.0))));
+    assert_eq!(field("height").value, Ok(Some(GeometryValue::Pixels(8.0))));
+    assert_eq!(
+        field("viewBox").value,
+        Ok(Some(GeometryValue::ViewBox([0., 0., 32., 16.])))
+    );
+    assert_eq!(field("y").value, Ok(None));
+    assert_ne!(
+        field("x").source.unwrap().0,
+        field("width").source.unwrap().0
+    );
+    assert_eq!(
+        binding
+            .body
+            .tree()
+            .node(field("x").source.unwrap().1)
+            .unwrap()
+            .value,
+        "25%"
+    );
+}
+
+#[test]
+fn acquired_geometry_retains_unsupported_and_invalid_values_explicitly() {
+    let (_, _, cap) = fixture::setup("<p/>");
+    for value in [
+        "NaN",
+        "Infinity",
+        "1e999",
+        "-1",
+        "calc(1px + 2px)",
+        "2em",
+        "1/**/",
+        r"1p\78",
+        "1PX",
+    ] {
+        let (mut r, mut h, mut o, _) =
+            template_record(&format!("<pattern id='p' width='{value}'/>"));
+        r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+            .unwrap();
+        assert!(
+            r.paint_content(0)
+                .unwrap()
+                .1
+                .geometry
+                .iter()
+                .find(|v| v.name == "width")
+                .unwrap()
+                .value
+                .is_err(),
+            "{value}"
+        );
+    }
+}
+
+#[test]
+fn acquired_opacity_winners_preserve_priority_and_separate_compositing_layers() {
+    let (_, _, cap) = fixture::setup("<p/>");
+    let (mut r, mut h, mut o, _) = template_record("<style>stop { stop-opacity:25% !important }</style><g opacity='0.5'><linearGradient id='p'><stop stop-color='red' stop-opacity='0.9' style='stop-opacity:0.8; opacity:2'/></linearGradient></g>");
+    r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+        .unwrap();
+    let (binding, plan) = r.paint_content(0).unwrap();
+    let values = plan.opacities.as_ref().unwrap();
+    assert_eq!(values.len(), 3);
+    let stop = values
+        .iter()
+        .find(|p| p.property == "stop-opacity")
+        .unwrap();
+    assert_eq!(stop.value, 0.25);
+    assert!(stop.winner.important);
+    assert!(stop.winner.css().is_some());
+    assert!(values
+        .iter()
+        .any(|p| p.property == "opacity" && p.value == 1.0));
+    assert!(values
+        .iter()
+        .any(|p| p.property == "opacity" && p.value == 0.5));
+    assert_eq!(plan.colors.as_ref().unwrap()[0].rgba, [255, 0, 0, 255]);
+    for value in values {
+        assert!(binding
+            .body
+            .tree()
+            .node(value.winner.document_source())
+            .is_some());
+    }
+}
+
+#[test]
+fn acquired_opacity_invalid_values_remain_unresolved() {
+    let (_, _, cap) = fixture::setup("<p/>");
+    for (value, expected) in [
+        ("-1", Some(0.0)),
+        ("125%", Some(1.0)),
+        ("NaN", None),
+        ("calc(1 - .5)", None),
+        ("1e999", None),
+    ] {
+        let (mut r, mut h, mut o, _) = template_record(&format!("<linearGradient id='p'><stop stop-color='red' stop-opacity='{value}'/></linearGradient>"));
+        r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+            .unwrap();
+        let plan = r.paint_content(0).unwrap().1;
+        match expected {
+            Some(v) => assert_eq!(plan.opacities.as_ref().unwrap()[0].value, v),
+            None => assert!(plan.opacities.is_err(), "{value}"),
+        }
+    }
+}
+
+#[test]
+fn nested_integrity_rechecks_reused_bodies_and_original_root_bytes() {
+    use base64::Engine;
+    use sha2::{Digest, Sha256};
+    let bytes = b"<svg xmlns='http://www.w3.org/2000/svg'><g id='a'/><g id='b'/></svg>";
+    let good = format!(
+        "sha256-{}",
+        base64::engine::general_purpose::STANDARD.encode(Sha256::digest(bytes))
+    );
+    let cap = integrity_cap_pair(&good, "sha256-broken");
+    let (mut r, mut h, mut o, _) = template_record(
+        "<pattern id='p'><image href='./nested.svg#a'/><image href='./nested.svg#b'/></pattern>",
+    );
+    r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+        .unwrap();
+    assert!(r
+        .bind_nested_snapshots(
+            &mut h,
+            &mut o,
+            &cap,
+            vec![nested_response(
+                "https://page.test/nested.svg",
+                "image/svg+xml",
+                bytes
+            )],
+            AbortSignal::new()
+        )
+        .is_err());
+    assert!(r.bindings().is_empty());
+    for valid in [true, false] {
+        let (mut r, mut h, mut o, _) =
+            template_record("<pattern id='p'><image href='./paint.svg#p'/></pattern>");
+        let digest = format!(
+            "sha256-{}",
+            base64::engine::general_purpose::STANDARD
+                .encode(Sha256::digest(r.bindings()[0].body.bytes()))
+        );
+        let cap = integrity_cap(if valid { &digest } else { "sha256-broken" });
+        r.prepare_paint_content(&mut h, &mut o, profile(), &cap, 100000)
+            .unwrap();
+        let result = r.bind_nested_snapshots(&mut h, &mut o, &cap, vec![], AbortSignal::new());
+        assert_eq!(result.is_ok(), valid, "{result:?}");
+        if valid {
+            assert!(!r.nested_snapshots().unwrap().fragment_targets().is_empty());
+        } else {
+            assert!(r.bindings().is_empty());
+        }
     }
 }

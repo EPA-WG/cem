@@ -202,6 +202,7 @@ impl BoundedPaintColors {
             let mut inheritance_nodes = Vec::new();
             let rgba = match paint_expression {
                 Expression::Literal(value) => value,
+                Expression::Opacity(_) => return Err("opacity is not a color".into()),
                 Expression::Current => {
                     // The pinned Chromium candidate model uses source ancestry
                     // for inherited content. Do not rewrite the SVG 2 plan.
@@ -221,6 +222,9 @@ impl BoundedPaintColors {
                                 color_winners.push(selected);
                                 match value {
                                     Expression::Literal(value) => break value,
+                                    Expression::Opacity(_) => {
+                                        return Err("opacity is not a color".into())
+                                    }
                                     Expression::Current => {}
                                 }
                             }
@@ -294,6 +298,7 @@ fn attribute(
 enum Expression {
     Literal([u8; 4]),
     Current,
+    Opacity(f32),
 }
 fn expression(value: &str) -> Result<Expression, String> {
     let mut input = ParserInput::new(value);
@@ -352,7 +357,8 @@ pub(crate) fn evaluate_acquired(
     let mut work = Work(budget);
     let result = (|| {
         let tree = &plan.inventory.document.tree;
-        let cascade = Cascade::from_sources(tree, &plan.inventory.stylesheets, &mut work)?;
+        let cascade =
+            Cascade::from_sources_with_opacity(tree, &plan.inventory.stylesheets, &mut work, true)?;
         let Some(source) = plan.content_owner else {
             return Ok(Vec::new());
         };
@@ -378,6 +384,7 @@ pub(crate) fn evaluate_acquired(
             let mut inheritance_nodes = Vec::new();
             let rgba = match value {
                 Expression::Literal(rgba) => rgba,
+                Expression::Opacity(_) => return Err("opacity is not a color".into()),
                 Expression::Current => {
                     let mut next = Some(child);
                     loop {
@@ -414,6 +421,78 @@ pub(crate) fn evaluate_acquired(
             });
         }
         Ok(colors)
+    })();
+    (result, budget - work.0)
+}
+
+fn property_expression(property: &str, value: &str) -> Result<Expression, String> {
+    if !matches!(property, "opacity" | "stop-opacity") {
+        return expression(value);
+    }
+    let mut input = ParserInput::new(value);
+    let mut parser = Parser::new(&mut input);
+    let value = match parser.next().map_err(|_| "empty opacity")? {
+        Token::Number { value, .. } => *value,
+        Token::Percentage { unit_value, .. } => *unit_value,
+        _ => return Err("unsupported opacity value".into()),
+    };
+    if !value.is_finite() || !parser.is_exhausted() {
+        return Err("invalid opacity value".into());
+    }
+    Ok(Expression::Opacity(value.clamp(0., 1.)))
+}
+
+pub struct PaintOpacityDerivation {
+    pub source: AstNodeId,
+    pub property: &'static str,
+    pub value: f32,
+    pub winner: PaintDeclarationWinner,
+}
+/// Explicit declarations at their lexical nodes. Opacity is not inherited;
+/// ancestors represent distinct compositing layers, never multiplied here.
+pub(crate) fn evaluate_acquired_opacities(
+    plan: &crate::svg_resource_acquisition::paint::AcquiredPaintContent,
+    budget: usize,
+) -> (Result<Vec<PaintOpacityDerivation>, String>, usize) {
+    let budget = budget.min(1_000_000);
+    let mut work = Work(budget);
+    let result = (|| {
+        let tree = &plan.inventory.document.tree;
+        let cascade =
+            Cascade::from_sources_with_opacity(tree, &plan.inventory.stylesheets, &mut work, true)?;
+        let mut nodes = std::collections::BTreeSet::new();
+        for node in &plan.nodes {
+            work.spend(1 + node.source_ancestors.len())?;
+            nodes.insert(node.source);
+            nodes.extend(node.source_ancestors.iter().copied());
+        }
+        let mut values = Vec::new();
+        for source in nodes {
+            work.spend(1)?;
+            let Some(node) = tree.node(source) else {
+                return Err("opacity source missing".into());
+            };
+            if node.kind != CemTreeNodeKind::Element {
+                continue;
+            }
+            for property in ["opacity", "stop-opacity"] {
+                if property == "stop-opacity" && local(tree, source)? != "stop" {
+                    continue;
+                }
+                if let Some((value, winner)) = cascade.winner(tree, source, property, &mut work)? {
+                    let Expression::Opacity(value) = value else {
+                        return Err("invalid opacity expression".into());
+                    };
+                    values.push(PaintOpacityDerivation {
+                        source,
+                        property,
+                        value,
+                        winner,
+                    });
+                }
+            }
+        }
+        Ok(values)
     })();
     (result, budget - work.0)
 }

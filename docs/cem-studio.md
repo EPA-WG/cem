@@ -4386,8 +4386,13 @@ The attribute candidates retain the first specified eligible source in each
 chain. Gradient coordinate fields are taken only from the corresponding
 gradient kind; shared gradient fields and pattern fields keep their original
 owner/attribute IDs. Absent attributes have no fabricated source or default.
-These are authored candidates, not parsed geometric values: invalid numeric
-values, context-dependent defaults and transforms remain outside this evaluation.
+Each candidate now also retains a typed geometry result: finite numbers,
+percentages, pixel lengths, coordinate-system/spread keywords or a four-number
+`viewBox`. Negative radii/dimensions and viewBox extents are rejected in that
+field's result. Missing fields remain absent; invalid or unsupported expressions
+remain explicit errors. Percentages are not resolved against a fabricated
+viewport or consumer bounding box. Transforms, aspect ratios, relative units,
+CSS geometry winners and context-dependent defaults still require evaluation.
 
 The plan separately records SVG 2 non-descriptive-child selection and the pinned
 Chromium selection (direct stops for gradients, first element-containing pattern
@@ -4407,7 +4412,17 @@ Derivations retain selected declarations, selector specificity and every
 currentColor source ancestor. Unsupported declarations/selectors/content retain
 an explicit unresolved result; they are not treated as absent styling. Even
 successful derivations are author candidates rather than all-origin browser
-winner evidence. General style/geometry/opacity/filter evaluation remains open.
+winner evidence. The acquired profile also derives explicit `opacity` and
+`stop-opacity` winners through the same cascade, including inline and important
+priority. Finite number/percentage values clamp to [0, 1]. Opacity declarations
+on lexical ancestors remain separate nodes; they are not inherited or multiplied
+into an invented pixel alpha. No default declaration is fabricated. Unsupported
+opacity expressions remain unresolved. Compositing, filters, complex selectors,
+transforms and general used-style/geometry evaluation remain open.
+Pinned Chromium gradient raster probes distinguish these authored values from
+pixel quantization: solid red at 50% stop opacity reads back as RGBA
+`[253, 0, 0, 128]`, and at 25% as `[251, 0, 0, 64]`. Fixtures assert those exact
+pixels while native derivations retain red and the separate opacity fraction.
 
 The static acquired-body profile rejects scripts, animation, foreign content,
 event handlers, processing instructions and XML base changes throughout the
@@ -4433,13 +4448,23 @@ The graph accepts at most 256 direct, fragment-free, nonredirected HTTP(S)
 snapshots and 4 MiB including metadata; it retains at most 4096 edges.
 Missing, duplicate, unused or conflicting snapshots reject atomically.
 Resolution failures, MIME hints and CSS-import MIME constraints are enforced.
-Integrity-bearing mappings currently reject pending integrity verification.
+Integrity-bearing mappings use the shared strict SHA-256/384/512 verifier with
+strongest-algorithm selection. Every edge's expectation must pass against the
+exact retained bytes, including edges reusing an earlier body or the root body.
+Identical URL/expectation pairs share verification; conflicting expectations
+cannot reuse another edge's success. Malformed/unsupported metadata and mismatch
+revoke the whole record. Metadata is bounded to 4096 bytes per expectation and
+distinct verifications to 64 MiB of hashing input.
 Supported entity types are CSS, SVG, PNG, JPEG, GIF, WebP, AVIF, WOFF and WOFF2;
 other types, redirects and encoded-wire metadata require later profiles.
 Each body retains exact bytes, BLAKE3 digest, revision and any native imported
-tree. Root-body references reuse the original acquisition; fragments remain
-on their reference edges. This does not validate arbitrary nested fragment
-targets or prove full transitive rendering closure.
+tree. Root-body references reuse the original acquisition. SVG fragment edges
+now retain their edge index, native target tree and unique literal-ID node.
+Missing/duplicate IDs and encoded/view fragment forms reject atomically; target
+indexing shares the graph's native work bound. Non-SVG fragments remain URLs
+without SVG target proof. Literal identity does not prove operation-specific
+target compatibility, nested `use` expansion, paint recursion, resource use or
+full transitive rendering closure.
 
 Browser preparation opts in with `prepareSvgPaintContent: true`, explicit
 `svgSnapshots` and the existing confirmed `cloneProfile` report. Content
@@ -4451,7 +4476,8 @@ worker disposal or native validation failure revokes the enclosing session.
 
 Only scalar counts cross WASM: acquired content bindings/nodes/dependency
 occurrences, bounded color derivations, inherited bindings, compatibility
-differences and unique nested bodies. Native plans, trees, source coordinates,
+differences, unique nested bodies, typed geometry values, explicit opacity
+winners and nested literal fragment targets. Native plans, trees, source coordinates,
 resolver ownership and byte digests remain native. Browser fixtures compare
 supported source-color/content behavior with isolated raster probes, and test
 recursive graph binding and revocation. Those probes and snapshots do not

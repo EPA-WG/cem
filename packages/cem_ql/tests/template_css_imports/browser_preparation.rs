@@ -1199,7 +1199,7 @@ fn acquired_content_and_nested_graph_follow_preparation_lifetimes() {
     for mode in 0..3 {
         let mut s = svg_session();
         let mut response = svg_response();
-        response.bytes = b"<svg xmlns='http://www.w3.org/2000/svg'><pattern id='p'><image href='./image.png'/></pattern></svg>".to_vec();
+        response.bytes = b"<svg xmlns='http://www.w3.org/2000/svg'><pattern id='p' width='16' opacity='0.5'><image href='./image.svg#f'/></pattern></svg>".to_vec();
         s.record_svg(&mut SvgObserver(SVG_RESOURCE_VALUE)).unwrap();
         s.record_svg_resources(
             vec![response],
@@ -1213,10 +1213,10 @@ fn acquired_content_and_nested_graph_follow_preparation_lifetimes() {
             .unwrap();
         let signal = cem_ml::scheduler::AbortSignal::new();
         let mut nested = svg_response();
-        nested.requested_url = "https://example.test/image.png".into();
+        nested.requested_url = "https://example.test/image.svg".into();
         nested.final_url = nested.requested_url.clone();
-        nested.content_type = "image/png".into();
-        nested.bytes = b"opaque bytes".to_vec();
+        nested.content_type = "image/svg+xml".into();
+        nested.bytes = b"<svg xmlns='http://www.w3.org/2000/svg'><filter id='f'/></svg>".to_vec();
         s.bind_svg_nested_snapshots(
             vec![nested],
             signal.clone(),
@@ -1224,12 +1224,17 @@ fn acquired_content_and_nested_graph_follow_preparation_lifetimes() {
         )
         .unwrap();
         assert_eq!(s.svg_acquired_content_counts(), (0, 0, 0, 0));
+        assert_eq!(s.svg_acquired_detail_counts(), (0, 0, 0));
         let blockers = s
             .capture(BASE, slots, &mut OutputObserver { wrong: false })
             .unwrap();
         let (bindings, nodes, dependencies, bodies) = s.svg_acquired_content_counts();
         assert!(bindings > 0 && nodes > 0 && dependencies > 0);
         assert_eq!(bodies, 1);
+        let (geometry, opacity, targets) = s.svg_acquired_detail_counts();
+        assert_eq!(geometry, bindings);
+        assert_eq!(opacity, bindings);
+        assert!(targets > 0);
         assert!(blockers
             .iter()
             .any(|b| b == "svg-acquired-style-evaluation-required"));
@@ -1251,6 +1256,7 @@ fn acquired_content_and_nested_graph_follow_preparation_lifetimes() {
             s.close();
         }
         assert_eq!(s.svg_acquired_content_counts(), (0, 0, 0, 0));
+        assert_eq!(s.svg_acquired_detail_counts(), (0, 0, 0));
         assert!(s.html().is_err());
     }
 }

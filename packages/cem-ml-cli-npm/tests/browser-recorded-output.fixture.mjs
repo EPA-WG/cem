@@ -368,7 +368,7 @@ globalThis.runRecordedOutputFixture = async version => {
         boundedPaintColors: true,
         cloneProfile: { name: 'chromium-148-solid-currentcolor-v1', observe: index => [...cloneReports.get(index)] },
     });
-    for (const mode of ['inherited', 'own', 'descriptive-gradient', 'pattern', 'descriptive-pattern', 'currentcolor', 'inline', 'stylesheet', 'attributes', 'empty', 'abort', 'mutation', 'policy', 'pool', 'async', 'copy', 'no-profile', 'active', 'xml-base', 'foreign']) {
+    for (const mode of ['inherited', 'own', 'descriptive-gradient', 'pattern', 'descriptive-pattern', 'currentcolor', 'inline', 'stylesheet', 'attributes', 'empty', 'opacity', 'opacity-inline', 'opacity-important', 'opacity-low', 'opacity-high', 'geometry-pattern', 'geometry-viewbox', 'geometry-invalid', 'abort', 'mutation', 'policy', 'pool', 'async', 'copy', 'no-profile', 'active', 'xml-base', 'foreign']) {
         await run(`svg-acquired-content-${mode}`, async ({ request, doc, capture, captureAsync, pool, policy, install }) => {
             let defs = '<linearGradient id="p" href="#q" color="blue"/><linearGradient id="q" color="red"><stop stop-color="red"/></linearGradient>';
             let expected = [255, 0, 0, 255], inherited = 1, differences = 0, colors = 1, nodes = 1;
@@ -383,6 +383,24 @@ globalThis.runRecordedOutputFixture = async version => {
                 if (mode === 'descriptive-pattern') { expected = [0, 0, 0, 0]; inherited = 0; differences = 1; colors = 0; nodes = 2; }
             }
             if (mode === 'empty') { defs = '<linearGradient id="p"/>'; expected = [0, 0, 0, 0]; inherited = colors = nodes = 0; }
+            let geometry = mode === 'attributes' ? 1 : 0, opacity = 0;
+            if (mode === 'pattern' || mode === 'descriptive-pattern') geometry = 3;
+            if (mode.startsWith('opacity')) {
+                opacity = 1;
+                const value = mode === 'opacity-low' ? '-1' : mode === 'opacity-high' ? '125%' : '50%';
+                defs = defs.replace('<stop ', `<stop stop-opacity="${value}" `);
+                // Pinned Chromium gradient rasterization quantizes premultiplied red:
+                // 50% reads back as [253,0,0,128], 25% as [251,0,0,64].
+                // Native author color and opacity remain separate exact candidates.
+                expected = mode === 'opacity-low' ? [0, 0, 0, 0] : [mode === 'opacity-high' ? 255 : 253, 0, 0, mode === 'opacity-high' ? 255 : 128];
+                if (mode === 'opacity-inline') { defs = defs.replace('<stop ', '<stop style="stop-opacity:25%" '); expected = [251, 0, 0, 64]; }
+                if (mode === 'opacity-important') { defs = '<style>stop {stop-opacity:25% !important}</style>' + defs.replace('<stop ', '<stop style="stop-opacity:75%" '); expected = [251, 0, 0, 64]; }
+            }
+            if (mode.startsWith('geometry')) {
+                defs = `<pattern id="p" href="#q"/><pattern id="q" patternUnits="userSpaceOnUse" width="${mode === 'geometry-invalid' ? '-1' : '16'}" height="16" ${mode === 'geometry-viewbox' ? 'viewBox="0 0 16 16"' : ''}><rect width="16" height="16" fill="red"/></pattern>`;
+                geometry = mode === 'geometry-viewbox' ? 4 : mode === 'geometry-invalid' ? 2 : 3;
+                if (mode === 'geometry-invalid') expected = [0, 0, 0, 0];
+            }
             if (mode === 'active') defs += '<script/>';
             if (mode === 'foreign') defs += '<foreignObject/>';
             const xml = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" ${mode === 'xml-base' ? 'xml:base="other/"' : ''}><defs>${defs}</defs><rect width="16" height="16" fill="url(#p)"/></svg>`;
@@ -393,7 +411,8 @@ globalThis.runRecordedOutputFixture = async version => {
                     const image = new Image(); image.src = url; await image.decode();
                     const canvas = document.createElement('canvas'); canvas.width = canvas.height = 16;
                     const context = canvas.getContext('2d'); context.drawImage(image, 0, 0);
-                    check([...context.getImageData(12, 8, 1, 1).data].join(',') === expected.join(','), 'acquired content raster differs');
+                    const pixel = [...context.getImageData(12, 8, 1, 1).data];
+                    check(pixel.join(',') === expected.join(','), `acquired content raster differs: ${pixel} expected ${expected}`);
                 } finally { URL.revokeObjectURL(url); }
             }
             paintRequest(request, doc, '', `url(${doc.URL}#p)`);
@@ -407,7 +426,8 @@ globalThis.runRecordedOutputFixture = async version => {
             const result = host.read();
             check(result.svgAcquiredContentBindings === 1 && result.svgAcquiredContentNodes === nodes
                 && result.svgAcquiredInheritedBindings === inherited && result.svgAcquiredCompatibilityDifferences === differences
-                && result.svgAcquiredColors === colors, 'native acquired content/style counts differ');
+                && result.svgAcquiredColors === colors && result.svgAcquiredGeometryValues === geometry
+                && result.svgAcquiredOpacityValues === opacity, 'native acquired content/style counts differ');
             check(result.blockers.includes('svg-resource-consumption-required') && result.blockers.includes('svg-acquired-style-evaluation-required'), 'candidate plan claimed consumption');
             if (mode === 'abort') controller.abort();
             if (mode === 'mutation') { const rect = doc.querySelector('rect'); const value = rect.getAttribute('fill'); rect.setAttribute('fill', 'red'); rect.setAttribute('fill', value); }
@@ -419,7 +439,7 @@ globalThis.runRecordedOutputFixture = async version => {
             }
         }, mode === 'pool');
     }
-    for (const mode of ['success', 'async', 'pool', 'copy', 'abort', 'parent-abort', 'mutation', 'missing', 'unused', 'duplicate', 'redirect', 'mime', 'no-content', 'preabort', 'empty', 'active']) {
+    for (const mode of ['success', 'async', 'pool', 'copy', 'abort', 'parent-abort', 'mutation', 'missing', 'unused', 'duplicate', 'redirect', 'mime', 'no-content', 'preabort', 'empty', 'active', 'fragment-missing', 'fragment-duplicate', 'fragment-encoded']) {
         await run(`svg-nested-snapshots-${mode}`, async ({ request, doc, capture, captureAsync, pool, install }) => {
             paintRequest(request, doc, '', `url(${doc.URL}#p)`);
             const parent = new AbortController(), nested = new AbortController();
@@ -428,9 +448,12 @@ globalThis.runRecordedOutputFixture = async version => {
             const root = snapshot(doc.URL, 'image/svg+xml', '<svg xmlns="http://www.w3.org/2000/svg"><style>@import "./theme.css";</style><pattern id="p"><image href="./nested.svg"/></pattern></svg>');
             const responses = [
                 snapshot('./theme.css', 'text/css', '@import "./theme.css"; image { fill:url(./nested.svg#p) }'),
-                snapshot('./nested.svg', 'image/svg+xml', '<svg xmlns="http://www.w3.org/2000/svg"><image href="./pixel.png"/></svg>'),
+                snapshot('./nested.svg', 'image/svg+xml', '<svg xmlns="http://www.w3.org/2000/svg"><linearGradient id="p"/><image href="./pixel.png"/></svg>'),
                 snapshot('./pixel.png', 'image/png', 'opaque fixture bytes'),
             ];
+            if (mode === 'fragment-missing') responses[1].bytes = encode('<svg xmlns="http://www.w3.org/2000/svg"><image href="./pixel.png"/></svg>');
+            if (mode === 'fragment-duplicate') responses[1].bytes = encode('<svg xmlns="http://www.w3.org/2000/svg"><g id="p"/><g id="p"/><image href="./pixel.png"/></svg>');
+            if (mode === 'fragment-encoded') responses[0].bytes = encode('image { fill:url(./nested.svg#%70) }');
             if (mode === 'missing') responses.pop();
             if (mode === 'unused') responses.push(snapshot('./unused.png', 'image/png', 'unused'));
             if (mode === 'duplicate') responses.push(responses[0]);
@@ -443,13 +466,13 @@ globalThis.runRecordedOutputFixture = async version => {
                 svgSnapshots: { signal: parent.signal, responses: [root] },
                 svgNestedSnapshots: { signal: nested.signal, responses } };
             if (mode === 'no-content') options.prepareSvgPaintContent = false;
-            if (['missing', 'unused', 'duplicate', 'redirect', 'mime', 'no-content', 'preabort', 'empty', 'active'].includes(mode)) {
+            if (['missing', 'unused', 'duplicate', 'redirect', 'mime', 'no-content', 'preabort', 'empty', 'active', 'fragment-missing', 'fragment-duplicate', 'fragment-encoded'].includes(mode)) {
                 rejects(() => capture(options), 'invalid nested snapshots accepted'); return;
             }
             const installer = html => { if (mode === 'copy') { root.bytes.fill(0); responses.forEach(r => r.bytes.fill(0)); responses.length = 0; } install(html); };
             const host = ['async', 'pool'].includes(mode) ? await captureAsync(options, installer) : capture(options, installer);
             const result = host.read();
-            check(result.svgAcquiredContentBindings === 1 && result.svgNestedBodies === 3 && result.svgAcquiredDependencies === 2, 'nested graph counts differ');
+            check(result.svgAcquiredContentBindings === 1 && result.svgNestedBodies === 3 && result.svgAcquiredDependencies === 2 && result.svgNestedFragmentTargets > 0, 'nested graph counts differ');
             check(result.blockers.includes('svg-resource-transitive-dependencies-required') && result.blockers.includes('svg-resource-consumption-required'), 'snapshots claimed runtime closure');
             if (mode === 'abort') nested.abort();
             if (mode === 'parent-abort') parent.abort();

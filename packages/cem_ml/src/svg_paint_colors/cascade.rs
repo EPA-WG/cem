@@ -40,6 +40,14 @@ impl Cascade {
         sources: &[crate::document_stylesheet_dependencies::DocumentStylesheetOccurrence],
         work: &mut Work,
     ) -> Result<Self, String> {
+        Self::from_sources_with_opacity(doc, sources, work, false)
+    }
+    pub(super) fn from_sources_with_opacity(
+        doc: &Arc<RetainedCemTree>,
+        sources: &[crate::document_stylesheet_dependencies::DocumentStylesheetOccurrence],
+        work: &mut Work,
+        opacity: bool,
+    ) -> Result<Self, String> {
         // Explicit document order, independent of allocation IDs and inventory order.
         let mut positions = BTreeMap::new();
         let mut pending = vec![0];
@@ -119,7 +127,7 @@ impl Cascade {
             }
             let children = &css.node(roots[0]).unwrap().children;
             if inline {
-                for d in declarations(css, children, &mut decl_count, work)? {
+                for d in declarations(css, children, &mut decl_count, work, opacity)? {
                     let key = (sheet.owner, d.name);
                     if result
                         .inline
@@ -176,7 +184,7 @@ impl Cascade {
                         css: css.clone(),
                         id: *id,
                         selectors,
-                        declarations: declarations(css, &body, &mut decl_count, work)?,
+                        declarations: declarations(css, &body, &mut decl_count, work, opacity)?,
                         sheet_order: sheet_count - 1,
                         order,
                     });
@@ -243,7 +251,7 @@ impl Cascade {
             return Ok(None);
         };
         Ok(Some((
-            expression(&tree.node(id).unwrap().value)?,
+            property_expression(property, &tree.node(id).unwrap().value)?,
             PaintDeclarationWinner {
                 origin: PaintDeclarationOrigin::Presentation { attribute: id },
                 important: false,
@@ -276,6 +284,7 @@ fn declarations(
     ids: &[AstNodeId],
     count: &mut usize,
     work: &mut Work,
+    opacity: bool,
 ) -> Result<Vec<Declaration>, String> {
     let mut out = Vec::new();
     for id in ids {
@@ -294,13 +303,15 @@ fn declarations(
         let value = css_attr(css, *id, "value").ok_or("paint value missing")?;
         work.spend(name.len() + value.len() + css.node(*id).unwrap().attributes.len())?;
         let name = name.to_ascii_lowercase();
-        if !matches!(name.as_str(), "color" | "fill" | "stop-color") {
+        if !matches!(name.as_str(), "color" | "fill" | "stop-color")
+            && !(opacity && matches!(name.as_str(), "opacity" | "stop-opacity"))
+        {
             return Err("paint CSS property unsupported".into());
         }
         out.push(Declaration {
             id: *id,
+            value: property_expression(&name, value)?,
             name,
-            value: expression(value)?,
             important: css_attr(css, *id, "important") == Some("true"),
             order: out.len(),
         });

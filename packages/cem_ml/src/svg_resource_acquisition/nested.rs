@@ -40,9 +40,20 @@ pub struct NestedSnapshotEdge {
 pub struct NestedSnapshots {
     bodies: BTreeMap<String, NestedSnapshotBody>,
     edges: Vec<NestedSnapshotEdge>,
+    fragments: Vec<NestedFragmentTarget>,
     pub(super) cancel: AbortSignal,
 }
+/// Literal target identity only. Does not assert that the referring CSS/SVG
+/// operation supports this element, or that the browser consumed it.
+pub struct NestedFragmentTarget {
+    pub edge: usize,
+    pub tree: Arc<RetainedCemTree>,
+    pub target: AstNodeId,
+}
 impl NestedSnapshots {
+    pub fn fragment_targets(&self) -> &[NestedFragmentTarget] {
+        &self.fragments
+    }
     pub fn bodies(&self) -> &BTreeMap<String, NestedSnapshotBody> {
         &self.bodies
     }
@@ -140,19 +151,24 @@ impl NestedSnapshots {
         let roots: BTreeSet<_> = record.bindings.iter().map(|b| b.body.url()).collect();
         let mut bodies = BTreeMap::new();
         let mut next = 0;
+        let mut integrity = IntegrityChecks::default();
         let mut work = paint::Work(1_000_000);
         while next < edges.len() {
             active(&cancel)?;
             active(&record.cancel)?;
             let edge = &edges[next];
             next += 1;
-            if edge.resolution.integrity.is_some() {
-                return Err("nested integrity verification required".into());
-            }
             let mut url = absolute(&edge.resolution.resolved_url)?;
             url.set_fragment(None);
             let key = url.to_string();
             if roots.contains(key.as_str()) {
+                let body = &record
+                    .bindings
+                    .iter()
+                    .find(|b| b.body.url() == key)
+                    .unwrap()
+                    .body;
+                integrity.check(&key, edge, body.bytes())?;
                 check_mime(edge, "image/svg+xml")?;
                 if edge.requires_css {
                     return Err("CSS import targets SVG root snapshot".into());
@@ -161,6 +177,7 @@ impl NestedSnapshots {
             }
             if let Some(body) = bodies.get(&key) {
                 let body: &NestedSnapshotBody = body;
+                integrity.check(&key, edge, body.bytes())?;
                 check_mime(edge, body.content_type())?;
                 if edge.requires_css && body.content_type() != "text/css" {
                     return Err("nested CSS import MIME mismatch".into());
@@ -170,6 +187,7 @@ impl NestedSnapshots {
             let response = pending_bodies
                 .remove(&key)
                 .ok_or("missing nested snapshot body")?;
+            integrity.check(&key, edge, &response.bytes)?;
             check_mime(edge, &response.content_type)?;
             if edge.requires_css && response.content_type != "text/css" {
                 return Err("nested CSS import MIME mismatch".into());
@@ -280,15 +298,106 @@ impl NestedSnapshots {
         if !pending_bodies.is_empty() {
             return Err("unused nested snapshot body".into());
         }
+        let mut fragments = Vec::new();
+        let mut indexes = BTreeMap::new();
+        for (index, edge) in edges.iter().enumerate() {
+            active(&cancel)?;
+            active(&record.cancel)?;
+            let mut url = absolute(&edge.resolution.resolved_url)?;
+            let Some(fragment) = url.fragment().map(str::to_owned) else {
+                continue;
+            };
+            url.set_fragment(None);
+            let key = url.to_string();
+            let tree = if let Some(binding) = record.bindings.iter().find(|b| b.body.url() == key) {
+                binding.body.tree().clone()
+            } else {
+                let body = bodies.get(&key).ok_or("nested fragment body missing")?;
+                // Non-SVG fragments retain their original URL, with no fabricated
+                // SVG target proof (e.g. font fragments or raster media fragments).
+                if body.content_type() != "image/svg+xml" {
+                    continue;
+                }
+                body.tree().ok_or("nested SVG tree missing")?.clone()
+            };
+            if !crate::svg_paint_dependencies::literal_fragment(&fragment) {
+                return Err("unsupported nested SVG fragment".into());
+            }
+            if !indexes.contains_key(&key) {
+                let mut ids: BTreeMap<String, Vec<AstNodeId>> = BTreeMap::new();
+                let mut pending = vec![0];
+                while let Some(id) = pending.pop() {
+                    active(&cancel)?;
+                    let node = tree.node(id).ok_or("nested SVG node missing")?;
+                    work.spend(1 + node.children.len() + node.attributes.len())?;
+                    for attr in &node.attributes {
+                        let a = tree.node(*attr).ok_or("nested SVG attribute missing")?;
+                        work.spend(1 + a.value.len())?;
+                        if node.kind == CemTreeNodeKind::Element
+                            && a.name
+                                .as_ref()
+                                .is_some_and(|n| n.namespace_uri.is_empty() && n.local_name == "id")
+                        {
+                            ids.entry(a.value.clone()).or_default().push(id);
+                        }
+                    }
+                    pending.extend(node.children.iter().copied());
+                }
+                indexes.insert(key.clone(), ids);
+            }
+            let targets = indexes[&key]
+                .get(&fragment)
+                .ok_or("missing nested SVG fragment target")?;
+            if targets.len() != 1 {
+                return Err("ambiguous nested SVG fragment target".into());
+            }
+            fragments.push(NestedFragmentTarget {
+                edge: index,
+                tree,
+                target: targets[0],
+            });
+        }
         active(&cancel)?;
         active(&record.cancel)?;
         Ok(Self {
             bodies,
             edges,
+            fragments,
             cancel,
         })
     }
 }
+// Bound hashing even when many graph edges reuse a large body. Every distinct
+// expectation must pass; a prior success never blesses another edge's metadata.
+#[derive(Default)]
+struct IntegrityChecks {
+    verified: BTreeSet<(String, String)>,
+    bytes: usize,
+}
+impl IntegrityChecks {
+    fn check(&mut self, url: &str, edge: &NestedSnapshotEdge, bytes: &[u8]) -> Result<(), String> {
+        if let Some(metadata) = &edge.resolution.integrity {
+            if metadata.len() > 4096 {
+                return Err("nested integrity metadata bound exceeded".into());
+            }
+            let key = (url.to_owned(), metadata.clone());
+            if self.verified.contains(&key) {
+                return Ok(());
+            }
+            self.bytes = self
+                .bytes
+                .checked_add(bytes.len())
+                .ok_or("integrity work overflow")?;
+            if self.bytes > 64 * 1024 * 1024 {
+                return Err("nested integrity work bound exceeded".into());
+            }
+            crate::resource_integrity::verify_resource_integrity(bytes, metadata)?;
+            self.verified.insert(key);
+        }
+        Ok(())
+    }
+}
+
 fn push(edges: &mut Vec<NestedSnapshotEdge>, edge: NestedSnapshotEdge) -> Result<(), String> {
     if edges.len() >= 4096 {
         return Err("nested dependency edge bound exceeded".into());

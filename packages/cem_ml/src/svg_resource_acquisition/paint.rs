@@ -43,6 +43,7 @@ pub struct AcquiredPaintContent {
     pub host: AstNodeId,
     pub profile: SvgPaintCloneProfile,
     pub attributes: Vec<PaintAttributeSource>,
+    pub geometry: Vec<super::geometry::GeometryCandidate>,
     pub svg2_content_owner: Option<AstNodeId>,
     pub content_owner: Option<AstNodeId>,
     pub nodes: Vec<AcquiredPaintNode>,
@@ -52,11 +53,12 @@ pub struct AcquiredPaintContent {
     /// Bounded source-style derivations or an explicit unsupported-profile reason.
     /// Even successful author colors are not a browser winning-style seal.
     pub colors: Result<Vec<crate::svg_paint_colors::PaintColorDerivation>, String>,
+    pub opacities: Result<Vec<crate::svg_paint_colors::PaintOpacityDerivation>, String>,
     pub blockers: Vec<String>,
 }
 pub(super) struct Work(pub usize);
 impl Work {
-    fn spend(&mut self, count: usize) -> Result<(), String> {
+    pub(super) fn spend(&mut self, count: usize) -> Result<(), String> {
         self.0 = self
             .0
             .checked_sub(count)
@@ -416,6 +418,7 @@ pub(super) fn build(
     let mut result = AcquiredPaintContent {
         host,
         profile,
+        geometry: super::geometry::derive(tree, &attributes, work)?,
         attributes,
         svg2_content_owner,
         content_owner,
@@ -424,6 +427,7 @@ pub(super) fn build(
         dependencies,
         inventory,
         colors: Err("not evaluated".into()),
+        opacities: Err("not evaluated".into()),
         blockers,
     };
     let (colors, spent) = crate::svg_paint_colors::evaluate_acquired(&result, work.0);
@@ -436,6 +440,16 @@ pub(super) fn build(
         return Err("acquired color work bound exceeded".into());
     }
     result.colors = colors;
+    let (opacities, spent) = crate::svg_paint_colors::evaluate_acquired_opacities(&result, work.0);
+    work.spend(spent)?;
+    if opacities
+        .as_ref()
+        .err()
+        .is_some_and(|e| e.contains("budget") || e.contains("bound exceeded"))
+    {
+        return Err("acquired opacity work bound exceeded".into());
+    }
+    result.opacities = opacities;
     Ok(result)
 }
 fn ancestry(

@@ -3204,11 +3204,43 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       General style, runtime dependency, response/consumption and origin-admission
       blockers remain explicit. The graph records supplied candidates, not a
       browser delivery or complete rendering closure.
-    - [ ] Extend acquired style/geometry evaluation beyond the explicit bounded
-      author-color profile; verify opacity/transforms, complex content/selectors
-      and nested fragment semantics before claiming rendering closure.
-    - [ ] Verify integrity-bearing nested snapshots and unsupported URL/MIME/base
-      profiles before widening the explicit acquired graph.
+    - [ ] Extend acquired used-style/geometry evaluation beyond bounded authored
+      values: transforms, opacity compositing, complex content/selectors and
+      operation-specific nested fragment semantics before rendering closure.
+    - [ ] Define transform/viewport/bounding-box evaluation and opacity compositing
+      as native plans, then verify used geometry and pixel parity in Chromium.
+    - [ ] Extend literal nested targets with operation-specific `use`, filter,
+      mask and paint dependency traversal, preserving target kinds, source/base
+      ownership and cycle/budget diagnostics before widening resource coverage.
+    - [x] Verify and implement native acquired geometry candidates (finite numeric
+      lengths/percentages, units and viewBox), retaining attribute provenance and
+      explicit unresolved/unsupported fields without inventing used geometry.
+    - [x] Verify and implement acquired opacity/stop-opacity author winners with
+      inline/important priority, finite number/percentage clamping and original
+      lexical ancestry; keep compositing and used-pixel evidence unresolved.
+    - [x] Verify and implement per-edge nested snapshot integrity, including
+      strongest hashes, reused/root bodies, malformed metadata and atomic failure.
+    - [x] Verify and implement nested SVG literal-fragment target provenance,
+      including repeated targets, missing/duplicate IDs, unsupported fragment
+      forms and cancellation; retain resource-use and runtime-coverage blockers.
+    - [x] Bind acquired geometry/opacity/fragment diagnostics to preparation and
+      WASM/browser lifetimes; verify Chromium opacity and geometry parity plus
+      nested fragment failures without exporting source trees or evidence DTOs.
+      Verification: 131 focused native checks, WASM/CLI builds, lint and the full
+      Chromium gate pass, including 298 preparation cases (11 added here).
+      Geometry parsing excludes CSS-only comments/escapes; unsupported fields
+      remain explicit results. Opacity pixel fixtures retain pinned Chromium's
+      premultiplied-channel quantization rather than changing author colors.
+      Nested integrity checks every edge, including reused/root bodies, with
+      bounded metadata and hashing work. Literal target identity retains exact
+      edge/tree/node provenance and revokes with its enclosing preparation.
+      CEM audit: authored values and source owners remain native; opacity does
+      not rewrite colors or synthesize theme defaults. Theme/forced-color and
+      all-origin winning-style requirements remain explicit. Integrity verifies
+      retained entity bytes, not delivery identity. Literal nested targets do
+      not establish rendering compatibility or runtime resource consumption.
+    - [ ] Define and verify remaining URL/MIME/base profiles (including redirects
+      and encoded-wire metadata) before widening the explicit acquired graph.
     - [ ] Bind verified origin leases to the recorded preparation's HTML base/policy
       seals, native author plan and browser/worker lifetime; test wrong-session
       binding and revocation before exposing production admission.
@@ -3227,9 +3259,11 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
   editing and persistence, using shared CEM controls before app composition.
 
 The bounded acquired content/provenance and nested snapshot implementation is
-available with native ownership and preparation lifetime validation. General
-style/geometry evaluation, integrity-bearing acquisitions, nested fragment
-semantics and dynamic resource coverage remain open.
+available with native ownership and preparation lifetime validation. Nested
+integrity, typed authored geometry, explicit opacity winners and literal nested
+SVG target identity are implemented. Used geometry/transforms, compositing,
+operation-specific nested fragment semantics and dynamic resource coverage
+remain open.
 Production SVG replay is blocked on a maintained instrumented Chromium
 integration; the workspace contains feasibility probes but no engine checkout
 or integration target. Do not treat snapshot closure or compatibility pixels as
