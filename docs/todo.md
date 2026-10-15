@@ -3140,8 +3140,24 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       fragments remain explicit conservative exclusions. CEM audit preserves
       native semantic/source ownership, theme tokens and accessibility overrides;
       no UI defaults or production origin admission changed.
-    - [ ] Extend acquired-target plans with bounded same-body paint-template
+    - [x] Verify acquired paint-template fixtures for gradient/pattern chains,
+      href precedence, retained source coordinates, cycles, missing/duplicate/
+      wrong-kind targets, external/base exclusions, depth/work bounds and revocation.
+    - [x] Extend acquired-target plans with bounded same-body paint-template
       traversal, cycle/duplicate diagnostics and retained dependency ownership.
+      Native opt-in follows at most 64 same-body edges per binding under a shared
+      work budget; href precedence and compatible gradient/pattern kinds reuse
+      local traversal rules. Links retain owner/attribute/target coordinates in
+      the acquired tree. XML base ancestry, aliases and external references
+      reject; failure closes the record, cancellation hides results, and
+      fragment-only revalidation clears prior traversal plans.
+      Verification: 165 native checks, WASM/CLI builds, lint and full Chromium
+      regression gate pass (222 preparation cases). New traversal semantics have
+      native fixtures; browser wiring/parity is the next item. CEM audit keeps
+      semantic/source ownership native and leaves theme tokens, UI defaults and
+      accessibility overrides unchanged. Content/style/consumption blockers remain.
+    - [ ] Bind acquired paint-template traversal to preparation lifetimes and
+      verify Chromium chain/precedence compatibility and mutation revocation.
     - [ ] Define acquired paint-template content/style and nested resource
       dependencies after traversal, preserving original body/base/source ownership.
     - [ ] Bind verified origin leases to the recorded preparation's HTML base/policy
@@ -3161,8 +3177,9 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, extend acquired targets with bounded same-body paint-template traversal,
-then define retained content/style and nested resource dependencies. Fragment
+Next, bind acquired paint-template traversal to preparation lifetimes and
+verify Chromium compatibility, then define retained content/style and nested
+resource dependencies. Fragment
 validation now participates in preparation capture/read lifetimes and Chromium
 target identity checks. Engine admission remains gated on a maintained
 instrumented Chromium build.

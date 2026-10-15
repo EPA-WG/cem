@@ -592,3 +592,147 @@ fn external_fragment_targets_preserve_shared_body_slots_and_reject_partial_resul
     assert!(record.fragment_target(0).is_none());
     assert!(record.bindings().is_empty());
 }
+
+fn template_record(children: &str) -> (SvgResourceRecord, SvgComputedHost, Observer, AbortSignal) {
+    let mut host = SvgComputedHost::default();
+    let mut observer = Observer::default();
+    let evidence = Arc::new(host.capture(&sources(), &mut observer).unwrap());
+    let cancel = AbortSignal::new();
+    let mut r = response();
+    r.bytes = format!("<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink'>{children}</svg>").into_bytes();
+    let record =
+        SvgResourceRecord::capture(evidence, &mut host, &mut observer, vec![r], cancel.clone())
+            .unwrap();
+    (record, host, observer, cancel)
+}
+#[test]
+fn acquired_paint_templates_keep_links_in_the_original_body() {
+    for children in [
+        "<linearGradient id='p' href='#q' xlink:href='#missing'/><radialGradient id='q' xlink:href='#r'/><linearGradient id='r'/>",
+        "<pattern id='p' href='#q'/><pattern id='q' href='#r'/><pattern id='r'/>",
+    ] {
+        let (mut record, mut host, mut o, cancel) = template_record(children);
+        assert!(record.paint_template_links(0).is_none());
+        record.validate_paint_templates(&mut host, &mut o, 10000).unwrap();
+        let (binding, links) = record.paint_template_links(0).unwrap();
+        assert_eq!(links.len(), 2);
+        assert!(std::ptr::eq(binding, &record.bindings()[0]));
+        assert_eq!(links[0].owner, record.fragment_target(0).unwrap().1);
+        assert_eq!(links[0].target, links[1].owner);
+        for (i, link) in links.iter().enumerate() {
+            let attr = binding.body.tree().node(link.attribute).unwrap();
+            assert_eq!(attr.parent, Some(link.owner));
+            assert_eq!(attr.value, if i == 0 { "#q" } else { "#r" });
+            assert!(!attr.source.frames.is_empty());
+            assert!(attr.range.length > 0);
+        }
+        assert!(record.blockers().contains(&"svg-resource-transitive-dependencies-required"));
+        cancel.abort();
+        assert!(record.paint_template_links(0).is_none());
+        assert!(record.validate(&mut host, &mut o).is_err());
+    }
+}
+#[test]
+fn acquired_paint_template_failures_are_atomic() {
+    for (children, message) in [
+        ("<linearGradient id='p' href='#p'/>", "cycle"),
+        ("<linearGradient id='p' href='#q'/><radialGradient id='q' href='#p'/>", "cycle"),
+        ("<linearGradient id='p' href='#missing'/>", "missing"),
+        ("<linearGradient id='p' href='#q'/><linearGradient id='q'/><radialGradient id='q'/>", "ambiguous"),
+        ("<linearGradient id='p' href='#q'/><pattern id='q'/>", "kind"),
+        ("<pattern id='p' href='#q'/><linearGradient id='q'/>", "kind"),
+        ("<linearGradient id='p' href='#q'/><path id='q'/>", "kind"),
+        ("<linearGradient id='p' href='#q'/><linearGradient xmlns='urn:other' id='q'/>", "kind"),
+        ("<linearGradient id='p' href='' xlink:href='#q'/><linearGradient id='q'/>", "fragment"),
+        ("<linearGradient id='p' href='#%71'/><linearGradient id='q'/>", "fragment"),
+        ("<linearGradient id='p' href='paint.svg#q'/><linearGradient id='q'/>", "fragment"),
+        ("<linearGradient id='p' href='https://page.test/paint.svg#q'/><linearGradient id='q'/>", "fragment"),
+        ("<g xml:base='https://other.test/'><linearGradient id='p' href='#q'/></g><linearGradient id='q'/>", "base"),
+        ("<linearGradient id='p' xml:base='' href='#q'/><linearGradient id='q'/>", "base"),
+    ] {
+        let (mut record, mut host, mut o, _) = template_record(children);
+        record.validate_fragments(&mut host, &mut o, 10000).unwrap();
+        let error = record.validate_paint_templates(&mut host, &mut o, 10000).unwrap_err();
+        assert!(error.contains(message), "{message}: {error}");
+        assert!(record.bindings().is_empty());
+        assert!(record.fragment_target(0).is_none());
+        assert!(record.paint_template_links(0).is_none());
+    }
+}
+#[test]
+fn acquired_paint_templates_bound_depth_work_and_observation_lifetime() {
+    for count in [64, 65] {
+        let mut children = "<linearGradient id='p' href='#n0'/>".to_owned();
+        for i in 0..count {
+            children.push_str(&format!(
+                "<linearGradient id='n{i}' {} />",
+                if i + 1 < count {
+                    format!("href='#n{}'", i + 1)
+                } else {
+                    String::new()
+                }
+            ));
+        }
+        let (mut record, mut host, mut o, _) = template_record(&children);
+        let result = record.validate_paint_templates(&mut host, &mut o, 100000);
+        if count == 64 {
+            result.unwrap();
+            assert_eq!(record.paint_template_links(0).unwrap().1.len(), 64);
+        } else {
+            assert!(result.unwrap_err().contains("depth"));
+            assert!(record.paint_template_links(0).is_none());
+        }
+    }
+    for mode in 0..3 {
+        let (mut record, mut host, mut o, _) = template_record("<linearGradient id='p'/>");
+        record
+            .validate_paint_templates(&mut host, &mut o, 10000)
+            .unwrap();
+        assert_eq!(record.paint_template_links(0).unwrap().1.len(), 0);
+        match mode {
+            0 => {
+                assert!(record
+                    .validate_paint_templates(&mut host, &mut o, 0)
+                    .is_err());
+            }
+            1 => {
+                o.revision = "changed".into();
+                assert!(record.validate(&mut host, &mut o).is_err());
+            }
+            _ => {
+                record.validate_fragments(&mut host, &mut o, 10000).unwrap();
+            }
+        }
+        assert!(record.paint_template_links(0).is_none());
+    }
+}
+
+#[test]
+fn acquired_paint_templates_preserve_slots_and_share_only_body_coordinates() {
+    let mut host = SvgComputedHost::default();
+    let mut o = Observer {
+        dual: true,
+        ..Default::default()
+    };
+    let e = Arc::new(host.capture(&sources(), &mut o).unwrap());
+    let mut r = response();
+    r.bytes = b"<svg xmlns='http://www.w3.org/2000/svg'><linearGradient id='p' href='#r'/><radialGradient id='q' href='#r'/><linearGradient id='r'/></svg>".to_vec();
+    let cancel = AbortSignal::new();
+    let mut record =
+        SvgResourceRecord::capture(e, &mut host, &mut o, vec![r], cancel.clone()).unwrap();
+    record
+        .validate_paint_templates(&mut host, &mut o, 10000)
+        .unwrap();
+    let (a, a_links) = record.paint_template_links(0).unwrap();
+    let (b, b_links) = record.paint_template_links(1).unwrap();
+    assert_ne!(a.slot, b.slot);
+    assert!(Arc::ptr_eq(&a.body, &b.body));
+    assert_ne!(a_links[0].owner, b_links[0].owner);
+    assert_eq!(a_links[0].target, b_links[0].target);
+    cancel.abort();
+    assert!(record
+        .validate_paint_templates(&mut host, &mut o, 10000)
+        .is_err());
+    assert!(record.paint_template_links(0).is_none());
+    assert!(record.paint_template_links(1).is_none());
+}

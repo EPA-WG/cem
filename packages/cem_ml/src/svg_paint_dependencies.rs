@@ -181,7 +181,7 @@ impl Work {
         Ok(())
     }
 }
-fn kind(tree: &RetainedCemTree, id: AstNodeId) -> Option<&str> {
+pub(crate) fn kind(tree: &RetainedCemTree, id: AstNodeId) -> Option<&str> {
     let name = tree.node(id)?.name.as_ref()?;
     (name.namespace_uri == SVG)
         .then_some(name.local_name.as_str())
@@ -216,7 +216,7 @@ fn lookup(
     }
     PaintTarget::Local(target)
 }
-fn href(tree: &RetainedCemTree, owner: AstNodeId) -> Option<AstNodeId> {
+pub(crate) fn href(tree: &RetainedCemTree, owner: AstNodeId) -> Option<AstNodeId> {
     let attributes = &tree.node(owner)?.attributes;
     for namespace in ["", XLINK] {
         if let Some(id) = attributes.iter().find(|id| {

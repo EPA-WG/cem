@@ -129,12 +129,20 @@ pub struct SvgResourceBinding {
     pub fragment: Option<String>,
     pub body: Arc<SvgAcquiredBody>,
 }
+/// A same-body template edge. All coordinates belong to the binding's acquired
+/// tree; authored href spelling and source ranges remain on the attribute node.
+pub struct SvgPaintTemplateLink {
+    pub owner: AstNodeId,
+    pub attribute: AstNodeId,
+    pub target: AstNodeId,
+}
 pub struct SvgResourceRecord {
     computed: Arc<SvgComputedEvidence>,
     bindings: Vec<SvgResourceBinding>,
     cancel: AbortSignal,
     revoked: bool,
     fragment_targets: Vec<AstNodeId>,
+    template_links: Option<Vec<Vec<SvgPaintTemplateLink>>>,
     delivery: Option<AbortSignal>,
 }
 impl SvgResourceRecord {
@@ -174,6 +182,30 @@ impl SvgResourceRecord {
         ))
     }
 
+    /// Inspection only, under the same lifetime as fragment_target. Empty links
+    /// mean a validated leaf; None means no live traversal result for this slot.
+    pub fn paint_template_links(
+        &self,
+        index: usize,
+    ) -> Option<(&SvgResourceBinding, &[SvgPaintTemplateLink])> {
+        let (binding, _) = self.fragment_target(index)?;
+        Some((
+            binding,
+            self.template_links.as_ref()?.get(index)?.as_slice(),
+        ))
+    }
+
+    /// Validate targets and follow at most 64 same-body template edges per slot.
+    /// This records candidate dependencies, not inherited content/styles or paint.
+    pub fn validate_paint_templates(
+        &mut self,
+        host: &mut SvgComputedHost,
+        observer: &mut impl SvgComputedObserver,
+        budget: usize,
+    ) -> Result<(), String> {
+        self.validate_targets(host, observer, budget, true)
+    }
+
     /// Opt-in, all-or-nothing literal-ID paint target validation. The bounded
     /// profile deliberately shares local paint traversal's ASCII fragment rule.
     /// No percent decoding, view fragments, href traversal or style evaluation.
@@ -182,6 +214,15 @@ impl SvgResourceRecord {
         host: &mut SvgComputedHost,
         observer: &mut impl SvgComputedObserver,
         budget: usize,
+    ) -> Result<(), String> {
+        self.validate_targets(host, observer, budget, false)
+    }
+    fn validate_targets(
+        &mut self,
+        host: &mut SvgComputedHost,
+        observer: &mut impl SvgComputedObserver,
+        budget: usize,
+        templates: bool,
     ) -> Result<(), String> {
         let result = (|| {
             self.validate(host, observer)?;
@@ -194,6 +235,7 @@ impl SvgResourceRecord {
             };
             let mut indexes = BTreeMap::new();
             let mut targets = Vec::new();
+            let mut template_links = Vec::new();
             for binding in &self.bindings {
                 active(&self.cancel)?;
                 spend(1)?;
@@ -247,10 +289,20 @@ impl SvgResourceRecord {
                 {
                     return Err("SVG fragment target is not a paint server".into());
                 }
+                if templates {
+                    template_links.push(template_chain(
+                        binding.body.tree(),
+                        target,
+                        ids,
+                        &self.cancel,
+                        &mut spend,
+                    )?);
+                }
                 targets.push(target);
             }
             self.validate(host, observer)?;
             self.fragment_targets = targets;
+            self.template_links = templates.then_some(template_links);
             Ok(())
         })();
         if result.is_err() {
@@ -393,6 +445,7 @@ impl SvgResourceRecord {
             cancel,
             revoked: false,
             fragment_targets: Vec::new(),
+            template_links: None,
             delivery: None,
         })
     }
@@ -481,6 +534,7 @@ impl SvgResourceRecord {
     pub fn close(&mut self) {
         self.revoked = true;
         self.fragment_targets.clear();
+        self.template_links = None;
         self.bindings.clear();
         self.delivery = None;
     }
@@ -589,4 +643,81 @@ pub(crate) fn single_url(
         return Err("computed SVG URL required".into());
     };
     Ok((reference, value))
+}
+
+/// Follow only explicit literal fragment hrefs. No fetch, aliases or inherited
+/// content semantics. Each edge retains the exact selected attribute coordinate.
+fn template_chain(
+    tree: &RetainedCemTree,
+    root: AstNodeId,
+    ids: &BTreeMap<String, Vec<AstNodeId>>,
+    cancel: &AbortSignal,
+    spend: &mut impl FnMut(usize) -> Result<(), String>,
+) -> Result<Vec<SvgPaintTemplateLink>, String> {
+    use crate::svg_paint_dependencies::{href, kind, literal_fragment};
+    let mut links = Vec::new();
+    let mut seen = BTreeSet::new();
+    let mut owner = root;
+    loop {
+        active(cancel)?;
+        spend(
+            1 + tree
+                .node(owner)
+                .ok_or("invalid template owner")?
+                .attributes
+                .len(),
+        )?;
+        seen.insert(owner);
+        let Some(attribute) = href(tree, owner) else {
+            break;
+        };
+        if links.len() >= 64 {
+            return Err("SVG paint template depth exceeded".into());
+        }
+        // Fragment href resolves against the element's base. This initial
+        // profile excludes any XML base attribute on the referencing ancestry,
+        // even if empty or apparently equivalent to the acquisition URL.
+        let mut ancestor = Some(owner);
+        while let Some(id) = ancestor {
+            let node = tree.node(id).ok_or("invalid template ancestry")?;
+            spend(1 + node.attributes.len())?;
+            if node.attributes.iter().any(|a| {
+                tree.node(*a)
+                    .and_then(|n| n.name.as_ref())
+                    .is_some_and(|n| {
+                        n.namespace_uri == "http://www.w3.org/XML/1998/namespace"
+                            && n.local_name == "base"
+                    })
+            }) {
+                return Err("SVG paint template XML base context unsupported".into());
+            }
+            ancestor = node.parent;
+        }
+        let value = &tree.node(attribute).ok_or("invalid template href")?.value;
+        spend(value.len())?;
+        let fragment = value
+            .strip_prefix('#')
+            .filter(|id| literal_fragment(id))
+            .ok_or("literal same-body SVG template fragment required")?;
+        let matches = ids.get(fragment).ok_or("missing SVG template target")?;
+        if matches.len() != 1 {
+            return Err("ambiguous SVG template target".into());
+        }
+        let target = matches[0];
+        let target_kind = kind(tree, target).ok_or("unsupported SVG template target kind")?;
+        let owner_kind = kind(tree, owner).ok_or("unsupported SVG template owner kind")?;
+        if (owner_kind == "pattern") != (target_kind == "pattern") {
+            return Err("incompatible SVG template target kind".into());
+        }
+        if seen.contains(&target) {
+            return Err("SVG paint template cycle".into());
+        }
+        links.push(SvgPaintTemplateLink {
+            owner,
+            attribute,
+            target,
+        });
+        owner = target;
+    }
+    Ok(links)
 }

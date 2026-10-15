@@ -4315,6 +4315,40 @@ the independent acquisition API retains conservative blockers. Target identity e
 template traversal, styles, nested resources, winner attribution, original
 browser response identity nor consumption.
 
+Native callers can additionally opt into `validate_paint_templates`. It validates
+fragment targets and walks explicit paint-template references in the same
+acquired tree. Each binding keeps its own ordered chain; shared bodies and
+shared tail targets do not merge consumer slots or observation CSS references.
+`paint_template_links(index)` borrows the original binding and link slice.
+Each link retains owner, selected href attribute and target node coordinates;
+the original href spelling, namespace, source frames and range remain in that
+body's imported tree. A validated leaf returns an empty slice, whereas an absent
+or revoked traversal returns no result.
+
+The bounded traversal uses unqualified `href` before XLink `href`, including
+when the unqualified value is empty or unsupported. Only literal ASCII
+`#identifier` values are admitted; relative/absolute aliases, external URLs,
+percent decoding and view fragments are excluded. Gradients may reference
+either gradient kind; patterns may reference only patterns. Each referenced
+ID must uniquely identify a compatible SVG-namespace element. XML `base`
+attributes anywhere on a referencing element's ancestry reject, even for empty
+or apparently equivalent bases; no URL/base equivalence is inferred.
+
+A chain is limited to 64 edges. The shared work budget covers indexing, link
+visits, href values and ancestry/attribute inspection, capped at one million
+units across all bindings. Cycles, duplicate/missing IDs, incompatible kinds,
+unsupported references and budget failures reject atomically and close the
+record. Acquisition/delivery cancellation hides chains immediately; computed
+observation drift revokes them on revalidation. Running fragment-only
+validation replaces earlier traversal results, so no stale link plan survives
+a narrower validation pass.
+
+This traversal records candidate template edges only. It does not compute
+inherited attributes, cloned content or styles, load nested resources or prove
+browser consumption. All resource/transitive/origin blockers remain. The new
+native traversal API is not yet a preparation ingress option; binding its
+results to browser preparation and verifying compatibility is the next step.
+
 Acquisition inputs contain requested/final URL, revision, MIME and SVG entity
 bytes. Encoded wire bytes and HTTP response headers are outside this profile.
 The initial profile requires equal canonical requested/final HTTP(S) URLs,
