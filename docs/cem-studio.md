@@ -4700,12 +4700,75 @@ coverage. The interleaving probe disproves this observer's read/write sequence a
 an exclusive interval; it does not claim that every possible privileged browser
 integration is incapable of exclusion.
 
-Next specify and prototype an engine-backed adapter for actual cascade winner
-identity, authenticated environment state, pre-mutation invalidation and enforceable
-mutation exclusion. Verify these guarantees before connecting the native admission
-protocol to preparation seals. Do not compensate with polling, accepting a CDP
-origin label as authoritative, public trust flags, or a page media callback.
-No runtime admission blocker is removed by this feasibility result.
+Five additional probes in `scripts/verify-svg-engine-primitives.mjs` test engine
+primitives through independent protocol sessions. An isolated execution context
+reads forced-colors correctly despite a main-world `matchMedia` replacement,
+observes restoration and becomes unusable after navigation. This is a useful
+bounded observation improvement, not an authenticated environment lease or
+complete environment revision stream. While a debugger statement keeps the page
+paused, a second session successfully changes both the SVG attribute and an
+inspector stylesheet; the computed paint then reflects the competing rule.
+The fixture asserts that no debugger-resumed event occurred before these writes.
+Thus debugger pause cannot stand in for the required mutation interval.
+
+These results are saved under `svgOriginProvider.enginePrimitives`, separately
+from the fourteen CDP origin probes. The report retains false environment-lease,
+mutation-interval, execution-seal and production-admission flags. No runtime
+admission blocker is removed. Fixture pause is bounded, resumed during cleanup,
+and confined to a disposable test context; it is not a production strategy for
+freezing user interaction or accessibility preferences.
+
+#### Required engine hooks and integration boundary
+
+The following is an implementation specification, not an existing Chromium API.
+Source inspection uses the pinned `148.0.7778.96` tag. In
+[InspectorCSSAgent::DetectOrigin](https://chromium.googlesource.com/chromium/src/+/refs/tags/148.0.7778.96/third_party/blink/renderer/core/inspector/inspector_css_agent.cc),
+the inspector label is derived from stylesheet ownership/metadata, which explains
+why it is unsuitable as actual cascade-origin evidence. In
+[StyleCascade](https://chromium.googlesource.com/chromium/src/+/refs/tags/148.0.7778.96/third_party/blink/renderer/core/css/resolver/style_cascade.cc),
+declaration application has cascade priority, origin and matched declaration
+coordinates before applying the resolved value. These are candidate internal
+hook locations; neither source reading nor existing value-oriented inspector
+methods establish a ready-to-use provenance API.
+
+An instrumented engine must provide these operations to a private native bridge:
+
+| Operation | Required ownership and behavior |
+| --- | --- |
+| Open owner | Bind a nontransferable engine document/frame identity, engine build/protocol revision and native preparation owner/generation; reject an ordinary page/CDP caller |
+| Observe winners | Flush style under the same owner, identify the final winning source for each requested fill/stroke slot, and correlate an actual presentation declaration with the exact live element/attribute; reject unresolved fallback, inheritance, animation or declaration mapping |
+| Observe environment | Read engine-owned media/rendering state and its revision directly; page or isolated-world JS values cannot mint this evidence |
+| Invalidate | Advance a monotonic owner epoch before any relevant mutation can become usable; cover DOM/style/UA/user/extension writes, settings/media changes, animation transitions, navigation and provider loss, including A-to-B-to-A |
+| Compare and apply | In one engine-controlled interval, compare the expected epoch and original owner/value mapping, apply only native-plan alias replacements, then validate the same winners and resulting aliases before publication |
+| Revoke | Invalidate handles and pending operations on failure/disconnect; recapture requires a new owner and cannot reuse receipts |
+
+Observation must preserve the original source identity through engine resolution;
+a CSS value or a matched-rule index alone is not enough. V1 rejects unsupported
+resolution paths rather than recreating Blink's cascade in JavaScript. The bridge
+returns bounded scalar predicates and opaque native handles, never a copied
+browser CSS tree, serialized lease or caller-defined provenance record.
+
+The compare/apply interval must cover every writer, including other debugger
+sessions and browser/extension processes. An implementation can serialize a
+competing change or abort its own operation before publication; it must not drop
+user settings or suppress accessibility overrides. Checking a revision after a
+visible partial write is insufficient. Rendering/publication must also be held
+until the internal alias operation succeeds. No network request, asynchronous
+page callback or user interaction belongs inside this interval. Existing route
+and byte limits bound the work; operation failure returns no admitted result.
+Receipt acquisition and actual paint consumption remain separate later phases.
+Rollback may restore only still-owned alias values under the same guard; otherwise
+it must dispose the owned output rather than overwrite intervening user changes.
+
+Admission remains unavailable until a maintained instrumented browser build
+implements these hooks and passes the same-value origin, environment, competing
+writer, partial-failure and lifecycle matrix. This workspace has no Chromium
+engine checkout/build target, and the installed stock browser exposes no verified
+adapter satisfying this contract. No speculative C++ patch or native mock is
+presented as engine integration. Isolated-world observation is retained as a
+prototype result; debugger pause is explicitly rejected as an exclusion mechanism.
+Native external-fragment and dependency validation may proceed independently
+while this engine integration dependency remains open.
 
 CEM audit: native source/theme ownership remains authoritative; replay cannot
 outvote user overrides to preserve a fixture result. Variation is bounded by the

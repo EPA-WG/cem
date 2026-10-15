@@ -3086,9 +3086,34 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       no runtime AST, lease, transport or transaction authority crosses the harness.
       CEM audit preserves semantic source/theme ownership and accessibility settings;
       fixture emulation/injection is isolated, with no UI/token/default changes.
-    - [ ] Specify and prototype engine-backed winner/environment observations,
-      pre-mutation invalidation and an enforceable mutation interval to close the
-      CDP feasibility gaps. Require verified guarantees before native admission.
+    - [x] Verify engine primitive fixtures: isolated-world media observation and
+      debugger-pause exclusion against independent protocol writes. Specify the
+      missing engine hook and keep production admission blocked on failed probes.
+      Completed: five probes show isolated media reads resist main-world spoofing,
+      track restoration and expire on navigation. Independent DOM and CSS writes
+      succeed while Debugger remains paused, ruling out pause as mutation exclusion.
+      The report records these under svgOriginProvider.enginePrimitives with all
+      admission/lease/interval flags false. The helper is an explicit Nx input.
+      Verification: final syntax/lint/diff checks and full Chromium gate pass,
+      including five engine-primitive probes, fourteen origin probes, 202 native
+      preparation cases and twelve replay paint probes. No production/native
+      transformation code changed; existing engine admission blockers remain.
+    - [x] Specify engine-backed winner/environment hooks, pre-mutation invalidation
+      and compare/apply exclusion based on pinned Chromium source and primitive
+      probes. The normative contract identifies cascade-origin/source retention,
+      engine-owned environment epochs, all-writer coordination, rendering/publication
+      boundaries and guarded failure cleanup; it does not claim engine integration.
+      CEM audit preserves native semantic/source/theme ownership and accessibility
+      overrides. Fixture isolation/pause is never a production user-setting policy;
+      no public tokens, defaults or UI behavior change.
+    - [ ] Implement and verify those hooks in a maintained instrumented Chromium
+      build. External integration dependency: this workspace has no Chromium engine
+      checkout/build target and stock CDP/debugger primitives failed admission.
+      Keep production admission disabled; do not substitute native mocks or polling.
+    - [ ] Implement bounded external SVG fragment-target validation against native
+      acquired snapshots, with fixtures for missing/duplicate/wrong-kind targets
+      and retained source/fragment ownership. This can proceed independently of
+      the engine admission dependency and must retain consumption blockers.
     - [ ] Bind verified origin leases to the recorded preparation's HTML base/policy
       seals, native author plan and browser/worker lifetime; test wrong-session
       binding and revocation before exposing production admission.
@@ -3106,10 +3131,12 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, specify and prototype engine-backed winner/environment observations,
-pre-mutation invalidation and mutation exclusion: the CDP observer fails the
-admission contract. Then bind a verified provider to native preparation's
-base/policy seals and browser/worker lifetime.
+Next, implement bounded native external SVG fragment-target validation while
+engine admission remains gated on a maintained instrumented Chromium build.
+The engine hook contract is specified; isolated-world media reads are useful
+observations, but debugger pause demonstrably fails mutation exclusion.
+After real engine guarantees are verified, bind the provider to native
+preparation's base/policy seals and browser/worker lifetime.
 Ordinary web hosts remain preparation-only; caller assertions and compatibility
 reports cannot replace provider evidence. Once admission is verified, implement
 controlled alias installation, rollback/disposal, delivery receipts and revocation.

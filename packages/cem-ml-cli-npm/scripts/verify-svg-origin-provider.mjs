@@ -4,6 +4,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
+import { verifySvgEnginePrimitives } from './verify-svg-engine-primitives.mjs';
 
 const VERSION = '148.0.7778.96';
 const blockers = ['browser-origin-completeness-unproven', 'browser-origin-revision-incomplete',
@@ -177,10 +178,12 @@ export async function verifySvgOriginProvider(browser) {
         await probe.session.detach();
         await assert.rejects(() => probe.read());
         cases.push({ name: 'transport-detached' });
+        const enginePrimitives = await verifySvgEnginePrimitives(context, page, origin);
+        assert.equal(enginePrimitives.cases.length, 5);
         assert.equal(cases.length, 14);
         console.log(`Verified ${cases.length} privileged SVG origin feasibility cases in Chromium ${VERSION}; production admission remains blocked.`);
         return { profile: 'chromium-148-cdp-origin-feasibility-v1', version: VERSION,
-            executionSeal: false, productionAdmission: false, blockers, cases };
+            executionSeal: false, productionAdmission: false, blockers, cases, enginePrimitives };
     } finally {
         try { await context?.close(); }
         finally {
