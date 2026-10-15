@@ -2886,6 +2886,30 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
     - [ ] Extend instance-style evaluation beyond the bounded author-rule subset
       with retained cascade/winning-declaration evidence; do not infer winners
       from computed values or compatibility reports.
+    - [x] Bind bounded computed SVG fill/stroke URL references to immutable
+      acquired SVG snapshots with native fixtures for CSS/reference provenance,
+      fragment/body identity, shared bodies, missing/conflicting/unused responses,
+      rejected values/MIME/redirects/XML, bounds, cancellation, stale/foreign
+      computed owners and change-and-restore revocation. This first native step
+      must retain browser-response identity and consumed-resource blockers.
+      Completed: native SvgResourceRecord validates its original computed host,
+      imports observed CSS values through shared retained CSS, and joins one
+      absolute HTTP(S) URL per fill/stroke slot to immutable acquired SVG entity
+      bytes. Fragment/slot/source identities survive body deduplication. Bodies
+      retain native digests and shared-import SVG trees; missing/duplicate/unused
+      responses, redirects, unsupported values/MIME/XML and bounds fail atomically.
+      Validation drift, cancellation and close release bindings irreversibly.
+      All 80 focused native SVG tests pass (eight new acquisition fixtures),
+      alongside all 57 preparation tests. WASM/CLI builds, focused rustfmt/diff
+      checks and the full Chromium regression gate pass, including all 172
+      existing preparation cases. CEM audit preserves native semantic/
+      source/theme ownership and bounded variation; no UI/default/token changes.
+      This is an acquired-snapshot join, not a browser delivery receipt or proof
+      of painting. Preparation integration, response identity, fragment targets,
+      transitive resources, broader CSS selection and general closure stay open.
+      Contract: docs/cem-studio.md#computed-svg-url-bindings-to-acquired-snapshots.
+    - [ ] Integrate computed SVG byte bindings with preparation/acquisition
+      lifetime and verify browser response identity before claiming consumption.
     - [ ] Bind computed CSS/SVG selections to acquired resource bodies before
       claiming rendered-resource closure.
     - [ ] Record remaining computed CSS/SVG and general runtime resource loads,
@@ -2895,10 +2919,11 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, bind computed CSS/SVG selections to acquired resource bodies, preserving
-selection/source and execution lifetime identity. General runtime loads and
-broader cascade evidence remain required before claiming complete dependency
-closure or widening transaction admission.
+Next, integrate the native computed SVG byte bindings with preparation and
+acquisition lifetimes, then establish browser response identity for consumed
+bytes. Extend fragment/embedded SVG dependencies and broader CSS selections
+afterward. General runtime loads and broader cascade evidence remain required
+before complete dependency closure or wider transaction admission.
 Selected image response/candidate binding is available through explicit native
 replay; unchanged-URL observation deliberately retains its historical-identity
 blocker.

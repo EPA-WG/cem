@@ -1,0 +1,342 @@
+//! Bounded joins of observed CSS URL references to separately acquired SVG bytes.
+//! A snapshot is not a receipt for the browser's original response or paint use.
+use crate::{
+    content_cache::ContentHash,
+    css_resources::{attribute, named, resource_reference, CssResourceKind},
+    parser::{
+        tree::{CemTreeNodeKind, RetainedCemTree},
+        AstNodeId,
+    },
+    scheduler::AbortSignal,
+    svg_computed_execution::{SvgComputedEvidence, SvgComputedHost, SvgComputedObserver},
+};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
+const MAX_BYTES: usize = 4 * 1024 * 1024;
+/// Trusted acquisition input. This API performs no fetch and grants no URL access.
+pub struct SvgResourceResponse {
+    pub requested_url: String,
+    pub final_url: String,
+    pub revision: String,
+    pub content_type: String,
+    pub bytes: Vec<u8>,
+}
+pub struct SvgAcquiredBody {
+    response: SvgResourceResponse,
+    tree: Arc<RetainedCemTree>,
+    digest: String,
+}
+impl SvgAcquiredBody {
+    pub fn bytes(&self) -> &[u8] {
+        &self.response.bytes
+    }
+    pub fn tree(&self) -> &Arc<RetainedCemTree> {
+        &self.tree
+    }
+    pub fn url(&self) -> &str {
+        &self.response.final_url
+    }
+    pub fn revision(&self) -> &str {
+        &self.response.revision
+    }
+    pub fn content_type(&self) -> &str {
+        &self.response.content_type
+    }
+    pub fn digest(&self) -> &str {
+        &self.digest
+    }
+}
+pub struct SvgResourceBinding {
+    /// Index in the retained computed evidence; never an authored winner claim.
+    pub slot: usize,
+    pub css: Arc<RetainedCemTree>,
+    pub reference: AstNodeId,
+    pub url: String,
+    /// URL-serialized fragment, not a resolved SVG element or decoded ID.
+    pub fragment: Option<String>,
+    pub body: Arc<SvgAcquiredBody>,
+}
+pub struct SvgResourceRecord {
+    computed: Arc<SvgComputedEvidence>,
+    bindings: Vec<SvgResourceBinding>,
+    cancel: AbortSignal,
+    revoked: bool,
+}
+impl SvgResourceRecord {
+    /// Inspection only; callers must validate this record and their enclosing
+    /// DOM/base/style/policy preparation before consumption. The acquisition
+    /// owner must abort on snapshot-lifetime changes, even at unchanged URLs.
+    pub fn bindings(&self) -> &[SvgResourceBinding] {
+        &self.bindings
+    }
+    pub fn computed(&self) -> &Arc<SvgComputedEvidence> {
+        &self.computed
+    }
+    pub fn blockers(&self) -> &'static [&'static str] {
+        &[
+            "svg-resource-preparation-binding-required",
+            "svg-resource-browser-response-identity-required",
+            "svg-resource-consumption-required",
+            "svg-resource-fragment-target-required",
+            "svg-resource-transitive-dependencies-required",
+            "svg-computed-winning-source-required",
+            "general-runtime-resource-coverage-required",
+        ]
+    }
+    pub fn capture(
+        computed: Arc<SvgComputedEvidence>,
+        host: &mut SvgComputedHost,
+        observer: &mut impl SvgComputedObserver,
+        responses: Vec<SvgResourceResponse>,
+        cancel: AbortSignal,
+    ) -> Result<Self, String> {
+        active(&cancel)?;
+        host.validate(&computed, computed.sources(), observer)?;
+        if responses.len() > 256 {
+            return Err("SVG response count bound exceeded".into());
+        }
+        let mut total = 0usize;
+        let mut bodies = BTreeMap::new();
+        for mut response in responses {
+            active(&cancel)?;
+            for size in [
+                response.bytes.len(),
+                response.requested_url.len(),
+                response.final_url.len(),
+                response.content_type.len(),
+                response.revision.len(),
+            ] {
+                total = total
+                    .checked_add(size)
+                    .ok_or("SVG response byte overflow")?;
+                if total > MAX_BYTES {
+                    return Err("SVG response byte bound exceeded".into());
+                }
+            }
+            let requested = absolute(&response.requested_url)?;
+            let final_url = absolute(&response.final_url)?;
+            if requested.fragment().is_some()
+                || final_url.fragment().is_some()
+                || requested != final_url
+            {
+                return Err("fragment-free nonredirected SVG response required".into());
+            }
+            if response.revision.trim().is_empty() || response.revision.len() > 4096 {
+                return Err("bounded SVG response revision required".into());
+            }
+            if !response.content_type.eq_ignore_ascii_case("image/svg+xml") {
+                return Err("image/svg+xml response required".into());
+            }
+            response.requested_url = requested.to_string();
+            response.final_url = final_url.to_string();
+            if bodies.contains_key(&response.requested_url) {
+                return Err("duplicate SVG response URL".into());
+            }
+            let tree = crate::import::import_data_bytes(
+                &response.bytes,
+                "image/svg+xml",
+                "cem",
+                &response.final_url,
+            )?;
+            if tree
+                .ast_owner()
+                .diagnostics
+                .iter()
+                .any(|d| d.severity.is_hard_violation())
+            {
+                return Err("SVG response import diagnostics".into());
+            }
+            let roots: Vec<_> = tree
+                .node(0)
+                .ok_or("SVG document missing")?
+                .children
+                .iter()
+                .filter_map(|id| tree.node(*id))
+                .filter(|n| n.kind == CemTreeNodeKind::Element)
+                .collect();
+            if roots.len() != 1
+                || !roots[0].name.as_ref().is_some_and(|n| {
+                    n.namespace_uri == "http://www.w3.org/2000/svg" && n.local_name == "svg"
+                })
+            {
+                return Err("SVG namespace document root required".into());
+            }
+            let digest = ContentHash::from_blake3(&response.bytes).header_value();
+            bodies.insert(
+                response.requested_url.clone(),
+                Arc::new(SvgAcquiredBody {
+                    response,
+                    tree,
+                    digest,
+                }),
+            );
+        }
+        let mut bindings = Vec::new();
+        let mut used = BTreeSet::new();
+        for (slot, (source, value)) in computed.sources().iter().zip(computed.values()).enumerate()
+        {
+            active(&cancel)?;
+            let property = &source
+                .document()
+                .node(source.attribute())
+                .and_then(|n| n.name.as_ref())
+                .ok_or("SVG property missing")?
+                .local_name;
+            if !matches!(property.as_str(), "fill" | "stroke") {
+                return Err("SVG resource profile requires fill or stroke".into());
+            }
+            let (css, reference, url) = computed_url(property, value, slot)?;
+            let fragment = url.fragment().map(str::to_owned);
+            let mut request = url.clone();
+            request.set_fragment(None);
+            let key = request.to_string();
+            let body = bodies
+                .get(&key)
+                .ok_or("computed SVG URL has no acquired body")?
+                .clone();
+            used.insert(key);
+            bindings.push(SvgResourceBinding {
+                slot,
+                css,
+                reference,
+                url: url.to_string(),
+                fragment,
+                body,
+            });
+        }
+        if bindings.is_empty() {
+            return Err("SVG resource binding requires observed URL slots".into());
+        }
+        if used.len() != bodies.len() {
+            return Err("unused SVG response in bounded acquisition".into());
+        }
+        host.validate(&computed, computed.sources(), observer)?;
+        active(&cancel)?;
+        Ok(Self {
+            computed,
+            bindings,
+            cancel,
+            revoked: false,
+        })
+    }
+    pub fn validate(
+        &mut self,
+        host: &mut SvgComputedHost,
+        observer: &mut impl SvgComputedObserver,
+    ) -> Result<(), String> {
+        let result = (|| {
+            if self.revoked {
+                return Err("revoked SVG resource record".into());
+            }
+            active(&self.cancel)?;
+            host.validate(&self.computed, self.computed.sources(), observer)?;
+            active(&self.cancel)
+        })();
+        if result.is_err() {
+            self.close();
+        }
+        result
+    }
+    pub fn close(&mut self) {
+        self.revoked = true;
+        self.bindings.clear();
+    }
+}
+fn active(cancel: &AbortSignal) -> Result<(), String> {
+    if cancel.is_aborted() {
+        Err("SVG acquisition cancelled".into())
+    } else {
+        Ok(())
+    }
+}
+fn absolute(value: &str) -> Result<url::Url, String> {
+    if value.len() > 4096 {
+        return Err("SVG resource URL bound exceeded".into());
+    }
+    let url = url::Url::parse(value).map_err(|_| "absolute SVG resource URL required")?;
+    if !matches!(url.scheme(), "http" | "https")
+        || url.host_str().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+    {
+        return Err("HTTP(S) SVG resource URL without credentials required".into());
+    }
+    Ok(url)
+}
+fn computed_url(
+    property: &str,
+    value: &str,
+    slot: usize,
+) -> Result<(Arc<RetainedCemTree>, AstNodeId, url::Url), String> {
+    // External CSS syntax enters through the shared importer, never a regex or
+    // browser DTO. This tree describes an observation, not the authored source.
+    if value.len() > 4096 {
+        return Err("computed SVG CSS byte bound exceeded".into());
+    }
+    let text = format!("{property}:{value}");
+    let uri = format!(
+        "urn:cem:computed-svg-resource:{slot}:{}",
+        ContentHash::from_blake3(text.as_bytes()).header_value()
+    );
+    let css = crate::import::import_data_bytes(
+        text.as_bytes(),
+        "text/css; mode=style-attribute",
+        "cem",
+        &uri,
+    )?;
+    if css
+        .ast_owner()
+        .diagnostics
+        .iter()
+        .any(|d| d.severity.is_hard_violation())
+    {
+        return Err("computed SVG CSS diagnostics".into());
+    }
+    let roots = &css.node(0).ok_or("computed CSS root missing")?.children;
+    if roots.len() != 1 || !named(&css, roots[0], "style-attribute") {
+        return Err("computed CSS declaration list required".into());
+    }
+    let declarations: Vec<_> = css
+        .node(roots[0])
+        .unwrap()
+        .children
+        .iter()
+        .copied()
+        .filter(|id| !named(&css, *id, "comment"))
+        .collect();
+    if declarations.len() != 1
+        || !named(&css, declarations[0], "declaration")
+        || attribute(&css, declarations[0], "name") != Some(property)
+        || attribute(&css, declarations[0], "important").is_some()
+    {
+        return Err("one computed SVG declaration required".into());
+    }
+    let components: Vec<_> = css
+        .node(declarations[0])
+        .unwrap()
+        .children
+        .iter()
+        .copied()
+        .filter(|id| !matches!(attribute(&css, *id, "kind"), Some("whitespace" | "comment")))
+        .collect();
+    if components.len() != 1 {
+        return Err("single computed SVG URL without fallback required".into());
+    }
+    let component = components[0];
+    let reference = if attribute(&css, component, "kind") == Some("function") {
+        let children = &css.node(component).unwrap().children;
+        if children.len() != 1 {
+            return Err("computed CSS function shape unsupported".into());
+        }
+        children[0]
+    } else {
+        component
+    };
+    let Some((value, CssResourceKind::Url)) = resource_reference(&css, reference)? else {
+        return Err("computed SVG URL required".into());
+    };
+    let url = absolute(&value)?;
+    Ok((css, reference, url))
+}

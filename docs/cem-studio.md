@@ -4263,6 +4263,71 @@ without claiming universal CSS support. No UI, public token or accessibility
 behavior changes. Forced-color/user-origin and physical-device/AT acceptance
 remain independent of these author-color derivations.
 
+### Computed SVG URL bindings to acquired snapshots
+
+`cem_ml::svg_resource_acquisition::SvgResourceRecord` is the first bounded native
+byte-binding step. It joins current observed CSS URL references in SVG `fill`
+and `stroke` slots to separately acquired, immutable SVG snapshots. It performs
+no fetch and grants no URL access. A caller-provided acquisition snapshot is
+not proof of the response the browser received or the resource it painted.
+Browser preparation integration remains a separate next step.
+
+Capture retains the original `Arc<SvgComputedEvidence>`, validates it against
+its original `SvgComputedHost` before and after the join, and imports each
+observed property/value through the shared native CSS importer. Only a single
+static absolute HTTP(S) URL is admitted per slot, without credentials or a
+fallback paint. Quoted/unquoted URLs and CSS escapes use imported component/
+function nodes; no new CSS parser, regular expression or JavaScript AST is used.
+Every captured slot must fit this profile. Relative/local-fragment references,
+plain colors, lists, variables, other properties and importance reject rather
+than silently dropping coverage. General CSS property selection remains open.
+
+Each binding retains its computed-slot index, observation CSS tree/reference
+node, full normalized URL and URL-serialized fragment. These coordinates belong
+to the computed observation, distinct from the retained authored presentation
+attribute and its CSS tree. This is not a winning-declaration attribution. The
+fragment stays separate from the fragment-free request/body key; it is not yet
+a decoded ID or a resolved SVG target. Multiple slots or fragments can share one
+retained body without collapsing their individual references.
+
+Acquisition inputs contain requested/final URL, revision, MIME and SVG entity
+bytes. Encoded wire bytes and HTTP response headers are outside this profile.
+The initial profile requires equal canonical requested/final HTTP(S) URLs,
+fragment-free metadata, a nonempty revision and `image/svg+xml` without MIME
+parameters. Duplicate, missing or unused responses reject atomically. Redirects
+and other media types need later profiles. The native record computes a BLAKE3
+digest from the retained bytes and imports those exact bytes through the shared
+XML importer, requiring an SVG-namespace document root. Its imported tree and
+original bytes remain together. It does not execute scripts, resolve fragment
+targets or traverse nested dependencies. Parsing a body does not establish that
+its referenced paint server exists or that a browser consumed it.
+
+Limits are 256 responses, four MiB total body/metadata bytes, 4096-byte URLs and
+revisions, and the existing computed-slot/CSS/XML import bounds. Cancellation
+is checked before, throughout and after capture. Reads require explicit native
+validation of computed owner/epoch/environment/values and the cancellation
+signal. Failure or explicit close permanently revokes the record and clears its
+body bindings; restored values cannot revive it. Retained getters are for
+inspection. The acquisition owner must abort when its snapshot lifetime ends,
+including changes at an unchanged URL; the record does not poll remote content.
+The enclosing document/base/stylesheet/policy preparation still needs validation.
+
+Native fixtures cover exact bytes/digest/source identity, shared bodies with
+distinct fragments, CSS escapes, invalid or missing acquisition inputs, profile
+rejections, byte/count bounds, foreign/stale computed hosts, restored values,
+body release, pre-abort and cancellation during final observation. Existing
+browser behavior and summary fields are unchanged. Preparation binding, browser
+response identity, actual consumption, fragment-target resolution, transitive
+SVG dependencies, winning sources and general runtime closure remain explicit
+blockers. This partial native binding does not remove existing execution blockers
+or authorize edits/transactions.
+
+CEM audit: authored source and theme ownership remain separate from observations
+and acquired bytes. No copied computed value becomes a declaration, no component
+behavior/default/public token changes, and no general forced-color or device/AT
+acceptance is claimed. Broader selection and transport support must preserve the
+same native ownership and bounded variation.
+
 ### Shared browser stylesheet observation host
 
 `BrowserHtmlBaseHost.captureStylesheets(responses, { ownership: 'exclusive' })`
