@@ -4122,6 +4122,122 @@ winning-source evidence remain outside this subset; existing blockers remain.
 The change enables retained author override provenance without adding component
 styles, theme defaults or public tokens.
 
+### Bounded stylesheet matching and paint cascade contract
+
+Status: design accepted for the next implementation increment. The current
+bounded evaluator still rejects style elements. This contract does not widen
+browser preparation or remove any existing evidence blocker by itself.
+
+The first rule profile will admit document-owned SVG `style` elements with
+absent or CSS type, no title and no outer media, alongside the existing SVG
+presentation attributes and inline declarations. Each style must have exactly
+one successful `DocumentStylesheetOccurrence` from the same retained inventory.
+HTML style elements, external sheets, imports, adopted sheets, nested rules,
+conditional rules, layers, scopes and namespace declarations remain unsupported.
+Reject these inputs before selecting winners, including apparently inactive or
+nonmatching rules. Style order is retained document traversal order, followed
+by rule and declaration order within each sheet; node IDs and source offsets
+are identities/coordinates, not a replacement for that ordering. SVG style
+rules have document scope; their containing gradient or defs is not an implicit
+selector scope. Browser enablement needs the installation evidence below.
+
+Consume the importer's retained `stylesheet`, `rule`, `selector-list`,
+`selector`, `compound-selector` and `simple-selector` nodes. Require complete
+selector analysis, top-level style rules, and explicit non-parent-dependent
+specificity. Do not reparse selector strings, use JavaScript `matches`, or use
+managed CSS selector emission: emitted scope/ownership selectors serve a
+different contract. Decoded names, values, namespaces and source ranges must
+come from the shared CSS import boundary.
+
+The initial matching subset is a comma-separated list of single compounds made
+from type/universal, ID and class selectors, for example `stop.hot`, `#accent`
+and `stop, .accent`. Match exact SVG local names and exact unnamespaced ID/class
+values; class membership splits on ASCII whitespace. Honor retained namespace
+constraints (`*` matches any namespace, empty means no namespace); only SVG
+elements are evaluation targets. Do not lowercase SVG names, IDs or classes or
+borrow HTML quirks-mode matching. Repeated simple selectors all participate in
+specificity. All branches must be supported, even when another branch matches.
+Combinators, attribute selectors, nesting, pseudo-classes and pseudo-elements
+reject this first profile. A valid selector with no matches is retained as a
+nonmatch, while an unsupported selector is an error.
+
+For a rule with several matching branches, its priority uses the greatest
+specificity among those branches, not among all authored branches. Retain every
+matching selector ID and the selected specificity; equal-specificity branches
+do not duplicate declarations. This follows the
+[selector specificity rules](https://www.w3.org/TR/selectors-4/#specificity-rules).
+Matching evaluates the source element in the original document. It does not
+match invented clone DOM or switch ancestry to the receiving host. Existing
+flat-content limits and the explicitly selected clone profile still apply.
+
+Within this unlayered author-only profile, compare local declarations in this
+order: importance, inline attachment, specificity, then source order. Inline
+attachment wins only at equal importance: an important stylesheet declaration
+beats normal inline style, while important inline style beats important rules.
+Presentation attributes are normal author hints with zero specificity preceding
+all author rules; therefore a matching universal rule beats a presentation
+attribute. These priorities follow the
+[cascade sorting order](https://www.w3.org/TR/css-cascade-5/#cascade-sort).
+Select the local winner before inheritance; an ancestor's importance or
+specificity never competes with a child's declaration. Continue the existing
+explicit `color`/`currentColor` inheritance walk. Missing explicit paint/color,
+unsupported values, and unsupported properties fail as before. Validate every
+CSS declaration, including nonmatching rules and losers, without implementing
+browser error recovery. Only `color`, `fill` and `stop-color` and the current
+bounded value grammar are admitted.
+
+Winner provenance must use a native tagged origin: presentation attribute,
+inline declaration, or stylesheet rule declaration. Each CSS origin retains its
+original document occurrence, CSS tree Arc and declaration ID; a rule origin
+also retains rule ID, matching selector IDs, specificity, importance and
+sheet/rule/declaration ordinals. Document IDs and CSS-local IDs must remain
+separate. Refactor the existing attribute-only winner and derived
+`paint_declaration`/`color_declarations` fields rather than putting a style-element
+ID into a field claiming to be an attribute. Retain evaluated nonmatching and
+losing rules through the same inventory, and keep the consulted element/color
+inheritance chain. Equal RGBA values with different winners must still preserve
+different origins. Native plans own all evidence; browser summaries expose
+counts only and cannot supply selector matches or winners.
+
+Use at most 256 style elements, 1024 rules, 4096 selector branches, 64 simple
+selectors per compound and 4096 total CSS declarations across inline styles and
+sheets. These are additional caps within the existing one-million-unit work
+budget, 256-host and 128-ancestor bounds. Charge validation, value bytes,
+selector comparisons, class scans and repeated inheritance lookups to the same
+budget. Exhaustion, unsupported structure or missing provenance fails atomically
+with no partial plan. Reusing an immutable rule index must not bypass lifetime
+validation or budget accounting for matching work.
+
+Browser integration is a separate required step. Before publication, join every
+admitted native sheet to its exact installed, enabled and untitled stylesheet
+using the existing stylesheet observation capability and original document
+correspondence. CSSOM/source/installation disagreement rejects capture. A style
+node's presence alone cannot establish application. Preserve source-property
+CSSOM checks, profile confirmation and exclusive CSSOM mutation ownership.
+Rule insertion/deletion, declaration/priority edits, sheet disablement or
+replacement, and ID/class/source changes must revoke, including change-and-
+restore mutations. Disposal and pool closure release both rule and color plans.
+Chromium fixtures must establish source CSSOM and isolated SVG raster parity;
+neither proves browser-private clone identity or actual consumed resource bytes.
+
+Acceptance proceeds through native fixtures first: namespace/case/escape and
+class matching; selector-list matched specificity; universal versus presentation,
+inline versus rules at both importance levels, cross-sheet order and local
+inheritance; retained source identities even for identical colors; rejected
+selectors/rules/declarations; bounds, cancellation and stale inventory. Then
+browser fixtures cover those priorities and restored DOM/CSSOM mutations in
+both direct and worker preparation. Broader selectors, HTML ancestry, layers,
+conditional/external rules and complete origin/environment handling require
+separate profile extensions. Full-cascade winning-source, clone-execution,
+rendering and resource-acquisition blockers remain.
+
+CEM audit: authored semantic and theme ownership stays in retained sources;
+matching never copies computed values into declarations or creates component
+CSS/defaults. Explicit bounded variation preserves inherited consumer overrides
+without claiming universal CSS support. No UI, public token or accessibility
+behavior changes. Forced-color/user-origin and physical-device/AT acceptance
+remain independent of these author-color derivations.
+
 ### Shared browser stylesheet observation host
 
 `BrowserHtmlBaseHost.captureStylesheets(responses, { ownership: 'exclusive' })`

@@ -2826,6 +2826,26 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       cascade, user/UA/environment overrides, general forced-color/AT acceptance
       and rendered-resource evidence remain open.
       Contract: docs/cem-studio.md#inline-paint-color-declarations-and-priority.
+    - [x] Define bounded stylesheet matching and cascade precedence with retained
+      selector/declaration provenance.
+      Completed design: SVG style elements, single-compound type/universal/ID/
+      class selector lists, matched-branch specificity and unlayered author
+      priority. Native tagged origins distinguish presentation/inline/rule
+      winners; document order, bounds, atomic rejection and browser installation/
+      mutation obligations are explicit. Reviewed against retained CSS import
+      shape, current color evaluator and W3C selector/cascade contracts.
+      Documentation-only: runtime still rejects style elements; no new fixture
+      or browser acceptance is claimed. CEM audit preserves source/theme
+      ownership, bounded variation and inherited overrides; no defaults/tokens
+      change. Full-cascade, forced-color and execution/resource blockers remain.
+      Contract: docs/cem-studio.md#bounded-stylesheet-matching-and-paint-cascade-contract.
+    - [ ] Implement the bounded native stylesheet matcher and tagged winner
+      origins, starting with fixtures for compound/list matching, namespace/case/
+      escapes, matched specificity, importance/inline/presentation priority,
+      cross-sheet order, inheritance, source identity, rejected syntax and bounds.
+    - [ ] Bind stylesheet color plans to installed browser preparation; add
+      Chromium CSSOM/raster parity and restored class/ID/rule/priority/disablement/
+      replacement mutations, cancellation and worker/pool lifetime fixtures.
     - [ ] Extend instance-style evaluation beyond the presentation/inline subset
       with retained cascade/winning-declaration evidence; do not infer winners
       from computed values or compatibility reports.
@@ -2838,9 +2858,10 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
 
-Next, define bounded stylesheet-rule matching and cascade precedence with retained
-selector/declaration provenance, extending the presentation/inline subset. Then
-bind computed CSS/SVG selections to acquired resource bodies. General runtime
+Next, implement the bounded native stylesheet matcher and tagged winner origins
+from the accepted contract, starting with native fixtures. Then bind the plans to
+browser preparation and verify Chromium parity and mutation revocation. Bind
+computed CSS/SVG selections to acquired resource bodies afterward; general runtime
 loads remain required before claiming complete dependency closure.
 Selected image response/candidate binding is available through explicit native
 replay; unchanged-URL observation deliberately retains its historical-identity
