@@ -4,8 +4,6 @@
     <meta name="copyright" content="Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>">
     <!--
 
-
-
 Action State
 * default, normal, no state
 * hover
@@ -22,7 +20,6 @@ Action variation
 * danger
 * ghost
 
-
     -->
     <meta charset="UTF-8">
     <meta content="text/html; charset=utf-8" http-equiv="Content-Type"/>
@@ -32,18 +29,16 @@ Action variation
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&icon_names=shift" />    <link crossorigin="anonymous" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css"
           integrity="sha384-DyZ88mC6Up2uqS4h/KRgHuoeGwBcD4Ng9SiP4dIRy0EXTlnuz47vAwmeGwVChigm" rel="stylesheet"/>
-    <script type="importmap">
-{
-        "imports": {
-                "@epa-wg/cem-elements": "../../../cem-elements/dist/index.js",
-                "@epa-wg/cem-ml/wasm": "../../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
-                "@epa-wg/cem-demo-element": "../../../cem-demo-element/dist/index.js",
-                "@epa-wg/cem-theme/styles.css": "../../../cem-theme/dist/lib/css/cem-combined.css",
-                "@epa-wg/cem-components/components/cem-action": "../../../cem-components/src/components/cem-action/cem-action.xhtml",
-                "@epa-wg/cem-components/action-playground": "../../../cem-components/playgrounds/cem-action.html"
-        }
-}
-    </script>
+    <script type="importmap">{
+    "imports": {
+        "@epa-wg/cem-elements": "../../../cem-elements/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-demo-element": "../../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-theme/styles.css": "../../../cem-theme/dist/lib/css/cem-combined.css",
+        "@epa-wg/cem-components/action-playground": "../../../cem-components/playgrounds/cem-action.html",
+        "@epa-wg/cem-components/components/": "../../../cem-components/src/components/"
+    }
+}</script>
     <script type="module">
         import { installCemElementRuntime } from '@epa-wg/cem-elements';
         import '@epa-wg/cem-demo-element';
@@ -77,9 +72,8 @@ ToDO
 <body class="cem-theme-light">
 <cem-element hidden>
     <template type="text/cem-ml">
-{cem-module-url @slice=actionUrl @src="@epa-wg/cem-components/components/cem-action"}
-{cem:if @test="datadom.slices.actionUrl" |
-    {cem-element @tag=cem-action @capability=action-command @src="{$datadom.slices.actionUrl}#cem-action"}}
+
+{cem-element @tag=cem-action @capability=action-command @src="@epa-wg/cem-components/components/cem-action/cem-action.xhtml#cem-action"}
 {cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
 {cem:if @test="datadom.slices.themeUrl" |
     {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
@@ -206,7 +200,6 @@ ToDO
 <cem-action variant="contextual">More options</cem-action>
         </template>
     </cem-demo-element>
-
 
     <cem-demo-element legend="Action variations matrix">
         <p slot="description">Compare all five CEM action intents. Hover, press or

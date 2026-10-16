@@ -64,18 +64,20 @@ const SAMPLE_CONTRACTS: readonly SampleSourceContract[] = [
         includes: [
             '{cem-module-url @slice=documentUrl @src="./embed-1.html"}',
             '@tag=cem-module-relative-declaration',
-            '@src="{$datadom.slices.documentUrl}"',
+            '@src="./embed-1.html"',
             '{cem-module-relative-declaration |',
         ],
+        excludes: ['@src="{$datadom.slices.documentUrl}"', '@test=datadom.slices.documentUrl'],
     },
     {
         legend: '4a. Mapped declaration source',
         includes: [
             '{cem-module-url @slice=libUrl @src=embed-lib}',
             '@tag=cem-module-mapped-declaration',
-            '@src="{$datadom.slices.libUrl}#embed-lib-component"',
+            '@src="lib-root/embed-lib.html#embed-lib-component"',
             '{cem-module-mapped-declaration |',
         ],
+        excludes: ['@src="{$datadom.slices.libUrl}', '@test=datadom.slices.libUrl'],
     },
     {
         legend: '4b. Missing import-map entry',
@@ -92,8 +94,8 @@ const SAMPLE_CONTRACTS: readonly SampleSourceContract[] = [
             '@slice=fragmentUrl',
             '@src="lib-root/embed-lib.html#embed-relative-file"',
             '@tag=cem-module-mapped-fragment',
-            '@src="{$datadom.slices.fragmentUrl}"',
         ],
+        excludes: ['@src="{$datadom.slices.fragmentUrl}"', '@test=datadom.slices.fragmentUrl'],
     },
     {
         legend: '4d. Mapped image and same-library fragment',
@@ -102,7 +104,7 @@ const SAMPLE_CONTRACTS: readonly SampleSourceContract[] = [
             '@src="lib-root/Smiley.svg"',
             '@href="{$datadom.slices.fragmentUrl}"',
             '@src="{$datadom.slices.imageUrl}"',
-            '{cem-element @src="{$datadom.slices.fragmentUrl}"',
+            '{cem-element @src="lib-root/embed-lib.html#embed-relative-hash"',
         ],
         excludes: ['@tag=', 'onclick=', 'XSLTProcessor'],
     },

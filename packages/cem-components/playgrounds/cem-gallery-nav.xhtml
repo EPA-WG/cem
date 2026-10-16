@@ -1,8 +1,8 @@
 <cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-gallery-nav">
   <!-- Shared documentation chrome; the theme control is a disabled placeholder. -->
   <template id="cem-gallery-nav" type="text/cem-ml">
-    {cem-module-url @slice=iconButtonUrl @src="@epa-wg/cem-components/components/cem-icon-button"}
-    {cem:if @test="datadom.slices.iconButtonUrl" | {cem-element @tag=cem-icon-button @src="{$datadom.slices.iconButtonUrl}#cem-icon-button"}}
+
+    {cem-element @tag=cem-icon-button @src="@epa-wg/cem-components/components/cem-icon-button/cem-icon-button.xhtml#cem-icon-button"}
     {attribute @name=heading | Components}
     {attribute @name=index-href | ./index.html}
     {style @type="text/css" |```

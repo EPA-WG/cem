@@ -74,9 +74,10 @@
         <h3>Where NOT to use <code>cem-module-url</code>?</h3>
         Answer:
         <ol>
-            <li> for relative or absolute <code>src</code> values on
-                <code>cem-element</code>, which already resolve from the declaration base URL;
-                resolve a mapped bare specifier first and pass its URL to a dynamic declaration
+            <li> for <code>src</code> values on <code>cem-element</code>, which resolve
+                relative URLs and import-map specifiers directly. Include the full document
+                path and optional fragment, for example <code>lib-root/embed-lib.html#embed-lib-component</code>.
+                Keep a URL slice only when the resolved URL is also needed for a link or other displayed value.
             </li>
             <li> for getting/setting the page URL,<br/>
                 - see <a href="./set-url.html">How to set page URL in <code>custom-element</code>?</a>
@@ -185,22 +186,16 @@
 
     <cem-demo-element
         legend="4. Relative declaration source"
-        description="cem-module-url resolves a relative document from this demo's base URL before the declaration loads it">
+        description="cem-element loads the relative document directly; the separate URL slice displays its resolved link">
         <template>
 <cem-element>
     <template type="text/cem-ml">
+{cem-element @tag=cem-module-relative-declaration @src="./embed-1.html"}
 {cem-module-url @slice=documentUrl @src="./embed-1.html"}
 {article @class=demo-card |
     {p | Relative document: {output | {$datadom.slices.documentUrl}}}
-    {cem:if @test=datadom.slices.documentUrl |
-        {cem-element
-            @tag=cem-module-relative-declaration
-            @src="{$datadom.slices.documentUrl}"}
-        {a @href="{$datadom.slices.documentUrl}" |
-            {cem-module-relative-declaration |
-                loading ./embed-1.html}
-        }
-    }
+    {a @href="{$datadom.slices.documentUrl}" |
+        {cem-module-relative-declaration | loading ./embed-1.html}}
 }
     </template>
 </cem-element>
@@ -209,23 +204,18 @@
 
     <cem-demo-element
         legend="4a. Mapped declaration source"
-        description="cem-module-url resolves a bare specifier before its absolute URL is passed to a dynamic cem-element declaration">
+        description="cem-element resolves the full document path through the folder import map; the URL slice displays the mapped link">
         <template>
 <cem-element>
     <template type="text/cem-ml">
+{cem-element @tag=cem-module-mapped-declaration @src="lib-root/embed-lib.html#embed-lib-component"}
 {cem-module-url @slice=libUrl @src=embed-lib}
 {article @class=demo-card |
     {p | Mapped document:
         {a @href="{$datadom.slices.libUrl}" |
             {output | {$datadom.slices.libUrl}}}
     }
-    {cem:if @test=datadom.slices.libUrl |
-        {cem-element
-            @tag=cem-module-mapped-declaration
-            @src="{$datadom.slices.libUrl}#embed-lib-component"}
-        {cem-module-mapped-declaration |
-            failed to load embed-lib}
-    }
+    {cem-module-mapped-declaration | failed to load embed-lib}
 }
     </template>
 </cem-element>
@@ -260,6 +250,7 @@
         <template>
 <cem-element>
     <template type="text/cem-ml">
+{cem-element @tag=cem-module-mapped-fragment @src="lib-root/embed-lib.html#embed-relative-file"}
 {cem-module-url
     @slice=fragmentUrl
     @src="lib-root/embed-lib.html#embed-relative-file"}
@@ -268,13 +259,7 @@
         {a @href="{$datadom.slices.fragmentUrl}" |
             {output | {$datadom.slices.fragmentUrl}}}
     }
-    {cem:if @test=datadom.slices.fragmentUrl |
-        {cem-element
-            @tag=cem-module-mapped-fragment
-            @src="{$datadom.slices.fragmentUrl}"}
-        {cem-module-mapped-fragment |
-            failed to load mapped fragment}
-    }
+    {cem-module-mapped-fragment | failed to load mapped fragment}
 }
     </template>
 </cem-element>
@@ -299,10 +284,11 @@
             {img @src="{$datadom.slices.imageUrl}" @alt="Mapped Smiley"}
             lib-root/…#embed-relative-hash
         }
-        {hr}
-        {cem-element @src="{$datadom.slices.fragmentUrl}" |
-            loading same-library fragment}
-}   }
+    }
+    {hr}
+    {cem-element @src="lib-root/embed-lib.html#embed-relative-hash" |
+        loading same-library fragment}
+}
     </template>
 </cem-element>
         </template>

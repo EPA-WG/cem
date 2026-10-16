@@ -4,6 +4,20 @@
     "sourceRoot": "packages/cem-components/src",
     "projectType": "library",
     "targets": {
+        "verify-demo-imports": {
+            "executor": "nx:run-commands",
+            "cache": false,
+            "dependsOn": [
+                "build:playgrounds",
+                "build:bundle",
+                { "projects": ["cem-elements", "@epa-wg/cem-demo-element"], "target": "build" },
+                { "projects": ["@epa-wg/cem-theme"], "target": "build:css" }
+            ],
+            "options": {
+                "command": "node tools/scripts/verify-cem-demo-imports.mjs",
+                "cwd": "{workspaceRoot}"
+            }
+        },
         "build:bundle": {
             "cache": true,
             "executor": "nx:run-commands",

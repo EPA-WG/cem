@@ -189,8 +189,9 @@ inherited source bases and fragment-free specifier path. Bare source cache keys 
 context identity, so sibling contexts cannot share differently mapped sources. Hosts that add security-policy resolution SHOULD include those identities in their
 `loadSrcDocument` behavior or use separate runtime instances when policy differs.
 
-The direct full-path convention is being piloted in `cem-theme-switch-gallery.html`. Broader gallery and component
-authoring adoption remains a separate design decision.
+Demo pages and shared gallery navigation use direct full-path declaration specifiers with library folder mappings.
+Relative declarations keep their existing behavior, and URL slices remain useful for resolved links, images and other
+displayed URL values. Source and generated package pages are covered by `@epa-wg/cem-components:verify-demo-imports`.
 
 The browser runtime shares pending source loads and retains successful documents.
 A rejected source load is evicted, and its failed declaration can attempt registration
