@@ -1,3 +1,12 @@
+## Direct cem-element module sources (2026-10-16)
+
+- [x] Fixture: verify full XHTML prefix/exact mappings with the shared native resolver, then browser declaration loading with fragments, contextual maps, host resolvers, failed resolution and retries.
+- [x] Reuse the cem-module-url resolver for bare declaration sources; split fragments first and retain relative/local source loading and host-loader compatibility.
+- [x] Pilot explicit mapped XHTML sources in the theme-switch gallery; verify registration, interactions and document fetches before broader convention adoption.
+- [ ] Design follow-up: review the direct full-path gallery pilot before adopting the convention across other galleries and component declarations.
+
+Evidence: 16 native module-resolution tests, 15 focused unit checks and 30 browser plays pass, including nine new declaration-source plays and the existing URL-control settlement, source retry, relative/nested source, URI policy, module/referrer demo and theme-switch cases. The real source gallery registers all 18 direct imports without declaration diagnostics or browser errors and switches through all five themes. Runtime build and lint pass (16 existing lint warnings). Workspace typecheck passes with the CLI dependency's generated command-schema source temporarily materialized from its existing generated schema, then removed; the unprepared typecheck target still encounters that dependency's missing transient source. The shared navigation keeps its legacy icon-button alias during this pilot. CEM audit: no gallery sample, component behavior, CSS or theme-token changes; existing capabilities and relative dependencies are preserved. Resolution failures are evicted only for declaration imports, preserving URL-control failure settlement across rerenders.
+
 # Todo
 
 This file is the authoritative checklist for active execution work.

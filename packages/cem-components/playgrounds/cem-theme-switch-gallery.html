@@ -4,70 +4,16 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>cem-theme-switch — Full examples and variation matrix</title>
+    <!-- Keep the icon-button alias for shared navigation during the direct-src pilot. -->
     <script type="importmap">{
     "imports": {
         "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
         "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
         "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
         "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
-        "@epa-wg/cem-components/styles.css": "../dist/styles.css",
-        "@epa-wg/cem-components/components/cem-action": "../src/components/cem-action/cem-action.xhtml",
-        "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
-        "@epa-wg/cem-components/action-playground": "./cem-action.html",
-        "@epa-wg/cem-components/components/cem-theme-switch": "../src/components/cem-theme-switch/cem-theme-switch.xhtml",
-        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
-        "@epa-wg/cem-components/components/cem-select": "../src/components/cem-select/cem-select.xhtml",
-        "@epa-wg/cem-components/components/cem-checkbox": "../src/components/cem-checkbox/cem-checkbox.xhtml",
-        "@epa-wg/cem-components/components/cem-radio": "../src/components/cem-radio/cem-radio.xhtml",
-        "@epa-wg/cem-components/components/cem-switch": "../src/components/cem-switch/cem-switch.xhtml",
-        "@epa-wg/cem-components/components/cem-autocomplete": "../src/components/cem-autocomplete/cem-autocomplete.xhtml",
-        "@epa-wg/cem-components/components/cem-datepicker": "../src/components/cem-datepicker/cem-datepicker.xhtml",
-        "@epa-wg/cem-components/components/cem-icon-button": "../src/components/cem-icon-button/cem-icon-button.xhtml",
-        "@epa-wg/cem-components/components/cem-menu": "../src/components/cem-menu/cem-menu.xhtml",
-        "@epa-wg/cem-components/components/cem-dropdown": "../src/components/cem-dropdown/cem-dropdown.xhtml",
-        "@epa-wg/cem-components/components/cem-dialog": "../src/components/cem-dialog/cem-dialog.xhtml",
-        "@epa-wg/cem-components/components/cem-dialog-shell": "../src/components/cem-dialog-shell/cem-dialog-shell.xhtml",
-        "@epa-wg/cem-components/components/cem-sheet": "../src/components/cem-sheet/cem-sheet.xhtml",
-        "@epa-wg/cem-components/components/cem-tooltip": "../src/components/cem-tooltip/cem-tooltip.xhtml",
-        "@epa-wg/cem-components/components/cem-menu-item": "../src/components/cem-menu-item/cem-menu-item.xhtml",
-        "@epa-wg/cem-components/components/cem-field": "../src/components/cem-field/cem-field.xhtml",
-        "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml",
-        "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml",
-        "@epa-wg/cem-components/components/cem-textarea": "../src/components/cem-textarea/cem-textarea.xhtml",
-        "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "./assets/wc-square.svg",
-        "@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml": "./cem-gallery-nav.xhtml",
-        "@epa-wg/cem-components/components/cem-slider": "../src/components/cem-slider/cem-slider.xhtml",
-        "@epa-wg/cem-components/components/cem-timepicker": "../src/components/cem-timepicker/cem-timepicker.xhtml",
-        "@epa-wg/cem-components/components/cem-nav": "../src/components/cem-nav/cem-nav.xhtml",
-        "@epa-wg/cem-components/components/cem-tabs": "../src/components/cem-tabs/cem-tabs.xhtml",
-        "@epa-wg/cem-components/components/cem-stepper": "../src/components/cem-stepper/cem-stepper.xhtml",
-        "@epa-wg/cem-components/components/cem-tree": "../src/components/cem-tree/cem-tree.xhtml",
-        "@epa-wg/cem-components/components/cem-list": "../src/components/cem-list/cem-list.xhtml",
-        "@epa-wg/cem-components/components/cem-chip": "../src/components/cem-chip/cem-chip.xhtml",
-        "@epa-wg/cem-components/components/cem-surface": "../src/components/cem-surface/cem-surface.xhtml",
-        "@epa-wg/cem-components/components/cem-text": "../src/components/cem-text/cem-text.xhtml",
-        "@epa-wg/cem-components/components/cem-stack": "../src/components/cem-stack/cem-stack.xhtml",
-        "@epa-wg/cem-components/components/cem-grid": "../src/components/cem-grid/cem-grid.xhtml",
-        "@epa-wg/cem-components/components/cem-divider": "../src/components/cem-divider/cem-divider.xhtml",
-        "@epa-wg/cem-components/components/cem-card": "../src/components/cem-card/cem-card.xhtml",
-        "@epa-wg/cem-components/components/cem-expansion": "../src/components/cem-expansion/cem-expansion.xhtml",
-        "@epa-wg/cem-components/components/cem-table": "../src/components/cem-table/cem-table.xhtml",
-        "@epa-wg/cem-components/components/cem-sort-header": "../src/components/cem-sort-header/cem-sort-header.xhtml",
-        "@epa-wg/cem-components/components/cem-paginator": "../src/components/cem-paginator/cem-paginator.xhtml",
-        "@epa-wg/cem-components/components/cem-toast": "../src/components/cem-toast/cem-toast.xhtml",
-        "@epa-wg/cem-components/components/cem-progress": "../src/components/cem-progress/cem-progress.xhtml",
-        "@epa-wg/cem-components/components/cem-progress-spinner": "../src/components/cem-progress-spinner/cem-progress-spinner.xhtml",
-        "@epa-wg/cem-components/components/cem-skeleton": "../src/components/cem-skeleton/cem-skeleton.xhtml",
-        "@epa-wg/cem-components/components/cem-alert": "../src/components/cem-alert/cem-alert.xhtml",
-        "@epa-wg/cem-components/components/cem-option": "../src/components/cem-option/cem-option.xhtml",
-        "@epa-wg/cem-components/components/cem-option-group": "../src/components/cem-option-group/cem-option-group.xhtml",
-        "@epa-wg/cem-components/components/cem-badge": "../src/components/cem-badge/cem-badge.xhtml",
-        "@epa-wg/cem-components/components/cem-avatar": "../src/components/cem-avatar/cem-avatar.xhtml",
-        "@epa-wg/cem-components/components/cem-media-preview": "../src/components/cem-media-preview/cem-media-preview.xhtml",
-        "@epa-wg/cem-components/components/cem-tree-item": "../src/components/cem-tree-item/cem-tree-item.xhtml",
-        "@epa-wg/cem-components/components/cem-app-bar": "../src/components/cem-app-bar/cem-app-bar.xhtml",
-        "@epa-wg/cem-components/components/cem-tab": "../src/components/cem-tab/cem-tab.xhtml",
-        "@epa-wg/cem-components/components/cem-step": "../src/components/cem-step/cem-step.xhtml"
+        "@epa-wg/cem-components/components/": "../src/components/",
+        "@epa-wg/cem-components/playgrounds/": "./",
+        "@epa-wg/cem-components/components/cem-icon-button": "../src/components/cem-icon-button/cem-icon-button.xhtml"
     }
 }</script>
     <script type="module">
@@ -83,40 +29,28 @@
 </head>
 <body>
 <cem-element hidden><template type="text/cem-ml">
-{cem-module-url @slice=cemoptionUrl @src="@epa-wg/cem-components/components/cem-option"}{cem:if @test="datadom.slices.cemoptionUrl" | {cem-element @tag=cem-option @src="{$datadom.slices.cemoptionUrl}#cem-option"}}
-{cem-module-url @slice=cemoptiongroupUrl @src="@epa-wg/cem-components/components/cem-option-group"}{cem:if @test="datadom.slices.cemoptiongroupUrl" | {cem-element @tag=cem-option-group @src="{$datadom.slices.cemoptiongroupUrl}#cem-option-group"}}
-{cem-module-url @slice=cembadgeUrl @src="@epa-wg/cem-components/components/cem-badge"}{cem:if @test="datadom.slices.cembadgeUrl" | {cem-element @tag=cem-badge @src="{$datadom.slices.cembadgeUrl}#cem-badge"}}
-{cem-module-url @slice=cemavatarUrl @src="@epa-wg/cem-components/components/cem-avatar"}{cem:if @test="datadom.slices.cemavatarUrl" | {cem-element @tag=cem-avatar @src="{$datadom.slices.cemavatarUrl}#cem-avatar"}}
-{cem-module-url @slice=cemmediapreviewUrl @src="@epa-wg/cem-components/components/cem-media-preview"}{cem:if @test="datadom.slices.cemmediapreviewUrl" | {cem-element @tag=cem-media-preview @src="{$datadom.slices.cemmediapreviewUrl}#cem-media-preview"}}
-{cem-module-url @slice=cemtreeitemUrl @src="@epa-wg/cem-components/components/cem-tree-item"}{cem:if @test="datadom.slices.cemtreeitemUrl" | {cem-element @tag=cem-tree-item @src="{$datadom.slices.cemtreeitemUrl}#cem-tree-item"}}
-{cem-module-url @slice=cemappbarUrl @src="@epa-wg/cem-components/components/cem-app-bar"}{cem:if @test="datadom.slices.cemappbarUrl" | {cem-element @tag=cem-app-bar @src="{$datadom.slices.cemappbarUrl}#cem-app-bar"}}
-{cem-module-url @slice=cemtabUrl @src="@epa-wg/cem-components/components/cem-tab"}{cem:if @test="datadom.slices.cemtabUrl" | {cem-element @tag=cem-tab @src="{$datadom.slices.cemtabUrl}#cem-tab"}}
-{cem-module-url @slice=cemstepUrl @src="@epa-wg/cem-components/components/cem-step"}{cem:if @test="datadom.slices.cemstepUrl" | {cem-element @tag=cem-step @src="{$datadom.slices.cemstepUrl}#cem-step"}}
-</template></cem-element>
+{cem-element @tag=cem-option @src="@epa-wg/cem-components/components/cem-option/cem-option.xhtml#cem-option"}
+{cem-element @tag=cem-option-group @src="@epa-wg/cem-components/components/cem-option-group/cem-option-group.xhtml#cem-option-group"}
+{cem-element @tag=cem-badge @src="@epa-wg/cem-components/components/cem-badge/cem-badge.xhtml#cem-badge"}
+{cem-element @tag=cem-avatar @src="@epa-wg/cem-components/components/cem-avatar/cem-avatar.xhtml#cem-avatar"}
+{cem-element @tag=cem-media-preview @src="@epa-wg/cem-components/components/cem-media-preview/cem-media-preview.xhtml#cem-media-preview"}
+{cem-element @tag=cem-tree-item @src="@epa-wg/cem-components/components/cem-tree-item/cem-tree-item.xhtml#cem-tree-item"}
+{cem-element @tag=cem-app-bar @src="@epa-wg/cem-components/components/cem-app-bar/cem-app-bar.xhtml#cem-app-bar"}
+{cem-element @tag=cem-tab @src="@epa-wg/cem-components/components/cem-tab/cem-tab.xhtml#cem-tab"}
+{cem-element @tag=cem-step @src="@epa-wg/cem-components/components/cem-step/cem-step.xhtml#cem-step"}
+{cem-element @tag=cem-toast @src="@epa-wg/cem-components/components/cem-toast/cem-toast.xhtml#cem-toast"}
+{cem-element @tag=cem-progress @src="@epa-wg/cem-components/components/cem-progress/cem-progress.xhtml#cem-progress"}
+{cem-element @tag=cem-progress-spinner @capability=progress-status @src="@epa-wg/cem-components/components/cem-progress-spinner/cem-progress-spinner.xhtml#cem-progress-spinner"}
+{cem-element @tag=cem-skeleton @src="@epa-wg/cem-components/components/cem-skeleton/cem-skeleton.xhtml#cem-skeleton"}
+{cem-element @tag=cem-alert @src="@epa-wg/cem-components/components/cem-alert/cem-alert.xhtml#cem-alert"}
+{cem-element @tag=cem-gallery-nav @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml#cem-gallery-nav"}
+{cem-element @tag=cem-field @capability=form-control @src="@epa-wg/cem-components/components/cem-field/cem-field.xhtml#cem-field"}
+{cem-element @tag=cem-text-field @capability=form-control @src="@epa-wg/cem-components/components/cem-text-field/cem-text-field.xhtml#cem-text-field"}
+{cem-element @tag=cem-theme-switch @src="@epa-wg/cem-components/components/cem-theme-switch/cem-theme-switch.xhtml#cem-theme-switch"}
 
-<cem-element hidden><template type="text/cem-ml">
-{cem-module-url @slice=cemtoastUrl @src="@epa-wg/cem-components/components/cem-toast"}{cem:if @test="datadom.slices.cemtoastUrl" | {cem-element @tag=cem-toast @src="{$datadom.slices.cemtoastUrl}#cem-toast"}}
-{cem-module-url @slice=cemprogressUrl @src="@epa-wg/cem-components/components/cem-progress"}{cem:if @test="datadom.slices.cemprogressUrl" | {cem-element @tag=cem-progress @src="{$datadom.slices.cemprogressUrl}#cem-progress"}}
-{cem-module-url @slice=cemprogressspinnerUrl @src="@epa-wg/cem-components/components/cem-progress-spinner"}{cem:if @test="datadom.slices.cemprogressspinnerUrl" | {cem-element @tag=cem-progress-spinner @capability=progress-status @src="{$datadom.slices.cemprogressspinnerUrl}#cem-progress-spinner"}}
-{cem-module-url @slice=cemskeletonUrl @src="@epa-wg/cem-components/components/cem-skeleton"}{cem:if @test="datadom.slices.cemskeletonUrl" | {cem-element @tag=cem-skeleton @src="{$datadom.slices.cemskeletonUrl}#cem-skeleton"}}
-{cem-module-url @slice=cemalertUrl @src="@epa-wg/cem-components/components/cem-alert"}{cem:if @test="datadom.slices.cemalertUrl" | {cem-element @tag=cem-alert @src="{$datadom.slices.cemalertUrl}#cem-alert"}}
-</template></cem-element>
-
-<cem-element hidden>
-<template type="text/cem-ml">
-{cem-module-url @slice=galleryNavUrl @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml"}
-{cem:if @test="datadom.slices.galleryNavUrl" | {cem-element @tag=cem-gallery-nav @src="{$datadom.slices.galleryNavUrl}#cem-gallery-nav"}}
-
-{cem-module-url @slice=cemfieldUrl @src="@epa-wg/cem-components/components/cem-field"}
-{cem:if @test="datadom.slices.cemfieldUrl" | {cem-element @tag=cem-field @capability=form-control @src="{$datadom.slices.cemfieldUrl}#cem-field"}}
-{cem-module-url @slice=cemtextfieldUrl @src="@epa-wg/cem-components/components/cem-text-field"}
-{cem:if @test="datadom.slices.cemtextfieldUrl" | {cem-element @tag=cem-text-field @capability=form-control @src="{$datadom.slices.cemtextfieldUrl}#cem-text-field"}}
-{cem-module-url @slice=themeSwitchUrl @src="@epa-wg/cem-components/components/cem-theme-switch"}
 {cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
-{cem:if @test="datadom.slices.themeSwitchUrl" | {cem-element @tag=cem-theme-switch @src="{$datadom.slices.themeSwitchUrl}#cem-theme-switch"}}
 {cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
-</template>
-</cem-element>
+</template></cem-element>
 
 <div id="playground-theme" class="cem-theme-light">
 <cem-gallery-nav heading="cem-theme-switch: Full examples and variation matrix"></cem-gallery-nav>

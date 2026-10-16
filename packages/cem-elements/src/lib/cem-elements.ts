@@ -56,6 +56,7 @@ import {
     createBrowserModuleUrlContext,
     createBrowserModuleUrlRoot,
     resolveBrowserModuleUrl,
+    CemModuleUrlResolutionError,
     type CemBrowserModuleUrlMap,
     type CemBrowserModuleUrlContext,
     type CemBrowserModuleUrlRoot,
@@ -607,15 +608,16 @@ export interface CemElementRuntimeOptions {
     privacyPolicyStamp?: string;
     logger?: Pick<Console, 'warn' | 'error'>;
     /**
-     * Load the document an external `src` declaration references, given the `src` path
-     * (the part before `#`) and the declaring document. Lets a host control module-map
-     * resolution, fetching, media-type metadata, and scope-URL policy (and makes external
-     * `src` testable). The default resolves the path against the declaring document's base
-     * URL and `fetch`es it.
+     * Load the document an external `src` declaration references, after fragment splitting
+     * and bare module-specifier resolution. Explicit relative paths retain their existing
+     * document/source-relative loading behavior. Legacy hosts may still resolve otherwise
+     * unmapped bare paths here when no explicit module resolver is configured. The default
+     * resolves the path against the declaring document's base URL and `fetch`es it.
      */
     loadSrcDocument?: (specifier: string, baseDocument: Document) => Promise<string | CemSrcDocumentLoadResult>;
     /**
-     * Scope-aware resolver for canonical `cem-module-url` controls and CEMT imports. The runtime
+     * Scope-aware resolver for canonical `cem-module-url` controls, bare declaration `src`
+     * paths and CEMT imports. The runtime
      * converts scalar/Node author input to a typed URL/context referrer and
      * exposes immutable context metadata without leaking its frame registry.
      * Returning a structured result preserves host match provenance.
@@ -2426,15 +2428,37 @@ export class CemElementRuntime {
     private loadSrcDocumentParsed(declarationElement: HTMLElement, path: string): Promise<LoadedSrcDocument> {
         const baseDocument = declarationElement.ownerDocument;
         const inheritedBaseUrls = this.inheritedDeclarationResourceBaseUrls(declarationElement);
-        const requestPaths = Array.from(
+        const moduleContext = isUrlLikeSpecifier(path)
+            ? undefined
+            : this.moduleUrlContextForNode(declarationElement) ?? this.moduleUrlRoot(baseDocument).context;
+        let requestPaths = Array.from(
             new Set([...inheritedBaseUrls.map((baseUrl) => resolveNestedDeclarationSrc(path, baseUrl)), path]),
         );
-        const key = `${inheritedBaseUrls.join('\n') || baseDocument.baseURI}\n${path}`;
+        const key = `${inheritedBaseUrls.join('\n') || baseDocument.baseURI}\n${moduleContext?.identity ?? ''}\n${path}`;
         const cached = this.srcDocuments.get(key);
         if (cached) {
             return cached;
         }
         const parsed = (async () => {
+            if (moduleContext) {
+                try {
+                    const resolved = new URL(await this.resolveModuleUrlInContext(
+                        path, baseDocument, moduleContext, moduleContext.baseUrl, undefined, 'template-import',
+                    ));
+                    // The authored fragment was already split by parseSrcReference.
+                    resolved.hash = '';
+                    requestPaths = [resolved.href];
+                } catch (error) {
+                    // Preserve legacy host-loader mappings and unprefixed relative filenames.
+                    // Explicit resolver errors and native policy/block failures must not fall back.
+                    if (
+                        this.resolveScopedModuleUrlOption || this.resolveModuleUrlOption
+                        || !(error instanceof CemModuleUrlResolutionError)
+                        || error.failure.reason !== 'unresolved'
+                        || (path.startsWith('@') && !this.loadSrcDocumentOption)
+                    ) throw error;
+                }
+            }
             let loadedPath = path;
             let loaded: string | CemSrcDocumentLoadResult | undefined;
             let loadError: unknown;
@@ -5138,8 +5162,20 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         referrer?: CemModuleUrlReferrer,
     ): Promise<string> {
-        const baseDocument = instance.ownerDocument;
-        const currentContext = this.ensureModuleUrlContext(instance, compiled);
+        return this.resolveModuleUrlInContext(
+            specifier, instance.ownerDocument, this.ensureModuleUrlContext(instance, compiled),
+            compiled.resourceBaseUrl, referrer,
+        );
+    }
+
+    private async resolveModuleUrlInContext(
+        specifier: string,
+        baseDocument: Document,
+        currentContext: CemBrowserModuleUrlContext,
+        resourceBaseUrl: string,
+        referrer?: CemModuleUrlReferrer,
+        purpose: CemModuleUrlResolutionRequest['purpose'] = 'template-slice',
+    ): Promise<string> {
         const contextualReferrer: CemModuleUrlResolutionReferrer | undefined = typeof referrer === 'string'
             ? { kind: 'url', value: referrer }
             : referrer
@@ -5157,13 +5193,13 @@ export class CemElementRuntime {
                 : contextualReferrer
                   ? `context:${contextualReferrer.context.identity}`
                   : 'contextual';
-        const key = `${currentContext.identity}\n${referrerKey}\n${specifier}`;
+        const key = `${purpose}\n${currentContext.identity}\n${referrerKey}\n${specifier}`;
         const cached = this.moduleUrls.get(key);
         if (cached) {
             return cached;
         }
         const request: CemModuleUrlResolutionRequest = {
-            purpose: 'template-slice',
+            purpose,
             authoredSpecifier: specifier,
             currentContext: this.moduleUrlContextView(currentContext),
             ...(contextualReferrer === undefined
@@ -5188,7 +5224,7 @@ export class CemElementRuntime {
                     specifier,
                     referrer,
                     baseDocument,
-                    compiled.resourceBaseUrl,
+                    resourceBaseUrl,
                 ).then(resolvedModuleUrlString)
               : resolveBrowserModuleUrl(
                     currentContext,
@@ -5198,6 +5234,11 @@ export class CemElementRuntime {
                         : contextualReferrer,
                 ).then((resolution) => resolution.resolvedUrl);
         this.moduleUrls.set(key, resolved);
+        if (purpose === 'template-import') {
+            void resolved.catch(() => {
+                if (this.moduleUrls.get(key) === resolved) this.moduleUrls.delete(key);
+            });
+        }
         return resolved;
     }
 
@@ -7585,8 +7626,8 @@ function resolveNestedDeclarationSrc(path: string, resourceBaseUrl: string): str
 
 /**
  * Default external `src` loader: resolve the path against the declaring document's base URL
- * and `fetch` it. Bare module specifiers (`@scope/pkg`) require a host `loadSrcDocument`
- * (the shared module-map resolver).
+ * and `fetch` it. Bare module specifiers are resolved by the shared module-map resolver
+ * before reaching this loader.
  */
 async function defaultLoadSrcDocument(path: string, baseDocument: Document): Promise<CemSrcDocumentLoadResult> {
     let url: string;

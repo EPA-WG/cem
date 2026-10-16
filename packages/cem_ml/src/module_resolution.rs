@@ -1521,6 +1521,35 @@ mod tests {
     }
 
     #[test]
+    fn declaration_document_specifiers_use_prefix_and_exact_import_maps() {
+        let mut page =
+            CemModuleUrlFrame::new("page", "https://example.test/playgrounds/gallery.html");
+        page.specifiers.imports.insert(
+            "@epa-wg/cem-components/components/".to_owned(),
+            CemModuleUrlMapping::target("../src/components/"),
+        );
+        page.specifiers.imports.insert(
+            "toast-document".to_owned(),
+            CemModuleUrlMapping::target("../src/components/cem-toast/cem-toast.xhtml"),
+        );
+        let resolver = CemScopedModuleUrlResolver::new()
+            .with_context(CemResolutionContextHandle::new("test"), context(vec![page]));
+        for specifier in [
+            "@epa-wg/cem-components/components/cem-toast/cem-toast.xhtml",
+            "toast-document",
+        ] {
+            let mut query = request(specifier);
+            query.purpose = CemModuleUrlResolutionPurpose::TemplateSlice;
+            let resolved = resolver.resolve_module_url(&query).unwrap();
+            assert_eq!(resolved.authored_specifier, specifier);
+            assert_eq!(
+                resolved.resolved_url,
+                "https://example.test/src/components/cem-toast/cem-toast.xhtml",
+            );
+        }
+    }
+
+    #[test]
     fn relative_url_uses_active_template_base_and_bare_miss_fails() {
         let resolver = CemScopedModuleUrlResolver::new().with_context(
             CemResolutionContextHandle::new("test"),

@@ -72,9 +72,17 @@ Relative URL-like specifiers MUST resolve against the declaring document's `base
 Absolute URLs use their own origin and scheme.
 
 Bare specifiers, such as `@scope/package/card.html` or `@scope/data/page.json`, MUST NOT be guessed by the default
-runtime. They require a host-provided resolver/loader. For template resources that hook is `loadSrcDocument`; for
-`http-request` response resources the hooks are `resolveResourceUrl` and `loadHttpResource`. Those hooks own
-import-map/module-map lookup, package policy, and resource authorization.
+runtime. Template resources use the same contextual module-map resolver as `cem-module-url`, including captured page
+import maps, parent template module maps, `resolveScopedModuleUrl`, and the compatibility `resolveModuleUrl` hook.
+The authored fragment is split before resolution and selected locally after the resolved document loads. A prefix map
+such as `"@scope/cards/": "../cards/"` therefore supports `src="@scope/cards/card.xhtml#card-template"` directly,
+without a URL slice or conditional declaration. Scoped host requests use purpose `template-import`.
+`loadSrcDocument` receives the resolved document URL; legacy host loaders may still resolve otherwise unmapped bare
+sources when no explicit module resolver is configured. Unmapped unscoped relative filenames retain their legacy
+document-relative loading behavior. Blocked mappings and explicit resolver failures never fall back to path loading.
+Explicit relative, root-relative, absolute and fragment-only sources retain their existing resolution behavior.
+For `http-request` response resources the hooks remain `resolveResourceUrl` and `loadHttpResource`. Host hooks own
+package policy and resource authorization.
 
 Resolution and scheduling order is:
 
@@ -176,9 +184,13 @@ The cache identity for a resource revision MUST include at least:
 - request method, headers that participate in cache identity, credentials policy, and expected content type for
   `http-request` resources.
 
-The current browser runtime caches external source documents per runtime instance by declaring document `baseURI` and
-specifier path. Hosts that add module-map or security-policy resolution SHOULD include those identities in their
+The current browser runtime caches external source documents per runtime instance by declaring document `baseURI`,
+inherited source bases and fragment-free specifier path. Bare source cache keys also include the module resolution
+context identity, so sibling contexts cannot share differently mapped sources. Hosts that add security-policy resolution SHOULD include those identities in their
 `loadSrcDocument` behavior or use separate runtime instances when policy differs.
+
+The direct full-path convention is being piloted in `cem-theme-switch-gallery.html`. Broader gallery and component
+authoring adoption remains a separate design decision.
 
 The browser runtime shares pending source loads and retains successful documents.
 A rejected source load is evicted, and its failed declaration can attempt registration
