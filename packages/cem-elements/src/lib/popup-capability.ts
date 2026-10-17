@@ -120,10 +120,14 @@ export const CEM_POPUP_CAPABILITY: CemProducedElementBehavior = {
             else if (event.key === 'Tab' && state.open) setOpen(host, false);
             else if (event.target === state.trigger && event.key === 'ArrowDown') { event.preventDefault(); setOpen(host, true); }
         }, options);
-        host.addEventListener('cem-popup-dismiss', () => setOpen(host, false), options);
-        host.addEventListener('focusout', () => queueMicrotask(() => {
-            if (state.open && !containsCemMenuChain(host, host.ownerDocument.activeElement) && host.ownerDocument.activeElement !== state.trigger) setOpen(host, false);
-        }), options);
+        host.addEventListener('cem-popup-dismiss', () => setOpen(host, false, true), options);
+        host.addEventListener('focusout', event => {
+            // Native focusout can precede activeElement moving to relatedTarget.
+            if (containsCemMenuChain(host, event.relatedTarget as Node | null) || event.relatedTarget === state.trigger) return;
+            queueMicrotask(() => {
+                if (state.open && !containsCemMenuChain(host, host.ownerDocument.activeElement) && host.ownerDocument.activeElement !== state.trigger) setOpen(host, false);
+            });
+        }, options);
         host.ownerDocument.addEventListener('click', event => {
             synchronize(host);
             if (!state.external || !state.trigger?.contains(event.target as Node)) return;

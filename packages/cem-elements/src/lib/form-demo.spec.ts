@@ -53,7 +53,8 @@ const SAMPLE_CONTRACTS: readonly SampleContract[] = [
         legend: '5. DCE as a form input',
         declarationCount: 2,
         includes: [
-            '<cem-element tag="cem-form-fruit-choice" capability="choice-select">',
+            '<cem-element tag="cem-form-fruit-choice">',
+            '<template capability="choice-select" type="text/cem-ml">',
             'button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px currentColor; }',
             '@data-option-index="{$option.index}"',
             '@aria-label="{$option.label}" @title="{$option.label}"',
@@ -75,6 +76,7 @@ describe('form demo source contracts', () => {
         expect(DEMO_SOURCE).toContain('datadom.formData.&lt;slice&gt;');
         expect(DEMO_SOURCE).toContain('boolean or a');
         expect(DEMO_SOURCE).toContain('datadom.validationState');
+        expect(DEMO_SOURCE).toContain('{template @capability=form-control @type=text/cem-ml');
         expect(DEMO_SOURCE).toContain('href="https://developer.mozilla.org/en-US/docs/Web/API/FormData"');
     });
 

@@ -18,6 +18,8 @@
         "@epa-wg/cem-components/playgrounds/": "./"
     }
 }</script>
+    <link rel="stylesheet" href="../../cem-theme/dist/lib/css/cem-combined.css">
+    <link rel="stylesheet" href="../dist/styles.css">
     <script type="module">
         import { installCemElementRuntime } from '@epa-wg/cem-elements';
         import '@epa-wg/cem-demo-element';
@@ -30,12 +32,6 @@
         body {
             margin: 0;
             font-family: system-ui, sans-serif;
-        }
-
-        #playground-theme {
-            box-sizing: border-box;
-            min-block-size: 100vh;
-            padding: var(--cem-dim-large);
         }
 
         main {
@@ -133,8 +129,8 @@
 
 {cem-element @tag=cem-switch @src="@epa-wg/cem-components/components/cem-switch/cem-switch.xhtml#cem-switch"}
 
-        {cem-element @tag=cem-gallery-nav
-        @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml#cem-gallery-nav"}
+        {cem-element @tag=cem-gallery-page
+        @src="@epa-wg/cem-components/playgrounds/cem-gallery-page.xhtml#cem-gallery-page"}
 
         {cem-element @tag=cem-action @capability=action-command
         @src="@epa-wg/cem-components/components/cem-action/cem-action.xhtml#cem-action"}
@@ -147,15 +143,16 @@
 
         {cem-element @tag=cem-theme-switch
         @src="@epa-wg/cem-components/components/cem-theme-switch/cem-theme-switch.xhtml#cem-theme-switch"}
-        {cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
-        {cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}
-        {cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
-        {cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
+
+
+
+
     </template>
 </cem-element>
 
-<div id="playground-theme" class="cem-theme-light">
-    <cem-gallery-nav heading="cem-text-field: Full examples and variation matrix"></cem-gallery-nav>
+<cem-gallery-page id="playground-theme" heading="cem-text-field: Full examples and variation matrix">
+<template>
+
 
     <header>
         <p class="component-description">Use <a href="./cem-textarea-gallery.html"><code>cem-textarea</code></a> for
@@ -312,7 +309,7 @@
 <datalist id="cem-text-field-city-options"><option value="SEA"></option><option value="SFO"></option></datalist>
 </template></cem-demo-element>
     </main>
-</div>
+
 <section aria-label="Theme and state variation matrix">
     <h2>Theme and state variation matrix</h2>
     <section data-gallery-theme="light" class="cem-theme-light"><h2>light</h2>
@@ -551,5 +548,7 @@
     </section>
 
 </section>
+</template>
+</cem-gallery-page>
 </body>
 </html>

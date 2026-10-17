@@ -20,9 +20,8 @@
         :scope > :where([part~='base']) > button:where(:disabled) { background: var(--cem-action-contextual-disabled-background); color: var(--cem-action-contextual-disabled-text); }
         :scope > :where([part~='base']) > :where(button,a,[tabindex]):focus-visible { outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1); outline-offset: var(--cem-stroke-indicator-offset); box-shadow: var(--cem-ring-zebra-3); }
         :scope > [part~='popup'] {
-            position: absolute; inset-inline-start: 0; top: 100%;
-            --_cem-popup-max-height: calc(4 * var(--cem-menu-row-height));
-            display: flex; flex-direction: column; z-index: 1; max-block-size: calc(4 * var(--cem-menu-row-height));
+            position: absolute; inset-inline-start: 0; top: 100%; inline-size: max-content;
+            display: flex; flex-direction: column; z-index: 1;
             background: var(--cem-action-contextual-default-background); color: var(--cem-action-contextual-default-text);
             border-radius: var(--cem-autocomplete-container-shape);
             border-start-start-radius: 0; border-start-end-radius: 0;
@@ -34,7 +33,8 @@
             :scope > :where([part~='base']) > :where(button,a,[tabindex]):focus-visible { outline-color: Highlight; }
         }
         ```}
-    {div @part=base | {slot @name=base | {button @part=control @type=button @aria-label="{$datadom.attributes.aria-label}" @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} | {$label}}}}
+    {div @part=base | {cem:if @test="seq:count(datadom.attributes.trigger-for) == 0" | {slot @name=base | {button @part=control @type=button @aria-label="{$datadom.attributes.aria-label}" @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} | {$label}}}}
+    }
     {aside @part=popup | {slot}}
   </template>
 </cem-element>

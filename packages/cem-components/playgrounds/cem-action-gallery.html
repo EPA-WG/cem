@@ -18,6 +18,8 @@
         "@epa-wg/cem-components/playgrounds/": "./"
     }
 }</script>
+    <link rel="stylesheet" href="../../cem-theme/dist/lib/css/cem-combined.css">
+    <link rel="stylesheet" href="../dist/styles.css">
     <script type="module">
         import { installCemElementRuntime } from '@epa-wg/cem-elements';
         import '@epa-wg/cem-demo-element';
@@ -26,7 +28,6 @@
     </script>
     <style>
         body { margin: 0; font-family: system-ui, sans-serif; }
-        #playground-theme { display: block; padding: var(--cem-dim-large); min-block-size: 100vh; box-sizing: border-box; }
         main { display: grid; gap: var(--cem-dim-large); }
         cem-demo-element { display: block; min-inline-size: 0; }
         cem-demo-element [slot=demo] { display: flex; flex-wrap: wrap; align-items: start; gap: var(--cem-dim-medium); }
@@ -93,7 +94,7 @@
 
 {cem-element @tag=cem-switch @src="@epa-wg/cem-components/components/cem-switch/cem-switch.xhtml#cem-switch"}
 
-{cem-element @tag=cem-gallery-nav @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml#cem-gallery-nav"}
+{cem-element @tag=cem-gallery-page @src="@epa-wg/cem-components/playgrounds/cem-gallery-page.xhtml#cem-gallery-page"}
 
 {cem-element @tag=cem-field @capability=form-control @src="@epa-wg/cem-components/components/cem-field/cem-field.xhtml#cem-field"}
 
@@ -101,16 +102,15 @@
 
 {cem-element @tag=cem-theme-switch @src="@epa-wg/cem-components/components/cem-theme-switch/cem-theme-switch.xhtml#cem-theme-switch"}
 
-{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
-{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}
+
+
 {cem-element @tag=cem-action @capability=action-command @src="@epa-wg/cem-components/components/cem-action/cem-action.xhtml#cem-action"}
-{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
-{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
 </template>
 </cem-element>
 
-<cem-theme-switch id="playground-theme" mode="light" name="action-gallery-theme">
-<cem-gallery-nav heading="cem-action: Full examples and variation matrix"></cem-gallery-nav>
+<cem-gallery-page id="playground-theme" heading="cem-action: Full examples and variation matrix">
+<template>
+
 
 <header>
 <p class="component-description">A button for commands, form submission, and reset, with intent, size, selection, and pending states. Use <a href="./cem-icon-button-gallery.html"><code>cem-icon-button</code></a> for an icon command or <a href="./cem-menu-item-gallery.html"><code>cem-menu-item</code></a> for a command within a menu.</p>
@@ -132,6 +132,7 @@
 <li data-action-attribute="class"><code>class</code> — cem-bend-sharp, cem-bend-smooth and cem-bend-round shape utilities.</li>
 <li data-action-attribute="size"><code>size</code> — Absent inherits the theme; small, medium, large, x-large and xx-large set minimum height.</li>
 <li data-action-attribute="selected"><code>selected</code> — Presence marks a controlled selection and sets aria-pressed=true.</li>
+<li data-action-attribute="control-role"><code>control-role="menuitemradio"</code> — A single-choice menu action exposes aria-checked on its native button and keeps selected styling.</li>
 <li data-action-attribute="selectable"><code>selectable</code> — Presence exposes aria-pressed=false when selected is absent; activation does not toggle it automatically.</li>
 <li data-action-attribute="disabled"><code>disabled</code> — Presence disables native focus and activation.</li>
 <li data-action-attribute="pending"><code>pending</code> — true exposes aria-busy and pending feedback; false restores the resting state.</li>
@@ -159,6 +160,12 @@
 <li data-action-attribute="interaction"><code>interaction</code> — Reference to shared command metadata.</li>
 <li data-action-attribute="context-key"><code>context-key</code> — Item key captured with the native invocation source.</li>
 </ul></section>
+<cem-demo-element legend="Selected contextual menu actions"><template slot="source">
+<div role="menu" aria-label="Theme choices">
+<cem-action variant="contextual" control-role="menuitemradio" selected>☀ Light</cem-action>
+<cem-action variant="contextual" control-role="menuitemradio">☾ Dark</cem-action>
+</div>
+</template></cem-demo-element>
 <cem-demo-element legend="Labels and accessible names" data-covers="label aria-label">
 <p slot="description">Child content replaces the fallback label. Icon-only actions need an accessible name.</p>
 <template slot="source">
@@ -280,6 +287,8 @@
 </cem-demo-element>
 </main>
 <footer><p><a href="https://github.com/EPA-WG/cem/blob/develop/LICENSE">MIT license</a></p></footer>
-</cem-theme-switch>
+
+</template>
+</cem-gallery-page>
 </body>
 </html>

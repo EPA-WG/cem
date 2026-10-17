@@ -14,14 +14,16 @@
         "@epa-wg/cem-components/playgrounds/": "./"
     }
 }</script>
-<script type="module">
+    <link rel="stylesheet" href="../../cem-theme/dist/lib/css/cem-combined.css">
+    <link rel="stylesheet" href="../dist/styles.css">
+    <script type="module">
 import { installCemElementRuntime } from '@epa-wg/cem-elements';
 import '@epa-wg/cem-demo-element';
 const runtime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
 window.cemPlaygroundRuntime = runtime;
 </script>
 <link rel="stylesheet" href="../demo.css">
-<style>body { margin: 0; font-family: system-ui, sans-serif; } #playground-theme { padding: var(--cem-inset-container); } main, .properties { min-inline-size: 0; grid-template-columns: minmax(0, 1fr); display: grid; gap: var(--cem-gap-group); } [data-gallery-theme] { padding: var(--cem-inset-container); background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } cem-demo-element { display: block; margin-block: var(--cem-gap-group); }.divider-example { display: flex; flex-direction: column; min-block-size: 6rem; } .divider-example:has(> cem-divider[orientation="vertical"]) { flex-direction: row; align-items: stretch; gap: var(--cem-gap-group); }</style>
+<style>body { margin: 0; font-family: system-ui, sans-serif; } main, .properties { min-inline-size: 0; grid-template-columns: minmax(0, 1fr); display: grid; gap: var(--cem-gap-group); } [data-gallery-theme] { padding: var(--cem-inset-container); background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } cem-demo-element { display: block; margin-block: var(--cem-gap-group); }.divider-example { display: flex; flex-direction: column; min-block-size: 6rem; } .divider-example:has(> cem-divider[orientation="vertical"]) { flex-direction: row; align-items: stretch; gap: var(--cem-gap-group); }</style>
 </head><body>
 <cem-element hidden><template type="text/cem-ml">
 {cem-element @tag=cem-option @src="@epa-wg/cem-components/components/cem-option/cem-option.xhtml#cem-option"}
@@ -99,15 +101,18 @@ window.cemPlaygroundRuntime = runtime;
 {cem-element @tag=cem-theme-switch @src="@epa-wg/cem-components/components/cem-theme-switch/cem-theme-switch.xhtml#cem-theme-switch"}
 
 {cem-element @tag=cem-select @capability=choice-select @src="@epa-wg/cem-components/components/cem-select/cem-select.xhtml#cem-select"}
-{cem-element @tag=cem-gallery-nav @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml#cem-gallery-nav"}
-{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
-{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
+{cem-element @tag=cem-gallery-page @src="@epa-wg/cem-components/playgrounds/cem-gallery-page.xhtml#cem-gallery-page"}
+
+
 
 {cem-element @tag=cem-sheet @src="@epa-wg/cem-components/components/cem-sheet/cem-sheet.xhtml#cem-sheet"}
 </template></cem-element>
-<div id="playground-theme" class="cem-theme-light"><cem-gallery-nav heading="cem-grid: Property playground"></cem-gallery-nav><p class="component-description">A responsive grid. Auto fits tracks at the layout minimum to the available space; explicit 1–4 columns use equal flexible tracks. Compose with <a href="./cem-stack-gallery.html">cem-stack</a>.</p><p><a href="./cem-grid-gallery.html">Full examples and variation matrix</a> · <a href="./cem-grid.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-grid/cem-grid.stories.ts">Automated stories</a></p><main><cem-element class="properties"><template type="text/cem-ml">{slice @name=class | }{cem-field @label="class" @value="{$datadom.slices.class}" @slice=class @slice-event=input @slice-value="$target.value"}
+<cem-gallery-page id="playground-theme" heading="cem-grid: Property playground">
+<template><p class="component-description">A responsive grid. Auto fits tracks at the layout minimum to the available space; explicit 1–4 columns use equal flexible tracks. Compose with <a href="./cem-stack-gallery.html">cem-stack</a>.</p><p><a href="./cem-grid-gallery.html">Full examples and variation matrix</a> · <a href="./cem-grid.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-grid/cem-grid.stories.ts">Automated stories</a></p><main><cem-element class="properties"><template type="text/cem-ml">{slice @name=class | }{cem-field @label="class" @value="{$datadom.slices.class}" @slice=class @slice-event=input @slice-value="$target.value"}
 {slice @name=columns | auto}{fieldset @role=group @aria-label="columns" @slice=columns @slice-event=change @slice-value="$target.value" | {legend | columns}{cem-radio @name="property-columns" @value="auto" @label="auto" @checked={if datadom.slices.columns == "auto" {true} else {null}}}{cem-radio @name="property-columns" @value="1" @label="1" @checked={if datadom.slices.columns == "1" {true} else {null}}}{cem-radio @name="property-columns" @value="2" @label="2" @checked={if datadom.slices.columns == "2" {true} else {null}}}{cem-radio @name="property-columns" @value="3" @label="3" @checked={if datadom.slices.columns == "3" {true} else {null}}}{cem-radio @name="property-columns" @value="4" @label="4" @checked={if datadom.slices.columns == "4" {true} else {null}}}}
 {slice @name=gap | md}{fieldset @role=group @aria-label="gap" @slice=gap @slice-event=change @slice-value="$target.value" | {legend | gap}{cem-radio @name="property-gap" @value="md" @label="md" @checked={if datadom.slices.gap == "md" {true} else {null}}}{cem-radio @name="property-gap" @value="sm" @label="sm" @checked={if datadom.slices.gap == "sm" {true} else {null}}}{cem-radio @name="property-gap" @value="lg" @label="lg" @checked={if datadom.slices.gap == "lg" {true} else {null}}}}
 {slice @name=dir | ltr}{fieldset @role=group @aria-label="dir" @slice=dir @slice-event=change @slice-value="$target.value" | {legend | dir}{cem-radio @name="property-dir" @value="ltr" @label="ltr" @checked={if datadom.slices.dir == "ltr" {true} else {null}}}{cem-radio @name="property-dir" @value="rtl" @label="rtl" @checked={if datadom.slices.dir == "rtl" {true} else {null}}}}
 {slice @name=hidden | absent}{fieldset @role=group @aria-label="hidden" @slice=hidden @slice-event=change @slice-value="$target.value" | {legend | hidden}{cem-radio @name="property-hidden" @value="absent" @label="absent" @checked={if datadom.slices.hidden == "absent" {true} else {null}}}{cem-radio @name="property-hidden" @value="present" @label="present" @checked={if datadom.slices.hidden == "present" {true} else {null}}}}
-{cem-grid @columns="{$datadom.slices.columns}" @gap="{$datadom.slices.gap}" @class="{$datadom.slices.class}" @dir="{$datadom.slices.dir}" @hidden={if datadom.slices.hidden == "present" {true} else {null}} | {p | First cell}{p | Second cell}{p | Third cell}{p | Fourth cell}}</template></cem-element><cem-element><template type="text/cem-ml">{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-grid"}{cem:if @test="datadom.slices.sourceUrl" | {p | {a @href="{$datadom.slices.sourceUrl}" | Open canonical XHTML}}{cem-demo-element @legend="Canonical source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}}</template></cem-element></main></div></body></html>
+{cem-grid @columns="{$datadom.slices.columns}" @gap="{$datadom.slices.gap}" @class="{$datadom.slices.class}" @dir="{$datadom.slices.dir}" @hidden={if datadom.slices.hidden == "present" {true} else {null}} | {p | First cell}{p | Second cell}{p | Third cell}{p | Fourth cell}}</template></cem-element><cem-element><template type="text/cem-ml">{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-grid"}{cem:if @test="datadom.slices.sourceUrl" | {p | {a @href="{$datadom.slices.sourceUrl}" | Open canonical XHTML}}{cem-demo-element @legend="Canonical source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}}</template></cem-element></main></template>
+</cem-gallery-page>
+</body></html>

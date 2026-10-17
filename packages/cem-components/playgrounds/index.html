@@ -18,6 +18,7 @@
         "@epa-wg/cem-components/playgrounds/": "./"
     }
 }</script>
+    <link rel="stylesheet" href="../../cem-theme/dist/lib/css/cem-combined.css">
     <script type="module">
         import { installCemElementRuntime } from '@epa-wg/cem-elements';
         import '@epa-wg/cem-demo-element';
@@ -27,7 +28,6 @@
     <link rel="stylesheet" href="../demo.css">
     <style>
         body { margin: 0; font-family: system-ui, sans-serif; }
-        #playground-theme { box-sizing: border-box; min-block-size: 100vh; padding: var(--cem-dim-large); }
         li { margin-block: var(--cem-dim-small); }
     </style>
 </head>
@@ -87,14 +87,13 @@
 
 {cem-element @tag=cem-switch @src="@epa-wg/cem-components/components/cem-switch/cem-switch.xhtml#cem-switch"}
 
-{cem-element @tag=cem-gallery-nav @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml#cem-gallery-nav"}
-{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
-{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
+{cem-element @tag=cem-gallery-page @src="@epa-wg/cem-components/playgrounds/cem-gallery-page.xhtml#cem-gallery-page"}
 </template>
 </cem-element>
 
-<div id="playground-theme" class="cem-theme-light">
-<cem-gallery-nav heading="CEM component playground"></cem-gallery-nav>
+<cem-gallery-page id="playground-theme" heading="CEM component playground">
+<template>
+
 <main>
 <ul>
     <li><strong>cem-action</strong> — <a href="./cem-action.html">Properties</a> · <a href="./cem-action-gallery.html">Gallery</a></li>
@@ -152,6 +151,8 @@
     <li><strong>cem-tree-item</strong> — <a href="./cem-tree-item.html">Properties</a> · <a href="./cem-tree-item-gallery.html">Gallery</a></li>
 </ul>
 <p><a href="./cem-bundle.html">Release bundle</a></p></main>
-</div>
+
+</template>
+</cem-gallery-page>
 </body>
 </html>

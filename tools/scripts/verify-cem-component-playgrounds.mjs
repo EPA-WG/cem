@@ -406,29 +406,21 @@ async function verifySelect(url) {
     } finally { await page.close(); }
 }
 
+async function choosePageTheme(page, theme) {
+    const control = page.locator('cem-gallery-page > cem-gallery-nav[part=navigation] cem-theme-switch[part=theme]');
+    await control.locator('[part=trigger] button').click();
+    await control.locator(`cem-menu cem-icon-button[value="cem-theme-${theme}"] button`).click();
+    await page.waitForFunction(value => document.querySelector('cem-gallery-page')?.getAttribute('data-theme') === value, `cem-theme-${theme}`);
+}
+
 async function verifyThemeControls(page) {
-    const group = page.getByRole('radiogroup', { name: 'Theme', exact: true });
-    const contrast = page.getByRole('checkbox', { name: 'Contrast', exact: true });
-    const waitTheme = value => page.waitForFunction(value => document.querySelector('#playground-theme')?.getAttribute('data-theme') === value, value);
-    await group.getByRole('radio', { name: 'Dark', exact: true }).click();
-    await waitTheme('cem-theme-dark');
-    await contrast.check();
-    await waitTheme('cem-theme-contrast-dark');
-    await group.getByRole('radio', { name: 'Native', exact: true }).click();
-    await waitTheme('cem-theme-native');
-    assert(await contrast.isDisabled());
-    assert(!(await contrast.isChecked()));
+    for (const theme of ['dark', 'contrast-dark', 'native']) await choosePageTheme(page, theme);
     await page.emulateMedia({ colorScheme: 'dark' });
-    const nativeDark = await page.locator('#playground-theme').evaluate(node => getComputedStyle(node).backgroundColor);
+    const nativeDark = await page.locator('cem-gallery-page').evaluate(node => getComputedStyle(node).backgroundColor);
     await page.emulateMedia({ colorScheme: 'light' });
-    const nativeLight = await page.locator('#playground-theme').evaluate(node => getComputedStyle(node).backgroundColor);
+    const nativeLight = await page.locator('cem-gallery-page').evaluate(node => getComputedStyle(node).backgroundColor);
     assert.notEqual(nativeDark, nativeLight);
-    await waitTheme('cem-theme-native');
-    await group.getByRole('radio', { name: 'Light', exact: true }).click();
-    await waitTheme('cem-theme-contrast-light');
-    assert(await contrast.isChecked());
-    await contrast.uncheck();
-    await waitTheme('cem-theme-light');
+    for (const theme of ['contrast-light', 'light']) await choosePageTheme(page, theme);
 }
 
 async function verifyThemeSwitch(url) {
@@ -438,7 +430,7 @@ async function verifyThemeSwitch(url) {
     page.on('response', response => { if (response.status() >= 400) errors.push(`${response.status()} ${response.url()}`); });
     try {
         await page.goto(url);
-        await page.getByRole('radiogroup', { name: 'Theme', exact: true }).waitFor();
+        await page.getByRole('navigation', { name: 'Gallery navigation' }).getByRole('button', { name: 'Change theme', exact: true }).waitFor();
         await page.waitForFunction(() => document.querySelector('cem-demo-element')?.getAttribute('data-state') === 'ready');
         await page.locator('#retained-value').fill('Retained through themes');
         await page.evaluate(() => { window.originalInput = document.querySelector('#retained-value'); });
@@ -545,11 +537,8 @@ async function verify(url) {
         assert.equal(await button.evaluate(node => node.getAnimations()[0].effect.getTiming().duration), 2000);
         assert.match(await button.evaluate(node => getComputedStyle(node).backgroundImage), /linear-gradient\(45deg/);
         await verifyThemeControls(page);
-        const modes = page.getByRole('radiogroup', { name: 'Theme', exact: true });
-        const contrastToggle = page.getByRole('checkbox', { name: 'Contrast', exact: true });
         for (const mode of ['Dark', 'Light']) {
-            await modes.getByRole('radio', { name: mode, exact: true }).click();
-            await contrastToggle.check();
+            await choosePageTheme(page, `contrast-${mode.toLowerCase()}`);
             await page.waitForFunction(mode => document.querySelector('#playground-theme')?.getAttribute('data-theme') === `cem-theme-contrast-${mode}`, mode.toLowerCase());
             const contour = await button.evaluate(node => {
                 const style = getComputedStyle(node, '::before');
@@ -1316,7 +1305,7 @@ async function verifyNavigation(baseUrl) {
     try {
         for (const [file] of pages) {
             const source = await readFile(join(root, 'packages/cem-components/playgrounds', file), 'utf8');
-            const title = source.match(/<cem-gallery-nav heading="([^"]*)"/)[1];
+            const title = source.match(/<cem-gallery-page[^>]* heading="([^"]*)"/)[1];
             await page.goto(new URL(file, baseUrl).href);
             const nav = page.getByRole('navigation', { name: 'Gallery navigation' });
             await nav.waitFor().catch(error => { throw new Error(`Gallery navigation did not render at ${page.url()}`, { cause: error }); });
@@ -1325,9 +1314,13 @@ async function verifyNavigation(baseUrl) {
             const index = nav.getByRole('link', { name: 'Component playground', exact: true });
             await index.waitFor();
             assert.equal(new URL(await index.getAttribute('href'), page.url()).href, new URL('index.html', baseUrl).href);
-            const theme = nav.getByRole('button', { name: 'Switch theme (coming soon)', exact: true });
+            const theme = nav.getByRole('button', { name: 'Change theme', exact: true });
             await theme.waitFor();
-            assert.equal(await theme.isDisabled(), true);
+            assert.equal(await theme.isEnabled(), true);
+            await theme.click();
+            await nav.getByRole('menuitemradio', { name: 'Dark', exact: true }).click();
+            await page.waitForFunction(() => document.querySelector('cem-gallery-page')?.getAttribute('data-theme') === 'cem-theme-dark');
+            assert.equal(await page.evaluate(() => localStorage.getItem('cem-playground-theme')), 'cem-theme-dark');
             await index.click();
             assert.equal(page.url(), new URL('index.html', baseUrl).href);
             await page.getByRole('heading', { name: 'CEM component playground', exact: true }).waitFor().catch(async error => {

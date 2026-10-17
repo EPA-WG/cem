@@ -19,6 +19,12 @@ public attributes and content, and owns interaction states. See the
   `--cem-icon-size-large: 3rem`; inherited overrides remain effective.
 - `direction` accepts `row` (default) and `column`. The latter stacks the icon
   and projected content without a gap. Other values use the row layout.
+- `align` accepts `start`, `center` (default), and `end`. It positions the
+  icon/content group within the host's available inline space. In column layout
+  it also aligns the glyph and label with each other along that same axis.
+  Start and end follow the text direction, including RTL. Absent, empty and
+  unsupported values use center. Set the host's inline size when alignment
+  needs extra space; the component keeps its natural width by default.
 - `class` is retained on the host. `hidden` uses native presence semantics.
 
 ## Visible label and payload

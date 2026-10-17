@@ -14,7 +14,7 @@ async function contract(canvasElement: HTMLElement, fallback: boolean) {
     template.type = 'text/cem-ml';
     template.textContent = `
 {input @aria-label=Draft @value="initial" @host-command=edit @host-command-event=input}
-{button @type=button @host-command=save @disabled={if datadom.slices.busy { true } else { null }} | Save}
+{button @type=button @value=selected @host-command=save @disabled={if datadom.slices.busy { true } else { null }} | Save}
 {button @type=button @host-command=missing | Unavailable}
 {button @type=button @host-command=fail | Fail}
 {button @type=button @host-command=reject | Reject}
@@ -54,7 +54,7 @@ async function contract(canvasElement: HTMLElement, fallback: boolean) {
         save.click();
         // Invocation happens on the native event stack, retaining browser gesture authority.
         expect(calls).toHaveLength(2);
-        expect(calls[1]).toEqual({ command: 'save', eventType: 'click', value: null, isTrusted: false });
+        expect(calls[1]).toEqual({ command: 'save', eventType: 'click', value: 'selected', isTrusted: false });
         view.update({ status: 'Changed', busy: true });
         await view.whenSettled();
         expect(view.element.querySelector('input')).toBe(input);
@@ -207,7 +207,7 @@ async function treeContract(canvasElement: HTMLElement, fallback: boolean) {
         {cem-tree-item @value=source @label=Source}
         {cem-tree-item @value=blocked @label=Blocked @disabled}}
     {cem-tree-item @value=current @label=Current}}
-{button @type=button @host-command=save | Save}
+{button @type=button @value=selected @host-command=save | Save}
 {section @host-command=open @host-command-event=cem-tree-activate |
     {${treeTag} @label=Unbound | {cem-tree-item @value=other @label=Other}}}
 {slot}`;
@@ -308,10 +308,10 @@ async function treeContract(canvasElement: HTMLElement, fallback: boolean) {
 
         const button = required<HTMLButtonElement>(view.element, 'button[host-command=save]');
         button.click(); // The command must arrive before synchronous dispatch returns.
-        expect(calls).toEqual([{ command: 'save', eventType: 'click', value: null, isTrusted: false }]);
+        expect(calls).toEqual([{ command: 'save', eventType: 'click', value: 'selected', isTrusted: false }]);
         calls.length = 0;
         await click(button);
-        expect(calls).toEqual([{ command: 'save', eventType: 'click', value: null, isTrusted: !!native }]);
+        expect(calls).toEqual([{ command: 'save', eventType: 'click', value: 'selected', isTrusted: !!native }]);
         calls.length = 0;
 
         const nestedRoot = document.createElement('section'); view.element.append(nestedRoot);

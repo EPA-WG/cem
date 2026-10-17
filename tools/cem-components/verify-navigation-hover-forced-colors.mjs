@@ -8,11 +8,11 @@ import { chromium } from 'playwright';
 
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '../../packages/cem-components');
 const repoRoot = join(packageRoot, '..', '..');
-const componentCss = (await Promise.all(['cem-nav', 'cem-tabs'].map(async tag => {
+const componentCss = (await Promise.all(['cem-nav', 'cem-tabs', 'cem-icon-button'].map(async tag => {
     const source = await readFile(join(packageRoot, `src/components/${tag}/${tag}.xhtml`), 'utf8');
     const css = source.match(/\{style[^|]*\|```([\s\S]*?)```\}/)?.[1];
     if (!css) throw new Error(`Missing canonical CSS for ${tag}`);
-    return `@scope (${tag}) {${css}}`;
+    return `@scope (${tag}) {${css.replaceAll('&amp;', '&')}}`;
 }))).join('\n');
 const themeCss = await readFile(
     join(repoRoot, 'packages', 'cem-theme', 'dist', 'lib', 'css', 'cem-combined.css'),
@@ -40,9 +40,9 @@ try {
             </cem-nav>
             <cem-nav id="collapsible-host" collapsible expanded>
                 <nav id="collapsible-wrapper" class="cem-nav cem-nav--collapsible" part="root" aria-label="Workspace navigation">
-                    <button id="nav-disclosure" type="button" class="cem-nav__disclosure" part="disclosure" aria-expanded="true">
+                    <cem-icon-button class="cem-nav__disclosure" part="disclosure" variant="navigation" align="start"><button id="nav-disclosure" type="button" part="control" aria-expanded="true">
                         Workspace navigation
-                    </button>
+                    </button></cem-icon-button>
                     <div class="cem-nav__content" part="content"><a id="nav-content" href="#workspace">Workspace</a></div>
                 </nav>
             </cem-nav>

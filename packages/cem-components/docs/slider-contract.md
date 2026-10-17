@@ -9,9 +9,16 @@ The canonical implementation is [cem-slider.xhtml](../src/components/cem-slider/
 with [colocated stories](../src/components/cem-slider/cem-slider.stories.ts),
 [property controls](../playgrounds/cem-slider.html) and a
 [five-theme gallery](../playgrounds/cem-slider-gallery.html). Its shared
-`range-input` capability lives in cem-elements; fragment-src wrappers repeat the
-capability. Styles are embedded and installed once per declaration through native
-@scope. Projected inputs retain native ownership; generated internals expose part hooks.
+`range-input` capability lives in cem-elements; fragment imports inherit it from
+the selected source template or its owning declaration. Styles are embedded and
+installed once per declaration through native @scope. Projected inputs retain
+native ownership; generated internals expose part hooks.
+
+**Capability caveat:** preserve `range-input` metadata when copying the template.
+An explicit importer override or `capability=""` can remove range coordination
+and shared slider behavior. Native range inputs retain form ownership; this is
+not the single string-valued `form-control` capability. See the
+[metadata ownership rules](./conventions.md#41-intrinsic-capability-metadata).
 
 ## Owner and author vocabulary
 

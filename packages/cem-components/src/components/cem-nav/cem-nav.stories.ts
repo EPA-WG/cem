@@ -1,8 +1,8 @@
-import { expect } from 'storybook/test';
+import { expect, waitFor } from 'storybook/test';
 import preview, { loadCemDeclaration, whenCemRendered, cemStoryRuntime, loadCemComponent, loadCemWorkflowDependencies, assertAccessibleName, assertAriaReferenceIntegrity, assertFocusVisible, assertLightDomRendered, nextRenderFrame, type CemElementRuntime, type DataIslandSnapshot, captureVisualSnapshot, type VisualSnapshot } from '../../../../cem-elements/.storybook/preview.js';
 import declarationSource from './cem-nav.xhtml?raw';
 import '../../styles.css';
-const meta = preview.meta({ component: 'cem-nav', title: 'CEM Components/cem-nav', loaders: [async () => { await loadCemDeclaration('cem-nav', declarationSource); await loadCemComponent('cem-tabs');  await loadCemWorkflowDependencies(); return {}; }] });
+const meta = preview.meta({ component: 'cem-nav', title: 'CEM Components/cem-nav', loaders: [async () => { await loadCemComponent('cem-icon'); await loadCemComponent('cem-icon-button'); await loadCemDeclaration('cem-nav', declarationSource); await loadCemComponent('cem-tabs');  await loadCemWorkflowDependencies(); return {}; }] });
 
 export const HoverOwners = meta.story({
  name: "styles only navigation hover owners without changing current selection or component state",
@@ -52,7 +52,7 @@ export const HoverOwners = meta.story({
             },
             {
                 host: disclosureHost,
-                owner: harness.query<HTMLButtonElement>('cem-nav[collapsible] > nav > .cem-nav__disclosure'),
+                owner: harness.query<HTMLButtonElement>('cem-nav[collapsible] > nav > .cem-nav__disclosure > button'),
                 state: { attribute: 'aria-expanded', value: 'true' },
                 tokens: {
                     defaultBackground: '--cem-navigation-item-default-background',
@@ -260,7 +260,7 @@ export const KeyboardFocus = meta.story({
             {
                 host: disclosureHost,
                 owner: harness.query<HTMLButtonElement>(
-                    'cem-nav[label="Focus workspace navigation"] > nav > .cem-nav__disclosure',
+                    'cem-nav[label="Focus workspace navigation"] > nav > .cem-nav__disclosure > button',
                 ),
                 state: { attribute: 'aria-expanded', value: 'true' },
                 tokens: {
@@ -467,7 +467,7 @@ export const NativeActive = meta.story({
             hoverText: '--cem-navigation-item-current-hover-text',
         } as const;
         const disclosure = harness.query<HTMLButtonElement>(
-            'cem-nav[label="Active workspace navigation"] > nav > .cem-nav__disclosure',
+            'cem-nav[label="Active workspace navigation"] > nav > .cem-nav__disclosure > button',
         );
         const activeCases = [
             {
@@ -530,7 +530,7 @@ export const NativeActive = meta.story({
         const clickEvents: string[] = [];
         const mutationEvents: string[] = [];
         harness.root.addEventListener('click', (event) => {
-            const target = event.target;
+            const target = event.target instanceof Element ? event.target.closest('button,a') : null;
             if (target instanceof HTMLAnchorElement) {
                 event.preventDefault();
             }
@@ -579,6 +579,7 @@ export const NativeActive = meta.story({
 
             await click;
             await runtime.whenRenderSettled(host);
+            await Promise.all([...host.querySelectorAll<HTMLElement>('cem-icon-button')].map(whenCemRendered));
             await nextRenderFrame();
             const released = captureNavigationState(runtime, host, wrapper, owner);
             expect(owner.matches(':active')).toBe(false);
@@ -593,7 +594,7 @@ export const NativeActive = meta.story({
             if (owner === disclosure) {
                 expect(
                     harness.query<HTMLButtonElement>(
-                        'cem-nav[label="Active workspace navigation"] > nav > .cem-nav__disclosure',
+                        'cem-nav[label="Active workspace navigation"] > nav > .cem-nav__disclosure > button',
                     ),
                 ).toBe(disclosure);
                 expect(owner.getAttribute('aria-expanded')).toBe('false');
@@ -1079,6 +1080,8 @@ export const DisclosureAndPassive = meta.story({
         expect(Array.from(new FormData(form).entries())).toEqual([]);
 
         await userEvent.click(closedButton);
+        await whenCemRendered(closedHost);
+        await Promise.all([...closedHost.querySelectorAll<HTMLElement>('cem-icon-button')].map(whenCemRendered));
         await nextRenderFrame();
 
         const pointerButton = harness.query<HTMLButtonElement>('cem-nav[collapsible]:not([expanded]) button');
@@ -1096,15 +1099,18 @@ export const DisclosureAndPassive = meta.story({
             type: 'click',
         });
         expect(eventPayload(pointerSnapshot, 'expanded').target).toMatchObject({
-            tag: 'button',
-            type: 'button',
+            tag: 'span',
+            type: null,
         });
+        expect(eventPayload(pointerSnapshot, 'expanded').currentTarget).toMatchObject({ tag: 'cem-icon-button' });
 
         await userEvent.tab();
         expect(document.activeElement).toBe(closedLink);
 
         pointerButton.focus();
         await userEvent.keyboard('{Enter}');
+        await whenCemRendered(closedHost);
+        await Promise.all([...closedHost.querySelectorAll<HTMLElement>('cem-icon-button')].map(whenCemRendered));
         await nextRenderFrame();
 
         const enterButton = harness.query<HTMLButtonElement>('cem-nav[collapsible]:not([expanded]) button');
@@ -1123,6 +1129,8 @@ export const DisclosureAndPassive = meta.story({
 
         enterButton.focus();
         await userEvent.keyboard(' ');
+        await whenCemRendered(closedHost);
+        await Promise.all([...closedHost.querySelectorAll<HTMLElement>('cem-icon-button')].map(whenCemRendered));
         await nextRenderFrame();
 
         const spaceButton = harness.query<HTMLButtonElement>('cem-nav[collapsible]:not([expanded]) button');
@@ -1202,13 +1210,13 @@ function isSerializedEventPayload(value: unknown): value is SerializedEventPaylo
 
 function resolveTokenLength(element: Element, tokenName: string): number {
     const value = getComputedStyle(element).getPropertyValue(tokenName).trim();
-    const match = value.match(/^(-?\d*\.?\d+)px$/);
+    const match = value.match(/^(-?\d*\.?\d+)(px|rem)$/);
 
     if (!match) {
         throw new Error(`Expected generated length token ${tokenName}, received ${value || '<empty>'}`);
     }
 
-    return Number(match[1]);
+    return Number(match[1]) * (match[2] === 'rem' ? parseFloat(getComputedStyle(element.ownerDocument.documentElement).fontSize) : 1);
 }
 
 interface NavigationStateSnapshot {
@@ -1390,7 +1398,8 @@ function resolveLightDark(value: string, colorScheme: string): string {
             throw new Error(`Expected light-dark() token value to contain two colors: ${value}`);
         }
 
-        const choice = colorScheme.includes('dark') ? choices[1] : choices[0];
+        const usesDark = colorScheme.includes('dark') && (!colorScheme.includes('light') || matchMedia('(prefers-color-scheme: dark)').matches);
+        const choice = usesDark ? choices[1] : choices[0];
         resolved = `${resolved.slice(0, start)}${choice.trim()}${resolved.slice(close + 1)}`;
         start = resolved.indexOf('light-dark(');
     }
@@ -1566,7 +1575,7 @@ export const FamilyVisualSnapshots = meta.story({
             text: 'Summary Ready',
         });
         assertPrimitiveVisualSnapshot(captureVisualSnapshot(harness.query<HTMLElement>('cem-nav nav')), {
-            display: 'block',
+            display: 'flex',
             family: 'navigation landmarks',
             htmlIncludes: ['class="cem-nav"', 'aria-label="Primary"', 'href="#home"'],
             tagName: 'nav',
@@ -1635,3 +1644,93 @@ const PHASE3_MINIMAL_PRIMITIVE_TAGS = [
     'cem-list',
     'cem-nav',
 ] as const;
+
+export const NavigationControls = meta.story({
+    render: () => ['light', 'dark', 'contrast-light', 'contrast-dark', 'native'].map(theme =>
+        `<section class="cem-theme-${theme}"><cem-nav label="${theme} workspace" collapsible expanded>
+        <cem-icon-button href="#overview" variant="navigation" align="start">Overview</cem-icon-button>
+        <cem-icon-button href="#current" variant="navigation" align="start" aria-current="page">Current page</cem-icon-button>
+        <cem-icon-button href="#unavailable" variant="navigation" align="start" disabled>Unavailable link</cem-icon-button>
+        <cem-icon-button variant="navigation" image="" disabled>Unavailable action</cem-icon-button>
+        <label>Retained draft <input value="Draft"></label>
+        </cem-nav></section>`).join(''),
+    parameters: { docs: { description: { story: 'Browser-runner-only: trusted navigation pointer and keyboard input.' } } },
+    play: async ({ canvasElement }) => {
+        if (import.meta.env.MODE !== 'test') return;
+        const { userEvent } = await import('vitest/browser');
+        for (const host of canvasElement.querySelectorAll<HTMLElement>('cem-nav')) {
+            await navigationControlsReady(host);
+            await userEvent.unhover(host);
+            const nav = navigationElement<HTMLElement>(host, 'nav');
+            const disclosureHost = navigationElement<HTMLElement>(host, ':scope > nav > cem-icon-button[part=disclosure]');
+            const disclosure = navigationElement<HTMLButtonElement>(disclosureHost, 'button');
+            const content = navigationElement<HTMLElement>(host, ':scope > nav > [part=content]');
+            const [ordinary, current, disabledLink, disabledButton] = [...content.querySelectorAll<HTMLElement>('cem-icon-button > [part=control]')];
+            const input = navigationElement<HTMLInputElement>(content, 'input'); input.value = 'Edited';
+            expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+            expect(current).toHaveAttribute('aria-current', 'page');
+            expect(getComputedStyle(disclosure).fontSize).toBe(getComputedStyle(ordinary).fontSize);
+            expect(getComputedStyle(disabledButton).fontSize).toBe(getComputedStyle(ordinary).fontSize);
+            expect(disabledLink).toHaveAttribute('aria-disabled', 'true');
+            expect(disabledLink).not.toHaveAttribute('href');
+            expect(disabledButton).toBeDisabled();
+            for (const control of [ordinary, disclosure]) {
+                expectPaintedColorToResolveFromToken(paintedColor(getComputedStyle(control).backgroundColor), control, '--cem-navigation-item-default-background');
+                expectPaintedColorToResolveFromToken(paintedColor(getComputedStyle(control).color), control, '--cem-navigation-item-default-text');
+            }
+            expectPaintedColorToResolveFromToken(paintedColor(getComputedStyle(current).backgroundColor), current, '--cem-navigation-item-current-background');
+            for (const control of [disabledLink, disabledButton]) {
+                expectPaintedColorToResolveFromToken(paintedColor(getComputedStyle(control).backgroundColor), control, '--cem-navigation-item-disabled-background');
+                expectPaintedColorToResolveFromToken(paintedColor(getComputedStyle(control).color), control, '--cem-navigation-item-disabled-text');
+            }
+            expect(parseFloat(getComputedStyle(nav).paddingInlineStart)).toBeGreaterThanOrEqual(resolveTokenLength(nav, '--cem-inset-container'));
+            expect(parseFloat(getComputedStyle(content).gap)).toBeGreaterThanOrEqual(resolveTokenLength(content, '--cem-gap-related'));
+            expect(current.getBoundingClientRect().left - ordinary.getBoundingClientRect().right).toBeGreaterThanOrEqual(resolveTokenLength(content, '--cem-gap-related'));
+            expect(parseFloat(getComputedStyle(ordinary).paddingInlineStart)).toBeGreaterThan(0);
+            expect(ordinary.getBoundingClientRect().height).toBeGreaterThanOrEqual(resolveTokenLength(ordinary, '--cem-coupling-zone-min'));
+            await userEvent.hover(ordinary);
+            expectPaintedColorToResolveFromToken(paintedColor(getComputedStyle(ordinary).backgroundColor), ordinary, '--cem-navigation-item-hover-background');
+            await userEvent.hover(current);
+            expectPaintedColorToResolveFromToken(paintedColor(getComputedStyle(current).backgroundColor), current, '--cem-navigation-item-current-hover-background');
+            current.addEventListener('click', event => event.preventDefault(), { once: true });
+            const pointerDown = nextTrustedPointerDown(current);
+            const activate = userEvent.click(current, { delay: 150 });
+            await eventBeforeInteractionCompletes(pointerDown, activate, 'composed navigation pointerdown');
+            await waitForPseudoClass(current, ':active');
+            expectPaintedColorToResolveFromToken(paintedColor(getComputedStyle(current).backgroundColor), current, '--cem-navigation-item-current-active-background');
+            await activate;
+            expect(current).toHaveAttribute('aria-current', 'page');
+            host.style.setProperty('--cem-navigation-item-current-hover-background', 'rgb(19, 39, 59)');
+            expect(getComputedStyle(current).backgroundColor).toBe('rgb(19, 39, 59)');
+            host.style.removeProperty('--cem-navigation-item-current-hover-background');
+            await userEvent.click(navigationElement<HTMLElement>(disclosureHost, '[part=glyph]'));
+            await waitFor(() => expect(content).toHaveAttribute('hidden'));
+            await waitFor(() => expect(disclosure).toHaveAttribute('aria-expanded', 'false'));
+            expect(host.querySelector('input')).toBe(input);
+            expect(input.value).toBe('Edited');
+            disclosure.focus(); await userEvent.keyboard('{Enter}');
+            await waitFor(() => expect(content).not.toHaveAttribute('hidden'));
+            await waitFor(() => expect(disclosure).toHaveAttribute('aria-expanded', 'true'));
+            expect(document.activeElement).toBe(disclosure);
+            await userEvent.tab(); expect(document.activeElement).toBe(ordinary);
+            await userEvent.tab(); expect(document.activeElement).toBe(current);
+            await userEvent.tab(); expect(document.activeElement).toBe(input);
+            host.style.setProperty('--cem-gap-related', '20px'); host.style.setProperty('--cem-inset-container', '28px');
+            expect(parseFloat(getComputedStyle(content).gap)).toBe(20);
+            expect(parseFloat(getComputedStyle(nav).paddingInlineStart)).toBe(28);
+            host.style.removeProperty('--cem-gap-related'); host.style.removeProperty('--cem-inset-container');
+        }
+    },
+});
+
+async function navigationControlsReady(host: HTMLElement): Promise<void> {
+    await whenCemRendered(host);
+    await waitFor(() => expect(host.querySelectorAll('cem-icon-button > [part=control]')).toHaveLength(5));
+    for (let pass = 0; pass < 2; pass++) await Promise.all([...host.querySelectorAll<HTMLElement>('cem-icon-button,cem-icon')].map(whenCemRendered));
+}
+
+function navigationElement<T extends HTMLElement>(root: ParentNode, selector: string): T {
+    const element = root.querySelector<T>(selector);
+    if (!element) throw new Error(`Missing navigation element ${selector}`);
+    return element;
+}

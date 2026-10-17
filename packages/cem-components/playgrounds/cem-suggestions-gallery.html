@@ -15,13 +15,15 @@
         "@epa-wg/cem-components/playgrounds/": "./"
     }
 }</script>
-<script type="module">
+    <link rel="stylesheet" href="../../cem-theme/dist/lib/css/cem-combined.css">
+    <link rel="stylesheet" href="../dist/styles.css">
+    <script type="module">
 import { installCemElementRuntime } from '@epa-wg/cem-elements';
 import '@epa-wg/cem-demo-element';
 const runtime = installCemElementRuntime(window, { localSuggestions: true, processingPoolPolicy: { queueSize: 512 } });
 window.cemPlaygroundRuntime = runtime;
 </script><link rel="stylesheet" href="../demo.css">
-<style>body { margin: 0; font-family: system-ui,sans-serif; } main { display:block; padding: var(--cem-dim-large); } .matrix { display:grid; grid-template-columns:repeat(auto-fit,minmax(18rem,1fr)); gap:var(--cem-gap-block); } cem-demo-element { display:block; margin-block:var(--cem-gap-block); } fieldset { margin-block:var(--cem-gap-related); }</style></head><body>
+<style>body { margin: 0; font-family: system-ui,sans-serif; } main { display:block; } .matrix { display:grid; grid-template-columns:repeat(auto-fit,minmax(18rem,1fr)); gap:var(--cem-gap-block); } cem-demo-element { display:block; margin-block:var(--cem-gap-block); } fieldset { margin-block:var(--cem-gap-related); }</style></head><body>
 <cem-element hidden><template type="text/cem-ml">
 {cem-element @tag=cem-option @src="@epa-wg/cem-components/components/cem-option/cem-option.xhtml#cem-option"}
 {cem-element @tag=cem-option-group @src="@epa-wg/cem-components/components/cem-option-group/cem-option-group.xhtml#cem-option-group"}
@@ -77,12 +79,12 @@ window.cemPlaygroundRuntime = runtime;
 
 {cem-element @tag=cem-switch @src="@epa-wg/cem-components/components/cem-switch/cem-switch.xhtml#cem-switch"}
 
-{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
-{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
-{cem-module-url @slice=legacyStylesUrl @src="@epa-wg/cem-components/styles.css"}
-{cem:if @test="datadom.slices.legacyStylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.legacyStylesUrl}"}}
 
-{cem-element @tag=cem-gallery-nav @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml#cem-gallery-nav"}
+
+
+
+
+{cem-element @tag=cem-gallery-page @src="@epa-wg/cem-components/playgrounds/cem-gallery-page.xhtml#cem-gallery-page"}
 
 {cem-element @tag=cem-suggestions @capability=suggestions @src="@epa-wg/cem-components/components/cem-suggestions/cem-suggestions.xhtml#cem-suggestions"}
 
@@ -90,8 +92,10 @@ window.cemPlaygroundRuntime = runtime;
 
 {cem-element @tag=cem-text-field @capability=form-control @src="@epa-wg/cem-components/components/cem-text-field/cem-text-field.xhtml#cem-text-field"}
 </template></cem-element>
+<cem-gallery-page heading="cem-suggestions — Full examples and variation matrix">
+<template>
 <main>
-<cem-gallery-nav heading="cem-suggestions — Full examples and variation matrix"></cem-gallery-nav><p>Suggestions attach to the existing editor in <a href="cem-field-gallery.html">cem-field</a> or <a href="cem-text-field-gallery.html">cem-text-field</a>. The field keeps its label, help, validation and form value; the attachment owns the suggestion list.</p><p><a href="./cem-suggestions.html">Suggestions property playground and source</a> · <a href="../src/components/cem-suggestions/cem-suggestions.stories.ts">Automated stories</a></p><table><caption>First local profile</caption><tr><th>Input</th><th>Behavior</th></tr>
+<p>Suggestions attach to the existing editor in <a href="cem-field-gallery.html">cem-field</a> or <a href="cem-text-field-gallery.html">cem-text-field</a>. The field keeps its label, help, validation and form value; the attachment owns the suggestion list.</p><p><a href="./cem-suggestions.html">Suggestions property playground and source</a> · <a href="../src/components/cem-suggestions/cem-suggestions.stories.ts">Automated stories</a></p><table><caption>First local profile</caption><tr><th>Input</th><th>Behavior</th></tr>
 <tr><td data-gallery-attribute="profile">profile</td><td>listbox (default) provides the custom list; native-datalist delegates the popup to the browser.</td></tr>
 <tr><td data-gallery-attribute="label">label</td><td>Listbox accessible name; default Suggestions. The projected field owns its visible label and help.</td></tr>
 <tr><td>filter / filter-by</td><td>contains (default), prefix, none. label (default), value, or label value; omit filter-by with none.</td></tr>
@@ -157,4 +161,6 @@ window.cemPlaygroundRuntime = runtime;
 {cem:if @test="datadom.slices.sourceUrl" | {p | {a @href="{$datadom.slices.sourceUrl}" | Canonical XHTML}} {cem-demo-element @legend="Canonical suggestions source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}}
 </template></cem-element><cem-demo-element legend="Native datalist profile" description="The browser owns the suggestion popup for this profile; its presentation and keyboard behavior depend on the browser."><template slot="source">
 <cem-suggestions profile="native-datalist"><template><cem-field slot="editor" label="Native city"></cem-field><template slot="options"><option value="Seattle"></option><option value="San Francisco"></option></template></template></cem-suggestions>
-</template></cem-demo-element></main></body></html>
+</template></cem-demo-element></main></template>
+</cem-gallery-page>
+</body></html>

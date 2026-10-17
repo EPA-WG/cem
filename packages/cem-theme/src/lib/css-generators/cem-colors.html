@@ -311,6 +311,9 @@
 
   /* region common for cem themes */
   [data-theme*="cem-theme-"], .cem-theme-native, .cem-theme-contrast-light, .cem-theme-contrast-dark, .cem-theme-light, .cem-theme-dark {
+    /* Each explicit theme root resolves its own canonical emotion palette. */```{cem:for-each @select="$datadom.slices.shift" @as="emo" |```
+  ```{$emo.token}: {cem:choose |{cem:when @test='emo.dark != ""' |light-dark({cem:choose |{cem:when @test='datadom.slices.hue.token & (str:concat(("--cem-color-", emo.light)))' |var(--cem-color-{$emo.light})}{cem:otherwise |var(--cem-palette-{$emo.light})}}, {cem:choose |{cem:when @test='datadom.slices.hue.token & (str:concat(("--cem-color-", emo.dark)))' |var(--cem-color-{$emo.dark})}{cem:otherwise |var(--cem-palette-{$emo.dark})}})}{cem:otherwise |{cem:choose |{cem:when @test='datadom.slices.hue.token & (str:concat(("--cem-color-", emo.light)))' |var(--cem-color-{$emo.light})}{cem:otherwise |var(--cem-palette-{$emo.light})}}}};}```
+
     /* action intent tokens: cem-action-[intent]-[state]-[background|text] */```{cem:for-each @select="$datadom.slices.intent" @as="intent" |{cem:for-each @select="$datadom.slices.state" @as="state" |```
     ```--cem-action-{$intent.action_intent}-{$state.state}-background: {$str:replace(state.background_formula_palette_level, "[emotion]", intent.emotional_palette)};
     --cem-action-{$intent.action_intent}-{$state.state}-text: {$str:replace(state.text_token, "[emotion]", intent.emotional_palette)};}}```
@@ -347,15 +350,16 @@
   .cem-theme-dark, [data-theme="cem-theme-dark"], .cem-theme-contrast-dark, [data-theme="cem-theme-contrast-dark"] { color-scheme: dark; }
 
   /* region zebra state per theme mode (§8.2 cem-zebra-mode-mapping) */```{cem:for-each @select="$datadom.slices.zmap" @as="z" |```
-  .cem-theme-```{$z.theme_mode}```, [data-theme="cem-theme-```{$z.theme_mode}```"] {
-    [focus], :focus, :focus-visible, :focus-within, .focus { --cem-zebra-color-1: ```{cem:choose |{cem:when @test='str:starts_with(z.cem_zebra_color_1_focus, "--")' |var({$z.cem_zebra_color_1_focus})}{cem:otherwise |{$z.cem_zebra_color_1_focus}}}```; }
-    [target], :target, .target { --cem-zebra-color-2: ```{cem:choose |{cem:when @test='str:starts_with(z.cem_zebra_color_2_target, "--")' |var({$z.cem_zebra_color_2_target})}{cem:otherwise |{$z.cem_zebra_color_2_target}}}```; }
-    [selected], .selected { --cem-zebra-color-3: ```{cem:choose |{cem:when @test='str:starts_with(z.cem_zebra_color_3_selected, "--")' |var({$z.cem_zebra_color_3_selected})}{cem:otherwise |{$z.cem_zebra_color_3_selected}}}```; }
+  @scope (.cem-theme-```{$z.theme_mode}```, [data-theme="cem-theme-```{$z.theme_mode}```"]) to ([data-theme*="cem-theme-"], .cem-theme-native, .cem-theme-contrast-light, .cem-theme-contrast-dark, .cem-theme-light, .cem-theme-dark) {
+    :scope:where([focus], :focus, :focus-visible, :focus-within, .focus), [focus], :focus, :focus-visible, :focus-within, .focus { --cem-zebra-color-1: ```{cem:choose |{cem:when @test='str:starts_with(z.cem_zebra_color_1_focus, "--")' |var({$z.cem_zebra_color_1_focus})}{cem:otherwise |{$z.cem_zebra_color_1_focus}}}```; }
+    :scope:where([target], :target, .target), [target], :target, .target { --cem-zebra-color-2: ```{cem:choose |{cem:when @test='str:starts_with(z.cem_zebra_color_2_target, "--")' |var({$z.cem_zebra_color_2_target})}{cem:otherwise |{$z.cem_zebra_color_2_target}}}```; }
+    :scope:where([selected], .selected), [selected], .selected { --cem-zebra-color-3: ```{cem:choose |{cem:when @test='str:starts_with(z.cem_zebra_color_3_selected, "--")' |var({$z.cem_zebra_color_3_selected})}{cem:otherwise |{$z.cem_zebra_color_3_selected}}}```; }
   }```}```
   /* endregion zebra state */
 
   /* region native theme overrides */
-  .cem-theme-native, [data-theme="cem-theme-native"] {```{cem:for-each @select="$datadom.slices.shift" @as="emo" |```
+  .cem-theme-native, [data-theme="cem-theme-native"] {
+    color-scheme: light dark;```{cem:for-each @select="$datadom.slices.shift" @as="emo" |```
     ```{$emo.token}: {cem:choose |{cem:when @test='emo.native_dark != ""' |light-dark({cem:choose |{cem:when @test='str:starts_with(emo.native_light, "--")' |var({$emo.native_light})}{cem:when @test='str:contains(emo.native_light, "-") && !str:contains(emo.native_light, "(")' |var(--cem-color-{$emo.native_light})}{cem:otherwise |{$emo.native_light}}}, {cem:choose |{cem:when @test='str:starts_with(emo.native_dark, "--")' |var({$emo.native_dark})}{cem:when @test='str:contains(emo.native_dark, "-") && !str:contains(emo.native_dark, "(")' |var(--cem-color-{$emo.native_dark})}{cem:otherwise |{$emo.native_dark}}})}{cem:otherwise |{$emo.native_light}}};}```
     ```{cem:for-each @select="$datadom.slices.nativeaction" @as="row" |```
     ```{$row.token}: {$row.value};}```
@@ -367,9 +371,6 @@
     ```{$row.token}: {$row.forced_colors};}```
     ```{cem:for-each @select="$datadom.slices.slider" @as="row" |```
     ```{$row.token}: {$row.forced_colors};}```
-    [focus], :focus, :focus-visible, :focus-within, .focus { --cem-zebra-color-1: CanvasText; }
-    [target], :target, .target { --cem-zebra-color-2: Mark; }
-    [selected], .selected { --cem-zebra-color-3: SelectedItem; }
   }
   /* endregion native */
 

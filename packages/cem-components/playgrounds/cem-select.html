@@ -18,6 +18,8 @@
         "@epa-wg/cem-components/playgrounds/": "./"
     }
 }</script>
+    <link rel="stylesheet" href="../../cem-theme/dist/lib/css/cem-combined.css">
+    <link rel="stylesheet" href="../dist/styles.css">
     <script type="module">
         import { installCemElementRuntime } from '@epa-wg/cem-elements';
         import '@epa-wg/cem-demo-element';
@@ -27,7 +29,6 @@
     <link rel="stylesheet" href="../demo.css">
     <style>
         body { margin: 0; font-family: system-ui, sans-serif; }
-        #playground-theme { box-sizing: border-box; min-block-size: 100vh; padding: var(--cem-dim-large); }
         main { display: block; }
         .workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--cem-dim-large); }
         .preview { padding: var(--cem-dim-large); border: var(--cem-stroke-boundary) solid currentColor; }
@@ -93,7 +94,7 @@
 
 {cem-element @tag=cem-switch @src="@epa-wg/cem-components/components/cem-switch/cem-switch.xhtml#cem-switch"}
 
-{cem-element @tag=cem-gallery-nav @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml#cem-gallery-nav"}
+{cem-element @tag=cem-gallery-page @src="@epa-wg/cem-components/playgrounds/cem-gallery-page.xhtml#cem-gallery-page"}
 
 {cem-element @tag=cem-field @capability=form-control @src="@epa-wg/cem-components/components/cem-field/cem-field.xhtml#cem-field"}
 
@@ -101,16 +102,15 @@
 
 {cem-element @tag=cem-theme-switch @src="@epa-wg/cem-components/components/cem-theme-switch/cem-theme-switch.xhtml#cem-theme-switch"}
 
-{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
-{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}
+
+
 {cem-element @tag=cem-select @capability=choice-select @src="@epa-wg/cem-components/components/cem-select/cem-select.xhtml#cem-select"}
-{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
-{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
 </template>
 </cem-element>
 
-<cem-theme-switch id="playground-theme" mode="light" name="playground-theme-mode">
-<cem-gallery-nav heading="cem-select: Property playground"></cem-gallery-nav>
+<cem-gallery-page id="playground-theme" heading="cem-select: Property playground">
+<template>
+
 
 <header>
 
@@ -245,6 +245,8 @@
 </template>
 </cem-element>
 </main>
-</cem-theme-switch>
+
+</template>
+</cem-gallery-page>
 </body>
 </html>

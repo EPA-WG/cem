@@ -8,8 +8,9 @@ test in [`cem-nav.stories.ts`](../src/components/cem-nav/cem-nav.stories.ts).
 
 `cem-nav` keeps its current labeled navigation landmark and projected content by
 default. The presence-only `collapsible` attribute opts the entire landmark into
-one disclosure controlled by a native `<button type="button">` inside the rendered
-`<nav>`. The button owns the current `aria-expanded="true|false"` state, and a
+one disclosure controlled by `cem-icon-button variant="navigation"` inside the
+rendered `<nav>`. Its native `<button type="button">` retains disclosure
+semantics. The button owns the current `aria-expanded="true|false"` state, and a
 stable sibling content container owns the projected navigation payload and the
 matching `hidden` state.
 
@@ -36,14 +37,15 @@ widget.
 
 ```html
 <cem-nav label="Primary navigation" collapsible expanded>
-  <a href="/overview">Overview</a>
-  <a href="/assets">Assets</a>
+  <cem-icon-button href="/overview" variant="navigation" align="start"
+    aria-current="page">Overview</cem-icon-button>
+  <cem-icon-button href="/assets" variant="navigation" align="start">Assets</cem-icon-button>
 </cem-nav>
 ```
 
 | Attribute | Contract |
 | --- | --- |
-| `label` | Required non-empty accessible name for both the navigation landmark and its disclosure button. The button text is plain text derived from this value. |
+| `label` | Required non-empty accessible name for both the navigation landmark and its disclosure button. The icon button label derives from this value; a directional disclosure glyph reflects open/closed state. |
 | `collapsible` | Presence enables the region-wide disclosure. Absence preserves the existing passive projection byte-for-byte. |
 | `expanded` | Optional initial state for collapsible mode. Presence starts open; absence starts closed. It is ignored in passive mode. |
 
@@ -51,18 +53,41 @@ widget.
 `collapsible="false"` and `expanded="false"` still mean present/true and are
 invalid authoring attempts to express false.
 
-The default payload remains ordinary navigation content: links, lists of links,
+The default payload accepts navigation-variant icon links and ordinary navigation
+content: native links, lists of links,
 and related non-composite actions. No `cem-nav-group` child vocabulary is accepted
-in v1. The disclosure button cannot contain author-projected controls or rich
-interactive content because its label comes only from the `label` attribute.
+in v1. The disclosure icon button is component-owned; projected navigation
+content stays in the sibling content container.
+
+## Layout and theme ownership
+
+The nav landmark owns container padding through `--cem-inset-container` and
+wrapping item gaps through `--cem-gap-related`, bounded by the existing coupling
+indicator guard. Collapsible mode places disclosure above the wrapping content
+row. Hidden content remains removed from layout and the keyboard sequence.
+Controls inherit the nav typography. Logical spacing and start alignment follow
+inherited `dir`, including RTL.
+The disclosure host exposes `part="disclosure"`; its native button exposes
+`part="control"`. The retained content container exposes `part="content"`.
+
+`cem-icon-button` owns each composed control's padding, minimum hit area, label
+and optional glyph. `variant="navigation"` consumes the existing navigation
+state colors inside that component's own CSS scope. Explicit `aria-current`
+forwards unchanged to the native anchor; `aria-expanded` forwards unchanged to
+the native disclosure button. The shared nav does not reach through component
+CSS boundaries or change arbitrary nested controls' action colors.
+
+Plain native links/buttons remain supported with the existing state paint and
+ARIA-disabled activation guard. Icon links authored with `disabled` instead
+follow the icon button contract: URL omitted and tab stop removed.
 
 ## Normalization algorithm
 
 1. If `collapsible` is absent, render the existing named `<nav>` and project the
    default slot unchanged. Do not add a button, `aria-expanded`, or hidden wrapper.
 2. If `collapsible` is present, keep the same named `<nav>` landmark and render a
-   native `type="button"` disclosure control followed by one stable content
-   container containing the existing default-slot projection.
+   navigation-variant icon button with a native `type="button"` control followed
+   by one stable content container containing the existing default-slot projection.
 3. Resolve current state as the serializable `expanded` slice when it exists;
    otherwise use the authored `expanded` attribute. An absent attribute therefore
    initializes the disclosure as closed.
@@ -87,7 +112,7 @@ stable per-instance author-facing IDs are defined.
 
 - The `<nav>` retains its implicit navigation landmark and accessible `label` in
   both modes. `aria-expanded` belongs to the focusable button, never the landmark.
-- The button relies on native activation: pointer click, `Enter`, and `Space`
+- The embedded native button relies on native activation: pointer click, `Enter`, and `Space`
   toggle it. No imperative keyboard handler, roving `tabindex`, arrow-key loop,
   `Escape` handler, or focus transfer is introduced.
 - Focus remains on the disclosure button after a user toggle. When open, normal
@@ -124,7 +149,7 @@ decision rather than adding component-specific imperative code.
 
 The implementation slice is complete only when a focused browser test proves:
 
-- passive `cem-nav` output remains unchanged;
+- passive `cem-nav` keeps its named landmark and authored payload, with shared spacing;
 - `collapsible` adds exactly one named native button inside the same named
   navigation landmark;
 - absent/present `expanded` initializes closed/open state respectively;

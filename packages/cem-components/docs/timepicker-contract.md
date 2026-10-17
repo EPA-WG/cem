@@ -10,9 +10,16 @@ The canonical implementation is [cem-timepicker.xhtml](../src/components/cem-tim
 with [colocated stories](../src/components/cem-timepicker/cem-timepicker.stories.ts),
 [property controls](../playgrounds/cem-timepicker.html) and a
 [five-theme gallery](../playgrounds/cem-timepicker-gallery.html). Its shared
-`time-input` capability lives in cem-elements; fragment-src wrappers repeat the
-capability. Styles are embedded and installed once per declaration through native
-@scope. Projected inputs retain native ownership; generated internals expose part hooks.
+`time-input` capability lives in cem-elements; fragment imports inherit it from
+the selected source template or its owning declaration. Styles are embedded and
+installed once per declaration through native @scope. Projected inputs retain
+native ownership; generated internals expose part hooks.
+
+**Capability caveat:** preserve `time-input` metadata when copying the template.
+An explicit importer override or `capability=""` can remove the shared editing
+and picker behavior. This component preserves its native form input; do not
+replace its capability with `form-control`. See the
+[metadata ownership rules](./conventions.md#41-intrinsic-capability-metadata).
 
 ## Owner and author vocabulary
 

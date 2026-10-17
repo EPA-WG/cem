@@ -94,6 +94,9 @@ for (const path of ['playgrounds/index.html', 'dist/index.html']) {
     }
 }
 const componentIndex = await readFile(join(packageRoot, 'index.html'), 'utf8');
+if (packageJson.exports?.['./playgrounds/cem-gallery-page.xhtml'] !== './dist/cem-gallery-page.xhtml') {
+    throw new Error('The shared gallery page must export its built declaration');
+}
 for (const tag of canonicalTags) {
     if (!componentIndex.includes(`href="./playgrounds/${tag}-gallery.html">${tag}</a>`)) throw new Error(`Component index must link ${tag}`);
 }
@@ -128,7 +131,7 @@ try {
             throw new Error(`npm pack must expose the built playground ${page}`);
         }
     }
-    for (const source of ['demo.css', 'playgrounds/cem-icon-button.html', 'playgrounds/cem-menu-item.html', 'dist/components.xhtml', 'build/components.cemt', 'build/components.transform.cem', 'playgrounds/cem-bundle.html', 'playgrounds/bundle.importmap.source.json', 'playgrounds/bundle.importmap.package.json', 'playgrounds/cem-action-gallery.html', 'playgrounds/cem-select.html', 'playgrounds/cem-theme-switch.html', 'playgrounds/cem-action.html', 'playgrounds/importmap.source.json', 'playgrounds/importmap.package.json', 'playgrounds/importmap.transform.cem', 'dist/icon.html']) {
+    for (const source of ['dist/cem-gallery-page.xhtml', 'playgrounds/cem-gallery-page.xhtml', 'demo.css', 'playgrounds/cem-icon-button.html', 'playgrounds/cem-menu-item.html', 'dist/components.xhtml', 'build/components.cemt', 'build/components.transform.cem', 'playgrounds/cem-bundle.html', 'playgrounds/bundle.importmap.source.json', 'playgrounds/bundle.importmap.package.json', 'playgrounds/cem-action-gallery.html', 'playgrounds/cem-select.html', 'playgrounds/cem-theme-switch.html', 'playgrounds/cem-action.html', 'playgrounds/importmap.source.json', 'playgrounds/importmap.package.json', 'playgrounds/importmap.transform.cem', 'dist/icon.html']) {
         if (!packedFiles.includes(source)) throw new Error(`npm pack is missing playground source or asset ${source}`);
     }
 

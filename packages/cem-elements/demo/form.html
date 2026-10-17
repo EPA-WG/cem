@@ -35,6 +35,26 @@
             form or control invalid and supplies its validation message. Native and
             custom messages are available through <code>datadom.validationState</code>.
         </p>
+        <h3>Template-owned capabilities</h3>
+        <p>
+            A reusable form input declares its behavior on the source template.
+            In CEM-ML, the template header is
+            <code>{template @capability=form-control @type=text/cem-ml | ...}</code>.
+            The equivalent HTML is
+            <code>&lt;template capability="form-control" type="text/cem-ml"&gt;</code>.
+            Use <code>form-control</code> for one string-valued input or textarea;
+            sample 5 uses <code>choice-select</code> for its choice buttons.
+        </p>
+        <p>
+            The runtime reads this metadata before registering the custom element.
+            An import using <code>src="./controls.xhtml#account-input"</code>
+            inherits the selected template's capability, falling back to its
+            immediate owning <code>cem-element</code>. An explicit capability on
+            the importing declaration wins; an empty value suppresses inheritance.
+            Preserve this metadata when copying a template: rendering an input
+            alone does not give its DCE host submission, validation or reset behavior.
+            See the <a href="../../../docs/cem-element-src-loading-contract.md#source-owned-capabilities">capability loading contract</a>.
+        </p>
         <p>
             See the browser APIs behind these examples in
             <a href="https://developer.mozilla.org/en-US/docs/Web/API/FormData">FormData</a>
@@ -282,10 +302,10 @@
 
     <cem-demo-element
         legend="5. DCE as a form input"
-        description="Two form-associated DCE choices contribute values and matching selections satisfy the form">
+        description="The template declares choice-select; two form-associated DCE choices contribute values and matching selections satisfy the form">
         <template>
-<cem-element tag="cem-form-fruit-choice" capability="choice-select">
-    <template type="text/cem-ml">
+<cem-element tag="cem-form-fruit-choice">
+    <template capability="choice-select" type="text/cem-ml">
 {style |```
     fieldset { display: flex; flex-wrap: wrap; gap: 0.5rem; }
     button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px currentColor; }

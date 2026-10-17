@@ -7,6 +7,15 @@ This contract closes the Phase 4 `navigation:focus-visible` state for
 existing navigation owner. It does not navigate, select a tab, toggle a
 disclosure, activate a command, or create component runtime state.
 
+## Composed navigation controls
+
+The shared disclosure and recommended link items use
+`cem-icon-button variant="navigation"`. Its native controls consume the same
+navigation endpoints and retain explicit ARIA values within their own CSS scope.
+The nav owns static padding and wrapping gaps; state transitions do not alter
+geometry. Arbitrary nested controls retain their own state family. See the
+[disclosure and layout contract](./navigation-disclosure-contract.md).
+
 ## Interaction owners
 
 Focus paint belongs to the same rendered native owners as navigation hover:
@@ -14,7 +23,7 @@ Focus paint belongs to the same rendered native owners as navigation hover:
 - direct `a[href]` and enabled `button` children of `cem-nav > nav`;
 - direct `a[href]` and enabled `button` children of
   `cem-nav > nav > .cem-nav__content`;
-- the enabled native `.cem-nav__disclosure` button; and
+- the enabled native button inside the disclosure icon button; and
 - direct enabled `button[role="tab"]` children of the `cem-tabs` tablist.
 
 `cem-nav`, its rendered `nav`, `.cem-nav__content`, `cem-tabs`, and its

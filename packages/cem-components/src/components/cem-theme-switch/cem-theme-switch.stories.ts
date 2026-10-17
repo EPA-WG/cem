@@ -6,88 +6,183 @@ const meta = preview.meta({
     component: 'cem-theme-switch',
     title: 'CEM Components/cem-theme-switch',
     globals: { cemTheme: 'light' },
-    loaders: [async () => { await loadCemDeclaration('cem-theme-switch', declarationSource); return {}; }],
+    loaders: [async () => {
+        for (const tag of ['cem-icon', 'cem-icon-button', 'cem-action', 'cem-menu-item', 'cem-menu', 'cem-dropdown']) await loadCemDeclaration(tag, await cemComponentDeclarationSource(tag));
+        await loadCemDeclaration('cem-theme-switch', declarationSource); return {};
+    }],
 });
 
+async function choose(host: HTMLElement, value: string): Promise<void> {
+    await waitFor(() => expect(host.querySelector('[part=trigger] button')).not.toBeNull());
+    await waitFor(() => expect(host.querySelectorAll('cem-menu cem-icon-button button')).toHaveLength(5));
+    await userEvent.click(required(host, '[part=trigger] button'));
+    await userEvent.click(required(host, `cem-icon-button[value="cem-theme-${value}"] button`));
+    await whenCemRendered(host);
+    await waitFor(() => expect(host).toHaveAttribute('data-theme', `cem-theme-${value}`));
+}
+
 export const ModesAndContrast = meta.story({
-    render: () => `<cem-theme-switch><label>Retained value <input data-retained value="Draft"></label></cem-theme-switch>`,
+    render: () => `<cem-theme-switch storage-key="story-theme-modes"><label>Retained value <input data-retained value="Draft"></label></cem-theme-switch>`,
+    beforeEach: () => { localStorage.removeItem('story-theme-modes'); },
     play: async ({ canvasElement }) => {
-        const host = canvasElement.querySelector<HTMLElement>('cem-theme-switch')!;
+        const host = required(canvasElement, 'cem-theme-switch');
         await whenCemRendered(host);
-        const canvas = within(host);
-        const contrast = canvas.getByRole('checkbox', { name: 'Contrast' });
-        const retained = host.querySelector<HTMLInputElement>('[data-retained]')!;
+        const retained = required<HTMLInputElement>(host, '[data-retained]');
         retained.value = 'Edited';
-        await expect(host).toHaveAttribute('data-theme', 'cem-theme-native');
-        await expect(canvas.getByRole('radio', { name: 'Native' })).toBeChecked();
-        await expect(contrast).toBeDisabled();
-        for (const mode of ['Light', 'Dark']) {
-            await userEvent.click(canvas.getByRole('radio', { name: mode }));
-            await whenCemRendered(host);
-            await expect(host).toHaveAttribute('data-theme', `cem-theme-${mode.toLowerCase()}`);
-            await expect(contrast).toBeEnabled();
-            await userEvent.click(contrast);
-            await whenCemRendered(host);
-            await expect(host).toHaveAttribute('data-theme', `cem-theme-contrast-${mode.toLowerCase()}`);
-            await expect(getComputedStyle(host).colorScheme).toBe(mode.toLowerCase());
-            await userEvent.click(canvas.getByRole('radio', { name: 'Native' }));
-            await whenCemRendered(host);
-            await expect(host).toHaveAttribute('data-theme', 'cem-theme-native');
-            await expect(contrast).toBeDisabled();
-            await expect(contrast).not.toBeChecked();
-            await userEvent.click(canvas.getByRole('radio', { name: mode }));
-            await whenCemRendered(host);
-            await expect(contrast).toBeChecked();
-            await expect(host).toHaveAttribute('data-theme', `cem-theme-contrast-${mode.toLowerCase()}`);
-            await userEvent.click(contrast);
-            await whenCemRendered(host);
+        await waitFor(() => expect(host.querySelectorAll('cem-menu cem-icon-button button')).toHaveLength(5));
+        await expect(host.querySelector('cem-dropdown > [part=base] button')).toBeNull();
+        await expect(required(host, 'cem-icon-button[part=trigger]')).toHaveAttribute('image', '◐');
+        await expect(required(host, 'cem-icon-button[part=trigger]')).toHaveAttribute('variant', 'contextual');
+        await expect(host).toHaveAttribute('data-theme', 'cem-theme-light');
+        for (const [index, item] of [...host.querySelectorAll<HTMLElement>('cem-menu cem-icon-button')].entries()) {
+            await expect(item).toHaveAttribute('align', 'start');
+            await whenCemRendered(item);
+            const icon = required(item, 'cem-icon');
+            await whenCemRendered(icon);
+            const glyph = required(icon, '[part=icon]');
+            expect(glyph.textContent?.trim()).toBe(['☀', '☾', '☀', '☾', '◐'][index]);
+            expect(parseFloat(getComputedStyle(glyph).fontSize)).toBeGreaterThan(parseFloat(getComputedStyle(required(item, 'button')).fontSize));
+            await expect(required(item, 'button')).toHaveAttribute('role', 'menuitemradio');
+            await expect(required(item, 'button')).not.toHaveAttribute('aria-pressed');
+        }
+        for (const mode of ['dark', 'contrast-light', 'contrast-dark', 'native', 'light']) {
+            await choose(host, mode);
+            await waitFor(() => expect(localStorage.getItem('story-theme-modes')).toBe(`cem-theme-${mode}`));
             await expect(host.querySelector('[data-retained]')).toBe(retained);
             await expect(retained.value).toBe('Edited');
+            const selected = required(host, `cem-icon-button[value="cem-theme-${mode}"]`);
+            await waitFor(() => expect(selected).toHaveAttribute('selected'));
+            await waitFor(() => expect(required(selected, 'button')).toHaveAttribute('aria-checked', 'true'));
+            await expect(selected).toHaveAttribute('variant', 'contextual');
+            await expect(getComputedStyle(required(selected, 'button')).boxShadow).not.toBe('none');
         }
     },
 });
 
 export const IndependentScopes = meta.story({
-    render: () => `<cem-theme-switch name="first-theme" mode="dark" contrast="true"><p>First scope</p></cem-theme-switch><cem-theme-switch name="second-theme" mode="light"><p>Second scope</p></cem-theme-switch>`,
+    render: () => `<cem-theme-switch storage-key="story-theme-first" mode="dark" contrast="true"><p>First scope</p></cem-theme-switch><cem-theme-switch storage-key="story-theme-second"><p>Second scope</p></cem-theme-switch>`,
+    beforeEach: () => { localStorage.removeItem('story-theme-first'); localStorage.removeItem('story-theme-second'); },
     play: async ({ canvasElement }) => {
         const [first, second] = [...canvasElement.querySelectorAll<HTMLElement>('cem-theme-switch')];
         for (const host of [first, second]) await whenCemRendered(host);
         await expect(first).toHaveAttribute('data-theme', 'cem-theme-contrast-dark');
+        await choose(first, 'dark');
         await expect(second).toHaveAttribute('data-theme', 'cem-theme-light');
-        await userEvent.click(within(first).getByRole('radio', { name: 'Native' }));
-        await whenCemRendered(first);
-        await expect(within(second).getByRole('radio', { name: 'Light' })).toBeChecked();
-        await expect(second).toHaveAttribute('data-theme', 'cem-theme-light');
+        first.remove();
+        const restored = document.createElement('cem-theme-switch'); restored.setAttribute('storage-key', 'story-theme-first');
+        canvasElement.append(restored); await whenCemRendered(restored);
+        await waitFor(() => expect(restored).toHaveAttribute('data-theme', 'cem-theme-dark'));
+    },
+});
+
+export const SavedSelection = meta.story({
+    render: () => '<cem-theme-switch storage-key="story-theme-saved"></cem-theme-switch><cem-theme-switch storage-key="story-theme-invalid"></cem-theme-switch>',
+    beforeEach: () => {
+        localStorage.setItem('story-theme-saved', 'cem-theme-contrast-dark');
+        localStorage.setItem('story-theme-invalid', 'unrecognized');
+    },
+    play: async ({ canvasElement }) => {
+        const [saved, invalid] = [...canvasElement.querySelectorAll<HTMLElement>('cem-theme-switch')];
+        await whenCemRendered(saved); await whenCemRendered(invalid);
+        await waitFor(() => expect(saved).toHaveAttribute('data-theme', 'cem-theme-contrast-dark'));
+        await expect(invalid).toHaveAttribute('data-theme', 'cem-theme-light');
     },
 });
 
 export const Keyboard = meta.story({
-    parameters: { docs: { description: { story: 'Trusted radio arrow navigation and checkbox keyboard activation run only in the Vitest browser runner.' } } },
-    render: () => `<cem-theme-switch mode="light"><button>Preview action</button></cem-theme-switch>`,
+    render: () => '<cem-theme-switch storage-key="story-theme-keyboard"></cem-theme-switch>',
+    beforeEach: () => { localStorage.removeItem('story-theme-keyboard'); },
     play: async ({ canvasElement }) => {
-        const host = canvasElement.querySelector<HTMLElement>('cem-theme-switch')!;
-        await whenCemRendered(host);
-        if (import.meta.env.MODE !== 'test') return;
-        const { userEvent: native } = await import('vitest/browser');
-        const canvas = within(host);
-        canvas.getByRole('radio', { name: 'Light' }).focus();
-        await native.keyboard('{ArrowRight}');
-        await whenCemRendered(host);
-        await expect(canvas.getByRole('radio', { name: 'Dark' })).toHaveFocus();
-        await expect(host).toHaveAttribute('data-theme', 'cem-theme-dark');
-        await native.keyboard('{Tab}');
-        await expect(canvas.getByRole('checkbox', { name: 'Contrast' })).toHaveFocus();
-        await native.keyboard('[Space]');
-        await whenCemRendered(host);
-        await expect(host).toHaveAttribute('data-theme', 'cem-theme-contrast-dark');
-        canvas.getByRole('radio', { name: 'Dark' }).focus();
-        await native.keyboard('{ArrowRight}');
-        await whenCemRendered(host);
-        await expect(host).toHaveAttribute('data-theme', 'cem-theme-native');
-        await native.keyboard('{Tab}');
-        await expect(canvas.getByRole('button', { name: 'Preview action' })).toHaveFocus();
+        const host = required(canvasElement, 'cem-theme-switch'); await whenCemRendered(host);
+        await waitFor(() => expect(host.querySelector('[part=trigger] button')).not.toBeNull());
+        const trigger = required(host, '[part=trigger] button');
+        await waitFor(() => expect(host.querySelectorAll('cem-menu cem-icon-button button')).toHaveLength(5));
+        await userEvent.click(trigger);
+        await userEvent.keyboard('{ArrowDown}{Enter}');
+        await waitFor(() => expect(host).toHaveAttribute('data-theme', 'cem-theme-dark'));
+        await userEvent.click(trigger);
+        await userEvent.keyboard('{Escape}');
+        await expect(trigger).toHaveFocus();
+        await expect(trigger).toHaveAttribute('aria-expanded', 'false');
     },
 });
+
+export const ViewportMenu = meta.story({
+    render: () => '<section style="position:fixed;inset-block-start:0;inset-inline-end:0"><cem-theme-switch storage-key="story-theme-viewport"></cem-theme-switch></section>',
+    beforeEach: () => { localStorage.removeItem('story-theme-viewport'); },
+    play: async ({ canvasElement }) => {
+        const host = required(canvasElement, 'cem-theme-switch'); await whenCemRendered(host);
+        await waitFor(() => expect(host.querySelectorAll('cem-menu button')).toHaveLength(5));
+        await Promise.all([...host.querySelectorAll<HTMLElement>('cem-dropdown,cem-menu,cem-icon-button,cem-icon')].map(whenCemRendered));
+        await userEvent.click(required(host, '[part=trigger] button'));
+        const popup = required(host, 'cem-dropdown > [part=popup]');
+        await waitFor(() => {
+            const rect = popup.getBoundingClientRect();
+            expect(rect.left).toBeGreaterThanOrEqual(0);
+            expect(rect.right).toBeLessThanOrEqual(window.innerWidth);
+            expect(rect.top).toBeGreaterThanOrEqual(0);
+            expect(rect.bottom).toBeLessThanOrEqual(window.innerHeight);
+        });
+        await userEvent.click(required(host, 'cem-icon-button[value="cem-theme-dark"] [part=glyph]'));
+        await waitFor(() => expect(host).toHaveAttribute('data-theme', 'cem-theme-dark'));
+    },
+});
+
+export const MenuIndicatorClearance = meta.story({
+    render: () => '<p>Adjacent keyboard ring checks run in the browser test runner.</p>'
+        + ['', '--cem-inset-control:20px;--cem-gap-related:18px', '--cem-inset-control:0px;--cem-gap-related:0px']
+        .map((style, index) => `<section style="${style}"><cem-theme-switch storage-key="story-theme-menu-clearance-${index}"></cem-theme-switch></section>`).join(''),
+    beforeEach: () => { for (let index = 0; index < 3; index++) localStorage.removeItem(`story-theme-menu-clearance-${index}`); },
+    play: async ({ canvasElement }) => {
+        for (const [index, host] of [...canvasElement.querySelectorAll<HTMLElement>('cem-theme-switch')].entries()) {
+            await whenCemRendered(host);
+            await waitFor(() => expect(host.querySelectorAll('cem-menu cem-icon-button button')).toHaveLength(5));
+            await Promise.all([...host.querySelectorAll<HTMLElement>('cem-dropdown,cem-menu,cem-icon-button,cem-icon')].map(whenCemRendered));
+            await userEvent.click(required(host, '[part=trigger] button'));
+            const popup = required(host, 'cem-dropdown > [part=popup]');
+            expect(popup.scrollHeight).toBeLessThanOrEqual(popup.clientHeight + 1);
+            const panel = popup.getBoundingClientRect();
+            for (const button of host.querySelectorAll('cem-menu cem-icon-button button')) {
+                const rect = button.getBoundingClientRect();
+                expect(rect.top).toBeGreaterThanOrEqual(panel.top);
+                expect(rect.bottom).toBeLessThanOrEqual(panel.bottom);
+                const style = getComputedStyle(button);
+                expect(required(button, '[part=icon]').getBoundingClientRect().left)
+                    .toBeCloseTo(rect.left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft), 0);
+            }
+            const selected = required(host, 'cem-menu cem-icon-button[selected] button');
+            await expect(selected).toHaveAttribute('aria-checked', 'true');
+            const style = getComputedStyle(selected);
+            const ring = Math.max(...(style.boxShadow.match(/[\d.]+px/g) ?? []).map(parseFloat));
+            expect(ring).toBeGreaterThan(0);
+            const bounds = popup.getBoundingClientRect();
+            const control = selected.getBoundingClientRect();
+            expect(control.left - bounds.left).toBeGreaterThanOrEqual(ring);
+            expect(bounds.right - control.right).toBeGreaterThanOrEqual(ring);
+            expect(control.top - bounds.top).toBeGreaterThanOrEqual(ring);
+            const next = required(host, 'cem-icon-button[value="cem-theme-dark"] button').getBoundingClientRect();
+            expect(next.top - control.bottom).toBeGreaterThanOrEqual(ring);
+            if (index === 1) {
+                expect(control.left - bounds.left).toBeGreaterThanOrEqual(20);
+                expect(next.top - control.bottom).toBeGreaterThanOrEqual(18);
+            }
+            await adjacentIndicators(host, selected, ring);
+            await userEvent.click(required(host, '[part=trigger] button'));
+        }
+    },
+});
+
+async function adjacentIndicators(host: HTMLElement, selected: HTMLElement, ring: number): Promise<void> {
+    if (import.meta.env.MODE !== 'test') return;
+    const { userEvent: nativeInput } = await import('vitest/browser');
+    selected.focus();
+    await nativeInput.keyboard('{ArrowDown}');
+    const focused = required(host, 'cem-icon-button[value="cem-theme-dark"] button');
+    await expect(focused).toHaveFocus();
+    const focusRing = Math.max(...(getComputedStyle(focused).boxShadow.match(/[\d.]+px/g) ?? []).map(parseFloat));
+    expect(focusRing).toBeGreaterThan(0);
+    expect(focused.getBoundingClientRect().top - selected.getBoundingClientRect().bottom).toBeGreaterThanOrEqual(ring + focusRing);
+}
 
 function required<T extends HTMLElement>(root: ParentNode, selector: string): T {
     const node = root.querySelector<T>(selector);
@@ -105,7 +200,7 @@ export const NativeActivationThenThemeProjection = meta.story({
             const { runtime, scope, declarationTag, declare } = createCemStoryRuntime(root, fallback);
             const actionSource = await cemComponentDeclarationSource('cem-action');
             const declarations = [await declare(actionSource, actionTag), await declare(declarationSource, themeTag)];
-            const theme = document.createElement(themeTag); theme.setAttribute('mode', 'light');
+            const theme = document.createElement(themeTag); theme.setAttribute('mode', 'light'); theme.setAttribute('storage-key', `theme-${suffix}`);
             theme.innerHTML = `<template><cem-demo-element legend="Controlled selection"><template slot="source">
                 <${declarationTag}><template type="text/cem-ml">
                 {slice @name=choice | compact}
@@ -141,7 +236,7 @@ export const NativeActivationThenThemeProjection = meta.story({
                 await userEvent.click(controls.getByRole('button', { name: 'Close task' }));
                 await expect(dialog.open).toBe(false);
                 for (const name of ['Dark', 'Native', 'Light']) {
-                    await userEvent.click(controls.getByRole('radio', { name, exact: true }));
+                    await choose(theme, name.toLowerCase());
                     await runtime.whenRenderSettled(theme);
                     await expect(theme).toHaveAttribute('data-theme', `cem-theme-${name.toLowerCase()}`);
                     await expect(required(theme, 'cem-demo-element')).toBe(card);

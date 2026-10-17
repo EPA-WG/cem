@@ -1,3 +1,75 @@
+## Navigation controls and spacing (2026-10-16)
+
+- [x] Fixture: cover navigation icon links/disclosure, exact aria-current forwarding and live aria-expanded updates, native navigation/disabled behavior, all-theme paint and inherited overrides, layout gaps/insets, matching control typography, keyboard focus and retained projection.
+- [x] Add navigation-token paint and ARIA forwarding to cem-icon-button; compose the cem-nav disclosure from it and add shared token-driven layout/padding/gaps while retaining native content support.
+- [x] Update bundle and navigation/icon-button property pages and galleries, navigation contracts and component reference; verify browser/package/build/lint and forced-color behavior, inspect the rendered result and record CEM audit.
+
+Evidence: all 41 focused navigation/icon-button/theme-switch/gallery-page browser plays pass. The new controls/ARIA fixtures first reproduced the missing composed disclosure and lost aria-current values. Checks cover all five themes, current/hover/held-active/disabled paint, inherited color and spacing overrides, minimum hit targets, matching typography, trusted glyph clicks, Enter/Space/Tab behavior, retained projection and native-link compatibility. All ten source/package checks pass for the updated nav/icon-button property pages, galleries and bundle. Component build/catalog/package verification passes (53 catalog components, 299 packed files); component/script lint passes with the existing 121 component warnings. The navigation forced-colors gate passes with the composed disclosure. Final real-browser source/package bundle inspection verifies all five page modes, native fragment navigation, exact current-page ARIA, glyph/keyboard disclosure, padding/gaps, narrow LTR/RTL bounds and forced-color current paint; the updated component snapshot is saved with this task's outputs.
+
+CEM audit: declarative shared icon-button composition; navigation uses existing --cem-navigation-item-* endpoints, D1 inset/gap and coupling guards, shared control hit geometry, and inherited nav typography. Native links and their discoverable ARIA-disabled activation guard remain supported; disabled icon links retain their existing URL/tab-stop contract. Explicit ARIA values remain owner-controlled. Compact native CSS nesting stays within existing import/specificity limits, with valid XHTML entity escaping. No new theme defaults/aliases, runtime behavior JavaScript, app-local UI code or gallery-only test attributes were introduced. Previously dirty files outside this task remain unchanged.
+
+## Shared persisted gallery page theme (2026-10-16)
+
+- [x] Implement declarative cem-gallery-page with normalized live page storage, page palette and controlled navigation theme selector; retain independent example keys and fixed theme scopes.
+- [x] Migrate every source property/gallery/index/bundle page and publish the shared declaration with generated pages; preserve authored samples and navigation.
+- [x] Fixture: cover defaults/saved/invalid themes, all five choices, live/cross-page synchronization, retained editors/forms and independent example themes/keys in worker and fallback runtimes.
+- [x] Fixture and fix nested theme palette/state isolation in the shared theme generator so explicit example themes survive every outer page mode, including native.
+- [x] Fixture and fix generic button value capture for clicks on nested icon/label content; initialize nested demo declarations through an inert page payload.
+- [x] Fixture and use the existing viewport boundary for theme menus in page navigation, including real pointer activation near screen edges.
+- [x] Extend whole-inventory source/package checks for theme changes, persistence and scope isolation; update gallery/package verification and docs, run build/lint/browser/package gates and record CEM audit.
+
+Evidence: all 108 source playground/gallery/index/bundle pages and the component overview use the shared owner; all 479 authored sample blocks and 260 fixed theme roots remain byte-identical. All 52 focused browser plays pass, covering storage normalization/rebinding, all five choices, independent examples, retained forms/declarations, worker/fallback execution, nested theme paint/state isolation, descendant button values and viewport menu geometry. The whole source/package inventory passes all 218 page checks; final rebuilt source/package theme and bundle checks also pass. Real-browser checks confirm reload/navigation restoration, live cross-tab synchronization, retained edited preview fields, fixed matrix palettes, narrow navigation and forced-color selection. Theme/component builds, manifest validation, runtime/component/script lint (existing warnings only), runtime typecheck and npm package verification (299 packed files) pass. As in the earlier runtime work, typecheck temporarily materialized the CLI dependency's generated command-schema source from its existing schema and removed it afterward.
+
+CEM audit: declarative page ownership, controlled navigation and existing live text storage; example keys and fixed theme roots stay independent. Canonical source tables own per-theme palette resets and bounded state stripes, preserving inherited brand colors and explicit root overrides. Existing popup viewport geometry and the generic runtime button-value decoder cover nested menu glyph clicks. No component/app UI JavaScript, component-local theme defaults, parallel token families or gallery-only test attributes were added. Unrelated previously dirty files remain unchanged.
+
+## Shared icon alignment (2026-10-16)
+
+- [x] Add shared align=start|center|end with centered defaults, logical inline alignment independent of row/column direction, and icon-button forwarding; start-align theme choices.
+- [x] Fixture: verify live alignment and fallback, row/column and LTR/RTL geometry, button/link modes, retained projected content and theme menu selection/clearance.
+- [x] Update both property playgrounds, variation galleries and contracts; verify browser stories, source/package demos, builds, lint and theme appearance; record CEM audit.
+
+Evidence: all 35 icon/icon-button/theme-switch/menu/dropdown browser plays pass. Geometry checks cover default/empty/invalid values, live changes, row/column layouts in LTR/RTL, projected labels, icon-only/text-only content, button/link modes and retained controls. Build and lint pass (121 existing warnings). Ten source/package import/gallery checks pass; eight source/packaged icon demos additionally verify 24 live preview changes and all 64 alignment examples. Production-source theme inspection confirms start-aligned glyphs, automatic height and adjacent selection/focus clearance at desktop and narrow viewports, with forced-color selection preserved and scrolling only when viewport height is constrained. CEM audit: declarative shared attribute/CSS composition, contextual theme choices and existing inherited icon/action/coupling tokens; no new token defaults, runtime/component JavaScript or gallery test attributes. Other previously dirty file contents remain unchanged.
+
+## Theme menu icon buttons (2026-10-16)
+
+- [x] Replace theme choices with contextual icon buttons and separate sized Unicode glyphs from their labels.
+- [x] Fixture: preserve menu radio semantics, selected indicators, keyboard navigation, persistence and menu clearance; cover icon-button role transitions.
+- [x] Verify theme/icon-button browser stories, source/package gallery, build/lint and desktop/compact/forced-color menu appearance; record CEM audit.
+
+Evidence: all 27 theme-switch/icon-button/menu/dropdown browser plays pass, including radio-role transitions, glyph sizing, all five saved themes, retained projection and keyboard/indicator clearance. Component build, lint (121 existing warnings) and source/packaged theme gallery import checks pass. Production-source browser inspection confirms 32px glyphs, automatic 360px menu height with all five choices visible at desktop and 328×420 viewports, adjacent selected/focused ring clearance and forced-color selection borders; a 240px-tall viewport correctly scrolls within its 232px panel. CEM audit: contextual intent and shared icon/action/coupling tokens are retained, with no token defaults, component behavior JavaScript or gallery test attributes. System uses the trigger’s half-disc glyph. Pre-existing dirty contents outside the seven intended files are unchanged.
+
+## Automatic dropdown height (2026-10-16)
+
+- [x] Fixture: reproduce the theme menu's unnecessary vertical scrolling and require all five items to fit when the viewport has room.
+- [x] Remove the dropdown's fixed four-row cap, retain the shared viewport/boundary constraint, and document content-driven height.
+- [x] Verify menu/dropdown/theme and viewport-boundary behavior, rebuild, lint, and inspect the gallery at normal and constrained viewport heights.
+
+Evidence: the geometry fixture first reproduced 320px of menu content constrained to 192px. Removed both four-row limits from the dropdown source; the existing popup controller still owns viewport/boundary clamping. All 16 focused menu/dropdown/theme/surface-geometry browser plays, component build, source/package gallery acceptance and component lint pass (existing warnings only). Production-source geometry shows all five items at their natural 320px height with no overflow, including a 328×360 viewport; a 240px viewport correctly constrains the panel to 232px and permits scrolling. Selected/adjacent focus rings and forced-color outlines remain visible. The gallery preview was inspected; compact sizing was verified through an isolated fixture loading the same production declarations and theme stylesheet because a later cold-gallery probe timed out waiting for asynchronous theme CSS readiness. CEM audit: no row-count policy or new token/behavior added; existing shared menu spacing and viewport safety remain intact. Unrelated dirty-file contents are preserved.
+
+## Template capability documentation (2026-10-16)
+
+- [x] Document `{template @capability=...}` and equivalent HTML metadata in the form demo, runtime README and loading contract; demonstrate template-owned choice behavior in the existing form-input sample.
+- [x] Correct obsolete fragment-import instructions and add component documentation caveats about metadata preservation, explicit overrides and component-specific capability names.
+- [x] Fixture: verify all five form cases with the capability on the template, source-loaded and standalone; run focused unit/browser coverage, fixture acceptance and applicable lint/typecheck.
+
+Evidence: the form introduction documents `{template @capability=...}` and equivalent HTML, registration timing, inheritance and explicit empty overrides. The existing fifth sample puts `choice-select` on its template while retaining all five legends and use cases. Runtime/loading docs and component contracts now explain source-owned defaults, copying metadata and the distinct form ownership of native-input wrappers; obsolete repeat-on-fragment guidance is removed. All 8 form source-contract unit checks, 7 form/source-capability browser plays, and standalone/source-loaded form fixture acceptance pass. Both lint targets and runtime typecheck pass; typecheck uses the existing transient CLI-schema preparation and removes it afterward. Twenty added local documentation links resolve. CEM audit: no component behavior, styles, tokens, new demo cases or test-only sample hooks added; form ownership and required intrinsic capabilities remain explicit. Unrelated dirty-file contents are preserved.
+
+## Menu indicator spacing (2026-10-16)
+
+- [x] Fixture: reproduce the theme menu's clipped selected zebra ring; verify popup-edge clearance and item separation with default and inherited spacing.
+- [x] Add theme-owned inset and gap spacing to the shared menu composite, respecting the coupling guard; document the shared layout contract.
+- [x] Verify menu/theme/dropdown interactions, inherited overrides and forced colors; inspect the updated menu and record the CEM audit.
+
+Evidence: the original popup had zero inset/gap and clipped its selected 6px zebra ring. The shared composite now consumes the control inset and related gap, floored at one coupling guard around the content and two between items (8px/16px by default). A new geometry play reproduces both edge clipping and overlapping adjacent selection/focus rings before the fix, then verifies default spacing, inherited 20px/18px overrides and the safety floor under zero spacing overrides. All 17 menu, menu-item, dropdown and theme-switch plays pass, including native keyboard checks. Source/package theme-switch gallery acceptance, component build and lint pass (existing warnings only). The real gallery's selected ring, last-item scrolling, adjacent keyboard focus and forced-color outlines fit inside their available space; an updated screenshot was inspected. CEM audit: canonical D1/D2 tokens retain ownership and inheritance; no new tokens, component-local defaults, app behavior or test-only gallery attributes were introduced.
+
+## Source-owned declaration capabilities (2026-10-16)
+
+- [x] Fixture: verify capability inheritance from selected templates and their owning declarations, fragment isolation, explicit overrides, invalid capabilities and host-behavior conflicts; exercise real field submission, validation and reset.
+- [x] Retain selected-source capability metadata before registration and remove repeated capabilities from the theme-switch gallery imports.
+- [x] Run focused registration/form browser regressions, gallery checks, build, lint and typecheck; record the CEM audit.
+
+Evidence: six source-capability browser plays cover actual field/text-field sources, prefix-mapped and relative imports, local/inline templates, custom declaration names, fragment selection and isolation, importer/template/owner precedence, and existing diagnostics. All 28 focused loading/form/registration plays and both source/package theme-switch gallery checks pass. Runtime and component builds, both lint targets and runtime typecheck pass; typecheck uses the existing temporary CLI-schema preparation, removed afterward. The fixture first reproduced the missing behavior before the runtime change. Capability metadata is retained on template clones without modifying cached sources or importer attributes; URL resolution and shared-document fetching remain unchanged. CEM audit: source declarations own reusable form/progress behavior; existing explicit overrides remain supported. No component CSS, tokens, app-local behavior or test-only gallery markup added. Pre-existing dirty-file contents are preserved outside the three intentionally edited files.
+
 ## Direct imports across demo pages (2026-10-16)
 
 - [x] Replace resolver-slice declaration imports throughout component playgrounds and shared navigation; consolidate library folder mappings in source and package maps.

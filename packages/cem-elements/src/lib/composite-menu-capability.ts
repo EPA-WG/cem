@@ -190,7 +190,8 @@ function synchronize(host: HTMLElement): void {
         if (state.open && (!candidates.includes(state.open) || !panelFor(state.open))) close(host);
         if (!menuMode) close(host);
         for (const control of controls(host)) {
-            setAttribute(control, 'role', menuMode ? 'menuitem' : originals.get(control)?.role ?? null);
+            const authoredRole = originals.get(control)?.role;
+            setAttribute(control, 'role', menuMode ? (authoredRole === 'menuitemradio' || authoredRole === 'menuitemcheckbox' ? authoredRole : 'menuitem') : authoredRole ?? null);
             const disabled = unavailable(control);
             setAttribute(control, 'tabindex', menuMode ? (control === state.active && !disabled ? '0' : '-1') : (disabled ? '-1' : originals.get(control)?.tabindex ?? null));
             const panel = panelFor(control);
@@ -288,9 +289,13 @@ export const CEM_COMPOSITE_MENU_CAPABILITY: CemProducedElementBehavior = {
             const control = event.target as HTMLElement;
             if (items(host).includes(control)) { state.active = control; synchronize(host); }
         }, options);
-        host.addEventListener('focusout', () => queueMicrotask(() => {
-            if (!insideChain(host, host.ownerDocument.activeElement)) dismiss(host);
-        }), options);
+        host.addEventListener('focusout', event => {
+            // Native focusout can precede activeElement moving to relatedTarget.
+            if (insideChain(host, event.relatedTarget as Node | null)) return;
+            queueMicrotask(() => {
+                if (!insideChain(host, host.ownerDocument.activeElement)) dismiss(host);
+            });
+        }, options);
         host.ownerDocument.addEventListener('pointerdown', event => {
             if (!insideChain(host, event.target as Node)) dismiss(host);
         }, { ...options, capture: true });

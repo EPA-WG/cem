@@ -9,6 +9,15 @@ This document describes all 53 canonical XHTML/CEM-ML components. It pairs with
 Components load from individual XHTML resources or the generated bundle through
 `cem-elements`. The legacy JavaScript installer and package entry are retired.
 
+**Capability caveat:** source templates and their owning declarations carry
+intrinsic behavior metadata. Fragment imports inherit it, so ordinary consumers
+need only `tag` and `src`. Preserve the metadata when copying a template;
+explicit importer values override it, and `capability=""` suppresses it. A
+component can still render while losing required runtime behavior when
+the capability is removed or replaced. See the
+[capability names and ownership rules](./conventions.md#41-intrinsic-capability-metadata)
+and the [form demo](../../cem-elements/demo/form.html).
+
 ## Authoring Contract
 
 - The normative source/layout/testing contract is the
@@ -157,7 +166,7 @@ Host visibility follows the [shared native visibility convention](./conventions.
 | Component | Semantics | Content and Attributes | Token Families | Required A11y |
 | --- | --- | --- | --- | --- |
 | `cem-action` | Native button; defaults to command, supports explicit submit/reset. | Default slot or `label` fallback; `variant` selects primary, explicit, contextual, alternate or destructive intent. Optional `size="small|medium|large|x-large|xx-large"` overrides inherited minimum control height. Labels wrap; noninteractive image/title content can grow beyond the minimum. Native form attributes forward to the button. Presence-only `selected` and `selectable` expose container-owned selection with persistent zebra and native-button `aria-pressed`. | action, control, palette, bend, typography | Button text or `aria-label` must name the action. |
-| `cem-icon-button` | Native icon command or navigation link. | `href` selects link mode; embedded `cem-icon` receives `image`, `size`, `direction`, `label`, and `aria-label`. Action-theme states include selected/selectable, pending and disabled; selection uses aria-pressed for buttons and aria-current for links. | action, control, palette, stroke, bend | Use `aria-label` for icon-only controls; `label` also provides visible fallback text. |
+| `cem-icon-button` | Native icon command or navigation link. | `href` selects link mode; embedded `cem-icon` receives `image`, `size`, `direction`, `align`, `label`, and `aria-label`. Action-theme states include selected/selectable, pending and disabled. `variant="navigation"` adopts navigation state colors; explicit `aria-current` forwards to links and `aria-expanded`/`aria-controls` to buttons. | action, navigation, control, palette, stroke, bend | Use `aria-label` for icon-only controls; `label` also provides visible fallback text. |
 | `cem-dropdown` | Triggered panel for arbitrary content and menus. | Native trigger in `slot="base"` and default panel slot. | action, palette, stroke, control, bend, typography | Native button fallback; expanded/controls relationships, Escape restoration and outside/Tab dismissal. |
 | `cem-menu` | Persistent wrapping command/link collection; optional composite submenus. | Default slot accepts links, buttons and menu items. | action, palette, stroke, gap, inset, typography | Native Tab by default; opt-in menu mode owns roving focus and nested popup semantics. |
 | `cem-menu-item` | Menu command row. | Default slot is command text. | action, palette, gap, inset, typography | Renders `role="menuitem"` and must be contained by a menu/list context in full menus. |
@@ -165,8 +174,9 @@ Host visibility follows the [shared native visibility convention](./conventions.
 States: `default`, `hover`, `focus-visible`, `active`, `disabled`, `pending`, `selected`.
 The canonical `cem-action` declaration embeds its scoped styles for all five
 intents. `cem-icon-button` uses the same five variants in both button and link
-state styles, including persistent selection and pending feedback.
-All three use paired CEM action tokens for default, enabled native-button hover
+state styles, including persistent selection and pending feedback. Its additional
+`navigation` variant uses navigation colors for links and disclosure buttons.
+The action variants use paired CEM action tokens for default, enabled native-button hover
 and held native-button active states. Hover and active change only background/text color; they add
 no ARIA or active runtime state and exclude disabled buttons through `:enabled`.
 See the [action hover contract](./action-hover-contract.md) and
@@ -241,7 +251,7 @@ value writes update submission/validity synchronously and preserve reset default
 | `cem-suggestions` | Native datalist or a transient suggestions list for one editor. | `profile`, `editor-for`, `label`, `slot="editor"`, `slot="options"`, `slot="option"` and `slot="group-label"`; exact rich option payload and native editor association. | palette, select, stroke, bend, gap, typography | The editor owns focus, value and form submission; option labels preserve accessible distinctions. See the suggestions contract above. |
 | `cem-timepicker` | Canonical time-of-day input with a transient choice popup. | Exactly one direct native text input in `slot="input"`; optional native `button[slot="toggle"]`; `min`, `max`, `interval`, `required`, `invalid`, `disabled`; generated choices or direct `cem-option`. See the [timepicker contract](./timepicker-contract.md). | action, palette, select, stroke, bend, layering, coupling, control, typography | The authored input retains native labeling, value, validation, events, and form submission while owning combobox focus and active-descendant navigation. |
 | `cem-datepicker` | Canonical single-date input with a modal calendar. | Exactly one direct native text input in `slot="input"`; optional native `button[slot="toggle"]`; `min`, `max`, `required`, `invalid`, `disabled`, and `lang`. Values are empty or `YYYY-MM-DD`. See the [datepicker contract](./datepicker-contract.md). | action, palette, content, select, stroke, bend, layering, coupling, control, typography | The authored input retains native labeling, value, validation, events, reset, and form submission. A native modal dialog owns a labeled grid with one roving day, localized headers, and distinct selected/current/disabled semantics. |
-| `cem-theme-switch` | Native radio group and checkbox; default-slot content inherits the selected theme. | `mode` (native by default), `contrast="true"`, radio-group `name`; reflected `data-theme`. Native disables Contrast and preserves the preference for Light/Dark. Give independent switches distinct names. | palette, control, stroke, gap, typography | Theme legend labels the radio group; Contrast is a labeled checkbox with visible Native guidance. |
+| `cem-theme-switch` | Persistent contextual sun/moon theme action with dropdown menu. | `storage-key` (default `cem-theme`), legacy `name` key alias, initial `mode` (default `light`) and `contrast`, optional controlled `value` (full theme name), `theme-command` host-service binding; default slot retains themed content. | action, zebra, palette, layering, coupling | “Change theme” names the trigger and tooltip. Contextual choices expose the current selected action. Saved values survive reload; invalid values fall back to light. |
 | `cem-select` | Form-associated custom single/multiple choice with HTML-rendered options. | Canonical direct `cem-option`/`cem-option-group`; all-native `option`/`optgroup` migration adapter; `multiple`, `size`, `indicator`, `busy`, label/help slots. See the [custom select contract](./select-contract.md). | palette, select, stroke, bend, layering, control, typography | Label slot or `label` attribute names the combobox/listbox; focus remains on the composite owner with `aria-activedescendant`. |
 | `cem-option` | Canonical rich option payload consumed by `cem-select`, `cem-autocomplete`, and `cem-timepicker`. | Required `value`; optional `label`, `selected`, and `disabled`; static HTML descendants. Timepicker values use canonical `HH:mm`. | typography | Does not create a nested tab stop or interaction owner. |
 | `cem-option-group` | Canonical labeled grouping payload consumed by `cem-select` and `cem-autocomplete`. | Required `label`; optional `disabled`; direct `cem-option` children. | typography | The consuming composite projects `role="group"` and its accessible label. |
@@ -249,6 +259,11 @@ value writes update submission/validity synchronously and preserve reset default
 | `cem-radio` | Mutually exclusive form choice. | Default slot replaces `label`; `name` and native form owner group radios; checked/default reset, presence flags, ARIA naming/help, `required-marker`, `indicator` and `busy`. | palette, stroke, control, typography | Radio group context should provide the set label. |
 | `cem-switch` | Immediate boolean setting. | Default slot replaces `label`; native checkbox with `role="switch"`, `name`, `value`, `form`, checked/default reset, presence flags, ARIA naming/help, `required-marker`, `indicator` and `busy`. | palette, stroke, action, control, bend | Visible label must name the switch. |
 | `cem-slider` | Horizontal single-value or range input. | One direct native range input marked `single`, or exact `start`/`end` inputs; parent `min`, `max`, `step`, `disabled`, `discrete`, `show-tick-marks`. See the [slider contract](./slider-contract.md). | slider, coupling, stroke, bend, gap, typography | Every input retains native slider semantics and requires an accessible name; range thumbs require distinct names. Generated visuals are hidden. |
+
+
+Documentation page chrome uses the separate [cem-gallery-page declaration](gallery-page-contract.md).
+Its `cem-playground-theme` preference controls the page; production theme-switch
+examples and fixed variation themes keep their own scopes and storage keys.
 
 States: `default`, `hover`, `focus-visible`, `disabled`, `loading`, `expanded`, `invalid`, `required`, `readonly`,
 `checked`, `indeterminate`.
@@ -373,7 +388,7 @@ spacing/inset, the D2 guard floor, and D5 line geometry as specified by the
 | Component | Semantics | Content and Attributes | Token Families | Required A11y |
 | --- | --- | --- | --- | --- |
 | `cem-app-bar` | Page or application banner. | `slot="title"` for title; default slot for global actions. | palette, stroke, gap, inset, typography | `label` names the banner when multiple landmarks exist. |
-| `cem-nav` | Labeled navigation region with an optional region-wide disclosure. | Default slot accepts links/actions. Presence-only `collapsible` adds a native disclosure button; presence-only `expanded` sets its initial open state. Without `collapsible`, the existing passive landmark output is unchanged. | palette, navigation, gap, inset, typography | `label` names both the nav landmark and disclosure button. The button mirrors the current boolean state through `aria-expanded`; hidden content leaves the tab order and links retain native semantics. |
+| `cem-nav` | Labeled navigation region with an optional region-wide disclosure. | Default slot accepts navigation-variant icon links and native links/actions. Shared padding and wrapping gaps use inset/gap tokens. Presence-only `collapsible` adds a navigation icon button with a native disclosure control; presence-only `expanded` sets its initial open state. Without `collapsible`, the existing passive landmark output is unchanged. | palette, navigation, gap, inset, typography | `label` names both the nav landmark and disclosure button. The button mirrors the current boolean state through `aria-expanded`; hidden content leaves the tab order and links retain native semantics. |
 | `cem-tabs` | Labeled local-view switcher. | Direct `cem-tab` children require unique `value` and non-empty `label`; host accepts `selected-index` and `orientation`. See the [tabs contract](./tabs-contract.md). | palette, navigation, stroke, bend, gap, coupling, control, typography | A labeled tablist owns roving native tab buttons with manual activation and stable reciprocal persistent tabpanels; exactly one enabled tab and panel are selected. |
 | `cem-tab` | Inert local-view payload consumed by `cem-tabs`. | `value`, `label`, optional `disabled`, and default panel content. | typography | Adds no independent role, focus, event, form, route, loading, or persistence owner. |
 | `cem-stepper` | Linear or nonlinear workflow navigation. | Direct `cem-step` children require unique `value` and non-empty `label`; host accepts `selected-index`, `orientation`, `linear`, and `disabled`. Steps accept `completed`, `editable`, `optional`, `invalid`, and `disabled`. See the [stepper contract](./stepper-contract.md). | palette, navigation, workflow, stroke, bend, gap, coupling, control, typography | A labeled ordered list owns roving native header buttons with `aria-current="step"`; stable reciprocal regions retain authored panel state. Application facts control validation/completion. |
@@ -413,7 +428,7 @@ normal and forced colors without a CSS exception.
 | Component | Semantics | Content and Attributes | Token Families | Required A11y |
 | --- | --- | --- | --- | --- |
 | `cem-text` | Token-scoped inline text and typography owner. | `variant` selects the semantic typography treatment; `text` or the default slot supplies content. | typography, palette | Preserves ordinary inline text semantics and adds no focus or interaction owner. |
-| `cem-icon` | Passive icon with optional adjacent content. | `image` selects Unicode, image URL, Font Awesome or Material Icons; the default is `circle` when `image` is absent. Empty `image` hides the glyph. `size="normal|small|large"`, `direction="row|column"`; default slot supplies adjacent content. | icon, typography | The default slot overrides visible `label` fallback (empty by default), preserving markup. Without `aria-label`, the glyph is decorative. A nonempty `aria-label` provides one image role; slotted content stays independently accessible. See the [icon contract](./icon-contract.md). |
+| `cem-icon` | Passive icon with optional adjacent content. | `image` selects Unicode, image URL, Font Awesome or Material Icons; the default is `circle` when `image` is absent. Empty `image` hides the glyph. `size="normal|small|large"`, `direction="row|column"`, `align="start|center|end"` (default center); default slot supplies adjacent content. | icon, typography | The default slot overrides visible `label` fallback (empty by default), preserving markup. Without `aria-label`, the glyph is decorative. A nonempty `aria-label` provides one image role; slotted content stays independently accessible. See the [icon contract](./icon-contract.md). |
 | `cem-card` | Summary surface and explicit content-loading boundary. | `slot="title"` for heading; default slot for body. Presence-only `busy` retains the authored payload and reflects loading state without starting resource work. | palette, stroke, bend, gap, inset | `label` names the section. Busy state adds exact `data-state="loading"` and `aria-busy="true"` without a live region, inert subtree, or focus move. |
 | `cem-expansion` | One independent general-purpose disclosure panel. | `slot="summary"` or `label` names the native header; default slot supplies persistent panel content. Presence-only `expanded`, `disabled`, and `region`; `heading-level="1..6"` defaults to 3. See the [expansion contract](./expansion-contract.md). | action, palette, stroke, bend, gap, inset, coupling, control, typography | The header is the sole button owner inside a validated heading. Exact `aria-labelledby`, `aria-expanded`, `aria-controls`, and reciprocal panel references remain stable; collapsed content is hidden and disabled blocks only user toggling. |
 | `cem-list` | Passive collection wrapper by default; native single-select listbox with `selectable`. | Passive mode projects `<li>` rows. Selectable mode consumes direct `cem-list-option` payload with required `value` and optional `selected`/`disabled`; parent `label`, `value`, and `size` configure the listbox. | palette, content, stroke, gap, typography | The list or listbox must be named. Selectable mode keeps focus, hover, and keyboard behavior on the native `<select>`, reflects exact option `aria-selected`, and does not participate in forms. |
@@ -516,7 +531,7 @@ icon-button also exposes the decorative glyph as `part="icon"`.
 
 | Component | Implemented component attributes | Other explicit attributes |
 | --- | --- | --- |
-| `cem-icon-button` | `image`, `size`, `label`, `aria-label`, `href`, `type`, `name`, `value`, `form`, `formaction`, `formenctype`, `formmethod`, `formtarget`, `formnovalidate`, `direction`, `variant`, `disabled` (presence), `selected`, `selectable` (presence), `pending="true|false"`; see [the full contract](icon-button-contract.md) | `hidden`, `class` |
+| `cem-icon-button` | `image`, `size`, `label`, `aria-label`, `href`, `type`, `name`, `value`, `form`, `formaction`, `formenctype`, `formmethod`, `formtarget`, `formnovalidate`, `direction`, `align="start|center|end"`, `variant`, `disabled` (presence), `selected`, `selectable` (presence), `pending="true|false"`; see [the full contract](icon-button-contract.md) | `hidden`, `class` |
 | `cem-menu-item` | `label` (default-slot fallback, default Menu item), `disabled` (presence), `expanded` (standalone ARIA value), `href` (leaf link), `aria-label`; default and `submenu` slots | `hidden`, `class` |
 
 Icon-button uses the action variants primary (default), explicit, contextual, alternate and destructive in both modes. It supports action bend classes and native button/form attributes. Native
@@ -537,6 +552,13 @@ container. `direction="row|column"` defaults to row and `justify="start|end"`
 defaults to start. `aria-label` and `aria-labelledby` label the layout container;
 `hidden` uses presence. `dir` inherits normally. Arbitrary content receives no
 item paint.
+
+The shared composite leaves `--cem-inset-control` around its items, floored at
+`--cem-coupling-guard-min`. The `--cem-gap-related` between items is floored at
+twice that guard, leaving room for both a selected item and its focused
+neighbor's zebra indicators. This applies to row, column and nested popup menus,
+including projected `cem-action` controls. Inherited spacing overrides apply
+without changing each item's own control padding.
 
 `keyboard="native|menu"` defaults to native. Native mode keeps ordinary Tab
 navigation. Menu mode exposes a row menubar or column menu with one enabled
@@ -571,10 +593,15 @@ consumed contextual action and inset tokens. No external menu assets are needed.
 `cem-dropdown` loads from `components/cem-dropdown/cem-dropdown.xhtml#cem-dropdown`.
 `label` supplies fallback trigger text (Dropdown); `aria-label` names it separately.
 The `base` slot overrides the fallback native button: supply a direct native button,
-link or focusable trigger. The default slot accepts arbitrary HTML or a menu.
+link or focusable trigger. With `trigger-for`, the declared external trigger owns activation and the fallback button is omitted. The default slot accepts arbitrary HTML or a menu.
 `open="false"` closes; other values open, including the source's default visible
 state. Use explicit `open="false"` for an initially closed interactive dropdown.
 `disabled` and `hidden` use presence; `dir` and `class` inherit normally.
+
+The panel height follows its content, including menu item spacing. There is no
+fixed row-count cap. The shared popup controller constrains the panel to the
+viewport or declared boundary; vertical scrolling appears only when the content
+exceeds that available height.
 
 The trigger toggles on native click/Enter/Space; ArrowDown opens and focuses the
 first enabled panel control. Escape restores trigger focus. Tab, focus leaving
@@ -584,7 +611,7 @@ dropdown uses a relative host and an absolute panel at `z-index: 1`, with square
 top corners. Initially open panels retain the CSS position below their triggers,
 including offscreen examples. Scrolling moves the panel
 with its trigger, including beyond the viewport edge. The declaration consumes existing action, control,
-bend, menu-row, typography, focus and elevation tokens instead of defining
+bend, typography, focus and elevation tokens instead of defining
 component-specific shadow/height/width aliases.
 
 Place `cem-menu direction="column" keyboard="menu"` in the default slot.
@@ -602,9 +629,18 @@ with the shipped custom-element SVG asset. The source's label becomes a native
 button so its existing keyboard focus also supports keyboard activation.
 
 
-External declaration aliases request the intrinsic capability explicitly, as
-with existing form-control/choice-select aliases: use
-`<cem-element tag="cem-menu" capability="composite-menu" src="…#cem-menu">`,
-`<cem-element tag="cem-menu-item" capability="action-control" src="…#cem-menu-item">`
-and `<cem-element tag="cem-dropdown" capability="popup" src="…#cem-dropdown">`.
-Canonical declarations and gallery registration examples include these names.
+External declaration aliases inherit their intrinsic source capabilities:
+`composite-menu` for `cem-menu`, `action-control` for `cem-menu-item`, and `popup`
+for `cem-dropdown`. Use `<cem-element tag="cem-menu" src="…#cem-menu">` without
+repeating the capability. Preserve source metadata when copying templates;
+explicit importer overrides can disable the keyboard or popup behavior described
+here. The [metadata ownership rules](./conventions.md#41-intrinsic-capability-metadata)
+apply to all three.
+
+In a single-choice menu, `cem-action` and `cem-icon-button` with
+`control-role="menuitemradio"` map their container-owned `selected` state to
+`aria-checked` and the same selected zebra outline. Other selectable buttons
+continue to expose `aria-pressed`. The theme switch uses icon buttons so its
+Unicode sun/moon glyphs use `cem-icon` sizing separately from the choice labels.
+Its choices use `align="start"`; both icon components support logical inline
+alignment independently of row/column direction, with center as the default.

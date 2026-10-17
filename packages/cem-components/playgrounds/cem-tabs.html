@@ -14,14 +14,16 @@
         "@epa-wg/cem-components/playgrounds/": "./"
     }
 }</script>
-<script type="module">
+    <link rel="stylesheet" href="../../cem-theme/dist/lib/css/cem-combined.css">
+    <link rel="stylesheet" href="../dist/styles.css">
+    <script type="module">
 import { installCemElementRuntime } from '@epa-wg/cem-elements';
 import '@epa-wg/cem-demo-element';
 const runtime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
 window.cemPlaygroundRuntime = runtime;
 </script>
 <link rel="stylesheet" href="../demo.css">
-<style>body { margin: 0; font-family: system-ui, sans-serif; } #playground-theme { padding: var(--cem-inset-container); } main, .properties { min-inline-size: 0; grid-template-columns: minmax(0, 1fr); display: grid; gap: var(--cem-gap-group); } [data-gallery-theme] { padding: var(--cem-inset-container); background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } cem-demo-element { display: block; margin-block: var(--cem-gap-group); }</style>
+<style>body { margin: 0; font-family: system-ui, sans-serif; } main, .properties { min-inline-size: 0; grid-template-columns: minmax(0, 1fr); display: grid; gap: var(--cem-gap-group); } [data-gallery-theme] { padding: var(--cem-inset-container); background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } cem-demo-element { display: block; margin-block: var(--cem-gap-group); }</style>
 </head><body>
 <cem-element hidden><template type="text/cem-ml">
 {cem-element @tag=cem-option @src="@epa-wg/cem-components/components/cem-option/cem-option.xhtml#cem-option"}
@@ -99,13 +101,14 @@ window.cemPlaygroundRuntime = runtime;
 {cem-element @tag=cem-theme-switch @src="@epa-wg/cem-components/components/cem-theme-switch/cem-theme-switch.xhtml#cem-theme-switch"}
 
 {cem-element @tag=cem-select @capability=choice-select @src="@epa-wg/cem-components/components/cem-select/cem-select.xhtml#cem-select"}
-{cem-element @tag=cem-gallery-nav @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml#cem-gallery-nav"}
-{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
-{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
+{cem-element @tag=cem-gallery-page @src="@epa-wg/cem-components/playgrounds/cem-gallery-page.xhtml#cem-gallery-page"}
+
+
 
 {cem-element @tag=cem-sheet @src="@epa-wg/cem-components/components/cem-sheet/cem-sheet.xhtml#cem-sheet"}
 </template></cem-element>
-<div id="playground-theme" class="cem-theme-light"><cem-gallery-nav heading="cem-tabs: Property playground"></cem-gallery-nav><p class="component-description">Manual local-view switching with retained panels. Use <a href="./cem-nav-gallery.html">cem-nav</a> for links and <a href="./cem-stepper-gallery.html">cem-stepper</a> for workflow progress.</p><p><a href="./cem-tabs-gallery.html">Full examples and variation matrix</a> · <a href="./cem-tabs.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-tabs/cem-tabs.stories.ts">Automated stories</a></p><main><p>Arrow keys on the orientation axis and Home/End browse enabled tabs. Enter/Space activates. Focus browsing never changes selection; leaving restores the selected entry stop. Edit a panel field and switch away and back to check retention.</p><cem-element class="properties"><template type="text/cem-ml">{slice @name=label | Workspace views}
+<cem-gallery-page id="playground-theme" heading="cem-tabs: Property playground">
+<template><p class="component-description">Manual local-view switching with retained panels. Use <a href="./cem-nav-gallery.html">cem-nav</a> for links and <a href="./cem-stepper-gallery.html">cem-stepper</a> for workflow progress.</p><p><a href="./cem-tabs-gallery.html">Full examples and variation matrix</a> · <a href="./cem-tabs.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-tabs/cem-tabs.stories.ts">Automated stories</a></p><main><p>Arrow keys on the orientation axis and Home/End browse enabled tabs. Enter/Space activates. Focus browsing never changes selection; leaving restores the selected entry stop. Edit a panel field and switch away and back to check retention.</p><cem-element class="properties"><template type="text/cem-ml">{slice @name=label | Workspace views}
 {cem-field @label="label" @value="{$datadom.slices.label}" @slice=label @slice-event=input @slice-value="$target.value"}
 {slice @name=selected-index | 0}
 {cem-field @label="selected-index" @value="{$datadom.slices.selected-index}" @slice=selected-index @slice-event=input @slice-value="$target.value"}
@@ -121,4 +124,6 @@ window.cemPlaygroundRuntime = runtime;
 {fieldset @role=group @aria-label="hidden" @slice=hidden @slice-event=change @slice-value="$target.value" | {legend | hidden}{cem-radio @name="property-hidden" @value="absent" @label="absent" @checked={if datadom.slices.hidden == "absent" {true} else {null}}}{cem-radio @name="property-hidden" @value="present" @label="present" @checked={if datadom.slices.hidden == "present" {true} else {null}}}}
 {slice @name=orientation | horizontal}
 {fieldset @role=group @aria-label="orientation" @slice=orientation @slice-event=change @slice-value="$target.value" | {legend | orientation}{cem-radio @name="property-orientation" @value="horizontal" @label="horizontal" @checked={if datadom.slices.orientation == "horizontal" {true} else {null}}}{cem-radio @name="property-orientation" @value="vertical" @label="vertical" @checked={if datadom.slices.orientation == "vertical" {true} else {null}}}}
-{cem-tabs @label="{$datadom.slices.label}" @selected-index="{$datadom.slices.selected-index}" @orientation="{$datadom.slices.orientation}" @class="{$datadom.slices.class}" @dir="{$datadom.slices.dir}" @aria-label={if datadom.slices.aria-label {datadom.slices.aria-label} else {null}} @hidden={if datadom.slices.hidden == "present" {true} else {null}} | {cem-tab @value=overview @label=Overview | {label | Retained note {input @value=Draft}}}{cem-tab @value=files @label="{$datadom.slices.second-label}" | {p | Files panel}}{cem-tab @value=locked @label=Locked @disabled=true | {p | Unavailable panel}}}</template></cem-element><cem-element><template type="text/cem-ml">{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-tabs"}{cem:if @test="datadom.slices.sourceUrl" | {p | {a @href="{$datadom.slices.sourceUrl}" | Open canonical XHTML}}{cem-demo-element @legend="Canonical source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}}</template></cem-element></main></div></body></html>
+{cem-tabs @label="{$datadom.slices.label}" @selected-index="{$datadom.slices.selected-index}" @orientation="{$datadom.slices.orientation}" @class="{$datadom.slices.class}" @dir="{$datadom.slices.dir}" @aria-label={if datadom.slices.aria-label {datadom.slices.aria-label} else {null}} @hidden={if datadom.slices.hidden == "present" {true} else {null}} | {cem-tab @value=overview @label=Overview | {label | Retained note {input @value=Draft}}}{cem-tab @value=files @label="{$datadom.slices.second-label}" | {p | Files panel}}{cem-tab @value=locked @label=Locked @disabled=true | {p | Unavailable panel}}}</template></cem-element><cem-element><template type="text/cem-ml">{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-tabs"}{cem:if @test="datadom.slices.sourceUrl" | {p | {a @href="{$datadom.slices.sourceUrl}" | Open canonical XHTML}}{cem-demo-element @legend="Canonical source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}}</template></cem-element></main></template>
+</cem-gallery-page>
+</body></html>

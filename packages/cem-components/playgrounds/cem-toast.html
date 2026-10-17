@@ -14,14 +14,16 @@
         "@epa-wg/cem-components/playgrounds/": "./"
     }
 }</script>
-<script type="module">
+    <link rel="stylesheet" href="../../cem-theme/dist/lib/css/cem-combined.css">
+    <link rel="stylesheet" href="../dist/styles.css">
+    <script type="module">
 import { installCemElementRuntime } from '@epa-wg/cem-elements';
 import '@epa-wg/cem-demo-element';
 const runtime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
 window.cemPlaygroundRuntime = runtime;
 </script>
 <link rel="stylesheet" href="../demo.css">
-<style>body { margin: 0; font-family: system-ui, sans-serif; } #playground-theme { padding: var(--cem-inset-container); } main, .properties { min-inline-size: 0; grid-template-columns: minmax(0, 1fr); display: grid; gap: var(--cem-gap-group); } [data-gallery-theme] { padding: var(--cem-inset-container); background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } cem-demo-element { display: block; margin-block: var(--cem-gap-group); }</style>
+<style>body { margin: 0; font-family: system-ui, sans-serif; } main, .properties { min-inline-size: 0; grid-template-columns: minmax(0, 1fr); display: grid; gap: var(--cem-gap-group); } [data-gallery-theme] { padding: var(--cem-inset-container); background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } cem-demo-element { display: block; margin-block: var(--cem-gap-group); }</style>
 </head><body>
 <cem-element hidden><template type="text/cem-ml">
 {cem-element @tag=cem-option @src="@epa-wg/cem-components/components/cem-option/cem-option.xhtml#cem-option"}
@@ -99,15 +101,18 @@ window.cemPlaygroundRuntime = runtime;
 {cem-element @tag=cem-theme-switch @src="@epa-wg/cem-components/components/cem-theme-switch/cem-theme-switch.xhtml#cem-theme-switch"}
 
 {cem-element @tag=cem-select @capability=choice-select @src="@epa-wg/cem-components/components/cem-select/cem-select.xhtml#cem-select"}
-{cem-element @tag=cem-gallery-nav @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml#cem-gallery-nav"}
-{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
-{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
+{cem-element @tag=cem-gallery-page @src="@epa-wg/cem-components/playgrounds/cem-gallery-page.xhtml#cem-gallery-page"}
+
+
 
 {cem-element @tag=cem-sheet @src="@epa-wg/cem-components/components/cem-sheet/cem-sheet.xhtml#cem-sheet"}
 </template></cem-element>
-<div id="playground-theme" class="cem-theme-light"><cem-gallery-nav heading="cem-toast: Property playground"></cem-gallery-nav><p class="component-description">A polite status message retained until the application updates or removes it. It does not expire, move focus or create an overlay. Use <a href="./cem-alert-gallery.html">cem-alert</a> for inline severity and <a href="./cem-progress-gallery.html">cem-progress</a> for measurable work.</p><p><a href="./cem-toast-gallery.html">Full examples and variation matrix</a> · <a href="./cem-toast.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-toast/cem-toast.stories.ts">Automated stories</a></p><main><cem-element class="properties"><template type="text/cem-ml">{slice @name=label | Saved}{cem-field @label="label" @value="{$datadom.slices.label}" @slice=label @slice-event=input @slice-value="$target.value"}
+<cem-gallery-page id="playground-theme" heading="cem-toast: Property playground">
+<template><p class="component-description">A polite status message retained until the application updates or removes it. It does not expire, move focus or create an overlay. Use <a href="./cem-alert-gallery.html">cem-alert</a> for inline severity and <a href="./cem-progress-gallery.html">cem-progress</a> for measurable work.</p><p><a href="./cem-toast-gallery.html">Full examples and variation matrix</a> · <a href="./cem-toast.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-toast/cem-toast.stories.ts">Automated stories</a></p><main><cem-element class="properties"><template type="text/cem-ml">{slice @name=label | Saved}{cem-field @label="label" @value="{$datadom.slices.label}" @slice=label @slice-event=input @slice-value="$target.value"}
 {slice @name=class | }{cem-field @label="class" @value="{$datadom.slices.class}" @slice=class @slice-event=input @slice-value="$target.value"}
 {slice @name=dir | ltr}{fieldset @role=group @aria-label="dir" @slice=dir @slice-event=change @slice-value="$target.value" | {legend | dir}{cem-radio @name="property-dir" @value="ltr" @label="ltr" @checked={if datadom.slices.dir == "ltr" {true} else {null}}}{cem-radio @name="property-dir" @value="rtl" @label="rtl" @checked={if datadom.slices.dir == "rtl" {true} else {null}}}}
 {slice @name=hidden | absent}{fieldset @role=group @aria-label="hidden" @slice=hidden @slice-event=change @slice-value="$target.value" | {legend | hidden}{cem-radio @name="property-hidden" @value="absent" @label="absent" @checked={if datadom.slices.hidden == "absent" {true} else {null}}}{cem-radio @name="property-hidden" @value="present" @label="present" @checked={if datadom.slices.hidden == "present" {true} else {null}}}}
 {slice @name=content | fallback}{fieldset @role=group @aria-label="content" @slice=content @slice-event=change @slice-value="$target.value" | {legend | content}{cem-radio @name="property-content" @value="fallback" @label="fallback" @checked={if datadom.slices.content == "fallback" {true} else {null}}}{cem-radio @name="property-content" @value="projected" @label="projected" @checked={if datadom.slices.content == "projected" {true} else {null}}}}
-{cem-toast @label="{$datadom.slices.label}" @class="{$datadom.slices.class}" @dir="{$datadom.slices.dir}" @hidden={if datadom.slices.hidden == "present" {true} else {null}} | {cem:if @test='datadom.slices.content == "projected"' | {strong | Authored message markup}}}</template></cem-element><cem-element><template type="text/cem-ml">{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-toast"}{cem:if @test="datadom.slices.sourceUrl" | {p | {a @href="{$datadom.slices.sourceUrl}" | Open canonical XHTML}}{cem-demo-element @legend="Canonical source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}}</template></cem-element></main></div></body></html>
+{cem-toast @label="{$datadom.slices.label}" @class="{$datadom.slices.class}" @dir="{$datadom.slices.dir}" @hidden={if datadom.slices.hidden == "present" {true} else {null}} | {cem:if @test='datadom.slices.content == "projected"' | {strong | Authored message markup}}}</template></cem-element><cem-element><template type="text/cem-ml">{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-toast"}{cem:if @test="datadom.slices.sourceUrl" | {p | {a @href="{$datadom.slices.sourceUrl}" | Open canonical XHTML}}{cem-demo-element @legend="Canonical source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}}</template></cem-element></main></template>
+</cem-gallery-page>
+</body></html>

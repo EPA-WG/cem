@@ -1,0 +1,17 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-gallery-page">
+  <!-- Documentation page chrome; example themes and storage remain independent. -->
+  <template id="cem-gallery-page" type="text/cem-ml">
+    {cem-element @tag=cem-gallery-nav @src="./cem-gallery-nav.xhtml#cem-gallery-nav"}
+    {attribute @name=heading | Components}
+    {attribute @name=index-href | ./index.html}
+    {attribute @name=storage-key | cem-playground-theme}
+    {local-storage @slice=theme @key="{$storage-key}" @type=text @live=true}
+    {attribute @name=data-theme @select='if ((datadom.slices.theme ?? "") == "cem-theme-dark") || ((datadom.slices.theme ?? "") == "cem-theme-contrast-light") || ((datadom.slices.theme ?? "") == "cem-theme-contrast-dark") || ((datadom.slices.theme ?? "") == "cem-theme-native") { datadom.slices.theme } else { "cem-theme-light" }'}
+    {style @type="text/css" |```
+      :scope { display: block; box-sizing: border-box; min-block-size: 100vh; padding: var(--cem-dim-large); background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); }
+      :scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
+    ```}
+    {cem-gallery-nav @part=navigation @heading="{$heading}" @index-href="{$index-href}" @theme-storage-key="{$storage-key}" @theme-value="{$data-theme}"}
+    {slot}
+  </template>
+</cem-element>

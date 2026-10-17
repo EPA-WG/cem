@@ -176,8 +176,16 @@ numeric z-index.
 ## Focused fixture and assertion matrix
 
 The canonical [XHTML declaration](../src/components/cem-datepicker/cem-datepicker.xhtml)
-uses the shared `calendar-input` capability and embedded token CSS. Its
-[colocated stories](../src/components/cem-datepicker/cem-datepicker.stories.ts)
+uses the shared `calendar-input` capability and embedded token CSS. Fragment
+imports inherit this metadata from the template or its owning declaration.
+
+**Capability caveat:** retain `calendar-input` when copying the template.
+An explicit importer override or `capability=""` can disable calendar, dialog
+and draft-commit behavior. The projected native input keeps its form ownership;
+do not replace this capability with `form-control`. See the
+[metadata ownership rules](./conventions.md#41-intrinsic-capability-metadata).
+
+The [colocated stories](../src/components/cem-datepicker/cem-datepicker.stories.ts)
 retain all seven legacy cases and add boolean presence, boundary years and five
 themes. The [native template regression](../../cem_ql/tests/calendar_template.rs)
 checks named-template/module closure before browser execution, and

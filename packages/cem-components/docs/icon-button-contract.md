@@ -9,7 +9,7 @@ link. It loads that declaration automatically, including when loaded from the
 combined component bundle. Glyph rendering and content layout belong to
 `cem-icon`; navigation and interaction remain owned by `cem-icon-button`.
 
-The icon's public attributes are relayed: `image`, `size`, `direction`, `label`,
+The icon's public attributes are relayed: `image`, `size`, `direction`, `align`, `label`,
 `aria-label`, `class`, and `hidden`. Default-slot content is projected into the
 embedded icon. Host CSS properties, including `--cem-icon-size`,
 `--cem-icon-size-small`, and `--cem-icon-size-large`, inherit into it.
@@ -35,7 +35,11 @@ glyph remains decorative. Glyph sizing now follows `cem-icon` and its tokens;
   href and its activation binding, exposes aria-disabled and leaves the tab
   sequence. Removing disabled restores the authored URL.
 - Enabled activation records the `pressed` event slice; it does not change
-  the container-owned `selected` attribute. `expanded` is not supported.
+  the container-owned `selected` attribute. `expanded` is not a toggle API.
+- Explicit `aria-current` forwards unchanged to the native link, including `page`,
+  `step`, `location` and `false`; it takes precedence over the `selected` fallback.
+- `aria-expanded` and `aria-controls` forward to the native button. The owner
+  controls disclosure state; the icon button does not toggle these values itself.
 
 ## Action theme support
 
@@ -51,12 +55,40 @@ outline independently of fill and focus; contrast modes use action contours.
 - `selectable` uses presence. An unselected selectable button exposes
   `aria-pressed="false"`; an ordinary command omits it. Links keep native
   navigation semantics and never receive `aria-pressed`.
+- In button mode, `control-role="menuitemradio"` exposes the native button as a
+  radio menu item. `selected` presence maps to `aria-checked="true"`, absence
+  to `"false"`, with the same selected indicator. It omits `aria-pressed`;
+  the containing menu continues to own selection.
 - `pending="true"` exposes `aria-busy="true"` and animated pending paint.
   False or absence clears pending paint. Pending outranks hover, active and
   disabled paint but does not block activation. Use disabled to block it.
 - Selection remains visible when disabled or pending. Keyboard focus has an
   independent theme stripe. Reduced motion freezes pending animation; forced
   colors preserve selected, pending and focus indicators with system colors.
+
+## Navigation variant
+
+Use `variant="navigation"` for navigation links and disclosure buttons, as composed
+by `cem-nav`. It retains shared icon/control geometry, text-only content, logical
+alignment and minimum hit targets while consuming the independently themeable
+`--cem-navigation-item-*` background/text pairs. It does not substitute action
+intent colors for navigation semantics.
+
+Default, hover and active use their navigation endpoints. Any native
+`aria-current` value except `false` selects the current/current-hover/current-active
+pairs; disabled wins over these states. `selected` retains its legacy
+`aria-current="true"` fallback when no explicit value is supplied. Keyboard focus
+uses the navigation outline channel. Forced colors use Canvas/CanvasText,
+SelectedItem/SelectedItemText, Highlight/HighlightText and GrayText as applicable.
+
+```html
+<cem-icon-button href="/overview" variant="navigation" align="start"
+  aria-current="page">Overview</cem-icon-button>
+```
+
+An unavailable icon link uses presence-only `disabled`: it loses its URL and
+leaves the tab order, as in other variants. Native `aria-disabled` navigation
+links retain the separate discoverable-owner contract of `cem-nav`.
 
 ## Icons, content and appearance
 
@@ -75,9 +107,23 @@ unchanged to `cem-icon`: small and large select its size tokens; all other
 values use its default icon size. Content and the minimum hit area can make
 the control taller. `direction="row"` is the
 default; column stacks the icon and content in both button and link modes.
-Control geometry and interaction paint consume the action/control
-CEM theme tokens. Link default, hover, active, disabled and keyboard focus paint
+Control geometry consumes shared action/control theme tokens. Interaction paint
+uses the selected action intent or navigation state family. Link default, hover, active, disabled and keyboard focus paint
 retain native forced-color focus outlines.
+
+`align="start|center|end"` positions the icon/content group within the native
+control's padded area in both button and link modes. Center is the default;
+absent, empty and unsupported values use center. Alignment follows the inline
+axis in both row and column layouts; start and end follow the text direction,
+including RTL. The value is also forwarded to `cem-icon`, so stacked glyphs
+and labels align with each other. Containers own control width and placement.
+For example, a full-width menu choice can use:
+
+```cem
+{cem-icon-button @image="☀" @align=start @style="inline-size:100%" | Light}
+```
+
+Changing alignment retains the control, projected content and interaction state.
 
 The action bend classes `cem-bend-sharp`, `cem-bend-smooth`, and
 `cem-bend-round` set control corners. `size` controls both action height and the embedded icon as described above.

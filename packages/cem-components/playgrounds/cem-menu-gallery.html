@@ -18,6 +18,8 @@
         "@epa-wg/cem-components/playgrounds/": "./"
     }
 }</script>
+    <link rel="stylesheet" href="../../cem-theme/dist/lib/css/cem-combined.css">
+    <link rel="stylesheet" href="../dist/styles.css">
     <script type="module">
         import { installCemElementRuntime } from '@epa-wg/cem-elements';
         import '@epa-wg/cem-demo-element';
@@ -27,7 +29,6 @@
     <link rel="stylesheet" href="../demo.css">
     <style>
         body { margin: 0; font-family: system-ui, sans-serif; }
-        #playground-theme { box-sizing: border-box; min-block-size: 100vh; padding: var(--cem-dim-large); }
         main { display: block; }
         .workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--cem-dim-large); }
         .preview { padding: var(--cem-dim-large); border: var(--cem-stroke-boundary) solid currentColor; }
@@ -93,7 +94,7 @@
 
 {cem-element @tag=cem-switch @src="@epa-wg/cem-components/components/cem-switch/cem-switch.xhtml#cem-switch"}
 
-{cem-element @tag=cem-gallery-nav @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml#cem-gallery-nav"}
+{cem-element @tag=cem-gallery-page @src="@epa-wg/cem-components/playgrounds/cem-gallery-page.xhtml#cem-gallery-page"}
 
 {cem-element @tag=cem-field @capability=form-control @src="@epa-wg/cem-components/components/cem-field/cem-field.xhtml#cem-field"}
 
@@ -101,15 +102,14 @@
 
 {cem-element @tag=cem-theme-switch @src="@epa-wg/cem-components/components/cem-theme-switch/cem-theme-switch.xhtml#cem-theme-switch"}
 
-{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
-{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}
+
+
 {cem-element @tag=cem-menu @capability=composite-menu @src="@epa-wg/cem-components/components/cem-menu/cem-menu.xhtml#cem-menu"}
-{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
-{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
 </template>
 </cem-element>
 
-<div id="playground-theme" class="cem-theme-light"><cem-gallery-nav heading="cem-menu: Full examples and variation matrix"></cem-gallery-nav>
+<cem-gallery-page id="playground-theme" heading="cem-menu: Full examples and variation matrix">
+<template>
 <p class="component-description">A persistent wrapping collection of links and commands. <a href="./cem-menu-item-gallery.html">cem-menu-item</a> supplies command controls and nested submenu owners; <a href="./cem-select-gallery.html">cem-select</a> selects values.</p>
 <p><a href="./cem-menu.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-menu/cem-menu.stories.ts">Automated stories</a></p>
 <main><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="direction"><code>direction</code></li><li data-gallery-attribute="justify"><code>justify</code></li><li data-gallery-attribute="keyboard"><code>keyboard</code></li><li data-gallery-attribute="aria-label"><code>aria-label</code></li><li data-gallery-attribute="aria-labelledby"><code>aria-labelledby</code></li><li data-gallery-attribute="dir"><code>dir</code></li><li data-gallery-attribute="hidden"><code>hidden</code></li><li data-gallery-attribute="class"><code>class</code></li></ul><p><code>direction="row|column"</code> defaults to row; submenu panels default to column. <code>justify="start|end"</code> defaults to start; <code>keyboard="native|menu"</code> defaults to native. <code>aria-label</code>, <code>aria-labelledby</code>, <code>dir</code>, <code>hidden</code> and <code>class</code> are supported. The default slot accepts links, buttons, menu items and content. Nested menus belong in an item's <code>submenu</code> slot. Item <code>href</code> creates a leaf link; submenu owners remain buttons.</p>
@@ -155,4 +155,6 @@
 <cem-demo-element legend="Theme contrast-light" description="Compare default, disabled, expanded and focus states with real input."><template slot="source"><div class="cem-theme-contrast-light" data-gallery-theme="contrast-light"><cem-menu keyboard="menu" aria-label="Application commands"><cem-menu-item label="File"><cem-menu slot="submenu"><cem-menu-item label="New"></cem-menu-item><cem-menu-item label="Export"><cem-menu slot="submenu"><cem-menu-item label="PDF"></cem-menu-item><cem-menu-item label="Text"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item disabled label="Unavailable"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item label="Edit"><cem-menu slot="submenu"><cem-menu-item label="Copy"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item href="#help" label="Help"></cem-menu-item></cem-menu><cem-menu><button>Default</button><button disabled>Disabled</button></cem-menu></div></template></cem-demo-element>
 <cem-demo-element legend="Theme contrast-dark" description="Compare default, disabled, expanded and focus states with real input."><template slot="source"><div class="cem-theme-contrast-dark" data-gallery-theme="contrast-dark"><cem-menu keyboard="menu" aria-label="Application commands"><cem-menu-item label="File"><cem-menu slot="submenu"><cem-menu-item label="New"></cem-menu-item><cem-menu-item label="Export"><cem-menu slot="submenu"><cem-menu-item label="PDF"></cem-menu-item><cem-menu-item label="Text"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item disabled label="Unavailable"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item label="Edit"><cem-menu slot="submenu"><cem-menu-item label="Copy"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item href="#help" label="Help"></cem-menu-item></cem-menu><cem-menu><button>Default</button><button disabled>Disabled</button></cem-menu></div></template></cem-demo-element>
 <cem-demo-element legend="Theme native" description="Compare default, disabled, expanded and focus states with real input."><template slot="source"><div class="cem-theme-native" data-gallery-theme="native"><cem-menu keyboard="menu" aria-label="Application commands"><cem-menu-item label="File"><cem-menu slot="submenu"><cem-menu-item label="New"></cem-menu-item><cem-menu-item label="Export"><cem-menu slot="submenu"><cem-menu-item label="PDF"></cem-menu-item><cem-menu-item label="Text"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item disabled label="Unavailable"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item label="Edit"><cem-menu slot="submenu"><cem-menu-item label="Copy"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item href="#help" label="Help"></cem-menu-item></cem-menu><cem-menu><button>Default</button><button disabled>Disabled</button></cem-menu></div></template></cem-demo-element>
-</main></div></body></html>
+</main></template>
+</cem-gallery-page>
+</body></html>

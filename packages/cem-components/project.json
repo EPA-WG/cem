@@ -66,6 +66,7 @@
             "outputs": [
                 "{projectRoot}/dist/index.html",
                 "{projectRoot}/dist/cem-gallery-nav.xhtml",
+                "{projectRoot}/dist/cem-gallery-page.xhtml",
                 "{projectRoot}/dist/cem-action.html",
                 "{projectRoot}/dist/cem-select.html",
                 "{projectRoot}/dist/cem-theme-switch.html",

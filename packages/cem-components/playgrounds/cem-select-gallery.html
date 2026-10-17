@@ -18,6 +18,8 @@
         "@epa-wg/cem-components/playgrounds/": "./"
     }
 }</script>
+    <link rel="stylesheet" href="../../cem-theme/dist/lib/css/cem-combined.css">
+    <link rel="stylesheet" href="../dist/styles.css">
     <script type="module">
         import { installCemElementRuntime } from '@epa-wg/cem-elements';
         import '@epa-wg/cem-demo-element';
@@ -27,7 +29,6 @@
     <link rel="stylesheet" href="../demo.css">
     <style>
         body { margin: 0; font-family: system-ui, sans-serif; }
-        #playground-theme { box-sizing: border-box; min-block-size: 100vh; padding: var(--cem-dim-large); }
         main { display: block; }
         .workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--cem-dim-large); }
         .preview { padding: var(--cem-dim-large); border: var(--cem-stroke-boundary) solid currentColor; }
@@ -93,7 +94,7 @@
 
 {cem-element @tag=cem-switch @src="@epa-wg/cem-components/components/cem-switch/cem-switch.xhtml#cem-switch"}
 
-{cem-element @tag=cem-gallery-nav @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml#cem-gallery-nav"}
+{cem-element @tag=cem-gallery-page @src="@epa-wg/cem-components/playgrounds/cem-gallery-page.xhtml#cem-gallery-page"}
 
 {cem-element @tag=cem-action @capability=action-command @src="@epa-wg/cem-components/components/cem-action/cem-action.xhtml#cem-action"}
 
@@ -103,16 +104,15 @@
 
 {cem-element @tag=cem-theme-switch @src="@epa-wg/cem-components/components/cem-theme-switch/cem-theme-switch.xhtml#cem-theme-switch"}
 
-{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
-{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}
+
+
 {cem-element @tag=cem-select @capability=choice-select @src="@epa-wg/cem-components/components/cem-select/cem-select.xhtml#cem-select"}
-{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
-{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
 </template>
 </cem-element>
 
-<div id="playground-theme" class="cem-theme-light">
-<cem-gallery-nav heading="cem-select: Full examples and variation matrix"></cem-gallery-nav>
+<cem-gallery-page id="playground-theme" heading="cem-select: Full examples and variation matrix">
+<template>
+
 <header>
 <p class="component-description">A choice control supporting dropdowns, single or multiple listboxes, and grouped options. Use it for predefined choices alongside free-text controls such as <a href="./cem-field-gallery.html"><code>cem-field</code></a> and <a href="./cem-text-field-gallery.html"><code>cem-text-field</code></a>.</p>
 <p><a href="./cem-select.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-select/cem-select.stories.ts">Automated stories</a></p></header><main>
@@ -151,7 +151,7 @@
 <cem-demo-element legend="Value and presence"><template slot="source">
 <cem-select label="Grace selected" value="grace" class="consumer-select" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select><cem-select label="Disabled by presence" disabled="false" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select><cem-select hidden="false" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select>
 </template></cem-demo-element>
-</main></div>
+</main>
 <section aria-label="Theme and state variation matrix">
 <h2>Theme and state variation matrix</h2>
 <section data-gallery-theme="light" class="cem-theme-light"><h2>light</h2><div class="examples"><article data-variation="Default underline"><h3>Default · underline</h3><cem-select label="Default" indicator="underline"  ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
@@ -230,4 +230,6 @@
 <article data-variation="Multiple outline"><h3>Multiple · outline</h3><cem-select label="Multiple" indicator="outline" multiple size="3" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article></div></section>
 
 </section>
+</template>
+</cem-gallery-page>
 </body></html>

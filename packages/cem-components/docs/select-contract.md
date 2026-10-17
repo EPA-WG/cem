@@ -4,6 +4,14 @@
 `cem-option` with optional `cem-option-group`; an all-native `option`/`optgroup`
 payload is a migration adapter.
 
+**Capability caveat:** fragment imports inherit the source's `choice-select`
+capability. Preserve that metadata when copying the template; an explicit
+importer override or `capability=""` can remove selection, keyboard, popup and
+host form behavior. Use `choice-select` for this component, including its
+multi-value mode; `form-control` only supports a single string-valued native
+input or textarea. See the
+[metadata ownership rules](./conventions.md#41-intrinsic-capability-metadata).
+
 ## Why the control is custom
 
 Native `select` owns excellent platform behavior but does not consistently

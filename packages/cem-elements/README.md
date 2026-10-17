@@ -343,8 +343,8 @@ sets the native mixed-state property, including empty values and the text
 `false`. Activation clears that property natively. Unchanged authored presence
 does not reapply it on unrelated renders or reconnects; removing and readding
 the flag reapplies it. Nested custom-element controls are excluded, and multiple
-owners or a switch role do not receive mixed state. Fragment loaders must repeat
-the capability. Native checked/defaultChecked, value, forms, radio grouping,
+owners or a switch role do not receive mixed state. Fragment loaders inherit
+the source's capability metadata. Native checked/defaultChecked, value, forms, radio grouping,
 reset, validity, keys and events remain browser-owned; this capability does not
 add a form-associated host or synthetic change events.
 
@@ -371,7 +371,7 @@ The native modal dialog registers with shared surface ownership. A silent
 discard drafts. Apply closes and restores input focus before one native
 `input`/`change` pair. No custom lifecycle events are emitted. Generation checks
 prevent deferred resets or commits from crossing disconnection. Fragment loaders
-must repeat the capability. The [datepicker contract](../cem-components/docs/datepicker-contract.md)
+inherit the source's `calendar-input` capability. The [datepicker contract](../cem-components/docs/datepicker-contract.md)
 and [shared worker/fallback plays](src/lib/calendar-input.stories.ts) specify the
 owner, keyboard, focus, event and lifecycle boundaries.
 
@@ -400,6 +400,28 @@ replacement and does not connect a separate editor provider or query/filter the
 native suggestions model. Shared [runtime plays](src/lib/editable-choice.stories.ts)
 cover worker/fallback lifecycle, native forms and nested ownership.
 
+## Source-owned capabilities
+
+Declare reusable behavior on the template with
+`{template @capability=form-control @type=text/cem-ml | ...}` in CEM-ML, or
+`<template capability="form-control" type="text/cem-ml">` in HTML. A capability
+on the enclosing `cem-element` declaration remains supported. The runtime reads
+this metadata before registering the produced class; it is not an instance flag.
+
+Imports using `src="./controls.xhtml#account-input"` inherit the selected
+template's capability, falling back to its immediate owning declaration. The
+importer's own attribute takes precedence, including an explicitly empty value
+that suppresses inheritance. Unknown capabilities and conflicts with
+host-supplied behavior retain their existing diagnostics. See the
+[loading contract](../../docs/cem-element-src-loading-contract.md#source-owned-capabilities)
+and the runnable [form demo](demo/form.html).
+
+**Component caveat:** preserve intrinsic capability metadata when copying a
+template. Omitting it can leave visible markup without the component's form,
+keyboard or popup behavior. Use the component's documented capability rather
+than assigning `form-control` to every input component. Explicit overrides can
+disable the source's behavior; the tag name does not supply a default.
+
 ## Native string form controls
 
 Declarations may opt into `capability="form-control"` for one string-valued
@@ -413,7 +435,7 @@ the form/value/validity host API. It does not change generic input patching.
 Trusted Enter in a single-line control delegates implicit submission to the
 host form, preserving default submitter activation and event cancellation.
 It is not a file, checkbox/radio, or multi-value capability. Template-fragment
-loaders must repeat the capability on their loading declaration.
+loaders inherit this metadata from the selected source; they need not repeat it.
 
 Text navigation uses the host attributes `selection-request` (a new nonempty
 token for each request), `selection-start`, `selection-end` (nonnegative safe
@@ -944,13 +966,19 @@ attributes use CEMT attribute construction.
 
 ### Form-associated custom control event values
 
-Declarative event bindings read a live string `value` from native inputs,
+Declarative event bindings read a live string `value` from native buttons, inputs,
 textareas, selects and custom controls whose constructor declares
 `static formAssociated = true`. This applies to `$target.value`, value aliases,
 the default slice value and serialized event targets. It lets a parent bind a
 `cem-select` change directly to its own slice. Non-string custom values are not
 serialized as event target values; ordinary elements retain attribute fallback
 only for default values and aliases.
+
+An event on an icon, label or other descendant inside a native button reads the
+nearest button's live value. This applies to the same bindings and serialized
+target value, while the serialized target tag remains the actual clicked node.
+Delegated menu activation therefore behaves consistently when users click a
+button's glyph, text or surface.
 
 Asynchronous checked-state publication preserves native checkbox/radio edits
 made after that render was requested. Authored `checked` defaults still update;
@@ -987,8 +1015,9 @@ are projected silently. Non-crossing clamps run in capture before native events
 reach application listeners. Form reset resynchronizes positions and labels
 without dispatching replacement events. Private --_cem-range-start-position,
 --_cem-range-end-position and --_cem-range-tick-spacing properties carry value
-percentages. Neither capability creates a second form-associated host. Repeat
-the capability on fragment-src declaration wrappers.
+percentages. Neither capability creates a second form-associated host. Fragment
+imports inherit the source's `time-input` or `range-input` capability; retain that
+metadata when copying a template.
 
 Project the slots in `datadom.slices.thumbSlots` order inside part=inputs. The
 list preserves reversed start/end payloads and the legacy default-slot pair;
@@ -1019,8 +1048,8 @@ through the shared preview; build cem-components before running those stories.
 
 `disclosure-panel`, `sort-action` and `pagination` are versioned declarative
 capabilities. They use structural ownership and public parts, support renamed
-hosts, and do not make hosts form-associated. Repeat the capability on
-fragment-src declaration wrappers.
+hosts, and do not make hosts form-associated. Fragment imports inherit the
+source's capability; they need not repeat it on the importing declaration.
 
 - `disclosure-panel`: direct `part=root` contains a `part=heading[role=heading]`
   and its native `button[part=header]`, plus a persistent `part=panel`. The

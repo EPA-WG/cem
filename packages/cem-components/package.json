@@ -40,6 +40,7 @@
         "./playgrounds/assets/wc-square.svg": "./playgrounds/assets/wc-square.svg",
         "./playgrounds/index.html": "./dist/index.html",
         "./playgrounds/cem-gallery-nav.xhtml": "./dist/cem-gallery-nav.xhtml",
+        "./playgrounds/cem-gallery-page.xhtml": "./dist/cem-gallery-page.xhtml",
         "./playgrounds/cem-menu.html": "./dist/cem-menu.html",
         "./playgrounds/cem-menu-gallery.html": "./dist/cem-menu-gallery.html",
         "./playgrounds/cem-dropdown.html": "./dist/cem-dropdown.html",

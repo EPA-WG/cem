@@ -7,6 +7,15 @@ This contract closes the Phase 4 `navigation:active` state for `cem-nav` and
 navigation owner is being pressed. It is not current-page state, tab selection,
 focus, hover, or a durable runtime slice.
 
+## Composed navigation controls
+
+The shared disclosure and recommended link items use
+`cem-icon-button variant="navigation"`. Its native controls consume the same
+navigation endpoints and retain explicit ARIA values within their own CSS scope.
+The nav owns static padding and wrapping gaps; state transitions do not alter
+geometry. Arbitrary nested controls retain their own state family. See the
+[disclosure and layout contract](./navigation-disclosure-contract.md).
+
 ## Interaction owners
 
 Active paint belongs to the same real owners as navigation hover and focus:
@@ -14,7 +23,7 @@ Active paint belongs to the same real owners as navigation hover and focus:
 - direct `a[href]` and enabled `button` children of `cem-nav > nav`;
 - direct `a[href]` and enabled `button` children of
   `cem-nav > nav > .cem-nav__content`;
-- the enabled native `.cem-nav__disclosure` button; and
+- the enabled native button inside the disclosure icon button; and
 - direct enabled `button[role="tab"]` children of the `cem-tabs` tablist.
 
 Nav hosts, rendered nav/content containers, tab hosts, and tablists are

@@ -168,7 +168,7 @@ function formFields(event: Event, control: Element, view: Element): Readonly<Rec
 }
 
 function controlValue(target: EventTarget | null): string | null {
-    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return target.value;
+    if (target instanceof HTMLButtonElement || target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return target.value;
     if (target instanceof HTMLElement && (target.constructor as typeof HTMLElement & { formAssociated?: boolean }).formAssociated) {
         const value = (target as HTMLElement & { value?: unknown }).value;
         if (typeof value === 'string') return value;

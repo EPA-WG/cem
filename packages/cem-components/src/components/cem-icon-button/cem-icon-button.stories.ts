@@ -152,6 +152,86 @@ export const RelayedIconAttributes = meta.story({
     },
 });
 
+export const Alignment = meta.story({
+    render: () => ['', ' href="#alignment"'].map(href =>
+        `<cem-icon-button${href} image="★" label="Fallback label" style="inline-size:20rem"></cem-icon-button>`
+        + `<cem-icon-button${href} image="★" label="Replaced label" style="inline-size:20rem"><strong>Projected label</strong></cem-icon-button>`).join(''),
+    play: async ({ canvasElement }) => {
+        for (const host of canvasElement.querySelectorAll<HTMLElement>('cem-icon-button')) {
+            await whenIconButtonRendered(host);
+            const control = host.querySelector<HTMLElement>('[part=control]');
+            const icon = host.querySelector<HTMLElement>('cem-icon');
+            if (!control || !icon) throw new Error('Missing icon button content');
+            const projected = host.querySelector('strong');
+            for (const dir of ['ltr', 'rtl']) for (const direction of ['row', 'column']) {
+                host.dir = dir;
+                host.setAttribute('direction', direction);
+                await whenIconButtonRendered(host);
+                const height = control.getBoundingClientRect().height;
+                for (const align of [null, 'start', 'center', 'end', '', 'invalid', null]) {
+                    if (align === null) host.removeAttribute('align');
+                    else host.setAttribute('align', align);
+                    await whenIconButtonRendered(host);
+                    expect(icon.getAttribute('align')).toBe(align || 'center');
+                    const content = icon.querySelector<HTMLElement>('[part=content]');
+                    if (!content) throw new Error('Missing embedded icon content');
+                    const bounds = control.getBoundingClientRect(), style = getComputedStyle(control);
+                    const available = {
+                        left: bounds.left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft),
+                        right: bounds.right - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight),
+                    };
+                    const effective = align === 'start' || align === 'end' ? align : 'center';
+                    expectInlineAlignment(content.getBoundingClientRect(), available, effective, dir === 'rtl');
+                    if (direction === 'column') for (const child of content.children) {
+                        expectInlineAlignment(child.getBoundingClientRect(), content.getBoundingClientRect(), effective, dir === 'rtl');
+                    }
+                    expect(host.querySelector('[part=control]')).toBe(control);
+                    expect(bounds.height).toBeCloseTo(height, 0);
+                    if (projected) expect(content.querySelector('strong')).toBe(projected);
+                }
+            }
+            expect(storybookCemRuntime().diagnosticsFor(host)).toEqual([]);
+        }
+    },
+});
+
+function expectInlineAlignment(rect: DOMRect, bounds: Pick<DOMRect, 'left' | 'right'>, align: string, rtl: boolean): void {
+    const edge = align === 'center' ? null : (align === 'start') !== rtl ? 'left' : 'right';
+    expect(edge ? rect[edge] : (rect.left + rect.right) / 2)
+        .toBeCloseTo(edge ? bounds[edge] : (bounds.left + bounds.right) / 2, 0);
+}
+
+export const MenuRadio = meta.story({
+    render: () => '<cem-icon-button image="☀" label="Light" variant="contextual" control-role="menuitemradio" selectable></cem-icon-button>',
+    play: async ({ canvasElement }) => {
+        const host = canvasElement.querySelector<HTMLElement>('cem-icon-button');
+        if (!host) throw new Error('Missing radio icon button');
+        await whenIconButtonRendered(host);
+        const button = within(host).getByRole('menuitemradio', { name: 'Light' });
+        expect(button).toHaveAttribute('aria-checked', 'false');
+        expect(button).not.toHaveAttribute('aria-pressed');
+        for (const selected of ['', 'false', 'true']) {
+            host.setAttribute('selected', selected);
+            await whenIconButtonRendered(host);
+            expect(button).toHaveAttribute('aria-checked', 'true');
+            expect(getComputedStyle(button).boxShadow).not.toBe('none');
+            await userEvent.click(button);
+            await whenIconButtonRendered(host);
+            expect(host.getAttribute('selected')).toBe(selected);
+        }
+        host.removeAttribute('control-role');
+        await whenIconButtonRendered(host);
+        expect(within(host).getByRole('button', { name: 'Light' })).toBe(button);
+        expect(button).not.toHaveAttribute('aria-checked');
+        expect(button).toHaveAttribute('aria-pressed', 'true');
+        host.removeAttribute('selected');
+        host.setAttribute('control-role', 'menuitemradio');
+        await whenIconButtonRendered(host);
+        expect(button).toHaveAttribute('aria-checked', 'false');
+        expect(button).not.toHaveAttribute('aria-pressed');
+    },
+});
+
 export const ActionStates = meta.story({
     globals: { cemTheme: 'light' },
     parameters: { docs: { description: { story: 'Container-owned selection and pending feedback across all themes, including disabled controls. Trusted focus/hover checks run in the browser test runner.' } } },
@@ -1224,3 +1304,31 @@ function assertAriaReferenceIntegrity(root: HTMLElement): void {
         }
     }
 }
+
+export const NavigationAria = meta.story({
+    render: () => '<cem-icon-button href="#overview" variant="navigation" aria-current="page" selected>Overview</cem-icon-button>'
+        + '<cem-icon-button variant="navigation" image="▾" label="Workspace navigation" aria-expanded="false" aria-controls="workspace-links"></cem-icon-button><div id="workspace-links"></div>',
+    play: async ({ canvasElement }) => {
+        const [linkHost, disclosure] = [...canvasElement.querySelectorAll<HTMLElement>('cem-icon-button')];
+        await whenIconButtonRendered(linkHost); await whenIconButtonRendered(disclosure);
+        const link = within(linkHost).getByRole('link', { name: 'Overview' });
+        for (const value of ['page', 'step', 'location', 'false']) {
+            linkHost.setAttribute('aria-current', value); await whenIconButtonRendered(linkHost);
+            expect(link).toHaveAttribute('aria-current', value);
+            expect(within(linkHost).getByRole('link')).toBe(link);
+        }
+        linkHost.removeAttribute('aria-current'); await whenIconButtonRendered(linkHost);
+        expect(link).toHaveAttribute('aria-current', 'true');
+        linkHost.removeAttribute('selected'); await whenIconButtonRendered(linkHost);
+        expect(link).not.toHaveAttribute('aria-current');
+        const button = within(disclosure).getByRole('button', { name: 'Workspace navigation' });
+        for (const value of ['false', 'true', 'false']) {
+            disclosure.setAttribute('aria-expanded', value); await whenIconButtonRendered(disclosure);
+            expect(button).toHaveAttribute('aria-expanded', value);
+            expect(button).toHaveAttribute('aria-controls', 'workspace-links');
+            expect(within(disclosure).getByRole('button')).toBe(button);
+        }
+        disclosure.removeAttribute('aria-expanded'); await whenIconButtonRendered(disclosure);
+        expect(button).not.toHaveAttribute('aria-expanded');
+    },
+});

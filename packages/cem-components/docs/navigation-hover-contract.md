@@ -7,6 +7,15 @@ This contract closes the Phase 4 `navigation:hover` state for `cem-nav` and
 It does not select a tab, change the current page, expand navigation, activate a
 command, or create component runtime state.
 
+## Composed navigation controls
+
+The shared disclosure and recommended link items use
+`cem-icon-button variant="navigation"`. Its native controls consume the same
+navigation endpoints and retain explicit ARIA values within their own CSS scope.
+The nav owns static padding and wrapping gaps; state transitions do not alter
+geometry. Arbitrary nested controls retain their own state family. See the
+[disclosure and layout contract](./navigation-disclosure-contract.md).
+
 ## Interaction owners
 
 The owners are the rendered interactive elements, never their structural
@@ -15,7 +24,7 @@ containers:
 - direct `a[href]` and `button` children of `cem-nav > nav`;
 - direct `a[href]` and `button` children of
   `cem-nav > nav > .cem-nav__content`, including disclosed navigation content;
-- the native `.cem-nav__disclosure` button, which is a direct nav child; and
+- the native button inside the direct `.cem-nav__disclosure` icon button; and
 - direct native `button[role="tab"]` children of the `cem-tabs` tablist.
 
 `cem-nav`, its rendered `nav`, `.cem-nav__content`, `cem-tabs`, and its rendered

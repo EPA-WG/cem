@@ -2144,7 +2144,8 @@ export class CemElementRuntime {
         source: ResolvedDeclarationSource,
     ): Promise<void> {
         const registrationOptions = this.registrationOptions.get(declarationElement);
-        const capabilityName = declarationElement.getAttribute('capability')?.trim() ?? '';
+        const capabilityName = (declarationElement.getAttribute('capability')
+            ?? template.getAttribute('capability') ?? '').trim();
         if (capabilityName && registrationOptions?.behavior) {
             this.recordDiagnostics(declarationElement, [
                 declarationDiagnostic(
@@ -2345,7 +2346,7 @@ export class CemElementRuntime {
         const document = loaded.document;
         const sourceTemplate =
             reference.id.length > 0
-                ? templateFromTarget(document.getElementById(reference.id), declarationElement.ownerDocument)
+                ? templateFromTarget(document.getElementById(reference.id), declarationElement.ownerDocument, this.declarationTag)
                 : templateFromDocument(document, declarationElement.ownerDocument);
         if (!sourceTemplate) {
             this.recordDiagnostics(declarationElement, [
@@ -2411,6 +2412,7 @@ export class CemElementRuntime {
         const template = templateFromTarget(
             declarationElement.ownerDocument.getElementById(reference.id),
             declarationElement.ownerDocument,
+            this.declarationTag,
         );
         if (!template) {
             this.recordDiagnostics(declarationElement, [
@@ -8562,16 +8564,22 @@ function isUrlLikeSpecifier(specifier: string): boolean {
 }
 
 /** The declaration template a `src` reference loads: the target itself, its first template child, or the target subtree. */
-function templateFromTarget(target: Element | null, document: Document): HTMLTemplateElement | undefined {
+function templateFromTarget(target: Element | null, document: Document, declarationTag: string): HTMLTemplateElement | undefined {
     if (!target) {
         return undefined;
     }
-    if (target.localName === 'template') {
-        return document.importNode(target, true) as HTMLTemplateElement;
-    }
-    const childTemplate = directTemplateChildren(target)[0];
-    if (childTemplate) {
-        return document.importNode(childTemplate, true) as HTMLTemplateElement;
+    const sourceTemplate = target.localName === 'template' ? target : directTemplateChildren(target)[0];
+    if (sourceTemplate) {
+        const template = document.importNode(sourceTemplate, true) as HTMLTemplateElement;
+        const owner = sourceTemplate.parentElement;
+        if (!template.hasAttribute('capability')
+            && (owner?.localName === 'cem-element' || owner?.localName === declarationTag)) {
+            const capability = owner.getAttribute('capability');
+            // Retain only the selected template's declaration metadata on the clone.
+            // Never change the cached document or infer behavior from other wrappers.
+            if (capability !== null) template.setAttribute('capability', capability);
+        }
+        return template;
     }
     return templateFromNodes([target], document);
 }
@@ -9906,12 +9914,16 @@ function isWordBoundary(value: string | undefined): boolean {
 
 /** Event values come from live native or form-associated custom controls. */
 function formControlEventValue(target: EventTarget | null): string | null {
-    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) {
+    if (target instanceof HTMLButtonElement || target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) {
         return target.value;
     }
     if (target instanceof HTMLElement && (target.constructor as typeof HTMLElement & { formAssociated?: boolean }).formAssociated === true) {
         const value = (target as HTMLElement & { value?: unknown }).value;
         return typeof value === 'string' ? value : null;
+    }
+    const button = target instanceof Element ? target.closest('button') : null;
+    if (button instanceof HTMLButtonElement) {
+        return button.value;
     }
     return null;
 }

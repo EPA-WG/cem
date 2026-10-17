@@ -878,6 +878,15 @@ Focus, selected, and target MUST always resolve to different hues so that combin
 (e.g., a focused-and-selected item) remain distinguishable. `--cem-zebra-color-0` anchors
 the ring to the base surface; the remaining stripes are state indicators.
 
+Explicit theme roots (`data-theme` or a theme class) resolve their canonical
+emotion palette locally, so a nested branded theme does not inherit a native
+ancestor's system-color palette. Native roots declare `color-scheme: light dark`
+to follow the user's system preference independently of an outer light/dark
+scope. State stripe mappings apply within the nearest theme root and stop at
+nested theme boundaries; an ancestor's focus/selected/target state rules must
+not recolor independent examples. Branded color tokens remain inherited, and
+palette overrides on an explicit theme root remain effective.
+
 ###### cem-zebra-mode-mapping
 | Theme mode       | `--cem-zebra-color-0` (base)         | `--cem-zebra-color-1` (focus) | `--cem-zebra-color-2` (target) | `--cem-zebra-color-3` (selected) |
 |------------------|--------------------------------------|-------------------------------|--------------------------------|----------------------------------|

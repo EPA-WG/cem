@@ -4,11 +4,16 @@
     {attribute @name=label}
     {attribute @name=size | normal}
     {attribute @name=direction | row}
+    {attribute @name=align | center}
     {style @type="text/css" |```
-        :scope { display: inline-flex; }
+        :scope { display: inline-flex; justify-content: center; text-align: center; }
+        :scope:where([align='start']) { justify-content: start; text-align: start; }
+        :scope:where([align='end']) { justify-content: end; text-align: end; }
         :scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
         [part~='content'] { display: inline-flex; align-items: center; gap: calc(var(--cem-icon-size) / 4); }
         [part~='content']:where([data-direction='column']) { flex-direction: column; gap: 0; }
+        :scope:where([align='start']) [part~='content']:where([data-direction='column']) { align-items: start; }
+        :scope:where([align='end']) [part~='content']:where([data-direction='column']) { align-items: end; }
         [part~='icon'] { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: var(--cem-icon-size); block-size: var(--cem-icon-size); line-height: 1; }
         :scope:where([size='small']) [part~='icon'] { font-size: var(--cem-icon-size-small); block-size: var(--cem-icon-size-small); }
         :scope:where([size='large']) [part~='icon'] { font-size: var(--cem-icon-size-large); block-size: var(--cem-icon-size-large); }

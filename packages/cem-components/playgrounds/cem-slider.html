@@ -14,14 +14,16 @@
         "@epa-wg/cem-components/playgrounds/": "./"
     }
 }</script>
-<script type="module">
+    <link rel="stylesheet" href="../../cem-theme/dist/lib/css/cem-combined.css">
+    <link rel="stylesheet" href="../dist/styles.css">
+    <script type="module">
 import { installCemElementRuntime } from '@epa-wg/cem-elements';
 import '@epa-wg/cem-demo-element';
 const runtime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
 window.cemPlaygroundRuntime = runtime;
 </script>
 <link rel="stylesheet" href="../demo.css">
-<style>body { margin: 0; font-family: system-ui, sans-serif; } #playground-theme { padding: var(--cem-inset-container); } main, .properties { min-inline-size: 0; grid-template-columns: minmax(0, 1fr); display: grid; gap: var(--cem-gap-group); } [data-gallery-theme] { padding: var(--cem-inset-container); background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } cem-demo-element { display: block; margin-block: var(--cem-gap-group); }</style>
+<style>body { margin: 0; font-family: system-ui, sans-serif; } main, .properties { min-inline-size: 0; grid-template-columns: minmax(0, 1fr); display: grid; gap: var(--cem-gap-group); } [data-gallery-theme] { padding: var(--cem-inset-container); background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } cem-demo-element { display: block; margin-block: var(--cem-gap-group); }</style>
 </head><body>
 <cem-element hidden><template type="text/cem-ml">
 {cem-element @tag=cem-option @src="@epa-wg/cem-components/components/cem-option/cem-option.xhtml#cem-option"}
@@ -99,13 +101,14 @@ window.cemPlaygroundRuntime = runtime;
 {cem-element @tag=cem-theme-switch @src="@epa-wg/cem-components/components/cem-theme-switch/cem-theme-switch.xhtml#cem-theme-switch"}
 
 {cem-element @tag=cem-select @capability=choice-select @src="@epa-wg/cem-components/components/cem-select/cem-select.xhtml#cem-select"}
-{cem-element @tag=cem-gallery-nav @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml#cem-gallery-nav"}
-{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
-{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
+{cem-element @tag=cem-gallery-page @src="@epa-wg/cem-components/playgrounds/cem-gallery-page.xhtml#cem-gallery-page"}
+
+
 
 {cem-element @tag=cem-sheet @src="@epa-wg/cem-components/components/cem-sheet/cem-sheet.xhtml#cem-sheet"}
 </template></cem-element>
-<div id="playground-theme" class="cem-theme-light"><cem-gallery-nav heading="cem-slider: Property playground"></cem-gallery-nav><p class="component-description">One value or an ordered pair of values, each owned by its native range input. Use <a href="./cem-field-gallery.html">cem-field</a> for precise text entry and <a href="./cem-timepicker-gallery.html">cem-timepicker</a> for time choices.</p><p><a href="./cem-slider-gallery.html">Full examples and variation matrix</a> · <a href="./cem-slider.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-slider/cem-slider.stories.ts">Automated stories</a></p><main><p>Tab to each thumb. Use Arrow keys, Home/End and PageUp/PageDown, or drag its native thumb. A range cannot cross. Hover and focus change paint without changing values.</p><cem-element class="properties"><template type="text/cem-ml">
+<cem-gallery-page id="playground-theme" heading="cem-slider: Property playground">
+<template><p class="component-description">One value or an ordered pair of values, each owned by its native range input. Use <a href="./cem-field-gallery.html">cem-field</a> for precise text entry and <a href="./cem-timepicker-gallery.html">cem-timepicker</a> for time choices.</p><p><a href="./cem-slider-gallery.html">Full examples and variation matrix</a> · <a href="./cem-slider.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-slider/cem-slider.stories.ts">Automated stories</a></p><main><p>Tab to each thumb. Use Arrow keys, Home/End and PageUp/PageDown, or drag its native thumb. A range cannot cross. Hover and focus change paint without changing values.</p><cem-element class="properties"><template type="text/cem-ml">
 {slice @name=min | 0}
 {cem-field @label="min" @value="{$datadom.slices.min}" @slice=min @slice-event=input @slice-value="$target.value"}
 {slice @name=max | 100}
@@ -144,4 +147,6 @@ window.cemPlaygroundRuntime = runtime;
 {fieldset @role=group @aria-label="mode" @slice=mode @slice-event=change @slice-value="$target.value" | {legend | mode}{cem-radio @name="property-mode" @value="single" @label="single" @checked={if datadom.slices.mode == "single" {true} else {null}}}{cem-radio @name="property-mode" @value="range" @label="range" @checked={if datadom.slices.mode == "range" {true} else {null}}}}
 {form | {cem-slider @min="{$datadom.slices.min}" @max="{$datadom.slices.max}" @step="{$datadom.slices.step}" @class="{$datadom.slices.class}" @dir="{$datadom.slices.dir}" @disabled={if datadom.slices.disabled == "present" {true} else {null}} @discrete={if datadom.slices.discrete == "present" {true} else {null}} @show-tick-marks={if datadom.slices.show-tick-marks == "present" {true} else {null}} @hidden={if datadom.slices.hidden == "present" {true} else {null}} | {input @slot={if datadom.slices.mode == "range" {"start"} else {"single"}} @type=range @aria-label="{$datadom.slices.label}" @aria-valuetext={if datadom.slices.aria-valuetext {datadom.slices.aria-valuetext} else {null}} @name="{$datadom.slices.name}" @form={if datadom.slices.form {datadom.slices.form} else {null}} | {attribute @name=value @value={datadom.slices.value}}}
  {cem:if @test='datadom.slices.mode == "range"' | {input @slot=end @type=range @aria-label="{$datadom.slices.end-label}" @name="{$datadom.slices.end-name}" @form={if datadom.slices.form {datadom.slices.form} else {null}} | {attribute @name=value @value={datadom.slices.end-value}}}}}{cem-action @type=reset @label="Reset values"}}
-</template></cem-element><form id="slider-external"><cem-action type="reset" label="Reset external values"></cem-action></form><cem-element><template type="text/cem-ml">{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-slider"}{cem:if @test="datadom.slices.sourceUrl" | {p | {a @href="{$datadom.slices.sourceUrl}" | Open canonical XHTML}}{cem-demo-element @legend="Canonical source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}}</template></cem-element></main></div></body></html>
+</template></cem-element><form id="slider-external"><cem-action type="reset" label="Reset external values"></cem-action></form><cem-element><template type="text/cem-ml">{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-slider"}{cem:if @test="datadom.slices.sourceUrl" | {p | {a @href="{$datadom.slices.sourceUrl}" | Open canonical XHTML}}{cem-demo-element @legend="Canonical source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}}</template></cem-element></main></template>
+</cem-gallery-page>
+</body></html>

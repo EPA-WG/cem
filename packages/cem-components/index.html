@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="../cem-theme/dist/lib/css/cem-combined.css">
     <link rel="stylesheet" href="./dist/styles.css">
     <link rel="stylesheet" href="./demo.css">
+    <style>body { margin: 0; }</style>
     <script type="importmap">{
     "imports": {
         "@epa-wg/cem-ml/wasm": "../cem-ml-npm/dist/wasm/browser/cem_ml.js",
@@ -21,7 +22,8 @@
         await import('../cem-demo-element/dist/index.js');
     </script>
 </head>
-<body class="cem-theme-native">
+<body>
+<cem-element hidden tag="cem-gallery-page" src="./playgrounds/cem-gallery-page.xhtml#cem-gallery-page"></cem-element>
 <cem-element hidden tag="cem-option" src="./src/components/cem-option/cem-option.xhtml#cem-option"></cem-element>
 <cem-element hidden tag="cem-option-group" src="./src/components/cem-option-group/cem-option-group.xhtml#cem-option-group"></cem-element>
 <cem-element hidden tag="cem-badge" src="./src/components/cem-badge/cem-badge.xhtml#cem-badge"></cem-element>
@@ -58,8 +60,9 @@
 <cem-element hidden tag="cem-switch" src="./src/components/cem-switch/cem-switch.xhtml#cem-switch"></cem-element>
 <cem-element hidden tag="cem-sheet" src="./src/components/cem-sheet/cem-sheet.xhtml#cem-sheet"></cem-element>
 <cem-element hidden tag="cem-tooltip" capability="native-surface" src="./src/components/cem-tooltip/cem-tooltip.xhtml#cem-tooltip"></cem-element>
+<cem-gallery-page heading="CEM components" index-href="./playgrounds/index.html">
+<template>
 <header>
-    <h1>CEM components</h1>
     <p>Select a component to open its full examples and variation matrix.</p>
 </header>
 <nav aria-label="Components">
@@ -178,5 +181,7 @@
         src="./examples/feedback-settings.html"
     ></cem-demo-element>
 </main>
+</template>
+</cem-gallery-page>
 </body>
 </html>

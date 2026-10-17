@@ -14,14 +14,16 @@
         "@epa-wg/cem-components/playgrounds/": "./"
     }
 }</script>
-<script type="module">
+    <link rel="stylesheet" href="../../cem-theme/dist/lib/css/cem-combined.css">
+    <link rel="stylesheet" href="../dist/styles.css">
+    <script type="module">
 import { installCemElementRuntime } from '@epa-wg/cem-elements';
 import '@epa-wg/cem-demo-element';
 const runtime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
 window.cemPlaygroundRuntime = runtime;
 </script>
 <link rel="stylesheet" href="../demo.css">
-<style>body { margin: 0; font-family: system-ui, sans-serif; } #playground-theme { padding: var(--cem-inset-container); } main, .properties { min-inline-size: 0; grid-template-columns: minmax(0, 1fr); display: grid; gap: var(--cem-gap-group); } [data-gallery-theme] { padding: var(--cem-inset-container); background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } cem-demo-element { display: block; margin-block: var(--cem-gap-group); }</style>
+<style>body { margin: 0; font-family: system-ui, sans-serif; } main, .properties { min-inline-size: 0; grid-template-columns: minmax(0, 1fr); display: grid; gap: var(--cem-gap-group); } [data-gallery-theme] { padding: var(--cem-inset-container); background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } cem-demo-element { display: block; margin-block: var(--cem-gap-group); }</style>
 </head><body>
 <cem-element hidden><template type="text/cem-ml">
 {cem-element @tag=cem-option @src="@epa-wg/cem-components/components/cem-option/cem-option.xhtml#cem-option"}
@@ -99,13 +101,14 @@ window.cemPlaygroundRuntime = runtime;
 {cem-element @tag=cem-theme-switch @src="@epa-wg/cem-components/components/cem-theme-switch/cem-theme-switch.xhtml#cem-theme-switch"}
 
 {cem-element @tag=cem-select @capability=choice-select @src="@epa-wg/cem-components/components/cem-select/cem-select.xhtml#cem-select"}
-{cem-element @tag=cem-gallery-nav @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml#cem-gallery-nav"}
-{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
-{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
+{cem-element @tag=cem-gallery-page @src="@epa-wg/cem-components/playgrounds/cem-gallery-page.xhtml#cem-gallery-page"}
+
+
 
 {cem-element @tag=cem-sheet @src="@epa-wg/cem-components/components/cem-sheet/cem-sheet.xhtml#cem-sheet"}
 </template></cem-element>
-<div id="playground-theme" class="cem-theme-light"><cem-gallery-nav heading="cem-media-preview: Full examples and variation matrix"></cem-gallery-nav><p class="component-description">Preview projected media with a caption, exact literal text, an isolated document, or a message. Media retains its native alternative text. Use <a href="./cem-avatar-gallery.html">cem-avatar</a> for a compact named identity.</p><p><a href="./cem-media-preview-gallery.html">Full examples and variation matrix</a> · <a href="./cem-media-preview.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-media-preview/cem-media-preview.stories.ts">Automated stories</a></p><main><h2>Public attributes and slots</h2><table><caption>Public attribute inventory</caption><thead><tr><th>Attribute</th><th>Contract</th></tr></thead><tbody><tr data-gallery-attribute="label"><th><code>label</code></th><td>Accessible preview name; media and caption fallback. Default: Media preview.</td></tr><tr data-gallery-attribute="mode"><th><code>mode</code></th><td>media (default), text, document, or message. Unknown values use media.</td></tr><tr data-gallery-attribute="value"><th><code>value</code></th><td>Exact source text, document markup, or message. Default: empty string.</td></tr><tr data-gallery-attribute="truncated"><th><code>truncated</code></th><td>Presence adds (truncated) to the text preview accessible name, including truncated=&quot;false&quot;. It never shortens value.</td></tr><tr data-gallery-attribute="class"><th><code>class</code></th><td>Consumer styling</td></tr><tr data-gallery-attribute="hidden"><th><code>hidden</code></th><td>Native host visibility</td></tr><tr data-gallery-attribute="dir"><th><code>dir</code></th><td>Native direction</td></tr></tbody></table><p>Default slot is media; slot=caption replaces the fallback caption. Both fallbacks use label. Text, document, and message modes use value and do not project either slot. Text wraps and scrolls within 60% of the viewport block size. Documents retain the browser’s native frame height and fill the available inline space. The frame’s fixed empty sandbox, referrer policy, and deny-all content policy cannot be overridden through host attributes.</p>
+<cem-gallery-page id="playground-theme" heading="cem-media-preview: Full examples and variation matrix">
+<template><p class="component-description">Preview projected media with a caption, exact literal text, an isolated document, or a message. Media retains its native alternative text. Use <a href="./cem-avatar-gallery.html">cem-avatar</a> for a compact named identity.</p><p><a href="./cem-media-preview-gallery.html">Full examples and variation matrix</a> · <a href="./cem-media-preview.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-media-preview/cem-media-preview.stories.ts">Automated stories</a></p><main><h2>Public attributes and slots</h2><table><caption>Public attribute inventory</caption><thead><tr><th>Attribute</th><th>Contract</th></tr></thead><tbody><tr data-gallery-attribute="label"><th><code>label</code></th><td>Accessible preview name; media and caption fallback. Default: Media preview.</td></tr><tr data-gallery-attribute="mode"><th><code>mode</code></th><td>media (default), text, document, or message. Unknown values use media.</td></tr><tr data-gallery-attribute="value"><th><code>value</code></th><td>Exact source text, document markup, or message. Default: empty string.</td></tr><tr data-gallery-attribute="truncated"><th><code>truncated</code></th><td>Presence adds (truncated) to the text preview accessible name, including truncated=&quot;false&quot;. It never shortens value.</td></tr><tr data-gallery-attribute="class"><th><code>class</code></th><td>Consumer styling</td></tr><tr data-gallery-attribute="hidden"><th><code>hidden</code></th><td>Native host visibility</td></tr><tr data-gallery-attribute="dir"><th><code>dir</code></th><td>Native direction</td></tr></tbody></table><p>Default slot is media; slot=caption replaces the fallback caption. Both fallbacks use label. Text, document, and message modes use value and do not project either slot. Text wraps and scrolls within 60% of the viewport block size. Documents retain the browser’s native frame height and fill the available inline space. The frame’s fixed empty sandbox, referrer policy, and deny-all content policy cannot be overridden through host attributes.</p>
 <cem-demo-element type="cem-ml" legend="Literal text and truncation" description="Markup and significant whitespace remain literal text. Presence of truncated changes only the accessible name."><template slot="source">
 {cem-element |
  {template @type=text/cem-ml | ```{cem-media-preview @mode=text @label="Literal source" @value={"\u{3c}p\u{3e}Literal \u{26} text\u{3c}/p\u{3e}\n  Indented line  "}}```
@@ -207,4 +210,6 @@ window.cemPlaygroundRuntime = runtime;
 {cem-media-preview @dir=rtl @label="Right to left" | Content}
 {cem-media-preview @hidden=false @label=Hidden | Hidden by presence}
 </template></cem-demo-element>
-<cem-element><template type="text/cem-ml">{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-media-preview"}{cem:if @test="datadom.slices.sourceUrl" | {p | {a @href="{$datadom.slices.sourceUrl}" | Open canonical XHTML}}{cem-demo-element @legend="Canonical source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}}</template></cem-element></main></div></body></html>
+<cem-element><template type="text/cem-ml">{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-media-preview"}{cem:if @test="datadom.slices.sourceUrl" | {p | {a @href="{$datadom.slices.sourceUrl}" | Open canonical XHTML}}{cem-demo-element @legend="Canonical source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}}</template></cem-element></main></template>
+</cem-gallery-page>
+</body></html>

@@ -257,8 +257,8 @@ through a documented event, it does not belong in a component.
 
 ## 4. Form Participation
 
-Form components (`cem-text-field`, `cem-select`, `cem-checkbox`, `cem-form`)
-MUST participate in WHATWG form-associated custom elements:
+Components with a form-associated host (`cem-field`, `cem-text-field`,
+`cem-select`) MUST follow WHATWG form-associated custom-element semantics:
 
 - `static formAssociated = true` so the component shows up in the implicit
   `HTMLFormElement.elements` collection.
@@ -274,6 +274,38 @@ MUST participate in WHATWG form-associated custom elements:
 - Reset: components MUST listen for the host form's `reset` and restore their
   template-declared default value, not the runtime DOM value at the time of
   submit.
+
+Checkboxes, radios, switches, date/time pickers and sliders retain their native
+input's form ownership. They do not create a second form-associated host; their
+individual contracts define the native value and validation surface.
+
+### 4.1 Intrinsic capability metadata
+
+Source templates may declare behavior as
+`{template @capability=form-control @type=text/cem-ml | ...}` or the equivalent
+HTML `<template capability="form-control" type="text/cem-ml">`. The enclosing
+source `cem-element` may also declare it. Fragment imports inherit the selected
+template's capability, then its immediate owning declaration's capability;
+consumers normally register only `tag` and `src`.
+
+| Component | Intrinsic capability |
+| --- | --- |
+| `cem-field`, `cem-text-field` | `form-control` |
+| `cem-select` | `choice-select` |
+| `cem-checkbox` | `checkable-control` |
+| `cem-datepicker` | `calendar-input` |
+| `cem-timepicker` | `time-input` |
+| `cem-slider` | `range-input` |
+
+**Component caveat:** keep this metadata when copying or extracting templates.
+The tag name and rendered input do not activate a capability automatically.
+An explicit capability on the importing declaration overrides the source;
+`capability=""` disables inheritance and can remove required form or interaction
+behavior. Use the component's documented capability. Datepicker, timepicker and
+slider capabilities preserve native input ownership rather than creating another
+form-associated host. Capabilities must be selected before class registration;
+setting an instance attribute later does not enable them. See the
+[loading contract](../../../docs/cem-element-src-loading-contract.md#source-owned-capabilities).
 
 ## 5. Validation
 
@@ -414,24 +446,28 @@ Every component MUST degrade gracefully when its custom element is not upgraded 
 
 ## Playground theme control
 
-Use the canonical `cem-theme-switch` declaration as the theme scope around a
-playground's visible content, including the preview and source viewer. Load its
-XHTML through the page-level source/package module maps. Keep declaration and
-stylesheet loaders outside the projected content. Do not add page-local theme
-JavaScript or duplicate its controls.
+Wrap each complete documentation page in the shared `cem-gallery-page`
+declaration, loaded through the playground import-map prefix. It composes the
+navigation heading and theme selector, restores the shared `cem-playground-theme`
+preference with declarative live storage, and binds the effective theme to its
+own `data-theme`. Place the visible content in one direct inert `<template>`
+payload, so nested source viewers and anonymous declarations initialize once.
+Keep runtime/declaration/stylesheet setup outside the projected
+content. Do not retain a fixed light class or a second page theme-switch wrapper.
 
-The switch reflects `mode` (Light/Dark/Native), `contrast` (the remembered
-preference) and the effective `data-theme`. Native disables and unchecks the
-Contrast control; returning to Light/Dark restores the preference. `mode` defaults
-to `native`; playgrounds may supply `mode="light"`. Native uses system colors
-and permits the browser's light/dark preference. Give independent switch scopes
-distinct radio-group `name` values (default `cem-theme-mode`).
+Navigation receives the page storage key and resolved theme, then passes both
+to the production `cem-theme-switch`. User activation writes that key; existing
+live storage updates the page and other open demos. The full theme identifier
+keeps light/dark, contrast and native selection together. Invalid values display
+light without rewriting the saved bytes. Page theme changes retain projected
+controls, edited properties, form values and source viewers.
 
-The default slot owns the themed content. Theme changes must preserve projected
-controls, their edited values and nested component identities. Keep each source
-viewer separate from the component's reactive property form, as in the action
-playground. Persistent storage and page-global DOM mutation are not part of this
-component's contract.
+Preserve explicit theme scopes in examples and variation matrices, and keep
+example storage keys distinct from the page key. Example switches retain their
+own persistence and selection. The shared theme generator isolates palette and
+state mappings at nested explicit theme roots, including native/system mode.
+No page-local theme JavaScript or ancestor DOM mutation is needed. See the
+[gallery page contract](gallery-page-contract.md).
 
 ## Shared label principle
 

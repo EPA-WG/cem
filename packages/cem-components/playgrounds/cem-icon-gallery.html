@@ -18,6 +18,8 @@
         "@epa-wg/cem-components/playgrounds/": "./"
     }
 }</script>
+    <link rel="stylesheet" href="../../cem-theme/dist/lib/css/cem-combined.css">
+    <link rel="stylesheet" href="../dist/styles.css">
     <script type="module">
         import { installCemElementRuntime } from '@epa-wg/cem-elements';
         import '@epa-wg/cem-demo-element';
@@ -34,13 +36,7 @@
             font-family: system-ui, sans-serif;
         }
 
-        #playground-theme {
-            box-sizing: border-box;
-            min-block-size: 100vh;
-            padding: var(--cem-dim-large);
-        }
-
-        .workspace {
+.workspace {
             display: grid;
             grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
             gap: var(--cem-dim-large);
@@ -133,7 +129,7 @@
 
 {cem-element @tag=cem-switch @src="@epa-wg/cem-components/components/cem-switch/cem-switch.xhtml#cem-switch"}
 
-{cem-element @tag=cem-gallery-nav @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml#cem-gallery-nav"}
+{cem-element @tag=cem-gallery-page @src="@epa-wg/cem-components/playgrounds/cem-gallery-page.xhtml#cem-gallery-page"}
 
         {cem-element @tag=cem-field @capability=form-control
         @src="@epa-wg/cem-components/components/cem-field/cem-field.xhtml#cem-field"}
@@ -144,19 +140,18 @@
         {cem-element @tag=cem-theme-switch
                 @src="@epa-wg/cem-components/components/cem-theme-switch/cem-theme-switch.xhtml#cem-theme-switch"}
 
-        {cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
-        {cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}
+
+
         {cem-element @tag=cem-icon
                 @src="@epa-wg/cem-components/components/cem-icon/cem-icon.xhtml#cem-icon"}
-        {cem:if @test="datadom.slices.themeUrl" |
-            {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
-        {cem:if @test="datadom.slices.stylesUrl" |
-            {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
+
+
     </template>
 </cem-element>
 
-<div id="playground-theme" class="cem-theme-light">
-<cem-gallery-nav heading="cem-icon: Full examples and variation matrix"></cem-gallery-nav>
+<cem-gallery-page id="playground-theme" heading="cem-icon: Full examples and variation matrix">
+<template>
+
 
     <header>
         <p class="component-description">A passive icon with optional adjacent content, supporting Unicode, image URLs,
@@ -180,6 +175,7 @@
                 content remains accessible independently. Icons have no click, hover, focus, selected, or disabled
                 behavior;
                 the containing action owns interactive states. Color is inherited. Hidden uses attribute presence.</p>
+            <p><code>align="start|center|end"</code> aligns content within available inline space and defaults to <code>center</code>. It works with both row and column layouts; start and end follow the text direction, including RTL. Give the host a width to see the alignment. The container owns sizing and placement.</p>
             <h2>Public attributes and slots</h2>
             <ul>
                 <li data-gallery-attribute="image"><code>image</code></li>
@@ -187,6 +183,7 @@
                 <li data-gallery-attribute="label"><code>label</code></li>
                 <li data-gallery-attribute="size"><code>size</code></li>
                 <li data-gallery-attribute="direction"><code>direction</code></li>
+                <li data-gallery-attribute="align"><code>align</code></li>
                 <li data-gallery-attribute="hidden"><code>hidden</code></li>
                 <li data-gallery-attribute="class"><code>class</code></li>
             </ul>
@@ -194,6 +191,20 @@
                 content in a row or column.</p>
         </section>
 
+<cem-demo-element type="cem-ml" legend="Content alignment" description="Start, center and end align along the inline axis in row and column layouts. The last two examples use RTL. Full-width hosts make the alignment visible." data-covers="align direction label"><template slot="source">
+{div @style="display:grid;gap:var(--cem-gap-related)" |
+    {cem-icon @image="★" @direction=row @align=start @label="row: start" @style="inline-size:100%"}
+    {cem-icon @image="★" @direction=row @align=center @label="row: center" @style="inline-size:100%"}
+    {cem-icon @image="★" @direction=row @align=end @label="row: end" @style="inline-size:100%"}
+    {cem-icon @image="★" @direction=column @align=start @label="column: start" @style="inline-size:100%"}
+    {cem-icon @image="★" @direction=column @align=center @label="column: center" @style="inline-size:100%"}
+    {cem-icon @image="★" @direction=column @align=end @label="column: end" @style="inline-size:100%"}
+    {div @dir=rtl @style="display:grid;gap:var(--cem-gap-related)" |
+        {cem-icon @image="★" @align=start @label="RTL: start" @style="inline-size:100%"}
+        {cem-icon @image="★" @align=end @label="RTL: end" @style="inline-size:100%"}
+    }
+}
+</template></cem-demo-element>
 <cem-demo-element id="legacy-direction" data-legacy-icon-case="direction" legend="Direction attribute"
                           description="The default row places the glyph beside its text. Compare an explicit row with a column that stacks the glyph above the text.">
             <template>
@@ -371,7 +382,7 @@
                 </template>
         </cem-demo-element>
     </main>
-</div>
+
 <section aria-label="Theme and appearance variation matrix"><h2>Theme and appearance variation matrix</h2>
     <section data-gallery-theme="light" class="cem-theme-light"><h2>light</h2>
         <div class="examples">
@@ -539,5 +550,7 @@
     background-color: var(--cem-palette-comfort);
     color: var(--cem-palette-comfort-text);
 }</style>
+</template>
+</cem-gallery-page>
 </body>
 </html>

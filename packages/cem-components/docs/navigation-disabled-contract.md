@@ -27,6 +27,10 @@ The behavior applies only to:
 - direct `a[href]` and `button` children of
   `cem-nav > nav > .cem-nav__content`.
 
+Navigation-variant icon links use the icon-button `disabled` contract: omit the
+URL, expose `aria-disabled` and leave the tab sequence. The nav capture guard
+continues to protect the discoverable direct native owners listed above.
+
 Nested components and controls behind an additional authored wrapper retain
 their own behavior contract. Structural nav/content/tablist wrappers are never
 disabled owners.

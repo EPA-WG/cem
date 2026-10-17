@@ -14,14 +14,16 @@
         "@epa-wg/cem-components/playgrounds/": "./"
     }
 }</script>
-<script type="module">
+    <link rel="stylesheet" href="../../cem-theme/dist/lib/css/cem-combined.css">
+    <link rel="stylesheet" href="../dist/styles.css">
+    <script type="module">
 import { installCemElementRuntime } from '@epa-wg/cem-elements';
 import '@epa-wg/cem-demo-element';
 const runtime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
 window.cemPlaygroundRuntime = runtime;
 </script>
 <link rel="stylesheet" href="../demo.css">
-<style>body { margin: 0; font-family: system-ui, sans-serif; } #playground-theme { padding: var(--cem-inset-container); } main, .properties { display: grid; gap: var(--cem-gap-group); } [data-gallery-theme] { padding: var(--cem-inset-container); background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } cem-demo-element { display: block; margin-block: var(--cem-gap-group); }</style>
+<style>body { margin: 0; font-family: system-ui, sans-serif; } main, .properties { display: grid; gap: var(--cem-gap-group); } [data-gallery-theme] { padding: var(--cem-inset-container); background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } cem-demo-element { display: block; margin-block: var(--cem-gap-group); }</style>
 </head><body>
 <cem-element hidden><template type="text/cem-ml">
 {cem-element @tag=cem-option @src="@epa-wg/cem-components/components/cem-option/cem-option.xhtml#cem-option"}
@@ -99,11 +101,10 @@ window.cemPlaygroundRuntime = runtime;
 {cem-element @tag=cem-theme-switch @src="@epa-wg/cem-components/components/cem-theme-switch/cem-theme-switch.xhtml#cem-theme-switch"}
 
 {cem-element @tag=cem-select @capability=choice-select @src="@epa-wg/cem-components/components/cem-select/cem-select.xhtml#cem-select"}
-{cem-element @tag=cem-gallery-nav @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml#cem-gallery-nav"}
-{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
-{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
+{cem-element @tag=cem-gallery-page @src="@epa-wg/cem-components/playgrounds/cem-gallery-page.xhtml#cem-gallery-page"}
 </template></cem-element>
-<div id="playground-theme" class="cem-theme-light"><cem-gallery-nav heading="cem-tooltip: Property playground"></cem-gallery-nav><p class="component-description">A supplemental description that preserves focus and native trigger behavior. Use <a href="./cem-dialog-gallery.html">cem-dialog</a> for interactive task content and <a href="./cem-field-gallery.html">cem-field</a> for permanent field help.</p>
+<cem-gallery-page id="playground-theme" heading="cem-tooltip: Property playground">
+<template><p class="component-description">A supplemental description that preserves focus and native trigger behavior. Use <a href="./cem-dialog-gallery.html">cem-dialog</a> for interactive task content and <a href="./cem-field-gallery.html">cem-field</a> for permanent field help.</p>
 <p><a href="./cem-tooltip-gallery.html">Full examples and variation matrix</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-tooltip/cem-tooltip.stories.ts">Automated stories</a></p><main><p>Blank inputs omit optional attributes. The preview uses #tooltip-playground-trigger. Change trigger-for to #tooltip-playground-alternate to rebind it. The gallery demonstrates projected triggers. Clear trigger-for to remove the relationship. Typed CEM references are authored in source. Keyboard focus presents immediately; pointer interest uses the delay controls. Escape dismisses while native editing and touch remain available.</p><cem-element class="properties"><template type="text/cem-ml">{slice @name=trigger-for | #tooltip-playground-trigger}
 {slice @name=show-delay | 500}
 {slice @name=hide-delay | 100}
@@ -138,4 +139,6 @@ window.cemPlaygroundRuntime = runtime;
 {fieldset @slice=default-open @slice-event=change @slice-value="$target.value" | {legend | default-open}{cem-radio @name="surface-default-open" @value="" @checked=true | absent}{cem-radio @name="surface-default-open" @value="present" | present}}
 {button @id=tooltip-playground-trigger @type=button | External tooltip launcher}
 {button @id=tooltip-playground-alternate @type=button | Alternate tooltip launcher}
-{cem-tooltip @trigger-for={if datadom.slices.trigger-for != "" { datadom.slices.trigger-for } else { null }} @show-delay={if datadom.slices.show-delay != "" { datadom.slices.show-delay } else { null }} @hide-delay={if datadom.slices.hide-delay != "" { datadom.slices.hide-delay } else { null }} @placement={if datadom.slices.placement != "" { datadom.slices.placement } else { null }} @anchor={if datadom.slices.anchor != "" { datadom.slices.anchor } else { null }} @boundary={if datadom.slices.boundary != "" { datadom.slices.boundary } else { null }} @fallback={if datadom.slices.fallback != "" { datadom.slices.fallback } else { null }} @overflow={if datadom.slices.overflow != "" { datadom.slices.overflow } else { null }} @anchor-lost={if datadom.slices.anchor-lost != "" { datadom.slices.anchor-lost } else { null }} @surface-id={if datadom.slices.surface-id != "" { datadom.slices.surface-id } else { null }} @hidden={if datadom.slices.hidden == "present" { true } else { null }} @class={if datadom.slices.class != "" { datadom.slices.class } else { null }} @dir={if datadom.slices.dir != "" { datadom.slices.dir } else { null }} @message={if datadom.slices.message != "" { datadom.slices.message } else { null }} @disabled={if datadom.slices.disabled == "present" { true } else { null }} @default-open={if datadom.slices.default-open == "present" { true } else { null }}}</template></cem-element><cem-element><template type="text/cem-ml">{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-tooltip"}{cem:if @test="datadom.slices.sourceUrl" | {p | {a @href="{$datadom.slices.sourceUrl}" | Open canonical XHTML}}{cem-demo-element @legend="Canonical source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}}</template></cem-element></main></div></body></html>
+{cem-tooltip @trigger-for={if datadom.slices.trigger-for != "" { datadom.slices.trigger-for } else { null }} @show-delay={if datadom.slices.show-delay != "" { datadom.slices.show-delay } else { null }} @hide-delay={if datadom.slices.hide-delay != "" { datadom.slices.hide-delay } else { null }} @placement={if datadom.slices.placement != "" { datadom.slices.placement } else { null }} @anchor={if datadom.slices.anchor != "" { datadom.slices.anchor } else { null }} @boundary={if datadom.slices.boundary != "" { datadom.slices.boundary } else { null }} @fallback={if datadom.slices.fallback != "" { datadom.slices.fallback } else { null }} @overflow={if datadom.slices.overflow != "" { datadom.slices.overflow } else { null }} @anchor-lost={if datadom.slices.anchor-lost != "" { datadom.slices.anchor-lost } else { null }} @surface-id={if datadom.slices.surface-id != "" { datadom.slices.surface-id } else { null }} @hidden={if datadom.slices.hidden == "present" { true } else { null }} @class={if datadom.slices.class != "" { datadom.slices.class } else { null }} @dir={if datadom.slices.dir != "" { datadom.slices.dir } else { null }} @message={if datadom.slices.message != "" { datadom.slices.message } else { null }} @disabled={if datadom.slices.disabled == "present" { true } else { null }} @default-open={if datadom.slices.default-open == "present" { true } else { null }}}</template></cem-element><cem-element><template type="text/cem-ml">{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-tooltip"}{cem:if @test="datadom.slices.sourceUrl" | {p | {a @href="{$datadom.slices.sourceUrl}" | Open canonical XHTML}}{cem-demo-element @legend="Canonical source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}}</template></cem-element></main></template>
+</cem-gallery-page>
+</body></html>

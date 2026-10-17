@@ -68,6 +68,14 @@ point. Runtime APIs and event-detail types come from `@epa-wg/cem-elements`.
 Page-level import maps resolve these public resource subpaths; the shipped
 property pages demonstrate both source and installed-package loading.
 
+**Capability caveat:** imports inherit the selected template's intrinsic
+capability or its immediate owning declaration's metadata; consumers normally
+need only `tag` and `src`. Preserve that metadata when copying a template.
+An explicit importer value overrides it, and `capability=""` disables inheritance,
+which can remove required runtime behavior. See the
+[component-specific capability names](docs/conventions.md#41-intrinsic-capability-metadata)
+and the [form demo](../cem-elements/demo/form.html).
+
 ```html
 <cem-element tag="cem-badge" src="./components.xhtml#cem-badge"></cem-element>
 <cem-badge label="Ready" tone="success"></cem-badge>
@@ -559,20 +567,41 @@ The build exports `dist/cem-select.html` as
 checks properties, form values, retained host identity, examples, source-only
 rendering and narrow layout in source and isolated-package previews.
 
-## Playground theme switch
+## Navigation controls
 
-The [action playground](playgrounds/cem-action.html),
-[select playground](playgrounds/cem-select.html), action gallery and
-[theme-switch playground](playgrounds/cem-theme-switch.html) use the shared
-`cem-theme-switch` component. Light / Dark / Native are visible radio choices;
-Contrast selects the existing contrast variants. Native disables Contrast and
-uses OS colors. Returning to Light or Dark restores the contrast preference.
-Theme changes preserve edited preview properties and the source display.
+`cem-nav` composes its disclosure from `cem-icon-button variant="navigation"`.
+Use the same variant with `href` and `align="start"` for padded navigation links;
+explicit `aria-current="page"` reaches the native anchor. The nav owns container
+inset and wrapping gaps, while icon buttons own control padding and hit targets.
+All navigation states retain their dedicated theme colors. Native links remain
+supported. See the [navigation contract](docs/navigation-disclosure-contract.md)
+and [icon button contract](docs/icon-button-contract.md).
 
-Wrap themed content in the component's default slot. Use distinct `name` values
-for independent switches. Load the canonical declaration through the page's
-module map; see [the shared playground convention](docs/conventions.md#playground-theme-control).
-The installed companion page is exported as
+## Playground page theme
+
+All property playgrounds, full galleries, the playground index and release-bundle
+page use the shared `cem-gallery-page` declaration. It renders navigation and a
+production `cem-theme-switch`, restores the shared `cem-playground-theme` key,
+and applies the effective `data-theme` to the whole page. Choices are Light,
+Dark, Contrast light, Contrast dark and System. Theme changes preserve edited
+preview properties and source displays, and persist across navigation/reloads.
+
+```html
+<cem-gallery-page heading="cem-icon: Property playground">
+  <template>
+    <header>…</header>
+    <main>…</main>
+  </template>
+</cem-gallery-page>
+```
+
+Load `@epa-wg/cem-components/playgrounds/cem-gallery-page.xhtml#cem-gallery-page`
+through the page's module map. Fixed example themes and example storage keys
+remain independent from the page preference. See the
+[shared page contract](docs/gallery-page-contract.md) and
+[playground convention](docs/conventions.md#playground-theme-control).
+
+The standalone theme-switch property playground remains exported at
 `@epa-wg/cem-components/playgrounds/cem-theme-switch.html`.
 
 ## Combined XHTML release bundle

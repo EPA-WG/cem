@@ -6,6 +6,14 @@ produce one native input inside a wrapping label. Checkbox and switch use
 The inputs own keyboard behavior, focus, checked state, validity and forms.
 The component hosts add no tab stop or second form-associated value.
 
+**Capability caveat:** fragment imports of `cem-checkbox` inherit its intrinsic
+`checkable-control` capability. Preserve that metadata when copying a template;
+an explicit importer override or `capability=""` can remove mixed-state
+integration. The input continues to own its native form behavior. `cem-radio`
+and `cem-switch` do not need this capability, and `form-control` is not a
+substitute. See the
+[metadata ownership rules](./conventions.md#41-intrinsic-capability-metadata).
+
 `label` supplies visible fallback text (`Checkbox`, `Radio` or `Switch`). The
 default slot replaces that text and preserves markup. Separate `aria-label`
 and `aria-labelledby` name the input, with `aria-labelledby` taking precedence.

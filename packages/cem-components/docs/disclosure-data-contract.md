@@ -9,7 +9,15 @@ sort-header and paginator contracts retain their full native-input assertions.
 Reusable `disclosure-panel`, `sort-action` and `pagination` capabilities belong
 to `cem-elements`. Declarations own structure, presence predicates, ARIA and
 paint. The runtime owns generic normalization, event handling and coordination.
-Fragment-src consumers repeat the capability on their declaration wrapper.
+Fragment imports inherit the selected template's capability, falling back to its
+immediate owning declaration; consumers need not repeat it.
+
+**Capability caveat:** preserve the intrinsic metadata when copying expansion,
+sort-header or paginator templates. Explicit importer overrides, including
+`capability=""`, can remove disclosure, sorting or pagination behavior even when
+the component's markup remains visible. `cem-table` is passive and needs no
+capability. See the
+[metadata ownership rules](./conventions.md#41-intrinsic-capability-metadata).
 
 `cem-table` is a passive named table, not an interactive grid. It exposes a
 `part=root` table role and projects authored rows/cells without reordering them.

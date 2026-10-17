@@ -41,6 +41,16 @@ Provide a separate page under `playgrounds/`, outside the canonical two-file
 component folder. The page loads the production declaration through page-level
 module maps, so IDE HTTP previews and packaged previews use the same convention.
 
+Use the shared `cem-gallery-page` wrapper for the complete visible page, including
+its header, preview, source viewer and variation matrix, in one direct inert
+`<template>` payload so nested declarations initialize after the page owner.
+Supply `heading`; the
+wrapper renders navigation and persists the page theme independently from
+examples. Keep setup declarations outside it and load shared CSS with native
+head stylesheet links before UI initialization. Preserve
+fixed matrix themes and use separate storage keys for example theme switches.
+See the [gallery page contract](../packages/cem-components/docs/gallery-page-contract.md).
+
 The page contains:
 
 - One live component instance and a property form using shared CEM controls.

@@ -1,5 +1,8 @@
 {@doc cem-ml 1}
 {run |
+  {import @id=gallery-page @src="cem-gallery-page.xhtml" @content-type="application/xhtml+xml" @opaque=true |
+    {export @id=gallery-page-xhtml @out="../dist/cem-gallery-page.xhtml" @content-type="application/xhtml+xml"}
+  }
   {import @id=gallery-navigation @src="cem-gallery-nav.xhtml" @content-type="application/xhtml+xml" @opaque=true |
     {export @id=gallery-navigation-xhtml @out="../dist/cem-gallery-nav.xhtml" @content-type="application/xhtml+xml"}
   }

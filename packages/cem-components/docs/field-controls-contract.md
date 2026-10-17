@@ -4,12 +4,24 @@
 colocated Storybook tests. Both render a native input in light DOM and request
 the shared `form-control` capability from `cem-elements`.
 
-Load template fragments with the capability explicitly:
+Template-fragment imports inherit the source declaration's capability:
 
 ~~~html
-<cem-element tag="cem-field" capability="form-control"
-             src="./cem-field.xhtml#cem-field"></cem-element>
+<cem-element tag="cem-field" src="./cem-field.xhtml#cem-field"></cem-element>
 ~~~
+
+The capability may also live directly on the source template as
+`{template @capability=form-control @type=text/cem-ml | ...}`, or the equivalent
+HTML `<template capability="form-control" type="text/cem-ml">`.
+
+**Capability caveat:** retain this metadata when copying a field template. An
+explicit importer value overrides the source, including `capability=""`, which
+suppresses inheritance. The field may still render while losing host submission,
+validation, value APIs, fieldset disabling and reset integration. `form-control`
+supports one string-valued input or textarea; choice, checkable and multi-value
+controls require their own documented capabilities. See the
+[form demo](../../cem-elements/demo/form.html) and
+[capability loading contract](../../../docs/cem-element-src-loading-contract.md#source-owned-capabilities).
 
 ## Attributes and ownership
 

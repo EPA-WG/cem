@@ -18,6 +18,7 @@
         "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html"
     }
 }</script>
+    <link rel="stylesheet" href="../../cem-theme/dist/lib/css/cem-combined.css">
     <script type="module">
         import { installCemElementRuntime } from '@epa-wg/cem-elements';
         import '@epa-wg/cem-demo-element';
@@ -25,88 +26,89 @@
     </script>
     <style>
         body { margin: 0; font-family: system-ui, sans-serif; }
-        #playground-theme { box-sizing: border-box; min-block-size: 100vh; padding: var(--cem-dim-large); }
         cem-demo-element { display: block; margin-block: var(--cem-dim-large); }
     </style>
 </head>
 <body>
 <cem-element hidden><template type="text/cem-ml">
-{cem-element @tag=cem-option @src="@epa-wg/cem-components/components/cem-option/cem-option.xhtml#cem-option"}
-{cem-element @tag=cem-option-group @src="@epa-wg/cem-components/components/cem-option-group/cem-option-group.xhtml#cem-option-group"}
-{cem-element @tag=cem-badge @src="@epa-wg/cem-components/components/cem-badge/cem-badge.xhtml#cem-badge"}
-{cem-element @tag=cem-avatar @src="@epa-wg/cem-components/components/cem-avatar/cem-avatar.xhtml#cem-avatar"}
-{cem-element @tag=cem-media-preview @src="@epa-wg/cem-components/components/cem-media-preview/cem-media-preview.xhtml#cem-media-preview"}
-{cem-element @tag=cem-tree-item @src="@epa-wg/cem-components/components/cem-tree-item/cem-tree-item.xhtml#cem-tree-item"}
-{cem-element @tag=cem-app-bar @src="@epa-wg/cem-components/components/cem-app-bar/cem-app-bar.xhtml#cem-app-bar"}
-{cem-element @tag=cem-tab @src="@epa-wg/cem-components/components/cem-tab/cem-tab.xhtml#cem-tab"}
-{cem-element @tag=cem-step @src="@epa-wg/cem-components/components/cem-step/cem-step.xhtml#cem-step"}
-{cem-element @tag=cem-toast @src="@epa-wg/cem-components/components/cem-toast/cem-toast.xhtml#cem-toast"}
-{cem-element @tag=cem-progress @src="@epa-wg/cem-components/components/cem-progress/cem-progress.xhtml#cem-progress"}
-{cem-element @tag=cem-progress-spinner @capability=progress-status @src="@epa-wg/cem-components/components/cem-progress-spinner/cem-progress-spinner.xhtml#cem-progress-spinner"}
-{cem-element @tag=cem-skeleton @src="@epa-wg/cem-components/components/cem-skeleton/cem-skeleton.xhtml#cem-skeleton"}
-{cem-element @tag=cem-alert @src="@epa-wg/cem-components/components/cem-alert/cem-alert.xhtml#cem-alert"}
-{cem-element @tag=cem-gallery-nav @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml#cem-gallery-nav"}
-{cem-element @tag=cem-field @capability=form-control @src="@epa-wg/cem-components/components/cem-field/cem-field.xhtml#cem-field"}
-{cem-element @tag=cem-text-field @capability=form-control @src="@epa-wg/cem-components/components/cem-text-field/cem-text-field.xhtml#cem-text-field"}
-{cem-element @tag=cem-theme-switch @src="@epa-wg/cem-components/components/cem-theme-switch/cem-theme-switch.xhtml#cem-theme-switch"}
-
-{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
-{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
+{cem-element @tag=cem-option            @src="@epa-wg/cem-components/components/cem-option/cem-option.xhtml#cem-option"}
+{cem-element @tag=cem-option-group      @src="@epa-wg/cem-components/components/cem-option-group/cem-option-group.xhtml#cem-option-group"}
+{cem-element @tag=cem-badge             @src="@epa-wg/cem-components/components/cem-badge/cem-badge.xhtml#cem-badge"}
+{cem-element @tag=cem-avatar            @src="@epa-wg/cem-components/components/cem-avatar/cem-avatar.xhtml#cem-avatar"}
+{cem-element @tag=cem-media-preview     @src="@epa-wg/cem-components/components/cem-media-preview/cem-media-preview.xhtml#cem-media-preview"}
+{cem-element @tag=cem-tree-item         @src="@epa-wg/cem-components/components/cem-tree-item/cem-tree-item.xhtml#cem-tree-item"}
+{cem-element @tag=cem-app-bar           @src="@epa-wg/cem-components/components/cem-app-bar/cem-app-bar.xhtml#cem-app-bar"}
+{cem-element @tag=cem-tab               @src="@epa-wg/cem-components/components/cem-tab/cem-tab.xhtml#cem-tab"}
+{cem-element @tag=cem-step              @src="@epa-wg/cem-components/components/cem-step/cem-step.xhtml#cem-step"}
+{cem-element @tag=cem-toast             @src="@epa-wg/cem-components/components/cem-toast/cem-toast.xhtml#cem-toast"}
+{cem-element @tag=cem-progress          @src="@epa-wg/cem-components/components/cem-progress/cem-progress.xhtml#cem-progress"}
+{cem-element @tag=cem-progress-spinner  @src="@epa-wg/cem-components/components/cem-progress-spinner/cem-progress-spinner.xhtml#cem-progress-spinner"}
+{cem-element @tag=cem-skeleton          @src="@epa-wg/cem-components/components/cem-skeleton/cem-skeleton.xhtml#cem-skeleton"}
+{cem-element @tag=cem-alert             @src="@epa-wg/cem-components/components/cem-alert/cem-alert.xhtml#cem-alert"}
+{cem-element @tag=cem-gallery-page       @src="@epa-wg/cem-components/playgrounds/cem-gallery-page.xhtml#cem-gallery-page"}
+{cem-element @tag=cem-field             @src="@epa-wg/cem-components/components/cem-field/cem-field.xhtml#cem-field"}
+{cem-element @tag=cem-text-field        @src="@epa-wg/cem-components/components/cem-text-field/cem-text-field.xhtml#cem-text-field"}
+{cem-element @tag=cem-theme-switch      @src="@epa-wg/cem-components/components/cem-theme-switch/cem-theme-switch.xhtml#cem-theme-switch"}
 </template></cem-element>
 
-<div id="playground-theme" class="cem-theme-light">
-<cem-gallery-nav heading="cem-theme-switch: Full examples and variation matrix"></cem-gallery-nav>
+<cem-gallery-page id="playground-theme" heading="cem-theme-switch: Full examples and variation matrix">
+<template>
+
 <header>
 <p class="component-description">A theme selector for light, dark, native, and contrast modes that applies the chosen theme to its child content. Use it around components such as <a href="./cem-action-gallery.html"><code>cem-action</code></a>, <a href="./cem-field-gallery.html"><code>cem-field</code></a>, and <a href="./cem-select-gallery.html"><code>cem-select</code></a> to compare their themed appearance.</p>
 <p><a href="./cem-theme-switch.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-theme-switch/cem-theme-switch.stories.ts">Automated stories</a></p></header><main>
 <style>[data-gallery-theme] { padding: var(--cem-dim-large); background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); } cem-demo-element { display: block; margin-block: var(--cem-dim-large); }</style><p>Hover each enabled control, hold a pointer press, and use Tab for keyboard focus. States below are real component attributes. The five theme rows stay fixed so you can compare the same states side by side.</p>
-<p>Mode accepts light, dark and native (default); contrast applies only in light and dark. Native follows system colors and disables the contrast checkbox. Each example has its own radio name. The default slot preserves child content while switching.</p><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="mode"><code>mode</code></li>
+<p>The contextual ◐ icon button opens a keyboard-accessible menu. Light is the default; each example uses its own storage key and restores its last selection on reload. Current menu choices use selected-action styling. Mode and contrast provide the initial choice; the default slot preserves child content while switching.</p><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="mode"><code>mode</code></li>
 <li data-gallery-attribute="contrast"><code>contrast</code></li>
-<li data-gallery-attribute="name"><code>name</code></li>
+<li data-gallery-attribute="storage-key"><code>storage-key</code></li>
+<li data-gallery-attribute="value"><code>value</code></li>
+<li data-gallery-attribute="theme-command"><code>theme-command</code></li>
 <li data-gallery-attribute="hidden"><code>hidden</code></li>
 <li data-gallery-attribute="class"><code>class</code></li></ul>
 <p><strong>Slots:</strong> The default slot contains the content whose theme is controlled.</p>
 <cem-demo-element legend="Default mode and projected content"><template slot="source">
-<cem-theme-switch name="default-theme"><p>Default slot content follows the selected theme.</p></cem-theme-switch>
+<cem-theme-switch storage-key="default-theme"><p>Default slot content follows the selected theme.</p></cem-theme-switch>
 </template></cem-demo-element>
-<cem-demo-element legend="Contrast preference and retained input"><template slot="source">
-<cem-theme-switch name="retained-theme" mode="dark" contrast="true" class="consumer-theme"><label>Retained value <input value="Draft"></label><p>Change to Native, then back to Dark: contrast is restored.</p></cem-theme-switch>
+<cem-demo-element legend="Saved selection and retained input"><template slot="source">
+<cem-theme-switch storage-key="retained-theme" mode="dark" contrast="true" class="consumer-theme"><label>Retained value <input value="Draft"></label><p>Select another theme and reload: the selection is restored.</p></cem-theme-switch>
 </template></cem-demo-element>
 <cem-demo-element legend="Hidden by presence"><template slot="source">
-<cem-theme-switch name="hidden-theme" hidden="false"><p>Hidden by presence.</p></cem-theme-switch>
+<cem-theme-switch storage-key="hidden-theme" hidden="false"><p>Hidden by presence.</p></cem-theme-switch>
 </template></cem-demo-element>
-</main></div>
+</main>
 <section aria-label="Theme and state variation matrix">
 <h2>Theme and state variation matrix</h2>
-<section data-gallery-theme="light" class="cem-theme-light"><h2>light</h2><div class="examples"><article data-variation="Light"><h3>Light</h3><cem-theme-switch name="light-Light" mode="light"><p>Projected content</p></cem-theme-switch></article>
-<article data-variation="Dark"><h3>Dark</h3><cem-theme-switch name="light-Dark" mode="dark"><p>Projected content</p></cem-theme-switch></article>
-<article data-variation="Light contrast"><h3>Light contrast</h3><cem-theme-switch name="light-Light-contrast" mode="light" contrast="true"><p>Projected content</p></cem-theme-switch></article>
-<article data-variation="Dark contrast"><h3>Dark contrast</h3><cem-theme-switch name="light-Dark-contrast" mode="dark" contrast="true"><p>Projected content</p></cem-theme-switch></article>
-<article data-variation="Native"><h3>Native</h3><cem-theme-switch name="light-Native" mode="native"><p>Projected content</p></cem-theme-switch></article></div></section>
+<section data-gallery-theme="light" class="cem-theme-light"><h2>light</h2><div class="examples"><article data-variation="Light"><h3>Light</h3><cem-theme-switch storage-key="light-Light" mode="light"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Dark"><h3>Dark</h3><cem-theme-switch storage-key="light-Dark" mode="dark"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Light contrast"><h3>Light contrast</h3><cem-theme-switch storage-key="light-Light-contrast" mode="light" contrast="true"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Dark contrast"><h3>Dark contrast</h3><cem-theme-switch storage-key="light-Dark-contrast" mode="dark" contrast="true"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Native"><h3>Native</h3><cem-theme-switch storage-key="light-Native" mode="native"><p>Projected content</p></cem-theme-switch></article></div></section>
 
-<section data-gallery-theme="dark" class="cem-theme-dark"><h2>dark</h2><div class="examples"><article data-variation="Light"><h3>Light</h3><cem-theme-switch name="dark-Light" mode="light"><p>Projected content</p></cem-theme-switch></article>
-<article data-variation="Dark"><h3>Dark</h3><cem-theme-switch name="dark-Dark" mode="dark"><p>Projected content</p></cem-theme-switch></article>
-<article data-variation="Light contrast"><h3>Light contrast</h3><cem-theme-switch name="dark-Light-contrast" mode="light" contrast="true"><p>Projected content</p></cem-theme-switch></article>
-<article data-variation="Dark contrast"><h3>Dark contrast</h3><cem-theme-switch name="dark-Dark-contrast" mode="dark" contrast="true"><p>Projected content</p></cem-theme-switch></article>
-<article data-variation="Native"><h3>Native</h3><cem-theme-switch name="dark-Native" mode="native"><p>Projected content</p></cem-theme-switch></article></div></section>
+<section data-gallery-theme="dark" class="cem-theme-dark"><h2>dark</h2><div class="examples"><article data-variation="Light"><h3>Light</h3><cem-theme-switch storage-key="dark-Light" mode="light"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Dark"><h3>Dark</h3><cem-theme-switch storage-key="dark-Dark" mode="dark"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Light contrast"><h3>Light contrast</h3><cem-theme-switch storage-key="dark-Light-contrast" mode="light" contrast="true"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Dark contrast"><h3>Dark contrast</h3><cem-theme-switch storage-key="dark-Dark-contrast" mode="dark" contrast="true"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Native"><h3>Native</h3><cem-theme-switch storage-key="dark-Native" mode="native"><p>Projected content</p></cem-theme-switch></article></div></section>
 
-<section data-gallery-theme="contrast-light" class="cem-theme-contrast-light"><h2>contrast-light</h2><div class="examples"><article data-variation="Light"><h3>Light</h3><cem-theme-switch name="contrast-light-Light" mode="light"><p>Projected content</p></cem-theme-switch></article>
-<article data-variation="Dark"><h3>Dark</h3><cem-theme-switch name="contrast-light-Dark" mode="dark"><p>Projected content</p></cem-theme-switch></article>
-<article data-variation="Light contrast"><h3>Light contrast</h3><cem-theme-switch name="contrast-light-Light-contrast" mode="light" contrast="true"><p>Projected content</p></cem-theme-switch></article>
-<article data-variation="Dark contrast"><h3>Dark contrast</h3><cem-theme-switch name="contrast-light-Dark-contrast" mode="dark" contrast="true"><p>Projected content</p></cem-theme-switch></article>
-<article data-variation="Native"><h3>Native</h3><cem-theme-switch name="contrast-light-Native" mode="native"><p>Projected content</p></cem-theme-switch></article></div></section>
+<section data-gallery-theme="contrast-light" class="cem-theme-contrast-light"><h2>contrast-light</h2><div class="examples"><article data-variation="Light"><h3>Light</h3><cem-theme-switch storage-key="contrast-light-Light" mode="light"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Dark"><h3>Dark</h3><cem-theme-switch storage-key="contrast-light-Dark" mode="dark"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Light contrast"><h3>Light contrast</h3><cem-theme-switch storage-key="contrast-light-Light-contrast" mode="light" contrast="true"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Dark contrast"><h3>Dark contrast</h3><cem-theme-switch storage-key="contrast-light-Dark-contrast" mode="dark" contrast="true"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Native"><h3>Native</h3><cem-theme-switch storage-key="contrast-light-Native" mode="native"><p>Projected content</p></cem-theme-switch></article></div></section>
 
-<section data-gallery-theme="contrast-dark" class="cem-theme-contrast-dark"><h2>contrast-dark</h2><div class="examples"><article data-variation="Light"><h3>Light</h3><cem-theme-switch name="contrast-dark-Light" mode="light"><p>Projected content</p></cem-theme-switch></article>
-<article data-variation="Dark"><h3>Dark</h3><cem-theme-switch name="contrast-dark-Dark" mode="dark"><p>Projected content</p></cem-theme-switch></article>
-<article data-variation="Light contrast"><h3>Light contrast</h3><cem-theme-switch name="contrast-dark-Light-contrast" mode="light" contrast="true"><p>Projected content</p></cem-theme-switch></article>
-<article data-variation="Dark contrast"><h3>Dark contrast</h3><cem-theme-switch name="contrast-dark-Dark-contrast" mode="dark" contrast="true"><p>Projected content</p></cem-theme-switch></article>
-<article data-variation="Native"><h3>Native</h3><cem-theme-switch name="contrast-dark-Native" mode="native"><p>Projected content</p></cem-theme-switch></article></div></section>
+<section data-gallery-theme="contrast-dark" class="cem-theme-contrast-dark"><h2>contrast-dark</h2><div class="examples"><article data-variation="Light"><h3>Light</h3><cem-theme-switch storage-key="contrast-dark-Light" mode="light"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Dark"><h3>Dark</h3><cem-theme-switch storage-key="contrast-dark-Dark" mode="dark"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Light contrast"><h3>Light contrast</h3><cem-theme-switch storage-key="contrast-dark-Light-contrast" mode="light" contrast="true"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Dark contrast"><h3>Dark contrast</h3><cem-theme-switch storage-key="contrast-dark-Dark-contrast" mode="dark" contrast="true"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Native"><h3>Native</h3><cem-theme-switch storage-key="contrast-dark-Native" mode="native"><p>Projected content</p></cem-theme-switch></article></div></section>
 
-<section data-gallery-theme="native" class="cem-theme-native"><h2>native</h2><div class="examples"><article data-variation="Light"><h3>Light</h3><cem-theme-switch name="native-Light" mode="light"><p>Projected content</p></cem-theme-switch></article>
-<article data-variation="Dark"><h3>Dark</h3><cem-theme-switch name="native-Dark" mode="dark"><p>Projected content</p></cem-theme-switch></article>
-<article data-variation="Light contrast"><h3>Light contrast</h3><cem-theme-switch name="native-Light-contrast" mode="light" contrast="true"><p>Projected content</p></cem-theme-switch></article>
-<article data-variation="Dark contrast"><h3>Dark contrast</h3><cem-theme-switch name="native-Dark-contrast" mode="dark" contrast="true"><p>Projected content</p></cem-theme-switch></article>
-<article data-variation="Native"><h3>Native</h3><cem-theme-switch name="native-Native" mode="native"><p>Projected content</p></cem-theme-switch></article></div></section>
+<section data-gallery-theme="native" class="cem-theme-native"><h2>native</h2><div class="examples"><article data-variation="Light"><h3>Light</h3><cem-theme-switch storage-key="native-Light" mode="light"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Dark"><h3>Dark</h3><cem-theme-switch storage-key="native-Dark" mode="dark"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Light contrast"><h3>Light contrast</h3><cem-theme-switch storage-key="native-Light-contrast" mode="light" contrast="true"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Dark contrast"><h3>Dark contrast</h3><cem-theme-switch storage-key="native-Dark-contrast" mode="dark" contrast="true"><p>Projected content</p></cem-theme-switch></article>
+<article data-variation="Native"><h3>Native</h3><cem-theme-switch storage-key="native-Native" mode="native"><p>Projected content</p></cem-theme-switch></article></div></section>
 
 </section>
+</template>
+</cem-gallery-page>
 </body></html>

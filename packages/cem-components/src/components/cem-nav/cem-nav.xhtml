@@ -1,6 +1,21 @@
 <cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-nav" capability="navigation-landmark">
 <template id="cem-nav" type="text/cem-ml">
+{cem-element @tag=cem-icon-button @src="../cem-icon-button/cem-icon-button.xhtml#cem-icon-button"}
 {style @type=text/css |```
+:scope { display: block; min-inline-size: 0; font-family: var(--cem-typography-ui-font-family); font-size: var(--cem-typography-ui-font-size); line-height: var(--cem-typography-ui-line-height); }
+:scope > :where(nav) {
+    display: flex; flex-wrap: wrap; align-items: center; box-sizing: border-box;
+    padding: max(var(--cem-inset-container), var(--cem-coupling-guard-min));
+    gap: max(var(--cem-gap-related), calc(2 * var(--cem-coupling-guard-min)));
+}
+:scope[collapsible] > :where(nav) { display: grid; }
+:scope > :where(nav) > [part~="disclosure"] { justify-self: start; max-inline-size: 100%; }
+:scope > :where(nav) > [part~="content"] {
+    display: flex; flex-wrap: wrap; align-items: center; min-inline-size: 0;
+    gap: max(var(--cem-gap-related), calc(2 * var(--cem-coupling-guard-min)));
+}
+:scope > :where(nav) > [part~="content"]:where([hidden]) { display: none; }
+
 :scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
 :scope > :where(nav) > :where(:is(a[href], button)), :scope > :where(nav) > :where([part~="content"]) > :where(:is(a[href], button)) {
     background-color: var(--cem-navigation-item-default-background);
@@ -74,7 +89,7 @@
 {cem:choose |
  {cem:when @test="seq:count(datadom.attributes.collapsible) > 0" |
   {nav @class="cem-nav cem-nav--collapsible" @part=root @aria-label={datadom.attributes.aria-label ?? label} |
-   {button @type=button @class=cem-nav__disclosure @part=disclosure @aria-expanded={datadom.slices.expanded ?? (seq:count(datadom.attributes.expanded) > 0)} | {cem:choose | {cem:when @test="datadom.slices.expanded ?? (seq:count(datadom.attributes.expanded) > 0)" | {slice @slice=expanded @slice-event=click @slice-value=false}}{cem:otherwise | {slice @slice=expanded @slice-event=click @slice-value=true}}} {$label}}
+   {cem-icon-button @type=button @variant=navigation @align=start @image={if datadom.slices.expanded ?? (seq:count(datadom.attributes.expanded) > 0) { "▴" } else { "▾" }} @label="{$label}" @class=cem-nav__disclosure @part=disclosure @aria-expanded={datadom.slices.expanded ?? (seq:count(datadom.attributes.expanded) > 0)} @slice=expanded @slice-event=click @slice-value={if datadom.slices.expanded ?? (seq:count(datadom.attributes.expanded) > 0) { "false" } else { "true" }}}
    {div @class=cem-nav__content @part=content @hidden={if datadom.slices.expanded ?? (seq:count(datadom.attributes.expanded) > 0) { null } else { true }} | {slot}}
   }
  }

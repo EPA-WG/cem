@@ -18,6 +18,8 @@
         "@epa-wg/cem-components/playgrounds/": "./"
     }
 }</script>
+    <link rel="stylesheet" href="../../cem-theme/dist/lib/css/cem-combined.css">
+    <link rel="stylesheet" href="../dist/styles.css">
     <script type="module">
         import { installCemElementRuntime } from '@epa-wg/cem-elements';
         import '@epa-wg/cem-demo-element';
@@ -27,7 +29,6 @@
     <link rel="stylesheet" href="../demo.css">
     <style>
         body { margin: 0; font-family: system-ui, sans-serif; }
-        #playground-theme { box-sizing: border-box; min-block-size: 100vh; padding: var(--cem-dim-large); }
         main { display: block; }
         .workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--cem-dim-large); }
         .preview { padding: var(--cem-dim-large); border: var(--cem-stroke-boundary) solid currentColor; }
@@ -93,7 +94,7 @@
 
 {cem-element @tag=cem-switch @src="@epa-wg/cem-components/components/cem-switch/cem-switch.xhtml#cem-switch"}
 
-{cem-element @tag=cem-gallery-nav @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml#cem-gallery-nav"}
+{cem-element @tag=cem-gallery-page @src="@epa-wg/cem-components/playgrounds/cem-gallery-page.xhtml#cem-gallery-page"}
 
 {cem-element @tag=cem-field @capability=form-control @src="@epa-wg/cem-components/components/cem-field/cem-field.xhtml#cem-field"}
 
@@ -101,15 +102,14 @@
 
 {cem-element @tag=cem-theme-switch @src="@epa-wg/cem-components/components/cem-theme-switch/cem-theme-switch.xhtml#cem-theme-switch"}
 
-{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
-{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}
+
+
 {cem-element @tag=cem-menu @capability=composite-menu @src="@epa-wg/cem-components/components/cem-menu/cem-menu.xhtml#cem-menu"}
-{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
-{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
 </template>
 </cem-element>
 
-<div id="playground-theme" class="cem-theme-light"><cem-gallery-nav heading="cem-menu: Property playground"></cem-gallery-nav>
+<cem-gallery-page id="playground-theme" heading="cem-menu: Property playground">
+<template>
 <p>Persistent menus lay out links and commands; menu mode adds composite navigation and popup submenus.</p><p><a href="./cem-menu-gallery.html">Full examples and variation matrix</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-menu/cem-menu.stories.ts">Automated stories</a></p>
 <main><cem-element><template type="text/cem-ml">
 {slice @name=direction | row}{slice @name=justify | start}{slice @name=keyboard | native}{slice @name=label | Commands}{slice @name=hidden | absent}{slice @name=class | consumer-menu}{slice @name=dir | ltr}
@@ -123,4 +123,6 @@
 {cem-menu @direction="{$datadom.slices.direction}" @justify="{$datadom.slices.justify}" @keyboard="{$datadom.slices.keyboard}" @dir="{$datadom.slices.dir}" @class="{$datadom.slices.class}" @aria-label="{$datadom.slices.label}" @hidden={if datadom.slices.hidden == "present" { true } else { null }} | {a @href=#home | Home}{cem-menu-item @label=Commands | {cem-menu @slot=submenu | {cem-menu-item @label=Run}{cem-menu-item @label=Disabled @disabled=true}}}{cem-menu-item @href=#help @label=Help}}
 </template></cem-element><p>Tab follows native controls by default. Choose menu to enable arrows and submenus. Disabled controls cannot activate; hidden menus leave layout.</p>
 <cem-element><template type="text/cem-ml">{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-menu"}{cem:if @test="datadom.slices.sourceUrl" | {p | {a @href="{$datadom.slices.sourceUrl}" | Canonical XHTML}}{cem-demo-element @legend="Canonical menu source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}}</template></cem-element>
-</main></div></body></html>
+</main></template>
+</cem-gallery-page>
+</body></html>

@@ -46,6 +46,43 @@ export const SourcesAndLiveAttributes = meta.story({
     },
 });
 
+export const Alignment = meta.story({
+    render: () => '<cem-icon image="★" style="inline-size:20rem"><span>Projected label</span></cem-icon>'
+        + '<cem-icon image="★" label="Fallback label" style="inline-size:20rem"></cem-icon>'
+        + '<cem-icon image="" label="Text only" style="inline-size:20rem"></cem-icon>'
+        + '<cem-icon image="★" aria-label="Icon only" style="inline-size:20rem"></cem-icon>',
+    play: async ({ canvasElement }) => {
+        for (const host of canvasElement.querySelectorAll<HTMLElement>('cem-icon')) {
+            await whenCemRendered(host);
+            const projected = host.querySelector('span:not([part])');
+            for (const dir of ['ltr', 'rtl']) for (const direction of ['row', 'column']) {
+                host.dir = dir;
+                host.setAttribute('direction', direction);
+                for (const align of [null, 'start', 'center', 'end', '', 'invalid', null]) {
+                    if (align === null) host.removeAttribute('align');
+                    else host.setAttribute('align', align);
+                    await whenCemRendered(host);
+                    const content = host.querySelector<HTMLElement>('[part=content]');
+                    if (!content) throw new Error('Missing icon content');
+                    const effective = align === 'start' || align === 'end' ? align : 'center';
+                    expectInlineAlignment(content.getBoundingClientRect(), host.getBoundingClientRect(), effective, dir === 'rtl');
+                    if (direction === 'column') for (const child of content.children) {
+                        expectInlineAlignment(child.getBoundingClientRect(), content.getBoundingClientRect(), effective, dir === 'rtl');
+                    }
+                    if (projected) expect(content.contains(projected)).toBe(true);
+                }
+            }
+            expect(storybookCemRuntime().diagnosticsFor(host)).toEqual([]);
+        }
+    },
+});
+
+function expectInlineAlignment(rect: DOMRect, bounds: Pick<DOMRect, 'left' | 'right'>, align: string, rtl: boolean): void {
+    const edge = align === 'center' ? null : (align === 'start') !== rtl ? 'left' : 'right';
+    expect(edge ? rect[edge] : (rect.left + rect.right) / 2)
+        .toBeCloseTo(edge ? bounds[edge] : (bounds.left + bounds.right) / 2, 0);
+}
+
 export const ContentAndVisibility = meta.story({
     render: () => '<cem-icon image="★" aria-label="Favorite"><a href="#details">Details</a></cem-icon>',
     play: async ({ canvasElement }) => {

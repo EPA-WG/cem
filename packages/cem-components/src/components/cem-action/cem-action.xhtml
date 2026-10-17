@@ -252,7 +252,7 @@
                 animation: none;
             }
         }
-        :scope > button[part~='control']:where(:focus-visible, [aria-pressed='true']) {
+        :scope > button[part~='control']:where(:focus-visible, [aria-pressed='true'], [aria-checked='true']) {
             outline: var(--cem-stroke-focus) solid transparent;
             outline-offset: var(--cem-stroke-indicator-offset);
             box-shadow:
@@ -264,10 +264,10 @@
             :scope > [part~='control']::before {
                 display: none;
             }
-            :scope > button[part~='control']:where([aria-pressed='true']) {
+            :scope > button[part~='control']:where([aria-pressed='true'], [aria-checked='true']) {
                 box-shadow: none;
             }
-            :scope > [part~='control']:where([aria-pressed='true'])::before {
+            :scope > [part~='control']:where([aria-pressed='true'], [aria-checked='true'])::before {
                 display: block;
                 background: none;
                 mask: none;
@@ -290,7 +290,7 @@
             }
         }
         ```}
-    {button @type="{$type}" @class="cem-action cem-action--{$variant}" @part=control @name={datadom.attributes.name} @value={datadom.attributes.value} @form={datadom.attributes.form} @formaction={datadom.attributes.formaction} @formenctype={datadom.attributes.formenctype} @formmethod={datadom.attributes.formmethod} @formtarget={datadom.attributes.formtarget} @commandfor={datadom.attributes.commandfor} @command={datadom.attributes.command} @popovertarget={datadom.attributes.popovertarget} @popovertargetaction={datadom.attributes.popovertargetaction} @interestfor={datadom.attributes.interestfor} @aria-controls={datadom.attributes.aria-controls} @aria-haspopup={datadom.attributes.aria-haspopup} @aria-describedby={datadom.attributes.aria-describedby} @aria-label={datadom.attributes.aria-label} @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @formnovalidate={if seq:count(datadom.attributes.formnovalidate) > 0 { true } else { null }} @aria-busy={datadom.attributes.pending} @aria-expanded={if seq:count(datadom.attributes.aria-expanded) > 0 { datadom.attributes.aria-expanded } else { datadom.attributes.expanded }} @aria-pressed={if seq:count(datadom.attributes.selected) > 0 { "true" } else { if seq:count(datadom.attributes.selectable) > 0 { "false" } else { null } }} @slice=pressed @slice-event=click @slice-value="$event.type" |
+    {button @role={datadom.attributes.control-role} @aria-checked={if (datadom.attributes.control-role ?? "") == "menuitemradio" { if seq:count(datadom.attributes.selected) > 0 { "true" } else { "false" } } else { null }} @type="{$type}" @class="cem-action cem-action--{$variant}" @part=control @name={datadom.attributes.name} @value={datadom.attributes.value} @form={datadom.attributes.form} @formaction={datadom.attributes.formaction} @formenctype={datadom.attributes.formenctype} @formmethod={datadom.attributes.formmethod} @formtarget={datadom.attributes.formtarget} @commandfor={datadom.attributes.commandfor} @command={datadom.attributes.command} @popovertarget={datadom.attributes.popovertarget} @popovertargetaction={datadom.attributes.popovertargetaction} @interestfor={datadom.attributes.interestfor} @aria-controls={datadom.attributes.aria-controls} @aria-haspopup={datadom.attributes.aria-haspopup} @aria-describedby={datadom.attributes.aria-describedby} @aria-label={datadom.attributes.aria-label} @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @formnovalidate={if seq:count(datadom.attributes.formnovalidate) > 0 { true } else { null }} @aria-busy={datadom.attributes.pending} @aria-expanded={if seq:count(datadom.attributes.aria-expanded) > 0 { datadom.attributes.aria-expanded } else { datadom.attributes.expanded }} @aria-pressed={if (datadom.attributes.control-role ?? "") == "menuitemradio" { null } else { if seq:count(datadom.attributes.selected) > 0 { "true" } else { if seq:count(datadom.attributes.selectable) > 0 { "false" } else { null } } }} @slice=pressed @slice-event=click @slice-value="$event.type" |
       {slot | {$label}}
     }
   </template>

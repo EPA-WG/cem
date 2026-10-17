@@ -61,6 +61,57 @@ For `src="url"` without a fragment:
 - Otherwise the document element is used.
 - If the only meaningful node is a `<template>`, that template is used directly.
 
+### Source-owned capabilities
+
+A template may declare its own behavior through
+`{template @capability=form-control @type=text/cem-ml | ...}` in CEM-ML,
+equivalent to `<template capability="form-control" type="text/cem-ml">`
+in HTML. For a reusable string-valued form input, a complete fragment is:
+
+```html
+<template id="account-input" capability="form-control" type="text/cem-ml">
+{input @part=control @form="" @aria-label=Account
+       @value={datadom.slices.value}
+       @disabled={if datadom.slices.formDisabled { true } else { null }}
+       @slice=value @slice-event=input @slice-value="$target.value"}
+</template>
+```
+
+Save the fragment as `controls.xhtml` and register it with
+`<cem-element tag="account-input" src="./controls.xhtml#account-input"></cem-element>`.
+The [form demo](../packages/cem-elements/demo/form.html) demonstrates
+template-owned `choice-select` behavior with two reusable form inputs.
+
+The runtime resolves `capability` before registering the produced custom-element
+class, in this order:
+
+1. The importing declaration's `capability` attribute, when present.
+2. The selected template's `capability` attribute, when present.
+3. For fragment-selected templates, the `capability` on their immediate owning
+   `<cem-element>` declaration (or the configured declaration element name).
+
+An explicitly empty attribute suppresses the inherited default. Source-owner
+metadata is retained on the selected template clone, without modifying the source
+document or adding attributes to the importing declaration. Arbitrary wrapper
+attributes and sibling declarations do not contribute capabilities. Existing
+unknown-capability and host-behavior-conflict diagnostics apply to inherited capabilities as well.
+Inline templates and same-document fragment references follow the same attribute
+precedence; URL resolution and document-fetch caching are unchanged.
+
+For example, a source-owned `capability="form-control"` on the declaration around
+`<template id="cem-field" ...>` is retained by
+`src="@scope/components/cem-field/cem-field.xhtml#cem-field"`, so consumers need
+only `tag` and `src` to register the complete component behavior.
+
+**Component caveat:** the capability is part of the component implementation.
+Copying a template must preserve its capability or the metadata on its immediate
+owning declaration. The runtime does not infer behavior from the tag name or
+rendered controls. An explicit override, including `capability=""`, can disable
+the original form, keyboard or popup contract. Use each component's documented
+capability; `form-control` is only for a single string-valued native input or
+textarea. Capability metadata on a produced instance or added after registration
+does not reconfigure its class.
+
 For `<http-request url="...">`, fragments are not normal network HTTP selectors. Fragment-only or `url#fragment`
 resource forms are valid only when the active host policy provides a local resource provider or fragment-aware loader.
 Otherwise the URL, including fragment, is resolved as request metadata but the HTTP transport receives the fragment-free
@@ -118,11 +169,11 @@ fragment. This metadata performs no fetch and does not change resource policy.
 
 A generated bundle can wrap a copied declaration in a container such as
 `<section xml:base="../src/components/cem-select/cem-select.xhtml">` while keeping
-the original declaration and template intact. Consumers continue to supply
-capability metadata, such as `capability="choice-select"`, explicitly. Other
-source-wrapper attributes are not inherited. This addition applies to external
-fragment loading; inline, local-fragment and whole-document loading retain their
-existing contracts.
+the original declaration and template intact. The selected template retains its
+own or its owning declaration's capability, such as `capability="choice-select"`,
+under the precedence above. Other source-wrapper attributes are not inherited.
+Source-base retention applies to external fragment loading; inline,
+local-fragment and whole-document source bases retain their existing contracts.
 
 ## Ordinary Navigation Links
 

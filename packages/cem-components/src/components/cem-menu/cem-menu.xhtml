@@ -7,7 +7,12 @@
         :scope { display: block; }
         :scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
         :scope[slot='submenu'] { display: none; background: var(--cem-action-contextual-default-background); border: var(--cem-stroke-boundary) solid var(--cem-action-contextual-default-text); }
-        :scope > :where([part~='composite']) { display: flex; flex-direction: row; flex-wrap: wrap; justify-content: flex-start; }
+        :scope > :where([part~='composite']) {
+            display: flex; flex-direction: row; flex-wrap: wrap; justify-content: flex-start;
+            box-sizing: border-box;
+            padding: max(var(--cem-inset-control), var(--cem-coupling-guard-min));
+            gap: max(var(--cem-gap-related), calc(2 * var(--cem-coupling-guard-min)));
+        }
         :scope[direction='column'] > :where([part~='composite']), :scope:where([slot='submenu']:not([direction='row'])) > :where([part~='composite']) { flex-direction: column; }
         :scope[justify='end'] > :where([part~='composite']) { justify-content: flex-end; }
         :scope > :where([part~='composite']) > :is(a, button) {
