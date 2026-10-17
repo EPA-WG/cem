@@ -1,0 +1,28 @@
+let $main := //Q{http://www.w3.org/1999/xhtml}main,
+    $form := $main/Q{http://www.w3.org/1999/xhtml}form,
+    $email := $form/Q{http://www.w3.org/1999/xhtml}input[(@name | @Q{http://www.w3.org/1999/xhtml}name) = 'email'],
+    $password := $form/Q{http://www.w3.org/1999/xhtml}input[(@name | @Q{http://www.w3.org/1999/xhtml}name) = 'password'],
+    $submit := $form/Q{http://www.w3.org/1999/xhtml}button
+return (
+    'screen=' || string(($main/@Q{https://cem.dev/ns/core/1}screen, $main/@data-cem-screen)[1]),
+    'title-id=' || string($main/Q{http://www.w3.org/1999/xhtml}h1/(@id | @Q{http://www.w3.org/1999/xhtml}id)),
+    'title=' || normalize-space($main/Q{http://www.w3.org/1999/xhtml}h1),
+    'labelled-by=' || string($main/(@aria-labelledby | @Q{http://www.w3.org/1999/xhtml}aria-labelledby)),
+    'form=' || string(($form/@Q{https://cem.dev/ns/core/1}form, $form/@data-cem-form)[1]),
+    'method=' || string($form/(@method | @Q{http://www.w3.org/1999/xhtml}method)),
+    'action=' || string($form/(@action | @Q{http://www.w3.org/1999/xhtml}action)),
+    'email-id=' || string($email/(@id | @Q{http://www.w3.org/1999/xhtml}id)),
+    'email-type=' || string($email/(@type | @Q{http://www.w3.org/1999/xhtml}type)),
+    'email-autocomplete=' || string($email/(@autocomplete | @Q{http://www.w3.org/1999/xhtml}autocomplete)),
+    'email-required=' || exists($email/(@required | @Q{http://www.w3.org/1999/xhtml}required)),
+    'email-label=' || normalize-space($form/Q{http://www.w3.org/1999/xhtml}label[@*[local-name(.) = 'for' and (namespace-uri(.) = '' or namespace-uri(.) = 'http://www.w3.org/1999/xhtml')] = $email/(@id | @Q{http://www.w3.org/1999/xhtml}id)]),
+    'password-id=' || string($password/(@id | @Q{http://www.w3.org/1999/xhtml}id)),
+    'password-type=' || string($password/(@type | @Q{http://www.w3.org/1999/xhtml}type)),
+    'password-autocomplete=' || string($password/(@autocomplete | @Q{http://www.w3.org/1999/xhtml}autocomplete)),
+    'password-required=' || exists($password/(@required | @Q{http://www.w3.org/1999/xhtml}required)),
+    'password-label=' || normalize-space($form/Q{http://www.w3.org/1999/xhtml}label[@*[local-name(.) = 'for' and (namespace-uri(.) = '' or namespace-uri(.) = 'http://www.w3.org/1999/xhtml')] = $password/(@id | @Q{http://www.w3.org/1999/xhtml}id)]),
+    'submit-type=' || string($submit/(@type | @Q{http://www.w3.org/1999/xhtml}type)),
+    'submit-action=' || string(($submit/@Q{https://cem.dev/ns/core/1}action, $submit/@data-cem-action)[1]),
+    'submit-text=' || normalize-space($submit),
+    'inputs=' || count($form/Q{http://www.w3.org/1999/xhtml}input)
+)

@@ -28,12 +28,15 @@ Home offers **Login** and **Schema examples** under **Example projects**.
 **Create project from example** makes an independent editable copy, then
 **Projects → Open project** enters the common workspace. Existing projects keep
 their saved contents. Startup restores the last selection; a fresh profile opens
-Home without auto-installing a seed. Login's README resource carries instructions.
+Home without auto-installing a seed. Login's README resource carries instructions. Version 2.1.0 has seven
+configurations, including **Login semantics from HTML** and **Login semantics
+from CEM-ML**. Their shared query selects the XHTML `main` subtree; document
+wrappers and lexical formatting remain outside the comparison.
 
 | Required presentation content | Available project content | Remaining work |
 | --- | --- | --- |
 | Read/edit/validate/inspect | Login CEM-ML source with shared-source parse, validation and inspection configurations. | Preserve existing three reference warnings in expected results. |
-| HTML import and conversion | Login HTML resource and HTML-to-CEM-ML configuration preserve form fields. | Prove the full HTML/CEM semantic comparison and shared native HTML query route. |
+| HTML import, conversion and semantic comparison | Login HTML resource, HTML-to-CEM-ML conversion, and two ordinary query configurations share a 21-field semantic contract with the CEM source. Native import retains decoded values and provenance; the query explicitly maps namespace/mirror differences. | Preserve the bounded comparison contract and expected values when adding later examples. |
 | Intentional failure and repair | Separate syntax-valid source omits the form method; owned teaching schema reports `demo.login.method_required`. | Continue to demonstrate source selection, saved repair/reload and repeat failure through the shared editor/diagnostics. |
 | Equivalent queries/templates | Portable engine scenarios exist in Schema examples. | Add canonical Login resources and equivalent XPath/CEM-QL query/template configurations. |
 | Live light-DOM view | Shared `cem-element` runtime exists. | Add a reusable preview capability and prove saved Login edits update it. |

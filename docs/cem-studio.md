@@ -2636,6 +2636,30 @@ and receive a numbered copy name. Existing projects keep their saved contents.
 | Inspect login | The same saved CEM-ML source; native typed inspection. |
 | Convert HTML to CEM-ML | `data/login.html`; CEM-ML with both form fields retained. |
 | Validate form method | `data/login-invalid.cem` and owned `schemas/` resources; deliberate schema failure and repair. |
+| Login semantics from HTML | `data/login.html` and `queries/semantics.xpath`; the 21-field scalar Login contract. |
+| Login semantics from CEM-ML | `data/login.cem` and the same query; the same explicit contract. |
+
+The version-2.1.0 project adds the two semantic queries as ordinary configurations.
+`expected/semantics.json` is a readable project resource containing the expected
+21 values. Native and browser fixtures compare actual values, not just item
+counts. The shared Results pane shows the explicitly requested JSON scalar-query
+serialization. Saved heading/method edits change the appropriate fields; an
+unsaved edit leaves the persisted query input unchanged and marks its result stale.
+
+The query explicitly chooses the XHTML `main` subtree and maps CEM core
+annotations to HTML's literal `data-cem-*` mirrors. It maps unqualified HTML
+attributes to attributes in the CEM default HTML namespace. Native expanded
+names stay distinct. Wrappers, doctype, indentation, quotes and attribute order
+are outside this domain contract. The XML slide projection is a separate input;
+it does not stand in for HTML. This comparison adds no special renderer or UI
+JavaScript.
+
+HTML is imported once through the common native typed-tree boundary. XPath
+consumes that tree, including decoded entities, boolean attributes and original
+source ranges/ownership. Native CEM queries use the original lexical namespace
+capture to construct a ready name view; source ASTs and namespace records stay
+unchanged. Pending namespace values require explicit completion and are rejected
+with `cem.xpath.namespace_unready`; ordinary query loading does not execute them.
 
 Open `README.md` through Resources for instructions. The first three
 configurations share a source resource, while HTML and deliberate failure use
@@ -2653,7 +2677,7 @@ stable reference paths; relative command arguments resolve under their own
 project root. New copies do not inherit edits from another copy. Catalog
 membership neither changes validation nor adds UI behavior.
 
-The deployed release gate requires `exampleProjects` and
+The deployed release gate requires `exampleProjects`, `projectSemanticComparison` and
 `projectValidationRepair`. It exercises the ordinary workspace, shared-source
 editing, native execution, source selection, saved-versus-unsaved repair,
 repeat failure/repair, independent copies and offline reload. Separate generic
@@ -2667,6 +2691,6 @@ orchestration. No new UI JavaScript capability or application CSS is needed.
 
 The [active checklist](todo.md#amsterdam-presentation-samples-active-studio-priority)
 and [presentation audit](presentation/declarative-amsterdam-2026-handoff.md#studio-sample-audit-2026-10-17)
-track HTML/CEM semantic comparison, equivalent query/template processing and a
-live light-DOM `cem-element` view. Implement those as project resources and
+track the completed HTML/CEM comparison, remaining equivalent XPath/CEM-QL
+query/template processing and a live light-DOM `cem-element` view. Implement those as project resources and
 configurations using shared workspace capabilities.

@@ -20,6 +20,155 @@ fn sample() -> serde_json::Value {
 }
 
 #[test]
+fn login_html_and_cem_queries_have_the_same_explicit_semantic_contract() {
+    let root = workspace();
+    let query = root.join("examples/projects/login/queries/semantics.xpath");
+    let expected = [
+        "screen=login",
+        "title-id=login-title",
+        "title=Sign in",
+        "labelled-by=login-title",
+        "form=sign-in",
+        "method=post",
+        "action=#session",
+        "email-id=email",
+        "email-type=email",
+        "email-autocomplete=email",
+        "email-required=true",
+        "email-label=Email",
+        "password-id=password",
+        "password-type=password",
+        "password-autocomplete=current-password",
+        "password-required=true",
+        "password-label=Password",
+        "submit-type=submit",
+        "submit-action=primary",
+        "submit-text=Sign in",
+        "inputs=2",
+    ];
+    for (path, content_type, schema) in [
+        (
+            "examples/semantic/login.html",
+            "text/html",
+            "https://cem.dev/ns/data/html/1",
+        ),
+        (
+            "examples/cem-ml/login.cem",
+            "application/cem",
+            "https://cem.dev/ns/cem-ml/1",
+        ),
+    ] {
+        let path = root.join(path);
+        let original = fs::read(&path).unwrap();
+        let result = Command::new(env!("CARGO_BIN_EXE_cem-ml"))
+            .args([
+                "query",
+                path.to_str().unwrap(),
+                "--content-type",
+                content_type,
+                "--schema",
+                schema,
+                "--query-file",
+                query.to_str().unwrap(),
+                "--query-content-type",
+                "application/vnd.cem.xpath",
+                "--query-schema",
+                "https://cem.dev/ns/query/xpath/1",
+                "--output",
+                "json",
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "{}: {} {}",
+            content_type,
+            String::from_utf8_lossy(&result.stdout),
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let result: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap();
+        let values: Vec<_> = result["result"]["sequence"]["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|item| item["value"]["lexicalValue"].as_str().unwrap())
+            .collect();
+        assert_eq!(values, expected, "{content_type}");
+        assert_eq!(fs::read(&path).unwrap(), original);
+        let source = String::from_utf8(original).unwrap();
+        let edited = source.replacen("Sign in", "Welcome", 1).replacen(
+            if content_type == "text/html" {
+                "method=\"post\""
+            } else {
+                "@method=post"
+            },
+            if content_type == "text/html" {
+                "method=\"get\""
+            } else {
+                "@method=get"
+            },
+            1,
+        );
+        let directory = std::env::temp_dir().join(format!(
+            "cem-login-compare-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&directory).unwrap();
+        let edited_path = directory.join(if content_type == "text/html" {
+            "login.html"
+        } else {
+            "login.cem"
+        });
+        fs::write(&edited_path, &edited).unwrap();
+        let output = Command::new(env!("CARGO_BIN_EXE_cem-ml"))
+            .args([
+                "query",
+                edited_path.to_str().unwrap(),
+                "--content-type",
+                content_type,
+                "--schema",
+                schema,
+                "--query-file",
+                query.to_str().unwrap(),
+                "--query-content-type",
+                "application/vnd.cem.xpath",
+                "--query-schema",
+                "https://cem.dev/ns/query/xpath/1",
+                "--output",
+                "json",
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let result: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        let changed: Vec<_> = result["result"]["sequence"]["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|item| item["value"]["lexicalValue"].as_str().unwrap())
+            .collect();
+        let expected_changed: Vec<_> = expected
+            .iter()
+            .map(|value| match *value {
+                "title=Sign in" => "title=Welcome",
+                "method=post" => "method=get",
+                value => value,
+            })
+            .collect();
+        assert_eq!(changed, expected_changed);
+        assert_eq!(fs::read_to_string(&edited_path).unwrap(), edited);
+        fs::remove_dir_all(directory).unwrap();
+    }
+}
+
+#[test]
 fn presentation_login_commands_preserve_named_fields_and_report_existing_warnings() {
     let sample = sample();
     for page in sample["configurations"].as_array().unwrap() {
@@ -72,6 +221,25 @@ fn presentation_login_commands_preserve_named_fields_and_report_existing_warning
                     expected
                 );
             }
+        } else if let Some(contract) = page["expectedSemanticContract"].as_str() {
+            let source = sample["sources"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|source| source["id"] == contract)
+                .unwrap();
+            let expected: serde_json::Value = serde_json::from_slice(
+                &fs::read(workspace().join(source["source"].as_str().unwrap())).unwrap(),
+            )
+            .unwrap();
+            let report: serde_json::Value = serde_json::from_str(&text).unwrap();
+            let values: Vec<_> = report["result"]["sequence"]["items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|item| item["value"]["lexicalValue"].clone())
+                .collect();
+            assert_eq!(serde_json::Value::Array(values), expected);
         } else {
             let report: serde_json::Value = serde_json::from_str(&text).unwrap();
             let expected = &page["expectedValidation"];
@@ -159,7 +327,12 @@ fn presentation_schema_violation_has_a_retained_form_span_and_exact_repair() {
         8
     );
     let definition = sample();
-    let repair = &definition["configurations"].as_array().unwrap().last().unwrap()["repair"];
+    let repair = &definition["configurations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|configuration| configuration["id"] == "validation-repair")
+        .unwrap()["repair"];
     let repaired = invalid.replacen(
         repair["find"].as_str().unwrap(),
         repair["replace"].as_str().unwrap(),

@@ -798,6 +798,11 @@ impl HtmlSchemaContractCatalog {
         Self { fact_bindings }
     }
 
+    /// Import uses the same registered diagnostic severity as HTML validation.
+    pub fn severity_for_fact(&self, kind: HtmlFactKind) -> Severity {
+        self.binding_for_fact(kind).map_or(Severity::Info, |binding| binding.severity)
+    }
+
     fn binding_for_fact(&self, kind: HtmlFactKind) -> Option<&HtmlDiagnosticBinding> {
         self.fact_bindings.get(kind.as_str())
     }

@@ -6,12 +6,16 @@ import {
     installCemStudioFeatureTour,
 } from './feature-tour.js';
 import { CEM_STUDIO_REPOSITORY_ID, createCemStudioProjectRepository } from './repository.js';
-let invalidLogin, loginSchema, loginPackage;
+let invalidLogin, loginSchema, loginPackage, loginHtml, loginCem, semanticsQuery, semanticsContract;
 beforeAll(async () => {
-    [invalidLogin, loginSchema, loginPackage] = await Promise.all([
+    [invalidLogin, loginSchema, loginPackage, loginHtml, loginCem, semanticsQuery, semanticsContract] = await Promise.all([
         new URL('../../../examples/projects/login/login-invalid.cem', import.meta.url),
         new URL('../../../examples/projects/login/login-schema.cem', import.meta.url),
         new URL('../../../examples/projects/login/login-schema-package.cem', import.meta.url),
+        new URL('../../../examples/semantic/login.html', import.meta.url),
+        new URL('../../../examples/cem-ml/login.cem', import.meta.url),
+        new URL('../../../examples/projects/login/queries/semantics.xpath', import.meta.url),
+        new URL('../../../examples/projects/login/expected/semantics.json', import.meta.url),
     ].map(async url => {
         const response = await fetch(url);
         if (!response.ok) throw new Error(`Example resource is unavailable: ${url}`);
@@ -31,6 +35,36 @@ afterEach(async () => {
 });
 
 describe('CEM Studio Feature Tour copies', () => {
+    it('queries the same Login semantic contract from HTML and CEM in the native browser worker', async () => {
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        const bytes = text => new TextEncoder().encode(text);
+        const expected = JSON.parse(semanticsContract);
+        for (const [source, contentType, schema, path] of [
+            [loginHtml, 'text/html', 'https://cem.dev/ns/data/html/1', 'login.html'],
+            [loginCem, 'application/cem', 'https://cem.dev/ns/cem-ml/1', 'login.cem'],
+        ]) {
+            const uri = `studio://semantic-copy/data/${path}`;
+            const argv = ['query', uri, '--content-type', contentType, '--schema', schema, '--query-file', 'studio://semantic-copy/queries/semantics.xpath',
+                '--query-content-type', 'application/vnd.cem.xpath', '--query-schema', 'https://cem.dev/ns/query/xpath/1', '--output', 'json'];
+            const options = { uri, contentType, schema, projectId: 'semantic-copy', projectRootUri: 'studio://semantic-copy/', argv,
+                dependencies: [{ path: '../queries/semantics.xpath', bytes: bytes(semanticsQuery), contentType: 'application/vnd.cem.xpath', schema: 'https://cem.dev/ns/query/xpath/1' }] };
+            const run = async source => {
+                const outcome = await validator.runResourceCommand({ ...options, bytes: bytes(source) });
+                expect(outcome.result.exitCode).toBe(0);
+                return JSON.parse(outcome.output.text).result.sequence.items.map(item => item.value.lexicalValue);
+            };
+            expect(await run(source)).toEqual(expected);
+            const edited = source.replace('Sign in', 'Welcome').replace(contentType === 'text/html' ? 'method="post"' : '@method=post', contentType === 'text/html' ? 'method="get"' : '@method=get');
+            const result = await run(edited);
+            expect(result).toEqual(expected.map(value => value === 'title=Sign in' ? 'title=Welcome' : value === 'method=post' ? 'method=get' : value));
+            const selected = await validator.runResourceCommand({ ...options, argv: ['query', uri, '--content-type', contentType, '--schema', schema, '--query', '//Q{http://www.w3.org/1999/xhtml}input', '--query-content-type', 'application/vnd.cem.xpath', '--output', 'json'], bytes: bytes(source) });
+            const items = JSON.parse(selected.output.text).result.sequence.items;
+            expect(items).toHaveLength(2);
+            expect(items.every(item => item.sourceMap.frames.length > 0)).toBe(true);
+            expect(items[0].sourceUri).toBe(uri);
+        }
+    }, 60_000);
+
     it('initializes native graph authoring through the public CLI browser facade', async () => {
         const { createBrowserTransformConfigAuthor } = await import('@epa-wg/cem-ml-cli/browser-commands');
         const author = await createBrowserTransformConfigAuthor();

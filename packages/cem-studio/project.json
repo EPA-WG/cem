@@ -189,7 +189,9 @@
                     "dependentTasksOutputFiles": "**/*.{js,d.ts}",
                     "transitive": false
                 },
-                "{workspaceRoot}/examples/projects/**/*"
+                "{workspaceRoot}/examples/projects/**/*",
+                "{workspaceRoot}/examples/cem-ml/login.cem",
+                "{workspaceRoot}/examples/semantic/login.html"
             ],
             "outputs": []
         },

@@ -1,7 +1,7 @@
 # External data enters through CEM AST import
 
 This is the normative external-data boundary, directed by the user on
-2026-09-17. It applies to XML, JSON, YAML, CSV, CSS and future document formats.
+2026-09-17. It applies to XML, HTML, JSON, YAML, CSV, CSS and future document formats.
 
 External document syntax is parsed, decoded and mapped into a retained typed
 CEM tree at the import boundary. Downstream CEM-QL, XPath, transformations and
@@ -41,7 +41,7 @@ the JSON wire protocol for compiler diagnostics or scalar host parameters.
 
 ## Current implementation and audit
 
-`cem_ml::import` owns the native XML/JSON/YAML/CSV/CSS data-reader parsing and mapping.
+`cem_ml::import` owns the native XML/HTML/JSON/YAML/CSV/CSS data-reader parsing and mapping.
 Its typed `import_string` API also serves XPath `parse-xml`, `json-to-xml` and
 the explicit `urn:cem:import` CSV/YAML functions. The string profile owns BOMs,
 XML declaration handling, JSON codepoint/duplicate/escape policy and URI metadata.
@@ -83,6 +83,7 @@ layer; they are not implemented by dropping or remapping rows in an evaluator.
 
 | Audited input | Import responsibility | Shared consumer behavior |
 | --- | --- | --- |
+| HTML | Retain the registered parser's decoded values, namespaces, boolean attributes, raw text, recovery depths and original lifecycle owner/ranges. Preserve hard validation policy and bounded node/depth limits. | The same CEM navigation, XPath queries and source provenance; HTML mirrors remain literal attributes. |
 | XML | Decode references and normalize literal text/attribute whitespace before merging; retain lexical nodes and namespace provenance. | CEM navigation, logical text, names, values and identity. |
 | JSON | Select generic-data or standard JSON-to-XML vocabulary; preserve member order, null and numeric spelling under the declared import policy. | The same node operations, including nodes retained inside XPath arrays/maps. |
 | YAML | Parse native YAML and import generic-data nodes; enforce the bounded profile and reject unsupported aliases, anchors and explicit tags. | The same node operations and source coordinates. |
@@ -93,6 +94,14 @@ import. No XML/JSON/YAML/CSV parser-AST traversal remains in that reader or the
 XPath evaluator. The native source owner is retained as provenance, not
 consulted to evaluate a path or compute a value. Import rejects parser ASTs
 carrying hard errors, including partial XML, YAML and CSV documents.
+
+Native CEM XPath ingress consumes original lexical namespace capture through a
+ready name-completion view over the same arena. Literal bindings require no
+execution. Pending values or completion metadata from another owner are rejected;
+queries do not manufacture grants, evaluate namespace slots or mutate source
+names. CEM-QL's ordinary source-oriented ingress retains its existing behavior.
+The Login project uses an authored XPath mapping to compare its HTML and CEM
+field contracts; no evaluator branches interpret HTML attributes or parser ASTs.
 
 CSS imports use the registered CSS semantic vocabulary, retaining the native
 token owner and source locations. `text/css` supports stylesheet,

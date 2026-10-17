@@ -30,6 +30,117 @@ fn strings(query: &str, input: &XPathResultItem) -> Vec<String> {
 }
 
 #[test]
+fn xpath_namespace_views_require_ready_metadata_from_the_original_arena() {
+    use cem_ml::{
+        engine::FormatIdentity,
+        import::import_bytes_with_lexical_scopes,
+        schema::{namespace_references::NamespaceNameCompletion, vocab::CompiledSchema},
+    };
+    let source = "{root @xmlns:p=urn:ready | {p:item}}";
+    let import = || {
+        import_bytes_with_lexical_scopes(
+            source.as_bytes(),
+            "application/cem",
+            "memory:source.cem",
+            CompiledSchema::cem_core(),
+        )
+        .unwrap()
+    };
+    let original = import();
+    let before = format!("{:?}", original.tree.ast().nodes);
+    let names = Arc::new(
+        NamespaceNameCompletion::new(original.captured.clone(), &[0], Default::default()).unwrap(),
+    );
+    let owner = XPathXdmTreeOwner::from_retained(original.tree.clone(), FormatIdentity::default())
+        .with_namespace_completion(names.clone())
+        .unwrap();
+    assert!(owner.lifecycle_owner().is_none());
+    assert_eq!(format!("{:?}", original.tree.ast().nodes), before);
+    let other = import();
+    assert!(
+        XPathXdmTreeOwner::from_retained(other.tree, FormatIdentity::default())
+            .with_namespace_completion(names)
+            .is_err()
+    );
+    let pending = import_bytes_with_lexical_scopes(
+        b"{root @xmlns:p={#library} | {p:item}}",
+        "application/cem",
+        "memory:pending",
+        CompiledSchema::cem_core(),
+    )
+    .unwrap();
+    assert!(NamespaceNameCompletion::new(pending.captured, &[0], Default::default()).is_err());
+}
+
+#[test]
+fn html_import_retains_decoded_values_namespaces_boolean_attributes_and_source_owner() {
+    let source = "<!doctype html>\n<main data-cem-screen='login'><input required title='A &amp; B'><p>Hi &lt;🍒&gt;</p><svg><a xlink:href='#part'/></svg></main>";
+    let tree = cem_ml::import::import_data_bytes(
+        source.as_bytes(),
+        "text/html",
+        "cem",
+        "memory:login.html",
+    )
+    .unwrap();
+    let input = XPathResultItem::from_native_node(XPathNativeNode::cem_document(tree.clone()));
+    assert_eq!(strings("(namespace-uri(/*), string(//Q{http://www.w3.org/1999/xhtml}input/@title), exists(//Q{http://www.w3.org/1999/xhtml}input/@required), string(//Q{http://www.w3.org/1999/xhtml}input/@required), string(//Q{http://www.w3.org/1999/xhtml}p), namespace-uri(//Q{http://www.w3.org/2000/svg}a/@Q{http://www.w3.org/1999/xlink}href))", &input),
+        ["http://www.w3.org/1999/xhtml", "A & B", "true", "", "Hi <🍒>", "http://www.w3.org/1999/xlink"]);
+    let selected = eval(
+        "//Q{http://www.w3.org/1999/xhtml}input",
+        Some(input),
+        Default::default(),
+    )
+    .unwrap();
+    let node = selected.sequence.items[0].native_node().unwrap();
+    let owner = node
+        .source_owner()
+        .expect("original HTML lifecycle retained");
+    assert!(matches!(
+        owner.as_ref(),
+        cem_ml::lifecycle::LoadedInputAstStream::HtmlDocument(_)
+    ));
+    let retained = cem_ml::import::retain_lifecycle(owner).unwrap();
+    let from_lifecycle = XPathResultItem::from_native_node(XPathNativeNode::cem_document(retained));
+    assert_eq!(
+        strings(
+            "string(//Q{http://www.w3.org/1999/xhtml}input/@title)",
+            &from_lifecycle
+        ),
+        ["A & B"]
+    );
+    let stack = node.source_map();
+    let frame = stack.frames.last().unwrap();
+    let cem_ml::source_map::FrameSpan::Single(range) = frame.span else {
+        panic!("single source range")
+    };
+    assert_eq!(
+        &source[range.start as usize..range.end() as usize],
+        "<input required title='A &amp; B'>"
+    );
+}
+
+#[test]
+fn html_import_bounds_recovery_and_preserves_raw_text_without_evaluation() {
+    let input = root(
+        "<main><p>A<p>B<textarea>&lt;C&gt;</textarea><style>a&lt;b { color: red }</style></main>",
+        "html",
+        "cem",
+    );
+    assert_eq!(strings("(count(//Q{http://www.w3.org/1999/xhtml}p), string(//Q{http://www.w3.org/1999/xhtml}textarea), string(//Q{http://www.w3.org/1999/xhtml}style))", &input), ["2", "<C>", "a&lt;b { color: red }"]);
+    assert!(
+        import_data("<script>run()</script>", "html", "cem", "memory:script").is_err(),
+        "import preserves registered hard HTML policy diagnostics"
+    );
+    assert_eq!(
+        strings("string(.)", &root("<main>Open", "html", "cem")),
+        ["Open"]
+    );
+    let deep = format!("{}{}", "<div>".repeat(66), "</div>".repeat(66));
+    assert!(import_data(&deep, "html", "cem", "memory:deep").is_err());
+    assert!(import_data(&"<input>".repeat(4100), "html", "cem", "memory:many").is_err());
+}
+
+#[test]
 fn json_mapping_and_equivalent_xml_have_identical_xpath_semantics() {
     let json = root(
         r#"{"qty":3,"note":null,"fruit":["🍒",true,{},[]]}"#,

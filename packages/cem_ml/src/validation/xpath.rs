@@ -10401,7 +10401,8 @@ impl QueryAstOwner for XPathQueryAstOwner {
 
 #[derive(Debug, Clone)]
 pub struct XPathXdmTreeOwner {
-    owner: Arc<LoadedInputAstStream>,
+    owner: Option<Arc<LoadedInputAstStream>>,
+    name_completion: Option<Arc<crate::schema::namespace_references::NamespaceNameCompletion>>,
     tree: Arc<crate::parser::tree::RetainedCemTree>,
     identity: FormatIdentity,
     source_map: SourceMapStack,
@@ -10412,18 +10413,25 @@ impl XPathXdmTreeOwner {
         owner: Arc<LoadedInputAstStream>,
         identity: FormatIdentity,
     ) -> Result<Self, String> {
-        let tree = crate::import::retain_lifecycle(Arc::clone(&owner))?;
-        let source_map = tree.node(0).expect("imported document root").source.clone();
-        Ok(Self {
-            owner,
-            tree,
-            identity,
-            source_map,
-        })
+        let tree = crate::import::retain_lifecycle(owner)?;
+        Ok(Self::from_retained(tree, identity))
     }
 
-    pub fn lifecycle_owner(&self) -> &Arc<LoadedInputAstStream> {
-        &self.owner
+    /// The query adapter consumes an already imported tree, independent of syntax.
+    pub fn from_retained(tree: Arc<crate::parser::tree::RetainedCemTree>, identity: FormatIdentity) -> Self {
+        let source_map = tree.node(0).expect("imported document root").source.clone();
+        let owner = tree.native_owner().and_then(|owner| Arc::downcast::<LoadedInputAstStream>(owner.clone()).ok());
+        Self { owner, tree, identity, source_map, name_completion: None }
+    }
+
+    pub fn with_namespace_completion(mut self, completion: Arc<crate::schema::namespace_references::NamespaceNameCompletion>) -> Result<Self, String> {
+        XPathNativeNode::cem_document(self.tree.clone()).with_namespace_completion(completion.clone()).map_err(|error| error.to_string())?;
+        self.name_completion = Some(completion);
+        Ok(self)
+    }
+
+    pub fn lifecycle_owner(&self) -> Option<&Arc<LoadedInputAstStream>> {
+        self.owner.as_ref()
     }
 }
 
@@ -10503,7 +10511,7 @@ impl QueryEvaluatorAdapter for CemXPathQueryEvaluator {
             .ok_or_else(|| {
                 vec![xpath_query_diagnostic(
                     Some(query.source_uri()),
-                    "XPath query evaluator requires a lifecycle-owned XDM tree",
+                    "XPath query evaluator requires a retained CEM tree",
                 )]
             })?;
         if !request.bindings.is_empty() {
@@ -10513,6 +10521,9 @@ impl QueryEvaluatorAdapter for CemXPathQueryEvaluator {
             )]);
         }
         let context_node = XPathNativeNode::cem_document(Arc::clone(&input.tree));
+        let context_node = if let Some(names) = &input.name_completion {
+            context_node.with_namespace_completion(names.clone()).map_err(|error| vec![xpath_query_diagnostic(Some(query.source_uri()), error.to_string())])?
+        } else { context_node };
         let evaluator = CemXPathEvaluator::default();
         let abort_signal = request.abort_signal;
         let result = evaluator.evaluate_with_control(

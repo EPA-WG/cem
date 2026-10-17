@@ -79,6 +79,9 @@ fn query_consumers_do_not_interpret_external_document_formats() {
             "YamlDocumentAst",
             "CsvDocumentAst",
             "CssDocumentAst",
+            "HtmlDocumentAst",
+            "HtmlEventAst",
+            "HtmlEventKind",
             "CssEventAst",
             "JsonValueAst",
             "JsonNumberKind",
@@ -91,6 +94,7 @@ fn query_consumers_do_not_interpret_external_document_formats() {
             "validation::json",
             "validation::yaml",
             "validation::csv",
+            "validation::html",
         ] {
             assert!(
                 !production.contains(forbidden),

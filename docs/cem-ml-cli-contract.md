@@ -758,7 +758,7 @@ source syntax, or trial parsing:
 | ------------ | ---------------------------------------------------------------------------------------------- | ---------------------------- |
 | CSS selector | `application/vnd.cem.query-expression+css-selector`; `https://cem.dev/ns/query/css-selector/1` | Lifecycle-owned element tree |
 | CEM-QL       | `application/vnd.cem.query-expression+cem-ql`; `https://cem.dev/ns/query/cem-ql/1#expression`  | CEM-QL native items          |
-| XPath        | `application/vnd.cem.xpath`; `https://cem.dev/ns/query/xpath/1`                                | Lifecycle-owned XDM tree     |
+| XPath        | `application/vnd.cem.xpath`; `https://cem.dev/ns/query/xpath/1`                                | Retained typed CEM tree / XDM view |
 
 The canonical command is:
 
@@ -807,6 +807,14 @@ all three adapters. Result exporters are separately registered and encode only
 when the user requests a terminal, CEM, JSON, or other output boundary. The
 native result and input owners remain alive through export so native item/node
 identity, source maps, ordering, and language-specific types remain available.
+HTML query inputs use the registered native parser and common retained CEM-tree
+import. They retain decoded values, boolean attributes, namespace identity and
+original provenance. Native CEM XPath input uses original lexical capture for a
+ready name view; pending namespace values fail with `cem.xpath.namespace_unready`
+and are never evaluated by ordinary query loading. Source names and bytes remain
+unchanged. Authored queries must state domain mappings such as HTML `data-cem-*`
+mirrors and CEM namespace annotations explicitly.
+
 Existing CEM-QL expression and XPath `transform` invocations remain compatibility
 surfaces. They retain their existing options and output behavior; `query` is the
 canonical interface when the operation returns a native query result rather

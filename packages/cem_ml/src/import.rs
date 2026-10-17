@@ -11,7 +11,7 @@ use crate::{
     source::{ByteRange, SourceId},
     source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind},
     validation::{
-        csv,
+        csv, html as html_parser,
         generic_data::{GenericDataDocumentAst, GenericDataValueAst as Value},
         json, json_xml, xml, yaml,
     },
@@ -20,6 +20,7 @@ use std::sync::Arc;
 
 pub mod documents;
 mod css;
+mod html;
 mod expression_sources;
 mod xml_attribute_expressions;
 mod lexical_scopes;
@@ -404,6 +405,10 @@ fn validate_xml_limits(document: &xml::XmlDocumentAst, max_values: usize) -> Res
     Ok(())
 }
 
+fn html_range(range: html_parser::HtmlSourceRange) -> CemTreeRange {
+    CemTreeRange { line: range.start.line, column: range.start.column, offset: range.start.byte_offset, length: range.byte_length }
+}
+
 fn xml_range(range: xml::XmlSourceRange) -> CemTreeRange {
     CemTreeRange {
         line: range.start.line,
@@ -496,6 +501,11 @@ fn parse_bytes(
             }
             LoadedInputAstStream::XmlDocument(doc)
         }
+        "html" | "text/html" => LoadedInputAstStream::HtmlDocument(checked(
+            html_parser::html_document_ast_from_source_bytes(html_parser::HtmlSourceValidationRequest {
+                bytes, source_uri, content_type: Some(&content_type),
+            }),
+        )?),
         "csv" | "text/csv" => LoadedInputAstStream::CsvDocument(checked(
             csv::csv_document_ast_from_source_bytes(csv::CsvSourceValidationRequest {
                 bytes,
@@ -535,6 +545,7 @@ fn import_content_type(value: &str) -> Result<(&'static str, String), String> {
             ("yaml", "application/yaml")
         }
         "csv" | "text/csv" => ("csv", "text/csv"),
+        "html" | "text/html" => ("html", "text/html"),
         "text/css" => ("css", "text/css"),
         mime if mime.ends_with("+json") => ("json", "application/json"),
         mime if mime.ends_with("+xml") => ("xml", "application/xml"),
@@ -649,6 +660,7 @@ pub fn try_retain_lifecycle(
     if matches!(
         native.as_ref(),
         LoadedInputAstStream::XmlDocument(_)
+            | LoadedInputAstStream::HtmlDocument(_)
             | LoadedInputAstStream::JsonDocument(_)
             | LoadedInputAstStream::CsvDocument(_)
             | LoadedInputAstStream::YamlDocument(_)
@@ -663,6 +675,7 @@ pub fn try_retain_lifecycle(
 /// Import a retained parser AST into the same tree used by the data reader.
 pub fn retain_lifecycle(native: Arc<LoadedInputAstStream>) -> Result<Arc<RetainedCemTree>, String> {
     let (uri, format, length) = match native.as_ref() {
+        LoadedInputAstStream::HtmlDocument(doc) => (doc.source.uri.clone(), doc.source.content_type.clone(), doc.source.byte_length),
         LoadedInputAstStream::CssDocument(doc) => (
             doc.source.uri.clone(), doc.source.content_type.clone(), doc.source.byte_length,
         ),
@@ -697,6 +710,7 @@ pub fn retain_lifecycle(native: Arc<LoadedInputAstStream>) -> Result<Arc<Retaine
 fn validate_data_ast(native: &LoadedInputAstStream, max_values: usize) -> Result<(), ImportFailure> {
     use ImportFailureKind::*;
     match native {
+        LoadedInputAstStream::HtmlDocument(doc) => html::validate(doc, max_values).map_err(|message| ImportFailure::new(Malformed, message))?,
         LoadedInputAstStream::XmlDocument(doc) => validate_xml_limits(doc, max_values)?,
         LoadedInputAstStream::JsonDocument(doc) => {
             if let Some(fact) = doc.parse_facts.iter().find(|fact| fact.fatal) {
@@ -779,6 +793,7 @@ fn project_native(
     validate_data_ast(native.as_ref(), max_values).map_err(|e| e.to_string())?;
     let (ast, mut semantics) = match (projection, native.as_ref()) {
         ("cem", LoadedInputAstStream::CssDocument(doc)) => css::project(doc)?,
+        ("cem" | "xpath", LoadedInputAstStream::HtmlDocument(doc)) => html::project(doc)?,
         ("json-to-xml", LoadedInputAstStream::JsonDocument(doc)) =>
             json_xml::project_json_to_xml_with_semantics(doc, &json_xml::JsonXmlProjectionOptions { max_depth: MAX_DEPTH, max_values, ..Default::default() }).map_err(|e| e.to_string())?,
         ("json-to-xml", _) => return Err("The json-to-xml projection requires JSON input.".into()),

@@ -1,8 +1,8 @@
 {
   "id": "login",
   "name": "Login",
-  "version": "2.0.0",
-  "description": "Login source, HTML input, schema validation and command configurations.",
+  "version": "2.1.0",
+  "description": "Login source, HTML/CEM semantic comparison, schema validation and command configurations.",
   "sources": [
     {
       "id": "login-cem",
@@ -48,6 +48,22 @@
       "path": "README.md",
       "contentType": "text/markdown",
       "schema": "https://cem.dev/ns/data/markdown/1",
+      "role": "data"
+    },
+    {
+      "id": "login-semantics-query",
+      "source": "examples/projects/login/queries/semantics.xpath",
+      "path": "queries/semantics.xpath",
+      "contentType": "application/vnd.cem.xpath",
+      "schema": "https://cem.dev/ns/query/xpath/1",
+      "role": "query"
+    },
+    {
+      "id": "login-semantic-contract",
+      "source": "examples/projects/login/expected/semantics.json",
+      "path": "expected/semantics.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
       "role": "data"
     }
   ],
@@ -184,6 +200,62 @@
         "find": "@cem:form=\"sign-in\"",
         "replace": "@cem:form=\"sign-in\" @method=post"
       }
+    },
+    {
+      "id": "semantics-html",
+      "name": "Login semantics from HTML",
+      "kind": "query",
+      "source": "login-html",
+      "dependencies": [
+        "login-semantics-query",
+        "login-semantic-contract"
+      ],
+      "description": "Run the shared 21-field Login contract and compare with expected/semantics.json. Source wrappers and HTML mirrors are mapped explicitly by the query.",
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "text/html",
+        "--schema",
+        "https://cem.dev/ns/data/html/1",
+        "--query-file",
+        "$login-semantics-query",
+        "--query-content-type",
+        "application/vnd.cem.xpath",
+        "--query-schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--output",
+        "json"
+      ],
+      "expectedSemanticContract": "login-semantic-contract"
+    },
+    {
+      "id": "semantics-cem",
+      "name": "Login semantics from CEM-ML",
+      "kind": "query",
+      "source": "login-cem",
+      "dependencies": [
+        "login-semantics-query",
+        "login-semantic-contract"
+      ],
+      "description": "Run the shared 21-field Login contract and compare with expected/semantics.json. Source wrappers and HTML mirrors are mapped explicitly by the query.",
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--query-file",
+        "$login-semantics-query",
+        "--query-content-type",
+        "application/vnd.cem.xpath",
+        "--query-schema",
+        "https://cem.dev/ns/query/xpath/1",
+        "--output",
+        "json"
+      ],
+      "expectedSemanticContract": "login-semantic-contract"
     }
   ]
 }

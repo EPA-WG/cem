@@ -311,8 +311,11 @@ Projects own resources and configurations. Authored example definitions live in
 Every copy has independent persistence and retains native resource identities.
 Archive updates leave saved and trashed projects intact.
 
-Login includes parse, validation, inspection, HTML conversion and form-method
-validation configurations. Open its README resource for failure/repair guidance.
+Login includes parse, validation, inspection, HTML conversion, form-method
+validation and paired HTML/CEM semantic query configurations. The queries share
+`queries/semantics.xpath` and the 21 named values in `expected/semantics.json`.
+Their explicit mapping covers annotations, accessible labels, form controls
+and submit behavior while preserving native namespace differences. Open its README resource for failure/repair guidance.
 **Validate persisted revision** checks saved bytes while preserving an unsaved
 draft. Repairing `@method=post`, saving and validating removes the deliberate
 `demo.login.method_required` error; three existing reference warnings remain.

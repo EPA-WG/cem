@@ -24,6 +24,7 @@ pub struct XPathNativeNode {
     // Legacy source handles are compatibility metadata, never navigation input.
     legacy_handles: Option<Arc<Vec<XPathNativeNodeHandle>>>,
     resolution_context: Option<CemResolutionContextHandle>,
+    name_completion: Option<Arc<crate::schema::namespace_references::NamespaceNameCompletion>>,
 }
 impl PartialEq for XPathNativeNode {
     fn eq(&self, other: &Self) -> bool {
@@ -102,6 +103,7 @@ impl XPathNativeNode {
             id: 0,
             legacy_handles: None,
             resolution_context: None,
+            name_completion: None,
         }
     }
     pub fn cem_node(tree: Arc<RetainedCemTree>, id: u32) -> Result<Self, XPathNativeNodeError> {
@@ -113,6 +115,7 @@ impl XPathNativeNode {
             id,
             legacy_handles: None,
             resolution_context: None,
+            name_completion: None,
         })
     }
     pub fn xml_document(owner: Arc<LoadedInputAstStream>) -> Result<Self, XPathNativeNodeError> {
@@ -204,7 +207,19 @@ impl XPathNativeNode {
             id,
             legacy_handles: Some(Arc::new(handles)),
             resolution_context: None,
+            name_completion: None,
         })
+    }
+    /// Ready name metadata is an execution view over the original source arena.
+    pub(super) fn with_namespace_completion(mut self, completion: Arc<crate::schema::namespace_references::NamespaceNameCompletion>) -> Result<Self, XPathNativeNodeError> {
+        if !Arc::ptr_eq(self.tree.ast_owner(), completion.captured().document()) || !completion.contains(0) {
+            return Err(XPathNativeNodeError::InvalidCemTree("XPath namespace completion requires the same complete document owner".into()));
+        }
+        self.name_completion = Some(completion);
+        Ok(self)
+    }
+    fn semantic_name(&self) -> Option<&crate::parser::ExpandedName> {
+        self.name_completion.as_ref().and_then(|names| names.expanded_name(self.id)).or(self.data().name.as_ref())
     }
     pub fn owner(&self) -> &Arc<RetainedCemTree> {
         &self.tree
@@ -328,7 +343,7 @@ impl XPathNativeNode {
         }
     }
     pub(super) fn expanded_name(&self) -> Option<String> {
-        self.data().name.as_ref().map(|name| {
+        self.semantic_name().map(|name| {
             if name.namespace_uri.is_empty() {
                 name.local_name.clone()
             } else {
@@ -337,10 +352,10 @@ impl XPathNativeNode {
         })
     }
     pub fn local_name(&self) -> &str {
-        self.data().name.as_ref().map_or("", |n| &n.local_name)
+        self.semantic_name().map_or("", |n| &n.local_name)
     }
     pub fn namespace_uri(&self) -> &str {
-        self.data().name.as_ref().map_or("", |n| &n.namespace_uri)
+        self.semantic_name().map_or("", |n| &n.namespace_uri)
     }
     /// Retained source is explicit metadata, never an implicit node string value.
     pub fn reference_expression(&self) -> Option<&str> {
@@ -462,7 +477,7 @@ impl XPathNativeNode {
                 ) {
                     return false;
                 }
-                let Some(name) = &self.data().name else {
+                let Some(name) = self.semantic_name() else {
                     return false;
                 };
                 let local_name = name.local_name.as_str();

@@ -306,12 +306,54 @@ excluded from Git.
     remains the semantic owner; source-map frames and existing warnings survive.
     Shell delivery verifies inherited token overrides, five themes and forced
     colors; combined lifecycle AX relationships and 320/390/1280 reflow pass.
-- [ ] Add native fixtures for the agreed HTML/CEM semantic comparison and the
+- [x] Add native fixtures for the agreed HTML/CEM semantic comparison and the
   supported HTML import/query route, then add the resources and configurations to the ordinary Login project.
   Resolve the recorded `cem.xpath.query_input_unsupported` boundary in shared
   native import/query code; keep the XML slide projection distinct from HTML.
-- [ ] Add native fixtures for equivalent XPath/CEM-QL queries and template
-  output, then add their project resources/configurations and browser/offline evidence.
+  - [x] Add failing native HTML import fixtures for typed-tree namespace/value
+    semantics, boolean attributes, entities, original source ownership/ranges,
+    foreign content, recovery and bounded input; extend the consumer boundary guard.
+  - [x] Add failing native Login query fixtures proving HTML and CEM-ML yield
+    the same explicit semantic field sequence, preserve input bytes/provenance,
+    and detect meaningful saved edits through the common XPath query path.
+  - [x] Add namespace-view fixtures proving XPath consumes original ready literal
+    namespace metadata without source mutation, and rejects pending bindings or
+    name metadata from another source owner.
+  - [x] Register HTML import in the shared native boundary and admit retained
+    CEM trees to XPath without format-specific evaluator branches or serialized ASTs.
+  - [x] Add ordinary Login query resources/configurations and README comparison
+    guidance, then browser/deployed offline fixtures for both inputs and saved edits.
+  - [x] Update docs, handoff and delivery evidence; run native and Studio gates,
+    audit shared components, then commit/push while excluding generated attachments.
+  - Native evidence: 66 selected tests pass: 4 Login CLI fixtures, 17 common
+    CLI-query regressions, 23 typed-tree/import-boundary/namespace fixtures and
+    22 import-limit/string/XML-view/node-accessor regressions. The real browser
+    worker also passes both 21-field contracts, saved heading/method edits and
+    original node provenance. Source bytes and native CEM arenas stay unchanged;
+    pending namespaces and metadata from another owner are rejected.
+  - Delivery evidence: the deployed offline lifecycle passes both complete
+    contracts, the saved CEM heading edit, unsaved/saved/restored HTML method
+    edits, exact reload, schema failure/repair and fresh independent copies.
+    `projectSemanticComparison` is required release evidence. Accessibility
+    relationships and 320/390/1280-pixel reflow pass. Two clean builds produce
+    264 identical files and 171 declared module assets (aggregate SHA-256
+    `6e672889f066b367e599c3b24e0c029a420350650e52f54cb6be50a8abafaa25`).
+    The full 51-task Studio check passes with 117 browser tests, lint/typecheck,
+    strict dependency verification, synchronized release evidence and a clean
+    consumer install with one physical runtime copy. Shell theme inheritance,
+    forced colors and offline reload pass. Generated screenshots and Vitest
+    attachments remain excluded from Git.
+  - CEM audit: the comparison is ordinary Login resources and configurations.
+    Existing shared workspace, editor, result and diagnostic components own the
+    UI. Native HTML policy stays in the registered parser/common import boundary;
+    XPath consumes retained typed nodes and ready same-owner name metadata. No
+    Studio UI JavaScript capability, app CSS, token default or serialized AST
+    bridge is introduced. Stable resource/configuration IDs remain intact and
+    existing project copies retain their saved contents.
+- [ ] Add native fixtures for equivalent XPath/CEM-QL queries, then add their
+  Login project resources/configurations and browser/offline evidence.
+- [ ] Add native fixtures for template output, then add its Login project
+  resources/configurations and browser/offline evidence.
 - [ ] Implement the live light-DOM `cem-element` login view and add browser
   evidence that a saved edit visibly changes it. Keep Studio UI declarative;
   add any missing reusable control/capability to the shared packages first.

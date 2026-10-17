@@ -1,0 +1,23 @@
+[
+  "screen=login",
+  "title-id=login-title",
+  "title=Sign in",
+  "labelled-by=login-title",
+  "form=sign-in",
+  "method=post",
+  "action=#session",
+  "email-id=email",
+  "email-type=email",
+  "email-autocomplete=email",
+  "email-required=true",
+  "email-label=Email",
+  "password-id=password",
+  "password-type=password",
+  "password-autocomplete=current-password",
+  "password-required=true",
+  "password-label=Password",
+  "submit-type=submit",
+  "submit-action=primary",
+  "submit-text=Sign in",
+  "inputs=2"
+]

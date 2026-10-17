@@ -297,19 +297,21 @@ impl QueryRuntimeAdapter for XPathQueryRuntimeAdapter {
         &self,
         request: QueryPreparationRequest<'_>,
     ) -> Result<QueryPreparedOwners, Vec<Diagnostic>> {
-        let QuerySourceOwner::Lifecycle(owner) = request.source_owner else {
-            return Err(vec![fatal_diagnostic(request.input_uri,
-                "cem.xpath.query_input_unsupported", "XPath input requires its lifecycle owner")]);
+        let input = match request.source_owner {
+            QuerySourceOwner::Lifecycle(owner) => XPathXdmTreeOwner::from_lifecycle(owner, request.input_identity)
+                .map_err(|message| vec![fatal_diagnostic(request.input_uri, "cem.xpath.query_input_unsupported", message)])?,
+            QuerySourceOwner::Cem { source, lexical_scopes } => {
+                let captured = lexical_scopes.ok_or_else(|| vec![fatal_diagnostic(request.input_uri, "cem.xpath.namespace_unready", "XPath requires original namespace capture")])?;
+                // Literal declarations are already captured. This readiness check
+                // executes no value slots, grants no crossings and changes no AST.
+                let names = crate::schema::namespace_references::NamespaceNameCompletion::new(captured, &[0], BTreeMap::new())
+                    .map_err(|error| vec![fatal_diagnostic(request.input_uri, "cem.xpath.namespace_unready", format!("XPath namespace names are not ready: {error:?}"))])?;
+                XPathXdmTreeOwner::from_retained(source, request.input_identity).with_namespace_completion(Arc::new(names))
+                    .map_err(|message| vec![fatal_diagnostic(request.input_uri, "cem.xpath.namespace_unready", message)])?
+            }
+            QuerySourceOwner::NamespaceCompleted { source, completion } => XPathXdmTreeOwner::from_retained(source, request.input_identity)
+                .with_namespace_completion(completion).map_err(|message| vec![fatal_diagnostic(request.input_uri, "cem.xpath.namespace_unready", message)])?,
         };
-        let input =
-            XPathXdmTreeOwner::from_lifecycle(owner, request.input_identity)
-                .map_err(|message| {
-                    vec![fatal_diagnostic(
-                        request.input_uri,
-                        "cem.xpath.query_input_unsupported",
-                        message,
-                    )]
-                })?;
         let (query, diagnostics) = XPathQueryAstOwner::from_source_bytes(
             XPathSourceRequest {
                 bytes: &request.query.bytes,
@@ -444,7 +446,7 @@ fn run_query_impl(
         }
         let source_owner = if let Some(owner) = loaded.ast_stream.take() {
             QuerySourceOwner::Lifecycle(Arc::new(owner))
-        } else if language == QueryLanguage::CemQl
+        } else if matches!(language, QueryLanguage::CemQl | QueryLanguage::XPath)
             && loaded.from_format == crate::engine::InputFormat::Cem
             && matches!(loaded.adapter_id, None | Some("cem-ml"))
         {
