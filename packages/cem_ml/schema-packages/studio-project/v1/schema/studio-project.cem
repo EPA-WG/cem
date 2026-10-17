@@ -25,7 +25,7 @@
     {elements |
         {element @name="project" @required-attributes="schema-version id name root-uri revision created-at updated-at" @optional-attributes="description" @children="entry* resource*"}
         {element @name="entry" @required-attributes="id kind name" @optional-attributes="parent-id description run-config-resource-id resource-ids tags"}
-        {element @name="resource" @required-attributes="id role source-kind path content-type revision sha256" @optional-attributes="url schema"}
+        {element @name="resource" @required-attributes="id role source-kind path content-type revision sha256" @optional-attributes="url schema reference-path"}
     }
 
     {attributes |
@@ -44,6 +44,7 @@
         {attribute @name="tags" @type="cemml:name-list"}
         {attribute @name="role" @type="schema:identifier" @values="data schema query template transform-config graph run-config expected"}
         {attribute @name="source-kind" @type="schema:identifier" @values="project-file url"}
+        {attribute @name="reference-path" @type="cemml:path" @pathForbiddenPrefixes="/ ../" @pathForbiddenDirectoryNames=".cem-studio"}
         {attribute @name="path" @type="cemml:path" @pathForbiddenPrefixes="/ ../" @pathForbiddenDirectoryNames=".cem-studio"}
         {attribute @name="url" @type="schema:uri" @uriSchemes="http https"}
         {attribute @name="content-type" @type="schema:media-type"}

@@ -25,7 +25,6 @@ use crate::eval::{effective_boolean, AtomValue, EvalError, Item, ItemStream, Que
 use crate::ir::CompiledQuery;
 
 mod construction;
-mod body_resolution;
 mod interpolation;
 mod references;
 mod hooks;
@@ -443,9 +442,6 @@ pub struct CompiledTemplateExpression {
     pub query: Option<CompiledQuery>,
     pub source_map: SourceMapStack,
     pub byte_offset: u64,
-    /// Native compilation authority; never serialized or inferred from source text.
-    #[serde(skip)]
-    pub(crate) resolution: Option<cem_ml::module_resolution::CemModuleUrlResolutionCapability>,
 }
 
 #[derive(Debug, Clone)]
@@ -560,28 +556,9 @@ pub fn compile_template_module_closure(
     closure: &TemplateModuleClosure,
     options: &CompileTemplateOptions,
 ) -> TemplateArtifact {
-    compile_template_module_closure_internal(source, closure, options, None)
-}
-
-pub(crate) fn compile_template_module_closure_with_resolutions(
-    source: &str,
-    closure: &TemplateModuleClosure,
-    options: &CompileTemplateOptions,
-    resolutions: &BTreeMap<String, cem_ml::module_resolution::CemModuleUrlResolutionCapability>,
-) -> TemplateArtifact {
-    compile_template_module_closure_internal(source, closure, options, Some(resolutions))
-}
-
-fn compile_template_module_closure_internal(
-    source: &str,
-    closure: &TemplateModuleClosure,
-    options: &CompileTemplateOptions,
-    resolutions: Option<&BTreeMap<String, cem_ml::module_resolution::CemModuleUrlResolutionCapability>>,
-) -> TemplateArtifact {
     let expected_root_hash =
         cem_ml::content_cache::ContentHash::from_blake3(source.as_bytes()).header_value();
     let mut root = compile_template(source, options);
-    body_resolution::bind_body(&mut root, &closure.root_uri, resolutions);
     if closure.root_content_hash != expected_root_hash {
         root.diagnostics.push(render_diagnostic(
             "cem.ql.template.module_hash_mismatch",
@@ -726,7 +703,6 @@ fn compile_template_module_closure_internal(
         );
 
         let mut artifact = compile_template(&module.source, options);
-        body_resolution::bind_body(&mut artifact, &module.uri, resolutions);
         for diagnostic in &mut artifact.diagnostics {
             if diagnostic.uri.is_none() {
                 diagnostic.uri = Some(module.uri.clone());
@@ -1138,7 +1114,7 @@ fn static_stylesheet_text(children: &[TemplateNode]) -> Option<String> {
 }
 
 pub fn render_compiled_template(artifact: &TemplateArtifact, data: &TemplateData) -> RenderPlan {
-    render_compiled_template_internal(artifact, data, None, None, false, None).plan
+    render_compiled_template_internal(artifact, data, None, None, false).plan
 }
 
 pub fn render_compiled_template_with_control(
@@ -1147,7 +1123,7 @@ pub fn render_compiled_template_with_control(
     control: &OperationControl,
     scope: ExecutionScopeId,
 ) -> RenderPlan {
-    render_compiled_template_internal(artifact, data, Some((control, scope)), None, false, None).plan
+    render_compiled_template_internal(artifact, data, Some((control, scope)), None, false).plan
 }
 
 /// A native adapter can resolve module calls inside the active rendering scope,
@@ -1182,26 +1158,7 @@ pub fn render_compiled_template_with_calls(
     calls: &dyn TemplateCallHandler,
     protected: bool,
 ) -> TemplateCallResult {
-    render_compiled_template_internal(artifact, data, control, Some(calls), protected, None)
-}
-
-/// Execute with an explicit native resolution capability. Existing render entry
-/// points keep their capability-free behavior; this capability is not a data binding.
-pub fn render_compiled_template_with_resolution(
-    artifact: &TemplateArtifact,
-    data: &TemplateData,
-    capability: &cem_ml::module_resolution::CemModuleUrlResolutionCapability,
-    control: &OperationControl,
-    scope: ExecutionScopeId,
-) -> RenderPlan {
-    render_compiled_template_internal(
-        artifact,
-        data,
-        Some((control, scope)),
-        None,
-        false,
-        Some(capability),
-    ).plan
+    render_compiled_template_internal(artifact, data, control, Some(calls), protected)
 }
 
 fn render_compiled_template_internal(
@@ -1210,7 +1167,6 @@ fn render_compiled_template_internal(
     control: Option<(&OperationControl, ExecutionScopeId)>,
     calls: Option<&dyn TemplateCallHandler>,
     protected: bool,
-    module_resolution: Option<&cem_ml::module_resolution::CemModuleUrlResolutionCapability>,
 ) -> TemplateCallResult {
     let owned_control = OperationControl::with_root_policy(Default::default(), ScopePolicy::host_root().with_queue_size(128)).expect("valid renderer default policy");
     let control = Some(control.unwrap_or((&owned_control, cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID)));
@@ -1244,7 +1200,7 @@ fn render_compiled_template_internal(
             diagnostics: Vec::new(),
             policy_bindings,
             current_item: data.expression_scope.focus.clone(),
-            module_resolution: module_resolution.cloned(),
+            module_resolution: None,
             native_functions: data.native_functions.clone(),
             data_readers: data.data_readers.clone(),
         },
@@ -2900,7 +2856,6 @@ impl TemplateCompiler<'_> {
                         frame_for(host),
                     ));
                     TemplateAttributePart::Expression(CompiledTemplateExpression {
-                        resolution: None,
                         source,
                         query: None,
                         source_map: frame_for(host),
@@ -2947,7 +2902,6 @@ impl TemplateCompiler<'_> {
             }
         };
         CompiledTemplateExpression {
-            resolution: None,
             source,
             query,
             source_map: frame_for(host),
@@ -3019,10 +2973,10 @@ impl PlanRenderer<'_> {
             let Some(select) = declaration_select(attributes) else {
                 continue;
             };
-            let Some(_) = &select.query else {
+            let Some(query) = &select.query else {
                 continue;
             };
-            let stream = self.evaluate_expression_query(select);
+            let stream = self.evaluate_query(query);
             self.diagnostics.extend(stream.diagnostics.clone());
             if let Some(error) = stream.error {
                 self.diagnostics.push(render_diagnostic(
@@ -3617,10 +3571,10 @@ impl PlanRenderer<'_> {
         let Some(select) = select else {
             return Vec::new();
         };
-        let Some(_) = &select.query else {
+        let Some(query) = &select.query else {
             return Vec::new();
         };
-        let stream = self.evaluate_expression_query(select);
+        let stream = self.evaluate_query(query);
         self.diagnostics.extend(stream.diagnostics.clone());
         if let Some(error) = stream.error {
             self.diagnostics.push(render_diagnostic(
@@ -3646,10 +3600,10 @@ impl PlanRenderer<'_> {
         let Some(test) = test else {
             return false;
         };
-        let Some(_) = &test.query else {
+        let Some(query) = &test.query else {
             return false;
         };
-        let stream = self.evaluate_expression_query(test);
+        let stream = self.evaluate_query(query);
         self.diagnostics.extend(stream.diagnostics.clone());
         if let Some(error) = stream.error {
             self.template_failure(render_diagnostic(
@@ -3867,10 +3821,10 @@ impl PlanRenderer<'_> {
     }
 
     fn evaluate_to_stream(&mut self, expression: &CompiledTemplateExpression) -> ItemStream {
-        let Some(_) = &expression.query else {
+        let Some(query) = &expression.query else {
             return ItemStream::empty();
         };
-        let stream = self.evaluate_expression_query(expression);
+        let stream = self.evaluate_query(query);
         self.diagnostics.extend(stream.diagnostics.clone());
         if let Some(error) = stream.error {
             self.template_failure(render_diagnostic(

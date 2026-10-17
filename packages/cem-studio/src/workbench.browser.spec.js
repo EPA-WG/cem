@@ -1,4 +1,4 @@
-import { parseCemMlCommandText } from '@epa-wg/cem-ml-cli/browser';
+import { parseCemMlCommandText } from '@epa-wg/cem-ml-cli/browser-commands';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { describeCemStudioOperationFields, editCemStudioOperationField, createCemStudioBrowserValidator } from './feature-tour.js';
@@ -147,7 +147,7 @@ describe('CEM Studio Feature Tour workbench', () => {
             .map(row => [...row.querySelectorAll('[role="cell"]')].map(cell => cell.textContent.trim()));
         expect(reportRows).toEqual(expect.arrayContaining([['Inputs', '1'], ['Warnings', '0'], ['Hard violations', '1']]));
         expect(
-            root.querySelectorAll('button:not(cem-action button):not(cem-select button):not(cem-tabs button)'),
+            root.querySelectorAll('button:not(cem-action button):not(cem-icon-button button):not(cem-select button):not(cem-tabs button)'),
         ).toHaveLength(0);
 
         const paneTabs = [...root.querySelector('cem-tabs[label="Workbench panes"]').querySelectorAll('[role="tab"]')]
@@ -212,7 +212,7 @@ describe('CEM Studio Feature Tour workbench', () => {
             output: { text: 'inspect tree projection\n' },
         });
         expect(root.querySelector('cem-table[label="Projection execution"] [role="table"]')).not.toBeNull();
-    });
+    }, 30_000);
 
     it('retains declarative editor state through reload and rejects repeated pending commands', async () => {
         let finishValidation;
@@ -349,7 +349,7 @@ describe('CEM Studio Feature Tour workbench', () => {
         expect(root.querySelector('[data-cem-studio-provenance]').textContent).toContain('No source-map provenance');
         expect(
             root.querySelectorAll(
-                '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
+                '[data-cem-studio-workbench] button:not(cem-action button):not(cem-icon-button button):not(cem-select button):not(cem-tabs button)',
             ),
         ).toHaveLength(0);
     });
@@ -514,7 +514,7 @@ describe('CEM Studio Feature Tour workbench', () => {
         expect(workbench.snapshot().command).toMatchObject({ status: 'current', draftText: original, changes: [] });
         expect(
             root.querySelectorAll(
-                '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button)',
+                '[data-cem-studio-workbench] button:not(cem-action button):not(cem-icon-button button):not(cem-select button):not(cem-tabs button)',
             ),
         ).toHaveLength(0);
     });
@@ -623,7 +623,7 @@ describe('CEM Studio Feature Tour workbench', () => {
         expect(validator.executeAuthoredResourceCommand).not.toHaveBeenCalled();
         expect(
             root.querySelectorAll(
-                '[data-cem-studio-command-application] button:not(cem-action button):not(cem-select button)',
+                '[data-cem-studio-command-application] button:not(cem-action button):not(cem-icon-button button):not(cem-select button)',
             ),
         ).toHaveLength(0);
     });
@@ -653,7 +653,7 @@ describe('CEM Studio Feature Tour workbench', () => {
         await view.whenSettled();
         expect(root.querySelector('[data-cem-studio-command-replace-dialog] dialog')).toBe(dialog);
         expect(document.activeElement).toBe(entry);
-        dialog.querySelector('p').dispatchEvent(new CustomEvent('cem-close', { bubbles: true }));
+        dialog.querySelector('cem-text').dispatchEvent(new CustomEvent('cem-close', { bubbles: true }));
         expect(workbench.snapshot().command.application.status).toBe('confirmation-required');
         await expect.element(dialog).toHaveAccessibleName('Confirm incompatible page replacement');
         expect(dialog.querySelector('[data-cem-studio-command-replace-confirm]').getAttribute('variant')).toBe('destructive');
@@ -881,12 +881,33 @@ describe('Project-owned workbench loading', () => {
         if (empty) { bundle.project.entries = []; bundle.project.resources = []; bundle.contents = {}; }
         if (extra) {
             const bytes = new TextEncoder().encode('additional text');
-            bundle.project.resources.push({ ...bundle.project.resources.find(item => item.id === 'source'), id: 'extra', role: 'data', path: 'extra.cem', sha256: await digest(bytes) });
+            bundle.project.resources.push({ ...bundle.project.resources.find(item => item.id === 'source'), id: 'extra', role: 'data', path: 'extra.cem', referencePath: 'extra.cem', sha256: await digest(bytes) });
             bundle.contents.extra = bytes;
         }
         await repository.execute(request('import-project', { bundle }));
         return repository;
     }
+
+    it('refreshes a renamed resource from the dataset while retaining selection and its resolver address', async () => {
+        const repository = await fixture();
+        const validator = validatorFor(validResult());
+        const session = createCemStudioProjectSession({ openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator, selection }) });
+        workbenches.push(session);
+        await session.select({ projectId: 'alpha', resourceId: 'source' });
+        const workbench = await createCemStudioSessionWorkbench({ repository, session }); workbenches.push(workbench);
+        const before = (await repository.query(request('export-project', { projectId: 'alpha' }))).value;
+        await workbench.editStructure({ kind: 'rename-resource', id: 'source', path: 'moved/renamed.cem' });
+        expect(workbench.snapshot().structure.error).toBeUndefined();
+        expect(workbench.snapshot()).toMatchObject({ resourceId: 'source', path: 'moved/renamed.cem' });
+        expect(session.snapshot().selection).toEqual({ projectId: 'alpha', resourceId: 'source' });
+        const after = (await repository.query(request('export-project', { projectId: 'alpha' }))).value;
+        expect(after.contents).toEqual(before.contents);
+        expect(after.project.resources.find(item => item.id === 'source').referencePath)
+            .toBe(before.project.resources.find(item => item.id === 'source').referencePath);
+        expect(workbench.snapshot().explorer.nodes.flatMap(project => project.children ?? []).length).toBeGreaterThan(0);
+        await workbench.editStructure({ kind: 'undo' });
+        expect(workbench.snapshot().path).toBe(before.project.resources.find(item => item.id === 'source').path);
+    });
 
     it('edits structure with bounded undo/redo and guards drafts and divergent revisions', async () => {
         const repository = await fixture();

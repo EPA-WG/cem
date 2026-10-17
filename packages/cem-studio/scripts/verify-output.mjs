@@ -95,6 +95,8 @@ for (const asset of declaredAssets) {
     }
 }
 
+assert.ok(!declaredAssets.some(asset => /\/(?:browser|browser-recorded-output|browser-html-base|browser-stylesheets|browser-svg-computed)\.js$/.test(asset.target)),
+    'Studio must deploy the command-service surface without live DOM/paint observation hosts');
 const declaredPaths = new Set(declaredAssets.map(asset => resolve(outputRoot, asset.target)));
 // This metadata is an explicit graph export in studio.cem, outside its module map.
 declaredPaths.add(resolve(outputRoot, 'assets/@epa-wg/cem-theme/package.json'));
@@ -113,7 +115,7 @@ const shellView = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/
 assert.match(shellModule, /mountCemView/);
 assert.doesNotMatch(shellModule, /shellMarkup|innerHTML|textContent|querySelector|toggleAttribute|classList/);
 assert.match(shellView, /<template id="cem-studio-shell" type="text\/cem-ml">/);
-assert.match(shellView, /host-command=theme/);
+assert.match(shellView, /theme-command=theme/);
 assert.match(shellView, /host-command=install/);
 assert.match(shellView, /host-command=update/);
 assert.match(shellView, /\{slot\}/);

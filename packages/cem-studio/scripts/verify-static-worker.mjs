@@ -12,7 +12,7 @@ const lifecycleOnly = process.argv.includes('--lifecycle-only');
 const shellOnly = process.argv.includes('--shell-only');
 const reportPath = resolve(workspaceRoot, `dist/reports/cem-studio/${lifecycleOnly ? 'workspace-delivery' : shellOnly ? 'shell-delivery' : 'static-worker'}.json`);
 const server = await startStaticServer(outputRoot);
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, executablePath: process.env.CEM_STUDIO_CHROME });
 const context = await browser.newContext({ serviceWorkers: 'allow' });
 const page = await context.newPage();
 page.setDefaultTimeout(30_000);
@@ -447,7 +447,9 @@ async function exerciseProjectLifecycle(page, context) {
             const revision = await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().projectRevision);
             await page.getByRole('combobox', { name: 'Operation option', exact: true }).click();
             await page.getByRole('option', { name: 'format', exact: true }).click(); await settle();
-            assert.equal(await page.locator('form[host-command="edit-field"]').count(), 1);
+            const fieldForm = page.locator('form[host-command="edit-field"]');
+            await fieldForm.waitFor({ state: 'attached' });
+            assert.equal(await fieldForm.count(), 1);
             await page.getByRole('combobox', { name: 'format', exact: true }).click();
             await page.getByRole('option', { name: 'events', exact: true }).click();
             await click('Set format');
@@ -581,7 +583,7 @@ async function exerciseProjectLifecycle(page, context) {
     assert.equal((await snapshot()).persistedText, texts[0]);
     const activeResource = (await snapshot()).resourceId;
     const oldPath = (await structure()).resources.find(item => item.id === activeResource).path;
-    await pick('Resource edit', 'Rename path and rebind commands');
+    await pick('Resource edit', 'Rename resource');
     await pick('Resource to edit', oldPath);
     await page.getByRole('textbox', { name: 'New resource path', exact: true }).fill('data/renamed-active.cem');
     await click('Apply resource edit');
@@ -604,10 +606,10 @@ async function exerciseProjectLifecycle(page, context) {
     assert.equal((await structure()).resources.find(item => item.id === activeResource).path, 'data/renamed-active.cem');
     assert.equal((await structure()).entries[0].name, 'Acceptance section');
     assert.equal((await structure()).canUndo, false);
-    const nativeRebinding = await page.evaluate(async template => {
+    const stableResourceReferences = await page.evaluate(async template => {
         const { repository, validator } = globalThis.__cemStudioApplication;
-        const { parseCemMlCommandText, parseCemMlCommandResource, serializeCemMlCommandResource, CEM_ML_CLI_COMMAND_CONTENT_TYPE, CEM_ML_CLI_COMMAND_SCHEMA } = await import('@epa-wg/cem-ml-cli/browser');
-        const root = 'studio://acceptance-rebinding/';
+        const { parseCemMlCommandText, parseCemMlCommandResource, serializeCemMlCommandResource, CEM_ML_CLI_COMMAND_CONTENT_TYPE, CEM_ML_CLI_COMMAND_SCHEMA } = await import('@epa-wg/cem-ml-cli/browser-commands');
+        const root = 'studio://acceptance-references/';
         const encoder = new TextEncoder(), decoder = new TextDecoder();
         const graph = '// café native graph\n{run | {import @src="../assets/old.svg" @opaque=true @content-type=image/svg+xml | {export @out="../output/result.svg"}}}\n';
         const contents = { asset: encoder.encode('<svg xmlns="http://www.w3.org/2000/svg"><title>Exact café</title></svg>'), graph: encoder.encode(graph),
@@ -619,7 +621,7 @@ async function exerciseProjectLifecycle(page, context) {
             ['command', 'run-config', 'command.json', CEM_ML_CLI_COMMAND_CONTENT_TYPE, CEM_ML_CLI_COMMAND_SCHEMA] ];
         const resources = await Promise.all(specs.map(async ([id, role, path, contentType, schema]) => ({ id, role, path, contentType, schema, sourceKind: 'project-file', revision: 1,
             sha256: [...new Uint8Array(await crypto.subtle.digest('SHA-256', contents[id]))].map(x => x.toString(16).padStart(2, '0')).join('') })));
-        const project = { ...template, id: 'acceptance-rebinding', name: 'Native rebinding acceptance', rootUri: root, revision: 1, resources,
+        const project = { ...template, id: 'acceptance-references', name: 'Stable reference acceptance', rootUri: root, revision: 1, resources,
             entries: [{ id: 'graph-page', kind: 'transformation-graph', name: 'Opaque copy', runConfigResourceId: 'command', resourceIds: ['asset', 'graph', 'command'] }] };
         const request = (operation, parameters) => ({ protocolVersion: 1, repository: 'studio-projects', requestRevision: 1, operation, parameters });
         const edit = (revision, edit) => repository.execute(request('edit-project', { projectId: project.id, expectedRevision: revision, edit }));
@@ -628,39 +630,38 @@ async function exerciseProjectLifecycle(page, context) {
         await repository.execute(request('import-project', { bundle: { project, contents } }));
         const changed = await edit(1, { kind: 'rename-resource', id: 'asset', path: 'assets/new.svg' });
         const rebound = await read();
-        ensure(decoder.decode(rebound.contents.graph) === graph.replace('../assets/old.svg', root + 'assets/new.svg'), 'graph bytes were not preserved around the native slot');
-        ensure(JSON.parse(decoder.decode(rebound.contents.config)).inputs[0].uri === root + 'assets/new.svg', 'run-config input was not rebound');
-        ensure(rebound.project.resources.find(x => x.id === 'graph').revision === 2, 'graph revision did not advance');
+        ensure(decoder.decode(rebound.contents.graph) === graph, 'graph bytes were not preserved around the native slot');
+        ensure(JSON.parse(decoder.decode(rebound.contents.config)).inputs[0].uri === root + 'assets/old.svg', 'run-config reference changed');
+        ensure(rebound.project.resources.find(x => x.id === 'graph').revision === 1, 'consumer revision changed during rename');
         let stale = false, referenced = false;
         try { await edit(1, { kind: 'rename-resource', id: 'asset', path: 'stale.svg' }); } catch (error) { stale = error.code === 'cem.studio.repository.revision_conflict'; }
         try { await edit(2, { kind: 'delete-resource', id: 'asset' }); } catch (error) { referenced = error.message.includes('referenced'); }
         ensure(stale && referenced, 'native edit guards failed');
-        const outcome = await validator.executeAuthoredResourceCommand({ bytes: new Uint8Array(rebound.contents.graph), contentType: 'text/cem-ml', schema: 'https://cem.dev/ns/cli/transform-config/1', uri: root + 'graphs/run.cem', projectId: project.id, projectRevision: rebound.project.revision, resourceRevision: 2,
-            commandResource: new Uint8Array(rebound.contents.command), dependencies: [{ bytes: new Uint8Array(rebound.contents.asset), contentType: 'image/svg+xml', schema: 'http://www.w3.org/2000/svg', path: root + 'assets/new.svg' }] });
-        ensure(outcome.result?.exitCode === 0, 'graph execution after native rebinding failed');
+        const outcome = await validator.executeAuthoredResourceCommand({ bytes: new Uint8Array(rebound.contents.graph), contentType: 'text/cem-ml', schema: 'https://cem.dev/ns/cli/transform-config/1', uri: root + 'graphs/run.cem', projectId: project.id, projectRevision: rebound.project.revision, resourceRevision: rebound.project.resources.find(x => x.id === 'graph').revision,
+            commandResource: new Uint8Array(rebound.contents.command), dependencies: [{ bytes: new Uint8Array(rebound.contents.asset), contentType: 'image/svg+xml', schema: 'http://www.w3.org/2000/svg', path: root + 'assets/old.svg' }] });
+        ensure(outcome.result?.exitCode === 0, 'graph execution after stable references failed');
         ensure(outcome.output.text === decoder.decode(contents.asset), 'graph output lost exact asset bytes');
         await edit(2, { kind: 'restore', bundle: changed.value.before });
         const restored = await read();
         for (const id of ['asset', 'graph', 'config', 'command']) ensure(decoder.decode(restored.contents[id]) === decoder.decode(contents[id]), `undo changed ${id} bytes`);
-        ensure(restored.project.resources.find(x => x.id === 'graph').revision === 3, 'undo rewound revisions');
+        ensure(restored.project.resources.find(x => x.id === 'graph').revision === 2, 'undo rewound revisions');
         let collision = false;
-        try { await edit(3, { kind: 'rename-resource', id: 'graph', path: 'output/result.svg' }); } catch { collision = true; }
+        try { await edit(3, { kind: 'rename-resource', id: 'graph', path: 'assets/old.svg' }); } catch { collision = true; }
         ensure(collision && (await read()).project.revision === 3, 'configuration/output collision was committed');
         const relocated = await edit(3, { kind: 'rename-resource', id: 'graph', path: 'moved/deep/run.cem' });
         const moved = await read();
-        const movedUri = root + 'moved/deep/run.cem';
-        ensure(decoder.decode(moved.contents.graph) === graph.replace('../assets/old.svg', root + 'assets/old.svg')
-            .replace('../output/result.svg', root + 'output/result.svg'), 'graph relocation changed resolved bindings or unaffected bytes');
-        ensure(moved.project.resources.find(x => x.id === 'graph').revision === 4, 'graph relocation incremented revision more than once');
+        const movedUri = root + moved.project.resources.find(x => x.id === 'graph').referencePath;
+        ensure(decoder.decode(moved.contents.graph) === graph, 'graph relocation changed resolved bindings or unaffected bytes');
+        ensure(moved.project.resources.find(x => x.id === 'graph').revision === 3, 'graph relocation incremented revision more than once');
         ensure(JSON.stringify(moved.project.entries) === JSON.stringify(project.entries), 'graph relocation changed stable page links');
-        ensure(parseCemMlCommandResource(new Uint8Array(moved.contents.command)).command.options.config === movedUri, 'incoming transform command was not relocated');
+        ensure(parseCemMlCommandResource(new Uint8Array(moved.contents.command)).command.options.config === movedUri, 'incoming transform reference changed');
         let staleMove = false, deletion = false;
         try { await edit(3, { kind: 'rename-resource', id: 'graph', path: 'stale.cem' }); } catch (error) { staleMove = error.code === 'cem.studio.repository.revision_conflict'; }
         try { await edit(4, { kind: 'delete-resource', id: 'graph' }); } catch { deletion = true; }
         ensure(staleMove && deletion, 'relocation stale/deletion guards failed');
         const movedOutcome = await validator.executeAuthoredResourceCommand({ bytes: new Uint8Array(moved.contents.graph),
             contentType: 'text/cem-ml', schema: 'https://cem.dev/ns/cli/transform-config/1', uri: movedUri, projectId: project.id,
-            projectRevision: moved.project.revision, resourceRevision: 4, commandResource: new Uint8Array(moved.contents.command),
+            projectRevision: moved.project.revision, resourceRevision: moved.project.resources.find(x => x.id === 'graph').revision, commandResource: new Uint8Array(moved.contents.command),
             dependencies: [{ bytes: new Uint8Array(moved.contents.asset), contentType: 'image/svg+xml', schema: 'http://www.w3.org/2000/svg', path: root + 'assets/old.svg' }] });
         ensure(movedOutcome.result?.exitCode === 0 && movedOutcome.output.text === decoder.decode(contents.asset), 'relocated graph execution lost exact bytes');
         const configMove = await edit(4, { kind: 'rename-resource', id: 'config', path: 'moved/run.json' });
@@ -673,9 +674,9 @@ async function exerciseProjectLifecycle(page, context) {
 
         return true;
     }, alpha.project);
-    assert.equal(nativeRebinding, true);
+    assert.equal(stableResourceReferences, true);
     await editor.dispose();
-    return { nativeRebinding, configurationRelocation: nativeRebinding, resourcePathEditing: true, typedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
+    return { stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
         guardedDraftAndFocusRetained: true, exportedExactBytes: true, trashRestore: true, offlineReopen: true, accessibility };
 }
 
@@ -1487,7 +1488,7 @@ async function inspectShell(page) {
             state: document.querySelector('[data-cem-studio-shell]')?.getAttribute('data-cem-studio-state'),
             theme: document.querySelector('[data-cem-studio-shell]')?.getAttribute('data-theme'),
             controlsOnly:
-                document.querySelectorAll('button:not(cem-action button):not(cem-select button):not(cem-tabs button):not(cem-tree button)')
+                document.querySelectorAll('button:not(cem-action button):not(cem-icon-button button):not(cem-select button):not(cem-tabs button):not(cem-tree button)')
                     .length === 0,
             componentsInstalled: Boolean(
                 document.querySelector('cem-app-bar header') &&
@@ -1633,7 +1634,7 @@ async function exportOfflineProject(page) {
 
 async function executeVersionCommand(page, requestId) {
     return page.evaluate(async (id) => {
-        const api = await import('@epa-wg/cem-ml-cli/browser');
+        const api = await import('@epa-wg/cem-ml-cli/browser-commands');
         const meta = api.parseCemMlCommand(['version'], { runtime: 'wasm-browser-worker' });
         const command = {
             schemaVersion: meta.schemaVersion,

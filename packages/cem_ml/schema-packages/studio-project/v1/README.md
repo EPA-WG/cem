@@ -316,3 +316,12 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
     }
 }
 ```
+
+### Stable project resource references
+
+Resource IDs own identity. `path` is mutable display/export metadata; optional
+`reference-path` (JSON `referencePath`) retains the immutable resolver address.
+Native import binds an omitted legacy address to its original path once. New
+Studio resources use `.resources/<id>`. Both projections preserve this binding;
+rename never changes command/configuration/source bytes or reference addresses.
+Duplicate display paths or resolver addresses are rejected.

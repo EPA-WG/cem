@@ -1,3 +1,4 @@
+import { projectResourceUri } from './resource-reference.js';
 import { describeCemStudioOperationFields, editCemStudioOperationField } from './feature-tour.js';
 import { CEM_STUDIO_REPOSITORY_ID } from './repository.js';
 import { CEM_STUDIO_LIMITS, createCemStudioPreview, redactCemStudioSecrets } from './preview.js';
@@ -35,7 +36,7 @@ export async function createCemStudioProjectWorkbench({ repository, validator, s
         const inputs = parsed.positionals?.input ?? parsed.positionals?.inputs ?? parsed.options?.config;
         const input = Array.isArray(inputs) ? inputs[0] : inputs;
         if (typeof input === 'string') {
-            inputResourceId = project.resources.find(item => resourceUri(item.path, project.id) === resourceUri(input, project.id))?.id;
+            inputResourceId = project.resources.find(item => projectResourceUri(project, item) === resourceUri(input, project.id))?.id;
             if (!inputResourceId || !entry.resourceIds?.includes(inputResourceId)) throw new Error(`Command input ${input} is not owned by this page`);
         }
     }
@@ -70,9 +71,9 @@ export async function createCemStudioProjectWorkbench({ repository, validator, s
             } });
     }
     const example = { ...sample, id: entry?.id ?? resource.id, name: entry?.name ?? resource.path,
-        resourceId: resource.id, path: resource.path, contentType: resource.contentType, schema: resource.schema,
+        resourceId: resource.id, referenceUri: projectResourceUri(project, resource), path: resource.path, contentType: resource.contentType, schema: resource.schema,
         entryId: entry?.id, runConfigResourceId: entry?.runConfigResourceId, kind: entry?.kind,
-        dependencies: (entry?.resourceIds ?? []).filter(id => id !== resource.id && id !== entry.runConfigResourceId).map(resourceId => ({ resourceId, path: resourceUri(project.resources.find(item => item.id === resourceId)?.path ?? '', project.id) })), projectOwned: true };
+        dependencies: (entry?.resourceIds ?? []).filter(id => id !== resource.id && id !== entry.runConfigResourceId).map(resourceId => ({ resourceId, path: projectResourceUri(project, project.resources.find(item => item.id === resourceId)) })), projectOwned: true };
     const workbench = await createCemStudioFeatureTourWorkbench({ repository, validator, projectId: project.id,
         example, seed: undefined });
     if (signal?.aborted) { workbench.dispose(); signal.throwIfAborted(); }
@@ -421,11 +422,12 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         if (currentEntries.length > 1) {
             throw new Error(`Feature Tour resource ${example.resourceId} resolves to more than one current page`);
         }
+        example = { ...example, path: resource.path, referenceUri: projectResourceUri(bundle.project, resource) };
         const bytes = toBytes(bundle.contents[example.resourceId]);
         if (example.projectOwned && example.entryId && currentEntries.length !== 1) throw new Error(`Page ${example.entryId} is missing`);
         const dependencyDescriptors = example.projectOwned
             ? (currentEntries[0]?.resourceIds ?? []).filter(id => id !== example.resourceId && id !== currentEntries[0]?.runConfigResourceId)
-                .map(resourceId => ({ resourceId, path: resourceUri(bundle.project.resources.find(item => item.id === resourceId)?.path ?? '', projectId) }))
+                .map(resourceId => ({ resourceId, path: projectResourceUri(bundle.project, bundle.project.resources.find(item => item.id === resourceId)) }))
             : example.dependencies;
         const dependencies = dependencyDescriptors.map((dependency) => {
             const dependencyResource = bundle.project.resources.find(({ id }) => id === dependency.resourceId);
@@ -475,6 +477,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         return publish({
             ...state,
             status: 'loaded',
+            path: example.path,
             runnable: !example.projectOwned || Boolean(persisted.commandBytes) || Boolean(example.commandArguments),
             projectRevision: persisted.projectRevision,
             resourceRevision: persisted.resourceRevision,
@@ -655,7 +658,8 @@ export async function createCemStudioFeatureTourWorkbench(options) {
                 bytes: persisted.bytes,
                 contentType: example.contentType,
                 schema: example.schema,
-                uri: example.path,
+                uri: example.referenceUri ?? example.path,
+                resourceScheme: 'studio',
                 dependencies: persisted.dependencies,
                 projectId,
                 projectRevision: persisted.projectRevision,
@@ -814,7 +818,8 @@ export async function createCemStudioFeatureTourWorkbench(options) {
                 bytes: persisted.bytes,
                 contentType: example.contentType,
                 schema: example.schema,
-                uri: example.path,
+                uri: example.referenceUri ?? example.path,
+                resourceScheme: 'studio',
                 dependencies: persisted.dependencies,
                 projectId,
                 projectRevision: persisted.projectRevision,
@@ -1392,7 +1397,8 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             bytes: persisted.bytes,
             contentType: example.contentType,
             schema: example.schema,
-            uri: example.path,
+            uri: example.referenceUri ?? example.path,
+            resourceScheme: 'studio',
             dependencies: persisted.dependencies,
             projectId,
             projectRevision: persisted.projectRevision,
@@ -1705,7 +1711,7 @@ function workbenchOperation(example) {
 
 function commandArgumentsForExample(example, projectId, scheme) {
     if (!Array.isArray(example.commandArguments)) return undefined;
-    const inputUri = resourceUri(example.path, projectId, scheme);
+    const inputUri = resourceUri(example.referenceUri ?? example.path, projectId, scheme);
     const dependencies = new Map(
         (example.dependencies ?? []).map((dependency) => [
             dependency.resourceId,

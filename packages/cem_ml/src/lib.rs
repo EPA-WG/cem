@@ -19,29 +19,6 @@ pub mod dap;
 #[cfg(feature = "debug-control")]
 pub mod debug_control;
 pub mod diagnostics;
-pub mod document_dependencies;
-pub mod html_base;
-pub mod html_base_evidence;
-pub mod html_base_host;
-pub mod html_css_import_snapshot;
-pub mod html_execution_inventory;
-pub mod html_image_execution;
-pub mod html_stylesheet_links;
-pub mod html_stylesheet_execution;
-pub mod html_stylesheet_selection;
-pub mod stylesheet_execution;
-pub mod svg_computed_execution;
-pub mod svg_resource_acquisition;
-pub mod svg_replay;
-pub mod svg_paint_dependencies;
-pub mod svg_paint_content;
-pub mod svg_paint_style;
-pub mod svg_paint_clone_profile;
-pub mod svg_paint_colors;
-pub mod browser_stylesheet_sources;
-pub mod document_reference_provenance;
-pub mod xml_reference_transaction;
-pub mod document_stylesheet_dependencies;
 pub mod engine;
 pub mod report;
 pub mod report_projection;
@@ -54,7 +31,6 @@ pub mod api;
 pub mod ast;
 pub mod content_cache;
 pub mod css_emission;
-pub mod css_import_snapshot;
 pub mod css_imports;
 pub mod css_resources;
 pub mod events;
@@ -78,9 +54,7 @@ pub mod real;
 pub mod registry;
 pub mod resolver;
 pub mod resource_integrity;
-pub mod source_module_map_rebind;
 pub mod run_config;
-pub mod run_config_rebind;
 pub mod run_context;
 pub mod scheduler;
 pub mod schema;
@@ -91,12 +65,8 @@ pub mod syntax;
 pub mod tokenizer;
 pub mod transform_artifact;
 pub mod transform_config;
-pub mod transform_graph_dependencies;
-pub mod transform_graph_rebind;
 pub mod transform_graph_request;
 pub mod transform_template;
-pub mod template_dependencies;
-pub mod template_snapshot;
 #[cfg(feature = "typescript-projections")]
 pub mod typescript;
 pub mod validation;
@@ -462,5 +432,3 @@ mod tests {
         );
     }
 }
-
-pub mod resource_rebind;

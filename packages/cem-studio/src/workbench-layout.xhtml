@@ -4,17 +4,23 @@
  {slice @name=pane | source}
  {body |
 {section @aria-label="Project workbench" @data-cem-studio-workbench="" |
+ {cem-stack @gap=lg |
  {div @data-cem-studio-workbench-navigation-mount="" | {cem-studio-workbench-navigation}}
  {cem-tabs @label="Workbench panes" @selected-index={if datadom.slices.pane == "results" { 1 } else { 0 }}
     @host-command=select-pane @host-command-event=cem-tab |
   {cem-tab @value=source @label="Source and command" |
+ {cem-stack @gap=md |
    {div @data-cem-studio-workbench-controls-mount="" | {cem-studio-workbench-controls}}
    {div @data-cem-studio-workbench-command-mount="" | {cem-studio-workbench-command}}
   }
+}
   {cem-tab @value=results @label=Results |
+ {cem-stack @gap=md |
    {div @data-cem-studio-workbench-results-mount="" | {cem-studio-workbench-results}}
   }
+}
  }
+}
 }
 }}
   </template>

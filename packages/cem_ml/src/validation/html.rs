@@ -1609,7 +1609,7 @@ fn html_start_tag_requires_resource_policy(
     })
 }
 
-/// Direct URI slots shared by validation and retained-tree dependency inspection.
+/// Direct HTML resource URI slots.
 pub(crate) fn html_direct_resource_slot(local_name: &str, attribute: &str) -> bool {
     matches!(attribute, "src" | "poster" | "action")
         || (attribute == "href" && matches!(local_name, "link" | "base"))

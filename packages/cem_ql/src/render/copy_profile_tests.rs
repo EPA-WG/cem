@@ -368,7 +368,7 @@ pub(super) fn borrowing_preserves_protected_failures_and_recovery() {
             artifact.diagnostics
         );
         let data = TemplateData::default();
-        let render = || render_compiled_template_internal(&artifact, &data, None, None, true, None);
+        let render = || render_compiled_template_internal(&artifact, &data, None, None, true);
         let baseline = with_context_copy(render);
         let (actual, stages) = measure(render);
         verify_plan_including_errors(&actual.plan, &baseline.plan);

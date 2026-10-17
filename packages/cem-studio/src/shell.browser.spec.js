@@ -2,6 +2,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
     CEM_STUDIO_THEME_MODES,
+    createCemStudioThemeController,
     createCemStudioFileSystemController,
     createCemStudioInstallController,
     createCemStudioUpdateCoordinator,
@@ -30,6 +31,13 @@ afterEach(async () => {
 });
 
 describe('CEM Studio installable application shell', () => {
+    it('loads the saved theme before mount and defaults missing or invalid storage to light', () => {
+        for (const saved of [null, 'invalid', 'cem-theme-dark']) {
+            const storage = memoryStorage(saved === null ? {} : { 'cem-studio-theme': saved });
+            const theme = createCemStudioThemeController({ storage });
+            expect(theme.mode).toBe(saved === 'cem-theme-dark' ? saved : 'cem-theme-light');
+        }
+    });
     it('serializes host operations during the asynchronous declarative disabled-state update', async () => {
         let release;
         const pending = new Promise(resolve => { release = resolve; });
@@ -74,18 +82,20 @@ describe('CEM Studio installable application shell', () => {
         const storage = memoryStorage({ 'cem-studio-theme': 'cem-theme-native' });
         const shell = await mountCemStudioApplicationShell({ root, storage });
         mountedShells.push(shell);
-        const theme = root.querySelector('cem-select[data-cem-studio-theme]');
-        const trigger = theme.querySelector('[role="combobox"]');
+        expect(customElements.get('cem-icon-button')).toBeDefined();
+        expect(customElements.get('cem-icon')).toBeDefined();
+        const theme = root.querySelector('cem-theme-switch[data-cem-studio-theme]');
+        const trigger = theme.querySelector('[part=trigger] button');
         await userEvent.click(trigger);
         await shell.whenSettled();
-        const option = [...theme.querySelectorAll('[role="option"]')].find(row => row.textContent.trim() === 'Dark');
+        const option = theme.querySelector('[role="menuitemradio"][value="cem-theme-dark"]');
         expect(option).toBeTruthy();
         await userEvent.click(option);
         await shell.whenSettled();
         expect(shell.theme.mode).toBe('cem-theme-dark');
         expect(shell.view.element.dataset.theme).toBe('cem-theme-dark');
         expect(storage.getItem('cem-studio-theme')).toBe('cem-theme-dark');
-        expect(theme.querySelector('[role="combobox"]')).toBe(trigger);
+        expect(theme.querySelector('[part=trigger] button')).toBe(trigger);
         expect(document.activeElement).toBe(trigger);
 
         const workbench = document.createElement('section');
@@ -128,6 +138,29 @@ describe('CEM Studio installable application shell', () => {
         expect(root.children).toHaveLength(0);
     });
 
+    it('applies inherited section and block rhythm through installed shared layouts', async () => {
+        const root = document.createElement('main');
+        root.style.setProperty('--cem-gap-section', '31px');
+        root.style.setProperty('--cem-layout-stack-gap', '19px');
+        document.body.append(root);
+        const shell = await mountCemStudioApplicationShell({ root, storage: memoryStorage({}) });
+        mountedShells.push(shell);
+        expect(customElements.get('cem-stack')).toBeDefined();
+        expect(customElements.get('cem-grid')).toBeDefined();
+        expect(root.querySelector('cem-card cem-text .cem-text')).not.toBeNull();
+        await expect.poll(() => root.querySelector('cem-stack[gap="lg"] > .cem-stack')).toBeTruthy();
+        const section = root.querySelector('cem-stack[gap="lg"] > .cem-stack');
+        expect(getComputedStyle(section).display).toBe('flex');
+        expect(getComputedStyle(section).rowGap).toBe('31px');
+        const controls = root.querySelector('section[aria-label="Application controls"] cem-grid > .cem-grid');
+        expect(controls).not.toBeNull();
+        expect(getComputedStyle(controls).rowGap).toBe('19px');
+        root.style.setProperty('--cem-gap-section', '37px');
+        root.style.setProperty('--cem-layout-stack-gap', '23px');
+        expect(getComputedStyle(section).rowGap).toBe('37px');
+        expect(getComputedStyle(controls).rowGap).toBe('23px');
+    });
+
     it('renders production CEM controls and persists every repository-defined theme mode', async () => {
         const storage = memoryStorage({ 'cem-studio-theme': 'cem-theme-dark' });
         const root = document.createElement('main');
@@ -144,9 +177,9 @@ describe('CEM Studio installable application shell', () => {
             'cem-theme-native',
         ]);
         expect(root.querySelector('cem-app-bar header')).not.toBeNull();
-        expect(root.querySelector('cem-select .cem-select__control')).not.toBeNull();
+        expect(root.querySelector('cem-theme-switch [part=trigger] button')).not.toBeNull();
         expect(root.querySelector('cem-action button')).not.toBeNull();
-        expect(root.querySelectorAll('button:not(cem-action button):not(cem-select button)')).toHaveLength(0);
+        expect(root.querySelectorAll('button:not(cem-action button):not(cem-icon-button button):not(cem-select button):not(cem-dropdown button)')).toHaveLength(0);
         for (const action of root.querySelectorAll('cem-action')) {
             expect(['primary', 'explicit', 'contextual', 'alternate', 'destructive']).toContain(action.getAttribute('variant'));
         }
@@ -269,7 +302,7 @@ describe('CEM Studio installable application shell', () => {
 
         const reopened = createRepository(databaseName);
         const exported = await reopened.query(command('export-project', { projectId: 'offline-project' }));
-        expect(exported.value.project).toEqual(bundle.project);
+        expect(exported.value.project).toEqual({ ...bundle.project, resources: bundle.project.resources.map(resource => ({ ...resource, referencePath: resource.path })) });
         expect(new TextDecoder().decode(exported.value.contents.source)).toBe('Offline project bytes');
     });
 
@@ -323,7 +356,7 @@ describe('CEM Studio installable application shell', () => {
         });
         mountedShells.push(shell);
 
-        expect(root.querySelectorAll('button:not(cem-action button):not(cem-select button)')).toHaveLength(0);
+        expect(root.querySelectorAll('button:not(cem-action button):not(cem-icon-button button):not(cem-select button):not(cem-dropdown button)')).toHaveLength(0);
         expect(provider.reconnect).not.toHaveBeenCalled();
         expect(root.querySelector('[data-cem-studio-provider-state]').getAttribute('label')).toBe(
             'Local file permission required',

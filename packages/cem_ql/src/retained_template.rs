@@ -59,23 +59,6 @@ impl RetainedStylesheet {
     }
 }
 
-/// Each consumer retains its own incoming closure even when emission is cached.
-#[derive(Clone)]
-pub(crate) struct StylesheetConsumerLease {
-    released: AbortSignal,
-    closure: Arc<CssImportClosure>,
-}
-impl StylesheetConsumerLease {
-    pub(crate) fn abort(&self) {
-        self.released.abort();
-    }
-    pub(crate) fn active(&self) -> bool {
-        !self.released.is_aborted()
-            && self.closure.state() == CssImportState::Ready
-            && self.closure.failure().is_none()
-    }
-}
-
 pub struct RetainedTemplate {
     artifact: TemplateArtifact,
     instance_identity: Option<String>,
@@ -85,7 +68,6 @@ pub struct RetainedTemplate {
     data_readers: DataReaderCache,
     // A consumer can own multiple style occurrences without replacing siblings.
     consumers: BTreeMap<(String, usize), String>,
-    consumer_leases: BTreeMap<(String, usize), StylesheetConsumerLease>,
     stylesheets: BTreeMap<String, Arc<RetainedStylesheet>>,
 }
 impl RetainedTemplate {
@@ -98,7 +80,6 @@ impl RetainedTemplate {
             stylesheet_generations: BTreeMap::new(),
             data_readers: Default::default(),
             consumers: BTreeMap::new(),
-            consumer_leases: BTreeMap::new(),
             stylesheets: BTreeMap::new(),
         }
     }
@@ -186,15 +167,6 @@ impl RetainedTemplate {
             return Err("incoming stylesheet closure is no longer active".into());
         }
         self.stylesheets.insert(key.clone(), retained.clone());
-        if let Some(previous) = self.consumer_leases.insert(
-            (consumer.to_owned(), index),
-            StylesheetConsumerLease {
-                released: AbortSignal::new(),
-                closure,
-            },
-        ) {
-            previous.abort();
-        }
         self.consumers.insert((consumer.to_owned(), index), key);
         self.prune();
         Ok(retained)
@@ -260,39 +232,6 @@ impl RetainedTemplate {
             .cloned()
     }
 
-    /// Captures exact consumer leases; shared cached emission never keeps a
-    /// released consumer's installation proof alive.
-    pub fn stylesheet_installations(
-        &self,
-        consumer: &str,
-        indices: &[usize],
-    ) -> Result<crate::stylesheet_installation::CompiledStylesheetSet, String> {
-        if indices.len() > 64 {
-            return Err("compiled stylesheet occurrence bound exceeded".into());
-        }
-        let mut seen = BTreeSet::new();
-        let mut sheets = Vec::new();
-        let mut leases = Vec::new();
-        for &index in indices {
-            if !seen.insert(index) {
-                return Err("duplicate compiled stylesheet occurrence".into());
-            }
-            sheets.push(
-                self.stylesheet(consumer, index)
-                    .ok_or("compiled stylesheet consumer unavailable")?,
-            );
-            leases.push(
-                self.consumer_leases
-                    .get(&(consumer.to_owned(), index))
-                    .ok_or("compiled stylesheet lease unavailable")?
-                    .clone(),
-            );
-        }
-        let set = crate::stylesheet_installation::CompiledStylesheetSet::new(sheets, leases);
-        set.validate_current()?;
-        Ok(set)
-    }
-
     /// Release every occurrence owned by this consumer. Removing the last
     /// consumer invalidates outstanding output handles without cancelling sources.
     pub fn release_stylesheet_consumer(&mut self, consumer: &str) -> usize {
@@ -301,14 +240,6 @@ impl RetainedTemplate {
         let pending = self.release_stylesheet_loads(consumer);
         let before = self.consumers.len();
         self.consumers.retain(|(owner, _), _| owner != consumer);
-        self.consumer_leases.retain(|(owner, _), lease| {
-            if owner == consumer {
-                lease.abort();
-                false
-            } else {
-                true
-            }
-        });
         self.prune();
         pending + before - self.consumers.len()
     }
@@ -328,9 +259,6 @@ impl RetainedTemplate {
 impl Drop for RetainedTemplate {
     fn drop(&mut self) {
         self.cancel_all_stylesheet_loads();
-        for lease in self.consumer_leases.values() {
-            lease.abort();
-        }
         for entry in self.stylesheets.values() {
             entry.released.abort();
         }

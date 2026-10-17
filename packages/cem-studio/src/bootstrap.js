@@ -36,7 +36,7 @@ export function mountCemStudio(options = {}) {
 
 /** Load the public browser command surface on demand. */
 export async function loadCemMlBrowser() {
-    return import('@epa-wg/cem-ml-cli/browser');
+    return import('@epa-wg/cem-ml-cli/browser-commands');
 }
 
 export {

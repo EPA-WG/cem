@@ -23,6 +23,7 @@ export interface CemStudioResourceCommandOptions {
     readonly contentType: string;
     readonly schema: string;
     readonly uri?: string;
+    readonly resourceScheme?: 'studio' | 'cem-studio';
     readonly dependencies?: readonly {
         readonly bytes: Uint8Array | ArrayBuffer;
         readonly contentType: string;
@@ -109,7 +110,6 @@ export interface CemStudioBrowserValidator {
         project: Readonly<Record<string, unknown>>,
         options?: { signal?: AbortSignal },
     ): Promise<Uint8Array>;
-    planResourceRebind(request: import('@epa-wg/cem-ml-cli/browser').ResourceRebindRequest): Promise<import('@epa-wg/cem-ml-cli/browser').ResourceRebindPlan>;
     validateProject(bundle: unknown, options?: { signal?: AbortSignal }): Promise<unknown>;
     assertCatalog(catalog: unknown): void;
     close(): Promise<void>;

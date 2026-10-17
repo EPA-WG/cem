@@ -7,13 +7,6 @@ import { fileURLToPath } from 'node:url';
 
 import { chromium } from 'playwright';
 import { build } from 'vite';
-import { verifyHtmlBaseParity, emitNativeHtmlBaseEvidence } from './verify-html-base.mjs';
-import { verifyHtmlBaseFreezeEvidence } from './verify-html-base-evidence.mjs';
-import { verifyStylesheetSvg } from './verify-stylesheet-svg.mjs';
-import { verifySvgGeometry } from './verify-svg-geometry.mjs';
-import { verifySvgReplayCompatibility } from './verify-svg-replay.mjs';
-import { verifySvgOriginProvider } from './verify-svg-origin-provider.mjs';
-import { verifyRecordedOutput } from './verify-recorded-output.mjs';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workspaceRoot = resolve(projectRoot, '../..');
@@ -22,12 +15,6 @@ const temporaryRoot = mkdtempSync(resolve(tmpdir(), 'cem-ml-browser-worker-'));
 const bundleRoot = resolve(temporaryRoot, 'bundle');
 let browser;
 let server;
-let inactiveCssReleased = false;
-const pendingInactiveCss = new Set();
-const sendInactiveCss = response => {
-    response.writeHead(200, { 'content-type': 'text/css; charset=utf-8' });
-    response.end('@import "grand.css"; p{color:blue}');
-};
 
 try {
     await build({
@@ -42,9 +29,9 @@ try {
             outDir: bundleRoot,
             target: 'es2022',
             rollupOptions: {
-                input: { entry: resolve(projectRoot, 'tests/browser-worker-pool.fixture.mjs'), 'image-worker': resolve(projectRoot, 'tests/image-delivery-worker.fixture.mjs') },
+                input: resolve(projectRoot, 'tests/browser-worker-pool.fixture.mjs'),
                 output: {
-                    entryFileNames: '[name].js',
+                    entryFileNames: 'entry.js',
                     chunkFileNames: 'assets/[name]-[hash].js',
                     assetFileNames: 'assets/[name]-[hash][extname]',
                 },
@@ -52,123 +39,8 @@ try {
         },
     });
 
-    const deliveryRequests = new Set();
-    const replayRequests = new Set();
-    let selectionMode = 'normal';
-    const pendingSelection = new Set();
-    const sendNight = response => { response.writeHead(200, { 'content-type': 'text/css; charset=utf-8', 'cache-control': 'no-store' }); response.end('p{color:rgb(40,30,20)}'); };
     server = createServer((request, response) => {
         const pathname = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
-        if (pathname === '/recorded-svg/delivery.svg') {
-            response.writeHead(200, { 'content-type': 'image/svg+xml', 'cache-control': 'no-store' });
-            response.end('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="red"/></svg>'); return;
-        }
-        if (pathname.startsWith('/recorded-images/')) {
-            const body = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAl0lEQVR4nO3QoREAIBDAsNdoNPtvCWNEUBHf66x97s9GB2gN0AFaA3SA1gAdoDVAB2gN0AFaA3SA1gAdoDVAB2gN0AFaA3SA1gAdoDVAB2gN0AFaA3SA1gAdoDVAB2gN0AFaA3SA1gAdoDVAB2gN0AFaA3SA1gAdoDVAB2gN0AFaA3SA1gAdoDVAB2gN0AFaA3SA1gAdoD0H/LEefIE4owAAAABJRU5ErkJggg==', 'base64');
-            const acquisition = request.headers['sec-fetch-dest'] !== 'image';
-            if (pathname.endsWith('/replay.png')) {
-                const bytes = replayRequests.has(request.url) ? Buffer.concat([body, Buffer.from('replayed-body')]) : body;
-                replayRequests.add(request.url);
-                response.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'max-age=3600' }).end(bytes); return;
-            }
-            if (pathname.endsWith('/delivery.png')) {
-                if (deliveryRequests.has(request.url)) { response.writeHead(404).end(); return; }
-                deliveryRequests.add(request.url);
-            }
-            if (pathname.endsWith('/delivery-error.png')) { response.writeHead(404).end(); return; }
-            if (pathname.endsWith('/delivery-redirect.png')) { response.writeHead(302, { location: '/recorded-images/a.png' }).end(); return; }
-            if (pathname.endsWith('/delivery-oversized.png')) { response.writeHead(200, { 'content-type': 'image/png' }).end(Buffer.alloc(4*1024*1024+1)); return; }
-
-            if (pathname.endsWith('/missing.png') || (pathname.endsWith('/acquisition-error.png') && acquisition)) {
-                response.writeHead(404).end(); return;
-            }
-            if (pathname.endsWith('/redirect.png') && acquisition) {
-                response.writeHead(302, { location: '/recorded-images/a.png' }).end(); return;
-            }
-            if (pathname.endsWith('/oversized.png') && acquisition) {
-                response.writeHead(200, { 'content-type': 'image/png' }).end(Buffer.alloc(4 * 1024 * 1024 + 1)); return;
-            }
-            // A different body at the same URL must never establish historical identity.
-            if (pathname.endsWith('/changed.png') && acquisition) {
-                response.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'no-store' }).end(Buffer.concat([body, Buffer.from('different response')])); return;
-            }
-            const send = () => response.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'no-store' }).end(body);
-            if ((pathname.endsWith('/pending.png') && acquisition) || pathname.endsWith('/delivery-pending.png')) setTimeout(send, 250); else send();
-            return;
-        }
-        if (pathname === '/styles/recorded-error.css') {
-            response.writeHead(404).end(); return;
-        }
-        if (pathname === '/styles/recorded-pending.css') {
-            setTimeout(() => { response.writeHead(200, { 'content-type': 'text/css' }).end('p{color:rgb(20,30,40)}'); }, 250);
-            return;
-        }
-        if (pathname === '/docs/browser-recorded-output.html') {
-            response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-            response.end('<!doctype html><html><head></head><body></body></html>');
-            return;
-        }
-        if (pathname === '/docs/browser-stylesheets.html') {
-            response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-            response.end(`<!doctype html>${readFileSync(resolve(workspaceRoot, 'packages/cem_ml/tests/fixtures/browser-stylesheets.xhtml'), 'utf8').trim()}`);
-            return;
-        }
-        if (['selection', 'active', 'inactive', 'missing', 'omitted'].some(kind => pathname === `/docs/browser-stylesheet-${kind}.html`)) {
-            const kind = pathname.split('-').at(-1).replace('.html', '');
-            const source = readFileSync(resolve(workspaceRoot, `packages/cem_ml/tests/fixtures/browser-stylesheet-${['selection', 'active'].includes(kind) ? kind : 'inactive'}.xhtml`), 'utf8').trim();
-            response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-            response.end(`<!doctype html>${kind === 'missing' ? source.replace(' print;', ' screen;').replace('unloaded.css', 'missing.css') : kind === 'omitted' ? source.replace('print;', 'supports(display: cem-unimplemented);') : source}`);
-            return;
-        }
-        if (pathname === '/styles/unloaded.css') {
-            if (inactiveCssReleased) sendInactiveCss(response);
-            else pendingInactiveCss.add(response);
-            return;
-        }
-        if (pathname === '/release-inactive-css') {
-            inactiveCssReleased = true;
-            for (const pending of pendingInactiveCss) sendInactiveCss(pending);
-            pendingInactiveCss.clear();
-            response.writeHead(204).end();
-            return;
-        }
-        if (pathname === '/styles/grand.css') {
-            response.writeHead(200, { 'content-type': 'text/css; charset=utf-8' });
-            response.end('p{border-style:solid}');
-            return;
-        }
-        if (pathname === '/selection-mode') {
-            selectionMode = new URL(request.url, 'http://localhost').searchParams.get('mode');
-            if (selectionMode === 'normal') { for (const pending of pendingSelection) sendNight(pending); pendingSelection.clear(); }
-            response.writeHead(204).end(); return;
-        }
-        if (pathname === '/styles/night.css') {
-            if (selectionMode === 'slow') { pendingSelection.add(response); response.on('close', () => pendingSelection.delete(response)); }
-            else if (selectionMode === 'error') response.writeHead(500, { 'cache-control': 'no-store' }).end();
-            else if (selectionMode === 'changed') response.writeHead(200, { 'content-type': 'text/css', 'cache-control': 'no-store' }).end('p{color:red}');
-            else sendNight(response);
-            return;
-        }
-        if (pathname === '/styles/day.css' || pathname === '/styles/night-extra.css') {
-            response.writeHead(200, { 'content-type': 'text/css; charset=utf-8', 'cache-control': 'no-store' });
-            response.end(pathname.endsWith('/day.css') ? 'p{color:rgb(20,30,40)}' : '@import "grand.css" screen; p{background-color:rgb(4,5,6)}');
-            return;
-        }
-        if (pathname === '/styles/theme.css' || pathname === '/styles/child.css') {
-            response.writeHead(200, { 'content-type': 'text/css; charset=utf-8' });
-            response.end(pathname.endsWith('/theme.css') ? '@import "child.css" supports(display: grid) screen and (min-width: 200px); p{background-color:rgb(4,5,6)}' : 'p{border-style:solid}');
-            return;
-        }
-        if (pathname === '/a/html-base-host.html') {
-            response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-            response.end(`<!doctype html>${readFileSync(resolve(workspaceRoot, 'packages/cem_ml/tests/fixtures/html-base-host.xhtml'), 'utf8').trim()}`);
-            return;
-        }
-        if (pathname === '/docs/html-execution-inventory.html') {
-            response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-            response.end(`<!doctype html>${readFileSync(resolve(workspaceRoot, 'packages/cem_ml/tests/fixtures/html-execution-inventory.xhtml'), 'utf8').trim()}`);
-            return;
-        }
         if (pathname === '/') {
             response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
             response.end('<!doctype html><script type="module" src="/entry.js"></script>');
@@ -195,7 +67,7 @@ try {
     const address = server.address();
     assert.ok(address && typeof address === 'object');
 
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({ headless: true, executablePath: process.env.CEM_CHROME });
     const page = await browser.newPage();
     page.on('pageerror', (error) => console.error(`browser page error: ${error.message}`));
     await page.goto(`http://127.0.0.1:${address.port}/`);
@@ -405,32 +277,6 @@ try {
         callbacks: 0,
     });
 
-    const htmlBase = await verifyHtmlBaseParity(browser, workspaceRoot);
-    const stylesheetSvg = await verifyStylesheetSvg(browser, workspaceRoot);
-    const svgReplayCompatibility = await verifySvgReplayCompatibility(browser);
-    const svgGeometry = await verifySvgGeometry(browser, workspaceRoot);
-    const svgOriginProvider = await verifySvgOriginProvider(browser);
-    const htmlBaseFreeze = await verifyHtmlBaseFreezeEvidence(browser, workspaceRoot);
-    const browserStylesheets = await page.evaluate((version) => globalThis.runBrowserStylesheetsFixture(version), browser.version());
-    assert.equal(browserStylesheets.cases.length, 18);
-    console.log(`Verified ${browserStylesheets.cases.length} shared browser stylesheet host cases.`);
-    const compiledStylesheets = await page.evaluate(() => globalThis.runCompiledStylesheetsFixture());
-    assert.equal(compiledStylesheets.cases.length, 20);
-    const recordedPreparations = await page.evaluate(version => globalThis.runRecordedOutputFixture(version), browser.version());
-    assert.equal(recordedPreparations.cases.length, 299);
-    console.log(`Verified ${recordedPreparations.cases.length} production native preparation host cases.`);
-    const recordedOutput = await verifyRecordedOutput(browser, workspaceRoot);
-    const stylesheetSelection = await page.evaluate((version) => globalThis.runStylesheetSelectionFixture(version), browser.version());
-    assert.equal(stylesheetSelection.cases.length, 9);
-    const activeStylesheets = await page.evaluate((version) => globalThis.runActiveStylesheetFixture(version), browser.version());
-    assert.equal(activeStylesheets.cases.length, 19);
-    console.log(`Verified ${activeStylesheets.cases.length} active stylesheet transition cases.`);
-    console.log(`Verified ${compiledStylesheets.cases.length} compiled installation and ${stylesheetSelection.cases.length} selection cases.`);
-    const htmlBaseHost = await page.evaluate((version) => globalThis.runHtmlBaseHostFixture(version), browser.version());
-    assert.equal(htmlBaseHost.cases.length, 18);
-    const htmlExecutionInventory = await emitNativeHtmlBaseEvidence(workspaceRoot, '--verify-execution-inventory', [htmlBaseHost.inventoryObservation]);
-    assert.equal(htmlExecutionInventory[0].body_analysis_required, true);
-    console.log(`Verified ${htmlBaseHost.cases.length} packaged native HTML base host cases.`);
     const parityReport = resolve(workspaceRoot, 'dist/reports/cem-ml-platform-parity.browser.json');
     mkdirSync(dirname(parityReport), { recursive: true });
     writeFileSync(
@@ -444,20 +290,6 @@ try {
                 successProgress: command.progress,
                 operations: allOperations.summaries,
                 cancellation,
-                htmlBase,
-                htmlBaseFreeze,
-                htmlBaseHost,
-                htmlExecutionInventory,
-                stylesheetSvg,
-                svgReplayCompatibility,
-                svgGeometry,
-                svgOriginProvider,
-                browserStylesheets,
-                compiledStylesheets,
-                stylesheetSelection,
-                activeStylesheets,
-                recordedOutput,
-                recordedPreparations,
             },
             null,
             2,

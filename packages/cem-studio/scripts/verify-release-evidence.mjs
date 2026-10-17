@@ -24,7 +24,7 @@ const [metadata, build, deterministic, dependencies, consumer, packageReport, nx
 ]);
 
 assert.equal(workspaceDelivery.source, 'graph-emitted-static-output');
-for (const key of ['onlineCreateAndImport', 'offlineSaveApplyRun', 'guardedDraftAndFocusRetained', 'exportedExactBytes', 'trashRestore', 'offlineReopen', 'draftRecovery', 'structuralEditing', 'typedOperationForms', 'resourcePathEditing', 'nativeRebinding', 'configurationRelocation']) assert.equal(workspaceDelivery.lifecycle[key], true);
+for (const key of ['onlineCreateAndImport', 'offlineSaveApplyRun', 'guardedDraftAndFocusRetained', 'exportedExactBytes', 'trashRestore', 'offlineReopen', 'draftRecovery', 'structuralEditing', 'typedOperationForms', 'resourcePathEditing', 'stableResourceReferences']) assert.equal(workspaceDelivery.lifecycle[key], true);
 assert.equal(workspaceDelivery.lifecycle.accessibility.validRelationships, true);
 
 const releaseGroup = nx.release.groups['cem-ml-platform'];

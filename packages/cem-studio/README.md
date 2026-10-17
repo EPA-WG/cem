@@ -269,7 +269,22 @@ subproject creation, subtree copy/move/reorder and resource creation/copy, with
 revision-checked session undo/redo. The Operation form section now edits native-metadata
 scalar, enum and boolean command options through shared CEM controls, with stale
 submission checks and explicit Apply/Run. Parse/inspect projects also support
-resource-path rename with authored command rebinding and unreferenced deletion,
+resource-path rename with stable native references and unreferenced deletion,
 using revision checks and undo/redo. Broader dependency formats, grouped option editing and simultaneous/resizable panes remain follow-ups.
 Broader browser/device/AT acceptance remains independently open, and presentation
 preparation stays deferred.
+
+Project tree edits preserve resource IDs and immutable `referencePath` addresses.
+New resources receive an ID-based address; native import captures legacy addresses
+once. Rename changes metadata, refreshes the dataset projection and never rewrites
+consumer bytes. Custom Chromium and browser paint-proof research are retired.
+
+Studio installs the shared `cem-stack`, `cem-grid` and `cem-text` declarations.
+Page sections use `--cem-gap-section`, blocks use `--cem-layout-stack-gap`, and
+related form controls use `--cem-gap-related`. Responsive action grids and shared
+text avoid browser-default paragraph margins or application-local spacing CSS.
+These compositions inherit the theme's normal/dense/sparse spacing modes.
+
+Studio uses the shared contextual sun/moon theme menu (tooltip: “Change theme”).
+It restores `cem-studio-theme` from local storage before mounting the shell,
+defaulting to light. Menu choices retain the shared selected-action styling.

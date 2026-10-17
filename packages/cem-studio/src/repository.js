@@ -1,10 +1,10 @@
+import { projectResourceUri } from './resource-reference.js';
 import { CEM_REPOSITORY_PROTOCOL_VERSION } from '@epa-wg/cem-elements';
 import {
     CEM_ML_CLI_COMMAND_CONTENT_TYPE,
     CEM_ML_CLI_COMMAND_SCHEMA,
     parseCemMlCommandResource,
-    serializeCemMlCommandResource,
-} from '@epa-wg/cem-ml-cli/browser';
+} from '@epa-wg/cem-ml-cli/browser-commands';
 
 export const CEM_STUDIO_REPOSITORY_ID = 'studio-projects';
 export const CEM_STUDIO_DATABASE_VERSION = 1;
@@ -21,7 +21,6 @@ const MAX_SEARCH_TERMS = 2_048;
  * @property {StorageManager} [storage]
  * @property {typeof BroadcastChannel} [BroadcastChannel]
  * @property {(bundle: unknown, options: {signal?: AbortSignal, operation: 'import' | 'export'}) => unknown | Promise<unknown>} validateProject
- * @property {import('./feature-tour.js').CemStudioBrowserValidator['planResourceRebind']} [planResourceRebind]
  * @property {() => string} [now]
  */
 
@@ -71,7 +70,6 @@ export class CemStudioIndexedDbRepository {
         this.storage = options.storage ?? globalThis.navigator?.storage;
         this.BroadcastChannel = options.BroadcastChannel ?? globalThis.BroadcastChannel;
         this.validateProject = options.validateProject;
-        this.planResourceRebind = options.planResourceRebind;
         this.now = options.now ?? (() => new Date().toISOString());
         this.lifecycleState = this.indexedDB ? 'idle' : 'unavailable';
         this.repositoryRevision = 0;
@@ -520,7 +518,7 @@ export class CemStudioIndexedDbRepository {
                 const bytes = original ? toBytes(bundle.contents[original.id]) : toBytes(edit.content ?? '');
                 const id = `resource-${this.crypto.randomUUID()}`;
                 const resource = { ...(original ?? { role: 'data', contentType: 'application/cem', schema: 'https://cem.dev/ns/cem-ml/1' }),
-                    id, sourceKind: 'project-file', path: edit.path, revision: 1, sha256: await sha256Hex(this.crypto, bytes) };
+                    id, sourceKind: 'project-file', path: edit.path, referencePath: `.resources/${id}`, revision: 1, sha256: await sha256Hex(this.crypto, bytes) };
                 delete resource.url;
                 project.resources.push(resource); bundle.contents[id] = bytes;
                 break;
@@ -529,41 +527,16 @@ export class CemStudioIndexedDbRepository {
             case 'delete-resource': {
                 const resource = project.resources.find(item => item.id === edit.id);
                 if (!resource || resource.sourceKind !== 'project-file') throw new Error('Choose a local project resource');
-                const oldUri = project.rootUri + resource.path;
-                if (edit.kind === 'rename-resource' && (typeof edit.path !== 'string' || !edit.path || project.resources.some(item => item.path === edit.path))) throw new Error('Choose a new project-relative resource path');
-                const { commands, plans } = await resourcePathCommands(bundle, this.planResourceRebind, oldUri,
-                    edit.kind === 'rename-resource' ? project.rootUri + edit.path : oldUri);
-                assertNotAborted(signal);
                 if (edit.kind === 'delete-resource') {
                     const dependents = project.entries.filter(item => item.runConfigResourceId === resource.id || item.resourceIds?.includes(resource.id));
-                    const commandDependents = commands.filter(item => item.resource.id !== resource.id && item.input === oldUri);
-                    const nativeDependents = plans.filter(item => item.resource.id !== resource.id && item.plan.references.some(ref => ref.uri === oldUri));
-                    if (nativeDependents.length) throw new Error(`Resource is referenced by ${nativeDependents.map(item => item.resource.path).join(', ')}`);
-                    if (dependents.length || commandDependents.length) throw new Error(`Resource is referenced by ${[...dependents.map(item => item.name), ...commandDependents.map(item => item.resource.path)].join(', ')}`);
+                    if (dependents.length) throw new Error(`Resource is referenced by ${dependents.map(item => item.name).join(', ')}`);
                     project.resources = project.resources.filter(item => item.id !== resource.id);
                     delete bundle.contents[resource.id];
                 } else {
                     if (typeof edit.path !== 'string' || !edit.path || project.resources.some(item => item.path === edit.path)) throw new Error('Choose a new project-relative resource path');
-                    const newUri = project.rootUri + edit.path;
-                    for (const item of commands) {
-                        if (item.input !== oldUri) continue;
-                        const text = serializeCemMlCommandResource({ ...item.command, [item.slot]: { ...item.command[item.slot], [item.key]: newUri } });
-                        parseCemMlCommandResource(text, { runtime: 'wasm-browser-worker' });
-                        const bytes = toBytes(text);
-                        bundle.contents[item.resource.id] = bytes;
-                        item.resource.sha256 = await sha256Hex(this.crypto, bytes);
-                        item.resource.revision++;
-                    }
-                    for (const item of plans) {
-                        if (item.plan.rewrittenBytes === null) continue;
-                        const bytes = new Uint8Array(item.plan.rewrittenBytes);
-                        bundle.contents[item.resource.id] = bytes;
-                        item.resource.sha256 = await sha256Hex(this.crypto, bytes);
-                        item.resource.revision++;
-                    }
+                    resource.referencePath ??= resource.path;
                     resource.path = edit.path;
-                    if (!commands.some(item => item.resource === resource && item.input === oldUri) &&
-                        !plans.some(item => item.resource === resource && item.plan.rewrittenBytes !== null)) resource.revision++;
+                    resource.revision++;
                 }
                 break;
             }
@@ -1344,6 +1317,7 @@ function normalizeValidatedBundle(validated) {
             'the normalized import is not a Studio project v1 projection',
         );
     }
+    for (const resource of project.resources) resource.referencePath ??= resource.path;
     return { project, contents: bundle.contents };
 }
 
@@ -1457,7 +1431,7 @@ function normalizeReferencedResourceIds(value) {
 /** @param {Record<string, any>} project @param {Record<string, any>} command @param {readonly string[]} referencedResourceIds */
 function assertCommandResourceResolution(project, command, referencedResourceIds) {
     const referenced = new Set(referencedResourceIds);
-    const resourcesByPath = new Map(project.resources.map((resource) => [resource.path, resource]));
+    const resourcesByUri = new Map(project.resources.map((resource) => [projectResourceUri(project, resource), resource]));
     const studioUris = commandStudioUris(command);
     if (studioUris.length === 0) {
         throw new CemStudioRepositoryError(
@@ -1475,7 +1449,7 @@ function assertCommandResourceResolution(project, command, referencedResourceIds
             );
         }
         const path = uri.slice(project.rootUri.length);
-        const resource = resourcesByPath.get(path);
+        const resource = resourcesByUri.get(uri);
         if (!resource || !referenced.has(resource.id)) {
             throw new CemStudioRepositoryError(
                 'cem.studio.repository.command_resource_unresolved',
@@ -1520,7 +1494,7 @@ function commandStudioUris(value) {
 function prepareCommandPageProposal(input) {
     const project = structuredClone(input.bundle.project);
     const entries = project.entries.map((entry) => structuredClone(entry));
-    const resources = project.resources.map((resource) => structuredClone(resource));
+    const resources = project.resources.map((resource) => ({ ...structuredClone(resource), referencePath: resource.referencePath ?? resource.path }));
     const resourceById = new Map(resources.map((resource) => [resource.id, resource]));
     for (const resourceId of input.referencedResourceIds) {
         const resource = resourceById.get(resourceId);
@@ -1726,6 +1700,7 @@ function allocateCommandResource(entryId, usedIds, usedPaths, sha256) {
                 role: 'run-config',
                 sourceKind: 'project-file',
                 path,
+                referencePath: `.resources/${id}`,
                 contentType: CEM_ML_CLI_COMMAND_CONTENT_TYPE,
                 schema: CEM_ML_CLI_COMMAND_SCHEMA,
                 revision: 1,
@@ -1849,7 +1824,7 @@ function portableProject(project, entries, resources) {
             .map(({ key: _key, projectId: _projectId, ...entry }) => structuredClone(entry))
             .sort((left, right) => (order.get(left.id) ?? Infinity) - (order.get(right.id) ?? Infinity) || left.id.localeCompare(right.id)),
         resources: resources
-            .map(({ key: _key, projectId: _projectId, blobHash: _blobHash, ...resource }) => structuredClone(resource))
+            .map(({ key: _key, projectId: _projectId, blobHash: _blobHash, ...resource }) => ({ ...structuredClone(resource), referencePath: resource.referencePath ?? resource.path }))
             .sort((left, right) => left.id.localeCompare(right.id)),
     };
 }
@@ -2222,59 +2197,4 @@ function searchSnippet(text, terms) {
     const start = Math.max(0, offset - 60);
     const end = Math.min(text.length, start + 180);
     return `${start > 0 ? '…' : ''}${text.slice(start, end)}${end < text.length ? '…' : ''}`;
-}
-
-/** Bound path edits to dependency vocabularies whose complete inputs we understand. */
-async function resourcePathCommands(bundle, planner, fromUri, toUri) {
-    const { project } = bundle;
-    const blocked = message => { throw new Error(`Resource path edit blocked: ${message}`); };
-    if (project.entries.some(entry => !['subproject', 'data-set', 'inspection', 'transformation-graph'].includes(entry.kind))) blocked('only data, parse/inspect and bounded opaque graph pages currently support dependency rebinding');
-    const commands = [];
-    const plans = [];
-    const outputs = new Set();
-    for (const resource of project.resources) {
-        if (resource.sourceKind !== 'project-file') blocked(`non-local resource at ${resource.path}`);
-        if (['data', 'expected'].includes(resource.role)) continue;
-        const kind = resource.role === 'run-config' && resource.schema === 'https://cem.dev/ns/cli/run-config/1' ? 'run-config'
-            : resource.role === 'transform-config' && resource.schema === 'https://cem.dev/ns/cli/transform-config/1' ? 'transform-graph' : undefined;
-        if (kind) {
-            if (!planner) blocked('native dependency planner unavailable');
-            const relocating = project.rootUri + resource.path === fromUri;
-            if (relocating && fromUri === toUri) blocked('configuration deletion needs a separate dependency contract');
-            const plan = await planner({ kind, mode: relocating ? 'relocate' : 'rebind', bytes: [...toBytes(bundle.contents[resource.id])],
-                identity: { contentType: resource.contentType, schema: resource.schema },
-                baseUri: project.rootUri + resource.path, fromUri, toUri });
-            if (plan.blockers.length) blocked(`${resource.path}: ${plan.blockers.join('; ')}`);
-            for (const ref of plan.references) {
-                if (ref.kind === 'output') {
-                    const uri = new URL(ref.uri);
-                    if (uri.href !== ref.uri || uri.search || uri.hash) blocked(`output ownership at ${resource.path}`);
-                    if (ref.uri === toUri || outputs.has(ref.uri) || !ref.uri.startsWith(project.rootUri) || project.resources.some(item => project.rootUri + item.path === ref.uri)) blocked(`output ownership at ${resource.path}`);
-                    outputs.add(ref.uri);
-                    continue;
-                }
-                if (ref.kind === 'schemaPackage' || !project.resources.some(item => ['data', 'expected'].includes(item.role) && project.rootUri + item.path === ref.uri)) blocked(`unresolved or transitive dependency at ${resource.path}`);
-            }
-            plans.push({ resource, plan });
-            continue;
-        }
-        if (resource.role !== 'run-config' || resource.schema !== CEM_ML_CLI_COMMAND_SCHEMA || resource.contentType !== CEM_ML_CLI_COMMAND_CONTENT_TYPE) blocked(`unsupported dependency format at ${resource.path}`);
-        const { command } = parseCemMlCommandResource(toBytes(bundle.contents[resource.id]), { runtime: 'wasm-browser-worker' });
-        if (command.commandPath.length !== 1 || !['parse', 'inspect', 'transform'].includes(command.commandPath[0])) blocked(`unsupported operation at ${resource.path}`);
-        const graph = command.commandPath[0] === 'transform';
-        const scalarOptions = graph ? new Set(['config', 'source_map_summary', 'module_asset_cache_key', 'report_format']) : new Set(['format', 'show', 'from_format', 'fail_level', 'preserve_source_offsets',
-            'schema', 'content_type', 'default_namespace', 'namespaces', 'report_format']);
-        if (Object.keys(command.options).some(key => !scalarOptions.has(key)) ||
-            Object.keys(command.globalOptions).some(key => !['quiet', 'verbose', 'no_color'].includes(key))) blocked(`resolver, configuration or output options at ${resource.path} need a separate rebinding contract`);
-        if (graph && ['source_map_summary', 'module_asset_cache_key'].some(key => command.options[key] !== undefined && ![false, 'false'].includes(command.options[key]))) blocked(`transform reporting options at ${resource.path} need a separate contract`);
-        const input = graph ? command.options.config : command.positionals.input;
-        if (graph && (Object.keys(command.positionals).length || !project.resources.some(item => item.role === 'transform-config' && project.rootUri + item.path === input))) blocked(`transform command requires a local graph at ${resource.path}`);
-        if (typeof input !== 'string' || !project.resources.some(item => project.rootUri + item.path === input)) blocked(`command input at ${resource.path} must be an exact absolute project resource URI`);
-        // Other option slots have no rebinding contract. Reject project URI values
-        // there, rather than guessing that they are plain labels or dependencies.
-        const values = [...Object.entries(command.options).filter(([key]) => !(graph && key === 'config')).map(([,value]) => value), ...Object.values(command.globalOptions ?? {})].flat();
-        if (values.some(value => typeof value === 'string' && value.includes(project.rootUri))) blocked(`a non-input option at ${resource.path} contains a project URI`);
-        commands.push({ resource, command, input, slot: graph ? 'options' : 'positionals', key: graph ? 'config' : 'input' });
-    }
-    return { commands, plans };
 }

@@ -596,17 +596,13 @@ fn svg_attribute_is_reference(attribute: &XmlAttributeAst) -> bool {
         || attribute.value.to_ascii_lowercase().contains("url(")
 }
 
-pub(crate) fn svg_direct_resource_slot(attribute: &str) -> bool {
-    matches!(attribute, "href" | "src")
-}
-
 fn svg_attribute_requires_resource_policy(attribute: &XmlAttributeAst) -> bool {
-    (svg_direct_resource_slot(&attribute.local_name)
+    (matches!(attribute.local_name.as_str(), "href" | "src")
         && svg_direct_resource_reference_requires_policy(&attribute.value))
         || svg_css_url_reference_requires_policy(&attribute.value)
 }
 
-pub(crate) fn svg_direct_resource_reference_requires_policy(value: &str) -> bool {
+fn svg_direct_resource_reference_requires_policy(value: &str) -> bool {
     let unquoted = value.trim().trim_matches('"').trim_matches('\'');
     if unquoted.is_empty()
         || unquoted.starts_with('#')

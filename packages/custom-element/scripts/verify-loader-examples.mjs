@@ -56,7 +56,7 @@ export async function verifyActionDemo(browser, origin, packagePath) {
         route => route.fulfill({ contentType: 'text/css', body: '' }));
     try {
         await page.goto(`${origin}${packagePath}/material/components/action.html`);
-        const expectedCounts = [5, 4, 3, 3, 5, 1, 2, 9, 20];
+        const expectedCounts = [5, 4, 3, 3, 5, 1, 15];
         await page.waitForFunction(counts => {
             const cards = [...document.querySelectorAll('cem-demo-element')];
             return cards.length === counts.length && cards.every((card, index) =>
@@ -206,7 +206,7 @@ async function verifyActionZebra(button) {
 }
 
 async function verifyActionVariations(page) {
-    const intents = ['primary', 'explicit', 'destructive', 'contextual', 'alternate', 'contextual', 'explicit', 'alternate'];
+    const intents = ['primary', 'explicit', 'destructive', 'contextual', 'alternate', 'contextual'];
     const samples = await page.locator('cem-demo-element:not([legend="Action variations matrix"])').evaluateAll(cards =>
         cards.map(card => [...new Set([...card.querySelectorAll('[slot=demo] cem-action')]
             .map(host => host.getAttribute('variant')))]));
@@ -214,15 +214,14 @@ async function verifyActionVariations(page) {
     const matrix = page.locator('cem-demo-element[legend="Action variations matrix"] [slot=demo]');
     for (const intent of ['primary', 'explicit', 'contextual', 'alternate', 'destructive']) {
         const buttons = matrix.locator(`cem-action[variant="${intent}"] button`);
-        assert.equal(await buttons.count(), 4);
+        assert.equal(await buttons.count(), 3);
         const geometry = await buttons.evaluateAll(nodes => nodes.map(node => ({
-            radius: parseFloat(getComputedStyle(node).borderRadius),
-            height: node.getBoundingClientRect().height,
+            radius: Math.max(0, parseFloat(getComputedStyle(node).borderRadius) - parseFloat(getComputedStyle(node).borderTopWidth)),
+            height: node.getBoundingClientRect().height - 2 * parseFloat(getComputedStyle(node).borderTopWidth),
         })));
         assert.equal(geometry[0].radius, 0, `${intent} sharp column`);
         assert(geometry[1].radius > 0, `${intent} smooth column`);
         assert.equal(geometry[2].radius * 2, geometry[2].height, `${intent} round column`);
-        assert.equal(geometry[3].radius, geometry[1].radius, `${intent} disabled retains default bend`);
         const enabled = buttons.first();
         const assertPaint = async (button, state) => {
             const result = await button.evaluate((node, { intent, state }) => {
@@ -245,9 +244,19 @@ async function verifyActionVariations(page) {
         await page.mouse.down();
         try { await assertPaint(enabled, 'active'); }
         finally { await page.mouse.up(); }
-        await buttons.last().hover();
-        assert.equal(await buttons.last().evaluate(node => node.disabled), true);
-        await assertPaint(buttons.last(), 'disabled');
+        const disabled = buttons.nth(1);
+        await disabled.evaluate(node => node.parentElement.setAttribute('disabled', ''));
+        await page.waitForFunction(intent => document.querySelector(
+            `cem-demo-element[legend="Action variations matrix"] cem-action[variant="${intent}"].cem-bend-smooth button`,
+        )?.disabled, intent);
+        await disabled.hover();
+        assert.equal(await disabled.evaluate(node => Math.max(0, parseFloat(getComputedStyle(node).borderRadius) - parseFloat(getComputedStyle(node).borderTopWidth))),
+            geometry[1].radius, `${intent} disabled retains default bend`);
+        await assertPaint(disabled, 'disabled');
+        await disabled.evaluate(node => node.parentElement.removeAttribute('disabled'));
+        await page.waitForFunction(intent => document.querySelector(
+            `cem-demo-element[legend="Action variations matrix"] cem-action[variant="${intent}"].cem-bend-smooth button`,
+        )?.disabled === false, intent);
     }
     const focus = matrix.locator('button').first();
     await focus.focus();
@@ -272,16 +281,21 @@ async function verifyActionCurvature(page) {
         document.documentElement.append(probe);
         const tokenRadius = token => {
             probe.style.borderRadius = `var(${token})`;
-            return getComputedStyle(probe).borderRadius;
+            return parseFloat(getComputedStyle(probe).borderRadius);
         };
         const tokens = Object.fromEntries(['sharp', 'smooth', 'round'].map(name =>
             [name, tokenRadius(`--cem-bend-${name}`)]));
         tokens.default = tokenRadius('--cem-action-border-radius');
         probe.remove();
-        const geometry = button => ({
-            radius: getComputedStyle(button).borderRadius,
-            height: button.getBoundingClientRect().height,
-        });
+        // Transparent coupling borders reserve hit space around the painted shape.
+        const geometry = button => {
+            const style = getComputedStyle(button);
+            const border = parseFloat(style.borderTopWidth);
+            return {
+                radius: Math.max(0, parseFloat(style.borderRadius) - border),
+                height: button.getBoundingClientRect().height - 2 * border,
+            };
+        };
         const typical = document.querySelector('cem-demo-element[legend="Typical use"] [slot=demo]');
         return {
             tokens,

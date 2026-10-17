@@ -10,7 +10,7 @@ export interface CemStudioMount {
 }
 
 export function mountCemStudio(options?: CemStudioMountOptions): CemStudioMount;
-export function loadCemMlBrowser(): Promise<typeof import('@epa-wg/cem-ml-cli/browser')>;
+export function loadCemMlBrowser(): Promise<typeof import('@epa-wg/cem-ml-cli/browser-commands')>;
 export function registerCemStudioServiceWorker(options?: RegistrationOptions): Promise<ServiceWorkerRegistration>;
 
 export * from './repository.js';

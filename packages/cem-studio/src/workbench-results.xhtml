@@ -129,6 +129,7 @@
   {param @name=preview}
   {body |
    {section @aria-label={preview.label ?? "Result preview"} @data-cem-studio-preview="" @data-cem-studio-preview-kind={preview.kind ?? null} |
+ {cem-stack @gap=md |
     {cem:choose |
      {cem:when @test=preview |
       {cem:variable @name=mode
@@ -139,7 +140,8 @@
      }
      {cem:otherwise |
       {cem-alert @label="Run an operation to preview its bounded result" @tone=info}
- }}}}}
+ }}}
+}}}
  {template @name=result-diagnostics |
   {param @name=diagnostics}
   {body |
@@ -199,6 +201,7 @@
      {cem-alert @label="No validation report yet" @tone=info}
  }}}}
  {body |
+ {cem-stack @gap=lg |
   {cem:variable @name=state @select=datadom.slices.state}
   {cem:variable @name=projection @select=state.projection}
   {cem:variable @name=busy
@@ -214,8 +217,9 @@
   }
   {cem-tabs @label="Projection results" @value=output |
    {cem-tab @label="Operation output" @value=output |
+ {cem-stack @gap=md |
     {call @template=result-preview @with:preview="{$projection.preview}"}
-    {div |
+    {cem-grid |
      {cem-action @data-cem-studio-projection-copy="" @disabled={if busy || !projection.output || (projection.preview.kind == "download") { true } else { null }} @host-command=copy-output
       @host-command-event=click @variant=alternate | Copy exact output}
      {cem-action @data-cem-studio-projection-download="" @disabled={if busy || !projection.output { true } else { null }} @host-command=download-output
@@ -223,40 +227,56 @@
     }
     {cem-alert @data-cem-studio-projection-transfer="" @label={projection.transfer.message ?? "Copy or download the exact verified operation output."} @tone={if projection.transfer.status == "failed" { "danger" } else { "info" }}}
    }
+}
    {cem-tab @label=Execution @value=metadata |
+ {cem-stack @gap=md |
     {div @data-cem-studio-projection-metadata="" |
      {call @template=projection-metadata @with:projection="{$projection}"}
    }}
+}
    {cem-tab @label=Expected @value=expected |
+ {cem-stack @gap=md |
     {div @data-cem-studio-projection-expected="" |
      {call @template=projection-expected @with:projection="{$projection}" @with:state="{$state}"}
    }}
+}
    {cem-tab @label=Trace @value=trace |
+ {cem-stack @gap=md |
     {div @data-cem-studio-projection-trace="" |
      {call @template=operation-records @with:emptyLabel="No operation trace records"
       @with:label="Operation trace" @with:records="{$projection.trace}"}
    }}
+}
    {cem-tab @label=Graph @value=graph |
+ {cem-stack @gap=md |
     {div @data-cem-studio-projection-graph="" |
      {call @template=operation-records
       @with:emptyLabel="No transformation graph execution overlay records"
       @with:label="Transformation graph execution overlay" @with:records="{$projection.graph}"}
-  }}}
+  }}
+}}
   {cem:variable @name=diagnostics @select="projection.diagnostics ?? state.validation.diagnostics"}
   {cem:variable @name=provenance @select="projection.provenance ?? state.validation.provenance"}
   {cem-tabs @label="Validation results" @value=diagnostics |
    {cem-tab @label=Diagnostics @value=diagnostics |
+ {cem-stack @gap=md |
     {div @data-cem-studio-diagnostics="" |
      {call @template=result-diagnostics @with:diagnostics="{$diagnostics}"}
    }}
+}
    {cem-tab @label=Report @value=report |
+ {cem-stack @gap=md |
     {div @data-cem-studio-report="" |
      {call @template=validation-report @with:summary="{$state.validation.reportSummary}"}
    }}
+}
    {cem-tab @label=Provenance @value=provenance |
+ {cem-stack @gap=md |
     {div @data-cem-studio-provenance="" |
      {call @template=result-provenance @with:provenance="{$provenance}"}
-}}}}}
+}}
+}}}
+}}
 
   </template>
 </cem-element>

@@ -15,7 +15,7 @@ export default defineConfig({
                     browser: {
                         enabled: true,
                         headless: true,
-                        provider: playwright({}),
+                        provider: playwright({ launchOptions: { executablePath: process.env.CEM_STUDIO_CHROME } }),
                         instances: [{ browser: 'chromium' }],
                     },
                 },

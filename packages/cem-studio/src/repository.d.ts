@@ -21,7 +21,6 @@ export interface CemStudioRepositoryOptions {
     crypto?: Crypto;
     storage?: StorageManager;
     BroadcastChannel?: typeof globalThis.BroadcastChannel;
-    planResourceRebind?(request: import('@epa-wg/cem-ml-cli/browser').ResourceRebindRequest): Promise<import('@epa-wg/cem-ml-cli/browser').ResourceRebindPlan>;
     validateProject(bundle: unknown, options: CemStudioProjectValidationOptions): unknown | Promise<unknown>;
     now?: () => string;
 }

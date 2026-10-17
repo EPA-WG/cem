@@ -5,7 +5,6 @@
 //! target or falls back to a host package search.
 
 mod cache;
-mod derivation;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -129,15 +128,6 @@ impl fmt::Display for CemModuleUrlResolutionError {
 impl std::error::Error for CemModuleUrlResolutionError {}
 
 pub trait CemModuleUrlResolver: Send + Sync {
-    /// Opt-in native derivation. Implementations must preserve ancestor maps and
-    /// restrictions and fingerprint every retained input. No acquisition occurs.
-    fn derive_child_context(
-        &self,
-        _parent: &CemResolutionContextHandle,
-        _frame: CemModuleUrlFrame,
-    ) -> Result<CemModuleUrlResolutionCapability, String> {
-        Err("resolver does not support native child-context derivation".into())
-    }
     /// Stable fingerprint of all resolution inputs, excluding lookup handles.
     /// Custom resolvers opt in only when every map/policy change invalidates it.
     /// None means that derived artifacts cannot be cached across calls.
@@ -159,9 +149,6 @@ pub struct CemModuleUrlResolutionCapability {
 }
 
 impl CemModuleUrlResolutionCapability {
-    pub fn derive_child_context(&self, frame: CemModuleUrlFrame) -> Result<Self, String> {
-        self.resolver.derive_child_context(&self.context, frame)
-    }
     pub fn new(
         resolver: Arc<dyn CemModuleUrlResolver>,
         context: CemResolutionContextHandle,
@@ -179,14 +166,6 @@ impl CemModuleUrlResolutionCapability {
 
     pub fn context(&self) -> &CemResolutionContextHandle {
         &self.context
-    }
-
-    /// Exact native authority, in addition to a resolver's semantic fingerprint.
-    /// Equal labels on independently constructed resolvers are not ownership.
-    pub fn same_owner(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.resolver, &other.resolver)
-            && self.context == other.context
-            && self.node_contexts == other.node_contexts
     }
 
     pub fn with_node_context(
@@ -412,13 +391,6 @@ impl CemScopedModuleUrlResolver {
 }
 
 impl CemModuleUrlResolver for CemScopedModuleUrlResolver {
-    fn derive_child_context(
-        &self,
-        parent: &CemResolutionContextHandle,
-        frame: CemModuleUrlFrame,
-    ) -> Result<CemModuleUrlResolutionCapability, String> {
-        self.derive_native_child(parent, frame)
-    }
     fn context_cache_identity(&self, context: &CemResolutionContextHandle) -> Option<String> {
         self.contexts.get(context).map(CemModuleUrlContext::cache_identity)
     }

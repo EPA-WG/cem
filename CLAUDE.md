@@ -228,6 +228,15 @@ in `cem-components`. If the component cannot be expressed cleanly in CEM-ML, sto
 and add the missing generic capability to `cem-elements` before resuming. There
 is no application-local UI exception to that hard stop.
 
+## Studio project identity
+
+Studio is driven by the native project-tree dataset. Resource IDs and their
+persisted resolver addresses are stable; names and paths are display/export
+metadata. Rename updates the dataset and re-renders its projection without
+rewriting consumers. Do not reintroduce dependency-rebinding or browser-engine
+instrumentation as prerequisites for project-tree edits. The contract is in
+`docs/cem-studio.md` under Project tree dataset and stable resource references.
+
 ## Dev server
 
 ```bash

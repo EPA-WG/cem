@@ -20,7 +20,6 @@ const registration = await registerCemStudioServiceWorker().catch(() => undefine
 const validator = await createCemStudioBrowserValidator();
 const repository = createCemStudioProjectRepository({
     validateProject: validator.validateProject,
-    planResourceRebind: validator.planResourceRebind,
 });
 const seed = await loadCemStudioFeatureTour({
     baseUrl: new URL('./samples/feature-tour/', mounted.baseUrl),

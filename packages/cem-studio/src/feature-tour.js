@@ -1,4 +1,4 @@
-import { commandSchema, parseCemMlCommandText, serializeCemMlCommandText } from '@epa-wg/cem-ml-cli/browser';
+import { commandSchema, parseCemMlCommandText, serializeCemMlCommandText } from '@epa-wg/cem-ml-cli/browser-commands';
 import {
     CEM_STUDIO_LIMITS,
     assertCemStudioResourceUri,
@@ -30,7 +30,7 @@ export async function createCemStudioBrowserValidator() {
         serializeCemMlCommand,
         serializeCemMlCommandResource,
         serializeCemMlCommandText,
-    } = await import('@epa-wg/cem-ml-cli/browser');
+    } = await import('@epa-wg/cem-ml-cli/browser-commands');
     const ledgers = new Map();
     const pendingWrites = new Map();
     const committedWrites = new Map();
@@ -384,7 +384,6 @@ export async function createCemStudioBrowserValidator() {
                 signal,
             );
         },
-        planResourceRebind: request => client.planResourceRebind(request),
         async validateProject(bundle, { signal } = {}) {
             if (!bundle?.project) throw new TypeError('CEM Studio project bundle is missing project metadata');
             await validateResource({

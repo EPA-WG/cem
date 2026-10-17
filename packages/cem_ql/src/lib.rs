@@ -16,10 +16,6 @@ pub mod attribute_validation;
 #[cfg(feature = "debug-control")]
 pub mod debug_control;
 pub mod diagnostics;
-pub mod dependency_inspection;
-pub mod template_dependency_inspection;
-pub mod html_template_dependencies;
-pub mod template_execution_record;
 pub mod datatype_compilation;
 pub mod function_activation;
 pub mod datatype_conversion;
@@ -258,5 +254,3 @@ mod tests {
         ) -> Result<CompiledQuery, LoadError> = load;
     }
 }
-
-pub mod stylesheet_installation;

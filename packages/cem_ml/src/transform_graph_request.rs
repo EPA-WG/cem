@@ -818,530 +818,6 @@ struct ModuleMapResource {
     module_imports: BTreeMap<String, String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum SourceModuleMapAssetKind {
-    Import,
-    Resource,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SourceModuleMapEdge {
-    pub specifier: String,
-    pub target_asset: String,
-    pub target_uri: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SourceModuleMapAsset {
-    pub identity: String,
-    pub kind: SourceModuleMapAssetKind,
-    pub authored_path: String,
-    pub source_uri: String,
-    pub content_type: String,
-    pub module_imports: Vec<SourceModuleMapEdge>,
-}
-
-/// Discover all declared source assets and v3 edges without acquiring asset bytes.
-/// Uses execution's module-map parser and manifest-provider relative resolution.
-/// The caller supplies the acquired SOURCE map URL. Destination-map paths follow
-/// publication rules and must not be passed here as source acquisition references.
-/// This inventory does not verify JavaScript imports or document/template contents;
-/// empty edges never certify a resource as a leaf. Cycles remain explicit edges.
-pub fn discover_source_module_map_dependencies(
-    resource: TransformGraphResource,
-) -> Result<Vec<SourceModuleMapAsset>, TransformGraphRequestError> {
-    let uri = resource.uri.clone();
-    let invalid = |message: &str| config_error(&uri, "cem.module_map.dependency_invalid", message);
-    if !url::Url::parse(&uri).is_ok_and(|url| {
-        !url.cannot_be_a_base()
-            && url.query().is_none()
-            && url.fragment().is_none()
-            && url.as_str() == uri
-    }) {
-        return Err(invalid(
-            "source map discovery requires a canonical acquired URL",
-        ));
-    }
-    // Module maps are an explicit JSON control format. Reject unowned top-level
-    // extensions (notably import-map scopes) before claiming declared coverage.
-    let value: serde_json::Value = serde_json::from_slice(&resource.bytes)
-        .map_err(|_| invalid("source map is not valid JSON"))?;
-    let object = value
-        .as_object()
-        .ok_or_else(|| invalid("source map must be an object"))?;
-    if object
-        .keys()
-        .any(|key| !matches!(key.as_str(), "$schema" | "imports" | "resources"))
-    {
-        return Err(invalid(
-            "unknown source-map fields require another dependency contract",
-        ));
-    }
-    let document = parse_graph_module_map_document(&uri, resource, true)?;
-    if document.schema.is_none() {
-        return Err(invalid(
-            "source dependency discovery requires a declared module-map schema",
-        ));
-    }
-    let v3 = document.schema.as_deref() == Some(MODULE_MAP_V3_SCHEMA_URI);
-    let mut assets = Vec::new();
-    let mut edges = Vec::new();
-    for (identity, path, content_type, module_imports, kind) in document
-        .imports
-        .iter()
-        .map(|(id, asset)| {
-            (
-                id,
-                &asset.path,
-                &asset.content_type,
-                &asset.module_imports,
-                SourceModuleMapAssetKind::Import,
-            )
-        })
-        .chain(document.resources.iter().map(|(id, asset)| {
-            (
-                id,
-                &asset.path,
-                &asset.content_type,
-                &asset.module_imports,
-                SourceModuleMapAssetKind::Resource,
-            )
-        }))
-    {
-        validate_module_specifier(&uri, identity)?;
-        let content_type = match kind {
-            SourceModuleMapAssetKind::Import => {
-                validate_module_import_content_type(&uri, identity, path, content_type, v3)?
-            }
-            SourceModuleMapAssetKind::Resource => {
-                validate_module_resource_content_type(&uri, identity, path, content_type, v3)?
-            }
-        };
-        if !module_imports.is_empty() && content_type != "text/javascript" {
-            return Err(invalid("moduleImports require a JavaScript asset"));
-        }
-        if path.trim().is_empty() || path.contains(['*', '{', '}', '[', ']']) {
-            return Err(invalid(
-                "source asset paths must be literal nonempty references",
-            ));
-        }
-        assets.push(SourceModuleMapAsset {
-            identity: identity.clone(),
-            kind,
-            authored_path: path.clone(),
-            source_uri: resolve_transform_graph_reference(&uri, path),
-            content_type,
-            module_imports: Vec::new(),
-        });
-        edges.push(module_imports);
-    }
-    let mut targets = BTreeMap::new();
-    for asset in &assets {
-        if targets
-            .insert(
-                asset.identity.clone(),
-                (asset.source_uri.clone(), asset.content_type.clone()),
-            )
-            .is_some()
-        {
-            return Err(invalid(
-                "asset identity is ambiguous between imports and resources",
-            ));
-        }
-    }
-    for (asset, declared) in assets.iter_mut().zip(edges) {
-        for (specifier, identity) in declared {
-            let (target_uri, content_type) = targets
-                .get(identity)
-                .ok_or_else(|| invalid("moduleImports target is not a declared asset"))?;
-            if !matches!(
-                content_type.as_str(),
-                "text/javascript" | "application/json"
-            ) {
-                return Err(invalid("moduleImports target must be JavaScript or JSON"));
-            }
-            asset.module_imports.push(SourceModuleMapEdge {
-                specifier: specifier.clone(),
-                target_asset: identity.clone(),
-                target_uri: target_uri.clone(),
-            });
-        }
-    }
-    Ok(assets)
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum ModuleMapSourceFollowUpKind {
-    NonBareImport,
-    DynamicImport,
-    TemplateLiteral,
-    NonJavaScriptContent,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ModuleMapSourceFollowUp {
-    pub asset_identity: String,
-    pub kind: ModuleMapSourceFollowUpKind,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SourceModuleMapAssetEvidence {
-    pub asset: SourceModuleMapAsset,
-    pub sha256: String,
-    pub byte_length: u64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SourceModuleMapDeclaredEdgeVerification {
-    pub map_uri: String,
-    pub map_sha256: String,
-    pub assets: Vec<SourceModuleMapAssetEvidence>,
-    pub follow_ups: Vec<ModuleMapSourceFollowUp>,
-}
-
-/// Verify v3 declared bare JavaScript edges against an immutable supplied snapshot.
-/// Reuses execution's lexical module checks, without acquiring or executing source.
-/// Hashes bind results to the exact map and asset bytes and must be checked by hosts
-/// before using this evidence after an edit. Failure returns no partial evidence.
-///
-/// This is not a JavaScript syntax validator or a dependency-closure certificate.
-/// Follow-ups are known unresolved mechanisms, not an exhaustive analysis of runtime
-/// loading (eval, fetch, workers, loaders, etc.). Even an empty follow-up list cannot
-/// authorize project rename/delete; document/template and host policy remain separate.
-pub fn verify_source_module_map_declared_edges(
-    resource: TransformGraphResource,
-    snapshot: &BTreeMap<String, VirtualResourceV1>,
-) -> Result<SourceModuleMapDeclaredEdgeVerification, TransformGraphRequestError> {
-    let uri = resource.uri.clone();
-    let invalid =
-        |message: &str| config_error(&uri, "cem.module_map.source_verification_invalid", message);
-    if parse_graph_module_map_document(&uri, resource.clone(), true)?
-        .schema
-        .as_deref()
-        != Some(MODULE_MAP_V3_SCHEMA_URI)
-    {
-        return Err(invalid(
-            "declared-edge source verification requires module-map v3",
-        ));
-    }
-    let map_sha256 = crate::command_service::sha256_hex(&resource.bytes);
-    let assets = discover_source_module_map_dependencies(resource)?;
-    let deployment: BTreeMap<_, _> = assets
-        .iter()
-        .map(|asset| {
-            (
-                asset.identity.clone(),
-                (asset.authored_path.clone(), asset.content_type.clone()),
-            )
-        })
-        .collect();
-    let mut result = SourceModuleMapDeclaredEdgeVerification {
-        map_uri: uri.clone(),
-        map_sha256,
-        assets: Vec::new(),
-        follow_ups: Vec::new(),
-    };
-    for asset in assets {
-        let source = snapshot
-            .get(&asset.source_uri)
-            .ok_or_else(|| invalid("snapshot is missing a declared source asset"))?;
-        if source
-            .identity
-            .as_ref()
-            .and_then(|identity| identity.content_type.as_deref())
-            .is_some_and(|value| content_type_essence(value) != asset.content_type)
-        {
-            return Err(invalid(
-                "snapshot asset content type conflicts with its module-map declaration",
-            ));
-        }
-        let mut follow_up = |kind| {
-            let item = ModuleMapSourceFollowUp {
-                asset_identity: asset.identity.clone(),
-                kind,
-            };
-            if !result.follow_ups.contains(&item) {
-                result.follow_ups.push(item);
-            }
-        };
-        if asset.content_type == "text/javascript" {
-            let declared = asset
-                .module_imports
-                .iter()
-                .map(|edge| (edge.specifier.clone(), edge.target_asset.clone()))
-                .collect();
-            // The rewriter performs native used/undeclared/escaped/target checks.
-            // Discard its candidate bytes: this API verifies the original snapshot.
-            rewrite_declared_module_specifiers(
-                &uri,
-                &asset.identity,
-                &asset.authored_path,
-                &source.bytes,
-                &declared,
-                &deployment,
-            )?;
-            let text = std::str::from_utf8(&source.bytes)
-                .map_err(|_| invalid("JavaScript source is not UTF-8"))?;
-            if javascript_module_specifiers(text)
-                .iter()
-                .any(|specifier| !is_bare_javascript_specifier(&specifier.value))
-            {
-                follow_up(ModuleMapSourceFollowUpKind::NonBareImport);
-            }
-            let tokens = javascript_tokens(&source.bytes);
-            for (index, token) in tokens.iter().enumerate() {
-                if matches!(&token.kind, JavaScriptTokenKind::Identifier(word) if word == "import")
-                    && tokens
-                        .get(index + 1)
-                        .is_some_and(|next| matches!(next.kind, JavaScriptTokenKind::Punct(b'(')))
-                {
-                    follow_up(ModuleMapSourceFollowUpKind::DynamicImport);
-                }
-                if matches!(token.kind, JavaScriptTokenKind::Other)
-                    && source.bytes.get(token.start) == Some(&b'`')
-                {
-                    follow_up(ModuleMapSourceFollowUpKind::TemplateLiteral);
-                }
-            }
-        } else {
-            follow_up(ModuleMapSourceFollowUpKind::NonJavaScriptContent);
-        }
-        result.assets.push(SourceModuleMapAssetEvidence {
-            asset,
-            sha256: crate::command_service::sha256_hex(&source.bytes),
-            byte_length: source.bytes.len() as u64,
-        });
-    }
-    Ok(result)
-}
-
-fn parse_graph_module_map_document(
-    config_uri: &str,
-    resource: TransformGraphResource,
-    required: bool,
-) -> Result<ModuleMapDocument, TransformGraphRequestError> {
-    let value: serde_json::Value =
-        serde_json::from_slice(&resource.bytes).map_err(|error| {
-            config_error(
-                config_uri,
-                "cem.transform_config.importmap_json_invalid",
-                format!("importmap `{}` is not valid JSON: {error}", resource.uri),
-            )
-        })?;
-    let schema = match value.get("$schema") {
-        Some(serde_json::Value::String(schema)) if is_module_map_schema(schema) => {
-            Some(schema.clone())
-        }
-        Some(serde_json::Value::String(schema)) => {
-            return Err(config_error(
-                config_uri,
-                "cem.module_map.schema_unsupported",
-                format!(
-                    "module map `{}` uses unsupported `$schema` `{schema}`; expected `{MODULE_MAP_SCHEMA_URI}`, `{MODULE_MAP_V2_SCHEMA_URI}`, or `{MODULE_MAP_V3_SCHEMA_URI}`",
-                    resource.uri
-                ),
-            ));
-        }
-        Some(_) => {
-            return Err(config_error(
-                config_uri,
-                "cem.module_map.schema_invalid",
-                format!("module map `{}` `$schema` must be a string", resource.uri),
-            ));
-        }
-        None => None,
-    };
-    let Some(imports) = value.get("imports").and_then(serde_json::Value::as_object) else {
-        if required {
-            return Err(config_error(
-                config_uri,
-                "cem.transform_config.importmap_imports_missing",
-                format!(
-                    "importmap `{}` requires an object `imports` map",
-                    resource.uri
-                ),
-            ));
-        }
-        return Ok(ModuleMapDocument {
-            uri: resource.uri,
-            schema,
-            imports: BTreeMap::new(),
-            resources: BTreeMap::new(),
-        });
-    };
-    let imports = imports
-        .iter()
-        .map(|(key, value)| {
-            if schema.as_deref() == Some(MODULE_MAP_V3_SCHEMA_URI) {
-                parse_module_map_v3_asset_entry(
-                    config_uri,
-                    &resource.uri,
-                    "import",
-                    key,
-                    value,
-                )
-                .map(|entry| {
-                    (
-                        key.clone(),
-                        ModuleMapImport {
-                            path: entry.path,
-                            content_type: entry.content_type,
-                            module_imports: entry.module_imports,
-                        },
-                    )
-                })
-            } else {
-                value
-                    .as_str()
-                    .map(|value| {
-                        (
-                            key.clone(),
-                            ModuleMapImport {
-                                path: value.to_owned(),
-                                content_type: "text/javascript".to_owned(),
-                                module_imports: BTreeMap::new(),
-                            },
-                        )
-                    })
-                    .ok_or_else(|| {
-                        config_error(
-                            config_uri,
-                            "cem.transform_config.importmap_entry_invalid",
-                            format!(
-                                "importmap `{}` entry `{key}` must be a string",
-                                resource.uri
-                            ),
-                        )
-                    })
-            }
-        })
-        .collect::<Result<BTreeMap<_, _>, _>>()?;
-    let resources = match value.get("resources") {
-        None => BTreeMap::new(),
-        Some(_)
-            if !matches!(
-                schema.as_deref(),
-                Some(MODULE_MAP_V2_SCHEMA_URI | MODULE_MAP_V3_SCHEMA_URI)
-            ) =>
-        {
-            return Err(config_error(
-                config_uri,
-                "cem.module_map.resources_unsupported",
-                format!(
-                    "module map `{}` may declare `resources` only with schema `{MODULE_MAP_V2_SCHEMA_URI}` or `{MODULE_MAP_V3_SCHEMA_URI}`",
-                    resource.uri
-                ),
-            ));
-        }
-        Some(serde_json::Value::Object(resources)) => resources
-            .iter()
-            .map(|(name, value)| {
-                if schema.as_deref() == Some(MODULE_MAP_V3_SCHEMA_URI) {
-                    return parse_module_map_v3_asset_entry(
-                        config_uri,
-                        &resource.uri,
-                        "resource",
-                        name,
-                        value,
-                    )
-                    .map(|entry| {
-                        (
-                            name.clone(),
-                            ModuleMapResource {
-                                path: entry.path,
-                                content_type: entry.content_type,
-                                module_imports: entry.module_imports,
-                            },
-                        )
-                    });
-                }
-                let entry = value.as_object().ok_or_else(|| {
-                    config_error(
-                        config_uri,
-                        "cem.module_map.resource_entry_invalid",
-                        format!(
-                            "module map `{}` resource `{name}` must be an object",
-                            resource.uri
-                        ),
-                    )
-                })?;
-                let path = entry
-                    .get("path")
-                    .and_then(serde_json::Value::as_str)
-                    .filter(|value| !value.trim().is_empty())
-                    .ok_or_else(|| {
-                        config_error(
-                            config_uri,
-                            "cem.module_map.resource_entry_invalid",
-                            format!(
-                                "module map `{}` resource `{name}` requires a non-empty string `path`",
-                                resource.uri
-                            ),
-                        )
-                    })?;
-                let content_type = entry
-                    .get("contentType")
-                    .and_then(serde_json::Value::as_str)
-                    .filter(|value| !value.trim().is_empty())
-                    .ok_or_else(|| {
-                        config_error(
-                            config_uri,
-                            "cem.module_map.resource_entry_invalid",
-                            format!(
-                                "module map `{}` resource `{name}` requires a non-empty string `contentType`",
-                                resource.uri
-                            ),
-                        )
-                    })?;
-                if entry
-                    .keys()
-                    .any(|key| !matches!(key.as_str(), "path" | "contentType"))
-                {
-                    return Err(config_error(
-                        config_uri,
-                        "cem.module_map.resource_entry_invalid",
-                        format!(
-                            "module map `{}` resource `{name}` permits only `path` and `contentType`",
-                            resource.uri
-                        ),
-                    ));
-                }
-                Ok((
-                    name.clone(),
-                    ModuleMapResource {
-                        path: path.to_owned(),
-                        content_type: content_type.to_owned(),
-                        module_imports: BTreeMap::new(),
-                    },
-                ))
-            })
-            .collect::<Result<BTreeMap<_, _>, _>>()?,
-        Some(_) => {
-            return Err(config_error(
-                config_uri,
-                "cem.module_map.resources_invalid",
-                format!(
-                    "module map `{}` `resources` must be an object",
-                    resource.uri
-                ),
-            ));
-        }
-    };
-    Ok(ModuleMapDocument {
-        uri: resource.uri,
-        schema,
-        imports,
-        resources,
-    })
-}
-
 impl TransformGraphRequestLowerer<'_> {
     fn lower(&mut self) -> Result<(), TransformGraphRequestError> {
         for node in &self.graph.nodes {
@@ -1777,7 +1253,219 @@ impl TransformGraphRequestLowerer<'_> {
             ResolvePurpose::ModuleMap,
             Some(MODULE_MAP_CONTENT_TYPE),
         )?;
-        parse_graph_module_map_document(self.config_uri, resource, required)
+        let value: serde_json::Value =
+            serde_json::from_slice(&resource.bytes).map_err(|error| {
+                config_error(
+                    self.config_uri,
+                    "cem.transform_config.importmap_json_invalid",
+                    format!("importmap `{}` is not valid JSON: {error}", resource.uri),
+                )
+            })?;
+        let schema = match value.get("$schema") {
+            Some(serde_json::Value::String(schema)) if is_module_map_schema(schema) => {
+                Some(schema.clone())
+            }
+            Some(serde_json::Value::String(schema)) => {
+                return Err(config_error(
+                    self.config_uri,
+                    "cem.module_map.schema_unsupported",
+                    format!(
+                        "module map `{}` uses unsupported `$schema` `{schema}`; expected `{MODULE_MAP_SCHEMA_URI}`, `{MODULE_MAP_V2_SCHEMA_URI}`, or `{MODULE_MAP_V3_SCHEMA_URI}`",
+                        resource.uri
+                    ),
+                ));
+            }
+            Some(_) => {
+                return Err(config_error(
+                    self.config_uri,
+                    "cem.module_map.schema_invalid",
+                    format!("module map `{}` `$schema` must be a string", resource.uri),
+                ));
+            }
+            None => None,
+        };
+        let Some(imports) = value.get("imports").and_then(serde_json::Value::as_object) else {
+            if required {
+                return Err(config_error(
+                    self.config_uri,
+                    "cem.transform_config.importmap_imports_missing",
+                    format!(
+                        "importmap `{}` requires an object `imports` map",
+                        resource.uri
+                    ),
+                ));
+            }
+            return Ok(ModuleMapDocument {
+                uri: resource.uri,
+                schema,
+                imports: BTreeMap::new(),
+                resources: BTreeMap::new(),
+            });
+        };
+        let imports = imports
+            .iter()
+            .map(|(key, value)| {
+                if schema.as_deref() == Some(MODULE_MAP_V3_SCHEMA_URI) {
+                    parse_module_map_v3_asset_entry(
+                        self.config_uri,
+                        &resource.uri,
+                        "import",
+                        key,
+                        value,
+                    )
+                    .map(|entry| {
+                        (
+                            key.clone(),
+                            ModuleMapImport {
+                                path: entry.path,
+                                content_type: entry.content_type,
+                                module_imports: entry.module_imports,
+                            },
+                        )
+                    })
+                } else {
+                    value
+                        .as_str()
+                        .map(|value| {
+                            (
+                                key.clone(),
+                                ModuleMapImport {
+                                    path: value.to_owned(),
+                                    content_type: "text/javascript".to_owned(),
+                                    module_imports: BTreeMap::new(),
+                                },
+                            )
+                        })
+                        .ok_or_else(|| {
+                            config_error(
+                                self.config_uri,
+                                "cem.transform_config.importmap_entry_invalid",
+                                format!(
+                                    "importmap `{}` entry `{key}` must be a string",
+                                    resource.uri
+                                ),
+                            )
+                        })
+                }
+            })
+            .collect::<Result<BTreeMap<_, _>, _>>()?;
+        let resources = match value.get("resources") {
+            None => BTreeMap::new(),
+            Some(_)
+                if !matches!(
+                    schema.as_deref(),
+                    Some(MODULE_MAP_V2_SCHEMA_URI | MODULE_MAP_V3_SCHEMA_URI)
+                ) =>
+            {
+                return Err(config_error(
+                    self.config_uri,
+                    "cem.module_map.resources_unsupported",
+                    format!(
+                        "module map `{}` may declare `resources` only with schema `{MODULE_MAP_V2_SCHEMA_URI}` or `{MODULE_MAP_V3_SCHEMA_URI}`",
+                        resource.uri
+                    ),
+                ));
+            }
+            Some(serde_json::Value::Object(resources)) => resources
+                .iter()
+                .map(|(name, value)| {
+                    if schema.as_deref() == Some(MODULE_MAP_V3_SCHEMA_URI) {
+                        return parse_module_map_v3_asset_entry(
+                            self.config_uri,
+                            &resource.uri,
+                            "resource",
+                            name,
+                            value,
+                        )
+                        .map(|entry| {
+                            (
+                                name.clone(),
+                                ModuleMapResource {
+                                    path: entry.path,
+                                    content_type: entry.content_type,
+                                    module_imports: entry.module_imports,
+                                },
+                            )
+                        });
+                    }
+                    let entry = value.as_object().ok_or_else(|| {
+                        config_error(
+                            self.config_uri,
+                            "cem.module_map.resource_entry_invalid",
+                            format!(
+                                "module map `{}` resource `{name}` must be an object",
+                                resource.uri
+                            ),
+                        )
+                    })?;
+                    let path = entry
+                        .get("path")
+                        .and_then(serde_json::Value::as_str)
+                        .filter(|value| !value.trim().is_empty())
+                        .ok_or_else(|| {
+                            config_error(
+                                self.config_uri,
+                                "cem.module_map.resource_entry_invalid",
+                                format!(
+                                    "module map `{}` resource `{name}` requires a non-empty string `path`",
+                                    resource.uri
+                                ),
+                            )
+                        })?;
+                    let content_type = entry
+                        .get("contentType")
+                        .and_then(serde_json::Value::as_str)
+                        .filter(|value| !value.trim().is_empty())
+                        .ok_or_else(|| {
+                            config_error(
+                                self.config_uri,
+                                "cem.module_map.resource_entry_invalid",
+                                format!(
+                                    "module map `{}` resource `{name}` requires a non-empty string `contentType`",
+                                    resource.uri
+                                ),
+                            )
+                        })?;
+                    if entry
+                        .keys()
+                        .any(|key| !matches!(key.as_str(), "path" | "contentType"))
+                    {
+                        return Err(config_error(
+                            self.config_uri,
+                            "cem.module_map.resource_entry_invalid",
+                            format!(
+                                "module map `{}` resource `{name}` permits only `path` and `contentType`",
+                                resource.uri
+                            ),
+                        ));
+                    }
+                    Ok((
+                        name.clone(),
+                        ModuleMapResource {
+                            path: path.to_owned(),
+                            content_type: content_type.to_owned(),
+                            module_imports: BTreeMap::new(),
+                        },
+                    ))
+                })
+                .collect::<Result<BTreeMap<_, _>, _>>()?,
+            Some(_) => {
+                return Err(config_error(
+                    self.config_uri,
+                    "cem.module_map.resources_invalid",
+                    format!(
+                        "module map `{}` `resources` must be an object",
+                        resource.uri
+                    ),
+                ));
+            }
+        };
+        Ok(ModuleMapDocument {
+            uri: resource.uri,
+            schema,
+            imports,
+            resources,
+        })
     }
 
     fn lower_module_assets(
@@ -4360,157 +4048,5 @@ export { metadata };
         assert!(diagnostics.iter().any(|diagnostic| {
             diagnostic.code == "cem.transform_runtime.duplicate_destination"
         }));
-    }
-}
-
-#[cfg(test)]
-mod module_map_dependency_tests {
-    use super::*;
-    const MAP: &str = "studio://project/maps/source.json";
-    fn discover(source: &str) -> Result<Vec<SourceModuleMapAsset>, TransformGraphRequestError> {
-        discover_source_module_map_dependencies(TransformGraphResource {
-            uri: MAP.into(),
-            bytes: source.as_bytes().to_vec(),
-            identity: None,
-            content_type: Some("application/json".into()),
-        })
-    }
-    #[test]
-    fn module_map_dependencies_resolve_v1_v2_sources_relative_to_acquired_map() {
-        let assets = discover(r#"{"$schema":"https://cem.dev/ns/data/module-map/1","imports":{"@pkg/app":"../src/app.js"}}"#).unwrap();
-        assert_eq!(assets.len(), 1);
-        assert_eq!(assets[0].source_uri, "studio://project/src/app.js");
-        assert_eq!(assets[0].authored_path, "../src/app.js");
-        assert_eq!(assets[0].kind, SourceModuleMapAssetKind::Import);
-        assert!(assets[0].module_imports.is_empty());
-        let assets = discover(r#"{"$schema":"https://cem.dev/ns/data/module-map/2","imports":{},"resources":{"logo":{"path":"../assets/logo.css","contentType":"text/css"}}}"#).unwrap();
-        assert_eq!(assets[0].source_uri, "studio://project/assets/logo.css");
-        assert_eq!(assets[0].kind, SourceModuleMapAssetKind::Resource);
-    }
-    #[test]
-    fn module_map_dependencies_resolve_declared_edges_and_preserve_cycles() {
-        let assets = discover(r#"{"$schema":"https://cem.dev/ns/data/module-map/3","imports":{
-            "@pkg/app":{"path":"../src/app.js","contentType":"text/javascript","moduleImports":{"@pkg/worker":"worker"}}
-        },"resources":{"worker":{"path":"../src/worker.js","contentType":"text/javascript","moduleImports":{"@pkg/app":"@pkg/app"}}}}"#).unwrap();
-        assert_eq!(assets.len(), 2);
-        assert_eq!(assets[0].module_imports[0].specifier, "@pkg/worker");
-        assert_eq!(assets[0].module_imports[0].target_asset, "worker");
-        assert_eq!(
-            assets[0].module_imports[0].target_uri,
-            "studio://project/src/worker.js"
-        );
-        assert_eq!(
-            assets[1].module_imports[0].target_uri,
-            "studio://project/src/app.js"
-        );
-    }
-    #[test]
-    fn module_map_dependencies_reject_missing_ambiguous_or_unowned_edges() {
-        for source in [
-            r#"{"$schema":"https://cem.dev/ns/data/module-map/3","imports":{"app":{"path":"app.js","contentType":"text/javascript","moduleImports":{"logo":"logo"}}},"resources":{"logo":{"path":"logo.css","contentType":"text/css"}}}"#,
-            r#"{"$schema":"https://cem.dev/ns/data/module-map/3","imports":{"app":{"path":"app.js","contentType":"text/javascript","moduleImports":{"./missing.js":"missing"}}}}"#,
-            r#"{"$schema":"https://cem.dev/ns/data/module-map/2","imports":{"app":"app.js"},"resources":{"app":{"path":"other.js","contentType":"text/javascript"}}}"#,
-            r#"{"$schema":"https://cem.dev/ns/data/module-map/1","imports":{},"scopes":{"./":{"app":"other.js"}}}"#,
-            r#"{"imports":{"app":"app.js"}}"#,
-            r#"{"$schema":"unknown","imports":{}}"#,
-        ] {
-            assert!(discover(source).is_err(), "{source}");
-        }
-    }
-}
-
-#[cfg(test)]
-mod module_map_verification_tests {
-    use super::*;
-    fn map(edges: bool) -> TransformGraphResource {
-        let imports = if edges {
-            r#", "moduleImports":{"@pkg/b":"b"}"#
-        } else {
-            ""
-        };
-        TransformGraphResource { uri: "studio://p/maps/source.json".into(),
-            bytes: format!(r#"{{"$schema":"https://cem.dev/ns/data/module-map/3","imports":{{"a":{{"path":"../a.js","contentType":"text/javascript"{imports}}},"b":{{"path":"../b.js","contentType":"text/javascript"}}}}}}"#).into_bytes(),
-            identity: None, content_type: Some("application/json".into()) }
-    }
-    fn resources(source: &[u8]) -> BTreeMap<String, VirtualResourceV1> {
-        BTreeMap::from([
-            (
-                "studio://p/a.js".into(),
-                VirtualResourceV1 {
-                    bytes: source.to_vec(),
-                    identity: None,
-                },
-            ),
-            (
-                "studio://p/b.js".into(),
-                VirtualResourceV1 {
-                    bytes: b"export const b = 1;".to_vec(),
-                    identity: None,
-                },
-            ),
-        ])
-    }
-    #[test]
-    fn module_map_verification_checks_declared_edges_and_binds_evidence_to_bytes() {
-        let snapshot = resources(b"import '@pkg/b'; export const a = 1;");
-        let result = verify_source_module_map_declared_edges(map(true), &snapshot).unwrap();
-        assert_eq!(result.assets.len(), 2);
-        assert_eq!(
-            result.assets[0].asset.module_imports[0].target_uri,
-            "studio://p/b.js"
-        );
-        assert_eq!(
-            result.assets[0].sha256,
-            crate::command_service::sha256_hex(&snapshot["studio://p/a.js"].bytes)
-        );
-        assert_eq!(
-            result.map_sha256,
-            crate::command_service::sha256_hex(&map(true).bytes)
-        );
-        assert!(result.follow_ups.is_empty());
-        let changed = verify_source_module_map_declared_edges(
-            map(true),
-            &resources(b"import '@pkg/b'; export const a = 2;"),
-        )
-        .unwrap();
-        assert_ne!(result.assets[0].sha256, changed.assets[0].sha256);
-        assert_eq!(
-            snapshot["studio://p/a.js"].bytes,
-            b"import '@pkg/b'; export const a = 1;"
-        );
-    }
-    #[test]
-    fn module_map_verification_rejects_missing_unused_undeclared_and_invalid_sources() {
-        for source in [
-            b"export const a = 1;".as_slice(),
-            b"import '@missing';",
-            &[0xff],
-        ] {
-            assert!(
-                verify_source_module_map_declared_edges(map(true), &resources(source)).is_err()
-            );
-        }
-        let mut snapshot = resources(b"import '@pkg/b';");
-        snapshot.get_mut("studio://p/b.js").unwrap().identity = Some(FormatIdentity {
-            content_type: Some("text/css".into()),
-            ..Default::default()
-        });
-        assert!(verify_source_module_map_declared_edges(map(true), &snapshot).is_err());
-        snapshot.remove("studio://p/b.js");
-        assert!(verify_source_module_map_declared_edges(map(true), &snapshot).is_err());
-    }
-    #[test]
-    fn module_map_verification_reports_unresolved_source_mechanisms() {
-        let result = verify_source_module_map_declared_edges(
-            map(false),
-            &resources(
-                b"import './local.js'; const later = import(name); const text = `value ${load()}`;",
-            ),
-        )
-        .unwrap();
-        let kinds: Vec<_> = result.follow_ups.iter().map(|item| item.kind).collect();
-        assert!(kinds.contains(&ModuleMapSourceFollowUpKind::NonBareImport));
-        assert!(kinds.contains(&ModuleMapSourceFollowUpKind::DynamicImport));
-        assert!(kinds.contains(&ModuleMapSourceFollowUpKind::TemplateLiteral));
     }
 }

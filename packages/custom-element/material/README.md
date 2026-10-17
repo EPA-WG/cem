@@ -32,8 +32,9 @@ Its remaining icon and sample templates use the legacy converter. See:
 The [action page](components/action.html) runs directly from an IDE HTTP preview.
 It declares its runtime, WASM and demo-helper imports in a page-level import map,
 installs `cem-elements`, and uses local `cem-demo-element` cards. The action
-definition resolves through `@epa-wg/cem-components/components/cem-action` and
-`#cem-action`; the icon template still uses `lang="custom-element-v0"`. The native
+definition uses `@epa-wg/cem-components/components/cem-action/cem-action.xhtml#cem-action`
+with the component folder mapping; the icon template still uses
+`lang="custom-element-v0"`. The native
 module-map transform rewrites these imports to vendored assets in the packed
 package; no development-server aliases are required. Icon fonts remain external
 presentation assets. The compatibility gallery now demonstrates the canonical

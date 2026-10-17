@@ -72,10 +72,6 @@ mod command_service;
 mod xpath_artifact;
 pub use xpath_artifact::retained_xpath_artifact;
 mod documents;
-mod html_base_host;
-// Shared scalar predicate adapter for combined native WASM consumers.
-pub use html_base_host::match_slot as match_html_base_slot;
-mod stylesheet_execution;
 pub use documents::retained_cem_document;
 #[cfg(feature = "debug-control")]
 use crate::worker_control::{
@@ -1259,11 +1255,3 @@ mod tests {
         assert_eq!(value["diagnostics"], serde_json::json!([]));
     }
 }
-
-/// Plan against supplied bytes only; the host owns atomic revision-checked commits.
-#[wasm_bindgen(js_name = "planResourceRebind")]
-pub fn plan_resource_rebind(json: &str) -> String {
-    crate::resource_rebind::plan_resource_rebind_json(json)
-}
-
-pub use stylesheet_execution::Observer as BrowserStylesheetObserver;

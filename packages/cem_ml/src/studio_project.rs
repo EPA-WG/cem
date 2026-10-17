@@ -130,6 +130,9 @@ pub struct StudioProjectResource {
     pub role: StudioProjectResourceRole,
     pub source_kind: StudioProjectResourceSourceKind,
     pub path: String,
+    /// Immutable resolver address bound to this resource ID. Path is display/export metadata.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reference_path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
     pub content_type: String,
@@ -264,7 +267,7 @@ pub fn parse_studio_project(
     }
 
     let content_type = content_type_essence(content_type);
-    let project = match content_type.as_str() {
+    let mut project = match content_type.as_str() {
         STUDIO_PROJECT_CEM_CONTENT_TYPE => parse_studio_project_cem(bytes)?,
         STUDIO_PROJECT_JSON_CONTENT_TYPE => {
             serde_json::from_slice::<StudioProject>(bytes).map_err(|error| {
@@ -285,6 +288,11 @@ pub fn parse_studio_project(
             ))
         }
     };
+    for resource in &mut project.resources {
+        resource
+            .reference_path
+            .get_or_insert_with(|| resource.path.clone());
+    }
     validate_studio_project(&project)?;
     Ok(project)
 }
@@ -305,7 +313,11 @@ pub fn studio_project_resource_uri(
                 Some("resourceId"),
             )
         })?;
-    Ok(format!("{}{}", project.root_uri, resource.path))
+    Ok(format!(
+        "{}{}",
+        project.root_uri,
+        resource.reference_path.as_deref().unwrap_or(&resource.path)
+    ))
 }
 
 pub fn validate_studio_project(project: &StudioProject) -> Result<(), StudioProjectError> {
@@ -407,6 +419,8 @@ pub fn validate_studio_project(project: &StudioProject) -> Result<(), StudioProj
         }
     }
 
+    let mut reference_paths = std::collections::HashSet::new();
+    let mut display_paths = std::collections::HashSet::new();
     for (index, resource) in project.resources.iter().enumerate() {
         let path = format!("resources[{index}]");
         validate_identifier(&resource.id, &format!("{path}.id"))?;
@@ -418,6 +432,15 @@ pub fn validate_studio_project(project: &StudioProject) -> Result<(), StudioProj
             ));
         }
         validate_resource_path(&resource.path, &format!("{path}.path"))?;
+        let reference = resource.reference_path.as_deref().unwrap_or(&resource.path);
+        validate_resource_path(reference, &format!("{path}.referencePath"))?;
+        if !reference_paths.insert(reference) || !display_paths.insert(resource.path.as_str()) {
+            return Err(studio_error(
+                "cem.studio_project.resource_path_invalid",
+                "resource paths and reference addresses must be unique",
+                Some(&path),
+            ));
+        }
         validate_content_type(&resource.content_type, &format!("{path}.contentType"))?;
         validate_optional_uri(resource.schema.as_deref(), &format!("{path}.schema"))?;
         validate_revision(resource.revision, &format!("{path}.revision"))?;
@@ -711,6 +734,7 @@ fn parse_cem_resource(
             "role",
             "source-kind",
             "path",
+            "reference-path",
             "url",
             "content-type",
             "schema",
@@ -740,6 +764,7 @@ fn parse_cem_resource(
         role,
         source_kind,
         path: required_attr(&attrs, "path", &format!("{path}.path"))?,
+        reference_path: attrs.get("reference-path").cloned(),
         url: attrs.get("url").cloned(),
         content_type: required_attr(&attrs, "content-type", &format!("{path}.contentType"))?,
         schema: attrs.get("schema").cloned(),
@@ -799,6 +824,9 @@ fn serialize_studio_project_cem(project: &StudioProject) -> Result<String, Studi
         push_cem_attr(&mut output, "role", resource.role.as_str())?;
         push_cem_attr(&mut output, "source-kind", resource.source_kind.as_str())?;
         push_cem_attr(&mut output, "path", &resource.path)?;
+        if let Some(reference) = &resource.reference_path {
+            push_cem_attr(&mut output, "reference-path", reference)?;
+        }
         if let Some(url) = &resource.url {
             push_cem_attr(&mut output, "url", url)?;
         }

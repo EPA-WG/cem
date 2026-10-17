@@ -7,8 +7,6 @@ import {
     WORKER_PROTOCOL_VERSION,
 } from './protocol.js';
 import type {
-    ResourceRebindRequest,
-    ResourceRebindPlan,
     BrowserCommandActionResultMessage,
     BrowserCommandArtifactDisposeRequest,
     BrowserCommandArtifactReadRequest,
@@ -533,14 +531,6 @@ export class BrowserCommandServiceClient {
             case 'rollbackWrite':
                 return Promise.resolve(this.#host.rollbackWrite(String(message.argument)));
         }
-    }
-
-    /** Side-effect-free planning against immutable supplied configuration bytes. */
-    planResourceRebind(request: ResourceRebindRequest): Promise<ResourceRebindPlan> {
-        const actionId = this.#nextAction();
-        return this.#action<ResourceRebindPlan>(actionId, {
-            type: 'cem-resource-rebind', actionId, request,
-        }).then(({ value }) => value);
     }
 
     #nextAction(): number {

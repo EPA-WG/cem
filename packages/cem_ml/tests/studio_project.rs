@@ -246,3 +246,81 @@ fn studio_project_rejects_unknown_schema_and_content_type() {
         "cem.studio_project.content_type_unsupported"
     );
 }
+
+#[test]
+fn resource_reference_survives_rename_and_round_trip() {
+    let mut project = parse_studio_project(
+        VALID_JSON,
+        STUDIO_PROJECT_JSON_CONTENT_TYPE,
+        STUDIO_PROJECT_SCHEMA_URI,
+    )
+    .unwrap();
+    let before = studio_project_resource_uri(&project, "tour-source").unwrap();
+    project
+        .resources
+        .iter_mut()
+        .find(|r| r.id == "tour-source")
+        .unwrap()
+        .path = "moved/renamed.cem".into();
+    assert_eq!(
+        studio_project_resource_uri(&project, "tour-source").unwrap(),
+        before
+    );
+    let bytes = serde_json::to_vec(&project).unwrap();
+    let restored = parse_studio_project(
+        &bytes,
+        STUDIO_PROJECT_JSON_CONTENT_TYPE,
+        STUDIO_PROJECT_SCHEMA_URI,
+    )
+    .unwrap();
+    assert_eq!(
+        studio_project_resource_uri(&restored, "tour-source").unwrap(),
+        before
+    );
+}
+
+#[test]
+fn resource_reference_rejects_duplicate_and_escaping_addresses() {
+    let project = parse_studio_project(
+        VALID_JSON,
+        STUDIO_PROJECT_JSON_CONTENT_TYPE,
+        STUDIO_PROJECT_SCHEMA_URI,
+    )
+    .unwrap();
+    for reference in ["../escape", "data/tour.cem"] {
+        let mut invalid = project.clone();
+        invalid.resources[1].reference_path = Some(reference.into());
+        let bytes = serde_json::to_vec(&invalid).unwrap();
+        assert!(parse_studio_project(
+            &bytes,
+            STUDIO_PROJECT_JSON_CONTENT_TYPE,
+            STUDIO_PROJECT_SCHEMA_URI
+        )
+        .is_err());
+    }
+}
+
+#[test]
+fn resource_id_address_survives_both_native_projections() {
+    let mut project = parse_studio_project(
+        VALID_JSON,
+        STUDIO_PROJECT_JSON_CONTENT_TYPE,
+        STUDIO_PROJECT_SCHEMA_URI,
+    )
+    .unwrap();
+    project.resources[0].reference_path = Some(".resources/tour-source".into());
+    project.resources[0].path = "new-name.cem".into();
+    for projection in [StudioProjectProjection::Cem, StudioProjectProjection::Json] {
+        let text = project.serialize(projection).unwrap();
+        let restored = parse_studio_project(
+            text.as_bytes(),
+            projection.content_type(),
+            STUDIO_PROJECT_SCHEMA_URI,
+        )
+        .unwrap();
+        assert_eq!(
+            studio_project_resource_uri(&restored, "tour-source").unwrap(),
+            "studio://feature-tour/.resources/tour-source"
+        );
+    }
+}
