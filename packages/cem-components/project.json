@@ -394,14 +394,36 @@
                         "@epa-wg/cem-theme"
                     ],
                     "target": "verify-package"
+                },
+                {
+                    "projects": [
+                        "@epa-wg/cem-ml-cli"
+                    ],
+                    "target": "build"
+                },
+                {
+                    "projects": [
+                        "cem_ql"
+                    ],
+                    "target": "build:wasm"
                 }
             ],
             "options": {
-                "command": "node tools/scripts/verify-cem-components-styles.mjs",
-                "cwd": "{workspaceRoot}"
+                "cwd": "{workspaceRoot}",
+                "commands": [
+                    "node --test tools/scripts/verify-cem-components-styles.test.mjs",
+                    "node tools/scripts/verify-cem-components-styles.mjs"
+                ],
+                "parallel": false
             },
             "inputs": [
                 "{workspaceRoot}/tools/scripts/verify-cem-components-styles.mjs",
+                "{workspaceRoot}/tools/scripts/verify-cem-components-styles.test.mjs",
+                "{workspaceRoot}/tools/cem-components/style-audit.mjs",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": true
+                },
                 "{workspaceRoot}/docs/component-mvp.md",
                 "{projectRoot}/package.json",
                 "{projectRoot}/examples/**/*.html",

@@ -1643,16 +1643,42 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       remain independently open. Generated screenshots/attachments are excluded.
       The old parse/inspect-only Apply note above was stale: repository Apply
       already accepts all six portable operations; the current docs correct it.
-- [ ] Maintain the global component style audit: decode canonical XHTML CSS text
+- [x] Maintain the global component style audit: decode canonical XHTML CSS text
   and support retained native nesting before asserting action state selectors.
-  Preserve the semantic token/state checks; the current unchanged icon-button
-  declaration fails extraction on an XML-escaped `&amp;` selector.
+  Preserve the semantic token/state checks; the unchanged icon-button's
+  XML-escaped `&amp;` selectors now pass through the shared native readers.
+  - [x] Add audit fixtures for native XML entity/CDATA decoding, multiple static
+    style blocks, nested selectors and media ancestry, and malformed sources.
+  - [x] Add negative action-state fixtures proving missing states, wrong theme
+    endpoints, extra geometry, duplicate declarations and literal paint still fail.
+  - Implementation: use the shared CLI XML/XPath lifecycle to export only the
+    selected template's decoded text, then the native CEM-ML compiler to collect
+    every static stylesheet. PostCSS inspection resolves nested matching paths
+    and retains all media ancestors without changing delivered CSS. Forced-color
+    and reduced-motion contracts require their exact media conditions. The Nx
+    gate builds both shared dependencies, hashes their outputs and runs fixtures.
+  - CEM audit: retain all exact paint/geometry/keyframe assertions; recognize the
+    existing D0/D5 zebra family and explicitly require the tabs' already-authored
+    shrink/wrap geometry. Theme endpoints, inherited tokens, public ownership and
+    the five-mode/forced-color implementation are unchanged. This tooling work
+    adds no Studio or component UI JavaScript and makes no new rendered/AT claim.
+  - Evidence: `@epa-wg/cem-components:verify-style-contract` passes all 12 tasks,
+    including 9 regression tests and the 54-primitive / 479-token audit.
+    `verify-declarative` confirms 54 declarations and zero authored component
+    JavaScript/TypeScript; tooling ESLint and whitespace checks pass. Generated
+    screenshots and Vitest attachments remain excluded from delivery.
 - [ ] Extend native graph authoring to node/edge creation and parameter maps;
   preserve authored IDs and resource references, validate each candidate and
   verify transactional persistence/history/recovery/offline execution. Add
   fixtures before implementation and shared controls before Studio composition.
+  - [ ] Add native fixtures and named-node creation with schema-backed fields,
+    unique authored IDs and preservation of existing resource identities.
+  - [ ] Add native fixtures and edge creation/editing with candidate validation,
+    cycle diagnostics and declarative Studio controls.
+  - [ ] Add native fixtures and parameter-map authoring, then verify Save,
+    history, recovery and explicit offline Run for the expanded graph editor.
 
-Continue with shared style-audit maintenance, then broader native graph authoring
-using stable project resource identities. No renderer instrumentation or dependency
-rewriting is a prerequisite.
+Continue with native named-node creation, then edge editing and parameter-map
+authoring using stable project resource identities. No renderer instrumentation
+or dependency rewriting is a prerequisite.
 Physical-device/browser/AT acceptance remains independently open above.

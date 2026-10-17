@@ -362,6 +362,13 @@ reports so the audit can select the next fixture without claiming that it
 already exists. The style contract depends on `@epa-wg/cem-theme:build:tokens`,
 and `@epa-wg/cem-theme:verify-package`, so the component gate checks current
 generated tokens and the public theme stylesheet export.
+The style gate reads declaration template text through the native XML/XPath
+boundary and collects embedded CSS through the native CEM-ML compiler. It handles
+XML entities, CDATA, multiple static style blocks and retained CSS nesting before
+checking the existing semantic token and state contracts. The target builds the
+shared CLI/compiler dependencies and runs regression fixtures, including rejected
+state/token/geometry mutations. This is a static source audit; rendered theme,
+inheritance and forced-color checks remain separate browser gates.
 The package verifier proves source/built CSS byte identity, the side-effect-free
 asset-only boundary, all 54 canonical declarations, zero packaged JavaScript/TypeScript, and exact dry-run npm inclusion of one `dist/styles.css`.
 

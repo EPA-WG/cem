@@ -4,6 +4,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, extname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import postcss from 'postcss';
+import { readCanonicalStyles, inspectCssRules, inspectTokenUsage, inspectActionStyles } from '../cem-components/style-audit.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const componentMvpPath = join(repoRoot, 'docs/component-mvp.md');
@@ -36,13 +37,10 @@ const TOKEN_FAMILY_PREFIXES = {
     timing: ['--cem-duration-', '--cem-easing-'],
     typography: ['--cem-typography-', '--cem-fontography-'],
     workflow: ['--cem-workflow-'],
+    zebra: ['--cem-zebra-'],
 };
 
 const STYLE_EXTENSIONS = new Set(['.css', '.less', '.pcss', '.scss']);
-const CSS_COLOR_LITERAL = /#[0-9a-f]{3,8}\b|\b(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color-mix)\s*\(/i;
-const CSS_SPACING_PROPERTY =
-    /\b(?:margin|padding|gap|inset|top|right|bottom|left|width|height|min-width|max-width|min-height|max-height|border-radius|border-width|outline-width|font-size|line-height)\s*:[^;{}]*/gi;
-const CSS_SPACING_LITERAL = /\b\d*\.?\d+(?:px|rem|em|vh|vw|vmin|vmax|ch|ex|%)\b|calc\s*\(/i;
 const CSS_VAR_REFERENCE = /var\(\s*(--[^\s,)]+)/g;
 const ACTION_TAGS = new Set(['cem-menu-item']);
 const CONTENT_INTERACTION_TAGS = new Set(['cem-chip', 'cem-list']);
@@ -193,6 +191,7 @@ const TABS_LAYOUT_BINDINGS = new Map([
             ['background-color', 'var(--cem-palette-comfort)'],
             ['color', 'var(--cem-palette-comfort-text)'],
             ['display', 'block'],
+            ['min-inline-size', '0'],
             ['font-family', 'var(--cem-typography-ui-font-family)'],
             ['font-size', 'var(--cem-typography-ui-font-size)'],
             ['line-height', 'var(--cem-typography-ui-line-height)'],
@@ -210,6 +209,7 @@ const TABS_LAYOUT_BINDINGS = new Map([
         'cem-tabs > .cem-tabs__list',
         new Map([
             ['display', 'flex'],
+            ['flex-wrap', 'wrap'],
             ['gap', 'var(--cem-gap-related)'],
         ]),
     ],
@@ -226,6 +226,8 @@ const TABS_LAYOUT_BINDINGS = new Map([
             ['font-weight', 'var(--cem-typography-ui-font-weight)'],
             ['letter-spacing', 'var(--cem-typography-ui-letter-spacing)'],
             ['margin', 'var(--cem-stroke-none)'],
+            ['min-inline-size', '0'],
+            ['overflow-wrap', 'anywhere'],
             ['min-block-size', 'var(--cem-coupling-zone-min)'],
             ['padding-block', 'var(--cem-control-padding-y)'],
             ['padding-inline', 'var(--cem-control-padding-x)'],
@@ -864,54 +866,18 @@ function assertNoComponentSpecificStyleLiterals() {
     }
 }
 
-function assertActionPendingKeyframes(label, css) {
-    const animations = postcss.parse(css).nodes.filter(node => node.type === 'atrule' && node.name === 'keyframes');
-    const frames = animations[0]?.nodes ?? [];
-    if (animations.length !== 1 || frames.length !== 2 ||
-        frames[0].selector !== 'from' || frames[1].selector !== 'to' ||
-        frames.some(frame => frame.nodes?.length !== 1 || frame.nodes[0].prop !== 'background-position-x') ||
-        frames[0].nodes[0].value !== '0px' || frames[1].nodes[0].value !== 'var(--cem-pending-tile-size)') {
-        fail(`${label}: pending keyframes must shift exactly one theme tile per cycle`);
+const canonicalStyles = new Map();
+function canonicalCss(path, tag) {
+    if (!canonicalStyles.has(path)) {
+        try { canonicalStyles.set(path, readCanonicalStyles(path, tag)); }
+        catch (error) { fail(error.message); canonicalStyles.set(path, ''); }
     }
+    return canonicalStyles.get(path);
 }
 
 function assertCanonicalActionStyles(tag = 'cem-action') {
     const path = join(componentRoot, `src/components/${tag}/${tag}.xhtml`);
-    const source = readText(path);
-    const css = source.match(/\{style[^|]*\|```([\s\S]*?)```\}/)?.[1];
-    if (!css) { fail('canonical action must own embedded CSS'); return; }
-    const label = repoPath(path);
-    assertCssUsesTokensOnly(label, css);
-    const rules = parseCssRules(label, css, ['cem-pending-shift']);
-    const normal = new Map(rules.filter(rule => !rule.media).map(rule => [rule.selector, rule.declarations]));
-    assertActionPendingKeyframes(label, css);
-    if (/--_cem-action-|--cem-action-internal-/.test(css)) {
-        fail(`${label}: action must consume theme endpoints without private state aliases`);
-    }
-    const control = tag === 'cem-icon-button' ? ':is(button, a)' : 'button';
-    for (const intent of ['primary', 'explicit', 'contextual', 'alternate', 'destructive']) {
-        const host = intent === 'primary' ? ':scope' : `:scope:where([variant="${intent}"])`;
-        for (const [state, suffix] of [
-            ['default', ''], ['hover', ':where(:enabled:hover)'], ['active', ':where(:enabled:active)'],
-            ['disabled', ":where(:disabled:not([aria-busy='true']))"], ['pending', ":where([aria-busy='true'])"],
-        ]) {
-            const adaptedSuffix = tag === 'cem-icon-button'
-                ? suffix.replace(':enabled:hover', ':enabled:hover, [href]:hover').replace(':enabled:active', ':enabled:active, [href]:active').replace(":where(:disabled:not([aria-busy='true']))", ":where(:disabled, [aria-disabled='true']):where(:not([aria-busy='true']))")
-                : suffix;
-            const declarations = normal.get(`${host} > ${control}[part~='control']${adaptedSuffix}`);
-            if (['hover', 'active', 'disabled'].includes(state) && declarations?.size !== 2) {
-                fail(`${label}: ${intent} ${state} changes only the color pair`);
-            }
-            for (const [property, channel] of [['background-color', 'background'], ['color', 'text']]) {
-                const expected = state === 'pending'
-                    ? `var(--cem-action-${intent}-pending-${channel}, var(--cem-action-${intent}-active-${channel}))`
-                    : `var(--cem-action-${intent}-${state}-${channel})`;
-                if (declarations?.get(property) !== expected) {
-                    fail(`${label}: ${intent} ${state} must consume its ${channel} theme endpoint directly`);
-                }
-            }
-        }
-    }
+    failures.push(...inspectActionStyles(repoPath(path), tag, canonicalCss(path, tag)));
 }
 
 function assertCanonicalChoiceStacking(tokenNames) {
@@ -1057,7 +1023,7 @@ function assertPublicComponentStyles(components, tokenNames) {
 
     for (const tag of ACTION_TAGS) {
         const path = join(componentRoot, `src/components/${tag}/${tag}.xhtml`);
-        const css = readText(path).match(/\{style[^|]*\|```([\s\S]*?)```\}/)?.[1] ?? '';
+        const css = canonicalCss(path, tag);
         assertCssUsesTokensOnly(repoPath(path), css);
         for (const rule of parseCssRules(repoPath(path), css, [])) {
             const selector = rule.selector.replace(':scope', tag).replace("[part~='control']", '').replace(/:where\(([^)]+)\)/g, '$1');
@@ -1096,7 +1062,7 @@ function assertPublicComponentStyles(components, tokenNames) {
     // Keep the accepted paint/layout assertions while reading the declaration-owned CSS.
     for (const tag of [...CONTENT_INTERACTION_TAGS, ...NAVIGATION_TAGS]) {
         const path = join(componentRoot, `src/components/${tag}/${tag}.xhtml`);
-        const css = readText(path).match(/\{style[^|]*\|```([\s\S]*?)```\}/)?.[1] ?? '';
+        const css = canonicalCss(path, tag);
         assertCssUsesTokensOnly(repoPath(path), css);
         const expected = CONTENT_INTERACTION_TAGS.has(tag) ? CONTENT_INTERACTION_BINDINGS : new Map([...NAVIGATION_BINDINGS, ...TABS_LAYOUT_BINDINGS]);
         const actual = CONTENT_INTERACTION_TAGS.has(tag) ? contentInteractionRules : navigationRules;
@@ -1172,7 +1138,7 @@ function assertPublicComponentStyles(components, tokenNames) {
     );
 
     const dividerPath = join(componentRoot, 'src/components/cem-divider/cem-divider.xhtml');
-    const dividerCss = readText(dividerPath).match(/\{style[^|]*\|```([\s\S]*?)```\}/)?.[1] ?? '';
+    const dividerCss = canonicalCss(dividerPath, 'cem-divider');
     assertCssUsesTokensOnly(repoPath(dividerPath), dividerCss);
     for (const rule of parseCssRules(repoPath(dividerPath), dividerCss, [])) {
         let selector = rule.selector.replace(/:where\(([^)]+)\)/g, '$1').replace(':scope', 'cem-divider');
@@ -1189,11 +1155,12 @@ function assertPublicComponentStyles(components, tokenNames) {
         ['cem-paginator', paginatorRules, paginatorForcedColorRules, PAGINATOR_BINDINGS, PAGINATOR_FORCED_COLOR_BINDINGS],
     ]) {
         const path = join(componentRoot, `src/components/${tag}/${tag}.xhtml`);
-        const css = readText(path).match(/\{style[^|]*\|```([\s\S]*?)```\}/)?.[1] ?? '';
+        const css = canonicalCss(path, tag);
         assertCssUsesTokensOnly(repoPath(path), css);
         for (const rule of parseCssRules(repoPath(path), css, [])) {
             const selector = legacyNavigationSelector(rule.selector, tag);
-            const expected = rule.media ? forcedBindings : bindings;
+            const expected = rule.media === '(forced-colors: active)' ? forcedBindings
+                : rule.media === null ? bindings : new Map();
             if (expected.has(selector)) (rule.media ? forced : normal).set(selector, rule.declarations);
         }
     }
@@ -1206,11 +1173,12 @@ function assertPublicComponentStyles(components, tokenNames) {
     );
 
     const spinnerPath = join(componentRoot, 'src/components/cem-progress-spinner/cem-progress-spinner.xhtml');
-    const spinnerCss = readText(spinnerPath).match(/\{style[^|]*\|```([\s\S]*?)```\}/)[1];
+    const spinnerCss = canonicalCss(spinnerPath, 'cem-progress-spinner');
     assertCssUsesTokensOnly(repoPath(spinnerPath), spinnerCss);
     for (const rule of parseCssRules(repoPath(spinnerPath), spinnerCss)) {
         const selector = legacyNavigationSelector(rule.selector, 'cem-progress-spinner');
-        const expected = rule.media ? PROGRESS_SPINNER_REDUCED_MOTION_BINDINGS : PROGRESS_SPINNER_BINDINGS;
+        const expected = rule.media === '(prefers-reduced-motion: reduce)' ? PROGRESS_SPINNER_REDUCED_MOTION_BINDINGS
+            : rule.media === null ? PROGRESS_SPINNER_BINDINGS : new Map();
         if (expected.has(selector)) (rule.media ? progressSpinnerReducedMotionRules : progressSpinnerRules).set(selector, rule.declarations);
     }
     assertExactStateBindings(pathLabel, 'progress-spinner', progressSpinnerRules, PROGRESS_SPINNER_BINDINGS);
@@ -1305,49 +1273,10 @@ function legacyNavigationSelector(selector, tag) {
         part === 'root' ? (tag === 'cem-list' ? '.cem-list.cem-list--selectable' : `.${tag}`) : `.${tag}__${part}`);
 }
 
-function parseCssRules(pathLabel, cssText, allowedKeyframes = ['cem-progress-spinner-cycle']) {
-    let root;
-
-    try {
-        root = postcss.parse(cssText, { from: pathLabel });
-    } catch (error) {
-        fail(`${pathLabel}: invalid CSS: ${error instanceof Error ? error.message : String(error)}`);
-        return [];
-    }
-
-    const rules = [];
-
-    root.walkAtRules((atRule) => {
-        if (
-            atRule.name === 'media'
-            && !['(forced-colors: active)', '(prefers-reduced-motion: reduce)'].includes(atRule.params)
-        ) {
-            fail(`${pathLabel}: unsupported component stylesheet at-rule @${atRule.name} ${atRule.params}`);
-        } else if (atRule.name === 'keyframes' && !allowedKeyframes.includes(atRule.params)) {
-            fail(`${pathLabel}: unsupported component stylesheet keyframes @${atRule.name} ${atRule.params}`);
-        } else if (!['media', 'keyframes'].includes(atRule.name)) {
-            fail(`${pathLabel}: unsupported component stylesheet at-rule @${atRule.name} ${atRule.params}`);
-        }
-    });
-
-    root.walkRules((rule) => {
-        if (rule.parent?.type === 'atrule' && rule.parent.name === 'keyframes') return;
-        const declarations = parseDeclarations(pathLabel, rule.selector, rule.nodes);
-
-        for (const selector of postcss.list.comma(rule.selector)) {
-            if (!selector) {
-                fail(`${pathLabel}: empty component selector`);
-                continue;
-            }
-            rules.push({
-                declarations,
-                media: rule.parent?.type === 'atrule' ? rule.parent.params : null,
-                selector: selector.replace(/\s+/g, ' ').trim(),
-            });
-        }
-    });
-
-    return rules;
+function parseCssRules(pathLabel, cssText, allowedKeyframes) {
+    const inspected = inspectCssRules(pathLabel, cssText, allowedKeyframes);
+    failures.push(...inspected.failures);
+    return inspected.rules;
 }
 
 function assertProgressSpinnerKeyframes(pathLabel, cssText) {
@@ -1423,16 +1352,7 @@ function walkFiles(path) {
 }
 
 function assertCssUsesTokensOnly(pathLabel, cssText) {
-    if (CSS_COLOR_LITERAL.test(cssText)) {
-        fail(`${pathLabel}: color literals are forbidden; use CEM theme color tokens`);
-    }
-
-    for (const match of cssText.matchAll(CSS_SPACING_PROPERTY)) {
-        const declaration = match[0];
-        if (CSS_SPACING_LITERAL.test(declaration) && !declaration.includes('var(--cem-')) {
-            fail(`${pathLabel}: spacing literal \`${declaration.trim()}\` must resolve through a CEM theme token`);
-        }
-    }
+    failures.push(...inspectTokenUsage(pathLabel, cssText));
 }
 
 if (!statSync(tokenJsonPath, { throwIfNoEntry: false })) {
