@@ -73,6 +73,7 @@ export async function createCemStudioProjectWorkbench({ repository, validator, s
     const example = { ...sample, id: entry?.id ?? resource.id, name: entry?.name ?? resource.path,
         resourceId: resource.id, referenceUri: projectResourceUri(project, resource), path: resource.path, contentType: resource.contentType, schema: resource.schema,
         entryId: entry?.id, runConfigResourceId: entry?.runConfigResourceId, kind: entry?.kind,
+        graphConfiguration: resource.role === 'transform-config',
         dependencies: (entry?.resourceIds ?? []).filter(id => id !== resource.id && id !== entry.runConfigResourceId).map(resourceId => ({ resourceId, path: projectResourceUri(project, project.resources.find(item => item.id === resourceId)) })), projectOwned: true };
     const workbench = await createCemStudioFeatureTourWorkbench({ repository, validator, projectId: project.id,
         example, seed: undefined });
@@ -312,7 +313,7 @@ export async function createCemStudioSessionWorkbench({ repository, session, hom
             finally { homePending = false; if (homeState) homeState = { ...homeState, status: 'ready' }; publish(); }
         },
         refreshNavigation, dispose() { unsubscribeRepository?.(); disposed = true; ++searchVersion; ++navigationVersion; unsubscribe(); subscribers.clear(); } };
-    for (const method of ['updateDraft', 'reload', 'saveSource', 'saveAndValidate', 'validatePersisted', 'parsePersisted',
+    for (const method of ['updateDraft', 'updateGraphAttribute', 'undoGraphDraft', 'redoGraphDraft', 'reload', 'saveSource', 'saveAndValidate', 'validatePersisted', 'parsePersisted',
         'inspectPersisted', 'runPersistedOperation', 'updateCommandDraft', 'updateCommandField', 'updateCommandFields', 'updateCommandGroup', 'resetCommandDraft', 'copyCommand',
         'copyProjection', 'downloadProjection', 'downloadSource', 'setCommandTarget', 'applyCommand', 'applyAndRun',
         'confirmCommandReplacement', 'useNewCommandTarget', 'cancelCommandReplacement', 'navigateDiagnostic', 'navigateProvenance']) {
@@ -362,6 +363,9 @@ export async function createCemStudioFeatureTourWorkbench(options) {
     let editVersion = 0;
     let commandEditVersion = 0;
     const commandFormId = crypto.randomUUID();
+    let graphCache;
+    const graphUndo = [], graphRedo = [];
+    const isGraphConfiguration = () => typeof validator.authorGraph === 'function' && (example.graphConfiguration || example.schema === 'https://cem.dev/ns/cli/transform-config/1' || (!example.projectOwned && example.kind === 'transformation-graph'));
     let commandTargetVersion = 0;
     let state = freezeState({
         status: 'loading',
@@ -396,6 +400,14 @@ export async function createCemStudioFeatureTourWorkbench(options) {
 
     function publish(next) {
         if (next.command) next = { ...next, command: { ...next.command, formVersion: `${commandFormId}:${commandEditVersion}` } };
+        if (isGraphConfiguration()) {
+            if (graphCache?.source !== next.draft) {
+                try { graphCache = { source: next.draft, nodes: validator.authorGraph({ source: next.draft }).nodes }; }
+                catch (error) { graphCache = { source: next.draft, nodes: [], error: normalizedError(error) }; }
+            }
+            next = { ...next, graphConfiguration: { nodes: graphCache.nodes, error: next.graphConfiguration?.error ?? graphCache.error,
+                version: `${commandFormId}:source:${editVersion}`, canUndo: graphUndo.length > 0, canRedo: graphRedo.length > 0 } };
+        } else next = { ...next, graphConfiguration: undefined };
         state = freezeState(next);
         for (const notify of subscribers) notify(state);
         return state;
@@ -474,6 +486,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         const persisted = await readPersisted();
         const command = await commandForPersisted(persisted, true);
         editVersion += 1;
+        graphUndo.length = 0; graphRedo.length = 0; graphCache = undefined;
         return publish({
             ...state,
             status: 'loaded',
@@ -490,6 +503,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             command,
             selection: undefined,
             error: undefined,
+            graphConfiguration: undefined,
             workbenchId: example.id,
             operation: command?.parsed?.commandPath?.[0] ?? persisted.operation,
             expected: persisted.expected,
@@ -521,8 +535,12 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         return reload();
     }
 
-    function updateDraft(draft) {
+    function updateDraft(draft, remember = true) {
         if (typeof draft !== 'string') throw new TypeError('Feature Tour draft must be text');
+        if (isGraphConfiguration() && remember && draft !== state.draft) {
+            graphUndo.push(state.draft); graphRedo.length = 0;
+            trimGraphHistory();
+        }
         editVersion += 1;
         return publish({
             ...state,
@@ -533,8 +551,47 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             projection: state.projection ? freezeProjection({ ...state.projection, stale: true }) : undefined,
             selection: undefined,
             error: undefined,
+            graphConfiguration: undefined,
         });
     }
+
+    function trimGraphHistory() {
+        const size = () => [...graphUndo, ...graphRedo].reduce((sum, text) => sum + textEncoder.encode(text).byteLength, 0);
+        while (graphUndo.length + graphRedo.length > 20 || size() > 8 * 1024 * 1024) {
+            if (graphUndo.length) graphUndo.shift(); else graphRedo.shift();
+        }
+    }
+
+    async function updateGraphAttribute(fields) {
+        if (!isGraphConfiguration()) throw new Error('This resource is not an editable graph configuration');
+        try {
+            if (workbenchBusy(state) || state.command?.status === 'checking' || fields.version?.[0] !== `${commandFormId}:source:${editVersion}`) throw new Error('The graph changed. Review the current configuration and retry.');
+            for (const [name, values] of Object.entries(fields)) {
+                if (!['node', 'attribute', 'value', 'mode', 'version'].includes(name) || !Array.isArray(values) || values.length !== 1 || typeof values[0] !== 'string') throw new Error('Unexpected or repeated graph form fields');
+            }
+            const mode = fields.mode?.[0];
+            if (!['set', 'reset'].includes(mode)) throw new Error('Choose Set or Reset for the graph attribute');
+            if (mode === 'set' && typeof fields.value?.[0] !== 'string') throw new Error('A graph attribute value must be text');
+            const candidate = validator.authorGraph({ source: state.draft, edit: { node: fields.node?.[0], attribute: fields.attribute?.[0], value: mode === 'reset' ? null : fields.value[0] } });
+            if (candidate.source === state.draft) return publish({ ...state, graphConfiguration: { ...state.graphConfiguration, error: undefined } });
+            return updateDraft(candidate.source);
+        } catch (error) {
+            return publish({ ...state, graphConfiguration: { ...state.graphConfiguration, error: normalizedError(error) } });
+        }
+    }
+
+    function replayGraphDraft(undo) {
+        if (!isGraphConfiguration() || workbenchBusy(state) || state.command?.status === 'checking') return state;
+        const from = undo ? graphUndo : graphRedo, to = undo ? graphRedo : graphUndo;
+        if (!from.length) return state;
+        const draft = from.pop();
+        to.push(state.draft);
+        trimGraphHistory();
+        return updateDraft(draft, false);
+    }
+
+    const undoGraphDraft = () => replayGraphDraft(true);
+    const redoGraphDraft = () => replayGraphDraft(false);
 
     async function saveSource(options = {}) {
         return persistSource(options, false);
@@ -1476,6 +1533,9 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         snapshot,
         subscribe,
         updateDraft,
+        updateGraphAttribute,
+        undoGraphDraft,
+        redoGraphDraft,
         reload,
         selectWorkbench,
         saveSource,
@@ -1593,6 +1653,9 @@ export async function mountCemStudioFeatureTourWorkbench({
         state: { state: workbenchControlState(workbench.snapshot()), selectionRequest: '', pending },
         commands: {
             edit: ({ value }) => workbench.updateDraft(value ?? ''),
+            'edit-graph': ({ fields }) => perform(() => workbench.updateGraphAttribute(fields)),
+            'undo-graph': () => workbench.undoGraphDraft(),
+            'redo-graph': () => workbench.redoGraphDraft(),
             save: () => perform(() => workbench.saveAndValidate()),
             reload: () => perform(() => workbench.reload()),
             'download-source': () => perform(() => workbench.downloadSource(download)),
@@ -2345,11 +2408,11 @@ function workbenchBusy(state) {
 function workbenchControlState(state) {
     const { status, workbenchId, workbenches, draft, dirty, projectRevision,
         resourceRevision, selection, error, path, contentType, validation } = state;
-    return { structure: state.structure, home: state.home, explorer: state.explorer, status, workbenchId, workbenches, draft, dirty, projectRevision,
+    return { graphConfiguration: state.graphConfiguration, structure: state.structure, home: state.home, explorer: state.explorer, status, workbenchId, workbenches, draft, dirty, projectRevision,
         resourceRevision, selection, error, path, contentType, validation,
         editable: state.editable !== false, runnable: state.runnable !== false, transition: state.transition,
         sessionStatus: state.sessionStatus, draftRecovery: state.draftRecovery, navigationError: state.navigationError, resourceAvailable: state.resourceAvailable ?? Boolean(state.resourceId),
-        command: { application: { status: state.command?.application?.status } } };
+        command: { status: state.command?.status, application: { status: state.command?.application?.status } } };
 }
 
 function workbenchCommandState(command, transition) {

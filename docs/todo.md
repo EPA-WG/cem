@@ -1534,7 +1534,7 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
 - [x] Retire path-rebinding and browser paint-proof prerequisites for Studio
   tree operations. Project resources retain their stable IDs and resolver addresses;
   names and paths are dataset metadata. See the identity correction checklist above.
-- [ ] **Grouped operation and graph authoring** — extend native-backed configuration
+- [x] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
   - [x] Shared form-group foundation: ship declarative `cem-fieldset` before Studio adoption.
     - [x] Fixture: verify native legend/group naming, label/help projection, retained controls and unique description references; test fieldset disabling, native submission/reset and keyboard behavior with shared form controls, rendering the group in worker/fallback execution.
@@ -1601,12 +1601,58 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       physical-device/spoken AT acceptance and global style-audit maintenance remain
       independently open. Generated screenshots and Vitest attachments are excluded
       from the source commit.
-  - [ ] Add bounded graph/configuration authoring through shared declarative controls and native validation; verify persistence, undo/recovery and offline execution.
+  - [x] Add bounded graph/configuration authoring through shared declarative controls and native validation; verify persistence, undo/recovery and offline execution.
+    - [x] Fixture: native AST-based graph attribute description/editing validates the entire candidate, retains graph edges and unrelated values, rejects unsupported/duplicate/invalid edits and round-trips literal Unicode/quotes without evaluating expressions.
+    - [x] Fixture: exercise the exported authoring protocol in both Node/browser WASM packages, including malformed protocol rejection and exact no-op bytes.
+    - [x] Fixture: declarative node/attribute selection stages a guarded source draft; verify native reset, failed/stale/pending edits, 20-snapshot/8 MiB UTF-8 history bounds during edits and replay, explicit Save and no implicit Run.
+    - [x] Fixture: deployed native worker lifecycle saves a graph edit, reopens exact bytes, recovers an unsaved graph draft and runs the committed graph offline with stable resource identities.
+    - [x] Update public native/Studio API documentation, UI ownership and release evidence; audit inherited themes, forced colors and narrow layout.
+    - Evidence: `@epa-wg/cem-studio:check --parallel=1` passes all 51 tasks (35
+      cached), including 106 browser tests / 68 workbench cases, 32 native/deployed
+      Feature Tour examples, online/offline CLI workers, package/release evidence
+      and clean seven-package consumption with one runtime copy. Three focused
+      graph acceptance cases pass, including UTF-8 memory bounds on undo/redo.
+      Native authoring (3), formatter (12) and graph parser (24) cases pass;
+      direct Node/browser WASM export tests (2) exercise the same authoring protocol.
+      The native formatter now chooses a representable quote delimiter instead
+      of inventing backslash escapes; graph edits reject a failed literal round-trip.
+    - CEM audit: node/attribute selection, form composition, Set/Reset and history
+      actions are CEM-ML. Shared fieldsets/selects/text fields/actions/layouts own
+      native form semantics, focus, spacing, typography and comfort/state palettes.
+      Selection slices stay at their declaration owner outside projected layouts.
+      Native metadata distinguishes text from enum choices; no application CSS,
+      token defaults, DOM listeners or new runtime UI capability were introduced.
+      Deployed five-theme paint, inherited 23px container inset, forced colors,
+      named controls/ARIA references and 320/390/1280px reflow pass.
+    - Persistence evidence: Set/Undo/Redo leave project revision unchanged;
+      explicit Save commits exact graph bytes. Reload/recovery and offline Run
+      preserve input and command records. Release evidence requires
+      `graphConfigurationAuthoring`; both module maps declare the direct WASM
+      dependency. A Chromium probe reproduced accessibility-CDP teardown clearing
+      offline emulation while Playwright retained its cached setting; the harness
+      now forces a transition and asserts offline state before and after Run.
+      Lint and whitespace checks pass. Deterministic output: 171 assets / 261 files,
+      SHA-256 `c1d739feae1c6718efa67e095606833c13ffc78af10735ee57229fff84ac1095`.
+    - Bounds: one named-node scalar attribute at a time; 100 nodes / 1 MiB of
+      structured source. Topology creation, IDs, parameters, aliases and expressions
+      remain in source. Generated anonymous-node identities can prevent safe
+      canonical edits; add authored IDs or use source. Literals using both quote
+      delimiters remain unsupported by the structured editor. Draft history is
+      session-local and bounded to 20 snapshots / 8 MiB; Save retains it, reload
+      resets it. Physical-device/spoken AT acceptance and the global style audit
+      remain independently open. Generated screenshots/attachments are excluded.
+      The old parse/inspect-only Apply note above was stale: repository Apply
+      already accepts all six portable operations; the current docs correct it.
 - [ ] Maintain the global component style audit: decode canonical XHTML CSS text
   and support retained native nesting before asserting action state selectors.
   Preserve the semantic token/state checks; the current unchanged icon-button
   declaration fails extraction on an XML-escaped `&amp;` selector.
+- [ ] Extend native graph authoring to node/edge creation and parameter maps;
+  preserve authored IDs and resource references, validate each candidate and
+  verify transactional persistence/history/recovery/offline execution. Add
+  fixtures before implementation and shared controls before Studio composition.
 
-Continue with grouped operation/graph authoring using native project resource
-identities. No renderer instrumentation or dependency rewriting is a prerequisite.
+Continue with shared style-audit maintenance, then broader native graph authoring
+using stable project resource identities. No renderer instrumentation or dependency
+rewriting is a prerequisite.
 Physical-device/browser/AT acceptance remains independently open above.

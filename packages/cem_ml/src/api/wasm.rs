@@ -113,6 +113,12 @@ pub fn highlight_source_to_html_v1(request_json: &str) -> String {
     crate::api::source_highlight::highlight_source_to_html_v1_json(request_json)
 }
 
+/// Describe/edit a bounded transform graph using the same native AST and validation.
+#[wasm_bindgen(js_name = "authorTransformConfigV1")]
+pub fn author_transform_config_v1(request_json: &str) -> String {
+    crate::transform_config_authoring::author_transform_config_json(request_json)
+}
+
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct WasmModuleUrlResolutionRequest {

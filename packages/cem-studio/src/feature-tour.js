@@ -19,6 +19,9 @@ const PORTABLE_STUDIO_OPERATIONS = new Set(['parse', 'inspect', 'convert', 'quer
 
 /** Create one reusable real CEM-ML browser command validator. */
 export async function createCemStudioBrowserValidator() {
+    const graphRuntime = await import('@epa-wg/cem-ml/wasm');
+    await graphRuntime.default();
+    const { authorTransformConfigV1 } = graphRuntime;
     const {
         buildBrowserCommandInvocation,
         commandSchema,
@@ -366,6 +369,11 @@ export async function createCemStudioBrowserValidator() {
         previewResourceCommand,
         serializeResourceCommand,
         decodeResourceCommand,
+        authorGraph(request) {
+            const response = JSON.parse(authorTransformConfigV1(JSON.stringify(request)));
+            if (response.error) throw new Error(response.error);
+            return response;
+        },
         validateResource,
         async decodeProjectManifest(bytes, { signal } = {}) {
             const converted = await convertProjectManifest(

@@ -398,8 +398,8 @@ async function exerciseProjectLifecycle(page, context) {
     const settle = () => page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
     const snapshot = () => page.evaluate(() => {
         const state = globalThis.__cemStudioApplication.workbench.snapshot();
-        return { projectId: state.projectId, projectRevision: state.projectRevision, entryId: state.entryId, resourceId: state.resourceId, draft: state.draft, persistedText: state.persistedText,
-            navigationError: state.navigationError, projection: state.projection && { stale: state.projection.stale },
+        return { projectId: state.projectId, projectRevision: state.projectRevision, entryId: state.entryId, resourceId: state.resourceId, draft: state.draft, dirty: state.dirty, persistedText: state.persistedText,
+            navigationError: state.navigationError, projection: state.projection && { stale: state.projection.stale, exitCode: state.projection.exitCode, output: { text: state.projection.output.text } },
             command: state.command && { parsed: { options: state.command.parsed?.options }, application: { status: state.command.application.status, result: state.command.application.result && { entry: state.command.application.result.entry } } } };
     });
     const choose = async (selector, name) => {
@@ -692,12 +692,105 @@ async function exerciseProjectLifecycle(page, context) {
         return true;
     }, alpha.project);
     assert.equal(stableResourceReferences, true);
+    await context.setOffline(false);
+    await context.setOffline(true);
+    assert.equal(await page.evaluate(() => navigator.onLine), false);
+    await page.evaluate(async () => {
+        const { repository, session } = globalThis.__cemStudioApplication;
+        const { parseCemMlCommandText, serializeCemMlCommandResource } = await import('@epa-wg/cem-ml-cli/browser-commands');
+        const request = (operation, parameters) => ({ protocolVersion: 1, repository: 'studio-projects', requestRevision: 1, operation, parameters });
+        const bundle = (await repository.query(request('export-project', { projectId: 'acceptance-references' }))).value;
+        bundle.project = { ...bundle.project, id: 'acceptance-graph-authoring', name: 'Graph authoring acceptance', rootUri: 'studio://acceptance-graph-authoring/', revision: 1 };
+        bundle.project.resources = bundle.project.resources.filter(resource => resource.id !== 'config');
+        const encoder = new TextEncoder();
+        bundle.contents.graph = encoder.encode('{run | {import @id=asset @src="../assets/old.svg" @opaque=true @content-type=image/svg+xml | {export @id=result @out="../output/result.svg"}}}\n');
+        bundle.contents.command = encoder.encode(serializeCemMlCommandResource(parseCemMlCommandText('cem-ml transform --config studio://acceptance-graph-authoring/graphs/run.cem')));
+        delete bundle.contents.config;
+        for (const resource of bundle.project.resources) {
+            resource.revision = 1;
+            resource.sha256 = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bundle.contents[resource.id]))].map(byte => byte.toString(16).padStart(2, '0')).join('');
+        }
+        await repository.execute(request('import-project', { bundle }));
+        await session.select({ projectId: bundle.project.id, entryId: 'graph-page' });
+    });
+    await settle();
+    const graphBefore = await snapshot();
+    const graphRecords = await page.evaluate(async () => {
+        const { repository } = globalThis.__cemStudioApplication;
+        const value = (await repository.query({ protocolVersion: 1, repository: 'studio-projects', requestRevision: 1, operation: 'export-project', parameters: { projectId: 'acceptance-graph-authoring' } })).value;
+        return value.project.resources.filter(resource => resource.id !== 'graph');
+    });
+    await pick('Graph node', 'result (export)'); await pick('Graph attribute', 'out');
+    await page.getByRole('textbox', { name: 'Graph attribute value', exact: true }).fill('../output/authored.svg');
+    await click('Set graph attribute');
+    assert.equal((await snapshot()).projectRevision, 1);
+    assert.equal((await snapshot()).dirty, true);
+    assert.equal((await snapshot()).projection, undefined);
+    const graphDraft = (await snapshot()).draft;
+    await click('Undo graph edit'); assert.equal((await snapshot()).draft, graphBefore.draft);
+    await click('Redo graph edit'); assert.equal((await snapshot()).draft, graphDraft);
+    await inspectWorkspaceAccessibility(page, context);
+    const graphPaint = await page.evaluate(async () => {
+        const application = globalThis.__cemStudioApplication;
+        const modes = ['cem-theme-light', 'cem-theme-dark', 'cem-theme-contrast-light', 'cem-theme-contrast-dark', 'cem-theme-native'];
+        const paint = [];
+        for (const mode of modes) {
+            application.shell.theme.setMode(mode); await application.shell.whenSettled(); await application.workbenchView.whenSettled();
+            const fieldset = document.querySelector('cem-fieldset[label="Graph configuration"] fieldset');
+            const style = getComputedStyle(fieldset);
+            paint.push({ mode, background: style.backgroundColor, color: style.color, inset: parseFloat(style.paddingInlineStart), border: parseFloat(style.borderTopWidth) });
+        }
+        const host = document.querySelector('cem-fieldset[label="Graph configuration"]');
+        host.style.setProperty('--cem-inset-container', '23px');
+        const inheritedInset = getComputedStyle(host.querySelector('fieldset')).paddingInlineStart;
+        host.style.removeProperty('--cem-inset-container');
+        application.shell.theme.setMode('cem-theme-contrast-dark'); await application.shell.whenSettled();
+        return { paint, inheritedInset };
+    });
+    assert.equal(graphPaint.inheritedInset, '23px');
+    for (const paint of graphPaint.paint) assert.ok(paint.background !== 'rgba(0, 0, 0, 0)' && paint.color !== paint.background && paint.inset > 0 && paint.border > 0, JSON.stringify(paint));
+    await page.emulateMedia({ forcedColors: 'active' });
+    assert.equal(await page.locator('cem-fieldset[label="Graph configuration"] fieldset').evaluate(fieldset => {
+        const style = getComputedStyle(fieldset);
+        return style.color !== style.backgroundColor && style.borderTopColor === style.color;
+    }), true);
+    await page.emulateMedia({ forcedColors: 'none' });
+    await click('Save and validate');
+    assert.equal((await snapshot()).projectRevision, 2);
+    assert.equal((await snapshot()).persistedText, graphDraft);
+    await page.reload({ waitUntil: 'load' }); await waitForApplication(page, browserErrors, httpFailures); await settle();
+    assert.equal((await snapshot()).persistedText, graphDraft);
+    await pick('Graph node', 'result (export)'); await pick('Graph attribute', 'out');
+    await page.getByRole('textbox', { name: 'Graph attribute value', exact: true }).fill('../output/recovered.svg');
+    await click('Set graph attribute');
+    const recoveredGraph = (await snapshot()).draft;
+    const graphBackupEvent = page.waitForEvent('download'); await click('Download draft recovery backup');
+    assert.equal(JSON.parse(await readFile(await (await graphBackupEvent).path(), 'utf8')).draft, recoveredGraph);
+    await page.reload({ waitUntil: 'load' }); await waitForApplication(page, browserErrors, httpFailures); await settle();
+    assert.equal((await snapshot()).draft, recoveredGraph);
+    assert.equal((await snapshot()).persistedText, graphDraft);
+    assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.session.snapshot().draftRecovery.status), 'recovered');
+    await context.setOffline(false);
+    await context.setOffline(true);
+    assert.equal(await page.evaluate(() => navigator.onLine), false);
+    await click('Reload persisted revision'); await click('Run configured workbench');
+    const graphRun = await snapshot();
+    assert.equal(graphRun.projection.exitCode, 0);
+    assert.equal(graphRun.projection.stale, false);
+    assert.equal(graphRun.projection.output.text.includes('Exact café'), true);
+    assert.equal(await page.evaluate(() => navigator.onLine), false);
+    assert.deepEqual(await page.evaluate(async () => {
+        const { repository } = globalThis.__cemStudioApplication;
+        const value = (await repository.query({ protocolVersion: 1, repository: 'studio-projects', requestRevision: 1, operation: 'export-project', parameters: { projectId: 'acceptance-graph-authoring' } })).value;
+        return value.project.resources.filter(resource => resource.id !== 'graph');
+    }), graphRecords);
     await editor.dispose();
-    return { stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
+    return { graphConfigurationAuthoring: true, stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
         guardedDraftAndFocusRetained: true, exportedExactBytes: true, trashRestore: true, offlineReopen: true, accessibility };
 }
 
 async function inspectWorkspaceAccessibility(page, context) {
+    const wasOffline = !await page.evaluate(() => navigator.onLine);
     const cdp = await context.newCDPSession(page);
     const { nodes } = await cdp.send('Accessibility.getFullAXTree');
     const interactiveRoles = ['button', 'combobox', 'textbox', 'tab', 'treeitem'];
@@ -733,6 +826,9 @@ async function inspectWorkspaceAccessibility(page, context) {
     });
     assert.ok(focus.width > 0 && focus.style !== 'none' && (focus.color !== 'rgba(0, 0, 0, 0)' || focus.shadow !== 'none'), 'keyboard focus must be visible');
     await cdp.detach();
+    // Preserve offline emulation across the auxiliary CDP session. Toggle both
+    // states because Playwright skips an unchanged cached network setting.
+    if (wasOffline) { await context.setOffline(false); await context.setOffline(true); }
     return { namedControls: exposed.length, validRelationships: true, layouts, keyboardFocus: focus,
         scope: 'Automated Chromium accessibility tree and keyboard checks; physical devices and spoken assistive technology remain separately open.' };
 }

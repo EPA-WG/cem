@@ -48,6 +48,22 @@ The API renders trusted CEM-ML. Hosts remain responsible for deciding whether
 the resulting live markup may be injected and must treat any status other than
 `rendered` as non-renderable.
 
+## Bounded transform configuration authoring
+
+`authorTransformConfigV1(requestJson)` describes or edits CEM-ML graph source
+using the native AST and graph validator. A request contains `source` and an
+optional `edit: { node, attribute, value }`. A null value removes an optional
+attribute; empty text remains a literal. The response contains canonical `source`,
+`nodes` with field metadata, and the validated `graph`, or an `error` string.
+Description and unchanged edits retain exact source bytes. Changed edits use
+the native canonical formatter and are validated before returning.
+
+The bounded API supports scalar attributes on named nodes, at most 100 nodes and
+1 MiB of UTF-8 source. IDs, topology creation, parameter maps, alias spellings and
+expressions remain source-only. Literals containing both quote delimiters are
+rejected. It does not resolve dependencies, execute graphs or persist edits.
+Browser callers initialize the WASM loader before calling it, as with other APIs.
+
 ## Lossless source highlighting
 
 `highlightSourceToHtmlV1(requestJson)` formats authored HTML and CEM-ML as

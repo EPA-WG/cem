@@ -39,7 +39,8 @@
             "path": "../src/feature-tour.js",
             "contentType": "text/javascript",
             "moduleImports": {
-                "@epa-wg/cem-ml-cli/browser-commands": "@epa-wg/cem-ml-cli/browser-commands"
+                "@epa-wg/cem-ml-cli/browser-commands": "@epa-wg/cem-ml-cli/browser-commands",
+                "@epa-wg/cem-ml/wasm": "@epa-wg/cem-ml/wasm"
             }
         },
         "@epa-wg/cem-studio/workbench": {

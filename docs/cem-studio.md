@@ -2422,8 +2422,9 @@ rejected with a CEM alert and leaves command bytes unchanged. Successful edits u
 the existing preview, semantic-change, draft-recovery and guarded-navigation
 pipeline. Preview resolves the same retained resources and applies the same
 browser capability checks as literal editing. Setting a field never saves source,
-applies a command or runs it. Existing Apply support remains parse/inspect;
-other portable workbenches keep their existing execution and persistence limits.
+applies a command or runs it. Apply accepts all six portable operations; the native
+command grammar and project resource boundary retain their operation and capability
+constraints.
 
 The deployed lifecycle gate edits and resets format, sets source-offset retention,
 checks unchanged project revision before Apply, and runs the explicit saved
@@ -2464,9 +2465,10 @@ and can materialize native default values. A Keep-only batch retains exact comma
 Accepted grouped drafts use the existing recovery journal and navigation guards.
 They do not Save, Apply or Run implicitly. Explicit Apply persists all accepted
 options through the existing single repository transaction, with project/resource
-revision checks and stable identities. Apply remains bounded to parse/inspect;
-other operations retain their current execution/persistence limits. Reload and
-offline admission restore the exact committed command. The public metadata/batch
+revision checks and stable identities. Apply accepts parse, inspect, convert, query,
+transform (direct or graph) and trace, while native validation and declared-resource
+constraints remain authoritative. Reload and offline admission restore the exact
+committed command. The public metadata/batch
 helpers are `describeCemStudioOperationGroups` and `editCemStudioOperationFields`;
 workbenches expose `updateCommandFields` and the native-form boundary
 `updateCommandGroup`. The existing single-field helpers remain compatible.
@@ -2516,3 +2518,58 @@ Studio imports `@epa-wg/cem-ml-cli/browser-commands`, the focused command-servic
 surface. The live DOM/stylesheet/paint observation and replay hosts have been deleted
 from the CLI library itself, along with their exports and image-delivery worker.
 The general browser worker pool and command runtime remain supported.
+### Bounded graph configuration authoring
+
+A transformation configuration resource exposes **Graph configuration** alongside
+its source editor. Choose a named graph node and one scalar attribute. The native
+`cem_ml::transform_config_authoring` API supplies node kinds, allowed attributes,
+required flags and bounded enum choices from the transform configuration schema.
+`authorTransformConfigV1` is the equivalent low-level WASM JSON protocol, exposed
+through `CemStudioBrowserValidator.authorGraph`. JSON carries host protocol records;
+the graph source is parsed only by the native CEM AST and graph validator.
+
+**Set graph attribute** replaces or adds a literal value; **Reset** removes an
+optional attribute. Empty text remains an explicit value. Required attributes cannot
+be removed. The entire candidate graph is validated before it becomes a source
+draft, including input references and cycles. IDs and topology creation, parameter
+maps, alias spellings and expressions remain in the source editor. Anonymous nodes
+have no structured fields. Mixed graphs can fail the preservation check if formatting
+changes generated anonymous-node IDs; add authored IDs or use the source editor.
+The authoring boundary accepts at most 100 graph nodes
+and 1 MiB of source. Literals containing both single and double quote delimiters
+remain source-only until native literal syntax supports them. Unrepresentable values
+are rejected without changing the draft. Native canonical formatting can normalize
+spacing, attribute order, quotes and comments; unchanged submissions retain exact
+source bytes. Unrelated graph-node values must survive serialization.
+
+Node/attribute selection, labels, Set/Reset, form capture and pending disabling are
+XHTML/CEM-ML. Shared `cem-fieldset`, `cem-select`, `cem-text-field`, `cem-stack`,
+`cem-grid` and `cem-action` retain their native form, keyboard, focus and theme
+contracts. One attribute form is mounted at a time. **Reset staged graph change**
+uses native form reset and does not change the source draft. Switching the node or
+attribute drops unsubmitted staging. No new component JavaScript, application CSS,
+DOM listener or runtime UI capability is introduced. Studio JavaScript orchestrates
+the native authoring and repository services.
+
+Each submission carries the workbench instance and source-draft revision it was
+rendered from. Stale, foreign, unexpected, repeated and pending submissions are
+rejected. **Undo graph edit** and **Redo graph edit** restore source-draft snapshots,
+including edits made directly in the source textarea, bounded to 20 snapshots and
+8 MiB of UTF-8 text. This is graph transaction history; it does not intercept native
+text-editor undo or keyboard events. New edits clear redo. Save retains local history,
+so undo after Save stages a new dirty revision; reload/navigation resets history.
+
+Set, Reset, Undo and Redo do not persist or run. **Save and validate** commits the
+exact accepted source bytes using project/resource revision guards; explicit **Run
+configured workbench** executes the persisted graph. Resource resolution, referenced
+bytes and execution capability checks retain the shared native command pipeline.
+Draft recovery restores unsaved graph source after reload; persisted resources stay
+unchanged until Save. Command Apply remains a separate transaction for the authored
+CLI command and its page references. Source-only edits do not rewrite command or
+input resource records.
+
+The deployed lifecycle gate requires `graphConfigurationAuthoring`: it stages an
+attribute through shared controls, checks no revision/Run before Save, exercises
+Undo/Redo, saves and reopens exact bytes, recovers a second unsaved edit, and runs the
+committed graph offline while retaining input and command resource identities.
+Physical-device and spoken AT acceptance remain separately open.

@@ -44,6 +44,7 @@ test('Node export initializes the common WASM runtime', async () => {
   assert.match(highlighted.html, /&lt;<b>p<\/b>/);
   assert.match(highlighted.html, /<var>class<\/var>=&quot;<i>message<\/i>&quot;/);
   assert.doesNotMatch(highlighted.html, /class=|data-role=/);
+  verifyGraphAuthoring(runtime);
 });
 
 test('browser loader accepts bytes and initializes the same WASM ABI', async () => {
@@ -69,6 +70,7 @@ test('browser loader accepts bytes and initializes the same WASM ABI', async () 
   assert.equal(typeof browserRuntime.disposeCommandArtifactsV1, 'function');
   assert.equal(typeof browserRuntime.renderCemMlToHtmlV1, 'function');
   assert.equal(typeof browserRuntime.highlightSourceToHtmlV1, 'function');
+  verifyGraphAuthoring(browserRuntime);
 
   const rendered = JSON.parse(
     browserRuntime.renderCemMlToHtmlV1(JSON.stringify({ source: '{strong | Browser WASM}' })),
@@ -113,6 +115,18 @@ test('browser loader accepts bytes and initializes the same WASM ABI', async () 
     ],
   );
 });
+
+function verifyGraphAuthoring(runtime) {
+  const source = '{run | {import @id=data @src=data.cem | {export @id=result @out=result.cem}}}\n';
+  const describe = JSON.parse(runtime.authorTransformConfigV1(JSON.stringify({ source })));
+  assert.equal(describe.source, source);
+  assert.deepEqual(describe.nodes.map(node => node.id), ['data', 'result']);
+  const edited = JSON.parse(runtime.authorTransformConfigV1(JSON.stringify({ source,
+    edit: { node: 'result', attribute: 'out', value: 'café "literal".cem' } })));
+  assert.equal(edited.nodes[1].fields.find(field => field.id === 'out').value, 'café "literal".cem');
+  assert.deepEqual(edited.graph.edges, describe.graph.edges);
+  assert.equal(typeof JSON.parse(runtime.authorTransformConfigV1('{"source":false}')).error, 'string');
+}
 
 test('invalid capability requests remain structured diagnostics', async () => {
   const runtime = await import('@epa-wg/cem-ml/wasm');

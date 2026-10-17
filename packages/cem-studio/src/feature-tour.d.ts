@@ -75,6 +75,8 @@ export interface CemStudioResourceCommandPreviewOptions extends CemStudioResourc
 }
 
 export interface CemStudioBrowserValidator {
+    /** Native CEM AST description/editing; does not execute or persist a graph. */
+    authorGraph(request: { source: string; edit?: { node: string; attribute: string; value: string | null } }): CemStudioGraphConfiguration;
     readonly capability: Readonly<Record<string, unknown>>;
     readonly commonVersion: string;
     parseResource(
@@ -113,6 +115,12 @@ export interface CemStudioBrowserValidator {
     validateProject(bundle: unknown, options?: { signal?: AbortSignal }): Promise<unknown>;
     assertCatalog(catalog: unknown): void;
     close(): Promise<void>;
+}
+
+export interface CemStudioGraphConfiguration {
+    source: string;
+    nodes: { id: string; kind: string; fields: { id: string; value: string | null; required: boolean; choices: string[]; hasChoices: boolean }[] }[];
+    graph: Readonly<Record<string, unknown>>;
 }
 
 export declare function createCemStudioBrowserValidator(): Promise<CemStudioBrowserValidator>;

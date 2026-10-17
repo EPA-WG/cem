@@ -40,6 +40,100 @@ afterEach(async () => {
 });
 
 describe('CEM Studio Feature Tour workbench', () => {
+    it('stages native graph attributes with stale guards and bounded reversible drafts', async () => {
+        const { workbench, repository, validator } = await graphWorkbench();
+        const original = workbench.snapshot().draft;
+        const fields = (attribute, value) => ({ node: ['result'], attribute: [attribute], value: [value], mode: ['set'], version: [workbench.snapshot().graphConfiguration.version] });
+        const first = fields('out', 'café output.svg');
+        await workbench.updateGraphAttribute(first);
+        expect(workbench.snapshot().graphConfiguration.error).toBeUndefined();
+        const changed = workbench.snapshot().draft;
+        expect(changed).not.toBe(original);
+        expect(workbench.snapshot()).toMatchObject({ dirty: true, projectRevision: 1, graphConfiguration: { canUndo: true, canRedo: false } });
+        expect(validator.runResourceCommand).not.toHaveBeenCalled();
+        expect((await repository.query(request('export-project', { projectId: 'feature-tour' }))).value.project.revision).toBe(1);
+        await workbench.updateGraphAttribute(first);
+        expect(workbench.snapshot().graphConfiguration.error.message).toContain('graph changed');
+        expect(workbench.snapshot().draft).toBe(changed);
+        await workbench.updateGraphAttribute(fields('style-policy', 'invented'));
+        expect(workbench.snapshot().draft).toBe(changed);
+        await workbench.updateGraphAttribute({ ...fields('out', 'ignored'), extra: ['no'] });
+        expect(workbench.snapshot().graphConfiguration.error.message).toContain('Unexpected');
+        workbench.undoGraphDraft(); expect(workbench.snapshot().draft).toBe(original);
+        workbench.redoGraphDraft(); expect(workbench.snapshot().draft).toBe(changed);
+        await workbench.saveSource();
+        expect(workbench.snapshot()).toMatchObject({ dirty: false, projectRevision: 2, resourceRevision: 2 });
+        workbench.undoGraphDraft(); expect(workbench.snapshot()).toMatchObject({ dirty: true, draft: original });
+        workbench.redoGraphDraft(); expect(workbench.snapshot().dirty).toBe(false);
+        for (let index = 0; index < 24; index++) await workbench.updateGraphAttribute(fields('out', `output-${index}.svg`));
+        let undoCount = 0;
+        while (workbench.snapshot().graphConfiguration.canUndo) { workbench.undoGraphDraft(); undoCount++; }
+        expect(undoCount).toBe(20);
+        await workbench.reload();
+        expect(workbench.snapshot().draft).toBe(changed);
+        expect(workbench.snapshot().graphConfiguration).toMatchObject({ canUndo: false, canRedo: false });
+    });
+
+    it('bounds graph draft history by UTF-8 bytes during undo and redo', async () => {
+        const { workbench } = await graphWorkbench();
+        const small = `${workbench.snapshot().draft}// Retained small draft\n`;
+        workbench.updateDraft(small);
+        const large = '🙂'.repeat(2 * 1024 * 1024);
+        workbench.updateDraft(large);
+        workbench.undoGraphDraft();
+        expect(workbench.snapshot().draft).toBe(small);
+        expect(workbench.snapshot().graphConfiguration).toMatchObject({ canUndo: false, canRedo: true });
+        workbench.redoGraphDraft(); expect(workbench.snapshot().draft).toBe(large);
+        workbench.undoGraphDraft(); expect(workbench.snapshot().draft).toBe(small);
+        workbench.updateDraft(`${large}🙂`);
+        workbench.undoGraphDraft();
+        expect(workbench.snapshot().draft).toBe(small);
+        expect(workbench.snapshot().graphConfiguration).toMatchObject({ canUndo: false, canRedo: false });
+    });
+
+    it('composes one graph attribute form declaratively with native reset and pending disabling', async () => {
+        const { workbench, validator } = await graphWorkbench();
+        const root = document.createElement('main'); document.body.append(root);
+        const shell = await mountCemStudioApplicationShell({ root }); shells.push(shell);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
+        await view.whenSettled();
+        const choose = async (name, value) => {
+            const select = root.querySelector(`cem-select[name="${name}"]`);
+            expect(select).not.toBeNull(); select.value = value; select.dispatchEvent(new Event('change', { bubbles: true }));
+            await view.whenSettled();
+        };
+        const action = name => [...root.querySelectorAll('button')].find(button => button.textContent.trim() === name);
+        await choose('graph-node', 'result'); await choose('graph-attribute', 'out');
+        const group = root.querySelector('cem-fieldset[label="Graph configuration"] fieldset');
+        expect(group.querySelector('legend').textContent.trim()).toBe('Graph configuration');
+        expect(root.querySelectorAll('form[host-command="edit-graph"]')).toHaveLength(1);
+        const input = group.querySelector('cem-text-field[name=value] input');
+        expect(input.value).toBe('result.svg');
+        input.value = 'staged.svg'; input.dispatchEvent(new Event('input', { bubbles: true }));
+        action('Reset staged graph change').click(); await view.whenSettled();
+        expect(input.value).toBe('result.svg');
+        input.value = 'changed.svg'; input.dispatchEvent(new Event('input', { bubbles: true }));
+        action('Set graph attribute').click(); await view.whenSettled();
+        expect(workbench.snapshot().draft).toContain('changed.svg');
+        expect(workbench.snapshot().projectRevision).toBe(1);
+        action('Undo graph edit').click(); await view.whenSettled();
+        expect(workbench.snapshot().dirty).toBe(false);
+        action('Redo graph edit').click(); await view.whenSettled();
+        expect(workbench.snapshot().dirty).toBe(true);
+        const pending = deferred(); validator.validateResource.mockImplementationOnce(() => pending.promise);
+        const saving = workbench.saveAndValidate();
+        await vi.waitFor(() => expect(workbench.snapshot().status).toBe('validating')); await view.whenSettled();
+        expect(group.disabled).toBe(true);
+        const saved = workbench.snapshot().draft;
+        await workbench.updateGraphAttribute({ node: ['result'], attribute: ['out'], value: ['pending.svg'], mode: ['set'], version: [workbench.snapshot().graphConfiguration.version] });
+        expect(workbench.snapshot().draft).toBe(saved);
+        pending.resolve(validResult()); await saving; await view.whenSettled();
+        expect(root.querySelector('cem-fieldset[label="Graph configuration"] fieldset').disabled).toBe(false);
+        await choose('graph-attribute', 'style-policy');
+        expect(root.querySelectorAll('form[host-command="edit-graph"]')).toHaveLength(1);
+        expect(root.querySelector('cem-fieldset[label="Graph configuration"] cem-select[name=value] [role=combobox]')).not.toBeNull();
+    });
+
     it('uses native metadata to edit enum, boolean and literal fields without dropping other options', () => {
         const text = 'cem-ml parse studio://alpha/source.cem --namespace a=urn:a --namespace b=urn:b';
         const fields = describeCemStudioOperationFields(text);
@@ -2098,6 +2192,22 @@ describe('Studio project session admission', () => {
         expect(workbench.snapshot().draft).toBe('keep this version');
     });
 });
+
+let nativeGraphAuthor;
+async function graphWorkbench() {
+    if (!nativeGraphAuthor) {
+        const native = await createCemStudioBrowserValidator();
+        nativeGraphAuthor = native.authorGraph; await native.close();
+    }
+    const source = '{run | {import @id=data @src=asset.svg @opaque=true @content-type=image/svg+xml | {export @id=result @out=result.svg}}}\n';
+    const repository = await repositoryWithSource(source);
+    const validator = validatorFor(validResult()); validator.authorGraph = nativeGraphAuthor;
+    const seed = featureTourSeed();
+    seed.catalog.workbenches = [{ ...seed.catalog.workbenches[0], id: 'graph', operation: 'transform', kind: 'transformation-graph', commandArguments: ['transform', '--config', '$input'] }];
+    const workbench = await createCemStudioFeatureTourWorkbench({ repository, validator, seed, projectId: 'feature-tour' });
+    workbenches.push(workbench); await workbench.selectWorkbench('graph');
+    return { workbench, repository, validator };
+}
 
 function deferred() {
     let resolve;

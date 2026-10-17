@@ -4,6 +4,8 @@
     {slice @name=state}
     {slice @name=selectionRequest}
     {slice @name=pending | false}
+    {slice @name=graphNodeId | }
+    {slice @name=graphAttributeId | }
     {body |
         {cem-stack |
         {cem:variable @name=state @select=datadom.slices.state}
@@ -70,6 +72,72 @@
 }
 }   }
 }   }
-}   }   }
+}
+                {cem:if @test=datadom.slices.state.graphConfiguration |
+                    {cem:variable @name=graph @select=datadom.slices.state.graphConfiguration}
+                    {cem:variable @name=graphBusy @select='datadom.slices.pending || (datadom.slices.state.status == "saving") || (datadom.slices.state.status == "validating") || (datadom.slices.state.status == "projecting") || (datadom.slices.state.command.status == "checking") || (datadom.slices.state.command.application.status == "applying") || (datadom.slices.state.command.application.status == "running")'}
+                    {cem-select @name=graph-node @value={datadom.slices.graphNodeId ?? ""} @slice=graphNodeId @slice-event=change @slice-value="$target.value" @disabled={if graphBusy { true } else { null }} |
+                        {span @slot=label | Graph node}
+                        {span @slot=help | Edit one named node attribute. Set stages a source draft; Save commits it. Run uses the saved graph. Topology, IDs, aliases and parameters remain in source.}
+                        {option @value="" | Choose a named node}
+                        {cem:for-each @select=graph.nodes @as=node |
+                            {cem:if @test='seq:count(node.fields.id) &gt; 0' |
+                                {option @value={node.id} | {$ | str:concat((node.id, " (", node.kind, ")"), "")}}
+                            }
+                        }
+                    }
+                    {cem:for-each @select=graph.nodes @as=node |
+                        {cem:if @test='node.id == datadom.slices.graphNodeId' |
+                            {cem-select @name=graph-attribute @value={datadom.slices.graphAttributeId ?? ""} @slice=graphAttributeId @slice-event=change @slice-value="$target.value" @disabled={if graphBusy { true } else { null }} |
+                                {span @slot=label | Graph attribute}
+                                {option @value="" | Choose an attribute}
+                                {cem:for-each @select=node.fields @as=field |
+                                    {option @value={field.id} | {$ | field.id}}
+                                }
+                            }
+                            {cem:for-each @select=node.fields @as=field |
+                                {cem:if @test='field.id == datadom.slices.graphAttributeId' |
+                                    {form @host-command=edit-graph @host-command-event=submit |
+                                        {cem-fieldset @label="Graph configuration" @disabled={if graphBusy { true } else { null }} |
+                                            {span @slot=help | Set or remove this attribute in the source draft. Reset staged graph change only resets the form.}
+                                            {cem-stack @gap=sm |
+                                                {input @type=hidden @name=node @value={node.id}}
+                                                {input @type=hidden @name=attribute @value={field.id}}
+                                                {input @type=hidden @name=version @value={graph.version}}
+                                                {cem-select @name=mode @value=set |
+                                                    {span @slot=label | Graph attribute change}
+                                                    {option @value=set @selected | Set}
+                                                    {option @value=reset @disabled={if field.required { true } else { null }} | Reset (remove attribute)}
+                                                }
+                                                {cem:if @test=field.hasChoices |
+                                                    {cem-select @name=value @value={field.value ?? ""} |
+                                                        {span @slot=label | Graph attribute value}
+                                                        {option @value="" @selected={if !field.value { true } else { null }} | Choose a value}
+                                                        {cem:for-each @select=field.choices @as=choice |
+                                                            {option @value={choice} @selected={if choice == field.value { true } else { null }} | {$ | choice}}
+                                                        }
+                                                    }
+                                                }
+                                                {cem:if @test='!field.hasChoices' |
+                                                    {cem-text-field @label="Graph attribute value" @name=value @value={field.value ?? ""}}
+                                                }
+                                                {cem-grid |
+                                                    {cem-action @type=submit @variant=alternate | Set graph attribute}
+                                                    {cem-action @type=reset @variant=contextual | Reset staged graph change}
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    {cem-grid |
+                        {cem-action @disabled={if graphBusy || !graph.canUndo { true } else { null }} @host-command=undo-graph | Undo graph edit}
+                        {cem-action @disabled={if graphBusy || !graph.canRedo { true } else { null }} @host-command=redo-graph | Redo graph edit}
+                    }
+                    {cem:if @test=graph.error | {cem-alert @label={graph.error.message} @tone=danger}}
+                }
+}   }
   </template>
 </cem-element>

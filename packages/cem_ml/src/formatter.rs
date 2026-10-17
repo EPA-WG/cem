@@ -313,14 +313,14 @@ fn write_attribute(doc: &CemDocument, attr: &CemAstNode, out: &mut String) {
         if is_bare_value_ok(v) {
             out.push_str(v);
         } else {
-            out.push('"');
+            // CEM literal quotes do not use backslash escaping. Pick the
+            // other delimiter when a literal contains double quotes.
+            let delimiter = if v.contains('"') && !v.contains('\'') { '\'' } else { '"' };
+            out.push(delimiter);
             for c in v.chars() {
-                if c == '"' {
-                    out.push('\\');
-                }
                 out.push(c);
             }
-            out.push('"');
+            out.push(delimiter);
         }
     }
 }
