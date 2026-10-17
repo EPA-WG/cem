@@ -313,7 +313,7 @@ export async function createCemStudioSessionWorkbench({ repository, session, hom
             finally { homePending = false; if (homeState) homeState = { ...homeState, status: 'ready' }; publish(); }
         },
         refreshNavigation, dispose() { unsubscribeRepository?.(); disposed = true; ++searchVersion; ++navigationVersion; unsubscribe(); subscribers.clear(); } };
-    for (const method of ['updateDraft', 'updateGraphAttribute', 'undoGraphDraft', 'redoGraphDraft', 'reload', 'saveSource', 'saveAndValidate', 'validatePersisted', 'parsePersisted',
+    for (const method of ['updateDraft', 'updateGraphAttribute', 'createGraphNode', 'undoGraphDraft', 'redoGraphDraft', 'reload', 'saveSource', 'saveAndValidate', 'validatePersisted', 'parsePersisted',
         'inspectPersisted', 'runPersistedOperation', 'updateCommandDraft', 'updateCommandField', 'updateCommandFields', 'updateCommandGroup', 'resetCommandDraft', 'copyCommand',
         'copyProjection', 'downloadProjection', 'downloadSource', 'setCommandTarget', 'applyCommand', 'applyAndRun',
         'confirmCommandReplacement', 'useNewCommandTarget', 'cancelCommandReplacement', 'navigateDiagnostic', 'navigateProvenance']) {
@@ -402,10 +402,12 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         if (next.command) next = { ...next, command: { ...next.command, formVersion: `${commandFormId}:${commandEditVersion}` } };
         if (isGraphConfiguration()) {
             if (graphCache?.source !== next.draft) {
-                try { graphCache = { source: next.draft, nodes: validator.authorGraph({ source: next.draft }).nodes }; }
-                catch (error) { graphCache = { source: next.draft, nodes: [], error: normalizedError(error) }; }
+                try {
+                    const { nodes, parents, nodeTypes } = validator.authorGraph({ source: next.draft });
+                    graphCache = { source: next.draft, nodes, parents, nodeTypes };
+                } catch (error) { graphCache = { source: next.draft, nodes: [], parents: [], nodeTypes: [], error: normalizedError(error) }; }
             }
-            next = { ...next, graphConfiguration: { nodes: graphCache.nodes, error: next.graphConfiguration?.error ?? graphCache.error,
+            next = { ...next, graphConfiguration: { nodes: graphCache.nodes, parents: graphCache.parents, nodeTypes: graphCache.nodeTypes, error: next.graphConfiguration?.error ?? graphCache.error,
                 version: `${commandFormId}:source:${editVersion}`, canUndo: graphUndo.length > 0, canRedo: graphRedo.length > 0 } };
         } else next = { ...next, graphConfiguration: undefined };
         state = freezeState(next);
@@ -574,6 +576,28 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             if (mode === 'set' && typeof fields.value?.[0] !== 'string') throw new Error('A graph attribute value must be text');
             const candidate = validator.authorGraph({ source: state.draft, edit: { node: fields.node?.[0], attribute: fields.attribute?.[0], value: mode === 'reset' ? null : fields.value[0] } });
             if (candidate.source === state.draft) return publish({ ...state, graphConfiguration: { ...state.graphConfiguration, error: undefined } });
+            return updateDraft(candidate.source);
+        } catch (error) {
+            return publish({ ...state, graphConfiguration: { ...state.graphConfiguration, error: normalizedError(error) } });
+        }
+    }
+
+    async function createGraphNode(fields) {
+        if (!isGraphConfiguration()) throw new Error('This resource is not an editable graph configuration');
+        try {
+            if (workbenchBusy(state) || state.command?.status === 'checking' || fields.version?.[0] !== `${commandFormId}:source:${editVersion}`) throw new Error('The graph changed. Review the current configuration and retry.');
+            const kind = state.graphConfiguration.nodeTypes.find(kind => kind.id === fields.kind?.[0]);
+            if (!kind) throw new Error('Choose a native graph node kind');
+            const allowed = ['parent', 'kind', 'id', 'version', ...kind.fields.map(field => `attribute.${field.id}`)];
+            for (const [name, values] of Object.entries(fields)) {
+                if (!allowed.includes(name) || !Array.isArray(values) || values.length !== 1 || typeof values[0] !== 'string') throw new Error('Unexpected or repeated graph creation fields');
+            }
+            if (['parent', 'kind', 'id'].some(name => typeof fields[name]?.[0] !== 'string')) throw new Error('Choose a parent, node kind and authored ID');
+            const attributes = Object.fromEntries(kind.fields.flatMap(field => {
+                const value = fields[`attribute.${field.id}`]?.[0];
+                return value === undefined || (!field.required && value === '') ? [] : [[field.id, value]];
+            }));
+            const candidate = validator.authorGraph({ source: state.draft, create: { parent: fields.parent[0] || null, kind: fields.kind[0], id: fields.id[0], attributes } });
             return updateDraft(candidate.source);
         } catch (error) {
             return publish({ ...state, graphConfiguration: { ...state.graphConfiguration, error: normalizedError(error) } });
@@ -1534,6 +1558,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         subscribe,
         updateDraft,
         updateGraphAttribute,
+        createGraphNode,
         undoGraphDraft,
         redoGraphDraft,
         reload,
@@ -1654,6 +1679,7 @@ export async function mountCemStudioFeatureTourWorkbench({
         commands: {
             edit: ({ value }) => workbench.updateDraft(value ?? ''),
             'edit-graph': ({ fields }) => perform(() => workbench.updateGraphAttribute(fields)),
+            'create-graph-node': ({ fields }) => perform(() => workbench.createGraphNode(fields)),
             'undo-graph': () => workbench.undoGraphDraft(),
             'redo-graph': () => workbench.redoGraphDraft(),
             save: () => perform(() => workbench.saveAndValidate()),

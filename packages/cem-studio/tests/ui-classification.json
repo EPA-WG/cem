@@ -269,7 +269,7 @@
             "generalComponents": ["cem-fieldset", "cem-select", "cem-text-field", "cem-action", "cem-icon-button", "cem-badge", "cem-alert", "cem-progress", "cem-tree", "cem-table"],
             "studioComponents": ["cem-studio-graph-view"],
             "materialReferences": ["button", "badge", "progress-bar", "tree", "table"],
-            "contractBounds": ["A transformation graph and execution overlay have no Material catalog counterpart; the composite must not recreate general actions, status, hierarchy, progress, or table behavior."],
+            "contractBounds": ["Native schema-backed scalar editing and named-node creation compose shared form controls declaratively; edge editing and parameter-map forms remain follow-ups.", "A transformation graph and execution overlay have no Material catalog counterpart; the composite must not recreate general actions, status, hierarchy, progress, or table behavior."],
             "applicationOwns": ["authored graph", "validation", "execution overlay", "selected stage and source navigation"],
             "evidence": ["docs/cem-studio.md#bounded-graph-configuration-authoring", "packages/cem_ml/tests/transform_config_authoring.rs", "packages/cem-studio/src/workbench.browser.spec.js", "docs/cem-studio.md#primary-screens", "docs/cem-studio.md#preview-rules"]
         },

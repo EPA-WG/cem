@@ -399,7 +399,7 @@ async function exerciseProjectLifecycle(page, context) {
     const snapshot = () => page.evaluate(() => {
         const state = globalThis.__cemStudioApplication.workbench.snapshot();
         return { projectId: state.projectId, projectRevision: state.projectRevision, entryId: state.entryId, resourceId: state.resourceId, draft: state.draft, dirty: state.dirty, persistedText: state.persistedText,
-            navigationError: state.navigationError, projection: state.projection && { stale: state.projection.stale, exitCode: state.projection.exitCode, output: { text: state.projection.output.text } },
+            navigationError: state.navigationError, projection: state.projection && { stale: state.projection.stale, exitCode: state.projection.exitCode, summary: state.projection.summary, output: { text: state.projection.output.text } },
             command: state.command && { parsed: { options: state.command.parsed?.options }, application: { status: state.command.application.status, result: state.command.application.result && { entry: state.command.application.result.entry } } } };
     });
     const choose = async (selector, name) => {
@@ -720,6 +720,21 @@ async function exerciseProjectLifecycle(page, context) {
         const value = (await repository.query({ protocolVersion: 1, repository: 'studio-projects', requestRevision: 1, operation: 'export-project', parameters: { projectId: 'acceptance-graph-authoring' } })).value;
         return value.project.resources.filter(resource => resource.id !== 'graph');
     });
+    await pick('New graph node parent', 'asset (import)'); await pick('New graph node kind', 'export');
+    await page.getByRole('textbox', { name: 'Graph node ID', exact: true }).fill('copy');
+    await page.getByRole('textbox', { name: 'out', exact: true }).fill('../output/copy.svg');
+    await click('Reset new graph node');
+    assert.equal(await page.getByRole('textbox', { name: 'Graph node ID', exact: true }).inputValue(), '');
+    assert.equal((await snapshot()).dirty, false);
+    await page.getByRole('textbox', { name: 'Graph node ID', exact: true }).fill('copy');
+    await page.getByRole('textbox', { name: 'out', exact: true }).fill('../output/copy.svg');
+    await click('Create graph node');
+    assert.equal((await snapshot()).projectRevision, 1);
+    assert.equal((await snapshot()).projection, undefined);
+    assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().graphConfiguration.nodes.some(node => node.id === 'copy')), true);
+    const graphWithNode = (await snapshot()).draft;
+    await click('Undo graph edit'); assert.equal((await snapshot()).draft, graphBefore.draft);
+    await click('Redo graph edit'); assert.equal((await snapshot()).draft, graphWithNode);
     await pick('Graph node', 'result (export)'); await pick('Graph attribute', 'out');
     await page.getByRole('textbox', { name: 'Graph attribute value', exact: true }).fill('../output/authored.svg');
     await click('Set graph attribute');
@@ -727,7 +742,7 @@ async function exerciseProjectLifecycle(page, context) {
     assert.equal((await snapshot()).dirty, true);
     assert.equal((await snapshot()).projection, undefined);
     const graphDraft = (await snapshot()).draft;
-    await click('Undo graph edit'); assert.equal((await snapshot()).draft, graphBefore.draft);
+    await click('Undo graph edit'); assert.equal((await snapshot()).draft, graphWithNode);
     await click('Redo graph edit'); assert.equal((await snapshot()).draft, graphDraft);
     await inspectWorkspaceAccessibility(page, context);
     const graphPaint = await page.evaluate(async () => {
@@ -736,11 +751,13 @@ async function exerciseProjectLifecycle(page, context) {
         const paint = [];
         for (const mode of modes) {
             application.shell.theme.setMode(mode); await application.shell.whenSettled(); await application.workbenchView.whenSettled();
-            const fieldset = document.querySelector('cem-fieldset[label="Graph configuration"] fieldset');
-            const style = getComputedStyle(fieldset);
-            paint.push({ mode, background: style.backgroundColor, color: style.color, inset: parseFloat(style.paddingInlineStart), border: parseFloat(style.borderTopWidth) });
+            for (const label of ['Graph configuration', 'New graph node']) {
+                const fieldset = document.querySelector(`cem-fieldset[label="${label}"] fieldset`);
+                const style = getComputedStyle(fieldset);
+                paint.push({ mode, label, background: style.backgroundColor, color: style.color, inset: parseFloat(style.paddingInlineStart), border: parseFloat(style.borderTopWidth) });
+            }
         }
-        const host = document.querySelector('cem-fieldset[label="Graph configuration"]');
+        const host = document.querySelector('cem-fieldset[label="New graph node"]');
         host.style.setProperty('--cem-inset-container', '23px');
         const inheritedInset = getComputedStyle(host.querySelector('fieldset')).paddingInlineStart;
         host.style.removeProperty('--cem-inset-container');
@@ -750,7 +767,7 @@ async function exerciseProjectLifecycle(page, context) {
     assert.equal(graphPaint.inheritedInset, '23px');
     for (const paint of graphPaint.paint) assert.ok(paint.background !== 'rgba(0, 0, 0, 0)' && paint.color !== paint.background && paint.inset > 0 && paint.border > 0, JSON.stringify(paint));
     await page.emulateMedia({ forcedColors: 'active' });
-    assert.equal(await page.locator('cem-fieldset[label="Graph configuration"] fieldset').evaluate(fieldset => {
+    for (const label of ['Graph configuration', 'New graph node']) assert.equal(await page.locator(`cem-fieldset[label="${label}"] fieldset`).evaluate(fieldset => {
         const style = getComputedStyle(fieldset);
         return style.color !== style.backgroundColor && style.borderTopColor === style.color;
     }), true);
@@ -760,9 +777,10 @@ async function exerciseProjectLifecycle(page, context) {
     assert.equal((await snapshot()).persistedText, graphDraft);
     await page.reload({ waitUntil: 'load' }); await waitForApplication(page, browserErrors, httpFailures); await settle();
     assert.equal((await snapshot()).persistedText, graphDraft);
-    await pick('Graph node', 'result (export)'); await pick('Graph attribute', 'out');
-    await page.getByRole('textbox', { name: 'Graph attribute value', exact: true }).fill('../output/recovered.svg');
-    await click('Set graph attribute');
+    await pick('New graph node parent', 'asset (import)'); await pick('New graph node kind', 'export');
+    await page.getByRole('textbox', { name: 'Graph node ID', exact: true }).fill('recovered-copy');
+    await page.getByRole('textbox', { name: 'out', exact: true }).fill('../output/recovered.svg');
+    await click('Create graph node');
     const recoveredGraph = (await snapshot()).draft;
     const graphBackupEvent = page.waitForEvent('download'); await click('Download draft recovery backup');
     assert.equal(JSON.parse(await readFile(await (await graphBackupEvent).path(), 'utf8')).draft, recoveredGraph);
@@ -777,6 +795,7 @@ async function exerciseProjectLifecycle(page, context) {
     const graphRun = await snapshot();
     assert.equal(graphRun.projection.exitCode, 0);
     assert.equal(graphRun.projection.stale, false);
+    assert.equal(graphRun.projection.summary.artifactCount, 2);
     assert.equal(graphRun.projection.output.text.includes('Exact café'), true);
     assert.equal(await page.evaluate(() => navigator.onLine), false);
     assert.deepEqual(await page.evaluate(async () => {
@@ -785,7 +804,7 @@ async function exerciseProjectLifecycle(page, context) {
         return value.project.resources.filter(resource => resource.id !== 'graph');
     }), graphRecords);
     await editor.dispose();
-    return { graphConfigurationAuthoring: true, stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
+    return { graphNodeCreation: true, graphConfigurationAuthoring: true, stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
         guardedDraftAndFocusRetained: true, exportedExactBytes: true, trashRestore: true, offlineReopen: true, accessibility };
 }
 

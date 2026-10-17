@@ -125,6 +125,13 @@ function verifyGraphAuthoring(runtime) {
     edit: { node: 'result', attribute: 'out', value: 'café "literal".cem' } })));
   assert.equal(edited.nodes[1].fields.find(field => field.id === 'out').value, 'café "literal".cem');
   assert.deepEqual(edited.graph.edges, describe.graph.edges);
+  assert.deepEqual(describe.parents[0], { id: '', kind: 'run', children: ['import'] });
+  const created = JSON.parse(runtime.authorTransformConfigV1(JSON.stringify({ source,
+    create: { parent: 'data', kind: 'export', id: 'copy', attributes: { out: 'copy.cem' } } })));
+  assert.deepEqual(created.nodes.map(node => node.id), ['data', 'result', 'copy']);
+  assert.deepEqual(created.graph.nodes.slice(0, 2), describe.graph.nodes);
+  assert.ok(JSON.parse(runtime.authorTransformConfigV1(JSON.stringify({ source,
+    create: { parent: 'data', kind: 'export', id: 'result', attributes: { out: 'copy.cem' } } }))).error);
   assert.equal(typeof JSON.parse(runtime.authorTransformConfigV1('{"source":false}')).error, 'string');
 }
 

@@ -1671,14 +1671,52 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
   preserve authored IDs and resource references, validate each candidate and
   verify transactional persistence/history/recovery/offline execution. Add
   fixtures before implementation and shared controls before Studio composition.
-  - [ ] Add native fixtures and named-node creation with schema-backed fields,
+  - [x] Add native fixtures and named-node creation with schema-backed fields,
     unique authored IDs and preservation of existing resource identities.
+    - [x] Add native creation fixtures for schema-derived parents/fields, every
+      operation kind, literal/ID preservation, duplicate/invalid requests and
+      source/node bounds before implementing the shared authoring API.
+    - [x] Extend both Node and browser WASM export fixtures with creation metadata,
+      successful named-node creation and duplicate-ID rejection.
+    - [x] Add Studio browser fixtures for native creation forms, reset/busy/stale
+      guards, reversible drafts and unchanged durable project records before Save.
+    - [x] Extend deployed acceptance to create/save/reload/recover/run a named
+      graph branch offline, preserving input/command resource identities and
+      checking shared controls across themes, inherited tokens and forced colors.
+    - Implementation: the existing native AST authoring API now accepts one
+      mutually exclusive `create` request, appends under a schema-approved root
+      or named parent, and describes canonical scalar fields/choices. Existing
+      graph nodes and edges, parameter bindings and resource paths must survive
+      formatting unchanged. Studio composes parent/kind selectors and one native
+      creation form from shared controls; services only orchestrate native
+      validation, guarded draft staging and the existing history/repository path.
+      No new UI JavaScript capability or application CSS was needed.
+    - Evidence: 7 native authoring tests, both Node/browser WASM export checks and
+      6 focused browser graph checks pass. Deployed `graphNodeCreation` acceptance
+      proves reset, Create, Undo/Redo, exact Save/reload, unsaved creation recovery
+      and explicit offline Run producing both export artifacts. Input/command
+      resource records remain identical. Both graph forms pass all five themes
+      and forced colors; creation consumes an inherited 23px inset. Automated AX
+      relationships and 320/390/1280px reflow checks pass with no overflow.
+      The full Studio `check` passes all 51 tasks, including 108 browser tests,
+      32 native/deployed Feature Tour examples, online/offline workers, release
+      evidence and a clean seven-package consumer with one runtime copy. Tooling
+      ESLint, Rust formatting and whitespace checks pass. Deterministic output:
+      171 assets / 261 files, SHA-256
+      `5aea77f3bb6aae79f9e2b045331819ee5f0e01b82a16c5aec262c1b1e1e7414c`.
+      Generated screenshots and Vitest attachments are excluded from delivery.
+    - Bounds: append one named node, 1–256 UTF-8 ID bytes without surrounding
+      whitespace, 100 nodes / 1 MiB source; no existing-ID change or node move.
+      Aliases, expressions, parameter/`with:*` maps and join modes needing new
+      secondary bindings remain source-only. Mixed anonymous-node identities
+      that cannot survive formatting are rejected. Physical-device/spoken AT
+      acceptance remains open.
   - [ ] Add native fixtures and edge creation/editing with candidate validation,
     cycle diagnostics and declarative Studio controls.
   - [ ] Add native fixtures and parameter-map authoring, then verify Save,
     history, recovery and explicit offline Run for the expanded graph editor.
 
-Continue with native named-node creation, then edge editing and parameter-map
+Continue with native edge editing, then parameter-map
 authoring using stable project resource identities. No renderer instrumentation
 or dependency rewriting is a prerequisite.
 Physical-device/browser/AT acceptance remains independently open above.

@@ -270,7 +270,13 @@ revision-checked session undo/redo. The Operation form section now edits native-
 scalar, enum and boolean command options through shared CEM controls, with stale
 submission checks and explicit Apply/Run. Parse/inspect projects also support
 resource-path rename with stable native references and unreferenced deletion,
-using revision checks and undo/redo. Broader dependency formats, grouped option editing and simultaneous/resizable panes remain follow-ups.
+using revision checks and undo/redo. Grouped command options and native graph
+scalar editing are available. Graph creation now adds named nodes under
+schema-approved parents through declarative shared forms, with native validation,
+draft undo/redo and explicit Save/Run. Existing IDs and resource references stay
+stable; edge editing and parameter-map forms remain follow-ups alongside broader
+dependency formats and simultaneous/resizable panes. See
+[graph authoring](../../docs/cem-studio.md#bounded-graph-configuration-authoring).
 Broader browser/device/AT acceptance remains independently open, and presentation
 preparation stays deferred.
 

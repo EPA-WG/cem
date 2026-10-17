@@ -2524,6 +2524,15 @@ A transformation configuration resource exposes **Graph configuration** alongsid
 its source editor. Choose a named graph node and one scalar attribute. The native
 `cem_ml::transform_config_authoring` API supplies node kinds, allowed attributes,
 required flags and bounded enum choices from the transform configuration schema.
+**New graph node parent** and **New graph node kind** use that same schema's
+child rules. Choose the run root to add an import, or a named operation to append
+a supported child. **Create graph node** requires a unique authored ID and exposes
+canonical scalar attributes through shared controls. Optional empty form fields
+are omitted; conditional requirements still come from whole-graph validation.
+All six operation kinds are supported. Bindings such as `with:*` and parameter
+maps remain source-only, including join modes that require secondary inputs.
+Creation appends one child; it does not
+move existing nodes or change their IDs. The root can initially be an empty `{run}`.
 `authorTransformConfigV1` is the equivalent low-level WASM JSON protocol, exposed
 through `CemStudioBrowserValidator.authorGraph`. JSON carries host protocol records;
 the graph source is parsed only by the native CEM AST and graph validator.
@@ -2531,21 +2540,41 @@ the graph source is parsed only by the native CEM AST and graph validator.
 **Set graph attribute** replaces or adds a literal value; **Reset** removes an
 optional attribute. Empty text remains an explicit value. Required attributes cannot
 be removed. The entire candidate graph is validated before it becomes a source
-draft, including input references and cycles. IDs and topology creation, parameter
-maps, alias spellings and expressions remain in the source editor. Anonymous nodes
+draft, including input references and cycles. Existing ID changes, edge editing,
+parameter maps, alias spellings and expressions remain in the source editor. Anonymous nodes
 have no structured fields. Mixed graphs can fail the preservation check if formatting
 changes generated anonymous-node IDs; add authored IDs or use the source editor.
 The authoring boundary accepts at most 100 graph nodes
-and 1 MiB of source. Literals containing both single and double quote delimiters
+and 1 MiB of source. New IDs contain 1–256 UTF-8 bytes without surrounding whitespace.
+Duplicate IDs, unsupported parent/kind pairs and attributes outside the schema's
+canonical scalar fields are rejected. Literals containing both single and double quote delimiters
 remain source-only until native literal syntax supports them. Unrepresentable values
 are rejected without changing the draft. Native canonical formatting can normalize
 spacing, attribute order, quotes and comments; unchanged submissions retain exact
-source bytes. Unrelated graph-node values must survive serialization.
+source bytes. Existing graph-node values and edges must survive creation and
+serialization. Native candidates that change generated anonymous-node identities
+are rejected without publishing a draft.
 
-Node/attribute selection, labels, Set/Reset, form capture and pending disabling are
+The native host request can describe, edit an attribute, or create a node; an
+edit and creation cannot be combined in one request. For example:
+
+```js
+validator.authorGraph({
+    source,
+    create: { parent: 'data', kind: 'export', id: 'copy', attributes: { out: 'copy.svg' } },
+});
+```
+
+Use `parent: null` for the run root. The response includes `parents` with their
+allowed child kinds and `nodeTypes` with schema-backed field descriptions. This
+API returns validated source and metadata; persistence and execution remain explicit.
+
+Parent/kind and node/attribute selection, labels, creation, Set/Reset, form capture and pending disabling are
 XHTML/CEM-ML. Shared `cem-fieldset`, `cem-select`, `cem-text-field`, `cem-stack`,
 `cem-grid` and `cem-action` retain their native form, keyboard, focus and theme
-contracts. One attribute form is mounted at a time. **Reset staged graph change**
+contracts. One creation form and one attribute form can be mounted at a time.
+Changing the parent hides an incompatible kind's form. **Reset new graph node**
+clears only unsubmitted creation fields. **Reset staged graph change**
 uses native form reset and does not change the source draft. Switching the node or
 attribute drops unsubmitted staging. No new component JavaScript, application CSS,
 DOM listener or runtime UI capability is introduced. Studio JavaScript orchestrates
@@ -2559,7 +2588,7 @@ including edits made directly in the source textarea, bounded to 20 snapshots an
 text-editor undo or keyboard events. New edits clear redo. Save retains local history,
 so undo after Save stages a new dirty revision; reload/navigation resets history.
 
-Set, Reset, Undo and Redo do not persist or run. **Save and validate** commits the
+Create, Set, Reset, Undo and Redo do not persist or run. **Save and validate** commits the
 exact accepted source bytes using project/resource revision guards; explicit **Run
 configured workbench** executes the persisted graph. Resource resolution, referenced
 bytes and execution capability checks retain the shared native command pipeline.
@@ -2568,8 +2597,11 @@ unchanged until Save. Command Apply remains a separate transaction for the autho
 CLI command and its page references. Source-only edits do not rewrite command or
 input resource records.
 
-The deployed lifecycle gate requires `graphConfigurationAuthoring`: it stages an
-attribute through shared controls, checks no revision/Run before Save, exercises
-Undo/Redo, saves and reopens exact bytes, recovers a second unsaved edit, and runs the
+The deployed lifecycle gate requires `graphConfigurationAuthoring` and
+`graphNodeCreation`: it creates a named export branch and stages an attribute
+through shared controls, checks no revision/Run before Save, exercises Undo/Redo,
+saves and reopens exact bytes, recovers a second unsaved node creation, and runs the
 committed graph offline while retaining input and command resource identities.
+Both forms are checked across all five themes and forced colors, with an
+inherited-token check on the creation form.
 Physical-device and spoken AT acceptance remain separately open.

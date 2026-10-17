@@ -56,6 +56,8 @@ export interface CemStudioHomeState {
 export interface CemStudioWorkbenchState {
     readonly graphConfiguration?: {
         nodes: import('./feature-tour.js').CemStudioGraphConfiguration['nodes'];
+        parents: import('./feature-tour.js').CemStudioGraphConfiguration['parents'];
+        nodeTypes: import('./feature-tour.js').CemStudioGraphConfiguration['nodeTypes'];
         version: string; canUndo: boolean; canRedo: boolean; error?: { message: string };
     };
     readonly structure?: {
@@ -207,6 +209,7 @@ export interface CemStudioFeatureTourWorkbench {
     subscribe(notify: (state: CemStudioWorkbenchState) => void): () => void;
     updateDraft(draft: string): CemStudioWorkbenchState;
     updateGraphAttribute(fields: Record<string, string[]>): Promise<CemStudioWorkbenchState>;
+    createGraphNode(fields: Record<string, string[]>): Promise<CemStudioWorkbenchState>;
     undoGraphDraft(): CemStudioWorkbenchState;
     redoGraphDraft(): CemStudioWorkbenchState;
     reload(): Promise<CemStudioWorkbenchState>;

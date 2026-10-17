@@ -74,6 +74,83 @@ describe('CEM Studio Feature Tour workbench', () => {
         expect(workbench.snapshot().graphConfiguration).toMatchObject({ canUndo: false, canRedo: false });
     });
 
+    it('creates native named graph nodes with revision guards and reversible unsaved drafts', async () => {
+        const { workbench, repository, validator } = await graphWorkbench();
+        const original = workbench.snapshot().draft;
+        const fields = () => ({ parent: ['data'], kind: ['export'], id: ['copy'], 'attribute.out': ['café copy.svg'], version: [workbench.snapshot().graphConfiguration.version] });
+        const first = fields();
+        await workbench.createGraphNode(first);
+        expect(workbench.snapshot().graphConfiguration.error).toBeUndefined();
+        expect(workbench.snapshot().graphConfiguration.nodes.find(node => node.id === 'copy')).toMatchObject({ kind: 'export' });
+        const draft = workbench.snapshot().draft;
+        expect(workbench.snapshot()).toMatchObject({ dirty: true, projectRevision: 1, resourceRevision: 1 });
+        expect(validator.runResourceCommand).not.toHaveBeenCalled();
+        expect((await repository.query(request('export-project', { projectId: 'feature-tour' }))).value.project.revision).toBe(1);
+        await workbench.createGraphNode(first);
+        expect(workbench.snapshot().graphConfiguration.error.message).toContain('graph changed');
+        for (const invalid of [
+            { ...fields(), id: ['duplicate', 'again'] }, { ...fields(), 'attribute.id': ['renamed'] },
+            { ...fields(), parent: ['result'] }, { ...fields(), id: ['result'] }, { ...fields(), 'attribute.out': [''] },
+        ]) {
+            await workbench.createGraphNode(invalid);
+            expect(workbench.snapshot().graphConfiguration.error).toBeDefined();
+            expect(workbench.snapshot().draft).toBe(draft);
+        }
+        workbench.undoGraphDraft(); expect(workbench.snapshot().draft).toBe(original);
+        workbench.redoGraphDraft(); expect(workbench.snapshot().draft).toBe(draft);
+        await workbench.saveSource(); await workbench.reload();
+        expect(workbench.snapshot()).toMatchObject({ dirty: false, draft, projectRevision: 2 });
+    });
+
+    it('composes schema-backed graph creation forms with native reset and pending disabling', async () => {
+        const { workbench, validator } = await graphWorkbench();
+        const root = document.createElement('main'); document.body.append(root);
+        const shell = await mountCemStudioApplicationShell({ root }); shells.push(shell);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
+        await view.whenSettled();
+        const choose = async (name, value) => {
+            const select = root.querySelector(`cem-select[name="${name}"]`);
+            expect(select).not.toBeNull(); select.value = value; select.dispatchEvent(new Event('change', { bubbles: true })); await view.whenSettled();
+        };
+        const action = name => [...root.querySelectorAll('button')].find(button => button.textContent.trim() === name);
+        await choose('graph-create-parent', 'data'); await choose('graph-create-kind', 'export');
+        let form = root.querySelector('form[host-command="create-graph-node"]');
+        expect(root.querySelectorAll('form[host-command="create-graph-node"]')).toHaveLength(1);
+        const set = (name, value) => {
+            const input = form.querySelector(`cem-text-field[name="${name}"] input`);
+            input.value = value; input.dispatchEvent(new Event('input', { bubbles: true })); return input;
+        };
+        set('id', 'copy'); const output = set('attribute.out', 'copy.svg');
+        expect(output.required).toBe(true);
+        action('Reset new graph node').click(); await view.whenSettled();
+        expect(output.value).toBe(''); expect(workbench.snapshot().dirty).toBe(false);
+        set('id', 'copy'); set('attribute.out', 'copy.svg');
+        action('Create graph node').click(); await view.whenSettled();
+        expect(workbench.snapshot().graphConfiguration.error).toBeUndefined();
+        expect(workbench.snapshot().graphConfiguration.nodes.some(node => node.id === 'copy')).toBe(true);
+        expect(workbench.snapshot().projectRevision).toBe(1);
+        action('Undo graph edit').click(); await view.whenSettled();
+        expect(workbench.snapshot().dirty).toBe(false);
+        action('Redo graph edit').click(); await view.whenSettled();
+        expect(workbench.snapshot().dirty).toBe(true);
+        const pending = deferred(); validator.validateResource.mockImplementationOnce(() => pending.promise);
+        const saving = workbench.saveAndValidate();
+        await vi.waitFor(() => expect(workbench.snapshot().status).toBe('validating')); await view.whenSettled();
+        form = root.querySelector('form[host-command="create-graph-node"]');
+        expect(form.querySelector('fieldset').disabled).toBe(true);
+        const saved = workbench.snapshot().draft;
+        await workbench.createGraphNode({ parent: ['data'], kind: ['export'], id: ['blocked'], 'attribute.out': ['blocked.svg'], version: [workbench.snapshot().graphConfiguration.version] });
+        expect(workbench.snapshot().draft).toBe(saved);
+        pending.resolve(validResult()); await saving; await view.whenSettled();
+        expect(root.querySelector('form[host-command="create-graph-node"] fieldset').disabled).toBe(false);
+        await choose('graph-create-parent', '');
+        expect(root.querySelector('form[host-command="create-graph-node"]')).toBeNull();
+        await choose('graph-create-kind', 'import');
+        expect(root.querySelector('form[host-command="create-graph-node"] cem-text-field[name="attribute.src"]')).not.toBeNull();
+        await choose('graph-create-parent', 'data'); await choose('graph-create-kind', 'join');
+        expect(root.querySelector('form[host-command="create-graph-node"] cem-select[name="attribute.mode"]')).not.toBeNull();
+    });
+
     it('bounds graph draft history by UTF-8 bytes during undo and redo', async () => {
         const { workbench } = await graphWorkbench();
         const small = `${workbench.snapshot().draft}// Retained small draft\n`;
