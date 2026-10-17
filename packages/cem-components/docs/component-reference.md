@@ -2,7 +2,7 @@
 
 **Status:** Phase 4 MVP reference for `@epa-wg/cem-components`.
 
-This document describes all 53 canonical XHTML/CEM-ML components. It pairs with
+This document describes all 54 canonical XHTML/CEM-ML components. It pairs with
 [`conventions.md`](./conventions.md), [`accessibility.md`](./accessibility.md),
 [`component-mvp.md`](../../../docs/component-mvp.md), and the
 [passive/payload completion contract](./passive-payload-contract.md).
@@ -244,6 +244,7 @@ value writes update submission/validity synchronously and preserve reset default
 
 | Component | Semantics | Content and Attributes | Token Families | Required A11y |
 | --- | --- | --- | --- | --- |
+| `cem-fieldset` | Native group of related form controls. | `label`, `description`, presence-only `disabled`; label/help/default slots; explicit ARIA name/description references. | palette, stroke, bend, gap, inset, typography | Native legend names the group; per-instance help reference describes it. Disabling omits descendant controls from submission while retaining values and explicit child disabled state. The native first-legend exemption applies. See [fieldset contract](./fieldset-contract.md). |
 | `cem-field` | Generic labeled single-line field. | `name`, `value`, `type`, `placeholder`, `indicator`, `required-marker`, `busy`; named label/help/required-marker slots. | palette, stroke, bend, gap, typography | Label slot or `label` attribute must name the input. |
 | `cem-text-field` | Single-line text entry. | `name`, `value`, `placeholder`, `indicator`, `required-marker`, `busy`; label/help/required-marker slots. | palette, stroke, bend, gap, typography | Label slot or `label` attribute must name the input. Help text must not become the accessible name. |
 | `cem-textarea` | Multi-line text entry with native editing. | `name`, `form`, `value`, `rows`, `cols`, `minlength`, `maxlength`, `autocomplete`, `placeholder`, `indicator`, `required-marker`, `busy`, native boolean states and label/help/required-marker slots. | palette, stroke, bend, gap, typography | A labeled native textarea owns editing and validation; the form-associated host owns one submitted value and reset. Borderless across states. See the [textarea contract](./textarea-contract.md). |

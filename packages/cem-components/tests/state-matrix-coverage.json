@@ -269,7 +269,8 @@
                 "cem-checkbox",
                 "cem-radio",
                 "cem-switch",
-                "cem-slider"
+                "cem-slider",
+                "cem-fieldset"
             ],
             "interaction": "Render input primitives as their native accessible controls.",
             "status": "covered",
@@ -362,6 +363,14 @@
                     "test": "NamesAndPresence",
                     "assertions": [
                         "expect(input.getAttribute('value')).toBe('on');"
+                    ]
+                },
+                {
+                    "component": "cem-fieldset",
+                    "owner": "packages/cem-components/src/components/cem-fieldset/cem-fieldset.stories.ts",
+                    "test": "LabelsAndRetainedProjection",
+                    "assertions": [
+                        "expect(second).toHaveAccessibleName('Second group');"
                     ]
                 }
             ]
@@ -621,7 +630,8 @@
                 "cem-radio",
                 "cem-slider",
                 "cem-checkbox",
-                "cem-switch"
+                "cem-switch",
+                "cem-fieldset"
             ],
             "interaction": "Disable form controls and prevent native interaction.",
             "status": "covered",
@@ -707,6 +717,14 @@
                     "test": "NamesAndPresence",
                     "assertions": [
                         "expect(input.disabled).toBe(true);"
+                    ]
+                },
+                {
+                    "component": "cem-fieldset",
+                    "owner": "packages/cem-components/src/components/cem-fieldset/cem-fieldset.stories.ts",
+                    "test": "NativeDisabledAndKeyboard",
+                    "assertions": [
+                        "expect(group.disabled).toBe(true);"
                     ]
                 }
             ]

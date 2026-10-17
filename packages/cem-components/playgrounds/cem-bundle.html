@@ -82,6 +82,7 @@ window.cemPlaygroundRuntime = installCemElementRuntime(window, { processingPoolP
   {cem-element @tag=cem-field @capability=form-control @src="@epa-wg/cem-components/components.xhtml#cem-field"}
   {cem-element @tag=cem-textarea @capability=form-control @src="@epa-wg/cem-components/components.xhtml#cem-textarea"}
   {cem-element @tag=cem-text-field @capability=form-control @src="@epa-wg/cem-components/components.xhtml#cem-text-field"}
+  {cem-element @tag=cem-fieldset @src="@epa-wg/cem-components/components.xhtml#cem-fieldset"}
   {cem-element @tag=cem-action @capability=action-command @src="@epa-wg/cem-components/components.xhtml#cem-action"}
   {cem-element @tag=cem-select @capability=choice-select @src="@epa-wg/cem-components/components.xhtml#cem-select"}
   {cem-element @tag=cem-theme-switch @src="@epa-wg/cem-components/components.xhtml#cem-theme-switch"}
@@ -104,6 +105,7 @@ window.cemPlaygroundRuntime = installCemElementRuntime(window, { processingPoolP
 <cem-field id="bundle-field" label="Bundled field" value="Field value"></cem-field>
 <cem-textarea id="bundle-textarea" label="Bundled notes" value="First line&#10;Second line"></cem-textarea>
 <cem-text-field id="bundle-text-field" label="Bundled text field" value="Text value"></cem-text-field>
+<cem-fieldset label="Grouped contact settings" description="Related controls share a native group while retaining their own values."><cem-text-field label="Grouped display name" name="display-name" value="Reader"></cem-text-field><cem-action>Update contact</cem-action></cem-fieldset>
 <cem-icon id="bundle-icon" image="★" aria-label="Bundled star"></cem-icon>
 <cem-icon-button image="settings" id="bundle-icon-button" label="Bundled icon command"></cem-icon-button>
 <cem-menu-item id="bundle-menu-item">Bundled menu command</cem-menu-item>

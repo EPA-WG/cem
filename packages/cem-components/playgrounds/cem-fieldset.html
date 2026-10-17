@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>cem-fieldset: Property playground</title>
+  <script type="importmap">{
+    "imports": {
+        "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
+        "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
+        "@epa-wg/cem-components/styles.css": "../dist/styles.css",
+        "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
+        "@epa-wg/cem-components/action-playground": "./cem-action.html",
+        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
+        "@epa-wg/cem-components/components/": "../src/components/",
+        "@epa-wg/cem-components/playgrounds/": "./"
+    }
+}</script>
+  <link rel="stylesheet" href="../../cem-theme/dist/lib/css/cem-combined.css">
+  <link rel="stylesheet" href="../dist/styles.css">
+  <link rel="stylesheet" href="../demo.css">
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; }
+    main, .properties { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--cem-gap-group); min-inline-size: 0; }
+    [data-gallery-theme] { padding: var(--cem-inset-container); background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); }
+  </style>
+  <script type="module">
+    import { installCemElementRuntime } from '@epa-wg/cem-elements';
+    import '@epa-wg/cem-demo-element';
+    window.cemPlaygroundRuntime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
+  </script>
+</head>
+<body>
+<cem-element hidden><template type="text/cem-ml">
+{cem-element @tag=cem-fieldset @src="@epa-wg/cem-components/components/cem-fieldset/cem-fieldset.xhtml#cem-fieldset"}
+{cem-element @tag=cem-text-field @src="@epa-wg/cem-components/components/cem-text-field/cem-text-field.xhtml#cem-text-field"}
+{cem-element @tag=cem-select @src="@epa-wg/cem-components/components/cem-select/cem-select.xhtml#cem-select"}
+{cem-element @tag=cem-radio @src="@epa-wg/cem-components/components/cem-radio/cem-radio.xhtml#cem-radio"}
+{cem-element @tag=cem-action @src="@epa-wg/cem-components/components/cem-action/cem-action.xhtml#cem-action"}
+{cem-element @tag=cem-gallery-page @src="@epa-wg/cem-components/playgrounds/cem-gallery-page.xhtml#cem-gallery-page"}
+</template></cem-element>
+<cem-gallery-page heading="cem-fieldset: Property playground"><template>
+<p class="component-description">A native fieldset that names related form controls, links group help and disables a whole group. It preserves each control's value, validation and form owner. Compose with <a href="./cem-text-field-gallery.html">cem-text-field</a>, <a href="./cem-select-gallery.html">cem-select</a> and <a href="./cem-action-gallery.html">cem-action</a>.</p>
+<p><a href="./cem-fieldset-gallery.html">Full examples and variation matrix</a> · <a href="./cem-fieldset.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-fieldset/cem-fieldset.stories.ts">Automated stories</a></p>
+<main>
+<cem-element class="properties"><template type="text/cem-ml">
+{slice @name=label | Contact details}
+{slice @name=description | Choose where to receive updates.}
+{slice @name=disabled | absent}
+{slice @name=hidden | absent}
+{slice @name=direction | ltr}
+{slice @name=accessibleName | }
+{slice @name=externalDescription | absent}
+{slice @name=externalLabel | absent}
+{cem-text-field @label="Group label" @value={datadom.slices.label} @slice=label @slice-event=input @slice-value="$target.value"}
+{cem-text-field @label="Group description" @value={datadom.slices.description} @slice=description @slice-event=input @slice-value="$target.value"}
+{cem-text-field @label="Accessible name override" @value={datadom.slices.accessibleName} @slice=accessibleName @slice-event=input @slice-value="$target.value"}
+{cem-fieldset @label="Disabled presence" @slice=disabled @slice-event=change @slice-value="$target.value" |
+  {cem-radio @name="property-disabled" @label="absent" @value=absent @checked={if datadom.slices.disabled == "absent" { true } else { null }}}
+  {cem-radio @name="property-disabled" @label="present" @value=present @checked={if datadom.slices.disabled == "present" { true } else { null }}}
+}
+{cem-fieldset @label="Hidden presence" @slice=hidden @slice-event=change @slice-value="$target.value" |
+  {cem-radio @name="property-hidden" @label="absent" @value=absent @checked={if datadom.slices.hidden == "absent" { true } else { null }}}
+  {cem-radio @name="property-hidden" @label="present" @value=present @checked={if datadom.slices.hidden == "present" { true } else { null }}}
+}
+{cem-fieldset @label="Text direction" @slice=direction @slice-event=change @slice-value="$target.value" |
+  {cem-radio @name="property-direction" @label="ltr" @value=ltr @checked={if datadom.slices.direction == "ltr" { true } else { null }}}
+  {cem-radio @name="property-direction" @label="rtl" @value=rtl @checked={if datadom.slices.direction == "rtl" { true } else { null }}}
+}
+{cem-fieldset @label="External label reference" @slice=externalLabel @slice-event=change @slice-value="$target.value" |
+  {cem-radio @name="property-externalLabel" @label="absent" @value=absent @checked={if datadom.slices.externalLabel == "absent" { true } else { null }}}
+  {cem-radio @name="property-externalLabel" @label="present" @value=present @checked={if datadom.slices.externalLabel == "present" { true } else { null }}}
+}
+{cem-fieldset @label="External description reference" @slice=externalDescription @slice-event=change @slice-value="$target.value" |
+  {cem-radio @name="property-externalDescription" @label="absent" @value=absent @checked={if datadom.slices.externalDescription == "absent" { true } else { null }}}
+  {cem-radio @name="property-externalDescription" @label="present" @value=present @checked={if datadom.slices.externalDescription == "present" { true } else { null }}}
+}
+{h2 @id=fieldset-preview-label | Live field group}
+{p @id=fieldset-preview-help | External group description, used when its reference is selected.}
+{cem-fieldset @label={datadom.slices.label} @description={datadom.slices.description}
+  @disabled={if datadom.slices.disabled == "present" { true } else { null }}
+  @hidden={if datadom.slices.hidden == "present" { true } else { null }} @dir={datadom.slices.direction}
+  @aria-label={if str:length(datadom.slices.accessibleName) > 0 { datadom.slices.accessibleName } else { null }}
+  @aria-labelledby={if datadom.slices.externalLabel == "present" { "fieldset-preview-label" } else { null }}
+  @aria-describedby={if datadom.slices.externalDescription == "present" { "fieldset-preview-help" } else { null }} |
+  {cem-text-field @label=Email @name=email @value=reader@example.test}
+  {cem-select @label=Channel @name=channel @value=email | {option @value=email | Email}{option @value=post | Post}}
+  {cem-action @variant=primary | Save contact}
+}
+</template></cem-element>
+<p>Tab through the controls and edit the preview. Disabled uses attribute presence, including <code>disabled="false"</code>. Removing it restores retained field values. Hidden affects the whole group; direction is inherited.</p>
+<cem-element><template type="text/cem-ml">
+{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-fieldset/cem-fieldset.xhtml"}
+{cem:if @test="datadom.slices.sourceUrl" |
+  {p | {a @href="{$datadom.slices.sourceUrl}" | Open canonical XHTML}}
+  {cem-demo-element @legend="Canonical source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}
+}
+</template></cem-element>
+</main>
+</template></cem-gallery-page>
+</body>
+</html>

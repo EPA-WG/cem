@@ -144,4 +144,15 @@ export interface CemStudioOperationField {
     value: string; defaultValue: string;
 }
 export declare function describeCemStudioOperationFields(text: string): CemStudioOperationField[];
+export interface CemStudioOperationGroup {
+    id: string;
+    fields: CemStudioOperationField[];
+}
+export interface CemStudioOperationFieldEdit {
+    id: string;
+    value: string;
+    reset?: boolean;
+}
+export declare function describeCemStudioOperationGroups(text: string): CemStudioOperationGroup[];
+export declare function editCemStudioOperationFields(text: string, edits: readonly CemStudioOperationFieldEdit[]): string;
 export declare function editCemStudioOperationField(text: string, id: string, value: string, reset?: boolean): string;

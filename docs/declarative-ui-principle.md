@@ -110,7 +110,7 @@ Its reusable form, choice, keyboard, and interaction machinery is the
 
 ## Completed migration and enforcement
 
-All 53 components now follow this rule. The legacy registry, behavior modules,
+All 54 components now follow this rule. The legacy registry, behavior modules,
 installers, separate specs and package-owned JavaScript tooling are retired.
 `packages/cem-components/declarative-migration.json` records a closed zero
 inventory; `verify-declarative` rejects reopening either legacy list and checks

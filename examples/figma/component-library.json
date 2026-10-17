@@ -54,9 +54,43 @@
             "representation": "component-set",
             "properties": {"mode": "variant", "contrast": "boolean", "name": "text", "slot:default": "slot"},
             "states": [],
-            "tokenFamilies": ["palette", "control", "stroke", "gap", "typography"],
+            "tokenFamilies": ["action", "zebra", "palette", "control", "stroke", "gap", "typography"],
             "documentation": ["packages/cem-components/docs/component-reference.md#inputs"],
             "figma": {"status": "planned", "locator": "03 Components / Inputs / cem-theme-switch", "revision": null}
+        },
+        {
+            "tag": "cem-fieldset",
+            "category": "Input",
+            "representation": "component-set",
+            "properties": {
+                "label": "text",
+                "description": "text",
+                "disabled": "boolean",
+                "slot:label": "slot",
+                "slot:help": "slot",
+                "slot:default": "slot"
+            },
+            "states": [
+                "default",
+                "disabled"
+            ],
+            "tokenFamilies": [
+                "palette",
+                "stroke",
+                "bend",
+                "gap",
+                "inset",
+                "typography"
+            ],
+            "documentation": [
+                "packages/cem-components/docs/component-reference.md#inputs",
+                "packages/cem-components/docs/fieldset-contract.md"
+            ],
+            "figma": {
+                "status": "planned",
+                "locator": "03 Components / Inputs / cem-fieldset",
+                "revision": null
+            }
         },
         {
             "tag": "cem-field",

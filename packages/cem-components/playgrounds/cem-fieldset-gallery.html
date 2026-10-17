@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>cem-fieldset: Full examples and variation matrix</title>
+  <script type="importmap">{
+    "imports": {
+        "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
+        "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
+        "@epa-wg/cem-components/styles.css": "../dist/styles.css",
+        "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
+        "@epa-wg/cem-components/action-playground": "./cem-action.html",
+        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
+        "@epa-wg/cem-components/components/": "../src/components/",
+        "@epa-wg/cem-components/playgrounds/": "./"
+    }
+}</script>
+  <link rel="stylesheet" href="../../cem-theme/dist/lib/css/cem-combined.css">
+  <link rel="stylesheet" href="../dist/styles.css">
+  <link rel="stylesheet" href="../demo.css">
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; }
+    main, .properties { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--cem-gap-group); min-inline-size: 0; }
+    [data-gallery-theme] { padding: var(--cem-inset-container); background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); }
+  </style>
+  <script type="module">
+    import { installCemElementRuntime } from '@epa-wg/cem-elements';
+    import '@epa-wg/cem-demo-element';
+    window.cemPlaygroundRuntime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
+  </script>
+</head>
+<body>
+<cem-element hidden><template type="text/cem-ml">
+{cem-element @tag=cem-fieldset @src="@epa-wg/cem-components/components/cem-fieldset/cem-fieldset.xhtml#cem-fieldset"}
+{cem-element @tag=cem-text-field @src="@epa-wg/cem-components/components/cem-text-field/cem-text-field.xhtml#cem-text-field"}
+{cem-element @tag=cem-select @src="@epa-wg/cem-components/components/cem-select/cem-select.xhtml#cem-select"}
+{cem-element @tag=cem-radio @src="@epa-wg/cem-components/components/cem-radio/cem-radio.xhtml#cem-radio"}
+{cem-element @tag=cem-action @src="@epa-wg/cem-components/components/cem-action/cem-action.xhtml#cem-action"}
+{cem-element @tag=cem-gallery-page @src="@epa-wg/cem-components/playgrounds/cem-gallery-page.xhtml#cem-gallery-page"}
+</template></cem-element>
+<cem-gallery-page heading="cem-fieldset: Full examples and variation matrix"><template>
+<p class="component-description">A native fieldset that names related form controls, links group help and disables a whole group. It preserves each control's value, validation and form owner. Compose with <a href="./cem-text-field-gallery.html">cem-text-field</a>, <a href="./cem-select-gallery.html">cem-select</a> and <a href="./cem-action-gallery.html">cem-action</a>.</p>
+<p><a href="./cem-fieldset-gallery.html">Full examples and variation matrix</a> · <a href="./cem-fieldset.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-fieldset/cem-fieldset.stories.ts">Automated stories</a></p>
+<main>
+<h2>Public attributes and slots</h2>
+<table><caption>Public attribute inventory</caption><thead><tr><th>Attribute</th><th>Contract</th></tr></thead><tbody>
+<tr data-gallery-attribute="label"><th><code>label</code></th><td>Visible legend fallback, default Group. The label slot overrides visible fallback text.</td></tr>
+<tr data-gallery-attribute="description"><th><code>description</code></th><td>Group help fallback, default empty. The help slot overrides this text.</td></tr>
+<tr data-gallery-attribute="disabled"><th><code>disabled</code></th><td>Presence disables descendants through the native fieldset; false is still present. Control values are retained.</td></tr>
+<tr data-gallery-attribute="aria-label"><th><code>aria-label</code></th><td>Overrides the accessible group name without replacing the visible legend.</td></tr>
+<tr data-gallery-attribute="aria-labelledby"><th><code>aria-labelledby</code></th><td>Explicit external accessible-name references, forwarded to the native fieldset.</td></tr>
+<tr data-gallery-attribute="aria-describedby"><th><code>aria-describedby</code></th><td>Explicit external description references; defaults to a stable, per-instance help ID.</td></tr>
+<tr data-gallery-attribute="hidden"><th><code>hidden</code></th><td>Native host visibility; hidden=until-found retains browser behavior.</td></tr>
+<tr data-gallery-attribute="dir"><th><code>dir</code></th><td>Inherited ltr or rtl text direction.</td></tr>
+<tr data-gallery-attribute="class"><th><code>class</code></th><td>Host classes can select inherited theme and token overrides.</td></tr>
+</tbody></table>
+<p>Slots: <code>label</code> names the group visibly, <code>help</code> supplies its description, and the default slot contains controls. Fieldsets are not values or validators; they preserve each control's own name, required state, value and errors. Use native form submission or the existing declarative host-service bridge.</p>
+<cem-demo-element legend="Native form ownership" description="Submit and reset through the native form. Disabled groups omit their controls from submission while retaining edited values."><template slot="source">
+<form action="#" method="get">
+<cem-fieldset label="Contact details" description="Choose where to receive updates.">
+  <cem-text-field label="Email" name="email" value="reader@example.test" required></cem-text-field>
+  <cem-select label="Channel" name="channel" value="email"><option value="email">Email</option><option value="post">Post</option></cem-select>
+  <cem-action type="submit" variant="primary">Save contact</cem-action>
+</cem-fieldset>
+<cem-action type="reset" variant="contextual">Reset contact</cem-action>
+</form>
+</template></cem-demo-element>
+<cem-demo-element legend="Projected label and help" description="Markup overrides fallback text; a separate aria-label can override the accessible name while the visible legend remains."><template slot="source">
+<cem-fieldset label="Fallback group" description="Fallback help" aria-label="Account preferences">
+  <strong slot="label">Visible account settings</strong><span slot="help">Projected instructions for this group.</span>
+  <cem-text-field label="Account name" name="account" value="reader"></cem-text-field>
+</cem-fieldset>
+</template></cem-demo-element>
+<cem-demo-element legend="Presence and nested groups" description="Empty and false-valued disabled attributes both disable descendants. Enabling an inner group cannot override a disabled outer fieldset."><template slot="source">
+<cem-fieldset label="Disabled group" disabled="false"><cem-text-field label="Retained value" name="saved" value="Preserved"></cem-text-field>
+  <cem-fieldset label="Nested group"><cem-select name="nested" label="Nested choice" value="one"><option value="one">One</option><option value="two">Two</option></cem-select></cem-fieldset>
+</cem-fieldset>
+</template></cem-demo-element>
+<cem-demo-element legend="Direction and wrapping" description="Long legends and content wrap within their container. Native keyboard order remains in document order under RTL."><template slot="source">
+<cem-fieldset label="A long group title that remains readable in a narrow container" description="Directions and hints wrap without widening the page." dir="rtl"><cem-text-field label="Display name" name="display" value="قارئ"></cem-text-field></cem-fieldset>
+</template></cem-demo-element>
+<cem-demo-element legend="Empty and hidden groups" description="An empty group retains its native legend. Hidden removes the complete group from layout and keyboard navigation."><template slot="source">
+<cem-fieldset></cem-fieldset>
+<cem-fieldset label="Hidden settings" hidden><cem-text-field label="Hidden field" name="hidden"></cem-text-field></cem-fieldset>
+</template></cem-demo-element>
+<section aria-label="Theme variation matrix"><h2>Five theme modes</h2>
+<div class="cem-theme-light" data-gallery-theme="light"><cem-demo-element legend="light variation matrix" description="Compare enabled and disabled fields. Hover, focus and submit behavior belong to the nested controls; forced colors preserves group boundaries and native control indicators."><template slot="source">
+<cem-fieldset label="Contact details" description="Choose where to receive updates.">
+  <cem-text-field label="Email" name="email" value="reader@example.test" required></cem-text-field>
+  <cem-select label="Channel" name="channel" value="email"><option value="email">Email</option><option value="post">Post</option></cem-select>
+  <cem-action type="submit" variant="primary">Save contact</cem-action>
+</cem-fieldset>
+<cem-fieldset label="Disabled contact details" disabled="false" description="Choose where to receive updates.">
+  <cem-text-field label="Email" name="email" value="saved@example.test" required></cem-text-field>
+  <cem-select label="Channel" name="channel" value="email"><option value="email">Email</option><option value="post">Post</option></cem-select>
+  <cem-action type="submit" variant="primary">Save contact</cem-action>
+</cem-fieldset>
+</template></cem-demo-element>
+</div>
+<div class="cem-theme-dark" data-gallery-theme="dark"><cem-demo-element legend="dark variation matrix" description="Compare enabled and disabled fields. Hover, focus and submit behavior belong to the nested controls; forced colors preserves group boundaries and native control indicators."><template slot="source">
+<cem-fieldset label="Contact details" description="Choose where to receive updates.">
+  <cem-text-field label="Email" name="email" value="reader@example.test" required></cem-text-field>
+  <cem-select label="Channel" name="channel" value="email"><option value="email">Email</option><option value="post">Post</option></cem-select>
+  <cem-action type="submit" variant="primary">Save contact</cem-action>
+</cem-fieldset>
+<cem-fieldset label="Disabled contact details" disabled="false" description="Choose where to receive updates.">
+  <cem-text-field label="Email" name="email" value="saved@example.test" required></cem-text-field>
+  <cem-select label="Channel" name="channel" value="email"><option value="email">Email</option><option value="post">Post</option></cem-select>
+  <cem-action type="submit" variant="primary">Save contact</cem-action>
+</cem-fieldset>
+</template></cem-demo-element>
+</div>
+<div class="cem-theme-contrast-light" data-gallery-theme="contrast-light"><cem-demo-element legend="contrast-light variation matrix" description="Compare enabled and disabled fields. Hover, focus and submit behavior belong to the nested controls; forced colors preserves group boundaries and native control indicators."><template slot="source">
+<cem-fieldset label="Contact details" description="Choose where to receive updates.">
+  <cem-text-field label="Email" name="email" value="reader@example.test" required></cem-text-field>
+  <cem-select label="Channel" name="channel" value="email"><option value="email">Email</option><option value="post">Post</option></cem-select>
+  <cem-action type="submit" variant="primary">Save contact</cem-action>
+</cem-fieldset>
+<cem-fieldset label="Disabled contact details" disabled="false" description="Choose where to receive updates.">
+  <cem-text-field label="Email" name="email" value="saved@example.test" required></cem-text-field>
+  <cem-select label="Channel" name="channel" value="email"><option value="email">Email</option><option value="post">Post</option></cem-select>
+  <cem-action type="submit" variant="primary">Save contact</cem-action>
+</cem-fieldset>
+</template></cem-demo-element>
+</div>
+<div class="cem-theme-contrast-dark" data-gallery-theme="contrast-dark"><cem-demo-element legend="contrast-dark variation matrix" description="Compare enabled and disabled fields. Hover, focus and submit behavior belong to the nested controls; forced colors preserves group boundaries and native control indicators."><template slot="source">
+<cem-fieldset label="Contact details" description="Choose where to receive updates.">
+  <cem-text-field label="Email" name="email" value="reader@example.test" required></cem-text-field>
+  <cem-select label="Channel" name="channel" value="email"><option value="email">Email</option><option value="post">Post</option></cem-select>
+  <cem-action type="submit" variant="primary">Save contact</cem-action>
+</cem-fieldset>
+<cem-fieldset label="Disabled contact details" disabled="false" description="Choose where to receive updates.">
+  <cem-text-field label="Email" name="email" value="saved@example.test" required></cem-text-field>
+  <cem-select label="Channel" name="channel" value="email"><option value="email">Email</option><option value="post">Post</option></cem-select>
+  <cem-action type="submit" variant="primary">Save contact</cem-action>
+</cem-fieldset>
+</template></cem-demo-element>
+</div>
+<div class="cem-theme-native" data-gallery-theme="native"><cem-demo-element legend="native variation matrix" description="Compare enabled and disabled fields. Hover, focus and submit behavior belong to the nested controls; forced colors preserves group boundaries and native control indicators."><template slot="source">
+<cem-fieldset label="Contact details" description="Choose where to receive updates.">
+  <cem-text-field label="Email" name="email" value="reader@example.test" required></cem-text-field>
+  <cem-select label="Channel" name="channel" value="email"><option value="email">Email</option><option value="post">Post</option></cem-select>
+  <cem-action type="submit" variant="primary">Save contact</cem-action>
+</cem-fieldset>
+<cem-fieldset label="Disabled contact details" disabled="false" description="Choose where to receive updates.">
+  <cem-text-field label="Email" name="email" value="saved@example.test" required></cem-text-field>
+  <cem-select label="Channel" name="channel" value="email"><option value="email">Email</option><option value="post">Post</option></cem-select>
+  <cem-action type="submit" variant="primary">Save contact</cem-action>
+</cem-fieldset>
+</template></cem-demo-element>
+</div>
+</section>
+<cem-element><template type="text/cem-ml">
+{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-fieldset/cem-fieldset.xhtml"}
+{cem:if @test="datadom.slices.sourceUrl" |
+  {p | {a @href="{$datadom.slices.sourceUrl}" | Open canonical XHTML}}
+  {cem-demo-element @legend="Canonical source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}
+}
+</template></cem-element>
+</main>
+</template></cem-gallery-page>
+</body>
+</html>

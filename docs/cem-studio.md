@@ -2397,18 +2397,21 @@ shared CLI command schema supplies their labels, help, defaults, required flags,
 boolean actions and enum choices. No grammar or enum vocabulary is copied into
 Studio. Shared CEM selects expose enumerations and boolean values; text fields
 and textareas retain scalar text, including multiline query/template expressions.
-An option chooser exposes one active editor at a time, bounding the number of
+An option chooser exposes one active single-option or grouped editor at a time, bounding the number of
 rendered controls and keeping background projection work within the shared
 scheduler budget. Switching options discards unsubmitted field input; Set commits
 it to the command draft. Existing shared tabs, alerts and actions own layout,
-keyboard behavior and styling.
+keyboard behavior and styling. The shared declarative `cem-fieldset` names the
+active option group, links its native-metadata help and disables the group while
+its existing host service is pending. The operation chooser retains its slice in
+the command view; the fieldset owns no command parsing or persistence behavior.
 
 Set edits exactly one option in the current literal command, then the shared
 parser and serializer validate and canonicalize its draft. Reset removes that
 option so native defaults apply, and required options cannot be reset. Positional
 inputs, global options, repeated options and all other option values are retained.
 Conflicting or required option groups are rejected rather than silently removing
-another option; edit coupled groups together in the literal editor. Hidden,
+another option; use a grouped editor to change supported coupled options together. Hidden,
 unsupported, positional and infrastructure options are not exposed as fields.
 Invalid literal commands stay repairable in the editor. Forms edit an already
 prepared operation; they do not select a new operation or generate a new page.
@@ -2428,6 +2431,51 @@ command afterward. It audits accessible names, relationships, keyboard focus and
 320/390/1280px reflow while the typed form is visible. The result is required in
 release evidence as `typedOperationForms`; physical-device and spoken AT coverage
 remain separately open.
+
+### Atomic grouped operation options
+
+The same chooser offers **Edit together** groups containing two or three options.
+Native argument groups provide coupled query/template source alternatives; bounded
+operation, output, formatter, colorizer and source-interpretation concerns provide
+other useful groups. Option grammar, choices, defaults and conflicts remain owned
+by the generated native command schema. Larger and repeated concerns stay in the
+literal editor. Labels, field composition and interaction bindings remain CEM-ML.
+
+Each field has a **Keep**, **Set** or **Reset** choice, initially Keep. Keep leaves
+the existing option value unchanged, even if its displayed input was
+edited. Set uses the exact input text, including a deliberately empty string.
+Reset restores native defaults; required options cannot be
+reset. To replace an exclusive query/template source, Reset the existing alternative
+and Set the replacement in the same submission. **Reset staged changes** is native
+form reset: it restores authored values/selected defaults without editing the
+command. Switching editors drops unsubmitted staging.
+
+**Set grouped options** validates every selected change against the same command
+snapshot, serializes the complete candidate and parses it once through the native
+grammar. No intermediate command with only part of a batch is published. Native
+resource/capability preview completes before the accepted draft changes. Failed
+validation or preview leaves the prior draft available with a form error; Keep-only
+submission is a no-op. Duplicate fields, unsupported options and unexpected form
+payloads are rejected. Pending work disables the group. The workbench/draft version
+guard rejects stale or foreign submissions and superseded asynchronous results.
+As with single-field editing, shared serialization canonicalizes quoting/order
+and can materialize native default values. A Keep-only batch retains exact command bytes.
+
+Accepted grouped drafts use the existing recovery journal and navigation guards.
+They do not Save, Apply or Run implicitly. Explicit Apply persists all accepted
+options through the existing single repository transaction, with project/resource
+revision checks and stable identities. Apply remains bounded to parse/inspect;
+other operations retain their current execution/persistence limits. Reload and
+offline admission restore the exact committed command. The public metadata/batch
+helpers are `describeCemStudioOperationGroups` and `editCemStudioOperationFields`;
+workbenches expose `updateCommandFields` and the native-form boundary
+`updateCommandGroup`. The existing single-field helpers remain compatible.
+
+Release evidence requires `groupedOperationForms`: the deployed lifecycle stages
+format and source-offset retention together, checks no project revision change
+before Apply, and verifies both options after reopening online and offline. Shared
+controls retain keyboard, native form, theme and accessibility ownership; no new
+runtime capability, Studio DOM listener or component JavaScript is introduced.
 
 
 ### Project tree dataset and stable resource references

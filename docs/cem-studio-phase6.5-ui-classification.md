@@ -41,8 +41,8 @@ and commands remain application services that drive shared controls.
 | `project-search` | Studio orchestration | autocomplete/options plus tree/list results | Open; filtering, ranking, and routing stay in Studio/CEM-QL. |
 | `source-editor-frame` | Future `/studio` composite | `cem-studio-editor-frame` over textarea/field | Open for component implementation; native textarea owns editing. |
 | `resource-identity-form` | Studio orchestration | fields, text, select, autocomplete, checkbox | Open within proven field/form subsets. |
-| `run-workbench-form` | Studio orchestration | schema-selected CEM inputs/actions/feedback | Open; the typed CLI schema and Studio own projection and values. |
-| `cli-command-roundtrip` | Studio orchestration | textarea, actions, autocomplete, dialog, passive table | Open; parsing and transactional Apply remain CLI/application behavior. |
+| `run-workbench-form` | Studio orchestration | cem-fieldset with schema-selected CEM inputs/actions/feedback | Open; the typed CLI schema owns option constraints; Studio services validate atomic batches and CEM-ML owns bounded group composition. |
+| `cli-command-roundtrip` | Studio orchestration | textarea, fieldset, actions, autocomplete, dialog, passive table | Open; parsing and transactional Apply remain CLI/application behavior. |
 | `result-view-navigation` | Reuse general controls | `cem-tabs`, `cem-tab` payloads | Open; Studio owns result projections and current artifact selection. |
 | `structured-data-inspector` | Future `/studio` composite | `cem-studio-data-inspector` over tree/table/sort/paginator | Open for component implementation; data loading and sorting stay in Studio. |
 | `diagnostics-panel` | Future `/studio` composite | `cem-studio-diagnostics` over list/badge/actions | Open for component implementation; diagnostic data and source navigation stay in Studio. |

@@ -398,9 +398,9 @@ async function exerciseProjectLifecycle(page, context) {
     const settle = () => page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
     const snapshot = () => page.evaluate(() => {
         const state = globalThis.__cemStudioApplication.workbench.snapshot();
-        return { projectId: state.projectId, entryId: state.entryId, resourceId: state.resourceId, draft: state.draft, persistedText: state.persistedText,
+        return { projectId: state.projectId, projectRevision: state.projectRevision, entryId: state.entryId, resourceId: state.resourceId, draft: state.draft, persistedText: state.persistedText,
             navigationError: state.navigationError, projection: state.projection && { stale: state.projection.stale },
-            command: state.command && { application: { status: state.command.application.status, result: state.command.application.result && { entry: state.command.application.result.entry } } } };
+            command: state.command && { parsed: { options: state.command.parsed?.options }, application: { status: state.command.application.status, result: state.command.application.result && { entry: state.command.application.result.entry } } } };
     });
     const choose = async (selector, name) => {
         const host = page.locator(selector);
@@ -457,12 +457,23 @@ async function exerciseProjectLifecycle(page, context) {
             await click('Reset format');
             assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().command.parsed.options.format), 'ast');
             await page.getByRole('combobox', { name: 'Operation option', exact: true }).click();
-            await page.getByRole('option', { name: 'preserve-source-offsets', exact: true }).click(); await settle();
-            await page.getByRole('combobox', { name: 'preserve-source-offsets', exact: true }).click();
-            await page.getByRole('option', { name: 'True', exact: true }).click();
-            await click('Set preserve-source-offsets');
-            assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().command.parsed.options.preserve_source_offsets), true);
-            assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().projectRevision), revision);
+            await page.getByRole('option', { name: 'Operation options', exact: true }).click(); await settle();
+            const groupForm = page.locator('form[host-command="edit-group"]');
+            assert.equal(await groupForm.count(), 1);
+            assert.equal(await page.locator('form[host-command="edit-field"]').count(), 0);
+            const setChoice = async (label, option) => {
+                await groupForm.getByRole('combobox', { name: label, exact: true }).click();
+                await page.getByRole('option', { name: option, exact: true }).click();
+            };
+            await setChoice('Change format', 'Set');
+            await setChoice('format', 'events');
+            await setChoice('Change preserve-source-offsets', 'Set');
+            await setChoice('preserve-source-offsets', 'True');
+            await click('Set grouped options');
+            const grouped = (await snapshot()).command;
+            assert.equal(grouped.parsed.options.format, 'events');
+            assert.equal(grouped.parsed.options.preserve_source_offsets, true);
+            assert.equal((await snapshot()).projectRevision, revision);
             await inspectWorkspaceAccessibility(page, context);
             await page.getByRole('tab', { name: 'Studio command', exact: true }).click(); await settle();
         }
@@ -478,6 +489,8 @@ async function exerciseProjectLifecycle(page, context) {
     await page.getByRole('textbox', { name: 'Search projects', exact: true }).fill('Alpha inspection');
     await click('Search'); await click('Open result');
     assert.equal((await snapshot()).entryId, entries[0]);
+    assert.equal((await snapshot()).command.parsed.options.format, 'events');
+    assert.equal((await snapshot()).command.parsed.options.preserve_source_offsets, true);
     await click('Run configured workbench');
     assert.equal((await snapshot()).projection.stale, false);
     const editor = await source.elementHandle();
@@ -524,6 +537,10 @@ async function exerciseProjectLifecycle(page, context) {
     await click('Search'); await click('Open result'); await click('Run configured workbench');
     assert.equal((await snapshot()).entryId, entries[1]); assert.equal((await snapshot()).projection.stale, false);
     const accessibility = await inspectWorkspaceAccessibility(page, context);
+    await page.getByRole('textbox', { name: 'Search projects', exact: true }).fill('Alpha inspection');
+    await click('Search'); await click('Open result');
+    assert.equal((await snapshot()).command.parsed.options.format, 'events');
+    assert.equal((await snapshot()).command.parsed.options.preserve_source_offsets, true);
     await openResource(names[0]); assert.equal((await snapshot()).persistedText, texts[0]);
     const recoveryText = '{article | Recovery 🙂 remains a draft}\n';
     await source.fill(recoveryText); await settle();
@@ -676,7 +693,7 @@ async function exerciseProjectLifecycle(page, context) {
     }, alpha.project);
     assert.equal(stableResourceReferences, true);
     await editor.dispose();
-    return { stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
+    return { stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
         guardedDraftAndFocusRetained: true, exportedExactBytes: true, trashRestore: true, offlineReopen: true, accessibility };
 }
 

@@ -175,12 +175,12 @@
             "requirement": "Generate command-specific controls from the typed request schema and expose normalized configuration separately.",
             "disposition": "application-orchestration",
             "compositionGate": "open",
-            "generalComponents": ["cem-field", "cem-text-field", "cem-textarea", "cem-select", "cem-autocomplete", "cem-checkbox", "cem-switch", "cem-slider", "cem-expansion", "cem-action", "cem-alert"],
+            "generalComponents": ["cem-fieldset", "cem-field", "cem-text-field", "cem-textarea", "cem-select", "cem-autocomplete", "cem-checkbox", "cem-switch", "cem-slider", "cem-expansion", "cem-action", "cem-alert"],
             "studioComponents": [],
             "materialReferences": ["input", "form-field", "select", "autocomplete", "checkbox", "slide-toggle", "slider", "expansion", "button"],
             "contractBounds": ["Schema interpretation and option data stay in Studio/CLI; controls retain their public value, form, validation, keyboard, and accessibility contracts. Exclusive choices use cem-select rather than an unowned radio group."],
             "applicationOwns": ["schema-to-form projection", "normalized config", "capability gating", "run plan"],
-            "evidence": ["docs/cem-studio.md#primary-screens", "docs/cem-studio.md#browser-command-service"]
+            "evidence": ["packages/cem-components/docs/fieldset-contract.md", "packages/cem-components/src/components/cem-fieldset/cem-fieldset.stories.ts", "docs/cem-studio.md#primary-screens", "docs/cem-studio.md#browser-command-service"]
         },
         {
             "id": "cli-command-roundtrip",
@@ -188,12 +188,12 @@
             "requirement": "Edit and copy a command, inspect semantic changes, select an Apply target, confirm incompatible replacement, and apply transactionally.",
             "disposition": "application-orchestration",
             "compositionGate": "open",
-            "generalComponents": ["cem-textarea", "cem-action", "cem-icon-button", "cem-autocomplete", "cem-option", "cem-dialog", "cem-alert", "cem-table"],
+            "generalComponents": ["cem-fieldset", "cem-textarea", "cem-action", "cem-icon-button", "cem-autocomplete", "cem-option", "cem-dialog", "cem-alert", "cem-table"],
             "studioComponents": [],
             "materialReferences": ["input", "button", "autocomplete", "dialog", "table"],
             "contractBounds": ["Use the passive table subset for the change preview and covered autocomplete/dialog/action contracts; command parsing and mutation remain CLI/application behavior."],
             "applicationOwns": ["command serialization and parsing", "change preview", "target resolution", "transaction and stale-result state"],
-            "evidence": ["docs/cem-studio.md#cli-command-view-and-round-trip", "docs/cem-studio.md#editing-and-applying-a-command"]
+            "evidence": ["packages/cem-components/docs/fieldset-contract.md", "packages/cem-components/src/components/cem-fieldset/cem-fieldset.stories.ts", "docs/cem-studio.md#cli-command-view-and-round-trip", "docs/cem-studio.md#editing-and-applying-a-command"]
         },
         {
             "id": "result-view-navigation",

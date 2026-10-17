@@ -22,7 +22,7 @@ light DOM, authored against the `<cem-element>` substrate from `@epa-wg/cem-elem
 > `cem-elements`. See the normative
 > [declarative UI principle](../../docs/declarative-ui-principle.md).
 
-> **Migration complete:** all 53 components use canonical XHTML and colocated
+> **Migration complete:** all 54 components use canonical XHTML and colocated
 > stories. The package contains no legacy registry, installer, behavior module,
 > separate TypeScript suite or package-owned tooling. The closed zero inventory
 > is enforced by [`declarative-migration.json`](./declarative-migration.json).
@@ -292,6 +292,14 @@ and [tooltip](docs/tooltip-contract.md) contracts for migration from legacy APIs
 `verify-surfaces` checks source/installed galleries, property pages, release
 bundle, keyboard behavior and forced colors.
 
+`cem-fieldset` groups related controls through a native fieldset and legend,
+with projected labels/help, stable description references and presence-only
+group disabling. Its XHTML declaration needs no JavaScript capability and leaves
+values, validation and form ownership with the nested controls. See the
+[fieldset contract](docs/fieldset-contract.md), [property playground](playgrounds/cem-fieldset.html)
+and [gallery](playgrounds/cem-fieldset-gallery.html). The gallery integration gate
+accepts `--fieldset-only` for source and isolated-package form, theme and bundle checks.
+
 ## Build & Verify
 
 ```bash
@@ -355,7 +363,7 @@ already exists. The style contract depends on `@epa-wg/cem-theme:build:tokens`,
 and `@epa-wg/cem-theme:verify-package`, so the component gate checks current
 generated tokens and the public theme stylesheet export.
 The package verifier proves source/built CSS byte identity, the side-effect-free
-asset-only boundary, all 53 canonical declarations, zero packaged JavaScript/TypeScript, and exact dry-run npm inclusion of one `dist/styles.css`.
+asset-only boundary, all 54 canonical declarations, zero packaged JavaScript/TypeScript, and exact dry-run npm inclusion of one `dist/styles.css`.
 
 `yarn nx run @epa-wg/cem-components:test` runs every colocated component play through the shared Chromium Storybook runner. Run this cohort separately from the package browser gates.
 
@@ -618,7 +626,7 @@ component definitions. Load a template by its unique ID:
 Resolve the document URL through your module map or package deployment. The
 native CEM AST build derives the bundle from canonical XHTML and preserves the
 original resource base with `xml:base`. It includes action, select and theme
-switch. All 53 canonical components ship in this declaration bundle.
+switch. All 54 canonical components ship in this declaration bundle.
 
 The [bundle playground](playgrounds/cem-bundle.html) is exported at
 `@epa-wg/cem-components/playgrounds/cem-bundle.html`. Canonical source,

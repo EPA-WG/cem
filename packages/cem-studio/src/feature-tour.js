@@ -758,8 +758,27 @@ const OPERATION_FORM_OPTIONS = Object.freeze({
     trace: ['format', 'from_format'],
 });
 
+// Studio selects bounded editing concerns; the native schema still owns all
+// argument constraints and mutually exclusive/required source groups.
+const OPERATION_FORM_GROUPS = Object.freeze({
+    parse: { 'operation-options': ['format', 'fail_level', 'preserve_source_offsets'] },
+    inspect: { 'operation-options': ['show', 'format', 'from_format'] },
+    convert: { 'output-options': ['to_format', 'to_content_type', 'to_schema'],
+        'formatter-options': ['cemt_formatter', 'cemt_formatter_profile'],
+        'colorizer-options': ['cemt_colorizer', 'cemt_color_profile'],
+        'output-style': ['output_color_type', 'tabular', 'preserve_source_offsets'] },
+    query: { 'source-context': ['query_content_type', 'query_schema'] },
+    transform: { 'source-context': ['template_content_type', 'template_schema', 'template_entrypoint'],
+        'output-options': ['to_content_type', 'to_schema'] },
+    trace: { 'operation-options': ['format', 'from_format'] },
+});
+
 export function describeCemStudioOperationFields(text) {
     const parsed = parseCemMlCommandText(text, { runtime: 'wasm-browser-worker' });
+    return operationFields(parsed);
+}
+
+function operationFields(parsed) {
     if (parsed.commandPath.length !== 1) return [];
     const operation = parsed.commandPath[0];
     const allowed = OPERATION_FORM_OPTIONS[operation];
@@ -778,19 +797,44 @@ export function describeCemStudioOperationFields(text) {
     }));
 }
 
-/** Edit only one scalar option, retaining positional, global and repeated values. */
-export function editCemStudioOperationField(text, id, value, reset = false) {
-    const field = describeCemStudioOperationFields(text).find(field => field.id === id);
-    if (!field) throw new Error('This option is not available in the operation form');
-    if (typeof value !== 'string') throw new TypeError('An option value must be text');
-    if (reset && field.required) throw new Error('A required option cannot be reset');
-    if (!reset && field.type === 'enum' && !field.choices.some(choice => choice.value === value)) throw new Error('Choose a value from the native command options');
-    if (!reset && field.type === 'boolean' && !['true', 'false'].includes(value)) throw new Error('Choose true or false');
+export function describeCemStudioOperationGroups(text) {
     const parsed = parseCemMlCommandText(text, { runtime: 'wasm-browser-worker' });
+    const fields = operationFields(parsed);
+    const operation = parsed.commandPath.length === 1 ? parsed.commandPath[0] : undefined;
+    const native = commandSchema.commands.find(command => command.name === operation)?.groups ?? [];
+    const groups = [...native.map(group => [group.id, group.arguments]), ...Object.entries(OPERATION_FORM_GROUPS[operation] ?? {})];
+    return groups.filter(([, ids]) => ids.length >= 2 && ids.length <= 3 && ids.every(id => fields.some(field => field.id === id)))
+        .map(([id, ids]) => ({ id, fields: ids.map(id => fields.find(field => field.id === id)) }));
+}
+
+/** Validate the complete candidate once, allowing coupled options to change together. */
+export function editCemStudioOperationFields(text, edits) {
+    if (typeof text !== 'string' || !Array.isArray(edits)) throw new TypeError('An option batch requires command text and an edit list');
+    if (!edits.length) return text;
+    const parsed = parseCemMlCommandText(text, { runtime: 'wasm-browser-worker' });
+    const fields = operationFields(parsed);
+    if (edits.length > fields.length) throw new Error('Too many option edits');
     const options = { ...parsed.options };
-    if (reset) delete options[id];
-    else options[id] = field.type === 'boolean' ? value === 'true' : value;
+    const seen = new Set();
+    for (const edit of edits) {
+        const { id, value, reset = false } = edit ?? {};
+        const field = fields.find(field => field.id === id);
+        if (!field) throw new Error('This option is not available in the operation form');
+        if (seen.has(id)) throw new Error('An option may be edited only once per batch');
+        seen.add(id);
+        if (typeof value !== 'string' || typeof reset !== 'boolean') throw new TypeError('An option value must be text and reset must be boolean');
+        if (reset && field.required) throw new Error('A required option cannot be reset');
+        if (!reset && field.type === 'enum' && !field.choices.some(choice => choice.value === value)) throw new Error('Choose a value from the native command options');
+        if (!reset && field.type === 'boolean' && !['true', 'false'].includes(value)) throw new Error('Choose true or false');
+        if (reset) delete options[id];
+        else options[id] = field.type === 'boolean' ? value === 'true' : value;
+    }
     const serialized = serializeCemMlCommandText({ ...parsed, options });
     // Parsing applies native defaults, conflicts and value constraints before delivery.
     return serializeCemMlCommandText(parseCemMlCommandText(serialized, { runtime: 'wasm-browser-worker' }));
+}
+
+/** Edit only one scalar option, retaining positional, global and repeated values. */
+export function editCemStudioOperationField(text, id, value, reset = false) {
+    return editCemStudioOperationFields(text, [{ id, value, reset }]);
 }

@@ -97,7 +97,9 @@ try {
   createCemStudioSessionWorkbench,
   createCemStudioPreview,
   describeCemStudioOperationFields,
+  describeCemStudioOperationGroups,
   editCemStudioOperationField,
+  editCemStudioOperationFields,
 } from '@epa-wg/cem-studio';
 import { createCemStudioProjectSession as sessionSubpath } from '@epa-wg/cem-studio/project-session';
 
@@ -105,7 +107,7 @@ const session = sessionSubpath({ openWorkbench: async () => { throw new Error('n
 
 console.log(JSON.stringify({
   exports: [loadCemMlBrowser, mountCemStudio, registerCemStudioServiceWorker, createCemStudioProjectRepository, createCemStudioFileSystemProvider, installCemStudioFeatureTour, createCemStudioFeatureTourWorkbench, createCemStudioPreview, createCemStudioProjectSession, createCemStudioProjectWorkbench, createCemStudioSessionWorkbench].map((value) => typeof value),
-  typedHelpers: [describeCemStudioOperationFields, editCemStudioOperationField].map(value => typeof value),
+  typedHelpers: [describeCemStudioOperationFields, describeCemStudioOperationGroups, editCemStudioOperationField, editCemStudioOperationFields].map(value => typeof value),
   sessionStatus: session.snapshot().status,
   sessionExportMatches: sessionSubpath === createCemStudioProjectSession,
   navigatorPresent: 'navigator' in globalThis,
@@ -117,7 +119,7 @@ session.dispose();
     assert.equal(probe.sessionStatus, 'empty');
     assert.equal(probe.sessionExportMatches, true);
     assert.deepEqual(probe.exports, Array(11).fill('function'));
-    assert.deepEqual(probe.typedHelpers, ['function', 'function']);
+    assert.deepEqual(probe.typedHelpers, Array(4).fill('function'));
 
     const report = {
         schemaVersion: 1,

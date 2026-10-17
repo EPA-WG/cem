@@ -1,7 +1,7 @@
 import { parseCemMlCommandText } from '@epa-wg/cem-ml-cli/browser-commands';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { describeCemStudioOperationFields, editCemStudioOperationField, createCemStudioBrowserValidator } from './feature-tour.js';
+import { describeCemStudioOperationFields, describeCemStudioOperationGroups, editCemStudioOperationField, editCemStudioOperationFields, createCemStudioBrowserValidator } from './feature-tour.js';
 import { createCemStudioFileSystemProvider, serializeCemStudioProjectBundle } from './file-system-provider.js';
 import { createCemStudioProjectRepository } from './repository.js';
 import { createCemStudioProjectSession } from './project-session.js';
@@ -60,6 +60,150 @@ describe('CEM Studio Feature Tour workbench', () => {
             const argv = operation === 'query' ? '--query . --query-content-type application/vnd.cem.query-expression+xpath' : operation === 'transform' ? '--template-expression .' : '';
             expect(describeCemStudioOperationFields(`cem-ml ${operation} studio://alpha/source.cem ${argv}`).length).toBeGreaterThan(0);
         }
+    });
+
+    it('validates grouped option batches together with the native grammar', () => {
+        const source = 'cem-ml parse studio://alpha/source.cem --namespace a=urn:a --namespace b=urn:b --from-format cem';
+        const group = describeCemStudioOperationGroups(source).find(group => group.id === 'operation-options');
+        expect(group.fields.map(field => field.id)).toEqual(['format', 'fail_level', 'preserve_source_offsets']);
+        expect(describeCemStudioOperationGroups(source).every(group => group.fields.length >= 2 && group.fields.length <= 3)).toBe(true);
+        const changed = editCemStudioOperationFields(source, [
+            { id: 'format', value: 'events' }, { id: 'preserve_source_offsets', value: 'true' },
+        ]);
+        expect(parseCemMlCommandText(changed).options).toMatchObject({
+            format: 'events', preserve_source_offsets: true, from_format: 'cem', namespaces: ['a=urn:a', 'b=urn:b'],
+        });
+        expect(editCemStudioOperationFields(source, [])).toBe(source);
+        for (const changes of [
+            [{ id: 'format', value: 'events' }, { id: 'fail_level', value: 'invented' }],
+            [{ id: 'format', value: 'ast' }, { id: 'format', value: 'events' }],
+            [{ id: 'input', value: 'file:///elsewhere' }],
+            [{ id: 'preserve_source_offsets', value: 'yes' }],
+        ]) expect(() => editCemStudioOperationFields(source, changes)).toThrow();
+        const query = 'cem-ml query studio://alpha/source.cem --query . --query-content-type application/vnd.cem.query-expression+xpath';
+        expect(describeCemStudioOperationGroups(query).find(group => group.id === 'query_source').fields.map(field => field.id)).toEqual(['query', 'query_file']);
+        expect(() => editCemStudioOperationField(query, 'query_file', 'studio://alpha/query.xpath')).toThrow();
+        const replaced = editCemStudioOperationFields(query, [
+            { id: 'query', value: '', reset: true }, { id: 'query_file', value: 'studio://alpha/query.xpath' },
+        ]);
+        expect(parseCemMlCommandText(replaced).options).toMatchObject({ query_file: 'studio://alpha/query.xpath', query_content_type: 'application/vnd.cem.query-expression+xpath' });
+        expect(parseCemMlCommandText(replaced).options.query).toBeUndefined();
+        expect(() => editCemStudioOperationFields(query, [{ id: 'query', value: '', reset: true }])).toThrow();
+        const literal = 'concat("café", "\\", "$(literal)")';
+        const updated = editCemStudioOperationFields(query, [{ id: 'query', value: literal }, { id: 'output', value: 'cem' }]);
+        expect(parseCemMlCommandText(updated).options).toMatchObject({ query: literal, output: 'cem' });
+    });
+
+    it('commits grouped drafts once and preserves them after invalid, stale or failed batches', async () => {
+        const validator = validatorFor(validResult());
+        const repository = await repositoryWithSource('original');
+        const workbench = await createWorkbench(repository, validator);
+        const other = await createWorkbench(repository, validator);
+        const before = (await repository.query(request('export-project', { projectId: 'feature-tour' }))).value;
+        const initial = workbench.snapshot().command;
+        const changes = [{ id: 'format', value: 'events' }, { id: 'preserve_source_offsets', value: 'true' }];
+        await workbench.updateCommandFields(changes, other.snapshot().command.formVersion);
+        expect(workbench.snapshot().command.draftText).toBe(initial.draftText);
+        expect(workbench.snapshot().command.formError.message).toContain('command changed');
+        await workbench.updateCommandFields([...changes, { id: 'format', value: 'ast' }], workbench.snapshot().command.formVersion);
+        expect(workbench.snapshot().command.draftText).toBe(initial.draftText);
+        validator.previewResourceCommand.mockRejectedValueOnce(new Error('Grouped preview unavailable'));
+        await workbench.updateCommandFields(changes, workbench.snapshot().command.formVersion);
+        expect(workbench.snapshot().command.draftText).toBe(initial.draftText);
+        expect(workbench.snapshot().command.status).toBe(initial.status);
+        expect(workbench.snapshot().command.formError.message).toBe('Grouped preview unavailable');
+        const observed = []; const unsubscribe = workbench.subscribe(state => observed.push(state.command.draftText));
+        await workbench.updateCommandFields(changes, workbench.snapshot().command.formVersion);
+        unsubscribe();
+        const committed = workbench.snapshot().command;
+        expect(parseCemMlCommandText(committed.draftText).options).toMatchObject({ format: 'events', preserve_source_offsets: true });
+        expect(new Set(observed)).toEqual(new Set([initial.draftText, committed.draftText]));
+        expect(committed.formError).toBeUndefined();
+        await workbench.updateCommandFields([{ id: 'format', value: '', reset: true }], initial.formVersion);
+        expect(workbench.snapshot().command.draftText).toBe(committed.draftText);
+        expect((await repository.query(request('export-project', { projectId: 'feature-tour' }))).value).toEqual(before);
+        expect(validator.executeAuthoredResourceCommand).not.toHaveBeenCalled();
+        expect(validator.validateResource).not.toHaveBeenCalled();
+    });
+
+    it('rejects repeated pending batches and ignores a superseded grouped preview', async () => {
+        const validator = validatorFor(validResult());
+        const repository = await repositoryWithSource('original');
+        const workbench = await createWorkbench(repository, validator);
+        const initial = workbench.snapshot().command;
+        const pending = deferred();
+        validator.previewResourceCommand.mockImplementationOnce(async options => { await pending.promise; return commandPreviewOutcome(options); });
+        const version = initial.formVersion;
+        const change = [{ id: 'format', value: 'events' }, { id: 'preserve_source_offsets', value: 'true' }];
+        const previews = validator.previewResourceCommand.mock.calls.length;
+        const update = workbench.updateCommandFields(change, version);
+        try {
+            await expect.poll(() => workbench.snapshot().command.status).toBe('checking');
+            await expect.poll(() => validator.previewResourceCommand.mock.calls.length).toBe(previews + 1);
+            expect(workbench.snapshot().command.draftText).toBe(initial.draftText);
+            await workbench.updateCommandFields(change, version);
+            expect(workbench.snapshot().command.formError.message).toContain('command changed');
+            await workbench.updateCommandDraft(initial.draftText.replace('--format ast', '--format events'));
+        } finally { pending.resolve(); }
+        await update;
+        expect(parseCemMlCommandText(workbench.snapshot().command.draftText).options.preserve_source_offsets).not.toBe(true);
+        expect(workbench.snapshot().command.formError).toBeUndefined();
+    });
+
+    it('persists grouped options only through one explicit Apply and reopens stable resources', async () => {
+        const native = await createCemStudioBrowserValidator();
+        try {
+            const validator = { ...validatorFor(validResult()), previewResourceCommand: native.previewResourceCommand,
+                serializeResourceCommand: native.serializeResourceCommand, decodeResourceCommand: native.decodeResourceCommand };
+            const repository = await repositoryWithSource('{article | Native grouped options}');
+            const workbench = await createWorkbench(repository, validator);
+            await workbench.parsePersisted('ast');
+            const before = (await repository.query(request('export-project', { projectId: 'feature-tour' }))).value;
+            await workbench.updateCommandFields([{ id: 'format', value: 'events' }, { id: 'preserve_source_offsets', value: 'true' }], workbench.snapshot().command.formVersion);
+            expect(workbench.snapshot().command.parsed.options).toMatchObject({ format: 'events', preserve_source_offsets: true });
+            expect((await repository.query(request('export-project', { projectId: 'feature-tour' }))).value).toEqual(before);
+            workbench.setCommandTarget({ mode: 'new', name: 'Grouped inspection', parentId: 'schema-package-examples' });
+            await workbench.applyCommand();
+            const applied = workbench.snapshot().command.application;
+            expect(applied.status).toBe('applied');
+            const after = (await repository.query(request('export-project', { projectId: 'feature-tour' }))).value;
+            expect(after.project.revision).toBe(before.project.revision + 1);
+            for (const resource of before.project.resources) {
+                expect(after.project.resources.find(item => item.id === resource.id)).toEqual(resource);
+                expect(after.contents[resource.id]).toEqual(before.contents[resource.id]);
+            }
+            const committed = native.decodeResourceCommand(after.contents[applied.result.commandResource.id]);
+            expect(committed.options).toMatchObject({ format: 'events', preserve_source_offsets: true });
+            const reopened = await createCemStudioProjectWorkbench({ repository, validator, selection: { projectId: 'feature-tour', entryId: applied.result.entry.id } });
+            workbenches.push(reopened);
+            expect(reopened.snapshot().command.parsed.options).toMatchObject({ format: 'events', preserve_source_offsets: true });
+            expect(validator.executeAuthoredResourceCommand).not.toHaveBeenCalled();
+        } finally { await native.close(); }
+    }, 30_000);
+
+    it('rejects malformed grouped form capture without changing the command', async () => {
+        const validator = validatorFor(validResult());
+        const repository = await repositoryWithSource('original');
+        const workbench = await createWorkbench(repository, validator);
+        await workbench.parsePersisted('ast');
+        const original = workbench.snapshot().command;
+        const fields = { group: ['operation-options'], version: [original.formVersion],
+            'mode.format': ['keep'], 'mode.fail_level': ['keep'], 'mode.preserve_source_offsets': ['keep'] };
+        await workbench.updateCommandGroup('operation-options', fields, original.formVersion);
+        expect(workbench.snapshot().command.formVersion).toBe(original.formVersion);
+        for (const invalid of [
+            { ...fields, 'mode.format': ['set', 'reset'] },
+            { ...fields, 'mode.format': ['invented'] },
+            { ...fields, 'mode.format': ['set'] },
+            { ...fields, 'value.query': ['unexpected'] },
+        ]) {
+            await workbench.updateCommandGroup('operation-options', invalid, original.formVersion);
+            expect(workbench.snapshot().command.draftText).toBe(original.draftText);
+            expect(workbench.snapshot().command.formError).toBeDefined();
+        }
+        await workbench.updateCommandGroup('operation-options', fields, original.formVersion);
+        expect(workbench.snapshot().command.formError).toBeUndefined();
+        expect(workbench.snapshot().command.formVersion).toBe(original.formVersion);
     });
 
     it('guards typed field versions and edits drafts without Save, Apply or Run', async () => {
@@ -212,6 +356,124 @@ describe('CEM Studio Feature Tour workbench', () => {
             output: { text: 'inspect tree projection\n' },
         });
         expect(root.querySelector('cem-table[label="Projection execution"] [role="table"]')).not.toBeNull();
+    }, 30_000);
+
+    it('groups the active option declaratively and disables it during an atomic draft update', async () => {
+        const validator = validatorFor(validResult());
+        const repository = await repositoryWithSource('original');
+        const workbench = await createWorkbench(repository, validator);
+        await workbench.parsePersisted('ast');
+        const before = (await repository.query(request('export-project', { projectId: 'feature-tour' }))).value;
+        const root = document.createElement('main'); document.body.append(root);
+        const shell = await mountCemStudioApplicationShell({ root }); shells.push(shell);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
+        selectValue(root, '[name="operation-option"]', 'format'); await view.whenSettled();
+        await expect.poll(() => root.querySelector('form[host-command="edit-field"] cem-fieldset fieldset')).toBeTruthy();
+        const form = root.querySelector('form[host-command="edit-field"]');
+        const host = form.querySelector('cem-fieldset'), group = host.querySelector('fieldset');
+        expect(group.querySelector('legend').textContent).toBe('Edit format');
+        expect(group.getAttribute('role')).toBeNull();
+        expect(group.getAttribute('aria-describedby')).toBeTruthy();
+        const choice = form.querySelector('cem-select[name="value"]');
+        choice.value = 'events'; choice.dispatchEvent(new Event('change', { bubbles: true }));
+        await view.whenSettled();
+        const pending = deferred();
+        validator.previewResourceCommand.mockImplementationOnce(async options => { await pending.promise; return commandPreviewOutcome(options); });
+        const submit = form.querySelector('cem-action[value="set"] button');
+        const previews = validator.previewResourceCommand.mock.calls.length;
+        submit.click();
+        try {
+            await expect.poll(() => group.disabled).toBe(true);
+            expect(choice.querySelector('button').matches(':disabled')).toBe(true);
+            await expect.poll(() => validator.previewResourceCommand.mock.calls.length).toBe(previews + 1);
+            submit.click();
+            expect(validator.previewResourceCommand.mock.calls.length).toBe(previews + 1);
+        } finally { pending.resolve(); }
+        await view.whenSettled();
+        expect(parseCemMlCommandText(workbench.snapshot().command.draftText).options.format).toBe('events');
+        expect(form.querySelector('fieldset')).toBe(group);
+        expect(group.disabled).toBe(false);
+        expect((await repository.query(request('export-project', { projectId: 'feature-tour' }))).value).toEqual(before);
+        expect(validator.executeAuthoredResourceCommand).not.toHaveBeenCalled();
+        form.querySelector('cem-action[value="reset"] button').click(); await view.whenSettled();
+        expect(parseCemMlCommandText(workbench.snapshot().command.draftText).options.format).toBe('ast');
+        expect(root.querySelectorAll('form[host-command="edit-field"]')).toHaveLength(1);
+    }, 30_000);
+
+    it('stages a bounded option group declaratively and submits one native form', async () => {
+        const validator = validatorFor(validResult());
+        const repository = await repositoryWithSource('original');
+        const workbench = await createWorkbench(repository, validator);
+        await workbench.parsePersisted('ast');
+        const before = (await repository.query(request('export-project', { projectId: 'feature-tour' }))).value;
+        const root = document.createElement('main'); document.body.append(root);
+        const shell = await mountCemStudioApplicationShell({ root }); shells.push(shell);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
+        selectValue(root, '[name="operation-option"]', 'group:operation-options'); await view.whenSettled();
+        const form = root.querySelector('form[host-command="edit-group"]');
+        expect(form).not.toBeNull();
+        expect(root.querySelectorAll('form[host-command="edit-field"]')).toHaveLength(0);
+        expect(form.querySelector('legend').textContent).toBe('Edit Operation options together');
+        expect(form.querySelectorAll('cem-select[name^="mode."]')).toHaveLength(3);
+        const button = form.querySelector('cem-action[type="submit"] button');
+        const original = workbench.snapshot().command;
+        selectValue(form, '[name="value.format"]', 'events'); await view.whenSettled();
+        button.click(); await view.whenSettled();
+        expect(workbench.snapshot().command.draftText).toBe(original.draftText);
+        expect(workbench.snapshot().command.formVersion).toBe(original.formVersion);
+        form.querySelector('cem-action[type="reset"] button').click(); await view.whenSettled();
+        expect(form.querySelector('cem-select[name="value.format"]').value).toBe('ast');
+        selectValue(form, '[name="mode.format"]', 'set');
+        selectValue(form, '[name="value.format"]', 'events');
+        selectValue(form, '[name="mode.preserve_source_offsets"]', 'set');
+        selectValue(form, '[name="value.preserve_source_offsets"]', 'true');
+        await view.whenSettled();
+        const pending = deferred(); const previews = validator.previewResourceCommand.mock.calls.length;
+        validator.previewResourceCommand.mockImplementationOnce(async options => { await pending.promise; return commandPreviewOutcome(options); });
+        button.click();
+        try {
+            await expect.poll(() => form.querySelector('fieldset').disabled).toBe(true);
+            expect(workbench.snapshot().command.draftText).toBe(original.draftText);
+            expect(form.querySelector('cem-select[name="value.format"]').value).toBe('events');
+            button.click();
+            await expect.poll(() => validator.previewResourceCommand.mock.calls.length).toBe(previews + 1);
+        } finally { pending.resolve(); }
+        await view.whenSettled();
+        expect(parseCemMlCommandText(workbench.snapshot().command.draftText).options).toMatchObject({ format: 'events', preserve_source_offsets: true });
+        expect(root.querySelector('form[host-command="edit-group"]')).toBe(form);
+        expect(form.querySelector('fieldset').disabled).toBe(false);
+        expect((await repository.query(request('export-project', { projectId: 'feature-tour' }))).value).toEqual(before);
+        expect(validator.executeAuthoredResourceCommand).not.toHaveBeenCalled();
+        selectValue(form, '[name="mode.format"]', 'reset');
+        selectValue(form, '[name="mode.preserve_source_offsets"]', 'keep');
+        button.click(); await view.whenSettled();
+        expect(parseCemMlCommandText(workbench.snapshot().command.draftText).options).toMatchObject({ format: 'ast', preserve_source_offsets: true });
+    }, 30_000);
+
+    it('replaces a coupled query source through the grouped declarative form', async () => {
+        const validator = validatorFor(validResult());
+        const repository = await repositoryWithSource('original');
+        const workbench = await createWorkbench(repository, validator);
+        await workbench.updateCommandDraft('cem-ml query studio://feature-tour/data/cem-ml/basic.cem --query . --query-content-type application/vnd.cem.query-expression+xpath');
+        const root = document.createElement('main'); document.body.append(root);
+        const shell = await mountCemStudioApplicationShell({ root }); shells.push(shell);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
+        selectValue(root, '[name="operation-option"]', 'group:query_source'); await view.whenSettled();
+        const form = root.querySelector('form[host-command="edit-group"]');
+        expect(form.querySelector('legend').textContent).toBe('Edit Query source together');
+        expect(form.querySelectorAll('cem-select[name^="mode."]')).toHaveLength(2);
+        selectValue(form, '[name="mode.query"]', 'reset');
+        selectValue(form, '[name="mode.query_file"]', 'set');
+        const file = form.querySelector('cem-text-field[name="value.query_file"] input');
+        file.value = 'studio://feature-tour/queries/source.xpath';
+        file.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        form.querySelector('cem-action[type="submit"] button').click(); await view.whenSettled();
+        const parsed = parseCemMlCommandText(workbench.snapshot().command.draftText);
+        expect(parsed.options.query).toBeUndefined();
+        expect(parsed.options.query_file).toBe('studio://feature-tour/queries/source.xpath');
+        expect(parsed.options.query_content_type).toBe('application/vnd.cem.query-expression+xpath');
+        expect(workbench.snapshot().command.formError).toBeUndefined();
+        expect(validator.executeAuthoredResourceCommand).not.toHaveBeenCalled();
     }, 30_000);
 
     it('retains declarative editor state through reload and rejects repeated pending commands', async () => {
@@ -1457,6 +1719,20 @@ describe('Studio project session admission', () => {
         expect(commandOnly.activeWorkbench().snapshot()).toMatchObject({ draft, dirty: false, command: { draftText: expected } });
         await commandOnly.activeWorkbench().resetCommandDraft();
         expect(commandOnly.draftBackup()).toBe('');
+    });
+
+    it('recovers an accepted grouped draft with every option and no persisted command mutation', async () => {
+        const storage = draftStorage();
+        const { session, workbench, openWorkbench, repository } = await fixture(storage);
+        const before = (await repository.query(request('export-project', { projectId: first.projectId }))).value;
+        await workbench.updateCommandFields([{ id: 'format', value: 'events' }, { id: 'preserve_source_offsets', value: 'true' }], workbench.snapshot().command.formVersion);
+        const expected = workbench.snapshot().command.draftText;
+        session.dispose();
+        const restored = await reopen(openWorkbench, storage);
+        expect(restored.snapshot().draftRecovery.status).toBe('recovered');
+        expect(restored.activeWorkbench().snapshot().command.draftText).toBe(expected);
+        expect(parseCemMlCommandText(expected).options).toMatchObject({ format: 'events', preserve_source_offsets: true });
+        expect((await repository.query(request('export-project', { projectId: first.projectId }))).value).toEqual(before);
     });
 
     it('retains conflicting and corrupt records for download until explicit clearing', async () => {

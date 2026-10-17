@@ -433,4 +433,14 @@
       {export @id=cem-step-gallery-html @out="../dist/{file}" @content-type="text/html"}
     }
   }
+  {import @id=cem-fieldset @src="cem-fieldset.html" @content-type="text/html" |
+    {rewrite-importmap @id=cem-fieldset-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
+      {export @id=cem-fieldset-html @out="../dist/{file}" @content-type="text/html"}
+    }
+  }
+  {import @id=cem-fieldset-gallery @src="cem-fieldset-gallery.html" @content-type="text/html" |
+    {rewrite-importmap @id=cem-fieldset-gallery-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
+      {export @id=cem-fieldset-gallery-html @out="../dist/{file}" @content-type="text/html"}
+    }
+  }
 }

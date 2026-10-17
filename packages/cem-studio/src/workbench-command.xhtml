@@ -5,6 +5,57 @@
     {slice @name=pending | false}
     {slice @name=busy | false}
     {slice @name=fieldId | }
+    {template @name=operation-group-label |
+        {param @name=group}
+        {body |
+            {cem:choose |
+                {cem:when @test='group.id == "operation-options"' | Operation options}
+                {cem:when @test='group.id == "output-options"' | Output options}
+                {cem:when @test='group.id == "formatter-options"' | Formatter options}
+                {cem:when @test='group.id == "colorizer-options"' | Colorizer options}
+                {cem:when @test='group.id == "output-style"' | Output style}
+                {cem:when @test='group.id == "source-context"' | Source interpretation}
+                {cem:when @test='group.id == "query_source"' | Query source}
+                {cem:when @test='group.id == "template_source"' | Template source}
+                {cem:otherwise | {$ | str:concat(group.fields.label, ", ")}}
+            }
+        }
+    }
+    {template @name=operation-field-control |
+        {param @name=field}
+        {param @name=name}
+        {param @name=help}
+        {body |
+            {cem:choose |
+                {cem:when @test=field.multiline |
+                    {cem-textarea @name={name} @label={field.label} @value={field.value} @required={if field.required { true } else { null }} |
+                        {cem:if @test=help | {span @slot=help | {$ | help}}}
+                    }
+                }
+                {cem:when @test='field.type == "text"' |
+                    {cem-text-field @name={name} @label={field.label} @value={field.value} @required={if field.required { true } else { null }} |
+                        {cem:if @test=help | {span @slot=help | {$ | help}}}
+                    }
+                }
+                {cem:otherwise |
+                    {cem-select @name={name} @value={field.value} |
+                        {span @slot=label | {$ | field.label}}
+                        {cem:if @test=help | {span @slot=help | {$ | help}}}
+                        {cem:choose |
+                            {cem:when @test='field.type == "boolean"' |
+                                {option @value=true @selected={if field.value == "true" { true } else { null }} | True}
+                                {option @value=false @selected={if field.value == "false" { true } else { null }} | False}
+                            }
+                            {cem:otherwise |
+                                {option @value="" @disabled=true @selected={if field.value == "" { true } else { null }} | Choose a value}
+                                {cem:for-each @as=choice @select=field.choices | {option @value={choice.value} @selected={if choice.value == field.value { true } else { null }} | {$ | choice.value}}}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
     {template @name=command-target-detail |
         {param @name=application}
         {param @name=busy}
@@ -146,7 +197,7 @@
         {cem:variable @name=command @select=datadom.slices.command}
         {cem:variable @name=application @select=command.application}
         {cem:variable @name=busy
-            @select='datadom.slices.pending || datadom.slices.busy || (application.status == "applying") || (application.status == "running")'}
+            @select='datadom.slices.pending || datadom.slices.busy || (command.status == "checking") || (application.status == "applying") || (application.status == "running")'}
         {cem:variable @name=commandLabel
             @select='if !command { "No command is prepared. Parse or inspect a text resource to begin." } else { if command.copy.message { command.copy.message } else { if command.status == "checking" { "Checking command with the shared CEM-ML grammar." } else { if command.status == "invalid" { str:concat((command.diagnostic.code ?? "cem.command.invalid", ": ", command.diagnostic.message ?? "Command is invalid."), "") } else { if command.status == "changed" { str:concat((seq:count(command.changes.path), " semantic changes; project records remain unchanged."), "") } else { str:concat(("Generated Studio command for project ", command.revision.projectRevision, ", resource ", command.revision.resourceRevision, "; CEM-ML ", command.current.commonVersion, "."), "") } } } } }'}
         {cem:variable @name=applyDisabled
@@ -182,7 +233,7 @@
                 {section @aria-label="Operation form" |
  {cem-stack @gap=sm |
                     {h3 | Operation form}
-                    {cem-alert @label="Set one option to update the command draft. Apply and Run remain explicit. Unlisted, repeated and coupled options remain in the literal command editor."}
+                    {cem-alert @label="Choose one option or a small related group. Keep preserves an option; Set uses its value; Reset restores native defaults. Grouped Set validates every change together. Apply and Run remain explicit. Unlisted and repeated options remain in the literal command editor."}
                     {cem:if @test=command.formError | {cem-alert @tone=danger @label={command.formError.message}}}
                     {cem:if @test='seq:count(command.fields.id) == 0' | {cem-alert @label="Prepare a valid supported command in the command editor to use this form."}}
  }
@@ -190,43 +241,47 @@
                         {span @slot=label | Operation option}
                         {option @value="" | Choose an option}
                         {cem:for-each @as=field @select=command.fields | {option @value={field.id} | {$ | field.label}}}
+                        {optgroup @label="Edit together" |
+                            {cem:for-each @as=group @select=command.groups |
+                                {option @value={str:concat(("group:", group.id), "")} | {call @template=operation-group-label @with:group="{$group}"}}
+                            }
+                        }
                     }
                     {cem:for-each @as=field @select=command.fields |
                      {cem:if @test='field.id == datadom.slices.fieldId' |
                         {form @host-command=edit-field @host-command-event=submit |
- {cem-stack @gap=sm |
+ {cem-fieldset @label={str:concat(("Edit ", field.label), "")} @description={field.help} @disabled={if busy { true } else { null }} |
                             {input @type=hidden @name=option @value={field.id}}
                             {input @type=hidden @name=version @value={command.formVersion}}
-                            {cem:choose |
-                                {cem:when @test=field.multiline |
-                                    {cem-textarea @name=value @label={field.label} @value={field.value} @required={if field.required { true } else { null }} |
-                                        {span @slot=help | {$ | field.help}}
-                                    }
-                                }
-                                {cem:when @test='field.type == "text"' |
-                                    {cem-text-field @name=value @label={field.label} @value={field.value} @required={if field.required { true } else { null }} |
-                                        {span @slot=help | {$ | field.help}}
-                                    }
-                                }
-                                {cem:otherwise |
-                                    {cem-select @name=value @value={field.value} |
-                                        {span @slot=label | {$ | field.label}}
-                                        {span @slot=help | {$ | field.help}}
-                                        {cem:choose |
-                                            {cem:when @test='field.type == "boolean"' | {option @value=true | True}{option @value=false | False}}
-                                            {cem:otherwise |
-                                                {option @value="" @disabled=true | Choose a value}
-                                                {cem:for-each @as=choice @select=field.choices | {option @value={choice.value} | {$ | choice.value}}}
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                            {call @template=operation-field-control @with:field="{$field}" @with:name=value @with:help=""}
                             {cem-action @type=submit @name=mode @value=set @disabled={if busy { true } else { null }} | {$ | str:concat(("Set ", field.label), "")}}
                             {cem-action @type=submit @name=mode @value=reset @variant=contextual @disabled={if busy || field.required { true } else { null }} | {$ | str:concat(("Reset ", field.label), "")}}
                         }
 }
                      }
+                    }
+                    {cem:for-each @as=group @select=command.groups |
+                        {cem:if @test='str:concat(("group:", group.id), "") == datadom.slices.fieldId' |
+                            {form @host-command=edit-group @host-command-event=submit |
+                                {cem-fieldset @description="Choose Keep, Set or Reset for each option, then Set grouped options. Reset staged changes only resets this form." @disabled={if busy { true } else { null }} |
+                                    {span @slot=label | Edit {call @template=operation-group-label @with:group="{$group}"}{$ | " together"}}
+                                    {input @type=hidden @name=group @value={group.id}}
+                                    {input @type=hidden @name=version @value={command.formVersion}}
+                                    {cem:for-each @as=field @select=group.fields |
+                                        {cem-stack @gap=sm |
+                                            {cem-select @name={str:concat(("mode.", field.id), "")} @label={str:concat(("Change ", field.label), "")} @value=keep |
+                                                {option @value=keep @selected=true | Keep}
+                                                {option @value=set | Set}
+                                                {option @value=reset @disabled={if field.required { true } else { null }} | Reset}
+                                            }
+                                            {call @template=operation-field-control @with:field="{$field}" @with:name={str:concat(("value.", field.id), "")} @with:help="{$field.help}"}
+                                        }
+                                    }
+                                    {cem-action @type=submit | Set grouped options}
+                                    {cem-action @type=reset @variant=contextual | Reset staged changes}
+                                }
+                            }
+                        }
                     }
                 }
 }   }   }

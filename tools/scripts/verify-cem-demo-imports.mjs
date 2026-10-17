@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import { readFile, readdir } from 'node:fs/promises';
 import { extname, resolve } from 'node:path';
 import { chromium } from 'playwright';
+import { verifyFieldsetPage } from '../cem-components/fieldset-page-checks.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const componentRoot = '@epa-wg/cem-components/components/';
@@ -99,6 +100,7 @@ try {
                         await page.getByRole('navigation', { name: 'Gallery navigation' }).waitFor();
                         await verifyPageTheme(page);
                     }
+                    if (/\/cem-fieldset(?:-gallery)?\.html$/u.test(fixture.path)) await verifyFieldsetPage(page, fixture.path);
                     const diagnostics = await page.evaluate(async tags => {
                         const runtime = window.cemPlaygroundRuntime;
                         if (!runtime) return [];

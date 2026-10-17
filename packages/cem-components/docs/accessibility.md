@@ -103,6 +103,20 @@ attributes consistent with reflected state.
 The catalog enforces presence; runtime enforces *timing* — the attribute MUST
 update in the same task that the state changes, not in a deferred callback.
 
+### Native form grouping
+
+`cem-fieldset` keeps group semantics on one native `<fieldset>` and its first
+`<legend>`, with no additional role or tab stop. The visible `label` slot overrides
+the fallback label; explicit ARIA naming remains independent. Default group help
+uses a stable, per-instance description reference. A caller can supply external
+`aria-labelledby` or `aria-describedby` references instead.
+
+Presence-only `disabled` delegates submission, validation and keyboard exclusion
+to native fieldset/form-associated-control behavior, preserving child values and
+explicit disabled attributes. Nested enabled groups cannot override a disabled
+ancestor. The native first-legend exemption remains available; ordinary controls
+belong in the default slot. See the [fieldset contract](fieldset-contract.md).
+
 ### 4.3 Reference-slot integrity
 
 For every component that emits `id`/`for`/`aria-*` references at runtime:

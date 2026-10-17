@@ -5,6 +5,7 @@ import { readFile, readdir, mkdtemp, mkdir, rm, writeFile } from 'node:fs/promis
 import { resolve, extname, join } from 'node:path';
 import { tmpdir, release } from 'node:os';
 import { chromium, firefox, webkit } from 'playwright';
+import { verifyFieldsetPage } from '../cem-components/fieldset-page-checks.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const temporary = await mkdtemp(join(tmpdir(), 'cem-action-playground-'));
@@ -23,6 +24,7 @@ const actionOnly = process.argv.includes('--action-only');
 const iconsOnly = process.argv.includes('--icons-only');
 const surfacesOnly = process.argv.includes('--surfaces-only');
 const sheetOnly = process.argv.includes('--sheet-only');
+const fieldsetOnly = process.argv.includes('--fieldset-only');
 const navigationContentOnly = process.argv.includes('--navigation-content-only');
 const passiveOnly = process.argv.includes('--passive-only');
 const passiveTags = ['cem-option', 'cem-option-group', 'cem-badge', 'cem-avatar', 'cem-media-preview', 'cem-tree-item', 'cem-app-bar', 'cem-tab', 'cem-step'];
@@ -52,7 +54,8 @@ try {
     if (nativeDatalistOnly && historyOnly) throw new Error('Choose one evidence mode');
     if (!evidenceOnly && (headed || nativeBrowser !== 'chromium' || evidenceOutput)) throw new Error('Browser evidence flags require --native-datalist-only or --history-only');
     browser = await ({ chromium, firefox, webkit })[nativeBrowser].launch({ headless: !headed });
-    if (!installedOnly && passiveOnly) await verifyPassive(`${origin}/packages/cem-components/playgrounds/`);
+    if (!installedOnly && fieldsetOnly) await verifyFieldset(`${origin}/packages/cem-components/playgrounds/`);
+    else if (!installedOnly && passiveOnly) await verifyPassive(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && feedbackOnly) await verifyFeedback(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && disclosureDataOnly) await verifyDisclosureData(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && layoutOnly) await verifyLayout(`${origin}/packages/cem-components/playgrounds/`);
@@ -100,7 +103,8 @@ try {
         await mkdir(target, { recursive: true });
         execFileSync('tar', ['-xzf', join(temporary, output[0].filename), '--strip-components=1', '-C', target]);
     }
-    if (passiveOnly) await verifyPassive(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    if (fieldsetOnly) await verifyFieldset(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    else if (passiveOnly) await verifyPassive(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     else if (feedbackOnly) await verifyFeedback(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     else if (disclosureDataOnly) await verifyDisclosureData(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     else if (layoutOnly) await verifyLayout(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
@@ -159,6 +163,7 @@ try {
     else if (datepickerOnly) console.log(`Datepicker property controls, native forms, calendar, galleries and bundle verified from ${verifiedLocations}.`);
     else if (autocompleteOnly) console.log(`Autocomplete property controls, galleries, live payload, forms and bundle verified from ${verifiedLocations}.`);
     else if (checkablesOnly) console.log(`Checkbox, radio and switch playgrounds, galleries, native forms, bundle and forced colors verified from ${verifiedLocations}.`);
+    else if (fieldsetOnly) console.log(`Fieldset properties, native forms, five themes, narrow/RTL, forced colors, galleries and bundle verified from ${verifiedLocations}.`);
     else if (sheetOnly) console.log(`Sheet region playground, gallery, bundle and forced colors verified from ${verifiedLocations}.`);
     else if (surfacesOnly) console.log(`Native dialog, dialog-shell and tooltip playgrounds, galleries, bundle and forced colors verified from ${verifiedLocations}.`);
     else if (iconsOnly) console.log(`Icon and icon-button playgrounds, galleries and release bundle verified from ${verifiedLocations}.`);
@@ -774,6 +779,7 @@ async function verifyBundle(url) {
         await page.locator('#bundle-select [role=combobox]').waitFor();
         await page.locator('#bundle-field input').waitFor();
         await page.locator('#bundle-text-field input').waitFor();
+        await page.getByRole('group', { name: 'Grouped contact settings', exact: true }).getByRole('textbox', { name: 'Grouped display name', exact: true }).waitFor();
         assert.equal(await page.locator('#bundle-field input').inputValue(), 'Field value');
         assert.equal(await page.locator('#bundle-text-field input').inputValue(), 'Text value');
         await page.evaluate(async () => {
@@ -785,7 +791,9 @@ async function verifyBundle(url) {
         const result = await page.evaluate(async () => {
             const runtime = window.cemPlaygroundRuntime;
             const declaration = [...document.querySelectorAll('cem-element[tag="cem-action"]')][0];
-            const bundleUrl = declaration.getAttribute('src').split('#')[0];
+            const specifier = declaration.getAttribute('src').split('#')[0];
+            const imports = JSON.parse(document.querySelector('script[type=importmap]').textContent).imports;
+            const bundleUrl = new URL(imports[specifier] ?? specifier, document.baseURI).href;
             const bundle = new DOMParser().parseFromString(await (await fetch(bundleUrl)).text(), 'application/xml');
             const checks = [];
             for (const tag of [...document.querySelectorAll('cem-element[tag][src]')].filter(node => node.getAttribute('src').split('#')[0] === declaration.getAttribute('src').split('#')[0]).map(node => node.getAttribute('tag'))) {
@@ -801,6 +809,7 @@ async function verifyBundle(url) {
             }
             const styleCount = document.querySelectorAll('style[data-cem-declaration-style]').length;
             const navigationStyleCount = document.querySelectorAll('cem-element[tag="cem-gallery-nav"] > style[data-cem-declaration-style]').length;
+            const pageStyleCount = document.querySelectorAll('cem-element[tag="cem-gallery-page"] > style[data-cem-declaration-style]').length;
             const duplicate = document.createElement('cem-element');
             duplicate.setAttribute('tag', 'cem-action');
             duplicate.setAttribute('src', declaration.getAttribute('src'));
@@ -809,7 +818,7 @@ async function verifyBundle(url) {
             const diagnostics = runtime.diagnosticsFor(duplicate).map(item => item.code);
             const stylesAfter = document.querySelectorAll('style[data-cem-declaration-style]').length;
             duplicate.remove();
-            return { checks, invalidXml: !!bundle.querySelector('parsererror'), styleCount, navigationStyleCount, stylesAfter, diagnostics };
+            return { checks, invalidXml: !!bundle.querySelector('parsererror'), styleCount, navigationStyleCount, pageStyleCount, stylesAfter, diagnostics };
         });
         assert.equal(result.invalidXml, false);
         for (const check of result.checks) {
@@ -819,7 +828,8 @@ async function verifyBundle(url) {
             assert.equal(check.base, check.sourceUrl);
         }
         assert.equal(result.navigationStyleCount, 1);
-        assert.equal(result.styleCount, result.checks.length + result.navigationStyleCount);
+        assert.equal(result.pageStyleCount, 1);
+        assert.equal(result.styleCount, result.checks.length + result.navigationStyleCount + result.pageStyleCount);
         assert.equal(result.stylesAfter, result.styleCount);
         assert.ok(result.diagnostics.includes('cem-element.registry_same_scope_duplicate'));
         assert.equal(await page.locator('#bundle-action button').getAttribute('aria-pressed'), 'true');
@@ -944,6 +954,22 @@ async function verifyIcons(baseUrl) {
     await verifyCommand(new URL('cem-icon-button.html', baseUrl).href, 'cem-icon-button');
     await verifyIcon(new URL('cem-icon.html', baseUrl).href);
     await verifyGalleries(baseUrl, ['cem-icon', 'cem-icon-button']);
+    await verifyBundle(new URL('cem-bundle.html', baseUrl).href);
+}
+
+async function verifyFieldset(baseUrl) {
+    const context = await browser.newContext();
+    try {
+        for (const name of ['cem-fieldset.html', 'cem-fieldset-gallery.html']) {
+            const page = await context.newPage();
+            try {
+                await page.goto(new URL(name, baseUrl).href);
+                await page.getByRole('navigation', { name: 'Gallery navigation' }).waitFor();
+                await verifyFieldsetPage(page, `/${name}`);
+            } finally { await page.close(); }
+        }
+    } finally { await context.close(); }
+    await verifyGalleries(baseUrl, ['cem-fieldset']);
     await verifyBundle(new URL('cem-bundle.html', baseUrl).href);
 }
 

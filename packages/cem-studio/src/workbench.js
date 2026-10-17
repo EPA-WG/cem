@@ -1,5 +1,5 @@
 import { projectResourceUri } from './resource-reference.js';
-import { describeCemStudioOperationFields, editCemStudioOperationField } from './feature-tour.js';
+import { describeCemStudioOperationFields, describeCemStudioOperationGroups, editCemStudioOperationField, editCemStudioOperationFields } from './feature-tour.js';
 import { CEM_STUDIO_REPOSITORY_ID } from './repository.js';
 import { CEM_STUDIO_LIMITS, createCemStudioPreview, redactCemStudioSecrets } from './preview.js';
 import { installCemStudioShellComponents } from './shell.js';
@@ -313,7 +313,7 @@ export async function createCemStudioSessionWorkbench({ repository, session, hom
         },
         refreshNavigation, dispose() { unsubscribeRepository?.(); disposed = true; ++searchVersion; ++navigationVersion; unsubscribe(); subscribers.clear(); } };
     for (const method of ['updateDraft', 'reload', 'saveSource', 'saveAndValidate', 'validatePersisted', 'parsePersisted',
-        'inspectPersisted', 'runPersistedOperation', 'updateCommandDraft', 'updateCommandField', 'resetCommandDraft', 'copyCommand',
+        'inspectPersisted', 'runPersistedOperation', 'updateCommandDraft', 'updateCommandField', 'updateCommandFields', 'updateCommandGroup', 'resetCommandDraft', 'copyCommand',
         'copyProjection', 'downloadProjection', 'downloadSource', 'setCommandTarget', 'applyCommand', 'applyAndRun',
         'confirmCommandReplacement', 'useNewCommandTarget', 'cancelCommandReplacement', 'navigateDiagnostic', 'navigateProvenance']) {
         adapter[method] = (...args) => {
@@ -865,10 +865,11 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         return state;
     }
 
-    async function updateCommandDraft(text) {
+    async function updateCommandDraft(text, { atomic = false } = {}) {
         if (typeof text !== 'string') throw new TypeError('CEM Studio command draft must be text');
         if (!state.command) throw new Error('CEM Studio command view is unavailable');
         const capturedVersion = ++commandEditVersion;
+        const original = state.command;
         const current = state.command.current;
         publish({
             ...state,
@@ -876,13 +877,13 @@ export async function createCemStudioFeatureTourWorkbench(options) {
                 ...state.command,
                 status: 'checking',
                 formError: undefined,
-                draftText: text,
+                draftText: atomic ? original.draftText : text,
                 diagnostic: undefined,
                 copy: undefined,
-                application: commandApplicationAfterEdit(state.command.application),
+                application: atomic ? state.command.application : commandApplicationAfterEdit(state.command.application),
             }),
             projection:
-                state.command.application?.execution && state.projection
+                !atomic && state.command.application?.execution && state.projection
                     ? freezeProjection({ ...state.projection, stale: true })
                     : state.projection,
         });
@@ -904,6 +905,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
                     parsed: preview.parsed,
                     preview,
                     changes,
+                    formError: undefined,
                     // Recheck against a source revision saved by this workbench.
                     // A concurrently advanced repository still requires reload.
                     revision: state.projectRevision === persisted.projectRevision &&
@@ -913,12 +915,14 @@ export async function createCemStudioFeatureTourWorkbench(options) {
                     copy: undefined,
                     application: commandApplicationState(persisted, state.command.application, preview.parsed),
                 }),
+                projection: original.application?.execution && state.projection
+                    ? freezeProjection({ ...state.projection, stale: true }) : state.projection,
             });
         } catch (error) {
             if (capturedVersion !== commandEditVersion) return state;
             publish({
                 ...state,
-                command: freezeCommand({
+                command: atomic ? freezeCommand({ ...original, formError: normalizedError(error) }) : freezeCommand({
                     ...state.command,
                     status: 'invalid',
                     draftText: text,
@@ -939,6 +943,41 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             if (`${commandFormId}:${commandEditVersion}` !== String(version) || state.command.status === 'checking') throw new Error('The command changed. Review the current operation form and retry.');
             const text = editCemStudioOperationField(state.command.draftText, id, value, reset);
             return await updateCommandDraft(text);
+        } catch (error) {
+            return publish({ ...state, command: { ...state.command, formError: normalizedError(error) } });
+        }
+    }
+
+    async function updateCommandFields(edits, version) {
+        if (!state.command) return state;
+        try {
+            if (`${commandFormId}:${commandEditVersion}` !== String(version) || state.command.status === 'checking' || workbenchBusy(state)) throw new Error('The command changed. Review the current operation form and retry.');
+            const text = editCemStudioOperationFields(state.command.draftText, edits);
+            if (text === state.command.draftText) return state.command.formError
+                ? publish({ ...state, command: { ...state.command, formError: undefined } }) : state;
+            return await updateCommandDraft(text, { atomic: true });
+        } catch (error) {
+            return publish({ ...state, command: { ...state.command, formError: normalizedError(error) } });
+        }
+    }
+
+    // Native form capture is a command protocol boundary, not a DOM/UI adapter.
+    async function updateCommandGroup(id, fields, version) {
+        if (!state.command) return state;
+        try {
+            const group = describeCemStudioOperationGroups(state.command.draftText).find(group => group.id === id);
+            if (!group) throw new Error('This option group is not available');
+            const allowed = new Set(['group', 'version', ...group.fields.flatMap(field => [`mode.${field.id}`, `value.${field.id}`])]);
+            for (const [name, values] of Object.entries(fields)) {
+                if (!allowed.has(name) || !Array.isArray(values) || values.length !== 1 || typeof values[0] !== 'string') throw new Error('The option group contains unexpected or repeated fields');
+            }
+            const edits = group.fields.flatMap(field => {
+                const mode = fields[`mode.${field.id}`]?.[0];
+                if (mode === 'keep') return [];
+                if (!['set', 'reset'].includes(mode)) throw new Error('Choose Keep, Set or Reset for every option');
+                return [{ id: field.id, value: mode === 'reset' ? '' : fields[`value.${field.id}`]?.[0], reset: mode === 'reset' }];
+            });
+            return await updateCommandFields(edits, version);
         } catch (error) {
             return publish({ ...state, command: { ...state.command, formError: normalizedError(error) } });
         }
@@ -1447,6 +1486,8 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         runPersistedOperation,
         updateCommandDraft,
         updateCommandField,
+        updateCommandFields,
+        updateCommandGroup,
         resetCommandDraft,
         copyCommand,
         copyProjection,
@@ -1585,6 +1626,7 @@ export async function mountCemStudioFeatureTourWorkbench({
             copy: () => perform(() => workbench.copyCommand(typeof clipboard?.writeText === 'function'
                 ? text => clipboard.writeText(text) : undefined)),
             'edit-field': ({ fields }) => perform(() => workbench.updateCommandField(fields.option?.[0], fields.value?.[0] ?? '', fields.version?.[0], fields.mode?.[0] === 'reset')),
+            'edit-group': ({ fields }) => perform(() => workbench.updateCommandGroup(fields.group?.[0], fields, fields.version?.[0])),
             reset: () => perform(() => workbench.resetCommandDraft()),
             'target-name': ({ value }) => newTarget({ name: value ?? '' }),
             'target-parent': ({ value }) => newTarget({ parentId: value || undefined }),
@@ -2315,11 +2357,11 @@ function workbenchCommandState(command, transition) {
     const { status, draftText, copy, diagnostic, revision, current, changes, application } = command;
     const { result, execution: _execution, ...targeting } = application ?? {};
     const text = value => typeof value === 'string' ? value : JSON.stringify(value);
-    let fields = [];
+    let fields = [], groups = [];
     if (status !== 'invalid') {
-        try { fields = describeCemStudioOperationFields(draftText); } catch { /* Invalid literal text stays repairable in the command editor. */ }
+        try { fields = describeCemStudioOperationFields(draftText); groups = describeCemStudioOperationGroups(draftText); } catch { /* Invalid literal text stays repairable in the command editor. */ }
     }
-    return { fields, formVersion: command.formVersion, formError: command.formError, status, draftText, copy, diagnostic, revision, current: { commonVersion: current.commonVersion },
+    return { fields, groups, formVersion: command.formVersion, formError: command.formError, status, draftText, copy, diagnostic, revision, current: { commonVersion: current.commonVersion },
         changes: changes.map(({ category, path, kind, before, after }) => ({ category, path, kind,
             beforeText: text(before), afterText: text(after) })),
         application: application ? { ...targeting, navigationPending: Boolean(transition), result: result && {

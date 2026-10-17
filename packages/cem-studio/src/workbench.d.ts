@@ -4,6 +4,7 @@ import type {
     CemStudioFeatureTourSeed,
     CemStudioInspectView,
     CemStudioParseProjection,
+    CemStudioOperationFieldEdit,
     CemStudioResourceCommandPreview,
 } from './feature-tour.js';
 import type { CemStudioPreview } from './preview.js';
@@ -215,6 +216,8 @@ export interface CemStudioFeatureTourWorkbench {
     runPersistedOperation(options?: { signal?: AbortSignal }): Promise<CemStudioWorkbenchState>;
     updateCommandDraft(text: string): Promise<CemStudioWorkbenchState>;
     updateCommandField(id: string, value: string, version: string | number, reset?: boolean): Promise<CemStudioWorkbenchState>;
+    updateCommandFields(edits: readonly CemStudioOperationFieldEdit[], version: string | number): Promise<CemStudioWorkbenchState>;
+    updateCommandGroup(id: string, fields: Readonly<Record<string, readonly string[]>>, version: string | number): Promise<CemStudioWorkbenchState>;
     resetCommandDraft(): Promise<CemStudioWorkbenchState>;
     copyCommand(writeText?: (text: string) => Promise<void>): Promise<CemStudioWorkbenchState>;
     copyProjection(writeText?: (text: string) => Promise<void>): Promise<CemStudioWorkbenchState>;

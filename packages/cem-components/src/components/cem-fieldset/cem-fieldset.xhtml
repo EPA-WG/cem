@@ -1,0 +1,45 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-fieldset">
+  <template id="cem-fieldset" type="text/cem-ml">
+    {attribute @name=label | Group}
+    {attribute @name=description | }
+    {cem:variable @name=descriptionId @select='str:concat(($instanceID, "-help"), "")'}
+    {style @type="text/css" |```
+:scope { display: block; min-inline-size: 0; }
+:scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
+[part~='root'] {
+    box-sizing: border-box;
+    min-inline-size: 0;
+    margin: 0;
+    padding: var(--cem-inset-container);
+    border: var(--cem-stroke-boundary) solid currentColor;
+    border-radius: var(--cem-bend-surface);
+    background-color: var(--cem-palette-comfort);
+    color: var(--cem-palette-comfort-text);
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    font-weight: var(--cem-typography-ui-font-weight);
+    line-height: var(--cem-typography-ui-line-height);
+    letter-spacing: var(--cem-typography-ui-letter-spacing);
+}
+[part~='legend'] {
+    box-sizing: border-box;
+    max-inline-size: 100%;
+    padding-inline: var(--cem-gap-related);
+    overflow-wrap: anywhere;
+}
+[part~='body'] { display: grid; gap: var(--cem-gap-group); min-inline-size: 0; }
+[part~='help'] { min-inline-size: 0; overflow-wrap: anywhere; }
+[part~='help']:empty { display: none; }
+@media (forced-colors: active) {
+    [part~='root'] { background-color: Canvas; color: CanvasText; border-color: CanvasText; }
+}
+    ```}
+    {fieldset @part=root @class=cem-fieldset @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @aria-label={datadom.attributes.aria-label} @aria-labelledby={datadom.attributes.aria-labelledby} @aria-describedby={datadom.attributes.aria-describedby ?? descriptionId} |
+      {legend @part=legend | {slot @name=label | {$label}}}
+      {div @part=body |
+        {div @part=help @id="{$descriptionId}" | {slot @name=help | {$description}}}
+        {slot}
+      }
+    }
+  </template>
+</cem-element>

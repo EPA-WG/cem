@@ -500,7 +500,7 @@ async function installComponents() {
     const runtime = new CemElementRuntime({ declarationTag: 'cem-studio-component-declaration' });
     const source = import.meta.resolve('@epa-wg/cem-components/components.xhtml');
     const registered = [], diagnostics = [];
-    for (const tag of ['cem-icon', 'cem-icon-button', 'cem-theme-switch', 'cem-dropdown', 'cem-menu', 'cem-menu-item', 'cem-stack', 'cem-grid', 'cem-text', 'cem-action', 'cem-alert', 'cem-app-bar', 'cem-badge', 'cem-card', 'cem-media-preview', 'cem-select', 'cem-dialog', 'cem-list', 'cem-tab', 'cem-table', 'cem-tree', 'cem-tabs', 'cem-text-field', 'cem-textarea']) {
+    for (const tag of ['cem-icon', 'cem-icon-button', 'cem-theme-switch', 'cem-dropdown', 'cem-menu', 'cem-menu-item', 'cem-stack', 'cem-grid', 'cem-text', 'cem-fieldset', 'cem-action', 'cem-alert', 'cem-app-bar', 'cem-badge', 'cem-card', 'cem-media-preview', 'cem-select', 'cem-dialog', 'cem-list', 'cem-tab', 'cem-table', 'cem-tree', 'cem-tabs', 'cem-text-field', 'cem-textarea']) {
         if (customElements.get(tag)) continue;
         const declaration = document.createElement(runtime.declarationTag);
         declaration.setAttribute('tag', tag);

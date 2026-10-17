@@ -145,7 +145,7 @@ navigation workflows, then deliver create/import/open/edit/save/reopen/export
 with guarded navigation.
 The [milestone contract](cem-studio.md#next-delivery-milestone-user-owned-project-workspace)
 defines scope and acceptance; its ordered implementation checklist is below.
-Studio/Site declarative UI migration is complete. All 53 CEM components are
+Studio/Site declarative UI migration is complete. All 54 CEM components are
 canonical and the legacy registry/installer is retired.
 Use application needs to polish the shared library against Angular Material
 functionality: implement useful missing controls in `cem-components` first,
@@ -163,7 +163,7 @@ Passing a token-name check alone does not establish semantic conformance.
 
 ### Remaining declarative UI migration
 
-Current inventory: **53 canonical / 0 legacy components / 0 legacy authored
+Current inventory: **54 canonical / 0 legacy components / 0 legacy authored
 code files**. Follow the [declarative UI principle](declarative-ui-principle.md)
 and [component development pattern](component-development-pattern.md).
 
@@ -1536,6 +1536,76 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
   names and paths are dataset metadata. See the identity correction checklist above.
 - [ ] **Grouped operation and graph authoring** — extend native-backed configuration
   editing and persistence, using shared CEM controls before app composition.
+  - [x] Shared form-group foundation: ship declarative `cem-fieldset` before Studio adoption.
+    - [x] Fixture: verify native legend/group naming, label/help projection, retained controls and unique description references; test fieldset disabling, native submission/reset and keyboard behavior with shared form controls, rendering the group in worker/fallback execution.
+    - [x] Implement the shared XHTML declaration with inherited semantic spacing, typography and palette tokens; cover all five themes, inherited overrides and narrow/RTL layout in colocated stories, plus forced colors in source/package browser checks.
+    - [x] Add property/full galleries, a bundled form-group example, catalog/index/accessibility documentation and source/isolated-package verification.
+    - [x] Adopt it in Studio's existing operation-option form, retain command-view slice ownership and existing host services, and verify typed Set/Reset, stale guards and declaration-only UI composition.
+    - Shared evidence: six colocated fieldset stories pass; the fieldset/field/select/action
+      regression cohort passes 48 plays. Source/built import checks pass six pages;
+      `verify-cem-component-playgrounds.mjs --fieldset-only` passes the property page,
+      gallery and bundle from repository source and isolated package archives, including
+      template metadata, original resource bases and duplicate style/registration checks.
+      Build, package verification (304 files), declarative/state/catalog gates, Figma
+      inventory (54 primitives, external reviews still planned), and Studio's 23 UI
+      classifications pass. Component lint reports zero errors and 136 warnings;
+      changed JavaScript/tooling lint is clean.
+    - Studio evidence: `@epa-wg/cem-studio:check --parallel=1` passes all 51 tasks,
+      including 95 browser tests (57 workbench), 32 native/deployed Feature Tour
+      cases, deterministic 171-asset/261-file deployment, clean consumer/package
+      checks, online/offline worker execution, two-project lifecycle, recovery and
+      synchronized release evidence. The new mounted test proves native group help,
+      pending disable, duplicate-activation prevention, retained group identity and
+      typed Set/Reset without persistence or implicit Run. Two existing navigation
+      cases timed out during concurrent browser verification; serial execution
+      passed without increasing timeouts or changing assertions.
+    - CEM audit: neutral comfort palette, boundary stroke, surface bend, container inset,
+      related/group gaps and UI typography consume canonical D0/D1/D3/D5/D6 endpoints
+      without local defaults or new token families. Inherited gap/inset/bend/font-size
+      overrides (27px/23px/7px/19px), all five themes, narrow 300px groups, 360px pages,
+      LTR/RTL and forced Canvas/CanvasText paint pass. Native legend/help references,
+      retained values/focus/caret, first-legend exemption, nested disabling and explicit
+      child state pass; nested controls retain interaction and focus ownership.
+      No new production JavaScript behavior or runtime capability is needed.
+    - Verification limits: physical-device and spoken AT acceptance remain open.
+      The existing global `verify-cem-components-styles.mjs` audit stops on an XML-escaped
+      nested `&amp;` selector in unchanged `cem-icon-button.xhtml`; its extractor/parser
+      needs maintenance independently of this fieldset's browser theme evidence.
+  - [x] Add native-backed atomic grouped option editing and persistence without implicit Apply/Run; retain unchanged arguments, stable resource identities and stale revision guards.
+    - [x] Fixture: validate a whole option batch once, including coupled alternative replacement, literal/repeated-value retention, invalid/duplicate/unsupported edits and all-Keep no-ops.
+    - [x] Fixture: reject stale/foreign or pending batches, retain the previous draft after preview failure, ignore superseded asynchronous results, and persist grouped changes only through explicit Apply and draft recovery.
+    - [x] Compose bounded grouped editors declaratively with shared fieldsets/selects/fields/actions, native Keep/Set/Reset form capture and one visible editor; verify retained staging, native reset and pending disabling.
+    - [x] Verify deployed grouped Set, one-transaction Apply, reload/offline persistence, clean package exports, existing single-option behavior and CEM theme/accessibility contracts before delivery.
+    - Evidence: `@epa-wg/cem-studio:check --parallel=1` passes all 51 tasks (35
+      cached), including 103 browser tests / 65 workbench cases. Ten focused
+      acceptance cases cover the new batch/group contracts and existing field
+      guards. The real command service persists both changed options in one Apply,
+      reopens them with stable resource identities and leaves original resource
+      records/bytes untouched. Deployed source/package delivery proves grouped Set,
+      no revision change before Apply, online/offline reopening and recovery.
+      Release evidence requires `groupedOperationForms`; clean consumer checks
+      verify both new public metadata/batch helpers and one runtime copy.
+    - CEM audit: one active editor, at most three grouped options; fieldsets,
+      selects, fields, textareas, stacks and actions own native semantics, geometry,
+      focus and theme paint. Labels, grouping, Keep/Set/Reset controls and bindings
+      are CEM-ML. No app CSS, token defaults, DOM listeners or new runtime capability
+      were added; JavaScript changes are non-UI command validation/orchestration.
+      Native schema groups/choices/defaults remain authoritative. Shared five-theme,
+      inherited-token, forced-color and deployed 320/390/1280px accessibility/reflow
+      gates pass. Lint and staged whitespace checks pass. Deterministic deployment
+      remains 171 assets / 261 files; SHA-256:
+      `2f95434dd547a030b74826eff0415e17caa53054b0b253222c54bee32bd6128b`.
+    - Bounds: Keep-only batches preserve exact command text; other edits use the
+      shared canonical serializer, which may normalize quoting/order and materialize
+      defaults. Apply retains its parse/inspect bounds. Graph/configuration authoring,
+      physical-device/spoken AT acceptance and global style-audit maintenance remain
+      independently open. Generated screenshots and Vitest attachments are excluded
+      from the source commit.
+  - [ ] Add bounded graph/configuration authoring through shared declarative controls and native validation; verify persistence, undo/recovery and offline execution.
+- [ ] Maintain the global component style audit: decode canonical XHTML CSS text
+  and support retained native nesting before asserting action state selectors.
+  Preserve the semantic token/state checks; the current unchanged icon-button
+  declaration fails extraction on an XML-escaped `&amp;` selector.
 
 Continue with grouped operation/graph authoring using native project resource
 identities. No renderer instrumentation or dependency rewriting is a prerequisite.
