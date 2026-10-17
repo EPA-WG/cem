@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "commonVersion": "0.1.0",
   "cacheUrls": [
+    "./amsterdam/login.cem-studio.json",
     "./feature-tour/catalog.json",
     "./feature-tour/feature-tour.project.json",
     "./feature-tour/resources/cem-ast-projection-basic-ast.cem-bin",
@@ -92,6 +93,13 @@
       "version": "1.1.0",
       "catalog": "./feature-tour/catalog.json",
       "project": "./feature-tour/feature-tour.project.json"
+    },
+    {
+      "id": "amsterdam-2026-login",
+      "name": "Amsterdam 2026: Login lifecycle",
+      "version": "1.0.0",
+      "archive": "./amsterdam/login.cem-studio.json",
+      "sha256": "5fb9c5db2e7c16a259e6085bf990e3d5565befab58cbcac510b9c6c3e71cecf0"
     }
   ]
 }

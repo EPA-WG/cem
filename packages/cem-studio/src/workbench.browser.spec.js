@@ -1575,6 +1575,74 @@ describe('Project-owned workbench loading', () => {
         expect(session.snapshot().selection.projectId).toBe('imported');
     });
 
+    it('creates independent presentation sample copies declaratively without replacing active drafts', async () => {
+        const repository = await fixture();
+        const original = (await repository.query(request('export-project', { projectId: 'alpha' }))).value;
+        const load = vi.fn(async () => original);
+        const validator = validatorFor(validResult());
+        const session = createCemStudioProjectSession({ openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator, selection }) });
+        workbenches.push(session);
+        await session.select({ projectId: 'alpha', resourceId: 'source' });
+        const workbench = await createCemStudioSessionWorkbench({ repository, session, home: { samples: [{ id: 'amsterdam-login', name: 'Amsterdam login', load }] } });
+        workbenches.push(workbench);
+        const root = document.createElement('main'); document.body.append(root);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
+        workbench.updateDraft('keep this draft'); await view.whenSettled();
+        const validate = [...root.querySelectorAll('button')].find(button => button.textContent.trim() === 'Validate persisted revision');
+        expect(validate).toBeDefined(); validate.click(); await view.whenSettled();
+        expect(workbench.snapshot().validation.stale).toBe(true);
+        expect(workbench.snapshot().draft).toBe('keep this draft');
+        expect((await repository.query(request('export-project', { projectId: 'alpha' }))).value.contents).toEqual(original.contents);
+        const form = root.querySelector('form[host-command="home-sample"]');
+        expect(form).not.toBeNull();
+        form.requestSubmit(); await view.whenSettled();
+        expect(workbench.snapshot().home.error).toBeUndefined();
+        const first = workbench.snapshot().home.projects.find(project => project.name === 'Amsterdam login');
+        expect(first).toBeDefined();
+        expect(workbench.snapshot().draft).toBe('keep this draft');
+        expect(session.snapshot().selection.projectId).toBe('alpha');
+        const copied = (await repository.query(request('export-project', { projectId: JSON.parse(first.id).projectId }))).value;
+        expect(copied.contents).toEqual(original.contents);
+        expect(copied.project.resources.map(resource => resource.id)).toEqual(original.project.resources.map(resource => resource.id));
+        root.querySelector('form[host-command="home-sample"]').requestSubmit(); await view.whenSettled();
+        const second = workbench.snapshot().home.projects.find(project => project.name === 'Amsterdam login (2)');
+        expect(second).toBeDefined(); expect(second.id).not.toBe(first.id);
+        await workbench.createSampleProject('missing');
+        expect(workbench.snapshot().home.error).toBeDefined();
+        selectValue(root.querySelector('form[host-command="home-open"]'), '[name="project"]', first.id);
+        root.querySelector('form[host-command="home-open"]').requestSubmit(); await view.whenSettled();
+        expect(session.snapshot().transition.stage).toBe('source');
+        dialogAction(root, 'Cancel navigation').click(); await view.whenSettled();
+        expect(workbench.snapshot().draft).toBe('keep this draft');
+        await workbench.selectWorkbench(first.id); await workbench.resolveNavigation('discard');
+        const resource = copied.project.resources.find(resource => resource.id === 'source');
+        await workbench.selectWorkbench(JSON.stringify({ projectId: copied.project.id, resourceId: resource.id }));
+        workbench.updateDraft('sample copy edit'); await workbench.saveSource();
+        const saved = (await repository.query(request('export-project', { projectId: copied.project.id }))).value;
+        expect(new TextDecoder().decode(saved.contents.source)).toBe('sample copy edit');
+        expect((await repository.query(request('export-project', { projectId: JSON.parse(second.id).projectId }))).value.contents).toEqual(original.contents);
+        expect((await repository.query(request('export-project', { projectId: 'alpha' }))).value.contents).toEqual(original.contents);
+        expect(load).toHaveBeenCalledTimes(2);
+    });
+
+    it('guards repeated sample creation and reports loading failures without creating a project', async () => {
+        const repository = await fixture();
+        const original = (await repository.query(request('export-project', { projectId: 'alpha' }))).value;
+        const projects = (await repository.query(request('list-projects', {}))).value;
+        const pending = deferred(); const load = vi.fn(async () => { await pending.promise; throw new Error('Sample unavailable'); });
+        const session = createCemStudioProjectSession({ openWorkbench: async () => { throw new Error('unused'); } });
+        workbenches.push(session);
+        const workbench = await createCemStudioSessionWorkbench({ repository, session, home: { samples: [{ id: 'amsterdam-login', name: 'Amsterdam login', load }] } });
+        workbenches.push(workbench);
+        const creating = workbench.createSampleProject('amsterdam-login');
+        await workbench.createSampleProject('amsterdam-login');
+        expect(load).toHaveBeenCalledTimes(1);
+        pending.resolve(); await creating;
+        expect(workbench.snapshot().home.error.message).toBe('Sample unavailable');
+        expect((await repository.query(request('list-projects', {}))).value).toEqual(projects);
+        expect((await repository.query(request('export-project', { projectId: 'alpha' }))).value).toEqual(original);
+    });
+
     it('presents an empty Home and unavailable storage without requiring an active project', async () => {
         const repository = createCemStudioProjectRepository({ databaseName: `cem-home-${crypto.randomUUID()}`, validateProject: async bundle => bundle });
         repositories.push(repository);

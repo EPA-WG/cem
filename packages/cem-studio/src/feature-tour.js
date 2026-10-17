@@ -189,7 +189,7 @@ export async function createCemStudioBrowserValidator() {
                 projectId,
                 projectRevision,
                 resourceRevision,
-                cwd: `/${projectId}`,
+                cwd: assertCemStudioResourceUri(options.projectRootUri ?? `${resourceScheme}://${projectId}/`, resourceScheme),
             },
         );
         const resources = { ...invocation.request.resources };

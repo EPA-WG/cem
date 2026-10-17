@@ -297,8 +297,12 @@ fn build_command_invocation(
 fn validate_parsed_command(
     parsed: &ParsedCommandInvocationV1,
 ) -> Result<(), CommandInvocationErrorV1> {
-    if parsed.options.contains_key("schema_package_replacement_grants")
-        || parsed.global_options.contains_key("schema_package_replacement_grants")
+    if parsed
+        .options
+        .contains_key("schema_package_replacement_grants")
+        || parsed
+            .global_options
+            .contains_key("schema_package_replacement_grants")
     {
         return Err(usage(
             "cem.command.replacement_grant_host_required",
@@ -1408,6 +1412,14 @@ fn resolve_host_uri(cwd: &str, raw: &str) -> String {
     if has_uri_scheme(raw) && !is_windows_drive_path(raw) {
         return raw.to_owned();
     }
+    if has_uri_scheme(cwd)
+        && !is_windows_drive_path(cwd)
+        && !Path::new(raw).is_absolute()
+        && !is_windows_drive_path(raw)
+    {
+        let directory = format!("{}/", cwd.trim_end_matches('/'));
+        return resolve_transform_graph_reference(&directory, raw);
+    }
     let path = if Path::new(raw).is_absolute() || is_windows_drive_path(raw) {
         PathBuf::from(raw)
     } else {
@@ -1589,6 +1601,70 @@ mod tests {
             };
             assert_eq!(error.code, "cem.command.replacement_grant_host_required");
         }
+    }
+
+    #[test]
+    fn relative_commands_bind_to_virtual_project_roots_without_rewriting_argv() {
+        let mut command = parsed("parse");
+        command.positionals.insert(
+            "input".into(),
+            ParsedCommandValueV1::String("data/../data/login.cem".into()),
+        );
+        command
+            .options
+            .insert("format".into(), ParsedCommandValueV1::String("ast".into()));
+        for (cwd, expected) in [
+            (
+                "studio://project-one/",
+                "studio://project-one/data/login.cem",
+            ),
+            (
+                "studio://project-two",
+                "studio://project-two/data/login.cem",
+            ),
+            (
+                "memory://samples/work/",
+                "memory://samples/work/data/login.cem",
+            ),
+        ] {
+            let mut environment = environment();
+            environment.cwd = cwd.into();
+            let first = build_command_invocation_v1(
+                command.clone(),
+                environment.clone(),
+                CommandUriMapV1::new(),
+            );
+            let CommandInvocationBuildResponseV1::NeedsResources { requirements } = first else {
+                panic!("expected a project resource read: {first:?}");
+            };
+            assert_eq!(requirements.len(), 1);
+            assert_eq!(requirements[0].uri, expected);
+            let resources = CommandUriMapV1::from(BTreeMap::from([(
+                expected.into(),
+                VirtualResourceV1 {
+                    bytes: b"{root}".to_vec(),
+                    identity: None,
+                },
+            )]));
+            let ready = build_command_invocation_v1(command.clone(), environment, resources);
+            let CommandInvocationBuildResponseV1::Ready { invocation } = ready else {
+                panic!("expected a ready project invocation: {ready:?}");
+            };
+            assert!(invocation.request.resources.get(expected).is_some());
+            assert_eq!(invocation.request.resource_versions.len(), 1);
+        }
+        assert_eq!(
+            resolve_host_uri("/workspace", "data/../input.cem"),
+            "file:///workspace/input.cem"
+        );
+        assert_eq!(
+            resolve_host_uri("studio://project-one/", "/workspace/input.cem"),
+            "file:///workspace/input.cem"
+        );
+        assert_eq!(
+            resolve_host_uri("studio://project-one/", "studio://other/input.cem"),
+            "studio://other/input.cem"
+        );
     }
 
     #[test]

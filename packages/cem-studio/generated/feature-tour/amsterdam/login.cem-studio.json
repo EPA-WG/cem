@@ -1,0 +1,180 @@
+{
+  "archiveSchemaVersion": 1,
+  "project": {
+    "$schema": "https://cem.dev/ns/studio/project/1",
+    "schemaVersion": 1,
+    "id": "amsterdam-2026-login-seed",
+    "name": "Amsterdam 2026: Login lifecycle",
+    "description": "Read, edit, validate, inspect and convert the canonical login examples. Query, template and live-view checkpoints follow separately.",
+    "rootUri": "studio://amsterdam-2026-login-seed/",
+    "revision": 1,
+    "createdAt": "2026-10-17T00:00:00Z",
+    "updatedAt": "2026-10-17T00:00:00Z",
+    "entries": [
+      {
+        "id": "login-lifecycle",
+        "kind": "subproject",
+        "name": "Login lifecycle",
+        "description": "Read, edit, validate, inspect and convert the canonical login examples. Query, template and live-view checkpoints follow separately."
+      },
+      {
+        "id": "read-edit",
+        "parentId": "login-lifecycle",
+        "kind": "inspection",
+        "name": "1. Read and edit login",
+        "resourceIds": [
+          "login-cem",
+          "command-read-edit"
+        ],
+        "runConfigResourceId": "command-read-edit",
+        "tags": [
+          "amsterdam",
+          "login",
+          "parse"
+        ]
+      },
+      {
+        "id": "validate",
+        "parentId": "login-lifecycle",
+        "kind": "validation",
+        "name": "2. Validate login",
+        "resourceIds": [
+          "login-cem",
+          "command-validate"
+        ],
+        "runConfigResourceId": "command-validate",
+        "tags": [
+          "amsterdam",
+          "login",
+          "validate"
+        ]
+      },
+      {
+        "id": "inspect",
+        "parentId": "login-lifecycle",
+        "kind": "inspection",
+        "name": "3. Inspect login structure",
+        "resourceIds": [
+          "login-cem",
+          "command-inspect"
+        ],
+        "runConfigResourceId": "command-inspect",
+        "tags": [
+          "amsterdam",
+          "login",
+          "inspect"
+        ]
+      },
+      {
+        "id": "html-conversion",
+        "parentId": "login-lifecycle",
+        "kind": "conversion",
+        "name": "4. Import HTML and convert to CEM-ML",
+        "resourceIds": [
+          "login-html",
+          "command-html-conversion"
+        ],
+        "runConfigResourceId": "command-html-conversion",
+        "tags": [
+          "amsterdam",
+          "login",
+          "convert"
+        ]
+      }
+    ],
+    "resources": [
+      {
+        "id": "login-cem",
+        "path": "data/login.cem",
+        "referencePath": "data/login.cem",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/cem",
+        "schema": "https://cem.dev/ns/cem-ml/1",
+        "revision": 1,
+        "sha256": "68f0487d911ed0a072366fbb19f9b52c3afce80cb0b404b3d6c345d07e71dbea"
+      },
+      {
+        "id": "login-html",
+        "path": "data/login.html",
+        "referencePath": "data/login.html",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "text/html",
+        "schema": "https://cem.dev/ns/data/html/1",
+        "revision": 1,
+        "sha256": "03a91bd7a0b8af6e919a2217e87ddbdd0ef6c03d055a80685b8b1097540d3a95"
+      },
+      {
+        "id": "command-read-edit",
+        "path": "config/read-edit.json",
+        "referencePath": "config/read-edit.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "1ab0ec873713b5df6c0579f30750e47fd53852de747c69053fcbae6963947314"
+      },
+      {
+        "id": "command-validate",
+        "path": "config/validate.json",
+        "referencePath": "config/validate.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/json",
+        "schema": "https://cem.dev/ns/cli/run-config/1",
+        "revision": 1,
+        "sha256": "5fa8ff565ba557576b82422e8709138e6232baf00dbe47f70984212b3da8a136"
+      },
+      {
+        "id": "command-inspect",
+        "path": "config/inspect.json",
+        "referencePath": "config/inspect.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "5bdeca66b7cc5709d5cce7409f6c5c54883bc117872ef7858fb7db194db6ca96"
+      },
+      {
+        "id": "command-html-conversion",
+        "path": "config/html-conversion.json",
+        "referencePath": "config/html-conversion.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.cli-command+json",
+        "schema": "https://cem.dev/ns/cli/command/1",
+        "revision": 1,
+        "sha256": "fc7b0a47338978c016a8a18d72bbc6b0332dafacbe3a36e265652ebe9ccf9ede"
+      }
+    ]
+  },
+  "contents": [
+    {
+      "resourceId": "command-html-conversion",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJjb252ZXJ0IiwKICAgICJkYXRhL2xvZ2luLmh0bWwiLAogICAgIi0tY29udGVudC10eXBlIiwKICAgICJ0ZXh0L2h0bWwiLAogICAgIi0tc2NoZW1hIiwKICAgICJodHRwczovL2NlbS5kZXYvbnMvZGF0YS9odG1sLzEiLAogICAgIi0tdG8tY29udGVudC10eXBlIiwKICAgICJhcHBsaWNhdGlvbi9jZW0iLAogICAgIi0tdG8tc2NoZW1hIiwKICAgICJodHRwczovL2NlbS5kZXYvbnMvY2VtLW1sLzEiLAogICAgIi0tb3V0cHV0LWNvbG9yLXR5cGUiLAogICAgIm5vbmUiCiAgXQp9Cg=="
+    },
+    {
+      "resourceId": "command-inspect",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJpbnNwZWN0IiwKICAgICJkYXRhL2xvZ2luLmNlbSIsCiAgICAiLS1jb250ZW50LXR5cGUiLAogICAgImFwcGxpY2F0aW9uL2NlbSIsCiAgICAiLS1zY2hlbWEiLAogICAgImh0dHBzOi8vY2VtLmRldi9ucy9jZW0tbWwvMSIsCiAgICAiLS1zaG93IiwKICAgICJhc3QiLAogICAgIi0tbm8tY29sb3IiCiAgXQp9Cg=="
+    },
+    {
+      "resourceId": "command-read-edit",
+      "base64": "ewogICIkc2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jbGkvY29tbWFuZC8xIiwKICAic2NoZW1hVmVyc2lvbiI6IDEsCiAgImNvbW1hbmRTY2hlbWFWZXJzaW9uIjogMSwKICAiY29tbW9uVmVyc2lvbiI6ICIwLjEuMCIsCiAgImJpbmFyeU5hbWUiOiAiY2VtLW1sIiwKICAiYXJndiI6IFsKICAgICJwYXJzZSIsCiAgICAiZGF0YS9sb2dpbi5jZW0iLAogICAgIi0tY29udGVudC10eXBlIiwKICAgICJhcHBsaWNhdGlvbi9jZW0iLAogICAgIi0tc2NoZW1hIiwKICAgICJodHRwczovL2NlbS5kZXYvbnMvY2VtLW1sLzEiLAogICAgIi0tZm9ybWF0IiwKICAgICJhc3QiLAogICAgIi0tbm8tY29sb3IiCiAgXQp9Cg=="
+    },
+    {
+      "resourceId": "command-validate",
+      "base64": "ewogICJpbnB1dHMiOiBbCiAgICB7CiAgICAgICJ1cmkiOiAiZGF0YS9sb2dpbi5jZW0iLAogICAgICAicm9vdFNjb3BlIjogewogICAgICAgICJkZWZhdWx0Q29udGVudFR5cGUiOiAiYXBwbGljYXRpb24vY2VtIiwKICAgICAgICAic2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jZW0tbWwvMSIKICAgICAgfQogICAgfQogIF0sCiAgIm91dHB1dHMiOiBbXSwKICAic2NoZW1hUGFja2FnZXMiOiBbXSwKICAicmVzb2x2ZXJzIjogW10sCiAgInNjaGVkdWxlciI6IHt9Cn0K"
+    },
+    {
+      "resourceId": "login-cem",
+      "base64": "QGRvYyBjZW0tbWwgMQpAbnMgY2VtID0gImh0dHBzOi8vY2VtLmRldi9ucy9jb3JlLzEiCkBucyBodG1sID0gImh0dHA6Ly93d3cudzMub3JnLzE5OTkveGh0bWwiCkBkZWZhdWx0IGh0bWwKCnttYWluIEBjZW06c2NyZWVuPSJsb2dpbiIgQGFyaWEtbGFiZWxsZWRieT0ibG9naW4tdGl0bGUiIHwKICB7aDEgQGlkPSJsb2dpbi10aXRsZSIgfCBTaWduIGlufQogIHtmb3JtIEBjZW06Zm9ybT0ic2lnbi1pbiIgQG1ldGhvZD1wb3N0IEBhY3Rpb249IiNzZXNzaW9uIiB8CiAgICB7bGFiZWwgQGZvcj1lbWFpbCB8IEVtYWlsfQogICAge2lucHV0IEBpZD1lbWFpbCBAbmFtZT1lbWFpbCBAdHlwZT1lbWFpbCBAYXV0b2NvbXBsZXRlPWVtYWlsIEByZXF1aXJlZH0KCiAgICB7bGFiZWwgQGZvcj1wYXNzd29yZCB8IFBhc3N3b3JkfQogICAge2lucHV0IEBpZD1wYXNzd29yZCBAbmFtZT1wYXNzd29yZCBAdHlwZT1wYXNzd29yZCBAYXV0b2NvbXBsZXRlPWN1cnJlbnQtcGFzc3dvcmQgQHJlcXVpcmVkfQoKICAgIHtidXR0b24gQHR5cGU9c3VibWl0IEBjZW06YWN0aW9uPXByaW1hcnkgfCBTaWduIGlufQogIH0KfQo="
+    },
+    {
+      "resourceId": "login-html",
+      "base64": "PCFkb2N0eXBlIGh0bWw+CjxodG1sIGxhbmc9ImVuIj4KICA8aGVhZD4KICAgIDxtZXRhIGNoYXJzZXQ9InV0Zi04Ij4KICAgIDx0aXRsZT5DRU0gU2VtYW50aWMgRml4dHVyZSAtIExvZ2luPC90aXRsZT4KICA8L2hlYWQ+CiAgPGJvZHk+CiAgICA8bWFpbiBkYXRhLWNlbS1zY3JlZW49ImxvZ2luIiBhcmlhLWxhYmVsbGVkYnk9ImxvZ2luLXRpdGxlIj4KICAgICAgPGgxIGlkPSJsb2dpbi10aXRsZSI+U2lnbiBpbjwvaDE+CiAgICAgIDxmb3JtIGRhdGEtY2VtLWZvcm09InNpZ24taW4iIG1ldGhvZD0icG9zdCIgYWN0aW9uPSIjc2Vzc2lvbiI+CiAgICAgICAgPGxhYmVsIGZvcj0iZW1haWwiPkVtYWlsPC9sYWJlbD4KICAgICAgICA8aW5wdXQgaWQ9ImVtYWlsIiBuYW1lPSJlbWFpbCIgdHlwZT0iZW1haWwiIGF1dG9jb21wbGV0ZT0iZW1haWwiIHJlcXVpcmVkPgoKICAgICAgICA8bGFiZWwgZm9yPSJwYXNzd29yZCI+UGFzc3dvcmQ8L2xhYmVsPgogICAgICAgIDxpbnB1dCBpZD0icGFzc3dvcmQiIG5hbWU9InBhc3N3b3JkIiB0eXBlPSJwYXNzd29yZCIgYXV0b2NvbXBsZXRlPSJjdXJyZW50LXBhc3N3b3JkIiByZXF1aXJlZD4KCiAgICAgICAgPGJ1dHRvbiB0eXBlPSJzdWJtaXQiIGRhdGEtY2VtLWFjdGlvbj0icHJpbWFyeSI+U2lnbiBpbjwvYnV0dG9uPgogICAgICA8L2Zvcm0+CiAgICA8L21haW4+CiAgPC9ib2R5Pgo8L2h0bWw+Cg=="
+    }
+  ]
+}

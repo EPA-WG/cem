@@ -3,6 +3,10 @@
     {export @id="sample-index-output" @out="../../dist/static/samples/index.json" @content-type="application/json"}
   }
 
+  {import @id="amsterdam-login-sample" @src="amsterdam/login.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
+    {export @id="amsterdam-login-sample-output" @out="../../dist/static/samples/amsterdam/login.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
+  }
+
   {import @id="feature-tour-catalog" @src="catalog.json" @content-type="application/json" @opaque=true |
     {export @id="feature-tour-catalog-output" @out="../../dist/static/samples/feature-tour/catalog.json" @content-type="application/json"}
   }

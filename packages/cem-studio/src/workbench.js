@@ -36,7 +36,7 @@ export async function createCemStudioProjectWorkbench({ repository, validator, s
         const inputs = parsed.positionals?.input ?? parsed.positionals?.inputs ?? parsed.options?.config;
         const input = Array.isArray(inputs) ? inputs[0] : inputs;
         if (typeof input === 'string') {
-            inputResourceId = project.resources.find(item => projectResourceUri(project, item) === resourceUri(input, project.id))?.id;
+            inputResourceId = project.resources.find(item => projectResourceUri(project, item) === resolveVirtualUri(project.rootUri, input))?.id;
             if (!inputResourceId || !entry.resourceIds?.includes(inputResourceId)) throw new Error(`Command input ${input} is not owned by this page`);
         }
     }
@@ -71,7 +71,7 @@ export async function createCemStudioProjectWorkbench({ repository, validator, s
             } });
     }
     const example = { ...sample, id: entry?.id ?? resource.id, name: entry?.name ?? resource.path,
-        resourceId: resource.id, referenceUri: projectResourceUri(project, resource), path: resource.path, contentType: resource.contentType, schema: resource.schema,
+        resourceId: resource.id, referenceUri: projectResourceUri(project, resource), projectRootUri: project.rootUri, path: resource.path, contentType: resource.contentType, schema: resource.schema,
         entryId: entry?.id, runConfigResourceId: entry?.runConfigResourceId, kind: entry?.kind,
         graphConfiguration: resource.role === 'transform-config',
         dependencies: (entry?.resourceIds ?? []).filter(id => id !== resource.id && id !== entry.runConfigResourceId).map(resourceId => ({ resourceId, path: projectResourceUri(project, project.resources.find(item => item.id === resourceId)) })), projectOwned: true };
@@ -90,7 +90,7 @@ export async function createCemStudioSessionWorkbench({ repository, session, hom
     let searchVersion = 0;
     let navigationVersion = 0;
     let disposed = false;
-    let homeState = home ? { projects: [], status: 'ready' } : undefined;
+    let homeState = home ? { projects: [], status: 'ready', samples: (home.samples ?? []).map(({ id, name }) => ({ id, name })) } : undefined;
     let homePending = false;
     let structurePending = false;
     let structureMessage;
@@ -213,6 +213,13 @@ export async function createCemStudioSessionWorkbench({ repository, session, hom
             homeState = { ...homeState, status: 'ready', ...(error?.name === 'AbortError' ? {} : { error: normalizedError(error) }) };
         } finally { homePending = false; publish(); }
     }
+    async function copyProject(template, name) {
+        const bundle = structuredClone(template);
+        const id = `project-${crypto.randomUUID()}`;
+        const now = new Date().toISOString();
+        bundle.project = { ...bundle.project, id, name, rootUri: `studio://${id}/`, revision: 1, createdAt: now, updatedAt: now };
+        return (await repository.execute(repositoryRequest('import-project', { bundle, mode: 'create' }))).value;
+    }
     async function editStructure(edit) {
         if (structurePending) return snapshot();
         const current = session.snapshot();
@@ -287,11 +294,19 @@ export async function createCemStudioSessionWorkbench({ repository, session, hom
         createProject(name) {
             return homeOperation(async () => {
                 if (typeof name !== 'string' || !name.trim() || name.trim().length > 120) throw new Error('Enter a project name of 1–120 characters.');
-                const bundle = structuredClone(home.starter);
-                const id = `project-${crypto.randomUUID()}`;
-                const now = new Date().toISOString();
-                bundle.project = { ...bundle.project, id, name: name.trim(), rootUri: `studio://${id}/`, revision: 1, createdAt: now, updatedAt: now };
-                return (await repository.execute(repositoryRequest('import-project', { bundle, mode: 'create' }))).value;
+                return copyProject(home.starter, name.trim());
+            });
+        },
+        createSampleProject(id) {
+            return homeOperation(async () => {
+                const sample = home.samples?.find(sample => sample.id === id);
+                if (!sample) throw new Error('Choose an available sample.');
+                const template = await sample.load();
+                const projects = (await repository.query(repositoryRequest('list-projects', { includeTrash: true }))).value;
+                const names = new Set(projects.map(project => project.name));
+                let name = sample.name;
+                for (let ordinal = 2; names.has(name); ordinal++) name = `${sample.name} (${ordinal})`;
+                return copyProject(template, name);
             });
         },
         importProject() {
@@ -1536,6 +1551,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
             schema: example.schema,
             uri: example.referenceUri ?? example.path,
             resourceScheme: 'studio',
+            projectRootUri: example.projectRootUri,
             dependencies: persisted.dependencies,
             projectId,
             projectRevision: persisted.projectRevision,
@@ -1665,6 +1681,7 @@ export async function mountCemStudioFeatureTourWorkbench({
         state: { state: workbenchControlState(workbench.snapshot()), pending },
         commands: {
             'home-create': ({ fields }) => perform(() => workbench.createProject(fields.name?.[0] ?? '')),
+            'home-sample': ({ fields }) => perform(() => workbench.createSampleProject(fields.sample?.[0] ?? '')),
             'home-trash': ({ fields }) => perform(() => workbench.setProjectTrashed(JSON.parse(fields.project?.[0]).projectId, true)),
             'home-restore': ({ fields }) => perform(() => workbench.setProjectTrashed(fields.project?.[0], false)),
             'home-import': () => perform(() => workbench.importProject()),
@@ -1702,6 +1719,7 @@ export async function mountCemStudioFeatureTourWorkbench({
             'undo-graph': () => workbench.undoGraphDraft(),
             'redo-graph': () => workbench.redoGraphDraft(),
             save: () => perform(() => workbench.saveAndValidate()),
+            validate: () => perform(() => workbench.validatePersisted()),
             reload: () => perform(() => workbench.reload()),
             'download-source': () => perform(() => workbench.downloadSource(download)),
             parse: ({ fields }) => perform(() => workbench.parsePersisted(fields.mode[0])),

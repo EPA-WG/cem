@@ -7,8 +7,8 @@ on 2026-10-11: resume CEM components now, starting
 with cem-datepicker. Presentation and Studio work are deferred with their
 materials and unfinished actions preserved.
 
-Priority update 2026-10-17: finish the current Studio graph-edge editor and
-validation, then prioritize Studio functionality and the Amsterdam sample set
+Priority update 2026-10-17: Studio graph-edge editing and validation are complete.
+Prioritize Studio functionality and the Amsterdam sample set
 over unrelated device acceptance and helper work. The existing required tutorial
 checkpoints and login-demo plan define sample scope; implement what the
 presentation will show first. Track implementation in the
@@ -26,16 +26,21 @@ supplier, benchmark, device-acceptance and helper work.
 
 | Checkpoint | Existing implementation or source | Studio availability / next action |
 | --- | --- | --- |
-| Read and edit | `examples/cem-ml/login.cem` and `examples/semantic/login.html`; guarded Studio source editing and Save/reload already work | No Amsterdam sample project is currently generated or selectable. Make canonical sources and native command pages available first. |
-| Validate and repair | Native CLI validation of the canonical login succeeds with zero errors and three existing `cem.ast.unresolved_reference` warnings. The slide-asset generator has a selected teaching schema and method-removal diagnostic. | Freeze the exact failure/repair/schema resources and verify them in the browser host. Preserve warnings and source attribution. |
-| Inspect and format | Studio supports native parse/inspect projections and command forms; the native CLI supplies tabular formatting. | Add login command pages, expected projections and one meaningful edit/revalidation case. |
-| HTML alternate input / conversion | The canonical HTML counterpart exists. Earlier slide assets use an XML export with explicitly restored namespace declarations. | Verify the actual HTML import/conversion checkpoint and named semantic fields; do not substitute the XML workaround for the promised HTML input. |
+| Read and edit | Canonical CEM-ML and HTML sources now ship in the Amsterdam sample archive. | Home → Samples → Amsterdam 2026: Login lifecycle → Create sample copy; open the project and its numbered pages. A saved heading edit survives reload. |
+| Validate and repair | Saved-source validation is exposed declaratively and reports zero errors and three existing `cem.ast.unresolved_reference` warnings. | Freeze the teaching schema's intentional failure/repair resources and verify them in the browser host. Preserve warnings and source attribution. |
+| Inspect and format | Native AST and inspection pages operate on the shared CEM-ML source; the native CLI supplies tabular formatting. | Typed output and the saved heading edit are verified. Complete the selected formatting/color/report teaching checkpoints separately. |
+| HTML alternate input / conversion | The sample imports the canonical HTML counterpart and exports CEM-ML; native and browser checks retain named form fields. | Complete the agreed semantic comparison and explicit mapping boundaries for the tutorial. The earlier XML slide workaround is not the HTML input checkpoint. |
 | Query and template | `generate-slide-assets.mjs` verifies selected XPath/CEM-QL queries on its XML projection. Studio has general query/transform workbenches. A fresh native query of the canonical HTML input, including explicit HTML schema identity, returns `cem.xpath.query_input_unsupported`. | Implement or explicitly compose the selected supported import/query route and add native/browser fixtures; the complete login transformation is not established by those slide assets. |
 | Live light-DOM view | The existing login slide asset is explicitly a static native HTML view, without a `cem-element` runtime claim. | Implement and verify the declared `cem-element` integration and its visible edit effect. Keep Studio UI declarative and reuse shared controls. |
-| Sample delivery | Studio currently bootstraps a generated Feature Tour with 32 schema examples and five operation scenarios, preserving existing user copies. | Add explicit Amsterdam sample availability and independently editable copies, with offline assets and no overwrite of user work. |
+| Sample delivery | The generated catalog now includes the four-page Amsterdam archive beside the unchanged Feature Tour. | Hash-checked loading, independently editable copies, native project validation, Save/reload and all four pages pass offline. Relative commands bind to each copy's own virtual root through the shared native invocation builder. |
 
-The first availability increment should expose the canonical sources with native
-editing/validation/inspection/conversion routes. It does not close the remaining
+The first availability increment exposes the canonical sources with native
+editing/validation/inspection/conversion routes. Two native CLI fixtures, five
+native invocation tests, focused browser copy/validation fixtures and the deployed
+four-page offline check pass. The complete 51-task Studio gate also passes,
+including 112 browser tests, combined lifecycle/automated AX and reflow checks,
+offline cache delivery, deterministic packaging and clean consumer installation.
+It does not close the remaining
 intentional-error, query/template or live-view checkpoints. Parameter-map forms
 are a later graph-editor feature unless a selected presentation example needs
 them. The full tutorial remains incomplete until all required checkpoints have

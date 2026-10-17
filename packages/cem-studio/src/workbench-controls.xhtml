@@ -22,7 +22,7 @@
             {cem-action @host-command=download-source @disabled={if state.resourceAvailable { null } else { true }} | Download resource}
         }
         {cem:if @test=state.editable |
-        {cem:if @test='!state.runnable' | {cem-alert @label="No executable command is stored for this page. Parse or inspect the resource to prepare a command."}}
+        {cem:if @test='!state.runnable' | {cem-alert @label="Validate saved source, or parse/inspect it to prepare a command page."}}
         {cem-card @label="Resource editor" |
             {span @slot=title | Project workbench}
  {cem-stack @gap=md |
@@ -39,6 +39,8 @@
                 {cem-grid |
                     {cem-action @data-cem-studio-save="" @disabled={if busy || !state.dirty { true } else { null }} @host-command=save
                         @host-command-event=click @loading={if busy { true } else { null }} @variant=primary | Save and validate}
+                    {cem-action @disabled={if busy { true } else { null }} @host-command=validate
+                        @host-command-event=click @variant=alternate | Validate persisted revision}
                     {cem-action @data-cem-studio-reload="" @disabled={if busy { true } else { null }} @host-command=reload
                         @host-command-event=click @variant=contextual | Reload persisted revision}
                 }

@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
+import { parseCemStudioProjectBundle } from '../src/file-system-provider.js';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const workspaceRoot = resolve(projectRoot, '../..');
@@ -40,7 +41,26 @@ assert.equal(
     catalog.exampleCount * 2 + catalog.dependencyCount + catalog.workbenchResourceCount,
 );
 assert.equal(sampleIndex.samples[0].id, catalog.seed.id);
-assert.equal(sampleIndex.cacheUrls.length, catalog.cacheUrlCount);
+assert.deepEqual(sampleIndex.samples.map(sample => sample.id), [catalog.seed.id, 'amsterdam-2026-login']);
+assert.equal(sampleIndex.cacheUrls.length, catalog.cacheUrlCount + 1);
+const presentationRecord = sampleIndex.samples[1];
+assert.equal(presentationRecord.archive, './amsterdam/login.cem-studio.json');
+assert.ok(sampleIndex.cacheUrls.includes(presentationRecord.archive));
+const presentationBytes = await readFile(resolve(projectRoot, 'dist/static/samples/amsterdam/login.cem-studio.json'));
+assert.equal(createHash('sha256').update(presentationBytes).digest('hex'), presentationRecord.sha256);
+assert.deepEqual(presentationBytes, await readFile(resolve(generatedRoot, 'amsterdam/login.cem-studio.json')));
+const presentation = parseCemStudioProjectBundle(presentationBytes);
+assert.equal(presentation.project.id, 'amsterdam-2026-login-seed');
+assert.equal(presentation.project.entries.length, 5);
+assert.equal(presentation.project.resources.length, 6);
+const definition = await readJson(resolve(projectRoot, 'fixtures/amsterdam-login/sample.json'));
+for (const source of definition.sources) {
+    assert.deepEqual(presentation.contents[source.id], new Uint8Array(await readFile(resolve(workspaceRoot, source.source))));
+}
+await mkdir(dirname(reportPath), { recursive: true });
+const presentationManifest = resolve(dirname(reportPath), 'amsterdam-login.project.json');
+await writeFile(presentationManifest, JSON.stringify(presentation.project));
+run(cli, ['validate', presentationManifest, '--format', 'json', '--content-type', 'application/vnd.cem.studio-project+json', '--schema', 'https://cem.dev/ns/studio/project/1'], workspaceRoot);
 assert.equal(featureTourBuild.summary.errorCount, 0);
 assert.equal(featureTourBuild.summary.fatalCount, 0);
 

@@ -57,6 +57,18 @@
                     {cem-action @type=submit @disabled={if busy { true } else { null }} | Create CEM-ML project}
                 }
 }
+                {cem:if @test='seq:count(state.home.samples.id) > 0' |
+                    {form @host-command=home-sample @host-command-event=submit |
+                        {cem-stack @gap=sm |
+                            {cem-select @name=sample |
+                                {span @slot=label | Samples}
+                                {span @slot=help | Create an editable sample project, then open it from Projects.}
+                                {cem:for-each @as=sample @select=state.home.samples | {option @value={sample.id} | {$ | sample.name}}}
+                            }
+                            {cem-action @type=submit @disabled={if busy { true } else { null }} | Create sample copy}
+                        }
+                    }
+                }
                 {cem-action @host-command=home-import @disabled={if busy { true } else { null }} | Import project archive}
             }
 }

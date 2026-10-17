@@ -10,7 +10,8 @@ const workspaceRoot = resolve(projectRoot, '../..');
 const outputRoot = resolve(projectRoot, 'dist/static');
 const lifecycleOnly = process.argv.includes('--lifecycle-only');
 const shellOnly = process.argv.includes('--shell-only');
-const reportPath = resolve(workspaceRoot, `dist/reports/cem-studio/${lifecycleOnly ? 'workspace-delivery' : shellOnly ? 'shell-delivery' : 'static-worker'}.json`);
+const presentationOnly = process.argv.includes('--presentation-only');
+const reportPath = resolve(workspaceRoot, `dist/reports/cem-studio/${presentationOnly ? 'presentation-samples' : lifecycleOnly ? 'workspace-delivery' : shellOnly ? 'shell-delivery' : 'static-worker'}.json`);
 const server = await startStaticServer(outputRoot);
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CEM_STUDIO_CHROME });
 const context = await browser.newContext({ serviceWorkers: 'allow' });
@@ -106,7 +107,7 @@ try {
         assert.equal(await retainedCommand.evaluate(element => element === document.querySelector('[data-cem-studio-command-editor] textarea')), true);
     }
     await retainedEditor.dispose(); await retainedCommand.dispose();
-    if (!shellOnly && !lifecycleOnly) {
+    if (!shellOnly && !lifecycleOnly && !presentationOnly) {
         await page.getByRole('textbox', { name: 'Project name', exact: true }).fill('Deployed starter');
         await page.getByRole('button', { name: 'Create CEM-ML project', exact: true }).click();
         await page.waitForFunction(() => globalThis.__cemStudioApplication.workbench.snapshot().home.projects.some(project => project.name === 'Deployed starter'));
@@ -122,7 +123,13 @@ try {
         assert.equal(starter.entries, 0);
     }
 
-    if (lifecycleOnly) {
+    if (presentationOnly) {
+        await exercisePresentationSamples(page, context);
+        assert.deepEqual(browserErrors, []); assert.deepEqual(httpFailures, []);
+        await mkdir(dirname(reportPath), { recursive: true });
+        await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, presentationSamples: true, offline: true, pages: 4 }, null, 2)}\n`);
+        console.log('Verified deployed Amsterdam sample copies, validation, Save/reload and four offline pages.');
+    } else if (lifecycleOnly) {
         const lifecycle = await exerciseProjectLifecycle(page, context);
         assert.deepEqual(browserErrors, []); assert.deepEqual(httpFailures, []);
         await mkdir(dirname(reportPath), { recursive: true });
@@ -232,7 +239,8 @@ try {
     assert.equal(featureTour.projectId, 'feature-tour');
     assert.equal(featureTour.exampleCount, 32);
     assert.equal(featureTour.validatedCount, featureTour.exampleCount);
-    assert.equal(featureTour.cachedSampleResponses, featureTour.cacheUrlCount);
+    assert.equal(featureTour.cachedSampleResponses, featureTour.cacheUrlCount + 1);
+    assert.equal(featureTour.presentationSampleCached, true);
 
     const workbench = await exerciseWorkbench(page);
     assert.equal(workbench.status, 'invalid');
@@ -824,9 +832,82 @@ async function exerciseProjectLifecycle(page, context) {
         const value = (await repository.query({ protocolVersion: 1, repository: 'studio-projects', requestRevision: 1, operation: 'export-project', parameters: { projectId: 'acceptance-graph-authoring' } })).value;
         return value.project.resources.filter(resource => resource.id !== 'graph');
     }), graphRecords);
+    await exercisePresentationSamples(page, context);
     await editor.dispose();
-    return { graphEdgeAuthoring: true, graphNodeCreation: true, graphConfigurationAuthoring: true, stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
+    return { presentationSamples: true, graphEdgeAuthoring: true, graphNodeCreation: true, graphConfigurationAuthoring: true, stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
         guardedDraftAndFocusRetained: true, exportedExactBytes: true, trashRestore: true, offlineReopen: true, accessibility };
+}
+
+async function exercisePresentationSamples(page, context) {
+    const settle = () => page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
+    const snapshot = () => page.evaluate(() => {
+        const state = globalThis.__cemStudioApplication.workbench.snapshot();
+        return { draft: state.draft, projectId: state.projectId, projectRevision: state.projectRevision,
+            projection: state.projection && { kind: state.projection.kind, exitCode: state.projection.exitCode, text: state.projection.output.text }, validation: state.validation?.reportSummary };
+    });
+    const click = async name => { console.log(`[cem-studio:presentation] ${name}`); await page.getByRole('button', { name, exact: true }).click(); await settle(); };
+    const pick = async (name, option) => { await page.getByRole('combobox', { name, exact: true }).click(); await page.getByRole('option', { name: option, exact: true }).click(); await settle(); };
+    const sampleName = 'Amsterdam 2026: Login lifecycle';
+    const copyId = name => page.evaluate(name => JSON.parse(globalThis.__cemStudioApplication.workbench.snapshot().home.projects.find(project => project.name === name).id).projectId, name);
+    const selectPage = async (projectId, entryId) => {
+        const label = await page.evaluate(({ projectId, entryId }) => {
+            const choice = globalThis.__cemStudioApplication.workbench.snapshot().workbenches.find(choice => {
+                const selected = JSON.parse(choice.id); return selected.projectId === projectId && selected.entryId === entryId;
+            });
+            return `${choice.name} — ${choice.operation}`;
+        }, { projectId, entryId });
+        await pick('Workbench', label);
+        const admitted = await page.evaluate(() => {
+            const state = globalThis.__cemStudioApplication.workbench.snapshot();
+            return { entryId: state.entryId, navigationError: state.navigationError, error: state.error, sessionStatus: state.sessionStatus, transition: state.transition };
+        });
+        assert.equal(admitted.entryId, entryId, JSON.stringify(admitted));
+    };
+    await context.setOffline(false); await context.setOffline(true);
+    assert.equal(await page.evaluate(() => navigator.onLine), false);
+    const before = await snapshot();
+    await pick('Samples', sampleName); await click('Create sample copy');
+    assert.deepEqual(await snapshot(), before);
+    const firstId = await copyId(sampleName);
+    await pick('Projects', sampleName); await click('Open project');
+    await selectPage(firstId, 'read-edit');
+    const original = (await snapshot()).draft;
+    await click('Run configured workbench');
+    assert.equal((await snapshot()).projection.kind, 'parse');
+    assert.equal((await snapshot()).projection.exitCode, 0);
+    const edited = original.replace('Sign in}', 'Amsterdam sign in}');
+    assert.notEqual(edited, original);
+    await page.getByRole('textbox', { name: 'CEM source', exact: true }).fill(edited); await settle();
+    await click('Save and validate');
+    assert.equal((await snapshot()).validation.errorCount, 0);
+    assert.equal((await snapshot()).validation.warningCount, 3);
+    await click('Run configured workbench');
+    assert.ok((await snapshot()).projection.text.includes('Amsterdam sign in'));
+    await selectPage(firstId, 'validate');
+    const revision = (await snapshot()).projectRevision;
+    await click('Validate persisted revision');
+    assert.equal((await snapshot()).validation.errorCount, 0);
+    assert.equal((await snapshot()).validation.warningCount, 3);
+    assert.equal((await snapshot()).projectRevision, revision);
+    await selectPage(firstId, 'inspect'); await click('Run configured workbench');
+    assert.equal((await snapshot()).projection.kind, 'inspect');
+    assert.equal((await snapshot()).projection.exitCode, 0);
+    assert.ok((await snapshot()).projection.text.includes('Amsterdam sign in'));
+    await selectPage(firstId, 'html-conversion'); await click('Run configured workbench');
+    const converted = (await snapshot()).projection;
+    assert.equal(converted.kind, 'convert'); assert.equal(converted.exitCode, 0);
+    for (const field of ['@name=email', '@name=password', '@method=post']) assert.ok(converted.text.includes(field), field);
+    await selectPage(firstId, 'read-edit');
+    await page.reload({ waitUntil: 'load' }); await waitForApplication(page, browserErrors, httpFailures); await settle();
+    assert.equal((await snapshot()).draft, edited);
+    await pick('Samples', sampleName); await click('Create sample copy');
+    const secondId = await copyId(`${sampleName} (2)`);
+    assert.notEqual(firstId, secondId);
+    assert.equal((await snapshot()).projectId, firstId);
+    await pick('Projects', `${sampleName} (2)`); await click('Open project');
+    await selectPage(secondId, 'read-edit');
+    assert.equal((await snapshot()).draft, original);
+    assert.equal(await page.evaluate(() => navigator.onLine), false);
 }
 
 async function inspectWorkspaceAccessibility(page, context) {
@@ -1105,6 +1186,7 @@ async function validateFeatureTour(page, initialStatus) {
             cacheUrlCount: catalog.cacheUrlCount,
             validatedCount,
             cachedSampleResponses: (await sampleCache.keys()).length,
+            presentationSampleCached: Boolean(await sampleCache.match(new URL('./samples/amsterdam/login.cem-studio.json', document.baseURI))),
         };
     }, initialStatus);
 }

@@ -280,7 +280,7 @@ export declare function createCemStudioProjectWorkbench(options: {
 export declare function createCemStudioSessionWorkbench(options: {
     repository: CemStudioIndexedDbRepository;
     session: import('./project-session.js').CemStudioProjectSession;
-    home?: { starter: { project: Record<string, unknown>; contents: Record<string, Uint8Array> }; provider: { importFallback(input: { archive: Uint8Array; mode: 'create' }): Promise<{ project: unknown }> }; selectImport(): Promise<Uint8Array> };
+    home?: { starter: { project: Record<string, unknown>; contents: Record<string, Uint8Array> }; provider: { importFallback(input: { archive: Uint8Array; mode: 'create' }): Promise<{ project: unknown }> }; selectImport(): Promise<Uint8Array>; samples?: readonly { id: string; name: string; load(): Promise<{ project: Record<string, unknown>; contents: Record<string, Uint8Array> }> }[] };
 }): Promise<CemStudioFeatureTourWorkbench & {
     editStructure(edit: import('./repository.js').CemStudioStructureEdit | { kind: 'undo' | 'redo' }): Promise<CemStudioWorkbenchState>;
     clearDraftRecovery(): CemStudioWorkbenchState;
@@ -288,6 +288,7 @@ export declare function createCemStudioSessionWorkbench(options: {
     searchProjects(query: string): Promise<void>;
     openEntity(key: string): Promise<CemStudioWorkbenchState>;
     createProject(name: string): Promise<void>;
+    createSampleProject(id: string): Promise<void>;
     importProject(): Promise<void>;
     setProjectTrashed(id: string, trashed: boolean): Promise<void>;
     refreshNavigation(): Promise<void>;

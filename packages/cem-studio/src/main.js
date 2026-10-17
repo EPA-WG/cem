@@ -12,6 +12,7 @@ import {
     mountCemStudio,
     mountCemStudioApplicationShell,
     mountCemStudioFeatureTourWorkbench,
+    parseCemStudioProjectBundle,
     registerCemStudioServiceWorker,
 } from '@epa-wg/cem-studio';
 
@@ -60,8 +61,30 @@ const starterResource = /** @type {{id: string}[]} */ (seed.bundle.project.resou
 if (!starterResource) throw new Error('Bundled CEM-ML starter is unavailable');
 const starter = { project: { ...seed.bundle.project, entries: [], resources: [starterResource] },
     contents: { [starterResource.id]: seed.bundle.contents[starterResource.id] } };
+const samplesUrl = new URL('./samples/', mounted.baseUrl);
+const sampleResponse = await fetch(new URL('index.json', samplesUrl));
+if (!sampleResponse.ok) throw new Error('Studio sample catalog is unavailable');
+const sampleIndex = await sampleResponse.json();
+if (sampleIndex.schemaVersion !== 1 || sampleIndex.commonVersion !== seed.catalog.commonVersion || !Array.isArray(sampleIndex.samples)) throw new Error('Studio sample catalog is incompatible');
+/** @type {{id: string, name: string, archive?: string, sha256?: string}[]} */
+const sampleEntries = sampleIndex.samples;
+const samples = sampleEntries.filter(sample => typeof sample.archive === 'string').map(sample => {
+    const archive = sample.archive;
+    if (!archive || !sample.sha256 || typeof sample.id !== 'string' || typeof sample.name !== 'string') throw new Error('Studio sample metadata is invalid');
+    return {
+        id: sample.id, name: sample.name,
+        async load() {
+            const response = await fetch(new URL(archive, samplesUrl));
+            if (!response.ok) throw new Error('The selected sample is unavailable');
+            const bytes = new Uint8Array(await response.arrayBuffer());
+            const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(byte => byte.toString(16).padStart(2, '0')).join('');
+            if (digest !== sample.sha256) throw new Error('The selected sample failed its integrity check');
+            return parseCemStudioProjectBundle(bytes);
+        },
+    };
+});
 const workbench = await createCemStudioSessionWorkbench({ repository, session,
-    home: { starter, provider: fileSystemProvider, selectImport: selectProjectArchive } });
+    home: { starter, samples, provider: fileSystemProvider, selectImport: selectProjectArchive } });
 const shell = await mountCemStudioApplicationShell({
     root: mounted.root,
     registration,

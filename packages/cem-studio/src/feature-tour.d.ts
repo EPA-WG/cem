@@ -31,6 +31,7 @@ export interface CemStudioResourceCommandOptions {
         readonly path: string;
     }[];
     readonly projectId?: string;
+    readonly projectRootUri?: string;
     readonly projectRevision?: number;
     readonly resourceRevision?: number;
     readonly signal?: AbortSignal;

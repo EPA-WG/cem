@@ -297,3 +297,16 @@ These compositions inherit the theme's normal/dense/sparse spacing modes.
 Studio uses the shared contextual sun/moon theme menu (tooltip: “Change theme”).
 It restores `cem-studio-theme` from local storage before mounting the shell,
 defaulting to light. Menu choices retain the shared selected-action styling.
+
+## Amsterdam login samples
+
+Studio Home now lists **Amsterdam 2026: Login lifecycle** under **Samples**.
+Select **Create sample copy**, then open the project under **Projects**. The
+four pages cover CEM-ML editing/AST, saved-source validation, typed inspection and
+HTML-to-CEM-ML conversion. **Validate persisted revision** checks saved bytes while
+preserving unsaved edits. Copies are independent and the archive is available
+offline. Native validation retains three existing login reference warnings.
+
+Intentional failure/repair, query/template processing and the live `cem-element`
+view remain in the presentation queue. See the
+[sample workflow](../../docs/cem-studio.md#amsterdam-presentation-samples).

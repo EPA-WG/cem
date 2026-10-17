@@ -2646,3 +2646,49 @@ All three forms are checked across all five themes, forced colors and an
 inherited 23px inset. Native/WASM and focused browser fixtures additionally cover
 input override/reset and named-secondary add/replace/remove operations.
 Physical-device and spoken AT acceptance remain separately open.
+
+## Amsterdam presentation samples
+
+In **Studio Home**, choose **Amsterdam 2026: Login lifecycle** under **Samples**
+and select **Create sample copy**. Choose the new project under **Projects** and
+open it. Each copy has its own project identity; subsequent copies receive a
+numbered name. Opening a copy uses the existing unsaved-draft guard.
+
+The first sample increment provides four pages:
+
+| Page | Result |
+| --- | --- |
+| Read and edit login | Edit the canonical CEM-ML login and run its native typed AST projection. |
+| Validate login | **Validate persisted revision** checks the saved source. **Save and validate** commits and checks an edit. |
+| Inspect login structure | Run the native typed structure view for the same CEM-ML resource. |
+| Import HTML and convert to CEM-ML | Import the canonical HTML counterpart and return CEM-ML with its form fields retained. |
+
+The CEM-ML pages share one resource, so a saved heading edit appears in subsequent
+inspection and validation. The HTML counterpart is a separate resource. Native
+login validation currently reports zero errors and three
+`cem.ast.unresolved_reference` warnings; the fixtures retain those warnings.
+Persisted validation preserves an unsaved draft and marks the result stale when
+the draft differs from the saved source.
+
+The build copies canonical sources into a versioned archive, lists it in the
+sample catalog and precaches it for offline use. Studio checks the archive's
+SHA-256 before decoding it; repository import validates its portable project and
+resource hashes. Creating a copy preserves resource IDs and reference paths.
+Source changes belong to that copy. The generated original remains the source
+for subsequent copies.
+
+Relative authored command arguments resolve under the owning project's virtual
+root through the common native invocation builder. Copies retain the command
+bytes and bind them to their own root. Existing filesystem working directories
+and explicit URI references keep their native behavior.
+
+Sample selection and validation actions are XHTML/CEM-ML compositions of shared
+controls. JavaScript only loads the archive and orchestrates repository/service
+calls. The deployed release gate requires `presentationSamples` and exercises
+all four pages, copy isolation, Save/reload and offline execution.
+
+The complete presentation journey still needs its intentional schema failure and
+repair, equivalent query/template processing and a live light-DOM `cem-element`
+view. The [active sample checklist](todo.md#amsterdam-presentation-samples-active-studio-priority)
+and [presentation audit](presentation/declarative-amsterdam-2026-handoff.md#studio-sample-audit-2026-10-17)
+track those checkpoints separately.

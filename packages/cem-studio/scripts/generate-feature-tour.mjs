@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, extname, join, relative, resolve } from 'node:path';
+import { createPresentationSample } from './presentation-sample.mjs';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const workspaceRoot = resolve(projectRoot, '../..');
@@ -464,8 +465,11 @@ const catalog = {
 };
 generated.set('catalog.json', jsonBytes(catalog));
 
+const presentation = await createPresentationSample(workspaceRoot, runtime.commonVersion);
+generated.set('amsterdam/login.cem-studio.json', presentation.archive);
 const sampleCacheUrls = [
     './index.json',
+    presentation.sample.archive,
     './feature-tour/catalog.json',
     './feature-tour/feature-tour.project.json',
     ...examples.flatMap(({ asset, runConfig, dependencies }) => [
@@ -487,11 +491,14 @@ const index = {
             catalog: './feature-tour/catalog.json',
             project: './feature-tour/feature-tour.project.json',
         },
+        presentation.sample,
     ],
 };
 generated.set('index.json', jsonBytes(index));
 const graph = `{run |\n${[
     graphCopyNode('sample-index', 'index.json', '../../dist/static/samples/index.json', 'application/json'),
+    graphCopyNode('amsterdam-login-sample', 'amsterdam/login.cem-studio.json',
+        '../../dist/static/samples/amsterdam/login.cem-studio.json', 'application/vnd.cem.studio-project-bundle+json'),
     graphCopyNode(
         'feature-tour-catalog',
         'catalog.json',
