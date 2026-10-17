@@ -63,6 +63,7 @@ export type {
 
 export {
     buildBrowserCommandInvocation,
+    createBrowserTransformConfigAuthor,
     BrowserCommandInvocationError,
     projectBrowserCommandPresentation,
 } from './browser-invocation.js';

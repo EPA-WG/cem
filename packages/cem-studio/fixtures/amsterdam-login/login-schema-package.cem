@@ -1,0 +1,7 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+{package @id="login-demo" @version="1.0.0" |
+ {schema @uri="urn:demo:login" @source="login-schema.cem"}
+ {content-type @value="application/vnd.demo.login+cem" @primary=true}
+}

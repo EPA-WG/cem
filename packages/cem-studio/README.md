@@ -302,11 +302,17 @@ defaulting to light. Menu choices retain the shared selected-action styling.
 
 Studio Home now lists **Amsterdam 2026: Login lifecycle** under **Samples**.
 Select **Create sample copy**, then open the project under **Projects**. The
-four pages cover CEM-ML editing/AST, saved-source validation, typed inspection and
-HTML-to-CEM-ML conversion. **Validate persisted revision** checks saved bytes while
+five pages cover CEM-ML editing/AST, saved-source validation, typed inspection,
+HTML-to-CEM-ML conversion and deliberate schema failure/repair. **Validate persisted revision** checks saved bytes while
 preserving unsaved edits. Copies are independent and the archive is available
 offline. Native validation retains three existing login reference warnings.
 
-Intentional failure/repair, query/template processing and the live `cem-element`
+The fifth page starts without `@method=post`: validate to get
+`demo.login.method_required`, select it in Results → Diagnostics to locate the
+form, restore the attribute, then Save and validate. The bundled teaching rule
+requires a method; it is not a complete HTML schema. Create a new sample copy
+for version 1.1.0; existing copies retain their saved resources.
+
+HTML/CEM semantic comparison, query/template processing and the live `cem-element`
 view remain in the presentation queue. See the
 [sample workflow](../../docs/cem-studio.md#amsterdam-presentation-samples).

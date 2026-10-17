@@ -1,7 +1,7 @@
 {
   "id": "amsterdam-2026-login",
   "name": "Amsterdam 2026: Login lifecycle",
-  "description": "Read, edit, validate, inspect and convert the canonical login examples. Query, template and live-view checkpoints follow separately.",
+  "description": "Read, edit, validate, inspect, convert and repair a deliberate login schema violation. Query, template and live-view checkpoints follow separately.",
   "sources": [
     {
       "id": "login-cem",
@@ -16,6 +16,30 @@
       "path": "data/login.html",
       "contentType": "text/html",
       "schema": "https://cem.dev/ns/data/html/1"
+    },
+    {
+      "id": "login-invalid",
+      "source": "packages/cem-studio/fixtures/amsterdam-login/login-invalid.cem",
+      "path": "data/login-invalid.cem",
+      "contentType": "application/cem",
+      "schema": "urn:demo:login",
+      "role": "data"
+    },
+    {
+      "id": "login-schema-package",
+      "source": "packages/cem-studio/fixtures/amsterdam-login/login-schema-package.cem",
+      "path": "schemas/login-schema-package.cem",
+      "contentType": "application/vnd.cem.schema-package+cem",
+      "schema": "https://cem.dev/ns/schema-package/1",
+      "role": "schema"
+    },
+    {
+      "id": "login-schema",
+      "source": "packages/cem-studio/fixtures/amsterdam-login/login-schema.cem",
+      "path": "schemas/login-schema.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/schema/1",
+      "role": "schema"
     }
   ],
   "pages": [
@@ -50,6 +74,21 @@
       "source": "login-html",
       "argv": ["convert", "$source", "--content-type", "text/html", "--schema", "https://cem.dev/ns/data/html/1", "--to-content-type", "application/cem", "--to-schema", "https://cem.dev/ns/cem-ml/1", "--output-color-type", "none"],
       "expectedText": ["@name=email", "@name=password", "@method=post", "@required", "Sign in"]
+    },
+    {
+      "id": "validation-repair",
+      "name": "5. Find and repair a schema violation",
+      "kind": "validation",
+      "source": "login-invalid",
+      "dependencies": ["login-schema-package", "login-schema"],
+      "description": "Validate persisted revision to find the missing form method. Select demo.login.method_required in Diagnostics to locate the form. Restore @method=post on that form, then Save and validate. Remove it and save again to reproduce the failure. This teaching rule requires a method; it is not a complete HTML schema.",
+      "argv": ["validate", "$source", "--content-type", "application/cem", "--schema", "urn:demo:login", "--schema-package", "$login-schema-package", "--format", "json", "--no-color"],
+      "expectedExit": 1,
+      "expectedValidation": {"errorCount": 1, "warningCount": 3, "warningCode": "cem.ast.unresolved_reference", "errorCode": "demo.login.method_required"},
+      "repair": {
+        "find": "@cem:form=\"sign-in\"",
+        "replace": "@cem:form=\"sign-in\" @method=post"
+      }
     }
   ]
 }

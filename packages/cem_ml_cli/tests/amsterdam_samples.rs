@@ -35,6 +35,14 @@ fn presentation_login_commands_preserve_named_fields_and_report_existing_warning
             .iter()
             .map(|arg| match arg.as_str().unwrap() {
                 "$source" => source["source"].as_str().unwrap(),
+                value if value.starts_with('$') => sample["sources"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|source| source["id"] == &value[1..])
+                    .unwrap()["source"]
+                    .as_str()
+                    .unwrap(),
                 value => value,
             })
             .collect();
@@ -43,8 +51,9 @@ fn presentation_login_commands_preserve_named_fields_and_report_existing_warning
             .args(args)
             .output()
             .unwrap();
-        assert!(
-            output.status.success(),
+        assert_eq!(
+            output.status.code(),
+            Some(page["expectedExit"].as_i64().unwrap_or(0) as i32),
             "{}: {}",
             page["id"],
             String::from_utf8_lossy(&output.stderr)
@@ -72,9 +81,119 @@ fn presentation_login_commands_preserve_named_fields_and_report_existing_warning
                 .as_array()
                 .unwrap()
                 .iter()
-                .all(|diagnostic| diagnostic["code"] == expected["warningCode"]));
+                .all(|diagnostic| diagnostic["code"] == expected["warningCode"]
+                    || diagnostic["code"] == expected["errorCode"]));
         }
     }
+}
+
+#[test]
+fn presentation_schema_violation_has_a_retained_form_span_and_exact_repair() {
+    let root = workspace();
+    let fixture = root.join("packages/cem-studio/fixtures/amsterdam-login");
+    let original = fs::read_to_string(root.join("examples/cem-ml/login.cem")).unwrap();
+    let invalid = fs::read_to_string(fixture.join("login-invalid.cem")).unwrap();
+    assert_eq!(invalid, original.replacen(" @method=post", "", 1));
+    let parsed = Command::new(env!("CARGO_BIN_EXE_cem-ml"))
+        .args([
+            "parse",
+            fixture.join("login-invalid.cem").to_str().unwrap(),
+            "--content-type",
+            "application/cem",
+            "--schema",
+            "https://cem.dev/ns/cem-ml/1",
+            "--format",
+            "ast",
+            "--no-color",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        parsed.status.success(),
+        "the failure must remain syntax-valid"
+    );
+    let validate = |path: &Path| {
+        Command::new(env!("CARGO_BIN_EXE_cem-ml"))
+            .args([
+                "validate",
+                path.to_str().unwrap(),
+                "--content-type",
+                "application/cem",
+                "--schema",
+                "urn:demo:login",
+                "--schema-package",
+                fixture.join("login-schema-package.cem").to_str().unwrap(),
+                "--format",
+                "json",
+                "--no-color",
+            ])
+            .output()
+            .unwrap()
+    };
+    let failed = validate(&fixture.join("login-invalid.cem"));
+    assert_eq!(failed.status.code(), Some(1));
+    let report: serde_json::Value = serde_json::from_slice(&failed.stdout).unwrap();
+    assert_eq!(report["summary"]["errorCount"], 1);
+    assert_eq!(report["summary"]["warningCount"], 3);
+    let diagnostic = report["diagnostics"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|item| item["code"] == "demo.login.method_required")
+        .unwrap();
+    assert_eq!(diagnostic["severity"], "error");
+    assert_eq!(
+        diagnostic["details"]["missingFields"],
+        serde_json::json!(["method"])
+    );
+    let frame = diagnostic["sourceMap"]["frames"]
+        .as_array()
+        .unwrap()
+        .last()
+        .unwrap();
+    let range = &frame["span"]["ranges"];
+    assert_eq!(range["start"], invalid.find("{form").unwrap());
+    assert_eq!(range["len"], 5);
+    assert_eq!(
+        diagnostic["details"]["sourceMapCoordinates"]["frames"][1]["ranges"][0]["start"]["line"],
+        8
+    );
+    let definition = sample();
+    let repair = &definition["pages"].as_array().unwrap().last().unwrap()["repair"];
+    let repaired = invalid.replacen(
+        repair["find"].as_str().unwrap(),
+        repair["replace"].as_str().unwrap(),
+        1,
+    );
+    assert_eq!(
+        repaired, original,
+        "repair restores only the missing attribute"
+    );
+    let directory = std::env::temp_dir().join(format!(
+        "cem-amsterdam-repair-{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(&directory).unwrap();
+    let path = directory.join("login-repaired.cem");
+    fs::write(&path, repaired).unwrap();
+    let success = validate(&path);
+    fs::remove_dir_all(directory).unwrap();
+    assert!(
+        success.status.success(),
+        "{}",
+        String::from_utf8_lossy(&success.stderr)
+    );
+    let repaired: serde_json::Value = serde_json::from_slice(&success.stdout).unwrap();
+    assert_eq!(repaired["summary"]["errorCount"], 0);
+    assert_eq!(repaired["summary"]["warningCount"], 3);
+    assert!(repaired["diagnostics"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|item| item["code"] == "cem.ast.unresolved_reference"));
 }
 
 #[test]

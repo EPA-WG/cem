@@ -216,10 +216,58 @@ Passing a token-name check alone does not establish semantic conformance.
     module assets (aggregate SHA-256
     `68d928dae22117f390308e5153b25dac762e490b2eb0d5df7113d266ba10dfb3`).
     Generated screenshots and Vitest attachments are excluded from Git.
-- [ ] Add native fixtures for the teaching schema violation/repair, agreed
-  HTML/CEM semantic comparison, equivalent queries and template output before
-  adding those remaining checkpoints to the generated project. The initial
-  edit, inspection and conversion fixtures are complete above.
+- [x] Deliver the Amsterdam intentional validation failure and repair checkpoint.
+  - [x] Freeze the existing teaching schema/package and syntax-valid login with
+    missing `@method=post`; add native CLI fixtures for exit status, the exact
+    `demo.login.method_required` diagnostic and retained form source span, then
+    verify the repaired bytes return zero errors with the three existing warnings.
+  - [x] Add browser fixtures for owned schema-package loading and innermost
+    retained diagnostic-span selection before wiring validation, parse and
+    inspection to the page's schema dependencies.
+  - [x] Add the fifth generated sample page and declarative checkpoint guidance;
+    verify diagnostic selection, saved repair/reload, reintroduced failure and
+    independent copies offline through the deployed presentation fixture.
+  - [x] Update sample packaging/release assertions, documentation and handoff;
+    run the full Studio delivery gate and record the shared-component audit.
+  - [x] Add a public CLI browser-facade fixture for initialized native graph
+    authoring, route Studio's existing graph helper through that facade and
+    preserve the strict dependency audit. The full gate exposed a pre-existing
+    direct runtime import when Nx refreshed the edited service's dependencies.
+    The facade fixture and strict audit now pass; the module maps retain only
+    Studio's actual CLI import. The final delivery rerun passes on the corrected route.
+  - Native evidence: 3 Amsterdam CLI fixtures pass. The deliberate failure is
+    syntax-valid, has exactly one `demo.login.method_required` error with the
+    retained `{form` span on line 8, and repairs to the exact canonical bytes.
+    Both validation states retain three reference warnings. Two initially
+    failing browser fixtures now pass for owned package registration, native
+    package-identity preservation, parse/inspection, unreadable-schema rejection
+    and innermost diagnostic selection. Lint and typecheck pass. The deployed
+    five-page fixture passes source selection, persisted-versus-unsaved repair,
+    repair/reload, repeat failure/repair, independent copies and offline execution.
+    The full 51-task Studio gate passes with 115 browser tests, the strict
+    dependency audit, synchronized release evidence and clean consumer install
+    with one physical runtime copy. CLI SDK lint and Studio lint/typecheck pass.
+    Two clean builds produce 262 identical files and 171 declared module assets
+    (aggregate SHA-256
+    `3192ec1092f4157da27a9fdaeaf02532dbb82f4d781ee3f08e0a3b5a63a2c3e9`).
+    Generated screenshots and Vitest attachments remain excluded from Git.
+  - CEM audit: existing shared alert/list/textarea/action compositions own the
+    checkpoint guidance, diagnostic activation, focus and editing. Studio only
+    projects page descriptions and native byte ranges and orchestrates owned
+    resource loading. No new UI JavaScript capability, application CSS, token
+    default or component-local behavior is introduced. The native teaching rule
+    remains the semantic owner; source-map frames and existing warnings survive.
+    Shell delivery verifies inherited token overrides, five themes and forced
+    colors; combined lifecycle AX relationships and 320/390/1280 reflow pass.
+- [ ] Add native fixtures for the agreed HTML/CEM semantic comparison and the
+  supported HTML import/query route, then expose that checkpoint in Studio.
+  Resolve the recorded `cem.xpath.query_input_unsupported` boundary in shared
+  native import/query code; keep the XML slide projection distinct from HTML.
+- [ ] Add native fixtures for equivalent XPath/CEM-QL queries and template
+  output, then add their generated sample pages and browser/offline evidence.
+- [ ] Implement the live light-DOM `cem-element` login view and add browser
+  evidence that a saved edit visibly changes it. Keep Studio UI declarative;
+  add any missing reusable control/capability to the shared packages first.
 - [x] Make the initial presentation sample set available through Studio's existing sample
   catalog, with read-only originals and independently editable project copies.
   Reuse canonical sources, native command/configuration semantics and stable

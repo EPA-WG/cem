@@ -228,3 +228,7 @@ remain explicitly non-publishable.
 
 The `@epa-wg/cem-ml-cli/browser-commands` entry point exposes command parsing,
 invocation and dedicated-worker command execution for Studio.
+`await createBrowserTransformConfigAuthor()` initializes the same shared runtime
+and returns its native `authorTransformConfigV1` JSON function for graph
+description and edits. Applications can use the CLI facade without importing
+the runtime package directly; validation and source writing remain native.

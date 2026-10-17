@@ -127,8 +127,8 @@ try {
         await exercisePresentationSamples(page, context);
         assert.deepEqual(browserErrors, []); assert.deepEqual(httpFailures, []);
         await mkdir(dirname(reportPath), { recursive: true });
-        await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, presentationSamples: true, offline: true, pages: 4 }, null, 2)}\n`);
-        console.log('Verified deployed Amsterdam sample copies, validation, Save/reload and four offline pages.');
+        await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, presentationSamples: true, validationRepair: true, offline: true, pages: 5 }, null, 2)}\n`);
+        console.log('Verified deployed Amsterdam sample copies, schema failure/repair, source selection, Save/reload and five offline pages.');
     } else if (lifecycleOnly) {
         const lifecycle = await exerciseProjectLifecycle(page, context);
         assert.deepEqual(browserErrors, []); assert.deepEqual(httpFailures, []);
@@ -834,7 +834,7 @@ async function exerciseProjectLifecycle(page, context) {
     }), graphRecords);
     await exercisePresentationSamples(page, context);
     await editor.dispose();
-    return { presentationSamples: true, graphEdgeAuthoring: true, graphNodeCreation: true, graphConfigurationAuthoring: true, stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
+    return { presentationSamples: true, presentationValidationRepair: true, graphEdgeAuthoring: true, graphNodeCreation: true, graphConfigurationAuthoring: true, stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
         guardedDraftAndFocusRetained: true, exportedExactBytes: true, trashRestore: true, offlineReopen: true, accessibility };
 }
 
@@ -842,8 +842,9 @@ async function exercisePresentationSamples(page, context) {
     const settle = () => page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
     const snapshot = () => page.evaluate(() => {
         const state = globalThis.__cemStudioApplication.workbench.snapshot();
-        return { draft: state.draft, projectId: state.projectId, projectRevision: state.projectRevision,
-            projection: state.projection && { kind: state.projection.kind, exitCode: state.projection.exitCode, text: state.projection.output.text }, validation: state.validation?.reportSummary };
+        return { draft: state.draft, status: state.status, projectId: state.projectId, projectRevision: state.projectRevision,
+            projection: state.projection && { kind: state.projection.kind, exitCode: state.projection.exitCode, text: state.projection.output.text },
+            diagnostics: state.validation?.diagnostics, validationStale: state.validation?.stale, validation: state.validation?.reportSummary };
     });
     const click = async name => { console.log(`[cem-studio:presentation] ${name}`); await page.getByRole('button', { name, exact: true }).click(); await settle(); };
     const pick = async (name, option) => { await page.getByRole('combobox', { name, exact: true }).click(); await page.getByRole('option', { name: option, exact: true }).click(); await settle(); };
@@ -897,6 +898,39 @@ async function exercisePresentationSamples(page, context) {
     const converted = (await snapshot()).projection;
     assert.equal(converted.kind, 'convert'); assert.equal(converted.exitCode, 0);
     for (const field of ['@name=email', '@name=password', '@method=post']) assert.ok(converted.text.includes(field), field);
+    await selectPage(firstId, 'validation-repair');
+    assert.ok(await page.getByText('Validate persisted revision to find the missing form method.', { exact: false }).isVisible());
+    const invalid = (await snapshot()).draft;
+    assert.equal(invalid, original.replace(' @method=post', ''));
+    await click('Validate persisted revision');
+    const failed = await snapshot();
+    assert.equal(failed.status, 'invalid');
+    assert.equal(failed.validation.errorCount, 1); assert.equal(failed.validation.warningCount, 3);
+    const diagnosticIndex = failed.diagnostics.findIndex(diagnostic => diagnostic.code === 'demo.login.method_required');
+    assert.ok(diagnosticIndex >= 0);
+    assert.deepEqual(failed.diagnostics[diagnosticIndex].range, { start: invalid.indexOf('{form'), len: 5 });
+    await page.getByRole('tab', { name: 'Results', exact: true }).click(); await settle();
+    await page.getByRole('listbox', { name: 'Diagnostics', exact: true }).selectOption(String(diagnosticIndex)); await settle();
+    const editor = page.getByRole('textbox', { name: 'CEM source', exact: true });
+    assert.equal(await editor.evaluate(element => document.activeElement === element), true);
+    assert.equal(await editor.evaluate(element => element.value.slice(element.selectionStart, element.selectionEnd)), '{form');
+    const repaired = invalid.replace('@cem:form="sign-in"', '@cem:form="sign-in" @method=post');
+    assert.equal(repaired, original);
+    await editor.fill(repaired); await settle();
+    await click('Validate persisted revision');
+    assert.equal((await snapshot()).validation.errorCount, 1);
+    assert.equal((await snapshot()).validationStale, true);
+    assert.equal((await snapshot()).draft, repaired);
+    await click('Save and validate');
+    assert.equal((await snapshot()).status, 'valid');
+    assert.equal((await snapshot()).validation.errorCount, 0); assert.equal((await snapshot()).validation.warningCount, 3);
+    await click('Reload persisted revision');
+    assert.equal((await snapshot()).draft, repaired);
+    await click('Validate persisted revision'); assert.equal((await snapshot()).validation.errorCount, 0);
+    await editor.fill(invalid); await settle(); await click('Save and validate');
+    assert.equal((await snapshot()).validation.errorCount, 1);
+    await editor.fill(repaired); await settle(); await click('Save and validate');
+    assert.equal((await snapshot()).validation.errorCount, 0);
     await selectPage(firstId, 'read-edit');
     await page.reload({ waitUntil: 'load' }); await waitForApplication(page, browserErrors, httpFailures); await settle();
     assert.equal((await snapshot()).draft, edited);
@@ -907,6 +941,10 @@ async function exercisePresentationSamples(page, context) {
     await pick('Projects', `${sampleName} (2)`); await click('Open project');
     await selectPage(secondId, 'read-edit');
     assert.equal((await snapshot()).draft, original);
+    await selectPage(secondId, 'validation-repair');
+    assert.equal((await snapshot()).draft, invalid);
+    await click('Validate persisted revision');
+    assert.equal((await snapshot()).validation.errorCount, 1);
     assert.equal(await page.evaluate(() => navigator.onLine), false);
 }
 

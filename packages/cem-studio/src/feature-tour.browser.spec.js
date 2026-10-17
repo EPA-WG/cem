@@ -6,6 +6,9 @@ import {
     installCemStudioFeatureTour,
 } from './feature-tour.js';
 import { CEM_STUDIO_REPOSITORY_ID, createCemStudioProjectRepository } from './repository.js';
+import invalidLogin from '../fixtures/amsterdam-login/login-invalid.cem?raw';
+import loginSchema from '../fixtures/amsterdam-login/login-schema.cem?raw';
+import loginPackage from '../fixtures/amsterdam-login/login-schema-package.cem?raw';
 
 const repositories = [];
 const validators = [];
@@ -19,6 +22,49 @@ afterEach(async () => {
 });
 
 describe('CEM Studio Feature Tour copies', () => {
+    it('initializes native graph authoring through the public CLI browser facade', async () => {
+        const { createBrowserTransformConfigAuthor } = await import('@epa-wg/cem-ml-cli/browser-commands');
+        const author = await createBrowserTransformConfigAuthor();
+        const source = '{run | {import @id=source @src=data.cem | {export @id=result @out=result.cem}}}\n';
+        const described = JSON.parse(author(JSON.stringify({ source })));
+        expect(described.error).toBeUndefined();
+        expect(described.nodes.find(node => node.id === 'source')).toMatchObject({ id: 'source', kind: 'import' });
+        expect(JSON.parse(author('{"source":false}')).error).toBeTypeOf('string');
+    });
+
+    it('loads owned teaching schema packages for validation, parse and inspection', async () => {
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        const bytes = value => new TextEncoder().encode(value);
+        const dependencies = [
+            { path: '../schemas/login-schema-package.cem', bytes: bytes(loginPackage), contentType: 'application/vnd.cem.schema-package+cem', schema: 'https://cem.dev/ns/schema-package/1' },
+            { path: '../schemas/login-schema.cem', bytes: bytes(loginSchema), contentType: 'application/cem', schema: 'https://cem.dev/ns/schema/1' },
+        ];
+        const options = { bytes: bytes(invalidLogin), uri: 'studio://amsterdam-copy/data/login-invalid.cem', resourceScheme: 'studio',
+            projectId: 'amsterdam-copy', contentType: 'application/cem', schema: 'urn:demo:login', dependencies };
+        const preview = await validator.previewResourceCommand({ ...options, operation: 'validate' });
+        expect(preview.semantic.inputs.resources.find(resource => resource.uri.endsWith('/login-schema-package.cem')).identity)
+            .toEqual(preview.semantic.identity.schemas[0].identity);
+        let failure;
+        try { await validator.validateResource(options); } catch (error) { if (!error.result) throw error; failure = error.result; }
+        expect(failure?.exitCode).toBe(1);
+        expect(failure.diagnostics.items).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'demo.login.method_required', severity: 'error' })]));
+        const repaired = { ...options, bytes: bytes(invalidLogin.replace('@cem:form="sign-in"', '@cem:form="sign-in" @method=post')) };
+        const success = await validator.validateResource(repaired);
+        expect(success.result.exitCode).toBe(0);
+        expect(success.result.diagnostics.items).toHaveLength(3);
+        expect(success.result.diagnostics.items.every(item => item.code === 'cem.ast.unresolved_reference')).toBe(true);
+        for (const method of ['parseResource', 'inspectResource']) {
+            const result = await validator[method]({ ...repaired, view: 'ast' });
+            expect(result.result.exitCode).toBe(0);
+            expect(result.output.text).toContain('form');
+        }
+        await expect(validator.validateResource({ ...options, dependencies: dependencies.slice(0, 1) })).rejects.toMatchObject({
+            code: 'cem.studio.validate_failed', result: { exitCode: 1, diagnostics: { items: expect.arrayContaining([
+                expect.objectContaining({ code: 'cem.schema_package.schema_source_unreadable', severity: 'error' }),
+            ]) } },
+        });
+    }, 60_000);
+
     it('uses the real CEM-ML converter for canonical project.cem provider round trips', async () => {
         const validator = await createCemStudioBrowserValidator();
         validators.push(validator);

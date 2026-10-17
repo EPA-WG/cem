@@ -2654,7 +2654,8 @@ and select **Create sample copy**. Choose the new project under **Projects** and
 open it. Each copy has its own project identity; subsequent copies receive a
 numbered name. Opening a copy uses the existing unsaved-draft guard.
 
-The first sample increment provides four pages:
+New copies of sample version 1.1.0 provide five pages. Existing projects retain
+their own saved contents; create a new sample copy to receive the added page.
 
 | Page | Result |
 | --- | --- |
@@ -2662,13 +2663,43 @@ The first sample increment provides four pages:
 | Validate login | **Validate persisted revision** checks the saved source. **Save and validate** commits and checks an edit. |
 | Inspect login structure | Run the native typed structure view for the same CEM-ML resource. |
 | Import HTML and convert to CEM-ML | Import the canonical HTML counterpart and return CEM-ML with its form fields retained. |
+| Find and repair a schema violation | Validate a syntax-valid login missing its form method against the bundled teaching schema, follow its diagnostic, then save the repair. |
 
-The CEM-ML pages share one resource, so a saved heading edit appears in subsequent
-inspection and validation. The HTML counterpart is a separate resource. Native
+The first three CEM-ML pages share one resource, so a saved heading edit appears
+in subsequent inspection and validation. The HTML counterpart and the deliberate
+failure are separate resources. Native
 login validation currently reports zero errors and three
 `cem.ast.unresolved_reference` warnings; the fixtures retain those warnings.
 Persisted validation preserves an unsaved draft and marks the result stale when
 the draft differs from the saved source.
+
+On **5. Find and repair a schema violation**:
+
+1. Select **Validate persisted revision**. Expect one error,
+   `demo.login.method_required`, and the three existing reference warnings.
+   The document still parses; this is a schema failure.
+2. In **Results → Diagnostics**, select that error. The existing editor focuses
+   and selects `{form` on line 8 from the innermost retained source-map frame.
+   The native diagnostic's outer document coordinates remain 1:1; the complete
+   source-map stack is retained for provenance inspection.
+3. Restore `@method=post` after `@cem:form="sign-in"`, then select **Save and
+   validate**. Expect zero errors and the same three warnings. Validation of
+   persisted bytes alone preserves an unsaved repair and marks its result stale.
+4. Reload to verify the repair was saved. Remove ` @method=post` and save again
+   to reproduce the error; restore it to repair the document again.
+
+The page owns `data/login-invalid.cem`, a schema package and its schema source
+under `schemas/`. Its native `schema:required-fields` rule requires a form method;
+it is a selected teaching contract, not a complete HTML schema. Its initial
+source is exactly the canonical login with that single attribute removed.
+Other pages and newly created copies retain their original sources. Page
+instructions use the shared declarative alert, and diagnostic selection uses
+the existing shared list/textarea contracts. The host registers owned schema
+packages for native validation, parsing and inspection without replacing
+identities supplied by the normalized native run plan.
+Studio also obtains the initialized native graph author through the CLI browser
+facade, preserving its transitive runtime dependency and the strict dependency
+audit; graph semantics remain owned by the native engine.
 
 The build copies canonical sources into a versioned archive, lists it in the
 sample catalog and precaches it for offline use. Studio checks the archive's
@@ -2684,11 +2715,13 @@ and explicit URI references keep their native behavior.
 
 Sample selection and validation actions are XHTML/CEM-ML compositions of shared
 controls. JavaScript only loads the archive and orchestrates repository/service
-calls. The deployed release gate requires `presentationSamples` and exercises
-all four pages, copy isolation, Save/reload and offline execution.
+calls. The deployed release gate requires `presentationSamples` and
+`presentationValidationRepair`, and exercises all five pages, diagnostic
+selection, failure/repair/reintroduced failure, copy isolation, Save/reload and
+offline execution.
 
-The complete presentation journey still needs its intentional schema failure and
-repair, equivalent query/template processing and a live light-DOM `cem-element`
+The complete presentation journey still needs its agreed HTML/CEM semantic
+comparison, equivalent query/template processing and a live light-DOM `cem-element`
 view. The [active sample checklist](todo.md#amsterdam-presentation-samples-active-studio-priority)
 and [presentation audit](presentation/declarative-amsterdam-2026-handoff.md#studio-sample-audit-2026-10-17)
 track those checkpoints separately.

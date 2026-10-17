@@ -27,21 +27,25 @@ supplier, benchmark, device-acceptance and helper work.
 | Checkpoint | Existing implementation or source | Studio availability / next action |
 | --- | --- | --- |
 | Read and edit | Canonical CEM-ML and HTML sources now ship in the Amsterdam sample archive. | Home → Samples → Amsterdam 2026: Login lifecycle → Create sample copy; open the project and its numbered pages. A saved heading edit survives reload. |
-| Validate and repair | Saved-source validation is exposed declaratively and reports zero errors and three existing `cem.ast.unresolved_reference` warnings. | Freeze the teaching schema's intentional failure/repair resources and verify them in the browser host. Preserve warnings and source attribution. |
+| Validate and repair | Page 5 bundles the existing teaching schema/package and the canonical login with only `@method=post` removed. Native validation produces one `demo.login.method_required` error; restoring the attribute returns zero errors. Both states retain three existing reference warnings. | Validate persisted revision, select the error under Results → Diagnostics to select `{form` on line 8, restore `@method=post`, then Save and validate. The native outer coordinates remain 1:1; the retained inner source-map frame locates the form. This rule requires a method and is not a complete HTML schema. |
 | Inspect and format | Native AST and inspection pages operate on the shared CEM-ML source; the native CLI supplies tabular formatting. | Typed output and the saved heading edit are verified. Complete the selected formatting/color/report teaching checkpoints separately. |
 | HTML alternate input / conversion | The sample imports the canonical HTML counterpart and exports CEM-ML; native and browser checks retain named form fields. | Complete the agreed semantic comparison and explicit mapping boundaries for the tutorial. The earlier XML slide workaround is not the HTML input checkpoint. |
 | Query and template | `generate-slide-assets.mjs` verifies selected XPath/CEM-QL queries on its XML projection. Studio has general query/transform workbenches. A fresh native query of the canonical HTML input, including explicit HTML schema identity, returns `cem.xpath.query_input_unsupported`. | Implement or explicitly compose the selected supported import/query route and add native/browser fixtures; the complete login transformation is not established by those slide assets. |
 | Live light-DOM view | The existing login slide asset is explicitly a static native HTML view, without a `cem-element` runtime claim. | Implement and verify the declared `cem-element` integration and its visible edit effect. Keep Studio UI declarative and reuse shared controls. |
-| Sample delivery | The generated catalog now includes the four-page Amsterdam archive beside the unchanged Feature Tour. | Hash-checked loading, independently editable copies, native project validation, Save/reload and all four pages pass offline. Relative commands bind to each copy's own virtual root through the shared native invocation builder. |
+| Sample delivery | Catalog version 1.1.0 now includes a fifth failure/repair page beside the unchanged Feature Tour. Its invalid source and schema dependencies are owned by the page. | Create a fresh sample copy to receive the fifth page; existing projects retain their saved contents. Hash-checked loading, stable references and the shared native invocation builder preserve independent copies. |
 
-The first availability increment exposes the canonical sources with native
-editing/validation/inspection/conversion routes. Two native CLI fixtures, five
-native invocation tests, focused browser copy/validation fixtures and the deployed
-four-page offline check pass. The complete 51-task Studio gate also passes,
-including 112 browser tests, combined lifecycle/automated AX and reflow checks,
-offline cache delivery, deterministic packaging and clean consumer installation.
-It does not close the remaining
-intentional-error, query/template or live-view checkpoints. Parameter-map forms
+The current five-page pack exposes native editing/validation/inspection/conversion
+and schema failure/repair routes, with owned package loading and innermost
+retained diagnostic-span selection. Three native CLI fixtures, three new browser
+fixtures and deployed five-page offline acceptance pass, including source
+selection, saved repair/reload, repeat failure/repair and independent copies.
+The complete 51-task Studio gate passes with 115 browser tests, combined lifecycle
+AX/reflow checks, theme/forced-color shell delivery, offline worker delivery,
+deterministic packaging and clean consumer installation. Its strict dependency
+audit also passes: Studio initializes its existing native graph author through
+the shared CLI browser facade. CLI SDK lint and Studio lint/typecheck pass.
+It does not close the remaining HTML/CEM comparison,
+query/template or live-view checkpoints. Parameter-map forms
 are a later graph-editor feature unless a selected presentation example needs
 them. The full tutorial remains incomplete until all required checkpoints have
 their own source and execution evidence.

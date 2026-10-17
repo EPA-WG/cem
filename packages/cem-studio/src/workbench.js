@@ -72,6 +72,7 @@ export async function createCemStudioProjectWorkbench({ repository, validator, s
     }
     const example = { ...sample, id: entry?.id ?? resource.id, name: entry?.name ?? resource.path,
         resourceId: resource.id, referenceUri: projectResourceUri(project, resource), projectRootUri: project.rootUri, path: resource.path, contentType: resource.contentType, schema: resource.schema,
+        description: entry?.description,
         entryId: entry?.id, runConfigResourceId: entry?.runConfigResourceId, kind: entry?.kind,
         graphConfiguration: resource.role === 'transform-config',
         dependencies: (entry?.resourceIds ?? []).filter(id => id !== resource.id && id !== entry.runConfigResourceId).map(resourceId => ({ resourceId, path: projectResourceUri(project, project.resources.find(item => item.id === resourceId)) })), projectOwned: true };
@@ -390,6 +391,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         runnable: !example.projectOwned,
         resourceId: example.resourceId,
         path: example.path,
+        description: example.description,
         contentType: example.contentType,
         schema: example.schema,
         projectRevision: 0,
@@ -2072,7 +2074,7 @@ function inlineValidateReport(result) {
 
 function normalizeDiagnostic(diagnostic) {
     const sourceMap = diagnostic?.sourceMap;
-    const range = firstStackRange(sourceMap) ?? {
+    const range = innermostStackRange(sourceMap) ?? {
         start: Number.isSafeInteger(diagnostic?.byteOffset) ? diagnostic.byteOffset : 0,
         len: 0,
     };
@@ -2098,8 +2100,9 @@ function normalizeFrame(frame, owner) {
     });
 }
 
-function firstStackRange(stack) {
-    return firstFrameRange(stack?.frames?.[0]);
+function innermostStackRange(stack) {
+    // Native stacks retain enclosing tokenizer spans before specific AST spans.
+    return stack?.frames?.map(firstFrameRange).findLast(range => range !== undefined);
 }
 
 function firstFrameRange(frame) {
@@ -2470,9 +2473,9 @@ function workbenchBusy(state) {
 // bytes, graphs and command previews. Presentation remains in the declaration.
 function workbenchControlState(state) {
     const { status, workbenchId, workbenches, draft, dirty, projectRevision,
-        resourceRevision, selection, error, path, contentType, validation } = state;
+        resourceRevision, selection, error, path, description, contentType, validation } = state;
     return { graphConfiguration: state.graphConfiguration, structure: state.structure, home: state.home, explorer: state.explorer, status, workbenchId, workbenches, draft, dirty, projectRevision,
-        resourceRevision, selection, error, path, contentType, validation,
+        resourceRevision, selection, error, path, description, contentType, validation,
         editable: state.editable !== false, runnable: state.runnable !== false, transition: state.transition,
         sessionStatus: state.sessionStatus, draftRecovery: state.draftRecovery, navigationError: state.navigationError, resourceAvailable: state.resourceAvailable ?? Boolean(state.resourceId),
         command: { status: state.command?.status, application: { status: state.command?.application?.status } } };

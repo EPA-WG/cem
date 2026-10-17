@@ -24,6 +24,7 @@ export interface CemStudioResourceCommandOptions {
     readonly schema: string;
     readonly uri?: string;
     readonly resourceScheme?: 'studio' | 'cem-studio';
+    /** Owned schema-package dependencies are registered for validation/projections. */
     readonly dependencies?: readonly {
         readonly bytes: Uint8Array | ArrayBuffer;
         readonly contentType: string;

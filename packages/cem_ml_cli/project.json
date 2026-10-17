@@ -120,7 +120,10 @@
                 "{workspaceRoot}/packages/cem-components/build/*.cemt",
                 "default",
                 "^default",
-                "{workspaceRoot}/packages/cem-elements/demo/data-table-view.xslt"
+                "{workspaceRoot}/packages/cem-elements/demo/data-table-view.xslt",
+                "{workspaceRoot}/packages/cem-studio/fixtures/amsterdam-login/**/*",
+                "{workspaceRoot}/examples/cem-ml/login.cem",
+                "{workspaceRoot}/examples/semantic/login.html"
             ],
             "cache": true,
             "executor": "@monodon/rust:test",

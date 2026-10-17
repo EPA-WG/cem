@@ -50,6 +50,12 @@ export class BrowserCommandInvocationError extends Error {
     }
 }
 
+/** Initialize the shared runtime before returning its versioned JSON graph author. */
+export async function createBrowserTransformConfigAuthor(): Promise<(requestJson: string) => string> {
+    await initializeCommandRuntime();
+    return runtime.authorTransformConfigV1;
+}
+
 export async function buildBrowserCommandInvocation(
     parsed: ParsedCemMlCommand,
     resolver: BrowserCommandInvocationResolver,

@@ -97,9 +97,9 @@
     {
       "id": "amsterdam-2026-login",
       "name": "Amsterdam 2026: Login lifecycle",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "archive": "./amsterdam/login.cem-studio.json",
-      "sha256": "5fb9c5db2e7c16a259e6085bf990e3d5565befab58cbcac510b9c6c3e71cecf0"
+      "sha256": "6cc909214933cd4126eed366c9a9ce6e9cc97e2f775d0bc26d2305360fcf27b0"
     }
   ]
 }

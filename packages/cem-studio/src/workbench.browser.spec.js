@@ -40,6 +40,20 @@ afterEach(async () => {
 });
 
 describe('CEM Studio Feature Tour workbench', () => {
+    it('selects the innermost retained diagnostic span instead of the document frame', async () => {
+        const source = '{main | {form @action=session}}';
+        const outcome = invalidResult(0, source.length);
+        outcome.result.diagnostics.items[0].sourceMap.frames.push({ source_id: 7,
+            span: { kind: 'Single', ranges: { start: source.indexOf('{form'), len: 5 } }, transform: { kind: 'CemAstBuilder' } });
+        const repository = await repositoryWithSource(source);
+        const workbench = await createWorkbench(repository, validatorFor(outcome));
+        await workbench.validatePersisted(); workbench.navigateDiagnostic(0);
+        const selection = workbench.snapshot().selection;
+        expect(source.slice(selection.start, selection.end)).toBe('{form');
+        expect(selection.byteLength).toBe(5);
+        expect(workbench.snapshot().validation.diagnostics[0].sourceMap.frames).toHaveLength(2);
+    });
+
     it('stages native graph attributes with stale guards and bounded reversible drafts', async () => {
         const { workbench, repository, validator } = await graphWorkbench();
         const original = workbench.snapshot().draft;

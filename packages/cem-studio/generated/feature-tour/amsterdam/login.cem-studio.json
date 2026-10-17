@@ -5,7 +5,7 @@
     "schemaVersion": 1,
     "id": "amsterdam-2026-login-seed",
     "name": "Amsterdam 2026: Login lifecycle",
-    "description": "Read, edit, validate, inspect and convert the canonical login examples. Query, template and live-view checkpoints follow separately.",
+    "description": "Read, edit, validate, inspect, convert and repair a deliberate login schema violation. Query, template and live-view checkpoints follow separately.",
     "rootUri": "studio://amsterdam-2026-login-seed/",
     "revision": 1,
     "createdAt": "2026-10-17T00:00:00Z",
@@ -15,7 +15,7 @@
         "id": "login-lifecycle",
         "kind": "subproject",
         "name": "Login lifecycle",
-        "description": "Read, edit, validate, inspect and convert the canonical login examples. Query, template and live-view checkpoints follow separately."
+        "description": "Read, edit, validate, inspect, convert and repair a deliberate login schema violation. Query, template and live-view checkpoints follow separately."
       },
       {
         "id": "read-edit",
@@ -80,6 +80,25 @@
           "login",
           "convert"
         ]
+      },
+      {
+        "id": "validation-repair",
+        "parentId": "login-lifecycle",
+        "kind": "validation",
+        "name": "5. Find and repair a schema violation",
+        "description": "Validate persisted revision to find the missing form method. Select demo.login.method_required in Diagnostics to locate the form. Restore @method=post on that form, then Save and validate. Remove it and save again to reproduce the failure. This teaching rule requires a method; it is not a complete HTML schema.",
+        "resourceIds": [
+          "login-invalid",
+          "command-validation-repair",
+          "login-schema-package",
+          "login-schema"
+        ],
+        "runConfigResourceId": "command-validation-repair",
+        "tags": [
+          "amsterdam",
+          "login",
+          "validate"
+        ]
       }
     ],
     "resources": [
@@ -104,6 +123,39 @@
         "schema": "https://cem.dev/ns/data/html/1",
         "revision": 1,
         "sha256": "03a91bd7a0b8af6e919a2217e87ddbdd0ef6c03d055a80685b8b1097540d3a95"
+      },
+      {
+        "id": "login-invalid",
+        "path": "data/login-invalid.cem",
+        "referencePath": "data/login-invalid.cem",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/cem",
+        "schema": "urn:demo:login",
+        "revision": 1,
+        "sha256": "6a1cb00fa856d3c0b3fadddee4401eab5000243f7f28948e8152735cdaafe42a"
+      },
+      {
+        "id": "login-schema-package",
+        "path": "schemas/login-schema-package.cem",
+        "referencePath": "schemas/login-schema-package.cem",
+        "role": "schema",
+        "sourceKind": "project-file",
+        "contentType": "application/vnd.cem.schema-package+cem",
+        "schema": "https://cem.dev/ns/schema-package/1",
+        "revision": 1,
+        "sha256": "fb764209f9eb7df68975e966c3fe45ecf504410b2c2b224f5e7555897218b1fc"
+      },
+      {
+        "id": "login-schema",
+        "path": "schemas/login-schema.cem",
+        "referencePath": "schemas/login-schema.cem",
+        "role": "schema",
+        "sourceKind": "project-file",
+        "contentType": "application/cem",
+        "schema": "https://cem.dev/ns/schema/1",
+        "revision": 1,
+        "sha256": "56b4cffed6151f28e0e812ce0794848a7c857550c9500d4a34895d02fe68dd88"
       },
       {
         "id": "command-read-edit",
@@ -148,6 +200,17 @@
         "schema": "https://cem.dev/ns/cli/command/1",
         "revision": 1,
         "sha256": "fc7b0a47338978c016a8a18d72bbc6b0332dafacbe3a36e265652ebe9ccf9ede"
+      },
+      {
+        "id": "command-validation-repair",
+        "path": "config/validation-repair.json",
+        "referencePath": "config/validation-repair.json",
+        "role": "run-config",
+        "sourceKind": "project-file",
+        "contentType": "application/json",
+        "schema": "https://cem.dev/ns/cli/run-config/1",
+        "revision": 1,
+        "sha256": "d32913d15f5c47c7783be2af322479deab839807cd5b1d9596ff78bc74c25425"
       }
     ]
   },
@@ -169,12 +232,28 @@
       "base64": "ewogICJpbnB1dHMiOiBbCiAgICB7CiAgICAgICJ1cmkiOiAiZGF0YS9sb2dpbi5jZW0iLAogICAgICAicm9vdFNjb3BlIjogewogICAgICAgICJkZWZhdWx0Q29udGVudFR5cGUiOiAiYXBwbGljYXRpb24vY2VtIiwKICAgICAgICAic2NoZW1hIjogImh0dHBzOi8vY2VtLmRldi9ucy9jZW0tbWwvMSIKICAgICAgfQogICAgfQogIF0sCiAgIm91dHB1dHMiOiBbXSwKICAic2NoZW1hUGFja2FnZXMiOiBbXSwKICAicmVzb2x2ZXJzIjogW10sCiAgInNjaGVkdWxlciI6IHt9Cn0K"
     },
     {
+      "resourceId": "command-validation-repair",
+      "base64": "ewogICJpbnB1dHMiOiBbCiAgICB7CiAgICAgICJ1cmkiOiAiZGF0YS9sb2dpbi1pbnZhbGlkLmNlbSIsCiAgICAgICJyb290U2NvcGUiOiB7CiAgICAgICAgImRlZmF1bHRDb250ZW50VHlwZSI6ICJhcHBsaWNhdGlvbi9jZW0iLAogICAgICAgICJzY2hlbWEiOiAidXJuOmRlbW86bG9naW4iCiAgICAgIH0KICAgIH0KICBdLAogICJvdXRwdXRzIjogW10sCiAgInNjaGVtYVBhY2thZ2VzIjogWwogICAgewogICAgICAidXJpIjogInNjaGVtYXMvbG9naW4tc2NoZW1hLXBhY2thZ2UuY2VtIgogICAgfQogIF0sCiAgInJlc29sdmVycyI6IFtdLAogICJzY2hlZHVsZXIiOiB7fQp9Cg=="
+    },
+    {
       "resourceId": "login-cem",
       "base64": "QGRvYyBjZW0tbWwgMQpAbnMgY2VtID0gImh0dHBzOi8vY2VtLmRldi9ucy9jb3JlLzEiCkBucyBodG1sID0gImh0dHA6Ly93d3cudzMub3JnLzE5OTkveGh0bWwiCkBkZWZhdWx0IGh0bWwKCnttYWluIEBjZW06c2NyZWVuPSJsb2dpbiIgQGFyaWEtbGFiZWxsZWRieT0ibG9naW4tdGl0bGUiIHwKICB7aDEgQGlkPSJsb2dpbi10aXRsZSIgfCBTaWduIGlufQogIHtmb3JtIEBjZW06Zm9ybT0ic2lnbi1pbiIgQG1ldGhvZD1wb3N0IEBhY3Rpb249IiNzZXNzaW9uIiB8CiAgICB7bGFiZWwgQGZvcj1lbWFpbCB8IEVtYWlsfQogICAge2lucHV0IEBpZD1lbWFpbCBAbmFtZT1lbWFpbCBAdHlwZT1lbWFpbCBAYXV0b2NvbXBsZXRlPWVtYWlsIEByZXF1aXJlZH0KCiAgICB7bGFiZWwgQGZvcj1wYXNzd29yZCB8IFBhc3N3b3JkfQogICAge2lucHV0IEBpZD1wYXNzd29yZCBAbmFtZT1wYXNzd29yZCBAdHlwZT1wYXNzd29yZCBAYXV0b2NvbXBsZXRlPWN1cnJlbnQtcGFzc3dvcmQgQHJlcXVpcmVkfQoKICAgIHtidXR0b24gQHR5cGU9c3VibWl0IEBjZW06YWN0aW9uPXByaW1hcnkgfCBTaWduIGlufQogIH0KfQo="
     },
     {
       "resourceId": "login-html",
       "base64": "PCFkb2N0eXBlIGh0bWw+CjxodG1sIGxhbmc9ImVuIj4KICA8aGVhZD4KICAgIDxtZXRhIGNoYXJzZXQ9InV0Zi04Ij4KICAgIDx0aXRsZT5DRU0gU2VtYW50aWMgRml4dHVyZSAtIExvZ2luPC90aXRsZT4KICA8L2hlYWQ+CiAgPGJvZHk+CiAgICA8bWFpbiBkYXRhLWNlbS1zY3JlZW49ImxvZ2luIiBhcmlhLWxhYmVsbGVkYnk9ImxvZ2luLXRpdGxlIj4KICAgICAgPGgxIGlkPSJsb2dpbi10aXRsZSI+U2lnbiBpbjwvaDE+CiAgICAgIDxmb3JtIGRhdGEtY2VtLWZvcm09InNpZ24taW4iIG1ldGhvZD0icG9zdCIgYWN0aW9uPSIjc2Vzc2lvbiI+CiAgICAgICAgPGxhYmVsIGZvcj0iZW1haWwiPkVtYWlsPC9sYWJlbD4KICAgICAgICA8aW5wdXQgaWQ9ImVtYWlsIiBuYW1lPSJlbWFpbCIgdHlwZT0iZW1haWwiIGF1dG9jb21wbGV0ZT0iZW1haWwiIHJlcXVpcmVkPgoKICAgICAgICA8bGFiZWwgZm9yPSJwYXNzd29yZCI+UGFzc3dvcmQ8L2xhYmVsPgogICAgICAgIDxpbnB1dCBpZD0icGFzc3dvcmQiIG5hbWU9InBhc3N3b3JkIiB0eXBlPSJwYXNzd29yZCIgYXV0b2NvbXBsZXRlPSJjdXJyZW50LXBhc3N3b3JkIiByZXF1aXJlZD4KCiAgICAgICAgPGJ1dHRvbiB0eXBlPSJzdWJtaXQiIGRhdGEtY2VtLWFjdGlvbj0icHJpbWFyeSI+U2lnbiBpbjwvYnV0dG9uPgogICAgICA8L2Zvcm0+CiAgICA8L21haW4+CiAgPC9ib2R5Pgo8L2h0bWw+Cg=="
+    },
+    {
+      "resourceId": "login-invalid",
+      "base64": "QGRvYyBjZW0tbWwgMQpAbnMgY2VtID0gImh0dHBzOi8vY2VtLmRldi9ucy9jb3JlLzEiCkBucyBodG1sID0gImh0dHA6Ly93d3cudzMub3JnLzE5OTkveGh0bWwiCkBkZWZhdWx0IGh0bWwKCnttYWluIEBjZW06c2NyZWVuPSJsb2dpbiIgQGFyaWEtbGFiZWxsZWRieT0ibG9naW4tdGl0bGUiIHwKICB7aDEgQGlkPSJsb2dpbi10aXRsZSIgfCBTaWduIGlufQogIHtmb3JtIEBjZW06Zm9ybT0ic2lnbi1pbiIgQGFjdGlvbj0iI3Nlc3Npb24iIHwKICAgIHtsYWJlbCBAZm9yPWVtYWlsIHwgRW1haWx9CiAgICB7aW5wdXQgQGlkPWVtYWlsIEBuYW1lPWVtYWlsIEB0eXBlPWVtYWlsIEBhdXRvY29tcGxldGU9ZW1haWwgQHJlcXVpcmVkfQoKICAgIHtsYWJlbCBAZm9yPXBhc3N3b3JkIHwgUGFzc3dvcmR9CiAgICB7aW5wdXQgQGlkPXBhc3N3b3JkIEBuYW1lPXBhc3N3b3JkIEB0eXBlPXBhc3N3b3JkIEBhdXRvY29tcGxldGU9Y3VycmVudC1wYXNzd29yZCBAcmVxdWlyZWR9CgogICAge2J1dHRvbiBAdHlwZT1zdWJtaXQgQGNlbTphY3Rpb249cHJpbWFyeSB8IFNpZ24gaW59CiAgfQp9Cg=="
+    },
+    {
+      "resourceId": "login-schema",
+      "base64": "QGRvYyBjZW0tbWwgMQpAbnMgc2NoZW1hID0gImh0dHBzOi8vY2VtLmRldi9ucy9zY2hlbWEvMSIKQGRlZmF1bHQgc2NoZW1hCntzY2hlbWEgQG5hbWU9ImxvZ2luIiBAbmFtZXNwYWNlPSJ1cm46ZGVtbzpsb2dpbiIgQHZlcnNpb249IjEuMC4wIiB8CiB7dXNlcyB8IHt1c2UgQHNjaGVtYT0iaHR0cHM6Ly9jZW0uZGV2L25zL2NlbS1tbC8xIiBAYXM9ImNlbW1sIn0ge3VzZSBAc2NoZW1hPSJodHRwczovL2NlbS5kZXYvbnMvc2NoZW1hLzEiIEBhcz0ic2NoZW1hIn19CiB7Y29udGVudC10eXBlcyB8IHtjb250ZW50LXR5cGUgQHZhbHVlPSJhcHBsaWNhdGlvbi92bmQuZGVtby5sb2dpbitjZW0iIEBwcmltYXJ5PXRydWV9fQoge2VsZW1lbnRzIHwKICB7ZWxlbWVudCBAbmFtZT0ibWFpbiIgQG9wdGlvbmFsLWF0dHJpYnV0ZXM9InNjcmVlbiBhcmlhLWxhYmVsbGVkYnkiIEBjaGlsZHJlbj0iKiJ9CiAge2VsZW1lbnQgQG5hbWU9ImgxIiBAb3B0aW9uYWwtYXR0cmlidXRlcz0iaWQiIEBjaGlsZHJlbj0iKiJ9CiAge2VsZW1lbnQgQG5hbWU9ImZvcm0iIEBvcHRpb25hbC1hdHRyaWJ1dGVzPSJtZXRob2QgYWN0aW9uIGZvcm0iIEBjaGlsZHJlbj0iKiJ9CiAge2VsZW1lbnQgQG5hbWU9ImxhYmVsIiBAb3B0aW9uYWwtYXR0cmlidXRlcz0iZm9yIiBAY2hpbGRyZW49IioifQogIHtlbGVtZW50IEBuYW1lPSJpbnB1dCIgQG9wdGlvbmFsLWF0dHJpYnV0ZXM9ImlkIG5hbWUgdHlwZSBhdXRvY29tcGxldGUgcmVxdWlyZWQifQogIHtlbGVtZW50IEBuYW1lPSJidXR0b24iIEBvcHRpb25hbC1hdHRyaWJ1dGVzPSJ0eXBlIGFjdGlvbiIgQGNoaWxkcmVuPSIqIn19CiB7YXR0cmlidXRlcyB8IHthdHRyaWJ1dGUgQG5hbWU9Im1ldGhvZCIgQHR5cGU9InNjaGVtYTpzdHJpbmcifSB7YXR0cmlidXRlIEBuYW1lPSJzY3JlZW4iIEB0eXBlPSJzY2hlbWE6c3RyaW5nIn0ge2F0dHJpYnV0ZSBAbmFtZT0iYXJpYS1sYWJlbGxlZGJ5IiBAdHlwZT0ic2NoZW1hOnN0cmluZyJ9IHthdHRyaWJ1dGUgQG5hbWU9ImlkIiBAdHlwZT0ic2NoZW1hOnN0cmluZyJ9IHthdHRyaWJ1dGUgQG5hbWU9ImFjdGlvbiIgQHR5cGU9InNjaGVtYTpzdHJpbmcifSB7YXR0cmlidXRlIEBuYW1lPSJmb3JtIiBAdHlwZT0ic2NoZW1hOnN0cmluZyJ9IHthdHRyaWJ1dGUgQG5hbWU9ImZvciIgQHR5cGU9InNjaGVtYTpzdHJpbmcifSB7YXR0cmlidXRlIEBuYW1lPSJuYW1lIiBAdHlwZT0ic2NoZW1hOnN0cmluZyJ9IHthdHRyaWJ1dGUgQG5hbWU9InR5cGUiIEB0eXBlPSJzY2hlbWE6c3RyaW5nIn0ge2F0dHJpYnV0ZSBAbmFtZT0iYXV0b2NvbXBsZXRlIiBAdHlwZT0ic2NoZW1hOnN0cmluZyJ9IHthdHRyaWJ1dGUgQG5hbWU9InJlcXVpcmVkIiBAdHlwZT0ic2NoZW1hOnN0cmluZyJ9fQoge2ZpZWxkLWNvbnRyYWN0cyB8CiAge2ZpZWxkLWNvbnRyYWN0IEBuYW1lPSJmb3JtLW1ldGhvZCIgQHRhcmdldD0iZm9ybSIgQHJlcXVpcmVkLWF0dHJpYnV0ZXM9Im1ldGhvZCIgQGRpYWdub3N0aWM9ImRlbW8ubG9naW4ubWV0aG9kX3JlcXVpcmVkIiBAYmVoYXZpb3I9InNjaGVtYTpyZXF1aXJlZC1maWVsZHMiIEBjaGVjay1raW5kPSJyZXF1aXJlZC1maWVsZHMifX0KIHtkaWFnbm9zdGljcyB8CiAge2RpYWdub3N0aWMgQGNvZGU9ImRlbW8ubG9naW4ubWV0aG9kX3JlcXVpcmVkIiBAc2V2ZXJpdHk9ImVycm9yIiBAYmVoYXZpb3I9InNjaGVtYTpyZXF1aXJlZC1maWVsZHMiIEBtZXNzYWdlPSJMb2dpbiBmb3JtIG11c3QgZGVjbGFyZSBpdHMgbWV0aG9kIn19Cn0K"
+    },
+    {
+      "resourceId": "login-schema-package",
+      "base64": "QGRvYyBjZW0tbWwgMQpAbnMgcGtnID0gImh0dHBzOi8vY2VtLmRldi9ucy9zY2hlbWEtcGFja2FnZS8xIgpAZGVmYXVsdCBwa2cKe3BhY2thZ2UgQGlkPSJsb2dpbi1kZW1vIiBAdmVyc2lvbj0iMS4wLjAiIHwKIHtzY2hlbWEgQHVyaT0idXJuOmRlbW86bG9naW4iIEBzb3VyY2U9ImxvZ2luLXNjaGVtYS5jZW0ifQoge2NvbnRlbnQtdHlwZSBAdmFsdWU9ImFwcGxpY2F0aW9uL3ZuZC5kZW1vLmxvZ2luK2NlbSIgQHByaW1hcnk9dHJ1ZX0KfQo="
     }
   ]
 }

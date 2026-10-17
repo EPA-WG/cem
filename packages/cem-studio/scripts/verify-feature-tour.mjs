@@ -51,12 +51,18 @@ assert.equal(createHash('sha256').update(presentationBytes).digest('hex'), prese
 assert.deepEqual(presentationBytes, await readFile(resolve(generatedRoot, 'amsterdam/login.cem-studio.json')));
 const presentation = parseCemStudioProjectBundle(presentationBytes);
 assert.equal(presentation.project.id, 'amsterdam-2026-login-seed');
-assert.equal(presentation.project.entries.length, 5);
-assert.equal(presentation.project.resources.length, 6);
+assert.equal(presentationRecord.version, '1.1.0');
+assert.equal(presentation.project.entries.length, 6);
+assert.equal(presentation.project.resources.length, 10);
 const definition = await readJson(resolve(projectRoot, 'fixtures/amsterdam-login/sample.json'));
 for (const source of definition.sources) {
     assert.deepEqual(presentation.contents[source.id], new Uint8Array(await readFile(resolve(workspaceRoot, source.source))));
 }
+const repairPage = presentation.project.entries.find(entry => entry.id === 'validation-repair');
+assert.deepEqual(repairPage.resourceIds, ['login-invalid', 'command-validation-repair', 'login-schema-package', 'login-schema']);
+assert.ok(repairPage.description.includes('demo.login.method_required'));
+assert.deepEqual(JSON.parse(new TextDecoder().decode(presentation.contents[repairPage.runConfigResourceId])).schemaPackages,
+    [{ uri: 'schemas/login-schema-package.cem' }]);
 await mkdir(dirname(reportPath), { recursive: true });
 const presentationManifest = resolve(dirname(reportPath), 'amsterdam-login.project.json');
 await writeFile(presentationManifest, JSON.stringify(presentation.project));

@@ -19,11 +19,9 @@ const PORTABLE_STUDIO_OPERATIONS = new Set(['parse', 'inspect', 'convert', 'quer
 
 /** Create one reusable real CEM-ML browser command validator. */
 export async function createCemStudioBrowserValidator() {
-    const graphRuntime = await import('@epa-wg/cem-ml/wasm');
-    await graphRuntime.default();
-    const { authorTransformConfigV1 } = graphRuntime;
     const {
         buildBrowserCommandInvocation,
+        createBrowserTransformConfigAuthor,
         commandSchema,
         createBrowserCommandServiceClient,
         parseCemMlCommand,
@@ -34,6 +32,7 @@ export async function createCemStudioBrowserValidator() {
         serializeCemMlCommandResource,
         serializeCemMlCommandText,
     } = await import('@epa-wg/cem-ml-cli/browser-commands');
+    const authorTransformConfigV1 = await createBrowserTransformConfigAuthor();
     const ledgers = new Map();
     const pendingWrites = new Map();
     const committedWrites = new Map();
@@ -193,6 +192,8 @@ export async function createCemStudioBrowserValidator() {
             },
         );
         const resources = { ...invocation.request.resources };
+        const packageIdentities = new Map((invocation.request.runPlan?.schemaPackages ?? [])
+            .map(resource => [resource.resolvedUri ?? resource.declaredUri, resource.identity]));
         if (requireResourceSet && !resources[inputResourceUri]) {
             throw new Error(`CEM-ML ${operation} omitted input ${inputResourceUri}`);
         }
@@ -206,7 +207,9 @@ export async function createCemStudioBrowserValidator() {
             }
             resources[dependencyUri] = {
                 ...resource,
-                identity: {
+                // Package identity comes from its explicit normalized scope;
+                // other dependencies use their declared project identities.
+                identity: packageIdentities.get(dependencyUri) ?? {
                     contentType: dependency.contentType,
                     schema: dependency.schema,
                     baseUri: dependencyUri,
@@ -604,7 +607,10 @@ function resourceUri(uri, projectId, scheme = 'cem-studio') {
 
 function resourceCommandArguments(operation, options, inputResourceUri) {
     if (Array.isArray(options.argv)) return options.argv;
-    const identity = ['--content-type', options.contentType, '--schema', options.schema];
+    const packages = (options.dependencies ?? [])
+        .filter(dependency => dependency.schema === 'https://cem.dev/ns/schema-package/1')
+        .flatMap(dependency => ['--schema-package', resolveVirtualUri(inputResourceUri, dependency.path)]);
+    const identity = ['--content-type', options.contentType, '--schema', options.schema, ...packages];
     if (operation === 'validate') {
         return ['validate', '--format', 'json', ...identity, inputResourceUri];
     }

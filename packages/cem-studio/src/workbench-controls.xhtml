@@ -22,6 +22,7 @@
             {cem-action @host-command=download-source @disabled={if state.resourceAvailable { null } else { true }} | Download resource}
         }
         {cem:if @test=state.editable |
+        {cem:if @test=state.description | {cem-alert @label={state.description} @tone=info}}
         {cem:if @test='!state.runnable' | {cem-alert @label="Validate saved source, or parse/inspect it to prepare a command page."}}
         {cem-card @label="Resource editor" |
             {span @slot=title | Project workbench}

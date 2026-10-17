@@ -80,6 +80,7 @@ export interface CemStudioWorkbenchState {
     readonly runnable?: boolean;
     readonly resourceId: string;
     readonly path: string;
+    readonly description?: string;
     readonly contentType: string;
     readonly schema: string;
     readonly projectRevision: number;
