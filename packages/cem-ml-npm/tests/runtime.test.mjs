@@ -132,6 +132,18 @@ function verifyGraphAuthoring(runtime) {
   assert.deepEqual(created.graph.nodes.slice(0, 2), describe.graph.nodes);
   assert.ok(JSON.parse(runtime.authorTransformConfigV1(JSON.stringify({ source,
     create: { parent: 'data', kind: 'export', id: 'result', attributes: { out: 'copy.cem' } } }))).error);
+  const edgeSource = '{run | {import @id=other @src=other.xml} {import @id=data @src=data.xml | {transform @id=view @src=view.xpath @template-content-type=application/vnd.cem.xpath | {export @id=result @out=result.xml}}}}';
+  const linked = JSON.parse(runtime.authorTransformConfigV1(JSON.stringify({ source: edgeSource,
+    edge: { node: 'view', role: 'input', source: 'other' } })));
+  assert.equal(linked.nodes.find(node => node.id === 'view').edges.find(field => field.id === 'input').source, 'other');
+  const secondary = JSON.parse(runtime.authorTransformConfigV1(JSON.stringify({ source: linked.source,
+    edge: { node: 'view', role: 'with', source: 'other', name: 'palette' } })));
+  assert.deepEqual(secondary.nodes.find(node => node.id === 'view').edges.find(field => field.id === 'with').bindings, [{ name: 'palette', source: 'other' }]);
+  const moved = JSON.parse(runtime.authorTransformConfigV1(JSON.stringify({ source: secondary.source,
+    edge: { node: 'view', role: 'parent', source: 'other' } })));
+  assert.equal(moved.nodes.find(node => node.id === 'view').edges.find(field => field.id === 'parent').source, 'other');
+  assert.match(JSON.parse(runtime.authorTransformConfigV1(JSON.stringify({ source: edgeSource,
+    edge: { node: 'view', role: 'input', source: 'view' } }))).error, /cycle/);
   assert.equal(typeof JSON.parse(runtime.authorTransformConfigV1('{"source":false}')).error, 'string');
 }
 

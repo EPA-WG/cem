@@ -1,0 +1,55 @@
+{
+  "id": "amsterdam-2026-login",
+  "name": "Amsterdam 2026: Login lifecycle",
+  "description": "Read, edit, validate, inspect and convert the canonical login examples. Query, template and live-view checkpoints follow separately.",
+  "sources": [
+    {
+      "id": "login-cem",
+      "source": "examples/cem-ml/login.cem",
+      "path": "data/login.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cem-ml/1"
+    },
+    {
+      "id": "login-html",
+      "source": "examples/semantic/login.html",
+      "path": "data/login.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1"
+    }
+  ],
+  "pages": [
+    {
+      "id": "read-edit",
+      "name": "1. Read and edit login",
+      "kind": "inspection",
+      "source": "login-cem",
+      "argv": ["parse", "$source", "--content-type", "application/cem", "--schema", "https://cem.dev/ns/cem-ml/1", "--format", "ast", "--no-color"],
+      "expectedText": ["https://cem.dev/ns/projection/ast/1", "@name=input", "@value=\"Sign in\"", "@byte-offset="]
+    },
+    {
+      "id": "validate",
+      "name": "2. Validate login",
+      "kind": "validation",
+      "source": "login-cem",
+      "argv": ["validate", "$source", "--content-type", "application/cem", "--schema", "https://cem.dev/ns/cem-ml/1", "--format", "json", "--no-color"],
+      "expectedValidation": {"errorCount": 0, "warningCount": 3, "warningCode": "cem.ast.unresolved_reference"}
+    },
+    {
+      "id": "inspect",
+      "name": "3. Inspect login structure",
+      "kind": "inspection",
+      "source": "login-cem",
+      "argv": ["inspect", "$source", "--content-type", "application/cem", "--schema", "https://cem.dev/ns/cem-ml/1", "--show", "ast", "--no-color"],
+      "expectedText": ["https://cem.dev/ns/projection/ast/1", "@name=input", "@value=\"Sign in\"", "@byte-offset="]
+    },
+    {
+      "id": "html-conversion",
+      "name": "4. Import HTML and convert to CEM-ML",
+      "kind": "conversion",
+      "source": "login-html",
+      "argv": ["convert", "$source", "--content-type", "text/html", "--schema", "https://cem.dev/ns/data/html/1", "--to-content-type", "application/cem", "--to-schema", "https://cem.dev/ns/cem-ml/1", "--output-color-type", "none"],
+      "expectedText": ["@name=email", "@name=password", "@method=post", "@required", "Sign in"]
+    }
+  ]
+}

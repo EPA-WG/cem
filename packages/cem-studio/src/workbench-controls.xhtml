@@ -8,6 +8,8 @@
     {slice @name=graphAttributeId | }
     {slice @name=graphCreateParentId | }
     {slice @name=graphCreateKind | }
+    {slice @name=graphEdgeNodeId | }
+    {slice @name=graphEdgeRole | }
     {body |
         {cem-stack |
         {cem:variable @name=state @select=datadom.slices.state}
@@ -80,7 +82,7 @@
                     {cem:variable @name=graphBusy @select='datadom.slices.pending || (datadom.slices.state.status == "saving") || (datadom.slices.state.status == "validating") || (datadom.slices.state.status == "projecting") || (datadom.slices.state.command.status == "checking") || (datadom.slices.state.command.application.status == "applying") || (datadom.slices.state.command.application.status == "running")'}
                     {cem-select @name=graph-node @value={datadom.slices.graphNodeId ?? ""} @slice=graphNodeId @slice-event=change @slice-value="$target.value" @disabled={if graphBusy { true } else { null }} |
                         {span @slot=label | Graph node}
-                        {span @slot=help | Edit one named node attribute. Set stages a source draft; Save commits it. Run uses the saved graph. Create named nodes below. Existing IDs, edge editing, aliases and parameters remain in source.}
+                        {span @slot=help | Edit one named node attribute. Set stages a source draft; Save commits it. Run uses the saved graph. Create named nodes below. Edit edges below. Existing IDs, aliases and parameters remain in source.}
                         {option @value="" | Choose a named node}
                         {cem:for-each @select=graph.nodes @as=node |
                             {cem:if @test='seq:count(node.fields.id) &gt; 0' |
@@ -177,6 +179,63 @@
                                                             {cem-action @type=reset @variant=contextual | Reset new graph node}
                                                         }
                                                     }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    {cem-select @name=graph-edge-node @value={datadom.slices.graphEdgeNodeId ?? ""} @slice=graphEdgeNodeId @slice-event=change @slice-value="$target.value" @disabled={if graphBusy { true } else { null }} |
+                        {span @slot=label | Graph edge target}
+                        {span @slot=help | Move a subtree, override its input, or set a named secondary input. Apply stages a draft; Save commits it. Cycles are rejected.}
+                        {option @value="" | Choose a named target}
+                        {cem:for-each @select=graph.nodes @as=node | {cem:if @test='seq:count(node.edges.id) &gt; 0' | {option @value={node.id} | {$ | str:concat((node.id, " (", node.kind, ")"), "")}}}}
+                    }
+                    {cem:for-each @select=graph.nodes @as=node |
+                        {cem:if @test='node.id == datadom.slices.graphEdgeNodeId' |
+                            {cem-select @name=graph-edge-role @value={datadom.slices.graphEdgeRole ?? ""} @slice=graphEdgeRole @slice-event=change @slice-value="$target.value" @disabled={if graphBusy { true } else { null }} |
+                                {span @slot=label | Graph edge role}
+                                {option @value="" | Choose an edge role}
+                                {cem:for-each @select=node.edges @as=field | {option @value={field.id} | {$ | field.id}}}
+                            }
+                            {cem:for-each @select=node.edges @as=field |
+                                {cem:if @test='field.id == datadom.slices.graphEdgeRole' |
+                                    {form @host-command=edit-graph-edge @host-command-event=submit |
+                                        {cem-fieldset @label="Graph edge" @disabled={if graphBusy { true } else { null }} |
+                                            {span @slot=help | Parent moves keep the subtree together. An input override replaces the parent edge; clearing it restores parent input. A blank secondary source removes only the named binding.}
+                                            {cem-stack @gap=sm |
+                                                {input @type=hidden @name=node @value={node.id}}
+                                                {input @type=hidden @name=role @value={field.id}}
+                                                {input @type=hidden @name=version @value={graph.version}}
+                                                {cem:if @test=field.requiresName |
+                                                    {cem-list |
+                                                        {cem:for-each @select=field.bindings @as=binding | {li | {$ | str:concat((binding.name, " → ", binding.source), "")}}}
+                                                    }
+                                                    {cem-text-field @name=name @label="Graph binding name" @required @value=""}
+                                                }
+                                                {cem-select @name=source @value={field.source ?? ""} |
+                                                    {span @slot=label | Graph edge source}
+                                                    {option @value="" @disabled={if field.canClear { null } else { true }} | {$ | if field.id == "parent" { if field.canClear { "Run root" } else { "Choose a parent" } } else { if field.requiresName { "Remove named binding" } else { "Use parent input" } }}}
+                                                    {cem:if @test='field.id == "parent"' |
+                                                        {cem:for-each @select=graph.parents @as=parent |
+                                                            {cem:if @test='(parent.id != "") &amp;&amp; (parent.id != node.id)' |
+                                                                {cem:for-each @select=parent.children @as=child |
+                                                                    {cem:if @test='child == node.kind' | {option @value={parent.id} | {$ | str:concat((parent.id, " (", parent.kind, ")"), "")}}}
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                    {cem:if @test='field.id != "parent"' |
+                                                        {cem:for-each @select=graph.nodes @as=source |
+                                                            {cem:if @test='source.named &amp;&amp; (source.id != node.id)' | {option @value={source.id} | {$ | str:concat((source.id, " (", source.kind, ")"), "")}}}
+                                                        }
+                                                    }
+                                                }
+                                                {cem-grid |
+                                                    {cem-action @type=submit @variant=alternate | Apply graph edge}
+                                                    {cem-action @type=reset @variant=contextual | Reset staged edge change}
                                                 }
                                             }
                                         }

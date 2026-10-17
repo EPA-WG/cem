@@ -151,6 +151,71 @@ describe('CEM Studio Feature Tour workbench', () => {
         expect(root.querySelector('form[host-command="create-graph-node"] cem-select[name="attribute.mode"]')).not.toBeNull();
     });
 
+    it('stages native graph edges with cycle, foreign, repeated and stale guards', async () => {
+        const { workbench, repository, validator } = await graphWorkbench(edgeGraphSource);
+        const original = workbench.snapshot().draft;
+        const fields = (role, source, name) => ({ node: ['view'], role: [role], source: [source], ...(name === undefined ? {} : { name: [name] }), version: [workbench.snapshot().graphConfiguration.version] });
+        const first = fields('input', 'other');
+        await workbench.updateGraphEdge(first);
+        expect(workbench.snapshot().graphConfiguration.error).toBeUndefined();
+        const input = workbench.snapshot().draft;
+        expect(workbench.snapshot()).toMatchObject({ dirty: true, projectRevision: 1 });
+        await workbench.updateGraphEdge(first);
+        expect(workbench.snapshot().graphConfiguration.error.message).toContain('graph changed');
+        for (const invalid of [fields('input', 'result'), { ...fields('input', 'other'), version: ['foreign'] }, { ...fields('input', 'other'), source: ['other', 'data'] }, { ...fields('input', 'other'), extra: ['no'] }]) {
+            await workbench.updateGraphEdge(invalid); expect(workbench.snapshot().draft).toBe(input);
+            expect(workbench.snapshot().graphConfiguration.error).toBeDefined();
+        }
+        await workbench.updateGraphEdge(fields('input', ''));
+        expect(workbench.snapshot().graphConfiguration.nodes.find(node => node.id === 'view').edges.find(field => field.id === 'input').source).toBeNull();
+        await workbench.updateGraphEdge(fields('with', 'other', 'palette'));
+        expect(workbench.snapshot().graphConfiguration.nodes.find(node => node.id === 'view').edges.find(field => field.id === 'with').bindings).toEqual([{ name: 'palette', source: 'other' }]);
+        await workbench.updateGraphEdge(fields('parent', 'other'));
+        const changed = workbench.snapshot().draft;
+        expect(workbench.snapshot().graphConfiguration.error).toBeUndefined();
+        workbench.undoGraphDraft(); expect(workbench.snapshot().draft).not.toBe(changed);
+        workbench.redoGraphDraft(); expect(workbench.snapshot().draft).toBe(changed);
+        expect(validator.runResourceCommand).not.toHaveBeenCalled();
+        expect((await repository.query(request('export-project', { projectId: 'feature-tour' }))).value.project.revision).toBe(1);
+        await workbench.saveSource(); await workbench.reload();
+        expect(workbench.snapshot()).toMatchObject({ dirty: false, draft: changed, projectRevision: 2 });
+        expect(changed).not.toBe(original);
+    });
+
+    it('composes graph edge forms declaratively with native reset, bindings and pending disabling', async () => {
+        const { workbench, validator } = await graphWorkbench(edgeGraphSource);
+        const root = document.createElement('main'); document.body.append(root);
+        const shell = await mountCemStudioApplicationShell({ root }); shells.push(shell);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view); await view.whenSettled();
+        const choose = async (name, value) => { const host = root.querySelector(`cem-select[name="${name}"]`); expect(host).not.toBeNull(); host.value = value; host.dispatchEvent(new Event('change', { bubbles: true })); await view.whenSettled(); };
+        const action = name => [...root.querySelectorAll('button')].find(button => button.textContent.trim() === name);
+        await choose('graph-edge-node', 'view'); await choose('graph-edge-role', 'input');
+        expect(root.querySelectorAll('form[host-command="edit-graph-edge"]')).toHaveLength(1);
+        await choose('source', 'other'); action('Reset staged edge change').click(); await view.whenSettled();
+        expect(root.querySelector('form[host-command="edit-graph-edge"] cem-select[name=source]').value).toBe('');
+        expect(workbench.snapshot().dirty).toBe(false);
+        await choose('source', 'other'); action('Apply graph edge').click(); await view.whenSettled();
+        expect(workbench.snapshot().graphConfiguration.error).toBeUndefined();
+        action('Undo graph edit').click(); await view.whenSettled(); expect(workbench.snapshot().dirty).toBe(false);
+        action('Redo graph edit').click(); await view.whenSettled(); expect(workbench.snapshot().dirty).toBe(true);
+        await choose('graph-edge-role', 'with');
+        const binding = root.querySelector('form[host-command="edit-graph-edge"] cem-text-field[name=name] input');
+        binding.value = 'palette'; binding.dispatchEvent(new Event('input', { bubbles: true }));
+        await choose('source', 'other'); action('Apply graph edge').click(); await view.whenSettled();
+        expect(workbench.snapshot().graphConfiguration.error).toBeUndefined();
+        expect(root.querySelector('cem-fieldset[label="Graph edge"]').textContent).toContain('palette');
+        const pending = deferred(); validator.validateResource.mockImplementationOnce(() => pending.promise);
+        const saving = workbench.saveAndValidate(); await vi.waitFor(() => expect(workbench.snapshot().status).toBe('validating')); await view.whenSettled();
+        expect(root.querySelector('cem-fieldset[label="Graph edge"] fieldset').disabled).toBe(true);
+        const saved = workbench.snapshot().draft;
+        await workbench.updateGraphEdge({ node: ['view'], role: ['input'], source: ['data'], version: [workbench.snapshot().graphConfiguration.version] });
+        expect(workbench.snapshot().draft).toBe(saved);
+        pending.resolve(validResult()); await saving; await view.whenSettled();
+        expect(root.querySelector('cem-fieldset[label="Graph edge"] fieldset').disabled).toBe(false);
+        await choose('graph-edge-role', 'parent');
+        expect(root.querySelector('form[host-command="edit-graph-edge"] cem-select[name=source]').value).toBe('data');
+    });
+
     it('bounds graph draft history by UTF-8 bytes during undo and redo', async () => {
         const { workbench } = await graphWorkbench();
         const small = `${workbench.snapshot().draft}// Retained small draft\n`;
@@ -2271,12 +2336,12 @@ describe('Studio project session admission', () => {
 });
 
 let nativeGraphAuthor;
-async function graphWorkbench() {
+const edgeGraphSource = '{run | {import @id=other @src=other.xml} {import @id=data @src=data.xml | {transform @id=view @src=view.xpath @template-content-type=application/vnd.cem.xpath | {export @id=result @out=result.xml}}}}';
+async function graphWorkbench(source = '{run | {import @id=data @src=asset.svg @opaque=true @content-type=image/svg+xml | {export @id=result @out=result.svg}}}\n') {
     if (!nativeGraphAuthor) {
         const native = await createCemStudioBrowserValidator();
         nativeGraphAuthor = native.authorGraph; await native.close();
     }
-    const source = '{run | {import @id=data @src=asset.svg @opaque=true @content-type=image/svg+xml | {export @id=result @out=result.svg}}}\n';
     const repository = await repositoryWithSource(source);
     const validator = validatorFor(validResult()); validator.authorGraph = nativeGraphAuthor;
     const seed = featureTourSeed();

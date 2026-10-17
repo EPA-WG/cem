@@ -8,7 +8,8 @@ use crate::{
     source_map::SourceMapStack,
     tokenizer::cem::CemTokenizer,
     transform_config::{
-        parse_transform_graph_config, TransformGraphConfig, TransformGraphParseRequest,
+        parse_transform_graph_config, TransformGraphConfig, TransformGraphEdge,
+        TransformGraphEdgeRole, TransformGraphNode, TransformGraphParseRequest,
         TRANSFORM_CONFIG_SCHEMA_ELEMENTS,
     },
 };
@@ -21,6 +22,7 @@ pub struct GraphAuthoringRequest {
     pub source: String,
     pub edit: Option<GraphAuthoringEdit>,
     pub create: Option<GraphAuthoringCreate>,
+    pub edge: Option<GraphAuthoringEdge>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -41,6 +43,32 @@ pub struct GraphAuthoringCreate {
     pub id: String,
     #[serde(default)]
     pub attributes: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GraphAuthoringEdge {
+    pub node: String,
+    pub role: TransformGraphEdgeRole,
+    /// None restores parent input, removes one named binding, or chooses the run root.
+    pub source: Option<String>,
+    pub name: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GraphAuthoringEdgeField {
+    pub id: &'static str,
+    pub source: Option<String>,
+    pub can_clear: bool,
+    pub requires_name: bool,
+    pub bindings: Vec<GraphAuthoringBinding>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GraphAuthoringBinding {
+    pub name: String,
+    pub source: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -71,6 +99,8 @@ pub struct GraphAuthoringNode {
     pub id: String,
     pub kind: String,
     pub fields: Vec<GraphAuthoringField>,
+    pub named: bool,
+    pub edges: Vec<GraphAuthoringEdgeField>,
 }
 
 #[derive(Debug, Serialize)]
@@ -88,10 +118,22 @@ pub struct GraphAuthoringField {
 pub fn author_transform_config(
     request: GraphAuthoringRequest,
 ) -> Result<GraphAuthoringResponse, String> {
-    if request.edit.is_some() && request.create.is_some() {
+    if [
+        request.edit.is_some(),
+        request.create.is_some(),
+        request.edge.is_some(),
+    ]
+    .into_iter()
+    .filter(|active| *active)
+    .count()
+        > 1
+    {
         return Err("Choose one graph authoring operation per request".into());
     }
     let (mut document, mut response) = describe(&request.source)?;
+    if let Some(edge) = request.edge {
+        return edit_edge(document, response, edge);
+    }
     if let Some(create) = request.create {
         return create_node(document, response, create);
     }
@@ -180,6 +222,318 @@ pub fn author_transform_config(
     }
     response = candidate;
     Ok(response)
+}
+
+fn edge_role(role: TransformGraphEdgeRole) -> &'static str {
+    match role {
+        TransformGraphEdgeRole::Parent => "parent",
+        TransformGraphEdgeRole::Input => "input",
+        TransformGraphEdgeRole::With => "with",
+    }
+}
+
+fn parent_of(document: &CemDocument, node: u32) -> Option<u32> {
+    document.nodes.iter().find_map(|candidate| match candidate {
+        CemAstNode::Element {
+            node_id, children, ..
+        } if children.contains(&node) => Some(*node_id),
+        _ => None,
+    })
+}
+
+fn parent_identity(document: &CemDocument, owner: u32) -> Option<Option<String>> {
+    let parent = parent_of(document, owner)?;
+    if matches!(&document.nodes[parent as usize], CemAstNode::Element { expanded_name, .. } if expanded_name.local_name == "run")
+    {
+        return Some(None);
+    }
+    document
+        .id_table
+        .iter()
+        .find(|(_, id)| **id == parent)
+        .map(|(id, _)| Some(id.clone()))
+}
+
+fn describe_edges(
+    document: &CemDocument,
+    owner: u32,
+    node: &TransformGraphNode,
+) -> Vec<GraphAuthoringEdgeField> {
+    let kind = if node.kind == crate::transform_config::TransformGraphNodeKind::ImportMapRewrite {
+        "rewrite-importmap".into()
+    } else {
+        serde_json::to_value(node.kind)
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    let schema = TRANSFORM_CONFIG_SCHEMA_ELEMENTS
+        .iter()
+        .find(|schema| schema.local_name == kind)
+        .unwrap();
+    let mut fields = vec![];
+    if let Some(parent) = parent_identity(document, owner) {
+        fields.push(GraphAuthoringEdgeField {
+            id: "parent",
+            source: parent,
+            can_clear: kind == "import",
+            requires_name: false,
+            bindings: vec![],
+        });
+    }
+    if schema.optional_attributes.contains(&"input") {
+        fields.push(GraphAuthoringEdgeField {
+            id: "input",
+            source: node.input_ref.clone(),
+            can_clear: true,
+            requires_name: false,
+            bindings: vec![],
+        });
+    }
+    if schema.optional_attributes.contains(&"with:*") {
+        fields.push(GraphAuthoringEdgeField {
+            id: "with",
+            source: None,
+            can_clear: true,
+            requires_name: true,
+            bindings: node
+                .with
+                .iter()
+                .map(|(name, source)| GraphAuthoringBinding {
+                    name: name.clone(),
+                    source: source.clone(),
+                })
+                .collect(),
+        });
+    }
+    fields
+}
+
+fn edge_keys(edges: &[TransformGraphEdge]) -> Vec<(String, String, &'static str)> {
+    let mut keys: Vec<_> = edges
+        .iter()
+        .map(|edge| (edge.from.clone(), edge.to.clone(), edge_role(edge.role)))
+        .collect();
+    keys.sort();
+    keys
+}
+
+fn edit_edge(
+    mut document: CemDocument,
+    before: GraphAuthoringResponse,
+    edge: GraphAuthoringEdge,
+) -> Result<GraphAuthoringResponse, String> {
+    let role = edge_role(edge.role);
+    let node = before
+        .nodes
+        .iter()
+        .find(|node| node.id == edge.node && node.named)
+        .ok_or("Choose a named graph edge target")?;
+    let field = node
+        .edges
+        .iter()
+        .find(|field| field.id == role)
+        .ok_or("This node does not support the selected edge role")?;
+    if field.requires_name {
+        let name = edge
+            .name
+            .as_deref()
+            .ok_or("A secondary input needs a binding name")?;
+        if name.is_empty()
+            || name.len() > 128
+            || !name.chars().enumerate().all(|(index, c)| {
+                c.is_ascii_alphabetic()
+                    || c == '_'
+                    || (index > 0 && (c.is_ascii_digit() || c == '-' || c == '.'))
+            })
+        {
+            return Err("Use a binding name of 1–128 ASCII name characters starting with a letter or underscore".into());
+        }
+    } else if edge.name.is_some() {
+        return Err("Only secondary edges accept a binding name".into());
+    }
+    if edge.source.is_none() && !field.can_clear {
+        return Err("This graph node cannot move to the run root".into());
+    }
+    if let Some(source) = &edge.source {
+        if !before
+            .nodes
+            .iter()
+            .any(|node| node.id == *source && node.named)
+        {
+            return Err("Choose a named graph source node".into());
+        }
+    }
+    let owner = *document.id_table.get(&edge.node).unwrap();
+    let current_parent = parent_identity(&document, owner)
+        .ok_or("The lexical parent needs an authored ID before edge editing")?;
+    let mut expected_nodes = before.graph.nodes.clone();
+    let expected = expected_nodes
+        .iter_mut()
+        .find(|node| node.id == edge.node)
+        .unwrap();
+    let mut expected_edges = before.graph.edges.clone();
+    if edge.role == TransformGraphEdgeRole::Parent {
+        let parent = before
+            .parents
+            .iter()
+            .find(|parent| {
+                Some(&parent.id) == edge.source.as_ref()
+                    || (edge.source.is_none() && parent.id.is_empty())
+            })
+            .filter(|parent| parent.children.contains(&node.kind.as_str()))
+            .ok_or("Choose a schema-approved graph parent")?;
+        if current_parent == edge.source {
+            return Ok(before);
+        }
+        let destination = if parent.id.is_empty() {
+            let Some(CemAstNode::Document { root_children, .. }) = document.root() else {
+                unreachable!()
+            };
+            *root_children.iter().find(|id| matches!(&document.nodes[**id as usize], CemAstNode::Element { expanded_name, .. } if expanded_name.local_name == "run")).unwrap()
+        } else {
+            *document.id_table.get(&parent.id).unwrap()
+        };
+        let mut descendants = vec![owner];
+        while let Some(id) = descendants.pop() {
+            if id == destination {
+                return Err("Graph parent change would create a cycle".into());
+            }
+            if let CemAstNode::Element { children, .. } = &document.nodes[id as usize] {
+                descendants.extend(children);
+            }
+        }
+        let old = parent_of(&document, owner).unwrap();
+        if let CemAstNode::Element { children, .. } = &mut document.nodes[old as usize] {
+            children.retain(|id| *id != owner);
+        }
+        if let CemAstNode::Element { children, .. } = &mut document.nodes[destination as usize] {
+            children.push(owner);
+        }
+        if expected.input_ref.is_none() {
+            expected_edges
+                .retain(|old| !(old.to == edge.node && old.role == TransformGraphEdgeRole::Parent));
+            if let Some(source) = &edge.source {
+                expected_edges.push(TransformGraphEdge {
+                    from: source.clone(),
+                    to: edge.node.clone(),
+                    role: TransformGraphEdgeRole::Parent,
+                });
+            }
+        }
+    } else {
+        let (namespace, attribute) = if edge.role == TransformGraphEdgeRole::Input {
+            ("", "input")
+        } else {
+            ("with", edge.name.as_deref().unwrap())
+        };
+        let attributes = match &document.nodes[owner as usize] {
+            CemAstNode::Element { attributes, .. } => attributes.clone(),
+            _ => unreachable!(),
+        };
+        let existing = attributes.iter().copied().find(|id| matches!(&document.nodes[*id as usize], CemAstNode::Attribute { expanded_name, .. } if expanded_name.namespace_uri == namespace && expanded_name.local_name == attribute));
+        if existing.is_some_and(|id| matches!(&document.nodes[id as usize], CemAstNode::Attribute { value_nodes, .. } if !value_nodes.is_empty())) { return Err("Expression-valued edges must be edited in source".into()); }
+        let previous = if edge.role == TransformGraphEdgeRole::Input {
+            expected.input_ref.clone()
+        } else {
+            expected.with.get(attribute).cloned()
+        };
+        if previous == edge.source {
+            return Ok(before);
+        }
+        if let Some(value) = &edge.source {
+            if let Some(id) = existing {
+                if let CemAstNode::Attribute {
+                    value: current,
+                    value_nodes,
+                    ..
+                } = &mut document.nodes[id as usize]
+                {
+                    *current = Some(value.clone());
+                    value_nodes.clear();
+                }
+            } else {
+                let node_id = document.nodes.len() as u32;
+                document.nodes.push(CemAstNode::Attribute {
+                    node_id,
+                    expanded_name: ExpandedName {
+                        namespace_uri: namespace.into(),
+                        local_name: attribute.into(),
+                        schema_id: None,
+                    },
+                    value: Some(value.clone()),
+                    value_nodes: vec![],
+                    source: SourceMapStack::default(),
+                });
+                if let CemAstNode::Element { attributes, .. } = &mut document.nodes[owner as usize]
+                {
+                    attributes.push(node_id);
+                }
+            }
+        } else if let CemAstNode::Element { attributes, .. } = &mut document.nodes[owner as usize] {
+            attributes.retain(|id| Some(*id) != existing);
+        }
+        if edge.role == TransformGraphEdgeRole::Input {
+            expected.input_ref = edge.source.clone();
+            expected_edges.retain(|old| {
+                !(old.to == edge.node
+                    && matches!(
+                        old.role,
+                        TransformGraphEdgeRole::Parent | TransformGraphEdgeRole::Input
+                    ))
+            });
+            if let Some(source) = edge.source.as_ref().or(current_parent.as_ref()) {
+                expected_edges.push(TransformGraphEdge {
+                    from: source.clone(),
+                    to: edge.node.clone(),
+                    role: if edge.source.is_some() {
+                        TransformGraphEdgeRole::Input
+                    } else {
+                        TransformGraphEdgeRole::Parent
+                    },
+                });
+            }
+        } else {
+            if let Some(previous) = previous {
+                if let Some(index) = expected_edges.iter().position(|old| {
+                    old.to == edge.node
+                        && old.from == previous
+                        && old.role == TransformGraphEdgeRole::With
+                }) {
+                    expected_edges.remove(index);
+                }
+            }
+            if let Some(source) = &edge.source {
+                expected.with.insert(attribute.into(), source.clone());
+                expected_edges.push(TransformGraphEdge {
+                    from: source.clone(),
+                    to: edge.node.clone(),
+                    role: TransformGraphEdgeRole::With,
+                });
+            } else {
+                expected.with.remove(attribute);
+            }
+        }
+    }
+    let (_, candidate) = describe(&crate::formatter::format(&document))?;
+    if candidate.graph.nodes.len() != expected_nodes.len()
+        || expected_nodes
+            .iter()
+            .any(|node| !candidate.graph.nodes.contains(node))
+        || edge_keys(&candidate.graph.edges) != edge_keys(&expected_edges)
+        || (edge.role == TransformGraphEdgeRole::Parent
+            && candidate
+                .nodes
+                .iter()
+                .find(|node| node.id == edge.node)
+                .and_then(|node| node.edges.iter().find(|field| field.id == "parent"))
+                .map(|field| &field.source)
+                != Some(&edge.source))
+    {
+        return Err("Graph edge serialization changed an existing identity, value or unrelated edge; use authored IDs or edit in source".into());
+    }
+    Ok(candidate)
 }
 
 fn describe_field(
@@ -382,7 +736,7 @@ fn describe(source: &str) -> Result<(CemDocument, GraphAuthoringResponse), Strin
             if attribute.is_some_and(|(_, values)| !values.is_empty()) || attributes.iter().any(|id| matches!(&document.nodes[*id as usize], CemAstNode::Attribute { expanded_name, .. } if !alias.is_empty() && expanded_name.local_name == alias)) { return None; }
             Some(describe_field(name, &kind, attribute.and_then(|(value, _)| value.clone()), schema.required_attributes.contains(name)))
         }).collect()).unwrap_or_default();
-        GraphAuthoringNode { id: node.id.clone(), kind, fields }
+        GraphAuthoringNode { id: node.id.clone(), kind, fields, named: attributes.is_some(), edges: document.id_table.get(&node.id).map(|owner| describe_edges(&document, *owner, node)).unwrap_or_default() }
     }).collect();
     let node_types = TRANSFORM_CONFIG_SCHEMA_ELEMENTS
         .iter()

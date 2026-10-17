@@ -1,5 +1,6 @@
 use cem_ml::transform_config_authoring::{
-    author_transform_config, GraphAuthoringCreate, GraphAuthoringEdit, GraphAuthoringRequest,
+    author_transform_config, GraphAuthoringCreate, GraphAuthoringEdge, GraphAuthoringEdit,
+    GraphAuthoringRequest,
 };
 
 const GRAPH: &str = "// café retained\n{run | {import @id=data @src=data.xml @content-type=application/xml | {transform @id=view @src=view.xpath @template-content-type=application/vnd.cem.xpath | {export @id=result @out=result.json}}}}\n";
@@ -9,6 +10,7 @@ fn request(source: &str, edit: Option<GraphAuthoringEdit>) -> GraphAuthoringRequ
         source: source.into(),
         edit,
         create: None,
+        edge: None,
     }
 }
 fn edit(node: &str, attribute: &str, value: Option<&str>) -> GraphAuthoringEdit {
@@ -125,6 +127,7 @@ fn create(
     GraphAuthoringRequest {
         source: source.into(),
         edit: None,
+        edge: None,
         create: Some(GraphAuthoringCreate {
             parent: parent.map(str::to_owned),
             kind: kind.into(),
@@ -388,4 +391,217 @@ fn graph_creation_retains_existing_parameter_bindings_and_resource_references() 
         transform.with.get("palette").map(String::as_str),
         Some("palette")
     );
+}
+
+fn edge(
+    source: &str,
+    node: &str,
+    role: cem_ml::transform_config::TransformGraphEdgeRole,
+    from: Option<&str>,
+    name: Option<&str>,
+) -> GraphAuthoringRequest {
+    GraphAuthoringRequest {
+        source: source.into(),
+        edit: None,
+        create: None,
+        edge: Some(GraphAuthoringEdge {
+            node: node.into(),
+            role,
+            source: from.map(str::to_owned),
+            name: name.map(str::to_owned),
+        }),
+    }
+}
+const EDGES: &str = r#"// retained café
+{run |
+ {import @id=other @src="../assets/other.xml"}
+ {import @id=data @src="../assets/data.xml" |
+  {transform @id=view @src="../templates/view.xpath" @template-content-type=application/vnd.cem.xpath |
+   {param @name=title @value="café ${literal}"}
+   {export @id=result @out="../output/result.xml"}
+  }
+ }
+}"#;
+
+#[test]
+fn graph_edges_describe_native_roles_and_preserve_exact_noops() {
+    use cem_ml::transform_config::TransformGraphEdgeRole::*;
+    let described = author_transform_config(request(EDGES, None)).unwrap();
+    let view = described
+        .nodes
+        .iter()
+        .find(|node| node.id == "view")
+        .unwrap();
+    assert!(view.named);
+    assert_eq!(
+        view.edges.iter().map(|field| field.id).collect::<Vec<_>>(),
+        ["parent", "input", "with"]
+    );
+    assert_eq!(view.edges[0].source.as_deref(), Some("data"));
+    assert!(!view.edges[0].can_clear);
+    assert!(view.edges[2].requires_name);
+    for req in [
+        edge(EDGES, "view", Parent, Some("data"), None),
+        edge(EDGES, "view", Input, None, None),
+        edge(EDGES, "view", With, None, Some("absent")),
+    ] {
+        assert_eq!(author_transform_config(req).unwrap().source, EDGES);
+    }
+}
+
+#[test]
+fn graph_edges_override_reset_and_move_subtrees_without_changing_ids_or_resources() {
+    use cem_ml::transform_config::TransformGraphEdgeRole::*;
+    let before = author_transform_config(request(EDGES, None)).unwrap();
+    let input = author_transform_config(edge(EDGES, "view", Input, Some("other"), None)).unwrap();
+    assert_eq!(
+        input
+            .graph
+            .nodes
+            .iter()
+            .find(|node| node.id == "view")
+            .unwrap()
+            .input_ref
+            .as_deref(),
+        Some("other")
+    );
+    assert!(!input
+        .graph
+        .edges
+        .iter()
+        .any(|edge| edge.to == "view" && edge.role == Parent));
+    let reset = author_transform_config(edge(&input.source, "view", Input, None, None)).unwrap();
+    assert_eq!(reset.graph.nodes, before.graph.nodes);
+    assert_eq!(reset.graph.edges, before.graph.edges);
+    let moved = author_transform_config(edge(EDGES, "view", Parent, Some("other"), None)).unwrap();
+    for node in &before.graph.nodes {
+        assert!(moved.graph.nodes.contains(node));
+    }
+    assert!(moved
+        .graph
+        .edges
+        .iter()
+        .any(|edge| edge.from == "other" && edge.to == "view" && edge.role == Parent));
+    assert!(moved
+        .graph
+        .edges
+        .iter()
+        .any(|edge| edge.from == "view" && edge.to == "result" && edge.role == Parent));
+    let overridden_move =
+        author_transform_config(edge(&input.source, "view", Parent, Some("other"), None)).unwrap();
+    assert_eq!(overridden_move.graph.edges, input.graph.edges);
+    let reordered = author_transform_config(edge(EDGES, "data", Parent, None, None)).unwrap();
+    assert_eq!(reordered.source, EDGES);
+}
+
+#[test]
+fn graph_edges_add_replace_remove_named_inputs_and_preserve_duplicate_source_edges() {
+    use cem_ml::transform_config::TransformGraphEdgeRole::*;
+    let first =
+        author_transform_config(edge(EDGES, "view", With, Some("other"), Some("palette"))).unwrap();
+    let second = author_transform_config(edge(
+        &first.source,
+        "view",
+        With,
+        Some("other"),
+        Some("stats"),
+    ))
+    .unwrap();
+    assert_eq!(
+        second
+            .graph
+            .edges
+            .iter()
+            .filter(|edge| edge.from == "other" && edge.to == "view" && edge.role == With)
+            .count(),
+        2
+    );
+    let removed =
+        author_transform_config(edge(&second.source, "view", With, None, Some("palette"))).unwrap();
+    assert_eq!(
+        removed
+            .graph
+            .edges
+            .iter()
+            .filter(|edge| edge.from == "other" && edge.to == "view" && edge.role == With)
+            .count(),
+        1
+    );
+    let changed = author_transform_config(edge(
+        &removed.source,
+        "view",
+        With,
+        Some("data"),
+        Some("stats"),
+    ))
+    .unwrap();
+    let view = changed
+        .graph
+        .nodes
+        .iter()
+        .find(|node| node.id == "view")
+        .unwrap();
+    assert_eq!(view.with.get("stats").map(String::as_str), Some("data"));
+    assert_eq!(
+        view.params.get("title").map(String::as_str),
+        Some("café ${literal}")
+    );
+    assert_eq!(
+        author_transform_config(edge(
+            &changed.source,
+            "view",
+            With,
+            Some("data"),
+            Some("stats")
+        ))
+        .unwrap()
+        .source,
+        changed.source
+    );
+}
+
+#[test]
+fn graph_edges_reject_cycles_unknown_nodes_invalid_roles_names_and_ambiguous_edits() {
+    use cem_ml::transform_config::TransformGraphEdgeRole::*;
+    for req in [
+        edge(EDGES, "view", Parent, Some("view"), None),
+        edge(EDGES, "view", Parent, Some("result"), None),
+        edge(EDGES, "view", Parent, None, None),
+        edge(EDGES, "other", Parent, Some("data"), None),
+        edge(EDGES, "view", Input, Some("view"), None),
+        edge(EDGES, "view", Input, Some("result"), None),
+        edge(EDGES, "view", Input, Some("unknown"), None),
+        edge(EDGES, "result", Input, Some("data"), None),
+        edge(EDGES, "view", With, Some("view"), Some("x")),
+        edge(EDGES, "view", With, Some("result"), Some("x")),
+        edge(EDGES, "view", With, Some("other"), Some("bad:name")),
+        edge(EDGES, "view", With, Some("other"), None),
+        edge(EDGES, "view", Input, Some("other"), Some("unexpected")),
+        edge(EDGES, "missing", Input, Some("other"), None),
+    ] {
+        assert!(author_transform_config(req).is_err());
+    }
+    assert!(
+        author_transform_config(edge(EDGES, "view", Input, Some("view"), None))
+            .unwrap_err()
+            .contains("cycle")
+    );
+    assert!(
+        author_transform_config(edge(EDGES, "view", Parent, Some("view"), None))
+            .unwrap_err()
+            .contains("cycle")
+    );
+    let mut ambiguous = edge(EDGES, "view", Input, Some("other"), None);
+    ambiguous.edit = Some(edit("result", "out", Some("x")));
+    assert!(author_transform_config(ambiguous).is_err());
+    let required = "{run | {import @id=a @src=a.cem | {join @id=j @mode=zip @with:b=b | {export @id=out @out=x}}} {import @id=b @src=b.cem}}";
+    assert!(author_transform_config(edge(required, "j", With, None, Some("b"))).is_err());
+    let opaque = "{run | {import @id=a @src=a.svg @opaque=true @content-type=image/svg+xml | {export @id=out @out=a.svg}} {import @id=b @src=b.svg @opaque=true @content-type=image/svg+xml | {export @id=other @out=b.svg}}}";
+    assert!(
+        author_transform_config(edge(opaque, "out", Parent, Some("b"), None))
+            .unwrap_err()
+            .contains("opaque_direct_export_required")
+    );
+    let mixed = "{run | {import @id=a @src=a.xml | {convert @id=c @content-type=application/xml}} {import @id=b @src=b.xml | {export @out=x}}}";
+    assert!(author_transform_config(edge(mixed, "c", Parent, Some("b"), None)).is_err());
 }

@@ -266,10 +266,10 @@
             "requirement": "Author nodes and edges, expose validation and execution state, inspect edge data, timings, provenance, and navigate to source.",
             "disposition": "studio-export",
             "compositionGate": "open",
-            "generalComponents": ["cem-fieldset", "cem-select", "cem-text-field", "cem-action", "cem-icon-button", "cem-badge", "cem-alert", "cem-progress", "cem-tree", "cem-table"],
+            "generalComponents": ["cem-fieldset", "cem-select", "cem-text-field", "cem-list", "cem-action", "cem-icon-button", "cem-badge", "cem-alert", "cem-progress", "cem-tree", "cem-table"],
             "studioComponents": ["cem-studio-graph-view"],
             "materialReferences": ["button", "badge", "progress-bar", "tree", "table"],
-            "contractBounds": ["Native schema-backed scalar editing and named-node creation compose shared form controls declaratively; edge editing and parameter-map forms remain follow-ups.", "A transformation graph and execution overlay have no Material catalog counterpart; the composite must not recreate general actions, status, hierarchy, progress, or table behavior."],
+            "contractBounds": ["Native schema-backed scalar edits, named-node creation and parent/input/secondary edge editing compose shared form controls declaratively; parameter-map forms remain a follow-up.", "A transformation graph and execution overlay have no Material catalog counterpart; the composite must not recreate general actions, status, hierarchy, progress, or table behavior."],
             "applicationOwns": ["authored graph", "validation", "execution overlay", "selected stage and source navigation"],
             "evidence": ["docs/cem-studio.md#bounded-graph-configuration-authoring", "packages/cem_ml/tests/transform_config_authoring.rs", "packages/cem-studio/src/workbench.browser.spec.js", "docs/cem-studio.md#primary-screens", "docs/cem-studio.md#preview-rules"]
         },

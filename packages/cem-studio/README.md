@@ -274,11 +274,14 @@ using revision checks and undo/redo. Grouped command options and native graph
 scalar editing are available. Graph creation now adds named nodes under
 schema-approved parents through declarative shared forms, with native validation,
 draft undo/redo and explicit Save/Run. Existing IDs and resource references stay
-stable; edge editing and parameter-map forms remain follow-ups alongside broader
-dependency formats and simultaneous/resizable panes. See
+stable. Graph edge forms now support subtree parent moves, input overrides/reset
+and named secondary bindings, with cycle rejection and preservation checks.
+Parameter-map forms remain a follow-up alongside broader dependency formats and
+simultaneous/resizable panes. See
 [graph authoring](../../docs/cem-studio.md#bounded-graph-configuration-authoring).
-Broader browser/device/AT acceptance remains independently open, and presentation
-preparation stays deferred.
+Broader browser/device/AT acceptance remains independently open. Studio functionality
+and sample availability for the Amsterdam presentation now lead the implementation
+queue; the active todo records the required login journey and remaining work.
 
 Project tree edits preserve resource IDs and immutable `referencePath` addresses.
 New resources receive an ID-based address; native import captures legacy addresses

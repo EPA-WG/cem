@@ -313,7 +313,7 @@ export async function createCemStudioSessionWorkbench({ repository, session, hom
             finally { homePending = false; if (homeState) homeState = { ...homeState, status: 'ready' }; publish(); }
         },
         refreshNavigation, dispose() { unsubscribeRepository?.(); disposed = true; ++searchVersion; ++navigationVersion; unsubscribe(); subscribers.clear(); } };
-    for (const method of ['updateDraft', 'updateGraphAttribute', 'createGraphNode', 'undoGraphDraft', 'redoGraphDraft', 'reload', 'saveSource', 'saveAndValidate', 'validatePersisted', 'parsePersisted',
+    for (const method of ['updateDraft', 'updateGraphAttribute', 'createGraphNode', 'updateGraphEdge', 'undoGraphDraft', 'redoGraphDraft', 'reload', 'saveSource', 'saveAndValidate', 'validatePersisted', 'parsePersisted',
         'inspectPersisted', 'runPersistedOperation', 'updateCommandDraft', 'updateCommandField', 'updateCommandFields', 'updateCommandGroup', 'resetCommandDraft', 'copyCommand',
         'copyProjection', 'downloadProjection', 'downloadSource', 'setCommandTarget', 'applyCommand', 'applyAndRun',
         'confirmCommandReplacement', 'useNewCommandTarget', 'cancelCommandReplacement', 'navigateDiagnostic', 'navigateProvenance']) {
@@ -602,6 +602,23 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         } catch (error) {
             return publish({ ...state, graphConfiguration: { ...state.graphConfiguration, error: normalizedError(error) } });
         }
+    }
+
+    async function updateGraphEdge(fields) {
+        if (!isGraphConfiguration()) throw new Error('This resource is not an editable graph configuration');
+        try {
+            if (workbenchBusy(state) || state.command?.status === 'checking' || fields.version?.[0] !== `${commandFormId}:source:${editVersion}`) throw new Error('The graph changed. Review the current configuration and retry.');
+            const field = state.graphConfiguration.nodes.find(node => node.id === fields.node?.[0])?.edges.find(field => field.id === fields.role?.[0]);
+            if (!field) throw new Error('Choose a native graph edge target and role');
+            const allowed = ['node', 'role', 'source', 'version', ...(field.requiresName ? ['name'] : [])];
+            for (const [name, values] of Object.entries(fields)) {
+                if (!allowed.includes(name) || !Array.isArray(values) || values.length !== 1 || typeof values[0] !== 'string') throw new Error('Unexpected or repeated graph edge fields');
+            }
+            if (typeof fields.source?.[0] !== 'string' || (field.requiresName && typeof fields.name?.[0] !== 'string')) throw new Error('Choose an edge source and any required binding name');
+            const candidate = validator.authorGraph({ source: state.draft, edge: { node: fields.node[0], role: fields.role[0], source: fields.source[0] || null, ...(field.requiresName ? { name: fields.name[0] } : {}) } });
+            if (candidate.source === state.draft) return publish({ ...state, graphConfiguration: { ...state.graphConfiguration, error: undefined } });
+            return updateDraft(candidate.source);
+        } catch (error) { return publish({ ...state, graphConfiguration: { ...state.graphConfiguration, error: normalizedError(error) } }); }
     }
 
     function replayGraphDraft(undo) {
@@ -1559,6 +1576,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         updateDraft,
         updateGraphAttribute,
         createGraphNode,
+        updateGraphEdge,
         undoGraphDraft,
         redoGraphDraft,
         reload,
@@ -1680,6 +1698,7 @@ export async function mountCemStudioFeatureTourWorkbench({
             edit: ({ value }) => workbench.updateDraft(value ?? ''),
             'edit-graph': ({ fields }) => perform(() => workbench.updateGraphAttribute(fields)),
             'create-graph-node': ({ fields }) => perform(() => workbench.createGraphNode(fields)),
+            'edit-graph-edge': ({ fields }) => perform(() => workbench.updateGraphEdge(fields)),
             'undo-graph': () => workbench.undoGraphDraft(),
             'redo-graph': () => workbench.redoGraphDraft(),
             save: () => perform(() => workbench.saveAndValidate()),

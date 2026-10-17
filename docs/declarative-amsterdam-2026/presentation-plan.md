@@ -16,7 +16,7 @@ explains how to make that session persuasive.
 | [CEM manifesto](cem-manifesto.md) | Principles behind the platform's direction |
 | [Platform evidence](platform-evidence.md) | Capability facts, implementation boundaries, sources, and proof gaps |
 | This plan | Internal ideas, narrative design, demonstration options, and preparation dependencies |
-| [Deferred presentation work in docs/todo.md](../todo.md#deferred-work-declarative-amsterdam-2026-cem-presentation) | Preserved execution checklist; component implementation currently has priority |
+| [Presentation work in docs/todo.md](../todo.md#amsterdam-presentation-samples-active-studio-priority) | Active Studio sample-functionality checklist; deck and rehearsal actions remain preserved separately |
 
 Use the pitch for audience copy and the presentation minutes for timing. Design
 options here must fit the published session, **CEM-ML declarative document

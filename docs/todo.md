@@ -139,10 +139,14 @@ migrations and verification evidence are preserved in the
 historical; only the unfinished actions below govern execution. Adopted contracts
 remain in their design documents. Earlier history is linked from the snapshot.
 
-Current priority (2026-10-12): **CEM Studio — user-owned project workspace**.
-The shared tree-to-host command bridge is complete. Next prove shared library
-navigation workflows, then deliver create/import/open/edit/save/reopen/export
-with guarded navigation.
+Current priority (2026-10-17): **Studio functionality and Amsterdam presentation
+samples**. Finish the current graph-edge editor and its validation, then make
+the [required tutorial checkpoints](declarative-amsterdam-2026/presentation.md#required-tutorial-checkpoints)
+available as reproducible Studio samples. Implement functionality needed by
+the presentation before unrelated Studio features, device acceptance or helper
+work. The [active sample checklist](#amsterdam-presentation-samples-active-studio-priority)
+tracks that work. Device/browser/AT acceptance remains open, with its existing
+criteria; it does not lead this implementation queue.
 The [milestone contract](cem-studio.md#next-delivery-milestone-user-owned-project-workspace)
 defines scope and acceptance; its ordered implementation checklist is below.
 Studio/Site declarative UI migration is complete. All 54 CEM components are
@@ -151,7 +155,8 @@ Use application needs to polish the shared library against Angular Material
 functionality: implement useful missing controls in `cem-components` first,
 with reusable JavaScript behavior in `cem-elements` and CEM theme styling in
 the declarative component. Application JavaScript owns non-UI services only.
-Presentation preparation and resume context remain preserved below.
+Presentation plans and resume context remain preserved below. The required
+sample functionality is active; deck, website and rehearsal work stays separate.
 
 Standing requirement: CEM theme principles govern every design decision and
 completion review. Check semantic intent, bounded variation, accessibility,
@@ -897,8 +902,10 @@ through Phase 9 release governance.
       diagnostics; Auto is a syntax hint with an explicit format override.
 
 Presentation preparation started 2026-10-10 and was deferred at the user's
-request on 2026-10-11. Keep its remaining actions for a later explicit resumption;
-`continue` currently selects component implementation above. Read the
+request on 2026-10-11. On 2026-10-17 the user prioritized Studio functionality
+and availability of the presentation's sample set. The active sample checklist
+below takes precedence over device acceptance and helper work; the remaining
+deck, website, release and rehearsal actions here remain preserved. Read the
 [presentation handoff](presentation/declarative-amsterdam-2026-handoff.md) after
 clearing chat context; it records the starting material, implementation
 checkpoint and return path. The existing
@@ -1711,12 +1718,91 @@ Feature Tour, revision, native-command and offline evidence remains mandatory.
       secondary bindings remain source-only. Mixed anonymous-node identities
       that cannot survive formatting are rejected. Physical-device/spoken AT
       acceptance remains open.
-  - [ ] Add native fixtures and edge creation/editing with candidate validation,
+  - [x] Add native fixtures and edge creation/editing with candidate validation,
     cycle diagnostics and declarative Studio controls.
+    - [x] Add native parent-move, input override/reset and named-secondary-edge
+      fixtures, including cycles, invalid roles/names, opaque direct-export
+      requirements, exact no-ops and preservation
+      of IDs, parameters, unrelated edges and resource paths before implementation.
+    - [x] Extend Node/browser WASM fixtures and Studio browser form fixtures for
+      edge operations, reset, stale/foreign/pending guards and reversible drafts.
+    - [x] Extend deployed edge acceptance for Save/reload, recovery and offline
+      execution with stable resource records, theme/forced-color/inheritance and
+      accessibility/reflow checks; require the resulting release evidence.
+    - Implementation: the native AST authoring API accepts one `edge` operation
+      for schema-approved subtree parent moves, explicit input override/reset,
+      or one named `with:*` binding. Native graph validation rejects cycles and
+      invalid conditional joins. Candidate comparison preserves every node value
+      and the complete edge multiset, including separate labels sharing a source;
+      exact no-ops retain original bytes. Studio composes selectors, binding lists
+      and one active edge form in CEM-ML using existing shared controls. Services
+      only guard and stage native candidates through the existing draft history.
+      No new UI JavaScript capability, application CSS or token default was needed.
+    - Evidence: all 11 native authoring tests, both Node/browser WASM export
+      checks and 8 focused browser graph checks pass. Deployed `graphEdgeAuthoring`
+      proves reset, staged parent moves, Undo/Redo, exact Save/reload, unsaved edge
+      and creation recovery, and explicit offline Run producing three export
+      artifacts. Input/command resource records remain identical. All three graph
+      forms pass five themes, forced colors and inherited 23px inset checks;
+      automated AX relationships and 320/390/1280px reflow checks pass.
+      The full Studio `check` passes all 51 tasks, including 110 browser tests,
+      32 native/deployed Feature Tour examples, online/offline workers, release
+      evidence and a clean seven-package consumer with one runtime copy. ESLint,
+      Rust formatting and whitespace checks pass. Deterministic output remains
+      171 assets / 261 files, SHA-256
+      `89befb466e38f88ffddeaaa5a8b1f8ab597dca223a1627a36f766b9dde8be005`.
+      Opaque imports in acceptance each retain a direct export, preserving the
+      native contract; moving away their only export is a native regression case.
+      Generated screenshots and Vitest attachments remain excluded from delivery.
+    - Bounds: sources and targets need authored IDs, with a named lexical parent
+      or run root; mixed anonymous-node graphs that change identity are rejected.
+      Binding names use 1–128 ASCII name characters starting with a letter or
+      underscore. Existing 100-node / 1 MiB source and 20-snapshot / 8 MiB history
+      limits remain. IDs, aliases, expressions and parameter-map values remain
+      source-only. Physical-device/spoken AT acceptance remains independently open.
   - [ ] Add native fixtures and parameter-map authoring, then verify Save,
     history, recovery and explicit offline Run for the expanded graph editor.
 
-Continue with native edge editing, then parameter-map
-authoring using stable project resource identities. No renderer instrumentation
-or dependency rewriting is a prerequisite.
-Physical-device/browser/AT acceptance remains independently open above.
+### Amsterdam presentation samples: active Studio priority
+
+- [x] Locate the existing presentation feature list before choosing sample scope.
+  Use [required tutorial checkpoints](declarative-amsterdam-2026/presentation.md#required-tutorial-checkpoints)
+  and the [required login demonstration](declarative-amsterdam-2026/presentation-plan.md#required-login-demonstration-and-companion-examples):
+  read/edit, validate/fail/repair, typed inspection and formatting, HTML alternate
+  input and conversion, supported query/template processing, and a light-DOM
+  `cem-element` view. The supplier pipeline is a companion after the core login
+  journey. These existing lists remove the need to invent a replacement scope.
+- [x] Audit existing login/HTML fixtures and presentation assets against every
+  required checkpoint; identify the precise missing Studio functionality first.
+  The [Studio sample audit](presentation/declarative-amsterdam-2026-handoff.md#studio-sample-audit-2026-10-17)
+  records existing sources, current native validation, the missing sample entry,
+  and the separate failure/repair, HTML, query/template and live-view proof gaps.
+- [ ] Deliver the first availability increment: canonical login CEM-ML and HTML
+  resources with native parse/inspect/validate/conversion pages and independently
+  editable sample copies. Add native command and browser copy/save/run fixtures
+  before implementation; retain the three existing login reference warnings.
+  - [x] Freeze four command-page definitions in `fixtures/amsterdam-login/sample.json`
+    and add native CLI fixtures for their output, known warnings, a heading edit,
+    both form controls and plain saved text. Both native tests pass.
+  - [ ] Add declarative sample selection and independent project copying, then
+    verify copy isolation, guarded opening, Save/reload and selected browser runs.
+- [ ] Add native fixtures for the selected login edit, schema violation/repair,
+  inspection, HTML import/conversion, equivalent queries and template output
+  before adding those examples to a generated Studio sample project.
+- [ ] Make the presentation sample set available through Studio's existing sample
+  catalog, with read-only originals and independently editable project copies.
+  Reuse canonical sources, native command/configuration semantics and stable
+  project resource identities; implement any blocking Studio feature first.
+- [ ] Add browser fixtures for choosing/copying the presentation sample, editing,
+  validating and running the selected checkpoints, then verify generated sample
+  packaging and offline availability with the existing delivery gates.
+- [ ] Record exact supported sample routes, expected results and remaining
+  presentation blockers in the presentation handoff and Studio documentation.
+
+Continue with the Amsterdam core login samples after edge-editor validation.
+Parameter-map authoring follows if needed by a selected presentation checkpoint;
+otherwise retain it for the later graph-editor queue. Shared components remain
+declarative in `cem-components`, reusable JavaScript behavior belongs in
+`cem-elements`, and Studio UI remains CEM-ML. Alert the user before introducing a
+new shared JavaScript UI capability. Physical-device/browser/AT acceptance and
+unrelated helper work remain independently open, behind presentation functionality.

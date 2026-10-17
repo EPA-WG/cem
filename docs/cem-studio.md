@@ -336,8 +336,10 @@ new command-specific forms, simultaneous/resizable panes, virtualized large
 trees, remote providers and AI assistance remain later slices of the broader
 contract. Project creation from a starter and existing command-created pages
 are included here; a general project structure editor is not required to close
-this milestone. Presentation work remains deferred with its resume context in
-the active todo file.
+this milestone. The 2026-10-17 implementation priority is Studio functionality
+needed by the Amsterdam presentation's login sample journey, ahead of unrelated
+device acceptance and helper work. Its sample checklist and preserved presentation
+context live in the active todo file.
 
 ## Goals
 
@@ -2529,8 +2531,10 @@ child rules. Choose the run root to add an import, or a named operation to appen
 a supported child. **Create graph node** requires a unique authored ID and exposes
 canonical scalar attributes through shared controls. Optional empty form fields
 are omitted; conditional requirements still come from whole-graph validation.
-All six operation kinds are supported. Bindings such as `with:*` and parameter
-maps remain source-only, including join modes that require secondary inputs.
+All six operation kinds are supported. Parameter values remain source-only.
+For a join needing secondary inputs, create a `collect` join, add named edges,
+then set its other required attributes and mode; every intermediate draft must
+remain valid.
 Creation appends one child; it does not
 move existing nodes or change their IDs. The root can initially be an empty `{run}`.
 `authorTransformConfigV1` is the equivalent low-level WASM JSON protocol, exposed
@@ -2540,8 +2544,8 @@ the graph source is parsed only by the native CEM AST and graph validator.
 **Set graph attribute** replaces or adds a literal value; **Reset** removes an
 optional attribute. Empty text remains an explicit value. Required attributes cannot
 be removed. The entire candidate graph is validated before it becomes a source
-draft, including input references and cycles. Existing ID changes, edge editing,
-parameter maps, alias spellings and expressions remain in the source editor. Anonymous nodes
+draft, including input references and cycles. Existing ID changes, parameter
+maps, alias spellings and expressions remain in the source editor. Anonymous nodes
 have no structured fields. Mixed graphs can fail the preservation check if formatting
 changes generated anonymous-node IDs; add authored IDs or use the source editor.
 The authoring boundary accepts at most 100 graph nodes
@@ -2555,8 +2559,8 @@ source bytes. Existing graph-node values and edges must survive creation and
 serialization. Native candidates that change generated anonymous-node identities
 are rejected without publishing a draft.
 
-The native host request can describe, edit an attribute, or create a node; an
-edit and creation cannot be combined in one request. For example:
+The native host request can describe, edit an attribute, create a node, or edit
+an edge. Mutation operations are mutually exclusive within one request. For example:
 
 ```js
 validator.authorGraph({
@@ -2569,10 +2573,45 @@ Use `parent: null` for the run root. The response includes `parents` with their
 allowed child kinds and `nodeTypes` with schema-backed field descriptions. This
 API returns validated source and metadata; persistence and execution remain explicit.
 
+**Graph edge target** selects a named node and **Graph edge role** selects one
+native schema-supported role. **Apply graph edge** stages one validated change:
+
+- `parent` moves the target and its whole lexical subtree under a schema-approved
+  named parent. Imports may use the run root. Descendant/self moves are rejected.
+  An existing explicit input override remains active after a lexical move.
+- `input` sets an explicit input source. **Use parent input** removes that override
+  and restores the lexical parent edge. This does not move the subtree.
+- `with` creates or replaces one named secondary input; **Remove named binding**
+  removes only that label. Existing bindings are listed in the form. Binding
+  names contain 1–128 ASCII letters, digits, underscores, dots or hyphens and
+  start with a letter or underscore. Conditional join requirements still apply;
+  removing a required secondary binding is rejected.
+
+Sources must be named graph nodes. A named lexical parent (or run root) is
+required for structured edge editing. Self-dependencies, cycles, unknown sources,
+unsupported roles and unexpected names are rejected. The native writer compares
+all node values and the complete edge multiset with the expected single change,
+including distinct secondary labels pointing to the same source. IDs, parameter
+values and resource paths remain unchanged. A parent move may reorder source
+nodes while preserving their identities; mixed anonymous-node graphs that fail
+that preservation check remain source-only. Exact no-ops retain original bytes.
+
+```js
+validator.authorGraph({
+    source,
+    edge: { node: 'view', role: 'with', name: 'palette', source: 'colors' },
+});
+```
+
+Use `source: null` to reset an input override, remove a named secondary edge,
+or select the run root for a parent operation. Node metadata includes `named`
+and `edges`, describing allowed roles, current sources and named bindings.
+
 Parent/kind and node/attribute selection, labels, creation, Set/Reset, form capture and pending disabling are
 XHTML/CEM-ML. Shared `cem-fieldset`, `cem-select`, `cem-text-field`, `cem-stack`,
-`cem-grid` and `cem-action` retain their native form, keyboard, focus and theme
-contracts. One creation form and one attribute form can be mounted at a time.
+`cem-grid`, `cem-list` and `cem-action` retain their native form, keyboard, focus and theme
+contracts. One creation form, one edge form and one attribute form can be mounted
+at a time. **Reset staged edge change** resets only the unsubmitted native form.
 Changing the parent hides an incompatible kind's form. **Reset new graph node**
 clears only unsubmitted creation fields. **Reset staged graph change**
 uses native form reset and does not change the source draft. Switching the node or
@@ -2588,7 +2627,7 @@ including edits made directly in the source textarea, bounded to 20 snapshots an
 text-editor undo or keyboard events. New edits clear redo. Save retains local history,
 so undo after Save stages a new dirty revision; reload/navigation resets history.
 
-Create, Set, Reset, Undo and Redo do not persist or run. **Save and validate** commits the
+Create, Apply edge, Set, Reset, Undo and Redo do not persist or run. **Save and validate** commits the
 exact accepted source bytes using project/resource revision guards; explicit **Run
 configured workbench** executes the persisted graph. Resource resolution, referenced
 bytes and execution capability checks retain the shared native command pipeline.
@@ -2597,11 +2636,13 @@ unchanged until Save. Command Apply remains a separate transaction for the autho
 CLI command and its page references. Source-only edits do not rewrite command or
 input resource records.
 
-The deployed lifecycle gate requires `graphConfigurationAuthoring` and
-`graphNodeCreation`: it creates a named export branch and stages an attribute
-through shared controls, checks no revision/Run before Save, exercises Undo/Redo,
-saves and reopens exact bytes, recovers a second unsaved node creation, and runs the
-committed graph offline while retaining input and command resource identities.
-Both forms are checked across all five themes and forced colors, with an
-inherited-token check on the creation form.
+The deployed lifecycle gate requires `graphConfigurationAuthoring`,
+`graphNodeCreation` and `graphEdgeAuthoring`: it creates a named export branch,
+stages an attribute and reparents the branch through shared controls. It checks
+no revision/Run before Save, exercises native reset and Undo/Redo, saves and
+reopens exact bytes, recovers unsaved creation and edge changes, and runs all three
+committed exports offline while retaining input and command resource records.
+All three forms are checked across all five themes, forced colors and an
+inherited 23px inset. Native/WASM and focused browser fixtures additionally cover
+input override/reset and named-secondary add/replace/remove operations.
 Physical-device and spoken AT acceptance remain separately open.

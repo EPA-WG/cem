@@ -76,7 +76,7 @@ export interface CemStudioResourceCommandPreviewOptions extends CemStudioResourc
 
 export interface CemStudioBrowserValidator {
     /** Native CEM AST description/editing; does not execute or persist a graph. */
-    authorGraph(request: { source: string; edit?: { node: string; attribute: string; value: string | null }; create?: { parent?: string | null; kind: string; id: string; attributes?: Record<string, string> } }): CemStudioGraphConfiguration;
+    authorGraph(request: { source: string; edit?: { node: string; attribute: string; value: string | null }; create?: { parent?: string | null; kind: string; id: string; attributes?: Record<string, string> }; edge?: { node: string; role: 'parent' | 'input' | 'with'; source?: string | null; name?: string } }): CemStudioGraphConfiguration;
     readonly capability: Readonly<Record<string, unknown>>;
     readonly commonVersion: string;
     parseResource(
@@ -119,7 +119,7 @@ export interface CemStudioBrowserValidator {
 
 export interface CemStudioGraphConfiguration {
     source: string;
-    nodes: { id: string; kind: string; fields: { id: string; value: string | null; required: boolean; choices: string[]; hasChoices: boolean }[] }[];
+    nodes: { id: string; kind: string; named: boolean; edges: { id: 'parent' | 'input' | 'with'; source: string | null; canClear: boolean; requiresName: boolean; bindings: { name: string; source: string }[] }[]; fields: { id: string; value: string | null; required: boolean; choices: string[]; hasChoices: boolean }[] }[];
     parents: { id: string; kind: string; children: string[] }[];
     nodeTypes: { id: string; fields: CemStudioGraphConfiguration['nodes'][number]['fields'] }[];
     graph: Readonly<Record<string, unknown>>;
