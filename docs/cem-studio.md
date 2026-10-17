@@ -21,6 +21,47 @@ document remains the broader Phase 6.5 Studio product and persistence proposal.
 
 ## Outcome
 
+Accepted product clarification, 2026-10-17: Studio serves **example projects**.
+Predefined projects and projects created or customized by users open in the same
+workspace. Use **projects**, **resources**, and **configurations** throughout the
+UI and product design. Amsterdam identifies a catalog collection, not a route,
+renderer, tutorial step or dedicated example screen.
+
+### Example-project catalog and workspace
+
+- A project owns source, schema, query, template, command/configuration and
+  documentation resources. Configurations reference these resources by stable
+  identity and use the native CLI command or run-config format.
+- Home lists predefined **Example projects**. **Create project from example**
+  verifies the archive and imports an independent editable project. **Projects**
+  opens that copy through the same admission/draft guards as imported and newly
+  created projects. Creating a copy never switches away from an active draft.
+- Startup restores the last admitted project/resource/configuration when it
+  exists. A fresh profile opens Home without installing or selecting an example.
+  **Create CEM-ML project** uses a neutral source-only starter.
+- The deterministic catalog at `samples/index.json` lists `projects` with an id,
+  name, version, archive URI, SHA-256 and optional `collections`. `starter` uses
+  the same archive contract. Collection membership is discovery metadata; it
+  never selects application behavior or enters a project's resolver identity.
+- Authored definitions in `examples/projects/*/example.json` declare `sources`
+  and `configurations`. Schema-package examples are generated from their
+  manifests. Both become portable native project bundles and are precached.
+- README resources hold walkthroughs, expected results and repair instructions.
+  The workspace provides the same source editor, configuration editor, command
+  execution, diagnostics, results, persistence and import/export for every
+  project. Multiple configurations may refer to the same source resource.
+- Copies retain resource IDs and `referencePath` values inside independent
+  project identities. Updates to predefined archives never overwrite existing
+  or trashed user projects. Existing saved Feature Tour and Amsterdam projects
+  remain ordinary compatible projects with their saved names and bytes.
+
+Native version-1 persistence retains `entries`, `entryId`, `runConfigResourceId`
+and the `apply-command-page` operation for compatibility. Executable entries
+are configurations; `subproject` entries are configuration groups. These wire
+names do not introduce a separate page model. Internal compatibility API names
+may remain; visible terminology and new authored example definitions use
+projects, resources and configurations.
+
 CEM Studio should be an installable, offline-capable web application and its own
 public `@epa-wg/cem-studio` npm package. It makes the useful `cem-ml` CLI
 workflows available through a browser workbench and directly depends on the
@@ -46,9 +87,9 @@ The recommended product shape is:
 - a project/subproject explorer that owns data sets, resources, run
   configurations, conversions, queries, transformations, and transformation
   graphs;
-- a bidirectional CLI Command view that serializes the active page, copies its
+- a bidirectional CLI Command view that serializes the active configuration, copies its
   command/inputs/config/output, and applies edited commands to an existing or
-  newly created project page;
+  newly created project configuration;
 - editable inline sources and URL-backed sources with explicit content and
   schema identities;
 - validation, data, result, report, source-map, and graph previews;
@@ -118,7 +159,7 @@ proves canonical edit/reset, semantic changes, invalid diagnostics, exact copy,
 non-mutation, CEM-only controls, and the same preview after offline reload.
 
 Transactional Apply now resolves stable current, compatible existing, or named
-new pages, confirmation-gates incompatible replacement, commits the authored
+new configurations, confirmation-gates incompatible replacement, commits the authored
 command and references atomically, reloads the exact bytes, and makes Apply &
 Run execute only that committed revision.
 
@@ -159,7 +200,7 @@ not an implemented capability or completion of the broader Phase 6.5 contract.
 | Existing implementation | Work required for this milestone |
 | --- | --- |
 | [Repository](../packages/cem-studio/src/repository.js): validated import/export, resource saves, transactional command Apply, project trash/restore, deterministic search and revision invalidation. | Compose these services into a usable project lifecycle; retain their transaction and conflict authority. |
-| [Application entry](../packages/cem-studio/src/main.js) and [workbench](../packages/cem-studio/src/workbench.js): startup selects the Feature Tour project; page descriptors and dependencies come from its seed catalog. | Select projects, pages and resources from durable repository records. Keep the Feature Tour as a starter and regression fixture. |
+| [Application entry](../packages/cem-studio/src/main.js) and [workbench](../packages/cem-studio/src/workbench.js): startup restores repository selection and loads a generic example-project catalog. | Select projects, configurations and resources from durable repository records. Keep predefined examples as project data and historical seeds as regression fixtures. |
 | [File-provider controller](../packages/cem-studio/src/shell.js): imports can change its project identity and it exposes `setProject`. | Coordinate accepted project changes with the workbench, export and provider targets; a successful import must become openable in the app. |
 | [Tree](../packages/cem-components/docs/tree-contract.md): leaf activation emits `{ value }`; selection belongs to the application. The [host view](../packages/cem-elements/src/lib/host-view.ts) now delivers that scalar through an explicit tree command binding. | Prove guarded navigation and dialog/pane workflows in the shared library before explorer UI work. |
 
@@ -170,19 +211,19 @@ not an implemented capability or completion of the broader Phase 6.5 contract.
    Creation allocates a fresh project identity and preserves project-local
    references. Import identity collisions produce a recoverable conflict;
    this slice does not silently replace or remap an existing project.
-2. Open any admitted project and navigate its existing subprojects, pages and
-   resources by stable identity. A project without executable pages still opens
+2. Open any admitted project and navigate its existing subprojects, configurations and
+   resources by stable identity. A project without executable configurations still opens
    with an explicit empty state and its available resources. Inline/project-file
    text within the existing limits can be edited; unsupported or binary content
    retains its identity and a bounded read-only/download presentation.
 3. Save and validate source, run parse/inspect, and execute supported persisted
-   conversion/query/transformation/trace/graph pages through the existing CLI
+   conversion/query/transformation/trace/graph configurations through the existing CLI
    worker. Resolve commands, inputs and dependencies from the selected project,
-   including pages created by command Apply. Ordinary projects require no seed
+   including configurations created by command Apply. Ordinary projects require no seed
    catalog or expected-result sidecar; Feature Tour comparisons remain optional
    sample metadata. Unavailable commands or unresolved resources explain why
    execution is unavailable without guessing another operation or fetching data.
-4. Navigate between projects/pages/resources without silently losing source or
+4. Navigate between projects/configurations/resources without silently losing source or
    command drafts. Source drafts offer Save/Discard/Cancel; command drafts use
    the existing Apply preview/confirmation or Discard/Cancel. Both must be
    resolved when both are dirty. Failed persistence or rejected Apply keeps the
@@ -191,7 +232,7 @@ not an implemented capability or completion of the broader Phase 6.5 contract.
    and stale asynchronous completions from switching the active project.
 5. Search the repository's deterministic index and open a result through the
    same navigation guard. Reload online or offline to restore the last committed
-   project/page/resource selection and exact saved bytes. Missing or trashed
+   project/configuration/resource selection and exact saved bytes. Missing or trashed
    selections recover to Home; startup never overwrites an existing user copy.
    Selection preferences are local application state, outside portable exports.
 6. Export the active project, move it to recoverable trash, and restore the same
@@ -280,7 +321,7 @@ active projection. Native command previews and background projections also
 retain newer command drafts within the workbench.
 
 `createCemStudioProjectWorkbench({ repository, validator, selection, signal })`
-loads project-owned resources, page identity and dependencies from IndexedDB.
+loads project-owned resources, configuration identity and dependencies from IndexedDB.
 Persisted CLI command resources are decoded by the shared CLI grammar, previewed
 without execution, and run from their exact bytes. The command input identity
 chooses the source independently of resource order. Legacy run configurations
@@ -294,8 +335,8 @@ identity and download of original local bytes. No resource is implicitly fetched
 Missing identities fail admission and retain the previous workbench.
 
 `createCemStudioSessionWorkbench({ repository, session })` supplies the mounted
-workbench with a project/page/resource selector and explicit project refresh.
-The selector routes every request through admission; nested page labels retain
+workbench with a project/configuration/resource selector and explicit project refresh.
+The selector routes every request through admission; nested configuration labels retain
 their parent context. The production startup now uses this adapter. Existing
 `cem-select`, `cem-dialog`, `cem-action`, editor and status declarations own all
 UI behavior. One navigation dialog resolves source, command and incompatible
@@ -313,7 +354,7 @@ coordination, and deployed acceptance. Keep the existing Feature Tour command,
 artifact, source-map, offline and exact-revision checks as regressions.
 
 The deployed acceptance fixture must exercise two independent user projects,
-nested entries and a command-created page; source and command draft decisions;
+nested entries and a command-created configuration; source and command draft decisions;
 failed saves and concurrent-tab conflicts; search after save/trash/restore;
 active-project import/export/provider targeting; cancelled pickers; and exact
 saved-byte recovery after offline reload and safe update. Build/package checks
@@ -334,7 +375,7 @@ now protects unfinished text separately (see Local draft recovery below). Bounde
 structural editing and undo/redo are implemented below. Graphical authoring,
 new command-specific forms, simultaneous/resizable panes, virtualized large
 trees, remote providers and AI assistance remain later slices of the broader
-contract. Project creation from a starter and existing command-created pages
+contract. Project creation from a starter and existing command-created configurations
 are included here; a general project structure editor is not required to close
 this milestone. The 2026-10-17 implementation priority is Studio functionality
 needed by the Amsterdam presentation's login sample journey, ahead of unrelated
@@ -971,7 +1012,7 @@ configuration.
 | Workspace            | Local collection and preference boundary.                                                                                                             | id, name, active project, storage schema version, created/updated revision.                                             |
 | Project              | Top-level portable unit and export/sync boundary.                                                                                                     | id, name, description, root URI, project schema version, child ordering, provider binding.                              |
 | Subproject           | Nested feature, scenario, or domain grouping.                                                                                                         | id, parent id, name, description, children, tags.                                                                       |
-| Workbench page       | Persisted executable view under a project/subproject. Its kind selects validation, inspection, conversion, query, transformation, graph, or trace UI. | id, parent id, name, kind, run-config id, referenced resources, presentation state, optional latest result-snapshot id. |
+| Configuration       | Named operation configuration referencing project resources and authored command options; all use the shared workspace. | id, parent id, name, kind, run-config id, referenced resources, presentation state, optional latest result-snapshot id. |
 | Data set             | Named ordered selection of one or more data resources with effective input defaults.                                                                  | resource ids, content/schema defaults, namespace/module map, variables, base URI.                                       |
 | Resource             | Source/config/query/template/schema content.                                                                                                          | id, logical URI, role, source mode, content type, schema, encoding, text/blob or URL reference, revision, hash.         |
 | Run configuration    | Shared normalized options for an operation.                                                                                                           | command, inputs, outputs, policy, budgets, formatter/colorizer/report preferences.                                      |
@@ -1018,96 +1059,29 @@ record. Authentication belongs to a session-scoped provider adapter.
   same-origin browsing contexts and workers can communicate through that API
   ([MDN Broadcast Channel](https://developer.mozilla.org/en-US/docs/Web/API/Broadcast_Channel_API)).
 
-## Initial Feature-Tour Project
+## Predefined example projects
 
-On first launch, Studio should install an editable copy of a versioned,
-read-only seed named **CEM-ML Feature Tour**. Updating the PWA may install a new
-seed version, but must never overwrite the user's copy. “Reset” creates another
-copy and names the source seed/version.
+**Schema examples** contains one manifest-declared passing example from each
+browser-validatable schema package and portable conversion, query,
+transformation, trace and graph configurations. The generator carries source
+hashes, owned dependencies, expected-result resources and authored command bytes.
+All commands run through the shared native browser command service under the
+owning project's root. The catalog does not supply runtime command semantics.
 
-The initial generated seed baseline was completed on 2026-08-21. A deterministic
-generator selects one manifest-declared passing example from each of the 31
-registered schema packages, carries transitive local schema dependencies, and
-records source hashes plus the exact browser capability identity. A generated
-CEM-ML transformation graph—not application copy code—emits the project,
-catalog, run configurations, original bytes, and sample-cache inventory. Studio
-loads those resources with integrity checks and validates them through one real
-browser command worker. Relative reads use the project-local
-`cem-studio://validation/` URI space backed only by digest-verified inline
-command resources; they never fall through to browser filesystem access.
-The immutable seed ID is `cem-ml-feature-tour-seed`, the first editable copy is
-`feature-tour`, and reset allocates the next unused suffix without replacing an
-existing or trashed copy.
+**Login** contains CEM-ML and HTML inputs, teaching-schema resources, command
+configurations and README guidance. Its `amsterdam-2026` collection membership
+marks presentation use without changing its workspace or lifecycle.
 
-The first offline workbench slice was completed on 2026-08-21. It opens the
-generated CEM-ML example through `cem-textarea`, commits with the repository's
-expected project/resource revisions, and refuses to validate until the exact
-bytes, hash, and advanced revisions reload from IndexedDB. Those durable
-revisions are carried into the browser command ledger. The retained native
-result supplies structured diagnostics, report counts, execution identity, and
-origin-first source-map frames; diagnostic and provenance selection project
-byte ranges back into the editor. All visible editing, status, result switching,
-structured rows, and navigation use production `cem-components` on the shared
-`cem-elements` runtime. Offline Chromium reloads and revalidates the same
-revision, and a result is marked stale whenever its draft or durable revision
-is no longer current.
+The old `cem-ml-feature-tour-seed` / `feature-tour` seed-copy helpers remain for
+compatibility and regression fixtures. Production startup does not install them.
+Existing copies are preserved; new predefined projects are created through the
+same generic catalog and native repository import used by other projects.
 
-```text
-CEM-ML Feature Tour
-├── 00 Start Here
-│   ├── Parse a CEM document
-│   ├── Validate and navigate diagnostics
-│   └── Inspect AST, DOM, events, report, and source map
-├── 01 Content Types
-│   ├── CEM data and projections
-│   ├── Web and structured data
-│   ├── Styling and math/vector data
-│   ├── Schemas and schema packages
-│   └── Queries, templates, and transforms
-├── 02 Validation
-│   ├── Valid documents
-│   ├── Syntax diagnostics
-│   ├── Schema diagnostics
-│   └── Multi-source and referenced-schema cases
-├── 03 Conversion
-│   ├── JSON ⇄ YAML
-│   ├── XML/HTML/CEM projections
-│   └── Loss, output identity, and source-map examples
-├── 04 Query Lab
-│   ├── CEM-QL
-│   ├── CSS selector
-│   └── XPath
-├── 05 Transformations
-│   ├── Native CEM template
-│   ├── CEMT configuration
-│   ├── XSLT compatibility example
-│   └── Multiple inputs and outputs
-├── 06 Transformation Graphs
-│   ├── Linear graph
-│   ├── Branched graph
-│   ├── Collections and exports
-│   └── Stage trace, diagnostics, and source provenance
-└── 07 Reports and Safety
-    ├── Structured report projections
-    ├── Resolver policy and budgets
-    ├── Remote URL/CORS behavior
-    └── Safe HTML preview
-```
-
-The Content Types branch must be generated from the bundled capability/package
-manifest. At the time of this proposal, the workspace package manifests include:
-
-- CEM-ML, native templates, transform configuration, CEM-QL, CSS selectors, and
-  XPath;
-- HTML, XHTML, XML, JSON, YAML, CSV, Markdown, CSS, SCSS, SVG, and MathML;
-- CEM schemas, schema packages, JSON Schema, Relax NG, XSLT; and
-- CEM AST, DOM, and event projections.
-
-The tree should show only capabilities in the loaded WASM build. A package that
-is present in the repository but not browser-capable remains visible only as an
-explanatory disabled item if that helps teach the difference. Example content
-should come from schema-package manifests so samples, formatters, colorizers,
-and expected diagnostics do not drift from the engine.
+Legacy copies retain their exact resources. Older Feature Tour portable-operation
+presets stored generic input run-configs and supplied their operation arguments
+from the external catalog. Those presets require an authored command through
+Apply, or a fresh **Schema examples** copy, to run independently of that catalog.
+Studio does not rewrite saved command resources during startup.
 
 ## Application Workbench
 
@@ -1141,7 +1115,7 @@ the selected resource, run, diagnostic, and graph node while switching panes.
    schema, with an advanced normalized-config preview.
 5. **CLI Command:** editable round-trip command, resolved input/config/output
    panes, copy actions, change preview, and an Apply target for the current,
-   existing, or newly named project page.
+   existing, or newly named project configuration.
 6. **Results:** structured data, rendered-safe preview, raw text/bytes,
    diagnostics, report, event trace, source trace, and download.
 7. **Transformation graph:** authored nodes/edges, validation, runnable stages,
@@ -1151,15 +1125,15 @@ the selected resource, run, diagnostic, and graph node while switching panes.
 
 ### CLI Command View and Round Trip
 
-Every executable Workbench page should have a **CLI Command** view. It is both a
-reproducibility view and an alternate editor for the page's typed run
+Every executable Configuration should have a **CLI Command** view. It is both a
+reproducibility view and an alternate editor for the configuration's typed run
 configuration.
 
 The view contains:
 
 | Pane         | Contents                                                                                              | Copy behavior                                                                                                              |
 | ------------ | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Command      | Canonical `cem-ml` command generated from the active page, editable as plain text.                    | **Copy command** writes the exact displayed text.                                                                          |
+| Command      | Canonical `cem-ml` command generated from the active configuration, editable as plain text.                    | **Copy command** writes the exact displayed text.                                                                          |
 | Inputs       | Ordered resolved inputs with URI/path, content type, schema, revision/hash, and text or safe preview. | Copy one input or all textual inputs; binary inputs offer download, not guessed text.                                      |
 | Config       | Authored config plus a separate effective normalized-config view, with inherited/default provenance.  | Copy authored config, effective config, or the selected section.                                                           |
 | Output       | Current primary output(s), identity, diagnostics/report summary, and stale/current status.            | Copy textual output, selected output, report, or download binary output.                                                   |
@@ -1176,7 +1150,7 @@ additional user-activation/permission rules
 The same typed run plan has two useful command projections:
 
 1. **Studio command:** uses stable `studio://` and `sample://` logical URIs and
-   can be pasted into another CEM Studio command page after its referenced
+   can be pasted into another CEM Studio command configuration after its referenced
    project resources are imported or available.
 2. **Exported native command:** uses project-relative paths from the portable
    project tree and is runnable after project export with a compatible native
@@ -1205,7 +1179,7 @@ not portable authority.
 Studio maps both `parse` and `inspect` commands to the portable project's
 existing `inspection` entry kind. Their distinct operation and projection/view
 semantics remain in the authored command resource. This avoids inventing a
-second project entry kind while keeping the page state lossless.
+second project entry kind while keeping the configuration state lossless.
 
 Command generation includes all semantically relevant current inputs, output
 specs, transformation/conversion config, explicit content/schema/query
@@ -1225,7 +1199,7 @@ The preview must show:
 - the parsed command and effective run-plan change;
 - inputs, configs, schemas, queries, transformations, and outputs that will be
   reused, relinked, created, or left unresolved;
-- values changed from the selected page, including inherited/default values;
+- values changed from the selected configuration, including inherited/default values;
 - capability, policy, missing-resource, type, and destructive replacement
   diagnostics; and
 - whether the last output becomes stale and whether **Apply & Run** will create
@@ -1233,19 +1207,19 @@ The preview must show:
 
 The **Apply to** control is an editable, accessible combobox with these targets:
 
-- **Current page**, including the current transformation or conversion;
-- any compatible existing Workbench page in a selectable project/subproject;
-- **New page** under the selected project/subproject; or
-- a newly typed page name. If that name does not exist, Apply creates it. If it
+- **Current configuration**, including the current transformation or conversion;
+- any compatible existing Configuration in a selectable project/subproject;
+- **New configuration** under the selected project/subproject; or
+- a newly typed configuration name. If that name does not exist, Apply creates it. If it
   already exists, the UI resolves the stable existing id and requires an update
   or save-copy choice rather than creating an ambiguous duplicate.
 
-Page creation happens only on **Apply**, **Apply & Run**, or **Save as new**.
-The target parent and page name remain visible before confirmation. Applying to
-an existing page updates its typed run configuration and references in one
+Configuration creation happens only on **Apply**, **Apply & Run**, or **Save as new**.
+The target parent and configuration name remain visible before confirmation. Applying to
+an existing configuration updates its typed run configuration and references in one
 transaction. Applying a command of a different kind, such as changing a
-conversion to a transformation, should default to a new correctly typed page;
-replacing an incompatible page requires explicit confirmation.
+conversion to a transformation, should default to a new correctly typed configuration;
+replacing an incompatible configuration requires explicit confirmation.
 
 The command may create a declared output resource as part of the transaction
 when the change preview identifies it. A missing input, schema, query,
@@ -1258,7 +1232,7 @@ After a successful apply:
 
 - the structured form, command text, and project tree represent the same typed
   run configuration;
-- the new/updated page is selected;
+- the new/updated configuration is selected;
 - old results remain visible only as clearly stale history until rerun;
 - **Apply & Run** executes exactly the applied revision; and
 - the whole structural update is undoable according to project recovery rules.
@@ -1283,9 +1257,9 @@ than an in-memory draft.
 
 The workbench presents that boundary entirely through shared CEM controls.
 `cem-select` chooses current, existing, or new targets; `cem-text-field` owns a
-new page name; `cem-alert` reports persistence and freshness; and a transient
+new configuration name; `cem-alert` reports persistence and freshness; and a transient
 `cem-dialog` confirmation-gates an incompatible replacement while recommending
-the non-destructive new-page path. Apply serializes the checked literal command
+the non-destructive new-configuration path. Apply serializes the checked literal command
 with the shared CLI resource codec, invokes `apply-command-page`, reloads the
 returned entry and command resource, and byte-compares the commit without
 executing it. Apply & Run invokes the browser worker only after that reload and
@@ -1296,10 +1270,10 @@ the resulting projection stale; it is never silently promoted to current.
 This round trip requires a tested invariant:
 
 ```text
-page state -> typed run plan -> command -> parsed run plan -> page state
+configuration state -> typed run plan -> command -> parsed run plan -> configuration state
 ```
 
-The two page states must be semantically equivalent after normalization, apart
+The two configuration states must be semantically equivalent after normalization, apart
 from explicitly excluded presentation state and generated ids. Comments or
 formatting in manually authored commands may be preserved as draft text, but
 the typed run plan remains execution authority.
@@ -1562,7 +1536,7 @@ insufficient remaining storage or denied quota
 ### Deterministic Search and Optional Browser AI
 
 Search is deterministic and fully functional without AI. IndexedDB has no
-native full-text search, so every searchable page, component, token, project,
+native full-text search, so every searchable configuration, component, token, project,
 entry, resource, diagnostic, command, schema capability, transformation stage,
 and retained run projects into a versioned `searchDocuments` record containing
 stable identity, scope/kind, title/path/text/tags, normalized tokens, optional
@@ -1627,7 +1601,7 @@ unsupported, or wrong.
 
 Prompt content uses an explicit field allowlist and excludes credentials,
 provider bindings, file handles, secrets, and denied data-island fields. Treat
-retrieved project/page text as untrusted prompt data because it may contain
+retrieved project/configuration text as untrusted prompt data because it may contain
 instructions. Do not persist prompt history or model answers by default. Any
 later AI cache is disposable and keyed by model capability identity, prompt
 contract version, query hash, locale, and complete source-revision-set hash; it
@@ -1778,7 +1752,7 @@ any import write.
    separate files in their native formats. Do not embed every resource into one
    huge manifest.
    Executable entries may reference authored CLI-command JSON as their
-   `run-config` resource when command argv is the page authority; generic CLI
+   `run-config` resource when command argv is the configuration authority; generic CLI
    RunConfig JSON remains appropriate when only inputs, outputs, schema
    packages, resolvers, and scheduler configuration are authored.
 3. Use normalized JSON records internally for IndexedDB, NoSQL documents, API
@@ -1966,7 +1940,7 @@ service merely for telemetry, installation, or account login.
    states, and light-DOM rules, and record the absence of an Angular counterpart.
 5. **Persistence tests:** IndexedDB schema creation, every migration, atomic
    autosave, quota failures, multi-tab revision conflicts, trash/restore, and
-   export/import round trips. Cover Apply to current/existing/new page,
+   export/import round trips. Cover Apply to current/existing/new configuration,
    duplicate names, incompatible command kinds, unresolved resources, atomic
    failure, stale results, and undo.
 6. **PWA browser tests:** install metadata, offline reload, service-worker
@@ -2049,7 +2023,7 @@ or todo list by itself.
 12. **Parse/validate/inspect MVP.** Deliver inline/URL resources, data sets,
     source identities, diagnostics/range navigation, AST/DOM/event/report/source
     map previews, offline behavior, and the CLI Command view with copy plus
-    current/existing/new-page round trip.
+    current/existing/new-configuration round trip.
 13. **Conversion workbench.** Add input/output identity selectors, side-by-side
     previews, losses, source trace, copy/download, and pinned expected results.
 14. **Query and transformation workbench.** Add explicit query-language
@@ -2111,7 +2085,7 @@ or todo list by itself.
 - The CLI Command view and structured Workbench forms are lossless projections
   of the same normalized run plan.
 - Editing a command does not mutate the tree; Apply targets a stable existing
-  page or explicitly creates a named page transactionally.
+  configuration or explicitly creates a named configuration transactionally.
 - The browser exposes capability differences instead of hiding them.
 - Projects are local-first and useful without an account or network.
 - IndexedDB owns mutable local projects; `localStorage` owns only small
@@ -2199,11 +2173,11 @@ Home is a persistent shared-control card above the retained workbench. It lists
 live projects, opens them through session admission, and exposes explicit refresh,
 creation and archive import. Creating or importing persists a project without
 leaving the active draft; Open project requests the guarded transition separately.
-The workbench selector then exposes that project's pages and resources.
+The workbench selector then exposes that project's configurations and resources.
 
 Creation copies the integrity-checked bundled CEM-ML source into a fresh UUID
 project with a user-supplied name. It carries one source resource and no implicit
-command pages. The repository validates the normalized project through the native
+command configurations. The repository validates the normalized project through the native
 boundary before its atomic create transaction. Import uses the existing archive
 codec and the same create-only transaction: an existing identity is never replaced.
 Boot continues to preserve existing Feature Tour copies.
@@ -2216,7 +2190,7 @@ the contract below.
 
 ### Explorer, search and retained panes
 
-Studio composes the canonical `cem-tree` with project, nested page and resource
+Studio composes the canonical `cem-tree` with project, nested configuration and resource
 records. Stable URI-encoded record identities contain no whitespace or display
 labels. Parent activation only expands the hierarchy; an explicit child opens a
 branch's own record. Focus movement never selects or navigates. Selected state
@@ -2225,7 +2199,7 @@ previous selection and draft. Missing destinations report a navigation error.
 
 Search submits at most 500 characters to the existing repository index and shows
 up to 50 results in its deterministic score/key order. Result activation resolves
-project/page/resource identity through the same guarded session. Empty, pending
+project/configuration/resource identity through the same guarded session. Empty, pending
 and failed search states are declarative; newer searches supersede older results.
 Successful saves and command Apply refresh navigation and any active search.
 
@@ -2245,11 +2219,11 @@ Resizable simultaneous panes and broader device/AT acceptance remain separate wo
 
 ### Recovery and active-project providers
 
-The session stores only its last admitted project/page/resource identity in local
+The session stores only its last admitted project/configuration/resource identity in local
 browser storage (`cem-studio-selection-v1`). Admission, rather than a highlighted
 row or pending transition, commits this preference. Reload reopens the exact
 IndexedDB bytes through the ordinary project resolver. Missing/trashed destinations
-fall back to the bundled starting page with an explanation; corrupt or unavailable
+return to Home with an explanation; corrupt or unavailable
 selection storage does not prevent opening projects. No draft or local preference
 is embedded in exported project data. Unsaved text uses the separate local recovery journal described below.
 
@@ -2279,7 +2253,7 @@ asynchronous persistence. Durable save status and validation results remain dist
 `@epa-wg/cem-studio:verify:workspace-delivery` runs the graph-emitted application
 in Chromium and participates in Studio `check` and package verification. It uses
 production CEM controls, a native file chooser and a browser download to create
-one project and import a second, save source, create native command pages, search
+one project and import a second, save source, create native command configurations, search
 and run them, cancel/discard guarded navigation, export exact UTF-8 bytes, and
 Trash/Restore. The second project's save/Apply/run, export and reload run offline;
 the first project's saved source remains unchanged.
@@ -2308,7 +2282,7 @@ in TODO remains open. Structural editing is implemented in the next section.
 
 The admitted workbench synchronously journals changed source and command text in
 browser local storage, separately from IndexedDB project records. Keys use the
-`cem-studio-selection-v1:draft-v1:` prefix and resolved project, page and resource
+`cem-studio-selection-v1:draft-v1:` prefix and resolved project, configuration and resource
 identities. This is an explicit versioned JSON storage/backup boundary, never an
 AST representation or part of project export. No timer or unload callback is
 required for durability after an editor update reaches the session. Each serialized
@@ -2344,7 +2318,7 @@ backup download while persisted source bytes remain unchanged.
 
 ### Structural project editing and history
 
-Studio exposes project and page display-name changes, subproject creation, subtree
+Studio exposes project and configuration display-name changes, subproject creation, subtree
 copying, moves between subprojects/root, up/down sibling reordering, and CEM-ML
 resource creation or byte-exact resource copies. These forms use existing shared
 CEM cards, fields, selects, textareas, alerts and actions. Hidden native inputs carry
@@ -2356,8 +2330,8 @@ The existing native project model already preserves entry-array order. IndexedDB
 now retains that order as private project metadata and reconstructs the ordered
 portable array on export; it does not add a manifest field or schema version.
 Old databases without order metadata retain their existing lexical order until
-edited. Applying a command appends new pages without reordering existing pages.
-Subtree copies allocate new stable page identities but keep resource references;
+edited. Applying a command appends new configurations without reordering existing configurations.
+Subtree copies allocate new stable configuration identities but keep resource references;
 existing Apply copy-on-write isolates shared command resources when edited.
 Resource copies allocate a new stable identity and path, preserving bytes and
 content type, and become local project files. New resources begin as CEM-ML data.
@@ -2416,7 +2390,7 @@ Conflicting or required option groups are rejected rather than silently removing
 another option; use a grouped editor to change supported coupled options together. Hidden,
 unsupported, positional and infrastructure options are not exposed as fields.
 Invalid literal commands stay repairable in the editor. Forms edit an already
-prepared operation; they do not select a new operation or generate a new page.
+prepared operation; they do not select a new operation or generate a new configuration.
 
 Each form submission carries the workbench instance and draft revision it was
 rendered from. A stale submission, including one from a different workbench, is
@@ -2484,7 +2458,7 @@ runtime capability, Studio DOM listener or component JavaScript is introduced.
 
 ### Project tree dataset and stable resource references
 
-The project tree is the authoritative native CEM dataset. Pages and consumers
+The project tree is the authoritative native CEM dataset. Configurations and consumers
 reference resource IDs. Names and paths are mutable display/export metadata.
 Changing a name or path updates that dataset and the declarative UI projection;
 it never rewrites command, graph, template, CSS, SVG or other consumer bytes.
@@ -2633,7 +2607,7 @@ configured workbench** executes the persisted graph. Resource resolution, refere
 bytes and execution capability checks retain the shared native command pipeline.
 Draft recovery restores unsaved graph source after reload; persisted resources stay
 unchanged until Save. Command Apply remains a separate transaction for the authored
-CLI command and its page references. Source-only edits do not rewrite command or
+CLI command and its configuration references. Source-only edits do not rewrite command or
 input resource records.
 
 The deployed lifecycle gate requires `graphConfigurationAuthoring`,
@@ -2649,79 +2623,50 @@ Physical-device and spoken AT acceptance remain separately open.
 
 ## Amsterdam presentation samples
 
-In **Studio Home**, choose **Amsterdam 2026: Login lifecycle** under **Samples**
-and select **Create sample copy**. Choose the new project under **Projects** and
-open it. Each copy has its own project identity; subsequent copies receive a
-numbered name. Opening a copy uses the existing unsaved-draft guard.
+Amsterdam examples are ordinary projects in the example catalog. There are no
+presentation-specific screens or numbered configuration steps. In Home, choose
+**Login** under **Example projects**, select **Create project from example**,
+then open it under **Projects**. Subsequent copies have independent identities
+and receive a numbered copy name. Existing projects keep their saved contents.
 
-New copies of sample version 1.1.0 provide five pages. Existing projects retain
-their own saved contents; create a new sample copy to receive the added page.
-
-| Page | Result |
+| Configuration | Input and result |
 | --- | --- |
-| Read and edit login | Edit the canonical CEM-ML login and run its native typed AST projection. |
-| Validate login | **Validate persisted revision** checks the saved source. **Save and validate** commits and checks an edit. |
-| Inspect login structure | Run the native typed structure view for the same CEM-ML resource. |
-| Import HTML and convert to CEM-ML | Import the canonical HTML counterpart and return CEM-ML with its form fields retained. |
-| Find and repair a schema violation | Validate a syntax-valid login missing its form method against the bundled teaching schema, follow its diagnostic, then save the repair. |
+| Parse login | `data/login.cem`; native typed AST. |
+| Validate login | Saved `data/login.cem`; zero errors and three existing reference warnings. |
+| Inspect login | The same saved CEM-ML source; native typed inspection. |
+| Convert HTML to CEM-ML | `data/login.html`; CEM-ML with both form fields retained. |
+| Validate form method | `data/login-invalid.cem` and owned `schemas/` resources; deliberate schema failure and repair. |
 
-The first three CEM-ML pages share one resource, so a saved heading edit appears
-in subsequent inspection and validation. The HTML counterpart and the deliberate
-failure are separate resources. Native
-login validation currently reports zero errors and three
-`cem.ast.unresolved_reference` warnings; the fixtures retain those warnings.
-Persisted validation preserves an unsaved draft and marks the result stale when
-the draft differs from the saved source.
+Open `README.md` through Resources for instructions. The first three
+configurations share a source resource, while HTML and deliberate failure use
+independent sources. `demo.login.method_required` identifies the missing form
+method. Select it in Results → Diagnostics to focus/select the retained `{form`
+span, restore `@method=post` beside `@cem:form="sign-in"`, then **Save and
+validate**. The error disappears; three `cem.ast.unresolved_reference` warnings
+remain. Persisted validation preserves an unsaved repair and marks it stale.
+Reload preserves saved bytes; removing and saving the attribute reproduces the
+failure. This teaching rule requires a method, not a complete HTML schema.
 
-On **5. Find and repair a schema violation**:
+Catalog archives are hash-checked before decoding and admitted by the native
+project validator. Offline copies retain their command bytes, resource IDs and
+stable reference paths; relative command arguments resolve under their own
+project root. New copies do not inherit edits from another copy. Catalog
+membership neither changes validation nor adds UI behavior.
 
-1. Select **Validate persisted revision**. Expect one error,
-   `demo.login.method_required`, and the three existing reference warnings.
-   The document still parses; this is a schema failure.
-2. In **Results → Diagnostics**, select that error. The existing editor focuses
-   and selects `{form` on line 8 from the innermost retained source-map frame.
-   The native diagnostic's outer document coordinates remain 1:1; the complete
-   source-map stack is retained for provenance inspection.
-3. Restore `@method=post` after `@cem:form="sign-in"`, then select **Save and
-   validate**. Expect zero errors and the same three warnings. Validation of
-   persisted bytes alone preserves an unsaved repair and marks its result stale.
-4. Reload to verify the repair was saved. Remove ` @method=post` and save again
-   to reproduce the error; restore it to repair the document again.
+The deployed release gate requires `exampleProjects` and
+`projectValidationRepair`. It exercises the ordinary workspace, shared-source
+editing, native execution, source selection, saved-versus-unsaved repair,
+repeat failure/repair, independent copies and offline reload. Separate generic
+project lifecycle fixtures cover custom creation, import/export and draft guards.
+The regression harness explicitly installs its historical seed data; production
+startup is verified to leave a fresh project repository empty.
 
-The page owns `data/login-invalid.cem`, a schema package and its schema source
-under `schemas/`. Its native `schema:required-fields` rule requires a form method;
-it is a selected teaching contract, not a complete HTML schema. Its initial
-source is exactly the canonical login with that single attribute removed.
-Other pages and newly created copies retain their original sources. Page
-instructions use the shared declarative alert, and diagnostic selection uses
-the existing shared list/textarea contracts. The host registers owned schema
-packages for native validation, parsing and inspection without replacing
-identities supplied by the normalized native run plan.
-Studio also obtains the initialized native graph author through the CLI browser
-facade, preserving its transitive runtime dependency and the strict dependency
-audit; graph semantics remain owned by the native engine.
+All visible controls remain XHTML/CEM-ML compositions of shared CEM components.
+JavaScript handles archive loading, integrity checks and repository/engine
+orchestration. No new UI JavaScript capability or application CSS is needed.
 
-The build copies canonical sources into a versioned archive, lists it in the
-sample catalog and precaches it for offline use. Studio checks the archive's
-SHA-256 before decoding it; repository import validates its portable project and
-resource hashes. Creating a copy preserves resource IDs and reference paths.
-Source changes belong to that copy. The generated original remains the source
-for subsequent copies.
-
-Relative authored command arguments resolve under the owning project's virtual
-root through the common native invocation builder. Copies retain the command
-bytes and bind them to their own root. Existing filesystem working directories
-and explicit URI references keep their native behavior.
-
-Sample selection and validation actions are XHTML/CEM-ML compositions of shared
-controls. JavaScript only loads the archive and orchestrates repository/service
-calls. The deployed release gate requires `presentationSamples` and
-`presentationValidationRepair`, and exercises all five pages, diagnostic
-selection, failure/repair/reintroduced failure, copy isolation, Save/reload and
-offline execution.
-
-The complete presentation journey still needs its agreed HTML/CEM semantic
-comparison, equivalent query/template processing and a live light-DOM `cem-element`
-view. The [active sample checklist](todo.md#amsterdam-presentation-samples-active-studio-priority)
+The [active checklist](todo.md#amsterdam-presentation-samples-active-studio-priority)
 and [presentation audit](presentation/declarative-amsterdam-2026-handoff.md#studio-sample-audit-2026-10-17)
-track those checkpoints separately.
+track HTML/CEM semantic comparison, equivalent query/template processing and a
+live light-DOM `cem-element` view. Implement those as project resources and
+configurations using shared workspace capabilities.

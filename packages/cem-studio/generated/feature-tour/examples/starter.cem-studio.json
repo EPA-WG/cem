@@ -1,0 +1,34 @@
+{
+  "archiveSchemaVersion": 1,
+  "project": {
+    "$schema": "https://cem.dev/ns/studio/project/1",
+    "schemaVersion": 1,
+    "id": "starter",
+    "name": "CEM-ML project",
+    "description": "An editable CEM-ML project.",
+    "rootUri": "studio://starter/",
+    "revision": 1,
+    "createdAt": "2026-08-22T00:00:00Z",
+    "updatedAt": "2026-08-22T00:00:00Z",
+    "entries": [],
+    "resources": [
+      {
+        "id": "source",
+        "path": "data/main.cem",
+        "referencePath": "data/main.cem",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "application/cem",
+        "schema": "https://cem.dev/ns/cem-ml/1",
+        "revision": 1,
+        "sha256": "caf155307e477a0e2bfd1f813b519ef38fbf8a2a0ca2c87e312e1d3ee92ff9bc"
+      }
+    ]
+  },
+  "contents": [
+    {
+      "resourceId": "source",
+      "base64": "QGRvYyBjZW0tbWwgMQp7bWFpbiB8IE15IHByb2plY3R9Cg=="
+    }
+  ]
+}

@@ -16,14 +16,14 @@
         {cem:variable @name=working
             @select='(state.status == "saving") || (state.status == "validating") || (state.status == "projecting") || (state.command.application.status == "applying") || (state.command.application.status == "running")'}
         {cem:variable @name=busy @select='datadom.slices.pending || working'}
-        {cem:if @test='state.status == "empty"' | {cem-alert @label="This project has no resources selected. Choose a page or resource."}}
+        {cem:if @test='state.status == "empty"' | {cem-alert @label="This project has no resources selected. Choose a configuration or resource."}}
         {cem:if @test='state.status == "read-only"' |
             {cem-alert @label="This resource is read-only. Download its original bytes to use it elsewhere."}
             {cem-action @host-command=download-source @disabled={if state.resourceAvailable { null } else { true }} | Download resource}
         }
         {cem:if @test=state.editable |
         {cem:if @test=state.description | {cem-alert @label={state.description} @tone=info}}
-        {cem:if @test='!state.runnable' | {cem-alert @label="Validate saved source, or parse/inspect it to prepare a command page."}}
+        {cem:if @test='!state.runnable' | {cem-alert @label="Validate saved source, or parse/inspect it to prepare a command configuration."}}
         {cem-card @label="Resource editor" |
             {span @slot=title | Project workbench}
  {cem-stack @gap=md |
@@ -51,7 +51,7 @@
         {section @aria-label="CEM-ML projections" |
  {cem-stack @gap=md |
             {cem-action @data-cem-studio-operation-run="" @disabled={if busy || !state.runnable { true } else { null }} @host-command=run
-                @host-command-event=click @loading={if state.status == "projecting" { true } else { null }} @variant=primary | Run configured workbench}
+                @host-command-event=click @loading={if state.status == "projecting" { true } else { null }} @variant=primary | Run configuration}
             {form @host-command=parse @host-command-event=submit |
  {cem-stack @gap=sm |
                 {cem-select @data-cem-studio-parse-projection="" @name=mode @value=ast |

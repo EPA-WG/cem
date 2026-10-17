@@ -2,7 +2,9 @@
   "schemaVersion": 1,
   "commonVersion": "0.1.0",
   "cacheUrls": [
-    "./amsterdam/login.cem-studio.json",
+    "./examples/login.cem-studio.json",
+    "./examples/schema-examples.cem-studio.json",
+    "./examples/starter.cem-studio.json",
     "./feature-tour/catalog.json",
     "./feature-tour/feature-tour.project.json",
     "./feature-tour/resources/cem-ast-projection-basic-ast.cem-bin",
@@ -86,20 +88,37 @@
     "./feature-tour/run-configs/yaml.validate.json",
     "./index.json"
   ],
-  "samples": [
+  "collections": [
     {
-      "id": "cem-ml-feature-tour-seed",
-      "name": "CEM-ML Feature Tour",
-      "version": "1.1.0",
-      "catalog": "./feature-tour/catalog.json",
-      "project": "./feature-tour/feature-tour.project.json"
+      "id": "amsterdam-2026",
+      "name": "Amsterdam 2026"
+    }
+  ],
+  "starter": {
+    "id": "starter",
+    "name": "CEM-ML project",
+    "version": "1.0.0",
+    "archive": "./examples/starter.cem-studio.json",
+    "sha256": "116541298b030a386bcf07b0632af7660698c2b3dd10efb3069c6f3a8a17dbdf"
+  },
+  "projects": [
+    {
+      "id": "schema-examples",
+      "name": "Schema examples",
+      "version": "2.0.0",
+      "collections": [],
+      "archive": "./examples/schema-examples.cem-studio.json",
+      "sha256": "979219ffd4605401e583480eb8066707c3453a2d895598e0f0145bbeca529f8a"
     },
     {
-      "id": "amsterdam-2026-login",
-      "name": "Amsterdam 2026: Login lifecycle",
-      "version": "1.1.0",
-      "archive": "./amsterdam/login.cem-studio.json",
-      "sha256": "6cc909214933cd4126eed366c9a9ce6e9cc97e2f775d0bc26d2305360fcf27b0"
+      "id": "login",
+      "name": "Login",
+      "version": "2.0.0",
+      "collections": [
+        "amsterdam-2026"
+      ],
+      "archive": "./examples/login.cem-studio.json",
+      "sha256": "16503a301f64f5ea8aed45bdbe30ca3dfeb017da5dbe9ebfc31c52b54e446208"
     }
   ]
 }

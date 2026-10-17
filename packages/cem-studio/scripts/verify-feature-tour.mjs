@@ -40,33 +40,39 @@ assert.equal(
     catalog.projectResourceCount,
     catalog.exampleCount * 2 + catalog.dependencyCount + catalog.workbenchResourceCount,
 );
-assert.equal(sampleIndex.samples[0].id, catalog.seed.id);
-assert.deepEqual(sampleIndex.samples.map(sample => sample.id), [catalog.seed.id, 'amsterdam-2026-login']);
-assert.equal(sampleIndex.cacheUrls.length, catalog.cacheUrlCount + 1);
-const presentationRecord = sampleIndex.samples[1];
-assert.equal(presentationRecord.archive, './amsterdam/login.cem-studio.json');
-assert.ok(sampleIndex.cacheUrls.includes(presentationRecord.archive));
-const presentationBytes = await readFile(resolve(projectRoot, 'dist/static/samples/amsterdam/login.cem-studio.json'));
-assert.equal(createHash('sha256').update(presentationBytes).digest('hex'), presentationRecord.sha256);
-assert.deepEqual(presentationBytes, await readFile(resolve(generatedRoot, 'amsterdam/login.cem-studio.json')));
-const presentation = parseCemStudioProjectBundle(presentationBytes);
-assert.equal(presentation.project.id, 'amsterdam-2026-login-seed');
-assert.equal(presentationRecord.version, '1.1.0');
-assert.equal(presentation.project.entries.length, 6);
-assert.equal(presentation.project.resources.length, 10);
-const definition = await readJson(resolve(projectRoot, 'fixtures/amsterdam-login/sample.json'));
-for (const source of definition.sources) {
-    assert.deepEqual(presentation.contents[source.id], new Uint8Array(await readFile(resolve(workspaceRoot, source.source))));
+assert.deepEqual(sampleIndex.projects.map(project => project.id), ['schema-examples', 'login']);
+assert.equal(sampleIndex.cacheUrls.length, catalog.cacheUrlCount + 3);
+assert.deepEqual(sampleIndex.collections, [{ id: 'amsterdam-2026', name: 'Amsterdam 2026' }]);
+const definition = await readJson(resolve(workspaceRoot, 'examples/projects/login/example.json'));
+for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
+    assert.ok(sampleIndex.cacheUrls.includes(record.archive));
+    const bytes = await readFile(resolve(projectRoot, 'dist/static/samples', record.archive.slice(2)));
+    assert.equal(sha256(bytes), record.sha256);
+    assert.deepEqual(bytes, await readFile(resolve(generatedRoot, record.archive.slice(2))));
+    const bundle = parseCemStudioProjectBundle(bytes);
+    assert.equal(bundle.project.resources.length, Object.keys(bundle.contents).length);
+    assert.ok(bundle.project.entries.every(entry => !/^\d+\./.test(entry.name)), 'configurations are not tutorial steps');
+    await mkdir(dirname(reportPath), { recursive: true });
+    const manifest = resolve(dirname(reportPath), `${record.id}.project.json`);
+    await writeFile(manifest, JSON.stringify(bundle.project));
+    run(cli, ['validate', manifest, '--format', 'json', '--content-type', 'application/vnd.cem.studio-project+json', '--schema', 'https://cem.dev/ns/studio/project/1'], workspaceRoot);
+    if (record.id === 'login') {
+        assert.deepEqual(record.collections, ['amsterdam-2026']);
+        assert.equal(bundle.project.entries.length, definition.configurations.length);
+        for (const source of definition.sources) assert.deepEqual(bundle.contents[source.id], new Uint8Array(await readFile(resolve(workspaceRoot, source.source))));
+        const repair = bundle.project.entries.find(entry => entry.id === 'validation-repair');
+        assert.deepEqual(repair.resourceIds, ['login-invalid', 'command-validation-repair', 'login-schema-package', 'login-schema']);
+        assert.ok(new TextDecoder().decode(bundle.contents.readme).includes('demo.login.method_required'));
+        assert.deepEqual(JSON.parse(new TextDecoder().decode(bundle.contents[repair.runConfigResourceId])).schemaPackages, [{ uri: 'schemas/login-schema-package.cem' }]);
+    } else if (record.id === 'schema-examples') {
+        for (const configuration of catalog.workbenches) {
+            const resource = bundle.project.resources.find(item => item.id === configuration.runConfigResourceId);
+            assert.equal(resource.schema, 'https://cem.dev/ns/cli/command/1');
+            const command = JSON.parse(new TextDecoder().decode(bundle.contents[resource.id]));
+            assert.ok(command.argv.every(argument => !argument.startsWith('$')), 'commands own their concrete project addresses');
+        }
+    }
 }
-const repairPage = presentation.project.entries.find(entry => entry.id === 'validation-repair');
-assert.deepEqual(repairPage.resourceIds, ['login-invalid', 'command-validation-repair', 'login-schema-package', 'login-schema']);
-assert.ok(repairPage.description.includes('demo.login.method_required'));
-assert.deepEqual(JSON.parse(new TextDecoder().decode(presentation.contents[repairPage.runConfigResourceId])).schemaPackages,
-    [{ uri: 'schemas/login-schema-package.cem' }]);
-await mkdir(dirname(reportPath), { recursive: true });
-const presentationManifest = resolve(dirname(reportPath), 'amsterdam-login.project.json');
-await writeFile(presentationManifest, JSON.stringify(presentation.project));
-run(cli, ['validate', presentationManifest, '--format', 'json', '--content-type', 'application/vnd.cem.studio-project+json', '--schema', 'https://cem.dev/ns/studio/project/1'], workspaceRoot);
 assert.equal(featureTourBuild.summary.errorCount, 0);
 assert.equal(featureTourBuild.summary.fatalCount, 0);
 

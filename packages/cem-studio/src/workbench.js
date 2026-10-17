@@ -28,7 +28,7 @@ export async function createCemStudioProjectWorkbench({ repository, validator, s
     if (!bundle?.project) throw new Error(`Project ${selection.projectId} is unavailable`);
     const project = bundle.project;
     const entry = selection.entryId === undefined ? undefined : project.entries.find(item => item.id === selection.entryId);
-    if (selection.entryId !== undefined && !entry) throw new Error(`Page ${selection.entryId} is missing`);
+    if (selection.entryId !== undefined && !entry) throw new Error(`Configuration ${selection.entryId} is missing`);
     const commandRecord = project.resources.find(item => item.id === entry?.runConfigResourceId);
     let inputResourceId;
     if (selection.resourceId === undefined && commandRecord?.schema === 'https://cem.dev/ns/cli/command/1') {
@@ -37,14 +37,14 @@ export async function createCemStudioProjectWorkbench({ repository, validator, s
         const input = Array.isArray(inputs) ? inputs[0] : inputs;
         if (typeof input === 'string') {
             inputResourceId = project.resources.find(item => projectResourceUri(project, item) === resolveVirtualUri(project.rootUri, input))?.id;
-            if (!inputResourceId || !entry.resourceIds?.includes(inputResourceId)) throw new Error(`Command input ${input} is not owned by this page`);
+            if (!inputResourceId || !entry.resourceIds?.includes(inputResourceId)) throw new Error(`Command input ${input} is not owned by this configuration`);
         }
     }
     const resourceId = selection.resourceId ?? inputResourceId ?? entry?.resourceIds?.find(id => id !== entry.runConfigResourceId);
     const resource = resourceId === undefined ? undefined : project.resources.find(item => item.id === resourceId);
     if (resourceId !== undefined && !resource) throw new Error(`Resource ${resourceId} is missing`);
     if (entry && resource && !entry.resourceIds?.includes(resource.id) && entry.runConfigResourceId !== resource.id) {
-        throw new Error(`Resource ${resource.id} does not belong to page ${entry.id}`);
+        throw new Error(`Resource ${resource.id} does not belong to configuration ${entry.id}`);
     }
     const available = Boolean(resource && bundle.contents[resource.id] !== undefined);
     const bytes = available ? toBytes(bundle.contents[resource.id]) : new Uint8Array();
@@ -73,11 +73,11 @@ export async function createCemStudioProjectWorkbench({ repository, validator, s
     const example = { ...sample, id: entry?.id ?? resource.id, name: entry?.name ?? resource.path,
         resourceId: resource.id, referenceUri: projectResourceUri(project, resource), projectRootUri: project.rootUri, path: resource.path, contentType: resource.contentType, schema: resource.schema,
         description: entry?.description,
+        expectedResourceId: entry?.resourceIds?.find(id => project.resources.find(resource => resource.id === id)?.role === 'expected'),
         entryId: entry?.id, runConfigResourceId: entry?.runConfigResourceId, kind: entry?.kind,
         graphConfiguration: resource.role === 'transform-config',
         dependencies: (entry?.resourceIds ?? []).filter(id => id !== resource.id && id !== entry.runConfigResourceId).map(resourceId => ({ resourceId, path: projectResourceUri(project, project.resources.find(item => item.id === resourceId)) })), projectOwned: true };
-    const workbench = await createCemStudioFeatureTourWorkbench({ repository, validator, projectId: project.id,
-        example, seed: undefined });
+    const workbench = await createCemStudioWorkbench({ repository, validator, projectId: project.id, example });
     if (signal?.aborted) { workbench.dispose(); signal.throwIfAborted(); }
     return workbench;
 }
@@ -91,7 +91,7 @@ export async function createCemStudioSessionWorkbench({ repository, session, hom
     let searchVersion = 0;
     let navigationVersion = 0;
     let disposed = false;
-    let homeState = home ? { projects: [], status: 'ready', samples: (home.samples ?? []).map(({ id, name }) => ({ id, name })) } : undefined;
+    let homeState = home ? { projects: [], status: 'ready', examples: (home.examples ?? []).map(({ id, name }) => ({ id, name })) } : undefined;
     let homePending = false;
     let structurePending = false;
     let structureMessage;
@@ -135,7 +135,7 @@ export async function createCemStudioSessionWorkbench({ repository, session, hom
                     const parent = entries.get(entry.parentId);
                     if (parent) parent.children.push(node); else roots.push(node);
                 }
-                // Branch activation belongs to expansion; a branch's own page is an explicit leaf.
+                // Branch activation belongs to expansion; a branch's own configuration is an explicit leaf.
                 for (const node of entries.values()) {
                     if (node.children.length) {
                         node.children.unshift({ key: node.key, name: node.name, children: [] });
@@ -298,15 +298,15 @@ export async function createCemStudioSessionWorkbench({ repository, session, hom
                 return copyProject(home.starter, name.trim());
             });
         },
-        createSampleProject(id) {
+        createExampleProject(id) {
             return homeOperation(async () => {
-                const sample = home.samples?.find(sample => sample.id === id);
-                if (!sample) throw new Error('Choose an available sample.');
-                const template = await sample.load();
+                const example = home.examples?.find(example => example.id === id);
+                if (!example) throw new Error('Choose an available example project.');
+                const template = await example.load();
                 const projects = (await repository.query(repositoryRequest('list-projects', { includeTrash: true }))).value;
                 const names = new Set(projects.map(project => project.name));
-                let name = sample.name;
-                for (let ordinal = 2; names.has(name); ordinal++) name = `${sample.name} (${ordinal})`;
+                let name = example.name;
+                for (let ordinal = 2; names.has(name); ordinal++) name = `${example.name} (${ordinal})`;
                 return copyProject(template, name);
             });
         },
@@ -347,12 +347,12 @@ export async function createCemStudioSessionWorkbench({ repository, session, hom
 }
 
 /**
- * Own one editable Feature Tour resource and its durable validation revision.
- * @param {{repository: object, validator: object, seed: object, projectId: string, example?: object}} options
+ * Own one editable project resource and its durable validation revision.
+ * @param {{repository: object, validator: object, seed?: object, projectId: string, example?: object}} options
  */
-export async function createCemStudioFeatureTourWorkbench(options) {
+export async function createCemStudioWorkbench(options) {
     const { repository, validator, seed, projectId } = options;
-    if (!repository?.query || !repository?.execute) throw new TypeError('Feature Tour workbench requires a repository');
+    if (!repository?.query || !repository?.execute) throw new TypeError('Studio workbench requires a repository');
     if (
         !validator?.validateResource ||
         !validator?.parseResource ||
@@ -361,10 +361,10 @@ export async function createCemStudioFeatureTourWorkbench(options) {
         !validator?.serializeResourceCommand ||
         !validator?.executeAuthoredResourceCommand
     ) {
-        throw new TypeError('Feature Tour workbench requires a browser command validator');
+        throw new TypeError('Studio workbench requires a browser command validator');
     }
     if (typeof projectId !== 'string' || projectId.length === 0) {
-        throw new TypeError('Feature Tour workbench requires a project id');
+        throw new TypeError('Studio workbench requires a project id');
     }
     const initialExample = options.example ?? featureTourCemExample(seed);
     const workbenches = featureTourWorkbenches(seed, initialExample);
@@ -442,27 +442,27 @@ export async function createCemStudioFeatureTourWorkbench(options) {
     async function readPersisted() {
         const response = await repository.query(repositoryRequest('export-project', { projectId }));
         const bundle = response.value;
-        if (!bundle?.project || !bundle?.contents) throw new Error(`Feature Tour project ${projectId} is unavailable`);
+        if (!bundle?.project || !bundle?.contents) throw new Error(`Project ${projectId} is unavailable`);
         const resource = bundle.project.resources?.find(({ id }) => id === example.resourceId);
-        if (!resource) throw new Error(`Feature Tour resource ${example.resourceId} is unavailable`);
+        if (!resource) throw new Error(`Resource ${example.resourceId} is unavailable`);
         const currentEntries = bundle.project.entries.filter(
             ({ id, runConfigResourceId, resourceIds }) => example.projectOwned ? id === example.entryId :
                 runConfigResourceId === example.runConfigResourceId ||
                 (!example.runConfigResourceId && resourceIds?.includes(example.resourceId)),
         );
         if (currentEntries.length > 1) {
-            throw new Error(`Feature Tour resource ${example.resourceId} resolves to more than one current page`);
+            throw new Error(`Resource ${example.resourceId} resolves to more than one current configuration`);
         }
         example = { ...example, path: resource.path, referenceUri: projectResourceUri(bundle.project, resource) };
         const bytes = toBytes(bundle.contents[example.resourceId]);
-        if (example.projectOwned && example.entryId && currentEntries.length !== 1) throw new Error(`Page ${example.entryId} is missing`);
+        if (example.projectOwned && example.entryId && currentEntries.length !== 1) throw new Error(`Configuration ${example.entryId} is missing`);
         const dependencyDescriptors = example.projectOwned
             ? (currentEntries[0]?.resourceIds ?? []).filter(id => id !== example.resourceId && id !== currentEntries[0]?.runConfigResourceId)
                 .map(resourceId => ({ resourceId, path: projectResourceUri(bundle.project, bundle.project.resources.find(item => item.id === resourceId)) }))
             : example.dependencies;
         const dependencies = dependencyDescriptors.map((dependency) => {
             const dependencyResource = bundle.project.resources.find(({ id }) => id === dependency.resourceId);
-            if (!dependencyResource) throw new Error(`Feature Tour dependency ${dependency.resourceId} is unavailable`);
+            if (!dependencyResource) throw new Error(`Dependency ${dependency.resourceId} is unavailable`);
             return {
                 bytes: toBytes(bundle.contents[dependency.resourceId]),
                 contentType: dependencyResource.contentType,
@@ -848,7 +848,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
                     return publish({ ...state, status: stale ? 'projection-stale' : projection.exitCode === 0 ? 'projected' : 'projection-invalid', projection, operation });
                 } catch (error) { publish({ ...state, status: 'failed', error: normalizedError(error) }); throw error; }
             }
-            if (!example.commandArguments) throw new Error('This page has no persisted executable command');
+            if (!example.commandArguments) throw new Error('This configuration has no persisted executable command');
         }
         const operation = workbenchOperation(example);
         if (operation === 'parse') return parsePersisted('ast', options);
@@ -1224,7 +1224,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
 
     async function confirmCommandReplacement(options = {}) {
         const confirmation = state.command?.application?.confirmation;
-        if (!confirmation) throw new Error('No incompatible command-page replacement is awaiting confirmation');
+        if (!confirmation) throw new Error('No incompatible command-configuration replacement is awaiting confirmation');
         return applyCommandPage(confirmation.runAfterApply, options, {
             ...confirmation.target,
             confirmIncompatibleReplacement: true,
@@ -1632,7 +1632,7 @@ export async function createCemStudioFeatureTourWorkbench(options) {
 }
 
 /** Mount the workbench with production CEM controls only. */
-export async function mountCemStudioFeatureTourWorkbench({
+export async function mountCemStudioWorkbench({
     root,
     workbench,
     clipboard = navigator.clipboard,
@@ -1683,7 +1683,7 @@ export async function mountCemStudioFeatureTourWorkbench({
         state: { state: workbenchControlState(workbench.snapshot()), pending },
         commands: {
             'home-create': ({ fields }) => perform(() => workbench.createProject(fields.name?.[0] ?? '')),
-            'home-sample': ({ fields }) => perform(() => workbench.createSampleProject(fields.sample?.[0] ?? '')),
+            'home-example': ({ fields }) => perform(() => workbench.createExampleProject(fields.example?.[0] ?? '')),
             'home-trash': ({ fields }) => perform(() => workbench.setProjectTrashed(JSON.parse(fields.project?.[0]).projectId, true)),
             'home-restore': ({ fields }) => perform(() => workbench.setProjectTrashed(fields.project?.[0], false)),
             'home-import': () => perform(() => workbench.importProject()),
@@ -2264,14 +2264,14 @@ function configureCommandApplication(application, target) {
     let newPageName = application.newPageName;
     let newPageParentId = application.newPageParentId;
     if (target.mode === 'current') {
-        if (!application.targets.current) throw new Error('The workbench has no current page target');
+        if (!application.targets.current) throw new Error('The workbench has no current configuration target');
         normalized = { mode: 'current', entryId: application.targets.current.id };
     } else if (target.mode === 'existing') {
         const entry = application.targets.existing.find(({ id }) => id === target.entryId);
-        if (!entry) throw new Error(`Existing command-page target ${String(target.entryId)} is unavailable`);
+        if (!entry) throw new Error(`Existing command-configuration target ${String(target.entryId)} is unavailable`);
         normalized = { mode: 'existing', entryId: entry.id };
     } else if (target.mode === 'new') {
-        if (typeof target.name !== 'string') throw new TypeError('A new command page requires a name');
+        if (typeof target.name !== 'string') throw new TypeError('A new command configuration requires a name');
         newPageName = target.name;
         newPageParentId = target.parentId || undefined;
         normalized = {
@@ -2534,3 +2534,7 @@ async function browserDownload({ filename, contentType, bytes }) {
         URL.revokeObjectURL(url);
     }
 }
+
+// Compatibility exports for existing embedders. All projects use the same workspace.
+export const createCemStudioFeatureTourWorkbench = createCemStudioWorkbench;
+export const mountCemStudioFeatureTourWorkbench = mountCemStudioWorkbench;

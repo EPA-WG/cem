@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, extname, join, relative, resolve } from 'node:path';
-import { createPresentationSample } from './presentation-sample.mjs';
+import { createExampleProjects } from './example-projects.mjs';
+import { serializeCemStudioProjectBundle } from '../src/file-system-provider.js';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const workspaceRoot = resolve(projectRoot, '../..');
@@ -54,6 +55,7 @@ selected.sort((left, right) => left.packageId.localeCompare(right.packageId));
 const generated = new Map();
 const examples = [];
 const projectResources = [];
+const projectContents = {};
 const projectEntries = [
     {
         id: 'schema-package-examples',
@@ -133,6 +135,9 @@ for (const item of selected) {
             source: workspacePath(dependency.sourcePath),
         })),
     });
+    projectContents[resourceId] = item.bytes;
+    projectContents[runConfigResourceId] = runConfigBytes;
+    for (const dependency of dependencies) projectContents[dependency.resourceId] = dependency.bytes;
     projectEntries.push({
         id: `validate-${packageSlug}`,
         parentId: 'schema-package-examples',
@@ -226,6 +231,7 @@ for (const [id, definition] of Object.entries(operationFixtureDefinitions)) {
     const bytes = await readFile(sourcePath);
     const deployedPath = `resources/portable-operations/${definition.file}`;
     operationFixtures[id] = { ...definition, resourceId, sourcePath, bytes, deployedPath };
+    projectContents[resourceId] = bytes;
     projectResources.push({
         id: resourceId,
         role: definition.role,
@@ -362,6 +368,8 @@ for (const scenario of operationScenarioDefinitions) {
             sha256: sha256(runConfigBytes),
         },
     );
+    projectContents[expectedResourceId] = expectedBytes;
+    projectContents[runConfigResourceId] = runConfigBytes;
     projectEntries.push({
         id: `workbench-${scenario.id}`,
         parentId: 'portable-operation-workbenches',
@@ -465,11 +473,40 @@ const catalog = {
 };
 generated.set('catalog.json', jsonBytes(catalog));
 
-const presentation = await createPresentationSample(workspaceRoot, runtime.commonVersion);
-generated.set('amsterdam/login.cem-studio.json', presentation.archive);
+// Archives are ordinary native project bundles. Portable commands are persisted
+// in the project, so no catalog-specific runtime metadata is needed to run them.
+const schemaProject = structuredClone(project);
+schemaProject.id = 'schema-examples-seed';
+schemaProject.name = 'Schema examples';
+schemaProject.rootUri = 'studio://schema-examples-seed/';
+schemaProject.description = 'Schema package examples and portable command configurations.';
+const schemaContents = { ...projectContents };
+for (const configuration of workbenches) {
+    const resource = schemaProject.resources.find(item => item.id === configuration.runConfigResourceId);
+    const input = schemaProject.resources.find(item => item.id === configuration.resourceId);
+    const argv = configuration.commandArguments.map(argument => argument === '$input' ? input.path
+        : argument.startsWith('$resource:') ? schemaProject.resources.find(item => item.id === argument.slice('$resource:'.length)).path : argument);
+    const bytes = jsonBytes({ $schema: 'https://cem.dev/ns/cli/command/1', schemaVersion: 1,
+        commandSchemaVersion: 1, commonVersion: runtime.commonVersion, binaryName: 'cem-ml', argv });
+    Object.assign(resource, { contentType: 'application/vnd.cem.cli-command+json', schema: 'https://cem.dev/ns/cli/command/1', sha256: sha256(bytes) });
+    schemaContents[resource.id] = bytes;
+}
+const schemaArchive = serializeCemStudioProjectBundle({ project: schemaProject, contents: schemaContents });
+const exampleProjects = [{ archive: schemaArchive, record: { id: 'schema-examples', name: schemaProject.name,
+    version: '2.0.0', collections: [], archive: './examples/schema-examples.cem-studio.json', sha256: sha256(schemaArchive) } },
+    ...await createExampleProjects(workspaceRoot, runtime.commonVersion)];
+const starterBytes = Buffer.from('@doc cem-ml 1\n{main | My project}\n');
+const starterProject = { ...project, id: 'starter', name: 'CEM-ML project', description: 'An editable CEM-ML project.',
+    rootUri: 'studio://starter/', entries: [], resources: [{ id: 'source', path: 'data/main.cem', referencePath: 'data/main.cem',
+        role: 'data', sourceKind: 'project-file', contentType: 'application/cem', schema: 'https://cem.dev/ns/cem-ml/1', revision: 1, sha256: sha256(starterBytes) }] };
+const starterArchive = serializeCemStudioProjectBundle({ project: starterProject, contents: { source: starterBytes } });
+const starter = { id: 'starter', name: starterProject.name, version: '1.0.0', archive: './examples/starter.cem-studio.json', sha256: sha256(starterArchive) };
+generated.set(starter.archive.slice(2), starterArchive);
+for (const example of exampleProjects) generated.set(example.record.archive.slice(2), example.archive);
 const sampleCacheUrls = [
     './index.json',
-    presentation.sample.archive,
+    starter.archive,
+    ...exampleProjects.map(example => example.record.archive),
     './feature-tour/catalog.json',
     './feature-tour/feature-tour.project.json',
     ...examples.flatMap(({ asset, runConfig, dependencies }) => [
@@ -483,22 +520,16 @@ const index = {
     schemaVersion: 1,
     commonVersion: runtime.commonVersion,
     cacheUrls: sampleCacheUrls,
-    samples: [
-        {
-            id: seed.id,
-            name: seed.name,
-            version: seed.version,
-            catalog: './feature-tour/catalog.json',
-            project: './feature-tour/feature-tour.project.json',
-        },
-        presentation.sample,
-    ],
+    collections: [{ id: 'amsterdam-2026', name: 'Amsterdam 2026' }],
+    starter,
+    projects: exampleProjects.map(example => example.record),
 };
 generated.set('index.json', jsonBytes(index));
 const graph = `{run |\n${[
     graphCopyNode('sample-index', 'index.json', '../../dist/static/samples/index.json', 'application/json'),
-    graphCopyNode('amsterdam-login-sample', 'amsterdam/login.cem-studio.json',
-        '../../dist/static/samples/amsterdam/login.cem-studio.json', 'application/vnd.cem.studio-project-bundle+json'),
+    ...[starter, ...exampleProjects.map(example => example.record)].map(record => graphCopyNode(
+        `project-${record.id}`, record.archive.slice(2), `../../dist/static/samples/${record.archive.slice(2)}`,
+        'application/vnd.cem.studio-project-bundle+json')),
     graphCopyNode(
         'feature-tour-catalog',
         'catalog.json',

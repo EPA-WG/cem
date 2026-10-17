@@ -14,7 +14,7 @@ fn workspace() -> PathBuf {
 
 fn sample() -> serde_json::Value {
     serde_json::from_str(include_str!(
-        "../../cem-studio/fixtures/amsterdam-login/sample.json"
+        "../../../examples/projects/login/example.json"
     ))
     .unwrap()
 }
@@ -22,7 +22,7 @@ fn sample() -> serde_json::Value {
 #[test]
 fn presentation_login_commands_preserve_named_fields_and_report_existing_warnings() {
     let sample = sample();
-    for page in sample["pages"].as_array().unwrap() {
+    for page in sample["configurations"].as_array().unwrap() {
         let source = sample["sources"]
             .as_array()
             .unwrap()
@@ -90,7 +90,7 @@ fn presentation_login_commands_preserve_named_fields_and_report_existing_warning
 #[test]
 fn presentation_schema_violation_has_a_retained_form_span_and_exact_repair() {
     let root = workspace();
-    let fixture = root.join("packages/cem-studio/fixtures/amsterdam-login");
+    let fixture = root.join("examples/projects/login");
     let original = fs::read_to_string(root.join("examples/cem-ml/login.cem")).unwrap();
     let invalid = fs::read_to_string(fixture.join("login-invalid.cem")).unwrap();
     assert_eq!(invalid, original.replacen(" @method=post", "", 1));
@@ -159,7 +159,7 @@ fn presentation_schema_violation_has_a_retained_form_span_and_exact_repair() {
         8
     );
     let definition = sample();
-    let repair = &definition["pages"].as_array().unwrap().last().unwrap()["repair"];
+    let repair = &definition["configurations"].as_array().unwrap().last().unwrap()["repair"];
     let repaired = invalid.replacen(
         repair["find"].as_str().unwrap(),
         repair["replace"].as_str().unwrap(),

@@ -88,7 +88,7 @@
             "studioComponents": [],
             "materialReferences": ["card", "button", "badge", "progress-bar"],
             "contractBounds": ["Use cards, passive lists with explicit native actions, standalone badges, inline alerts, and the linear progress subset; no attached badge, FAB, buffer progress, or action-list contract is claimed."],
-            "applicationOwns": ["project records", "sample loading and independent copying", "seed installation", "storage estimates", "offline, update, and provider state"],
+            "applicationOwns": ["project records", "example-project catalog loading and independent copying", "project admission", "storage estimates", "offline, update, and provider state"],
             "evidence": ["packages/cem-components/docs/project-navigation-contract.md", "docs/cem-studio.md#primary-screens", "docs/cem-studio.md#amsterdam-presentation-samples", "docs/component-mvp.md#component-list"]
         },
         {

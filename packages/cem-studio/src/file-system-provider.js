@@ -4,6 +4,43 @@ export const CEM_STUDIO_FILE_SYSTEM_PROVIDER_ID = 'file-system-access';
 export const CEM_STUDIO_PROJECT_MANIFEST = 'project.cem';
 export const CEM_STUDIO_PROJECT_BUNDLE_CONTENT_TYPE = 'application/vnd.cem.studio-project-bundle+json';
 
+/** Load ordinary project templates; collection membership never selects application behavior. */
+export async function loadCemStudioExampleProjects({ baseUrl, commonVersion, fetch: fetchResource = globalThis.fetch }) {
+    const base = new URL(baseUrl, globalThis.document?.baseURI);
+    const response = await fetchResource(new URL('index.json', base));
+    if (!response.ok) throw new Error('Studio example-project catalog is unavailable');
+    const catalog = await response.json();
+    if (catalog.schemaVersion !== 1 || catalog.commonVersion !== commonVersion || !Array.isArray(catalog.projects)) {
+        throw new Error('Studio example-project catalog is incompatible');
+    }
+    const ids = new Set();
+    function provider(record) {
+        if (!record || typeof record.id !== 'string' || !record.id || typeof record.name !== 'string' || !record.name ||
+            typeof record.version !== 'string' || !record.version || !/^\.\/[a-zA-Z0-9_/-]+\.cem-studio\.json$/.test(record.archive) ||
+            record.archive.includes('/../') || !/^[a-f0-9]{64}$/.test(record.sha256) ||
+            (record.collections !== undefined && (!Array.isArray(record.collections) || record.collections.some(id => typeof id !== 'string')))) {
+            throw new Error('Studio example-project metadata is invalid');
+        }
+        return Object.freeze({ id: record.id, name: record.name, collections: Object.freeze([...(record.collections ?? [])]),
+            async load() {
+                const response = await fetchResource(new URL(record.archive, base));
+                if (!response.ok) throw new Error('The selected example project is unavailable');
+                const bytes = new Uint8Array(await response.arrayBuffer());
+                const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(byte => byte.toString(16).padStart(2, '0')).join('');
+                if (digest !== record.sha256) throw new Error('The selected example project failed its integrity check');
+                return parseCemStudioProjectBundle(bytes);
+            },
+        });
+    }
+    const examples = catalog.projects.map(record => {
+        const example = provider(record);
+        if (ids.has(record.id)) throw new Error('Studio example-project catalog has duplicate identities');
+        ids.add(record.id);
+        return example;
+    });
+    return Object.freeze({ catalog, examples: Object.freeze(examples), starter: provider(catalog.starter) });
+}
+
 /**
  * @typedef {object} CemStudioFileSystemProviderOptions
  * @property {{query: Function, execute: Function}} repository

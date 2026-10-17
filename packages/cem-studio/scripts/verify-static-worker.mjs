@@ -42,9 +42,12 @@ page.on('response', (response) => {
 try {
     const initialResponse = await page.goto(`${server.url}/index.html`, { waitUntil: 'load' });
     assert.ok(initialResponse);
+    await page.waitForFunction(() => Boolean(globalThis.__cemStudioApplication));
+    assert.equal(await page.evaluate(async () => (await globalThis.__cemStudioApplication.repository.query({ protocolVersion: 1, repository: 'studio-projects', requestRevision: 1, operation: 'list-projects', parameters: {} })).value.length), 0);
+    assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().projectId), undefined);
     await waitForApplication(page, browserErrors, httpFailures);
     console.log('[cem-studio:static-worker] application ready');
-    const initialFeatureTourStatus = await page.evaluate(() => globalThis.__cemStudioApplication.featureTour.status);
+    const initialFeatureTourStatus = await page.evaluate(() => globalThis.__cemStudioFixture.featureTour.status);
     const serviceWorker = await page.evaluate(async () => {
         const registration = await navigator.serviceWorker.register('./service-worker.js', {
             scope: './',
@@ -124,11 +127,11 @@ try {
     }
 
     if (presentationOnly) {
-        await exercisePresentationSamples(page, context);
+        await exerciseExampleProjects(page, context);
         assert.deepEqual(browserErrors, []); assert.deepEqual(httpFailures, []);
         await mkdir(dirname(reportPath), { recursive: true });
-        await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, presentationSamples: true, validationRepair: true, offline: true, pages: 5 }, null, 2)}\n`);
-        console.log('Verified deployed Amsterdam sample copies, schema failure/repair, source selection, Save/reload and five offline pages.');
+        await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, exampleProjects: true, validationRepair: true, offline: true, configurations: 5 }, null, 2)}\n`);
+        console.log('Verified deployed example project copies, schema failure/repair, source selection, Save/reload and five offline configurations.');
     } else if (lifecycleOnly) {
         const lifecycle = await exerciseProjectLifecycle(page, context);
         assert.deepEqual(browserErrors, []); assert.deepEqual(httpFailures, []);
@@ -239,8 +242,8 @@ try {
     assert.equal(featureTour.projectId, 'feature-tour');
     assert.equal(featureTour.exampleCount, 32);
     assert.equal(featureTour.validatedCount, featureTour.exampleCount);
-    assert.equal(featureTour.cachedSampleResponses, featureTour.cacheUrlCount + 1);
-    assert.equal(featureTour.presentationSampleCached, true);
+    assert.equal(featureTour.cachedSampleResponses, featureTour.cacheUrlCount + 3);
+    assert.equal(featureTour.exampleProjectCached, true);
 
     const workbench = await exerciseWorkbench(page);
     assert.equal(workbench.status, 'invalid');
@@ -485,8 +488,8 @@ async function exerciseProjectLifecycle(page, context) {
             await inspectWorkspaceAccessibility(page, context);
             await page.getByRole('tab', { name: 'Studio command', exact: true }).click(); await settle();
         }
-        await choose('[data-cem-studio-command-target-mode]', 'New page (recommended when incompatible)');
-        await page.getByRole('textbox', { name: 'New page name', exact: true }).fill(name);
+        await choose('[data-cem-studio-command-target-mode]', 'New configuration (recommended when incompatible)');
+        await page.getByRole('textbox', { name: 'New configuration name', exact: true }).fill(name);
         await settle(); await click('Apply');
         const state = await snapshot();
         assert.equal(state.command.application.status, 'applied');
@@ -499,7 +502,7 @@ async function exerciseProjectLifecycle(page, context) {
     assert.equal((await snapshot()).entryId, entries[0]);
     assert.equal((await snapshot()).command.parsed.options.format, 'events');
     assert.equal((await snapshot()).command.parsed.options.preserve_source_offsets, true);
-    await click('Run configured workbench');
+    await click('Run configuration');
     assert.equal((await snapshot()).projection.stale, false);
     const editor = await source.elementHandle();
     await source.fill(`${texts[0]}unsaved`); await settle();
@@ -542,7 +545,7 @@ async function exerciseProjectLifecycle(page, context) {
     await page.reload({ waitUntil: 'load' }); await waitForApplication(page, browserErrors, httpFailures); await settle();
     assert.equal((await snapshot()).projectId, betaId); assert.equal((await snapshot()).persistedText, texts[1]);
     await page.getByRole('textbox', { name: 'Search projects', exact: true }).fill('Beta inspection');
-    await click('Search'); await click('Open result'); await click('Run configured workbench');
+    await click('Search'); await click('Open result'); await click('Run configuration');
     assert.equal((await snapshot()).entryId, entries[1]); assert.equal((await snapshot()).projection.stale, false);
     const accessibility = await inspectWorkspaceAccessibility(page, context);
     await page.getByRole('textbox', { name: 'Search projects', exact: true }).fill('Alpha inspection');
@@ -586,9 +589,9 @@ async function exerciseProjectLifecycle(page, context) {
     await page.getByRole('textbox', { name: 'New subproject name', exact: true }).fill('Acceptance section');
     await click('Create subproject');
     assert.ok((await structure()).entries.some(entry => entry.name === 'Acceptance section'));
-    await pick('Page to edit', 'Acceptance section');
-    await pick('Page edit', 'Reorder among siblings');
-    await click('Edit page');
+    await pick('Configuration to edit', 'Acceptance section');
+    await pick('Configuration edit', 'Reorder among siblings');
+    await click('Edit configuration');
     assert.equal((await structure()).entries[0].name, 'Acceptance section');
     await click('Undo structure edit');
     assert.equal((await structure()).entries[0].name, 'Alpha inspection');
@@ -624,7 +627,7 @@ async function exerciseProjectLifecycle(page, context) {
     await click('Undo structure edit');
     assert.ok((await structure()).resources.some(item => item.path === 'data/structure-source.cem'));
     await page.getByRole('textbox', { name: 'Search projects', exact: true }).fill('Alpha inspection');
-    await click('Search'); await click('Open result'); await click('Run configured workbench');
+    await click('Search'); await click('Open result'); await click('Run configuration');
     assert.equal((await snapshot()).projection.stale, false);
     assert.equal((await snapshot()).entryId, entries[0]);
     await page.reload({ waitUntil: 'load' }); await waitForApplication(page, browserErrors, httpFailures); await settle();
@@ -820,7 +823,7 @@ async function exerciseProjectLifecycle(page, context) {
     await context.setOffline(false);
     await context.setOffline(true);
     assert.equal(await page.evaluate(() => navigator.onLine), false);
-    await click('Reload persisted revision'); await click('Run configured workbench');
+    await click('Reload persisted revision'); await click('Run configuration');
     const graphRun = await snapshot();
     assert.equal(graphRun.projection.exitCode, 0);
     assert.equal(graphRun.projection.stale, false);
@@ -832,13 +835,13 @@ async function exerciseProjectLifecycle(page, context) {
         const value = (await repository.query({ protocolVersion: 1, repository: 'studio-projects', requestRevision: 1, operation: 'export-project', parameters: { projectId: 'acceptance-graph-authoring' } })).value;
         return value.project.resources.filter(resource => resource.id !== 'graph');
     }), graphRecords);
-    await exercisePresentationSamples(page, context);
+    await exerciseExampleProjects(page, context);
     await editor.dispose();
-    return { presentationSamples: true, presentationValidationRepair: true, graphEdgeAuthoring: true, graphNodeCreation: true, graphConfigurationAuthoring: true, stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
+    return { exampleProjects: true, projectValidationRepair: true, graphEdgeAuthoring: true, graphNodeCreation: true, graphConfigurationAuthoring: true, stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
         guardedDraftAndFocusRetained: true, exportedExactBytes: true, trashRestore: true, offlineReopen: true, accessibility };
 }
 
-async function exercisePresentationSamples(page, context) {
+async function exerciseExampleProjects(page, context) {
     const settle = () => page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
     const snapshot = () => page.evaluate(() => {
         const state = globalThis.__cemStudioApplication.workbench.snapshot();
@@ -846,11 +849,11 @@ async function exercisePresentationSamples(page, context) {
             projection: state.projection && { kind: state.projection.kind, exitCode: state.projection.exitCode, text: state.projection.output.text },
             diagnostics: state.validation?.diagnostics, validationStale: state.validation?.stale, validation: state.validation?.reportSummary };
     });
-    const click = async name => { console.log(`[cem-studio:presentation] ${name}`); await page.getByRole('button', { name, exact: true }).click(); await settle(); };
+    const click = async name => { console.log(`[cem-studio:examples] ${name}`); await page.getByRole('button', { name, exact: true }).click(); await settle(); };
     const pick = async (name, option) => { await page.getByRole('combobox', { name, exact: true }).click(); await page.getByRole('option', { name: option, exact: true }).click(); await settle(); };
-    const sampleName = 'Amsterdam 2026: Login lifecycle';
+    const sampleName = 'Login';
     const copyId = name => page.evaluate(name => JSON.parse(globalThis.__cemStudioApplication.workbench.snapshot().home.projects.find(project => project.name === name).id).projectId, name);
-    const selectPage = async (projectId, entryId) => {
+    const selectConfiguration = async (projectId, entryId) => {
         const label = await page.evaluate(({ projectId, entryId }) => {
             const choice = globalThis.__cemStudioApplication.workbench.snapshot().workbenches.find(choice => {
                 const selected = JSON.parse(choice.id); return selected.projectId === projectId && selected.entryId === entryId;
@@ -867,13 +870,24 @@ async function exercisePresentationSamples(page, context) {
     await context.setOffline(false); await context.setOffline(true);
     assert.equal(await page.evaluate(() => navigator.onLine), false);
     const before = await snapshot();
-    await pick('Samples', sampleName); await click('Create sample copy');
+    await pick('Example projects', sampleName); await click('Create project from example');
     assert.deepEqual(await snapshot(), before);
     const firstId = await copyId(sampleName);
     await pick('Projects', sampleName); await click('Open project');
-    await selectPage(firstId, 'read-edit');
+    const readme = await page.evaluate(projectId => {
+        const choices = globalThis.__cemStudioApplication.workbench.snapshot().workbenches;
+        const choice = choices.find(choice => { const selection = JSON.parse(choice.id); return selection.projectId === projectId && selection.resourceId === 'readme' && !selection.entryId; });
+        return `${choice.name} — ${choice.operation}`;
+    }, firstId);
+    await pick('Workbench', readme);
+    assert.ok((await snapshot()).draft.includes('demo.login.method_required'));
+    assert.ok((await snapshot()).draft.includes('Intentional validation failure and repair'));
+    const configurations = await page.evaluate(async projectId => (await globalThis.__cemStudioApplication.repository.query({ protocolVersion: 1, repository: 'studio-projects', operation: 'get-project', requestRevision: 1, parameters: { projectId } })).value.entries, firstId);
+    assert.equal(configurations.length, 5);
+    assert.ok(configurations.every(configuration => !/^\d+\./.test(configuration.name)));
+    await selectConfiguration(firstId, 'read-edit');
     const original = (await snapshot()).draft;
-    await click('Run configured workbench');
+    await click('Run configuration');
     assert.equal((await snapshot()).projection.kind, 'parse');
     assert.equal((await snapshot()).projection.exitCode, 0);
     const edited = original.replace('Sign in}', 'Amsterdam sign in}');
@@ -882,24 +896,24 @@ async function exercisePresentationSamples(page, context) {
     await click('Save and validate');
     assert.equal((await snapshot()).validation.errorCount, 0);
     assert.equal((await snapshot()).validation.warningCount, 3);
-    await click('Run configured workbench');
+    await click('Run configuration');
     assert.ok((await snapshot()).projection.text.includes('Amsterdam sign in'));
-    await selectPage(firstId, 'validate');
+    await selectConfiguration(firstId, 'validate');
     const revision = (await snapshot()).projectRevision;
     await click('Validate persisted revision');
     assert.equal((await snapshot()).validation.errorCount, 0);
     assert.equal((await snapshot()).validation.warningCount, 3);
     assert.equal((await snapshot()).projectRevision, revision);
-    await selectPage(firstId, 'inspect'); await click('Run configured workbench');
+    await selectConfiguration(firstId, 'inspect'); await click('Run configuration');
     assert.equal((await snapshot()).projection.kind, 'inspect');
     assert.equal((await snapshot()).projection.exitCode, 0);
     assert.ok((await snapshot()).projection.text.includes('Amsterdam sign in'));
-    await selectPage(firstId, 'html-conversion'); await click('Run configured workbench');
+    await selectConfiguration(firstId, 'html-conversion'); await click('Run configuration');
     const converted = (await snapshot()).projection;
     assert.equal(converted.kind, 'convert'); assert.equal(converted.exitCode, 0);
     for (const field of ['@name=email', '@name=password', '@method=post']) assert.ok(converted.text.includes(field), field);
-    await selectPage(firstId, 'validation-repair');
-    assert.ok(await page.getByText('Validate persisted revision to find the missing form method.', { exact: false }).isVisible());
+    await selectConfiguration(firstId, 'validation-repair');
+    assert.ok(await page.getByText('Validate the form method using the project-owned teaching schema.', { exact: false }).isVisible());
     const invalid = (await snapshot()).draft;
     assert.equal(invalid, original.replace(' @method=post', ''));
     await click('Validate persisted revision');
@@ -931,17 +945,17 @@ async function exercisePresentationSamples(page, context) {
     assert.equal((await snapshot()).validation.errorCount, 1);
     await editor.fill(repaired); await settle(); await click('Save and validate');
     assert.equal((await snapshot()).validation.errorCount, 0);
-    await selectPage(firstId, 'read-edit');
+    await selectConfiguration(firstId, 'read-edit');
     await page.reload({ waitUntil: 'load' }); await waitForApplication(page, browserErrors, httpFailures); await settle();
     assert.equal((await snapshot()).draft, edited);
-    await pick('Samples', sampleName); await click('Create sample copy');
+    await pick('Example projects', sampleName); await click('Create project from example');
     const secondId = await copyId(`${sampleName} (2)`);
     assert.notEqual(firstId, secondId);
     assert.equal((await snapshot()).projectId, firstId);
     await pick('Projects', `${sampleName} (2)`); await click('Open project');
-    await selectPage(secondId, 'read-edit');
+    await selectConfiguration(secondId, 'read-edit');
     assert.equal((await snapshot()).draft, original);
-    await selectPage(secondId, 'validation-repair');
+    await selectConfiguration(secondId, 'validation-repair');
     assert.equal((await snapshot()).draft, invalid);
     await click('Validate persisted revision');
     assert.equal((await snapshot()).validation.errorCount, 1);
@@ -1016,6 +1030,28 @@ async function waitForApplication(page, browserErrors, httpFailures) {
         ];
         throw new Error(`${error.message}${details.length > 0 ? `\n${details.join('\n')}` : ''}`, { cause: error });
     }
+    await page.evaluate(async () => {
+        if (globalThis.__cemStudioFixture) return;
+        const app = globalThis.__cemStudioApplication;
+        const { loadCemStudioFeatureTour, installCemStudioFeatureTour } = await import('@epa-wg/cem-studio');
+        const seed = await loadCemStudioFeatureTour({ baseUrl: new URL('./samples/feature-tour/', document.baseURI), validator: app.validator });
+        const generic = await app.exampleProjects.examples.find(project => project.id === 'schema-examples').load();
+        // Legacy seed-upgrade regression data shares portable command resources with the ordinary example archive.
+        for (const scenario of seed.catalog.workbenches) {
+            const id = scenario.runConfigResourceId;
+            Object.assign(seed.bundle.project.resources.find(resource => resource.id === id), generic.project.resources.find(resource => resource.id === id));
+            seed.bundle.contents[id] = generic.contents[id];
+        }
+        const featureTour = await installCemStudioFeatureTour(app.repository, seed);
+        globalThis.__cemStudioFixture = { seed, featureTour };
+        if (!app.session.snapshot().selection) {
+            const example = seed.catalog.examples.find(item => item.packageId === 'cem-ml' && item.contentType.includes('cem'));
+            const entry = seed.bundle.project.entries.find(item => item.runConfigResourceId === example.runConfigResourceId);
+            await app.session.select({ projectId: featureTour.projectId, entryId: entry.id });
+        }
+        await app.workbench.refreshNavigation();
+        await app.workbenchView.whenSettled();
+    });
 }
 
 async function inspectHardening(page, initialResponse) {
@@ -1142,7 +1178,7 @@ async function exerciseUpdateBarrier(page) {
             repository: 'studio-projects',
             operation: 'export-project',
             requestRevision: 1,
-            parameters: { projectId: application.featureTour.projectId },
+            parameters: { projectId: globalThis.__cemStudioFixture.featureTour.projectId },
         });
         const draft = `${workbench.snapshot().draft}\n{p | Persisted before update}\n`;
         workbench.updateDraft(draft);
@@ -1163,7 +1199,7 @@ async function exerciseUpdateBarrier(page) {
             repository: 'studio-projects',
             operation: 'export-project',
             requestRevision: 1,
-            parameters: { projectId: application.featureTour.projectId },
+            parameters: { projectId: globalThis.__cemStudioFixture.featureTour.projectId },
         });
         const bytes = after.value.contents[workbench.snapshot().resourceId];
         const resource = after.value.project.resources.find(({ id }) => id === workbench.snapshot().resourceId);
@@ -1185,7 +1221,7 @@ async function exerciseUpdateBarrier(page) {
 async function validateFeatureTour(page, initialStatus) {
     return page.evaluate(async (startupStatus) => {
         const application = globalThis.__cemStudioApplication;
-        const { catalog, bundle } = application.seed;
+        const { catalog, bundle } = globalThis.__cemStudioFixture.seed;
         let validatedCount = 0;
         for (const [index, example] of catalog.examples.entries()) {
             console.log(`[cem-studio:feature-tour] validating ${index + 1}/${catalog.exampleCount}: ${example.id}`);
@@ -1216,15 +1252,15 @@ async function validateFeatureTour(page, initialStatus) {
         const sampleCache = await caches.open('cem-studio:0.1.0:samples');
         return {
             initialStatus: startupStatus,
-            status: application.featureTour.status,
+            status: globalThis.__cemStudioFixture.featureTour.status,
             seedId: catalog.seed.id,
-            projectId: application.featureTour.projectId,
+            projectId: globalThis.__cemStudioFixture.featureTour.projectId,
             exampleCount: catalog.exampleCount,
             dependencyCount: catalog.dependencyCount,
             cacheUrlCount: catalog.cacheUrlCount,
             validatedCount,
             cachedSampleResponses: (await sampleCache.keys()).length,
-            presentationSampleCached: Boolean(await sampleCache.match(new URL('./samples/amsterdam/login.cem-studio.json', document.baseURI))),
+            exampleProjectCached: Boolean(await sampleCache.match(new URL('./samples/examples/login.cem-studio.json', document.baseURI))),
         };
     }, initialStatus);
 }
@@ -1240,7 +1276,7 @@ async function exerciseWorkbench(page) {
             repository: 'studio-projects',
             operation: 'export-project',
             requestRevision: 1,
-            parameters: { projectId: application.featureTour.projectId },
+            parameters: { projectId: globalThis.__cemStudioFixture.featureTour.projectId },
         });
         const diagnosticIndex = snapshot.validation.diagnostics.findIndex(({ range }) => range.len > 0);
         if (diagnosticIndex < 0) throw new Error('saved revision diagnostics have no navigable source range');
@@ -1350,8 +1386,8 @@ async function exercisePortableOperations(page) {
         const application = globalThis.__cemStudioApplication;
         const initialWorkbenchId = application.workbench.snapshot().workbenchId;
         const results = [];
-        for (const scenario of application.seed.catalog.workbenches) {
-            const project = (await application.repository.query({ protocolVersion: 1, repository: 'studio-projects', operation: 'get-project', requestRevision: 1, parameters: { projectId: application.featureTour.projectId } })).value;
+        for (const scenario of globalThis.__cemStudioFixture.seed.catalog.workbenches) {
+            const project = (await application.repository.query({ protocolVersion: 1, repository: 'studio-projects', operation: 'get-project', requestRevision: 1, parameters: { projectId: globalThis.__cemStudioFixture.featureTour.projectId } })).value;
             const entry = project.entries.find(item => item.runConfigResourceId === scenario.runConfigResourceId);
             await application.session.select({ projectId: project.id, entryId: entry.id });
             if (application.session.snapshot().transition) throw new Error('Portable scenario navigation was not admitted');
@@ -1421,7 +1457,7 @@ async function exerciseCommandView(page) {
             repository: 'studio-projects',
             operation: 'export-project',
             requestRevision: 1,
-            parameters: { projectId: application.featureTour.projectId },
+            parameters: { projectId: globalThis.__cemStudioFixture.featureTour.projectId },
         });
         const initial = application.workbench.snapshot().command;
         const changedText = initial.current.text.replace('--show tree', '--show summary');
@@ -1467,7 +1503,7 @@ async function exerciseCommandView(page) {
             repository: 'studio-projects',
             operation: 'export-project',
             requestRevision: 1,
-            parameters: { projectId: application.featureTour.projectId },
+            parameters: { projectId: globalThis.__cemStudioFixture.featureTour.projectId },
         });
         return {
             projection: initial.projection,
@@ -1524,7 +1560,7 @@ async function exerciseCommandApplyAndRun(page) {
                 operation: 'import-project',
                 requestRevision: 1,
                 parameters: {
-                    bundle: createCemStudioFeatureTourCopy(application.seed, {
+                    bundle: createCemStudioFeatureTourCopy(globalThis.__cemStudioFixture.seed, {
                         projectId,
                         now: '2026-08-22T00:00:00Z',
                     }),
@@ -1534,7 +1570,7 @@ async function exerciseCommandApplyAndRun(page) {
             workbench = await createCemStudioFeatureTourWorkbench({
                 repository,
                 validator: application.validator,
-                seed: application.seed,
+                seed: globalThis.__cemStudioFixture.seed,
                 projectId,
             });
             const recommendedTarget = workbench.snapshot().command.application.target.mode;
@@ -1609,7 +1645,7 @@ async function projectOfflineResource(page) {
         const workbench = await createCemStudioFeatureTourWorkbench({
             repository: application.repository,
             validator: application.validator,
-            seed: application.seed,
+            seed: globalThis.__cemStudioFixture.seed,
             projectId: 'offline-project',
             example: {
                 resourceId: 'source',

@@ -1,0 +1,189 @@
+{
+  "id": "login",
+  "name": "Login",
+  "version": "2.0.0",
+  "description": "Login source, HTML input, schema validation and command configurations.",
+  "sources": [
+    {
+      "id": "login-cem",
+      "source": "examples/cem-ml/login.cem",
+      "path": "data/login.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cem-ml/1"
+    },
+    {
+      "id": "login-html",
+      "source": "examples/semantic/login.html",
+      "path": "data/login.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1"
+    },
+    {
+      "id": "login-invalid",
+      "source": "examples/projects/login/login-invalid.cem",
+      "path": "data/login-invalid.cem",
+      "contentType": "application/cem",
+      "schema": "urn:demo:login",
+      "role": "data"
+    },
+    {
+      "id": "login-schema-package",
+      "source": "examples/projects/login/login-schema-package.cem",
+      "path": "schemas/login-schema-package.cem",
+      "contentType": "application/vnd.cem.schema-package+cem",
+      "schema": "https://cem.dev/ns/schema-package/1",
+      "role": "schema"
+    },
+    {
+      "id": "login-schema",
+      "source": "examples/projects/login/login-schema.cem",
+      "path": "schemas/login-schema.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/schema/1",
+      "role": "schema"
+    },
+    {
+      "id": "readme",
+      "source": "examples/projects/login/README.md",
+      "path": "README.md",
+      "contentType": "text/markdown",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "role": "data"
+    }
+  ],
+  "collections": [
+    "amsterdam-2026"
+  ],
+  "configurations": [
+    {
+      "id": "read-edit",
+      "name": "Parse login",
+      "kind": "inspection",
+      "source": "login-cem",
+      "argv": [
+        "parse",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--format",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "https://cem.dev/ns/projection/ast/1",
+        "@name=input",
+        "@value=\"Sign in\"",
+        "@byte-offset="
+      ]
+    },
+    {
+      "id": "validate",
+      "name": "Validate login",
+      "kind": "validation",
+      "source": "login-cem",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedValidation": {
+        "errorCount": 0,
+        "warningCount": 3,
+        "warningCode": "cem.ast.unresolved_reference"
+      }
+    },
+    {
+      "id": "inspect",
+      "name": "Inspect login",
+      "kind": "inspection",
+      "source": "login-cem",
+      "argv": [
+        "inspect",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--show",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "https://cem.dev/ns/projection/ast/1",
+        "@name=input",
+        "@value=\"Sign in\"",
+        "@byte-offset="
+      ]
+    },
+    {
+      "id": "html-conversion",
+      "name": "Convert HTML to CEM-ML",
+      "kind": "conversion",
+      "source": "login-html",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "text/html",
+        "--schema",
+        "https://cem.dev/ns/data/html/1",
+        "--to-content-type",
+        "application/cem",
+        "--to-schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedText": [
+        "@name=email",
+        "@name=password",
+        "@method=post",
+        "@required",
+        "Sign in"
+      ]
+    },
+    {
+      "id": "validation-repair",
+      "name": "Validate form method",
+      "kind": "validation",
+      "source": "login-invalid",
+      "dependencies": [
+        "login-schema-package",
+        "login-schema"
+      ],
+      "description": "Validate the form method using the project-owned teaching schema.",
+      "argv": [
+        "validate",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "urn:demo:login",
+        "--schema-package",
+        "$login-schema-package",
+        "--format",
+        "json",
+        "--no-color"
+      ],
+      "expectedExit": 1,
+      "expectedValidation": {
+        "errorCount": 1,
+        "warningCount": 3,
+        "warningCode": "cem.ast.unresolved_reference",
+        "errorCode": "demo.login.method_required"
+      },
+      "repair": {
+        "find": "@cem:form=\"sign-in\"",
+        "replace": "@cem:form=\"sign-in\" @method=post"
+      }
+    }
+  ]
+}

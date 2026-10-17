@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
     CEM_STUDIO_FILE_SYSTEM_PROVIDER_ID,
     createCemStudioFileSystemProvider,
+    loadCemStudioExampleProjects,
+    serializeCemStudioProjectBundle,
 } from './file-system-provider.js';
 import { CEM_STUDIO_REPOSITORY_ID, createCemStudioProjectRepository } from './repository.js';
 
@@ -18,6 +20,31 @@ afterEach(async () => {
 });
 
 describe('CEM Studio File System Access provider', () => {
+    it('loads arbitrary example projects lazily with catalog compatibility and archive integrity', async () => {
+        const repository = await repositoryWithProject('Owned example');
+        const bundle = await exportProject(repository);
+        const archive = serializeCemStudioProjectBundle(bundle);
+        const sha256 = [...new Uint8Array(await crypto.subtle.digest('SHA-256', archive))].map(value => value.toString(16).padStart(2, '0')).join('');
+        const record = { id: 'custom-example', name: 'Custom example', version: '1.0.0', collections: ['conference'], archive: './custom.cem-studio.json', sha256 };
+        const catalog = { schemaVersion: 1, commonVersion: 'test', projects: [record], starter: record };
+        const fetch = vi.fn(async url => new Response(String(url).endsWith('/index.json') ? JSON.stringify(catalog) : archive));
+        const options = { baseUrl: 'https://studio.test/examples/', commonVersion: 'test', fetch };
+        const loaded = await loadCemStudioExampleProjects(options);
+        expect(fetch).toHaveBeenCalledTimes(1);
+        expect(loaded.examples[0]).toMatchObject({ id: 'custom-example', name: 'Custom example', collections: ['conference'] });
+        const decoded = { project: bundle.project, contents: Object.fromEntries(Object.entries(bundle.contents).map(([id, bytes]) => [id, new Uint8Array(bytes)])) };
+        expect(await loaded.examples[0].load()).toEqual(decoded);
+        expect(await loaded.starter.load()).toEqual(decoded);
+        await expect(loadCemStudioExampleProjects({ ...options, commonVersion: 'other' })).rejects.toThrow('incompatible');
+        catalog.projects.push(record);
+        await expect(loadCemStudioExampleProjects(options)).rejects.toThrow('duplicate');
+        catalog.projects.pop();
+        const corrupt = await loadCemStudioExampleProjects({ ...options, fetch: async url => new Response(String(url).endsWith('/index.json') ? JSON.stringify(catalog) : 'corrupt') });
+        await expect(corrupt.examples[0].load()).rejects.toThrow('integrity');
+        catalog.projects[0] = { ...record, archive: '../outside.json' };
+        await expect(loadCemStudioExampleProjects(options)).rejects.toThrow('metadata');
+    });
+
     it('retains an exact resource handle, pulls external bytes, and rejects stale write-back before truncation', async () => {
         const repository = await repositoryWithProject('IndexedDB source');
         const directory = await fixtureDirectory();

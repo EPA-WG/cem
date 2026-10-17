@@ -78,7 +78,7 @@ revision checks, SHA-256 content addressing, a durable change journal,
 `BroadcastChannel` invalidation, and derived deterministic search documents.
 The `apply-command-page` command additionally parses portable authored command
 resources through the shared CLI grammar, resolves project-local `studio://`
-resources, validates the proposed project, and commits current/existing/new page
+resources, validates the proposed project, and commits current/existing/new configuration
 targets with their exact command bytes in one transaction. Shared run configs
 are isolated, incompatible replacement is confirmation-gated, and the result
 returns the committed project/entry/resource revisions for later Apply & Run.
@@ -241,7 +241,7 @@ trash and an active-project file provider. The shared tree-to-host scalar comman
 bridge and [shared navigation workflows](../cem-components/docs/project-navigation-contract.md)
 are implemented and browser-verified. The session admission service now guards
 source and command drafts, retains them after failed/cancelled transitions, and
-isolates late workbench results. Project-owned workbenches now load durable pages,
+isolates late workbench results. Project-owned workbenches now load durable configurations,
 resources, dependencies and native command resources without requiring a catalog.
 Startup uses guarded project navigation with shared CEM dialogs; Feature Tour
 metadata is optional. Empty/read-only resources remain selectable, and failed
@@ -264,7 +264,7 @@ declaration in `cem-components` before Studio adoption.
 The [ordered checklist](../../docs/todo.md#cem-studio-delivery-planning) owns
 execution. Source and command drafts now autosave to a bounded local recovery
 journal, with baseline checks, visible failures and downloadable backups. Save/Apply
-remain explicit project operations. Shared CEM forms now support project/page rename,
+remain explicit project operations. Shared CEM forms now support project/configuration rename,
 subproject creation, subtree copy/move/reorder and resource creation/copy, with
 revision-checked session undo/redo. The Operation form section now edits native-metadata
 scalar, enum and boolean command options through shared CEM controls, with stale
@@ -298,21 +298,28 @@ Studio uses the shared contextual sun/moon theme menu (tooltip: “Change theme�
 It restores `cem-studio-theme` from local storage before mounting the shell,
 defaulting to light. Menu choices retain the shared selected-action styling.
 
-## Amsterdam login samples
+## Example projects
 
-Studio Home now lists **Amsterdam 2026: Login lifecycle** under **Samples**.
-Select **Create sample copy**, then open the project under **Projects**. The
-five pages cover CEM-ML editing/AST, saved-source validation, typed inspection,
-HTML-to-CEM-ML conversion and deliberate schema failure/repair. **Validate persisted revision** checks saved bytes while
-preserving unsaved edits. Copies are independent and the archive is available
-offline. Native validation retains three existing login reference warnings.
+Studio serves predefined and user-created/customized projects in one workspace.
+A fresh profile opens Home. Select **Login** or **Schema examples** under
+**Example projects**, choose **Create project from example**, then open it from
+**Projects**. **Create CEM-ML project** starts with a neutral source resource.
+Startup restores an existing selection without installing a special example.
 
-The fifth page starts without `@method=post`: validate to get
-`demo.login.method_required`, select it in Results → Diagnostics to locate the
-form, restore the attribute, then Save and validate. The bundled teaching rule
-requires a method; it is not a complete HTML schema. Create a new sample copy
-for version 1.1.0; existing copies retain their saved resources.
+Projects own resources and configurations. Authored example definitions live in
+`examples/projects/*/example.json`; Amsterdam membership is catalog metadata.
+Every copy has independent persistence and retains native resource identities.
+Archive updates leave saved and trashed projects intact.
 
-HTML/CEM semantic comparison, query/template processing and the live `cem-element`
-view remain in the presentation queue. See the
-[sample workflow](../../docs/cem-studio.md#amsterdam-presentation-samples).
+Login includes parse, validation, inspection, HTML conversion and form-method
+validation configurations. Open its README resource for failure/repair guidance.
+**Validate persisted revision** checks saved bytes while preserving an unsaved
+draft. Repairing `@method=post`, saving and validating removes the deliberate
+`demo.login.method_required` error; three existing reference warnings remain.
+
+There are no dedicated example/presentation screens. Resources, configurations,
+commands, results, diagnostics and import/export use the same shared controls.
+Native `entries`, `entryId` and `apply-command-page` names remain compatibility
+fields; UI terminology is projects, resources and configurations. See the
+[workspace design](../../docs/cem-studio.md#example-project-catalog-and-workspace)
+and [Login configurations](../../docs/cem-studio.md#amsterdam-presentation-samples).

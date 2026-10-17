@@ -139,3 +139,16 @@ export declare function parseCemStudioProjectBundle(
     project: Readonly<Record<string, unknown>>;
     contents: Record<string, Uint8Array>;
 };
+
+export interface CemStudioExampleProject {
+    readonly id: string;
+    readonly name: string;
+    readonly collections: readonly string[];
+    load(): Promise<{ project: Readonly<Record<string, unknown>>; contents: Record<string, Uint8Array> }>;
+}
+
+export declare function loadCemStudioExampleProjects(options: {
+    baseUrl: string | URL;
+    commonVersion: string;
+    fetch?: typeof globalThis.fetch;
+}): Promise<{ catalog: Record<string, unknown>; examples: readonly CemStudioExampleProject[]; starter: CemStudioExampleProject }>;

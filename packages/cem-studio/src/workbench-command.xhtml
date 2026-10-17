@@ -63,16 +63,16 @@
             {cem-stack @data-cem-studio-command-target-detail="" |
                 {cem:choose |
                     {cem:when @test='application.target.mode == "current"' |
-                        {cem-alert @label={if application.targets.current { str:concat((application.targets.current.name, "; ", application.targets.current.kind, if application.targets.current.compatible { "; compatible" } else { "; replacement confirmation required" }), "") } else { "No current page is available" }} @tone={if application.targets.current.compatible { "success" } else { "warning" }}}
+                        {cem-alert @label={if application.targets.current { str:concat((application.targets.current.name, "; ", application.targets.current.kind, if application.targets.current.compatible { "; compatible" } else { "; replacement confirmation required" }), "") } else { "No current configuration is available" }} @tone={if application.targets.current.compatible { "success" } else { "warning" }}}
                     }
                     {cem:when @test='application.target.mode == "existing"' |
                         {cem-select @data-cem-studio-command-target-existing="" @disabled={if busy { true } else { null }}
                             @host-command=target-existing @host-command-event=change
                             @name=command-target-existing @value={application.target.entryId ?? ""} |
-                            {span @slot=label | Existing page}
+                            {span @slot=label | Existing configuration}
                             {cem:choose |
                                 {cem:when @test="seq:count(application.targets.existing.id) == 0" |
-                                    {option @disabled=true @value="" | No existing pages}
+                                    {option @disabled=true @value="" | No existing configurations}
                                 }
                                 {cem:otherwise |
                                     {cem:for-each @as=entry @select=application.targets.existing |
@@ -84,7 +84,7 @@
                     {cem:otherwise |
                         {cem-text-field @data-cem-studio-command-target-name="" @disabled={if busy { true } else { null }}
                             @host-command=target-name @host-command-event=input
-                            @label="New page name" @name=command-target-name @required=true @value={application.newPageName} |
+                            @label="New configuration name" @name=command-target-name @required=true @value={application.newPageName} |
                             {span @slot=help | A collision-safe stable id is assigned by the repository.}
                         }
                         {cem-select @data-cem-studio-command-target-parent="" @disabled={if busy { true } else { null }}
@@ -109,13 +109,13 @@
                             @host-command=target-mode @host-command-event=change
                             @name=command-target-mode @value={application.target.mode} |
                             {span @slot=label | Apply to}
-                            {option @disabled={if application.targets.current { null } else { true }} @value=current | Current page}
-                            {option @disabled={if seq:count(application.targets.existing.id) &gt; 0 { null } else { true }} @value=existing | Existing page}
-                            {option @value=new | New page (recommended when incompatible)}
+                            {option @disabled={if application.targets.current { null } else { true }} @value=current | Current configuration}
+                            {option @disabled={if seq:count(application.targets.existing.id) &gt; 0 { null } else { true }} @value=existing | Existing configuration}
+                            {option @value=new | New configuration (recommended when incompatible)}
                         }
                         {call @template=command-target-detail @with:application="{$application}"
                             @with:busy="{$busy}"}
-                        {cem-alert @data-cem-studio-command-apply-alert="" @label={if application.error { str:concat((application.error.code, ": ", application.error.message), "") } else { if application.status == "applying" { "Applying exact authored command bytes in one repository transaction." } else { if application.status == "running" { "Running the exact committed command revision." } else { if application.status == "confirmation-required" { "Replacement is incompatible. Creating a new page is recommended; replacement requires confirmation." } else { if application.status == "conflict" { "The project changed before Apply; reload before trying again." } else { if application.status == "stale" { "The command or project advanced after the last Apply." } else { if application.status == "run-stale" { "Execution completed, but a newer command, draft, or project revision exists." } else { if application.status == "run-invalid" { "The exact committed command ran with diagnostics." } else { if application.status == "ran" { str:concat(("Ran committed project ", application.result.projectRevision, ", command resource ", application.result.resourceRevision, "."), "") } else { if application.status == "applied" { str:concat(("Applied project ", application.result.projectRevision, ", command resource ", application.result.resourceRevision, "; not executed."), "") } else { if application.status == "failed" { "The command could not be applied or executed." } else { if application.target.mode == "new" { "Apply will create a new inspection page without executing it." } else { "Apply will update the selected page without executing it." } } } } } } } } } } } }} @tone={if (application.status == "failed") || (application.status == "conflict") || (application.status == "run-invalid") { "danger" } else { if (application.status == "confirmation-required") || (application.status == "stale") || (application.status == "run-stale") { "warning" } else { if (application.status == "applied") || (application.status == "ran") { "success" } else { "info" } } }}}
+                        {cem-alert @data-cem-studio-command-apply-alert="" @label={if application.error { str:concat((application.error.code, ": ", application.error.message), "") } else { if application.status == "applying" { "Applying exact authored command bytes in one repository transaction." } else { if application.status == "running" { "Running the exact committed command revision." } else { if application.status == "confirmation-required" { "Replacement is incompatible. Creating a new configuration is recommended; replacement requires confirmation." } else { if application.status == "conflict" { "The project changed before Apply; reload before trying again." } else { if application.status == "stale" { "The command or project advanced after the last Apply." } else { if application.status == "run-stale" { "Execution completed, but a newer command, draft, or project revision exists." } else { if application.status == "run-invalid" { "The exact committed command ran with diagnostics." } else { if application.status == "ran" { str:concat(("Ran committed project ", application.result.projectRevision, ", command resource ", application.result.resourceRevision, "."), "") } else { if application.status == "applied" { str:concat(("Applied project ", application.result.projectRevision, ", command resource ", application.result.resourceRevision, "; not executed."), "") } else { if application.status == "failed" { "The command could not be applied or executed." } else { if application.target.mode == "new" { "Apply will create a new inspection configuration without executing it." } else { "Apply will update the selected configuration without executing it." } } } } } } } } } } } }} @tone={if (application.status == "failed") || (application.status == "conflict") || (application.status == "run-invalid") { "danger" } else { if (application.status == "confirmation-required") || (application.status == "stale") || (application.status == "run-stale") { "warning" } else { if (application.status == "applied") || (application.status == "ran") { "success" } else { "info" } } }}}
                         {cem-grid |
                             {cem-action @data-cem-studio-command-apply="" @disabled={if applyDisabled { true } else { null }}
                                 @host-command=apply @host-command-event=click @loading={if application.status == "applying" { true } else { null }}
@@ -128,21 +128,21 @@
                             {cem-dialog @data-cem-studio-command-replace-dialog=""
                                 @default-open=true @host-command=dismiss-replacement
                                 @host-command-event=cem-close
-                                @label="Confirm incompatible page replacement" @mode=modal |
-                                {cem-text | The selected page has an incompatible kind. Creating a new inspection page is recommended.}
+                                @label="Confirm incompatible configuration replacement" @mode=modal |
+                                {cem-text | The selected configuration has an incompatible kind. Creating a new inspection configuration is recommended.}
                                 {cem-grid |
                                     {cem-action @data-cem-studio-command-use-new="" @disabled={if busy { true } else { null }}
                                         @host-command=use-new @host-command-event=click
-                                        @variant=primary | Use new page}
+                                        @variant=primary | Use new configuration}
                                     {cem-action @data-cem-studio-command-replace-confirm=""
                                         @disabled={if applyDisabled { true } else { null }} @host-command=confirm-replacement
-                                        @host-command-event=click @variant=destructive | Replace selected page}
+                                        @host-command-event=click @variant=destructive | Replace selected configuration}
                                     {cem-action @data-cem-studio-command-replace-cancel="" @disabled={if busy { true } else { null }}
                                         @host-command=cancel-replacement @host-command-event=click
                                         @variant=contextual | Cancel}
                     }   }   }   }
                     {cem:otherwise |
-                        {cem-alert @label="Prepare a command to choose its target page" @tone=info}
+                        {cem-alert @label="Prepare a command to choose its target configuration" @tone=info}
     }   }   }
 }   }   }
     {template @name=command-changes |

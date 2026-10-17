@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import {
     CEM_STUDIO_FEATURE_TOUR_SEED_ID,
@@ -6,9 +6,18 @@ import {
     installCemStudioFeatureTour,
 } from './feature-tour.js';
 import { CEM_STUDIO_REPOSITORY_ID, createCemStudioProjectRepository } from './repository.js';
-import invalidLogin from '../fixtures/amsterdam-login/login-invalid.cem?raw';
-import loginSchema from '../fixtures/amsterdam-login/login-schema.cem?raw';
-import loginPackage from '../fixtures/amsterdam-login/login-schema-package.cem?raw';
+let invalidLogin, loginSchema, loginPackage;
+beforeAll(async () => {
+    [invalidLogin, loginSchema, loginPackage] = await Promise.all([
+        new URL('../../../examples/projects/login/login-invalid.cem', import.meta.url),
+        new URL('../../../examples/projects/login/login-schema.cem', import.meta.url),
+        new URL('../../../examples/projects/login/login-schema-package.cem', import.meta.url),
+    ].map(async url => {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Example resource is unavailable: ${url}`);
+        return response.text();
+    }));
+});
 
 const repositories = [];
 const validators = [];

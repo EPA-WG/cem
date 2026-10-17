@@ -189,7 +189,7 @@
                     "dependentTasksOutputFiles": "**/*.{js,d.ts}",
                     "transitive": false
                 },
-                "{projectRoot}/fixtures/amsterdam-login/**/*"
+                "{workspaceRoot}/examples/projects/**/*"
             ],
             "outputs": []
         },
@@ -296,8 +296,8 @@
                     "dependentTasksOutputFiles": "dist/cem-ml-runtime.json",
                     "transitive": false
                 },
-                "{projectRoot}/scripts/presentation-sample.mjs",
-                "{projectRoot}/fixtures/amsterdam-login/**/*",
+                "{projectRoot}/scripts/example-projects.mjs",
+                "{workspaceRoot}/examples/projects/**/*",
                 "{workspaceRoot}/examples/cem-ml/login.cem",
                 "{workspaceRoot}/examples/semantic/login.html"
             ],

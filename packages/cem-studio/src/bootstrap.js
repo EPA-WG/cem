@@ -69,6 +69,7 @@ export {
     CEM_STUDIO_PROJECT_MANIFEST,
     CemStudioFileSystemError,
     createCemStudioFileSystemProvider,
+    loadCemStudioExampleProjects,
     parseCemStudioProjectBundle,
     serializeCemStudioProjectBundle,
 } from './file-system-provider.js';
@@ -82,7 +83,7 @@ export {
     mountCemStudioApplicationShell,
 } from './shell.js';
 export { createCemStudioProjectSession } from './project-session.js';
-export { createCemStudioProjectWorkbench, createCemStudioSessionWorkbench, createCemStudioFeatureTourWorkbench, mountCemStudioFeatureTourWorkbench } from './workbench.js';
+export { createCemStudioWorkbench, mountCemStudioWorkbench, createCemStudioProjectWorkbench, createCemStudioSessionWorkbench, createCemStudioFeatureTourWorkbench, mountCemStudioFeatureTourWorkbench } from './workbench.js';
 export {
     CEM_STUDIO_LIMITS,
     CemStudioLimitError,

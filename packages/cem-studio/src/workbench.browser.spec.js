@@ -1167,7 +1167,7 @@ describe('CEM Studio Feature Tour workbench', () => {
         expect(document.activeElement).toBe(entry);
         dialog.querySelector('cem-text').dispatchEvent(new CustomEvent('cem-close', { bubbles: true }));
         expect(workbench.snapshot().command.application.status).toBe('confirmation-required');
-        await expect.element(dialog).toHaveAccessibleName('Confirm incompatible page replacement');
+        await expect.element(dialog).toHaveAccessibleName('Confirm incompatible configuration replacement');
         expect(dialog.querySelector('[data-cem-studio-command-replace-confirm]').getAttribute('variant')).toBe('destructive');
         let exported = await repository.query(request('export-project', { projectId: 'feature-tour' }));
         expect(exported.value.project.revision).toBe(1);
@@ -1191,7 +1191,7 @@ describe('CEM Studio Feature Tour workbench', () => {
         await view.whenSettled();
         root.querySelector('cem-action[data-cem-studio-command-apply] button').click();
         await view.whenSettled();
-        dialogAction(root, 'Use new page').click();
+        dialogAction(root, 'Use new configuration').click();
         await view.whenSettled();
         expect(workbench.snapshot().command.application).toMatchObject({ status: 'ready', target: { mode: 'new' } });
 
@@ -1200,7 +1200,7 @@ describe('CEM Studio Feature Tour workbench', () => {
         root.querySelector('cem-action[data-cem-studio-command-apply] button').click();
         await view.whenSettled();
         expect(workbench.snapshot().command.application.status).toBe('confirmation-required');
-        dialogAction(root, 'Replace selected page').click();
+        dialogAction(root, 'Replace selected configuration').click();
         await view.whenSettled();
         expect(workbench.snapshot().command.application).toMatchObject({
             status: 'applied',
@@ -1589,7 +1589,7 @@ describe('Project-owned workbench loading', () => {
         expect(session.snapshot().selection.projectId).toBe('imported');
     });
 
-    it('creates independent presentation sample copies declaratively without replacing active drafts', async () => {
+    it('creates independent example project copies declaratively without replacing active drafts', async () => {
         const repository = await fixture();
         const original = (await repository.query(request('export-project', { projectId: 'alpha' }))).value;
         const load = vi.fn(async () => original);
@@ -1597,7 +1597,7 @@ describe('Project-owned workbench loading', () => {
         const session = createCemStudioProjectSession({ openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator, selection }) });
         workbenches.push(session);
         await session.select({ projectId: 'alpha', resourceId: 'source' });
-        const workbench = await createCemStudioSessionWorkbench({ repository, session, home: { samples: [{ id: 'amsterdam-login', name: 'Amsterdam login', load }] } });
+        const workbench = await createCemStudioSessionWorkbench({ repository, session, home: { examples: [{ id: 'arbitrary-project', name: 'Example project', load }] } });
         workbenches.push(workbench);
         const root = document.createElement('main'); document.body.append(root);
         const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
@@ -1607,21 +1607,21 @@ describe('Project-owned workbench loading', () => {
         expect(workbench.snapshot().validation.stale).toBe(true);
         expect(workbench.snapshot().draft).toBe('keep this draft');
         expect((await repository.query(request('export-project', { projectId: 'alpha' }))).value.contents).toEqual(original.contents);
-        const form = root.querySelector('form[host-command="home-sample"]');
+        const form = root.querySelector('form[host-command="home-example"]');
         expect(form).not.toBeNull();
         form.requestSubmit(); await view.whenSettled();
         expect(workbench.snapshot().home.error).toBeUndefined();
-        const first = workbench.snapshot().home.projects.find(project => project.name === 'Amsterdam login');
+        const first = workbench.snapshot().home.projects.find(project => project.name === 'Example project');
         expect(first).toBeDefined();
         expect(workbench.snapshot().draft).toBe('keep this draft');
         expect(session.snapshot().selection.projectId).toBe('alpha');
         const copied = (await repository.query(request('export-project', { projectId: JSON.parse(first.id).projectId }))).value;
         expect(copied.contents).toEqual(original.contents);
         expect(copied.project.resources.map(resource => resource.id)).toEqual(original.project.resources.map(resource => resource.id));
-        root.querySelector('form[host-command="home-sample"]').requestSubmit(); await view.whenSettled();
-        const second = workbench.snapshot().home.projects.find(project => project.name === 'Amsterdam login (2)');
+        root.querySelector('form[host-command="home-example"]').requestSubmit(); await view.whenSettled();
+        const second = workbench.snapshot().home.projects.find(project => project.name === 'Example project (2)');
         expect(second).toBeDefined(); expect(second.id).not.toBe(first.id);
-        await workbench.createSampleProject('missing');
+        await workbench.createExampleProject('missing');
         expect(workbench.snapshot().home.error).toBeDefined();
         selectValue(root.querySelector('form[host-command="home-open"]'), '[name="project"]', first.id);
         root.querySelector('form[host-command="home-open"]').requestSubmit(); await view.whenSettled();
@@ -1639,17 +1639,17 @@ describe('Project-owned workbench loading', () => {
         expect(load).toHaveBeenCalledTimes(2);
     });
 
-    it('guards repeated sample creation and reports loading failures without creating a project', async () => {
+    it('guards repeated example project creation and reports loading failures without creating a project', async () => {
         const repository = await fixture();
         const original = (await repository.query(request('export-project', { projectId: 'alpha' }))).value;
         const projects = (await repository.query(request('list-projects', {}))).value;
         const pending = deferred(); const load = vi.fn(async () => { await pending.promise; throw new Error('Sample unavailable'); });
         const session = createCemStudioProjectSession({ openWorkbench: async () => { throw new Error('unused'); } });
         workbenches.push(session);
-        const workbench = await createCemStudioSessionWorkbench({ repository, session, home: { samples: [{ id: 'amsterdam-login', name: 'Amsterdam login', load }] } });
+        const workbench = await createCemStudioSessionWorkbench({ repository, session, home: { examples: [{ id: 'arbitrary-project', name: 'Example project', load }] } });
         workbenches.push(workbench);
-        const creating = workbench.createSampleProject('amsterdam-login');
-        await workbench.createSampleProject('amsterdam-login');
+        const creating = workbench.createExampleProject('arbitrary-project');
+        await workbench.createExampleProject('arbitrary-project');
         expect(load).toHaveBeenCalledTimes(1);
         pending.resolve(); await creating;
         expect(workbench.snapshot().home.error.message).toBe('Sample unavailable');
@@ -1901,7 +1901,7 @@ describe('Project-owned workbench loading', () => {
         dialogAction(root, 'Apply command').click(); await view.whenSettled();
         expect(session.snapshot().transition.stage).toBe('confirmation');
         expect(root.querySelectorAll('dialog[open]')).toHaveLength(1);
-        dialogAction(root, 'Replace page').click(); await view.whenSettled();
+        dialogAction(root, 'Replace configuration').click(); await view.whenSettled();
         expect(session.snapshot().selection.projectId).toBe('beta');
         const bundle = (await repository.query(request('export-project', { projectId: 'feature-tour' }))).value;
         expect(new TextDecoder().decode(bundle.contents.source)).toBe('durable source');

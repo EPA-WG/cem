@@ -3,90 +3,71 @@
   "project": {
     "$schema": "https://cem.dev/ns/studio/project/1",
     "schemaVersion": 1,
-    "id": "amsterdam-2026-login-seed",
-    "name": "Amsterdam 2026: Login lifecycle",
-    "description": "Read, edit, validate, inspect, convert and repair a deliberate login schema violation. Query, template and live-view checkpoints follow separately.",
-    "rootUri": "studio://amsterdam-2026-login-seed/",
+    "id": "login-seed",
+    "name": "Login",
+    "description": "Login source, HTML input, schema validation and command configurations.",
+    "rootUri": "studio://login-seed/",
     "revision": 1,
     "createdAt": "2026-10-17T00:00:00Z",
     "updatedAt": "2026-10-17T00:00:00Z",
     "entries": [
       {
-        "id": "login-lifecycle",
-        "kind": "subproject",
-        "name": "Login lifecycle",
-        "description": "Read, edit, validate, inspect, convert and repair a deliberate login schema violation. Query, template and live-view checkpoints follow separately."
-      },
-      {
         "id": "read-edit",
-        "parentId": "login-lifecycle",
         "kind": "inspection",
-        "name": "1. Read and edit login",
+        "name": "Parse login",
         "resourceIds": [
           "login-cem",
           "command-read-edit"
         ],
         "runConfigResourceId": "command-read-edit",
         "tags": [
-          "amsterdam",
-          "login",
           "parse"
         ]
       },
       {
         "id": "validate",
-        "parentId": "login-lifecycle",
         "kind": "validation",
-        "name": "2. Validate login",
+        "name": "Validate login",
         "resourceIds": [
           "login-cem",
           "command-validate"
         ],
         "runConfigResourceId": "command-validate",
         "tags": [
-          "amsterdam",
-          "login",
           "validate"
         ]
       },
       {
         "id": "inspect",
-        "parentId": "login-lifecycle",
         "kind": "inspection",
-        "name": "3. Inspect login structure",
+        "name": "Inspect login",
         "resourceIds": [
           "login-cem",
           "command-inspect"
         ],
         "runConfigResourceId": "command-inspect",
         "tags": [
-          "amsterdam",
-          "login",
           "inspect"
         ]
       },
       {
         "id": "html-conversion",
-        "parentId": "login-lifecycle",
         "kind": "conversion",
-        "name": "4. Import HTML and convert to CEM-ML",
+        "name": "Convert HTML to CEM-ML",
         "resourceIds": [
           "login-html",
           "command-html-conversion"
         ],
         "runConfigResourceId": "command-html-conversion",
         "tags": [
-          "amsterdam",
-          "login",
           "convert"
         ]
       },
       {
         "id": "validation-repair",
-        "parentId": "login-lifecycle",
         "kind": "validation",
-        "name": "5. Find and repair a schema violation",
-        "description": "Validate persisted revision to find the missing form method. Select demo.login.method_required in Diagnostics to locate the form. Restore @method=post on that form, then Save and validate. Remove it and save again to reproduce the failure. This teaching rule requires a method; it is not a complete HTML schema.",
+        "name": "Validate form method",
+        "description": "Validate the form method using the project-owned teaching schema.",
         "resourceIds": [
           "login-invalid",
           "command-validation-repair",
@@ -95,8 +76,6 @@
         ],
         "runConfigResourceId": "command-validation-repair",
         "tags": [
-          "amsterdam",
-          "login",
           "validate"
         ]
       }
@@ -156,6 +135,17 @@
         "schema": "https://cem.dev/ns/schema/1",
         "revision": 1,
         "sha256": "56b4cffed6151f28e0e812ce0794848a7c857550c9500d4a34895d02fe68dd88"
+      },
+      {
+        "id": "readme",
+        "path": "README.md",
+        "referencePath": "README.md",
+        "role": "data",
+        "sourceKind": "project-file",
+        "contentType": "text/markdown",
+        "schema": "https://cem.dev/ns/data/markdown/1",
+        "revision": 1,
+        "sha256": "b551c3360fb676ebf20bf83e3cfe50b9cfafb36f59e90e1992d8d53cf98505b1"
       },
       {
         "id": "command-read-edit",
@@ -254,6 +244,10 @@
     {
       "resourceId": "login-schema-package",
       "base64": "QGRvYyBjZW0tbWwgMQpAbnMgcGtnID0gImh0dHBzOi8vY2VtLmRldi9ucy9zY2hlbWEtcGFja2FnZS8xIgpAZGVmYXVsdCBwa2cKe3BhY2thZ2UgQGlkPSJsb2dpbi1kZW1vIiBAdmVyc2lvbj0iMS4wLjAiIHwKIHtzY2hlbWEgQHVyaT0idXJuOmRlbW86bG9naW4iIEBzb3VyY2U9ImxvZ2luLXNjaGVtYS5jZW0ifQoge2NvbnRlbnQtdHlwZSBAdmFsdWU9ImFwcGxpY2F0aW9uL3ZuZC5kZW1vLmxvZ2luK2NlbSIgQHByaW1hcnk9dHJ1ZX0KfQo="
+    },
+    {
+      "resourceId": "readme",
+      "base64": "IyBMb2dpbiBwcm9qZWN0CgpPcGVuIGFueSByZXNvdXJjZSBvciBjb25maWd1cmF0aW9uIGluIHRoZSBzaGFyZWQgU3R1ZGlvIHdvcmtzcGFjZS4gRWRpdCBhbmQgc2F2ZQpgZGF0YS9sb2dpbi5jZW1gLCB0aGVuIHVzZSAqKlZhbGlkYXRlIGxvZ2luKiosICoqUGFyc2UgbG9naW4qKiwgb3IgKipJbnNwZWN0IGxvZ2luKiouCioqQ29udmVydCBIVE1MIHRvIENFTS1NTCoqIHVzZXMgYGRhdGEvbG9naW4uaHRtbGAgYXMgaXRzIGlucHV0LgoKIyMgSW50ZW50aW9uYWwgdmFsaWRhdGlvbiBmYWlsdXJlIGFuZCByZXBhaXIKCmBkYXRhL2xvZ2luLWludmFsaWQuY2VtYCBpcyBzeW50YXgtdmFsaWQgYnV0IG9taXRzIGBAbWV0aG9kPXBvc3RgIGZyb20gdGhlIGZvcm0uCioqVmFsaWRhdGUgZm9ybSBtZXRob2QqKiBsb2FkcyB0aGUgc2NoZW1hIHBhY2thZ2UgYW5kIHNjaGVtYSBpbiBgc2NoZW1hcy9gLgpSdW4gKipWYWxpZGF0ZSBwZXJzaXN0ZWQgcmV2aXNpb24qKiwgdGhlbiBzZWxlY3QgYGRlbW8ubG9naW4ubWV0aG9kX3JlcXVpcmVkYCBpbgpEaWFnbm9zdGljcyB0byBsb2NhdGUgdGhlIGZvcm0uIFJlc3RvcmUgYEBtZXRob2Q9cG9zdGAgYmVzaWRlCmBAY2VtOmZvcm09InNpZ24taW4iYCwgc2F2ZSwgYW5kIHZhbGlkYXRlIGFnYWluLiBBbiB1bnNhdmVkIHJlcGFpciBkb2VzIG5vdCBjaGFuZ2UKcGVyc2lzdGVkIHZhbGlkYXRpb24uIFJlbW92ZSB0aGUgYXR0cmlidXRlIGFuZCBzYXZlIHRvIHJlcHJvZHVjZSB0aGUgZmFpbHVyZS4KClRoZSBpbnZhbGlkIHNvdXJjZSBwcm9kdWNlcyBvbmUgZXJyb3IgYW5kIHRocmVlIGV4aXN0aW5nIHVucmVzb2x2ZWQtcmVmZXJlbmNlCndhcm5pbmdzLiBUaGUgcmVwYWlyIHJlbW92ZXMgdGhlIGVycm9yOyB0aGUgdGhyZWUgd2FybmluZ3MgcmVtYWluLiBUaGlzIHRlYWNoaW5nCnNjaGVtYSByZXF1aXJlcyBhIG1ldGhvZCBhdHRyaWJ1dGUuIEl0IGlzIG5vdCBhIGNvbXBsZXRlIEhUTUwgc2NoZW1hLgoKVGhpcyBwcm9qZWN0IGJlbG9uZ3MgdG8gdGhlIEFtc3RlcmRhbSAyMDI2IGNhdGFsb2cgY29sbGVjdGlvbi4gSXQgdXNlcyB0aGUgc2FtZQpyZXNvdXJjZXMsIGNvbmZpZ3VyYXRpb25zIGFuZCBwZXJzaXN0ZW5jZSBhcyBldmVyeSBvdGhlciBTdHVkaW8gcHJvamVjdC4K"
     }
   ]
 }

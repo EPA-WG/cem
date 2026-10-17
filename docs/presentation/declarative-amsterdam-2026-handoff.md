@@ -17,38 +17,39 @@ Shared declarative component principles remain mandatory. This reactivates sampl
 functionality; it does not establish that the complete tutorial or participant
 Studio route is ready.
 
-### Studio sample audit, 2026-10-17
+### Studio sample audit 2026-10-17
 
-The [required tutorial checkpoints](../declarative-amsterdam-2026/presentation.md#required-tutorial-checkpoints)
-and [login demonstration](../declarative-amsterdam-2026/presentation-plan.md#required-login-demonstration-and-companion-examples)
-are the existing feature list for this work. They take precedence over optional
-supplier, benchmark, device-acceptance and helper work.
+Product correction: Studio serves ordinary example projects. Predefined and
+user-created/customized projects share one workspace, resources, configurations,
+commands, diagnostics and persistence. Amsterdam is catalog metadata. There are
+no dedicated presentation/example screens or numbered tutorial configurations.
 
-| Checkpoint | Existing implementation or source | Studio availability / next action |
+Home offers **Login** and **Schema examples** under **Example projects**.
+**Create project from example** makes an independent editable copy, then
+**Projects → Open project** enters the common workspace. Existing projects keep
+their saved contents. Startup restores the last selection; a fresh profile opens
+Home without auto-installing a seed. Login's README resource carries instructions.
+
+| Required presentation content | Available project content | Remaining work |
 | --- | --- | --- |
-| Read and edit | Canonical CEM-ML and HTML sources now ship in the Amsterdam sample archive. | Home → Samples → Amsterdam 2026: Login lifecycle → Create sample copy; open the project and its numbered pages. A saved heading edit survives reload. |
-| Validate and repair | Page 5 bundles the existing teaching schema/package and the canonical login with only `@method=post` removed. Native validation produces one `demo.login.method_required` error; restoring the attribute returns zero errors. Both states retain three existing reference warnings. | Validate persisted revision, select the error under Results → Diagnostics to select `{form` on line 8, restore `@method=post`, then Save and validate. The native outer coordinates remain 1:1; the retained inner source-map frame locates the form. This rule requires a method and is not a complete HTML schema. |
-| Inspect and format | Native AST and inspection pages operate on the shared CEM-ML source; the native CLI supplies tabular formatting. | Typed output and the saved heading edit are verified. Complete the selected formatting/color/report teaching checkpoints separately. |
-| HTML alternate input / conversion | The sample imports the canonical HTML counterpart and exports CEM-ML; native and browser checks retain named form fields. | Complete the agreed semantic comparison and explicit mapping boundaries for the tutorial. The earlier XML slide workaround is not the HTML input checkpoint. |
-| Query and template | `generate-slide-assets.mjs` verifies selected XPath/CEM-QL queries on its XML projection. Studio has general query/transform workbenches. A fresh native query of the canonical HTML input, including explicit HTML schema identity, returns `cem.xpath.query_input_unsupported`. | Implement or explicitly compose the selected supported import/query route and add native/browser fixtures; the complete login transformation is not established by those slide assets. |
-| Live light-DOM view | The existing login slide asset is explicitly a static native HTML view, without a `cem-element` runtime claim. | Implement and verify the declared `cem-element` integration and its visible edit effect. Keep Studio UI declarative and reuse shared controls. |
-| Sample delivery | Catalog version 1.1.0 now includes a fifth failure/repair page beside the unchanged Feature Tour. Its invalid source and schema dependencies are owned by the page. | Create a fresh sample copy to receive the fifth page; existing projects retain their saved contents. Hash-checked loading, stable references and the shared native invocation builder preserve independent copies. |
+| Read/edit/validate/inspect | Login CEM-ML source with shared-source parse, validation and inspection configurations. | Preserve existing three reference warnings in expected results. |
+| HTML import and conversion | Login HTML resource and HTML-to-CEM-ML configuration preserve form fields. | Prove the full HTML/CEM semantic comparison and shared native HTML query route. |
+| Intentional failure and repair | Separate syntax-valid source omits the form method; owned teaching schema reports `demo.login.method_required`. | Continue to demonstrate source selection, saved repair/reload and repeat failure through the shared editor/diagnostics. |
+| Equivalent queries/templates | Portable engine scenarios exist in Schema examples. | Add canonical Login resources and equivalent XPath/CEM-QL query/template configurations. |
+| Live light-DOM view | Shared `cem-element` runtime exists. | Add a reusable preview capability and prove saved Login edits update it. |
 
-The current five-page pack exposes native editing/validation/inspection/conversion
-and schema failure/repair routes, with owned package loading and innermost
-retained diagnostic-span selection. Three native CLI fixtures, three new browser
-fixtures and deployed five-page offline acceptance pass, including source
-selection, saved repair/reload, repeat failure/repair and independent copies.
-The complete 51-task Studio gate passes with 115 browser tests, combined lifecycle
-AX/reflow checks, theme/forced-color shell delivery, offline worker delivery,
-deterministic packaging and clean consumer installation. Its strict dependency
-audit also passes: Studio initializes its existing native graph author through
-the shared CLI browser facade. CLI SDK lint and Studio lint/typecheck pass.
-It does not close the remaining HTML/CEM comparison,
-query/template or live-view checkpoints. Parameter-map forms
-are a later graph-editor feature unless a selected presentation example needs
-them. The full tutorial remains incomplete until all required checkpoints have
-their own source and execution evidence.
+Native source/diagnostic contracts remain unchanged. Login archive updates and
+collection metadata never overwrite existing saved projects. Continue from the
+active TODO; implement presentation content as project data and missing general
+capabilities in the shared libraries. Device/AT acceptance and rehearsal remain
+independently open.
+
+The unified-project correction passes 3 native Login fixtures, 116 Studio
+browser tests and the full 51-task delivery gate. Deployed evidence includes
+README access, all five unnumbered Login configurations, failure/repair, independent
+copies and offline recovery through the ordinary workspace. Automated AX/reflow,
+five themes/forced colors, deterministic packaging and clean consumer installation
+also pass. Generated screenshots and Vitest attachments are excluded from Git.
 
 ## Resume after clearing context
 

@@ -164,6 +164,53 @@ cross-dimension harmony, theme survivability and theme-owned inherited tokens
 against the [canonical principles](../packages/cem-theme/src/lib/tokens/index.md#core-cem-principles).
 Passing a token-name check alone does not establish semantic conformance.
 
+### Unified example-project workspace: completed 2026-10-17
+
+- [x] Update the accepted Studio design: predefined examples and user-created or
+  customized examples are ordinary projects opened through the same workspace.
+  Amsterdam identifies catalog content and presentation use, not dedicated UI.
+- [x] Add fixtures proving predefined and imported/custom projects share project
+  admission, resource editing, command execution, validation, draft guards and
+  independent persistence. Remove numbered presentation-page expectations from
+  the generated examples and deployed acceptance fixture.
+- [x] Replace example-specific startup/navigation with a generic example-project
+  catalog and the shared project/resource/configuration workflow. Preserve old
+  project identities, saved bytes and portable import/export compatibility.
+- [x] Update example generation, docs, handoff and remaining presentation todo
+  around project contents and commands; verify native/browser/offline delivery
+  and record the shared-component audit before marking the correction complete.
+
+Implementation: generic catalog projects and a neutral starter use hash-checked
+portable archives. Home creates independent ordinary projects; startup restores
+repository selection without installing a specific example. Login definitions
+now live in `examples/projects/login/example.json` with resources, configurations
+and README guidance. Amsterdam is collection metadata. The UI exposes
+configurations in command targeting, structure editing and search; native v1
+`entries`, `entryId` and `apply-command-page` remain compatibility fields.
+Existing saved bytes/identities are preserved. Old Feature Tour catalog-only
+operation presets require Apply or a fresh Schema examples copy; startup never
+rewrites them. Legacy factory/mount exports alias the generic workspace APIs.
+
+Verification: 3 native Login fixtures and all 116 Studio browser tests pass.
+The complete 51-task Studio gate passes, including generated native project
+validation, shared custom/imported/example lifecycle, README resource access,
+all 5 unnumbered Login configurations, deliberate failure/repair and repeat
+failure, independent copies, offline deep-link recovery, all 5 portable commands,
+32 schema-package examples and clean consumer installation with one runtime.
+Two clean builds produce 264 identical files and 171 declared module assets
+(aggregate SHA-256
+`4febabb624400682faf214ca61d1dd1e33e28330c6bd7f9212ed187846d7b935`).
+
+CEM audit: all visible changes are XHTML/CEM-ML compositions of shared form,
+select, action, dialog, tree, alert, list and textarea controls. Catalog/archive
+loading remains non-UI host orchestration. No new UI JavaScript capability,
+application CSS or token defaults were introduced. Inherited token overrides,
+five themes and forced colors pass shell delivery. The combined lifecycle has
+69 named accessible controls, valid relationships, visible keyboard focus and
+no horizontal overflow at 320/390/1280 pixels. Physical device/AT acceptance
+remains separately open. Generated screenshots and Vitest attachments are
+excluded from Git.
+
 ### Amsterdam presentation samples: active Studio priority
 
 - [x] Locate the existing presentation feature list before choosing sample scope.
@@ -260,11 +307,11 @@ Passing a token-name check alone does not establish semantic conformance.
     Shell delivery verifies inherited token overrides, five themes and forced
     colors; combined lifecycle AX relationships and 320/390/1280 reflow pass.
 - [ ] Add native fixtures for the agreed HTML/CEM semantic comparison and the
-  supported HTML import/query route, then expose that checkpoint in Studio.
+  supported HTML import/query route, then add the resources and configurations to the ordinary Login project.
   Resolve the recorded `cem.xpath.query_input_unsupported` boundary in shared
   native import/query code; keep the XML slide projection distinct from HTML.
 - [ ] Add native fixtures for equivalent XPath/CEM-QL queries and template
-  output, then add their generated sample pages and browser/offline evidence.
+  output, then add their project resources/configurations and browser/offline evidence.
 - [ ] Implement the live light-DOM `cem-element` login view and add browser
   evidence that a saved edit visibly changes it. Keep Studio UI declarative;
   add any missing reusable control/capability to the shared packages first.
@@ -278,7 +325,8 @@ Passing a token-name check alone does not establish semantic conformance.
 - [x] Record exact supported sample routes, expected results and remaining
   presentation blockers in the presentation handoff and Studio documentation.
 
-Continue with the remaining Amsterdam core login checkpoints.
+Continue with the remaining Login project resources and configurations needed by
+the Amsterdam presentation. Do not introduce dedicated example screens.
 Parameter-map authoring follows if needed by a selected presentation checkpoint;
 otherwise retain it for the later graph-editor queue. Shared components remain
 declarative in `cem-components`, reusable JavaScript behavior belongs in
