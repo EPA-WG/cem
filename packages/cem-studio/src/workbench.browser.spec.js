@@ -1384,7 +1384,7 @@ describe('CEM Studio Feature Tour workbench', () => {
 });
 
 describe('Project-owned workbench loading', () => {
-    async function fixture(id = 'alpha', empty = false, extra = false) {
+    async function fixture(id = 'alpha', empty = false, extra = false, extraText = 'additional text') {
         const repository = await repositoryWithSource('project source');
         const bundle = (await repository.query(request('export-project', { projectId: 'feature-tour' }))).value;
         bundle.project.id = id;
@@ -1392,13 +1392,101 @@ describe('Project-owned workbench loading', () => {
         bundle.project.rootUri = `studio://${id}/`;
         if (empty) { bundle.project.entries = []; bundle.project.resources = []; bundle.contents = {}; }
         if (extra) {
-            const bytes = new TextEncoder().encode('additional text');
+            const bytes = new TextEncoder().encode(extraText);
             bundle.project.resources.push({ ...bundle.project.resources.find(item => item.id === 'source'), id: 'extra', role: 'data', path: 'extra.cem', referencePath: 'extra.cem', sha256: await digest(bytes) });
             bundle.contents.extra = bytes;
         }
         await repository.execute(request('import-project', { bundle }));
         return repository;
     }
+
+    async function provenanceFixture(uri = 'studio://alpha/extra.cem', range = { start: 9, len: 11 }) {
+        const source = '// café\n{p | target}';
+        const repository = await fixture('alpha', false, true, source);
+        const validator = validatorFor(validResult());
+        validator.parseResource.mockImplementation(async () => {
+            const outcome = projectionOutcome('parse', 'ast');
+            outcome.result.sourceMaps.items.push({ sourceMapId: 'named-origin', sourceMap: { storage: 'inline', value: { frames: [
+                { source_id: 1, span: { kind: 'Single', ranges: range }, transform: { kind: 'SourceBoundary', uri } },
+            ] } } });
+            return outcome;
+        });
+        const session = createCemStudioProjectSession({ openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator, selection }) });
+        workbenches.push(session);
+        await session.select({ projectId: 'alpha', resourceId: 'source' });
+        const workbench = await createCemStudioSessionWorkbench({ repository, session }); workbenches.push(workbench);
+        return { source, repository, session, workbench };
+    }
+
+    it('follows named source provenance using stable resolver addresses after a display-path rename', async () => {
+        const { source, session, workbench } = await provenanceFixture();
+        await workbench.editStructure({ kind: 'rename-resource', id: 'extra', path: 'moved/view.cemt' });
+        await workbench.parsePersisted('ast');
+        await workbench.navigateProvenance(0);
+        expect(workbench.snapshot().navigationError).toBeUndefined();
+        expect(session.snapshot().selection).toEqual({ projectId: 'alpha', resourceId: 'extra' });
+        expect(workbench.snapshot().path).toBe('moved/view.cemt');
+        const selected = workbench.snapshot().selection;
+        expect(selected).toMatchObject({ kind: 'provenance', byteStart: 9, byteLength: 11 });
+        expect(source.slice(selected.start, selected.end)).toBe('{p | target');
+    });
+
+    it.each(['cancel', 'discard', 'save'])('guards provenance navigation with a source draft: %s', async decision => {
+        const { session, workbench } = await provenanceFixture();
+        await workbench.parsePersisted('ast');
+        workbench.updateDraft('retained graph draft');
+        await workbench.navigateProvenance(0);
+        expect(session.snapshot().transition.stage).toBe('source');
+        await workbench.resolveNavigation(decision);
+        if (decision === 'cancel') {
+            expect(session.snapshot().selection.resourceId).toBe('source');
+            expect(workbench.snapshot().draft).toBe('retained graph draft');
+        } else {
+            expect(session.snapshot().selection.resourceId).toBe('extra');
+            if (decision === 'discard') expect(workbench.snapshot().selection?.kind).toBe('provenance');
+            else {
+                expect(workbench.snapshot().selection).toBeUndefined();
+                expect(workbench.snapshot().navigationError.message).toContain('stale');
+            }
+        }
+    });
+
+    it('stops a disposed navigation refresh before it can reopen project storage', async () => {
+        const { repository, workbench } = await provenanceFixture();
+        const listed = await repository.query(request('list-projects', {}));
+        const pending = deferred();
+        const query = vi.spyOn(repository, 'query').mockImplementationOnce(() => pending.promise);
+        const refreshing = workbench.refreshNavigation();
+        workbench.dispose();
+        pending.resolve(listed); await refreshing;
+        expect(query).toHaveBeenCalledTimes(1);
+        query.mockRestore();
+    });
+
+    it('refuses foreign resource identities and stale generated-source revisions', async () => {
+        const { repository, session, workbench } = await provenanceFixture('studio://other/extra.cem');
+        await workbench.parsePersisted('ast'); await workbench.navigateProvenance(0);
+        expect(workbench.snapshot().navigationError.message).toContain('not an available resource');
+        expect(session.snapshot().selection.resourceId).toBe('source');
+        await repository.execute(request('save-resource', { projectId: 'alpha', resourceId: 'extra', expectedProjectRevision: 1, expectedResourceRevision: 1, content: 'changed' }));
+        await workbench.navigateProvenance(0);
+        expect(workbench.snapshot().navigationError.message).toContain('stale');
+        expect(session.snapshot().selection.resourceId).toBe('source');
+    });
+
+    it('preserves a native zero-length source location as an editor caret at EOF', async () => {
+        const { source, workbench } = await provenanceFixture('studio://alpha/extra.cem', { start: 21, len: 0 });
+        await workbench.parsePersisted('ast'); await workbench.navigateProvenance(0);
+        expect(workbench.snapshot().navigationError).toBeUndefined();
+        expect(workbench.snapshot().selection).toMatchObject({ kind: 'provenance', start: source.length, end: source.length, byteStart: 21, byteLength: 0 });
+    });
+
+    it.each([{ start: 100, len: 2 }, { start: 6, len: 1 }, { start: 9, len: -1 }])('refuses unavailable or split UTF-8 provenance ranges: %j', async range => {
+        const { workbench } = await provenanceFixture('studio://alpha/extra.cem', range);
+        await workbench.parsePersisted('ast'); await workbench.navigateProvenance(0);
+        expect(workbench.snapshot().selection).toBeUndefined();
+        expect(workbench.snapshot().navigationError.message).toMatch(/outside|UTF-8/);
+    });
 
     it('refreshes a renamed resource from the dataset while retaining selection and its resolver address', async () => {
         const repository = await fixture();

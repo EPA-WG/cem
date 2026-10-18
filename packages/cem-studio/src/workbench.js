@@ -97,6 +97,7 @@ export async function createCemStudioSessionWorkbench({ repository, session, hom
     let structureMessage;
     let structureError;
     let projectRecords = new Map();
+    let provenanceNavigation;
     const histories = new Map();
     const subscribers = new Set();
     const identity = selection => JSON.stringify(selection);
@@ -115,15 +116,18 @@ export async function createCemStudioSessionWorkbench({ repository, session, hom
     }
     function publish() { for (const notify of subscribers) notify(snapshot()); }
     async function refreshNavigation() {
+        if (disposed) return;
         const version = ++navigationVersion;
         try {
             const response = await repository.query(repositoryRequest('list-projects', {}));
+            if (disposed || version !== navigationVersion) return;
             const projects = response.value;
             const next = [];
             const trees = [];
             const loadedProjects = new Map();
             for (const project of projects) {
                 const loaded = await repository.query(repositoryRequest('get-project', { projectId: project.id }));
+                if (disposed || version !== navigationVersion) return;
                 if (!loaded.value) continue;
                 const record = loaded.value;
                 loadedProjects.set(project.id, record);
@@ -161,6 +165,7 @@ export async function createCemStudioSessionWorkbench({ repository, session, hom
                 }
             }
             const all = homeState ? (await repository.query(repositoryRequest('list-projects', { includeTrash: true }))).value : [];
+            if (disposed || version !== navigationVersion) return;
             const storage = homeState ? await repository.status() : undefined;
             if (disposed || version !== navigationVersion) return;
             records = trees;
@@ -266,8 +271,48 @@ export async function createCemStudioSessionWorkbench({ repository, session, hom
         finally { structurePending = false; publish(); }
         return snapshot();
     }
+    async function finishProvenanceNavigation() {
+        const pending = provenanceNavigation;
+        const current = session.snapshot();
+        if (!pending || current.transition) return snapshot();
+        provenanceNavigation = undefined;
+        if (current.selection?.projectId !== pending.projectId || current.selection?.resourceId !== pending.resourceId) return snapshot();
+        try {
+            const project = (await repository.query(repositoryRequest('get-project', { projectId: pending.projectId }))).value;
+            if (session.snapshot().selection !== current.selection || project?.revision !== pending.projectRevision) {
+                throw new Error('Source provenance is stale. Rerun the configuration before following it.');
+            }
+            session.activeWorkbench().selectSourceRange(pending.range, pending.projectRevision, pending.index);
+        } catch (error) { navigationError = normalizedError(error); publish(); }
+        return snapshot();
+    }
+    async function navigateProvenance(index) {
+        const current = session.snapshot();
+        const state = current.workbench;
+        const projection = state?.projection ?? state?.validation;
+        const frame = projection?.provenance?.[index];
+        provenanceNavigation = undefined;
+        navigationError = undefined;
+        try {
+            if (!frame) throw new RangeError(`provenance frame ${index} is unavailable`);
+            if (!frame.uri) {
+                session.activeWorkbench().navigateProvenance(index);
+                return snapshot();
+            }
+            const project = (await repository.query(repositoryRequest('get-project', { projectId: current.selection.projectId }))).value;
+            if (session.snapshot().selection !== current.selection || project?.revision !== projection.revision.projectRevision) {
+                throw new Error('Source provenance is stale. Rerun the configuration before following it.');
+            }
+            const resource = project.resources.find(resource => projectResourceUri(project, resource) === frame.uri);
+            if (!resource) throw new Error('The provenance source is not an available resource in this project.');
+            provenanceNavigation = { projectId: project.id, resourceId: resource.id, projectRevision: project.revision, range: frame.range, index };
+            await session.select({ projectId: project.id, resourceId: resource.id });
+            return await finishProvenanceNavigation();
+        } catch (error) { provenanceNavigation = undefined; navigationError = normalizedError(error); publish(); return snapshot(); }
+    }
     const adapter = { snapshot, subscribe(notify) { subscribers.add(notify); notify(snapshot()); return () => subscribers.delete(notify); },
         async selectWorkbench(id) {
+            provenanceNavigation = undefined;
             const target = choices.find(item => item.id === id);
             if (!target) throw new Error('The selected workbench is unavailable');
             await session.select(target.selection);
@@ -281,17 +326,21 @@ export async function createCemStudioSessionWorkbench({ repository, session, hom
             if (text) await save({ filename: 'cem-studio-draft-recovery.json', contentType: 'application/json', bytes: new TextEncoder().encode(text) });
         },
         async openEntity(key) {
+            provenanceNavigation = undefined;
             const target = choices.find(item => encodeURIComponent(item.id) === key);
             if (!target) { navigationError = normalizedError(new Error('The requested entity is unavailable. Refresh projects.')); publish(); return snapshot(); }
             await session.select(target.selection);
             return snapshot();
         },
         async resolveNavigation(decision) {
+            if (decision === 'cancel') provenanceNavigation = undefined;
             const transition = session.snapshot().transition;
             if (transition) await session.resolveTransition(transition.id, decision);
             await refreshNavigation().catch(() => undefined);
+            await finishProvenanceNavigation();
             return session.snapshot();
         },
+        navigateProvenance,
         createProject(name) {
             return homeOperation(async () => {
                 if (typeof name !== 'string' || !name.trim() || name.trim().length > 120) throw new Error('Enter a project name of 1–120 characters.');
@@ -332,7 +381,7 @@ export async function createCemStudioSessionWorkbench({ repository, session, hom
     for (const method of ['updateDraft', 'updateGraphAttribute', 'createGraphNode', 'updateGraphEdge', 'undoGraphDraft', 'redoGraphDraft', 'reload', 'saveSource', 'saveAndValidate', 'validatePersisted', 'parsePersisted',
         'inspectPersisted', 'runPersistedOperation', 'updateCommandDraft', 'updateCommandField', 'updateCommandFields', 'updateCommandGroup', 'resetCommandDraft', 'copyCommand',
         'copyProjection', 'downloadProjection', 'downloadSource', 'setCommandTarget', 'applyCommand', 'applyAndRun',
-        'confirmCommandReplacement', 'useNewCommandTarget', 'cancelCommandReplacement', 'navigateDiagnostic', 'navigateProvenance']) {
+        'confirmCommandReplacement', 'useNewCommandTarget', 'cancelCommandReplacement', 'navigateDiagnostic', 'selectSourceRange']) {
         adapter[method] = (...args) => {
             const active = session.activeWorkbench();
             if (typeof active?.[method] !== 'function') throw new Error('This resource does not support that operation');
@@ -1571,7 +1620,21 @@ export async function createCemStudioWorkbench(options) {
     function navigateProvenance(index) {
         const frame = (state.projection?.provenance ?? state.validation?.provenance)?.[index];
         if (!frame) throw new RangeError(`provenance frame ${index} is unavailable`);
+        if (frame.uri && frame.uri !== resourceUri(example.referenceUri ?? example.path, projectId)) {
+            throw new Error('Open this provenance source through the project workspace.');
+        }
         return selectRange('provenance', index, frame.range);
+    }
+
+    function selectSourceRange(range, projectRevision, index = 0) {
+        if (state.projectRevision !== projectRevision || state.dirty) throw new Error('Source provenance is stale. Rerun the configuration before following it.');
+        if (!Number.isSafeInteger(range.start) || !Number.isSafeInteger(range.len) || range.start < 0 || range.len < 0 || range.start + range.len > textEncoder.encode(state.draft).byteLength) {
+            throw new RangeError('The provenance range is outside the source resource.');
+        }
+        for (const offset of [range.start, range.start + range.len]) {
+            if (textEncoder.encode(state.draft.slice(0, utf8ByteOffsetToCodeUnit(state.draft, offset))).byteLength !== offset) throw new RangeError('The provenance range splits a UTF-8 character.');
+        }
+        return selectRange('provenance', index, range);
     }
 
     function selectRange(kind, index, range) {
@@ -1625,6 +1688,7 @@ export async function createCemStudioWorkbench(options) {
         cancelCommandReplacement,
         navigateDiagnostic,
         navigateProvenance,
+        selectSourceRange,
         dispose() {
             subscribers.clear();
         },
@@ -1785,7 +1849,7 @@ export async function mountCemStudioWorkbench({
                 ? text => clipboard.writeText(text) : undefined)),
             'download-output': () => perform(() => workbench.downloadProjection(download)),
             diagnostic: ({ value }) => perform(async () => { layout.update({ pane: 'source' }); await layout.whenSettled(); workbench.navigateDiagnostic(Number(value)); }),
-            provenance: ({ value }) => perform(async () => { layout.update({ pane: 'source' }); await layout.whenSettled(); workbench.navigateProvenance(Number(value)); }),
+            provenance: ({ value }) => perform(async () => { layout.update({ pane: 'source' }); await layout.whenSettled(); await workbench.navigateProvenance(Number(value)); }),
         },
     });
     let latestSnapshot;
@@ -1972,6 +2036,21 @@ function projectCommandProjection(kind, mode, outcome, source, revision, expecte
     const summary = summarizePortableOperation(kind, mode, result);
     const expectedMatches = expected === undefined ? undefined : matchesExpectedSummary(summary, expected);
     const operation = result?.result?.storage === 'inline' ? result.result.value : undefined;
+    const generatedProvenance = [];
+    if (kind === 'transform') {
+        const outputs = mode === 'graph' ? operation?.value?.value?.artifacts ?? []
+            : (operation?.value?.value?.outputs?.items ?? []).map(output => ({ ...output.response, destination: output.destination }));
+        for (const output of outputs) for (const span of output.outputSpans ?? []) {
+            for (const frame of span.origin?.frames ?? []) {
+                if (frame.transform?.kind !== 'SourceBoundary' || !frame.transform.uri) continue;
+                const ranges = frame.span?.kind === 'Multi' ? frame.span.ranges : frame.span?.kind === 'Single' ? [frame.span.ranges] : [];
+                for (const range of ranges) {
+                    if (generatedProvenance.length >= CEM_STUDIO_LIMITS.structuredRows) break;
+                    generatedProvenance.push(Object.freeze({ ...normalizeFrame(frame, {}), range: Object.freeze({ ...range }), outputRange: span.outputRange, outputUri: output.destination }));
+                }
+            }
+        }
+    }
     const trace =
         kind === 'trace' && Array.isArray(operation?.value?.body?.events)
             ? operation.value.body.events.slice(0, CEM_STUDIO_LIMITS.structuredRows)
@@ -1996,7 +2075,7 @@ function projectCommandProjection(kind, mode, outcome, source, revision, expecte
         }),
         nativeResult: result,
         diagnostics: Object.freeze(diagnostics),
-        provenance: Object.freeze(provenance),
+        provenance: Object.freeze(generatedProvenance.length ? generatedProvenance : provenance),
         presentation: outcome.presentation,
         sourceByteLength: textEncoder.encode(source).byteLength,
         summary: Object.freeze(summary),
@@ -2095,6 +2174,7 @@ function normalizeFrame(frame, owner) {
     return Object.freeze({
         ...owner,
         sourceId: frame?.source_id,
+        uri: frame?.transform?.kind === 'SourceBoundary' ? frame.transform.uri : undefined,
         transform: frame?.transform?.kind ?? 'Unknown',
         range: Object.freeze(firstFrameRange(frame) ?? { start: 0, len: 0 }),
     });

@@ -1493,3 +1493,18 @@ The browser bridge maps consumer paths to exported render identities; DOM elemen
 remain in `CemElementPlacementCoordinator`. `CemSsrPlacementCoordinator` stages
 and commits terminal export plans, then emits authority-free resume hints.
 Neither an ID, source bundle, serialized hint nor template can issue host grants.
+
+### Named template and copied-input origins
+
+`CompileTemplateOptions::source_uri` names authored template ranges. Module
+closures and the shared native CEMT adapter supply the actual root/import URI;
+per-token frame construction preserves that boundary with original UTF-8 byte
+coordinates. Generated output spans can therefore identify the resource as well
+as the local source ID. Constructed/computed values map to their authored
+instruction/expression; this does not imply per-character data lineage.
+Native CEM/XPath-backed copies and imported text/CDATA retain their input owner's
+URI and ranges instead of inheriting the template identity.
+
+Portable Dev artifacts retain URI boundaries and include them in content hashes;
+Prod artifacts strip source maps as before. Preparation budgets count URI bytes.
+No source syntax reparsing or serialized document/AST bridge is involved.

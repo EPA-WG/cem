@@ -19,6 +19,9 @@ pub enum ScssOriginKind {
 #[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(tag = "kind")]
 pub enum TransformKind {
+    /// An authored source boundary. Its span remains in that resource's UTF-8
+    /// coordinates even when local numeric source IDs are reused by another parser.
+    SourceBoundary { uri: String },
     HtmlTokenizer,
     XmlTokenizer,
     CemTokenizer,
@@ -88,6 +91,20 @@ pub struct SourceMapStack {
 }
 
 impl SourceMapStack {
+    /// Name a source-owned stack without replacing an existing origin boundary.
+    /// This is metadata supplied by the native owner, never inferred from an ID.
+    pub fn with_source_uri(mut self, uri: &str) -> Self {
+        if !uri.is_empty() && !self.frames.iter().any(|frame| matches!(frame.transform, TransformKind::SourceBoundary { .. })) {
+            if let Some(frame) = self.frames.last() {
+                self.frames.push(SourceMapFrame {
+                    source_id: frame.source_id,
+                    span: frame.span.clone(),
+                    transform: TransformKind::SourceBoundary { uri: uri.to_owned() },
+                });
+            }
+        }
+        self
+    }
     pub fn push(&mut self, frame: SourceMapFrame) {
         self.frames.push(frame);
     }
@@ -98,6 +115,25 @@ impl SourceMapStack {
 
     pub fn current(&self) -> Option<&SourceMapFrame> {
         self.frames.last()
+    }
+}
+
+#[cfg(test)]
+mod uri_tests {
+    use super::*;
+
+    #[test]
+    fn source_uri_boundary_preserves_coordinates_and_cannot_rebind_an_origin() {
+        let frame = SourceMapFrame { source_id: SourceId(1), span: FrameSpan::Single(ByteRange::new(7, 9)), transform: TransformKind::CemAstBuilder };
+        let original = SourceMapStack { frames: vec![frame.clone()] };
+        let named = original.clone().with_source_uri("studio://project/templates/view.cemt");
+        assert_eq!(named.frames[0], frame);
+        assert_eq!(named.frames[1].span, frame.span);
+        assert_eq!(named.clone().with_source_uri("studio://other/data.cem"), named);
+        assert_eq!(original.clone().with_source_uri(""), original);
+        assert!(SourceMapStack::default().with_source_uri("memory:unknown").frames.is_empty());
+        let json = serde_json::to_vec(&named).unwrap();
+        assert_eq!(serde_json::from_slice::<SourceMapStack>(&json).unwrap(), named);
     }
 }
 

@@ -470,12 +470,70 @@ excluded from Git.
     the bounded Login projection does not infer namespace bindings or execute
     source references. Stable IDs and saved project copies remain intact. Login
     graph provenance and the live light-DOM view remain separate work.
-- [ ] Add a Login transformation-graph resource/configuration using the view
+- [x] Add a Login transformation-graph resource/configuration using the view
   template; add native and browser/offline fixtures for execution, graph editing
   and generated-output source provenance through the existing graph tools.
+  - [x] Add native fixtures for graph-produced HTML, graph/template/source edits,
+    output ranges and durable source identities; cover invalid graphs and missing
+    dependencies before exposing the project configuration.
+  - [x] Add the Login graph and configurations as ordinary project resources,
+    reusing its existing view template and expected HTML with stable IDs.
+  - [x] Verify generated-output provenance identifies the owning project resource
+    and exact UTF-8 range, including valid EOF carets; retain draft/revision guards
+    and use existing declarative graph/results controls for navigation.
+  - [x] Add browser-worker and deployed offline fixtures for graph editing,
+    generated results, source navigation, saved reload and independent copies.
+  - [x] Add a disposed-refresh fixture and stop canceled navigation refreshes
+    before they can issue follow-up storage queries or reopen IndexedDB.
+  - [x] Fix sample-generator dependency ordering for its shared package imports
+    and verify it through the existing clean-build/delivery fixtures.
+  - [x] Update docs/handoff, run appropriate native/Studio gates, record the CEM
+    audit and remaining limits, then commit/push without generated test artifacts.
+  - Native evidence: 155 selected tests pass (124 CEM-QL library tests, 14
+    URI/serialization/whitespace integration cases, 7 core provenance/codec
+    cases and 10 Amsterdam/Login CLI cases; four profiling-only tests remain
+    ignored). Fixtures cover both source formats, source/template/graph edits,
+    exact UTF-8 ranges after a non-ASCII comment, invalid graphs and missing
+    templates without partial HTML publication. Dev artifact hashes distinguish
+    source URIs; Prod artifacts strip maps; copied native input retains its own
+    URI/range. The canonical graph uses the native tabular formatter.
+  - Delivery evidence (2026-10-17): the serial 51-task Studio check passes,
+    including all 129 browser cases, lint/typecheck, 32 native/deployed schema
+    examples, online/offline worker execution, graph/template persistence,
+    source selection, repair/reload and independent project copies. Explicit
+    fixtures cover stable resolver addresses after display-path renames,
+    Save/Discard/Cancel admission, stale/foreign origins, UTF-8 boundaries,
+    valid EOF carets and disposed refreshes without storage reopening.
+    The deployed fixture explicitly chooses the retained Diagnostics/Provenance
+    tabs and awaits asynchronous provenance navigation. Browser gates run
+    serially with their existing timeout limits. Theme inheritance, container
+    overrides, forced colors and offline shell reload pass. Two clean builds
+    match across 264 files with aggregate SHA-256
+    `f79ce8f431d16eb4ce9d95289c8b76609bf1a1da6876a28c2723725cffb71387`.
+    Clean consumer installation and synchronized release evidence pass with
+    `projectGraphProvenance`. Generated screenshots and Vitest attachments
+    remain excluded from Git.
+  - CEM audit: the graph and command are ordinary Login resources/configurations.
+    Existing declarative graph forms, Results, `cem-list` and the shared source
+    editor provide all UI. Studio JavaScript only coordinates native protocol
+    projections and guarded repository routing; no new UI JavaScript capability,
+    CSS, token defaults or AST serialization bridge is introduced. Resource IDs
+    and resolver addresses remain independent of display paths. Native source
+    boundaries name actual owners instead of guessing numeric parser IDs into
+    paths. Constructed/computed values map to template instructions/expressions;
+    arbitrary per-character data lineage is outside this change. The sample
+    generator now declares the built packages and source modules it imports.
+    Canceled navigation refreshes stop before follow-up storage queries, so a
+    disposed workbench cannot reopen IndexedDB through its background refresh.
 - [ ] Implement the live light-DOM `cem-element` login view and add browser
   evidence that a saved edit visibly changes it. Keep Studio UI declarative;
   add any missing reusable control/capability to the shared packages first.
+  - [ ] Design and implement the reusable live-preview boundary in shared
+    packages, with explicit resource ownership and lifecycle cleanup. Alert the
+    user if a new JavaScript UI capability is required in `cem-elements`.
+  - [ ] Add the live Login view as ordinary project resources/configurations,
+    then prove saved edits, reload and independent offline copies through native
+    and browser fixtures. Keep example storage/theme state independent of Studio.
 - [ ] After the remaining presentation functionality, add native CEM-QL source
   Parse/Inspect and standalone-expression formatter adapters. Keep unsupported
   identities explicit instead of falling back to CEM-ML or inventing wrappers.

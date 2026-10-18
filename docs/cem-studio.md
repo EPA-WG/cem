@@ -2642,9 +2642,10 @@ and receive a numbered copy name. Existing projects keep their saved contents.
 | Login semantics from CEM-ML (CEM-QL) | `data/login.cem` and the same native query module; ready namespace names are consumed explicitly. |
 | Render Login from HTML | `data/login.html` and `templates/view.cemt`; generated accessible HTML. |
 | Render Login from CEM-ML | `data/login.cem` and the same template; the same complete HTML output. |
+| Render Login graph | `graphs/view.cem`; import saved CEM-ML, apply the same view, and export HTML with source provenance. |
 
-The version-2.3.0 project has eleven configurations, including equivalent XPath
-and CEM-QL queries and native template output for both source formats. New copies
+The version-2.4.0 project has twelve configurations, including equivalent XPath
+and CEM-QL queries, native template output for both source formats and a graph. New copies
 receive the new resources; existing copies retain their saved contents.
 `expected/semantics.json` is a readable project resource containing the expected
 21 values. Native and browser fixtures compare actual values, not just item
@@ -2691,6 +2692,31 @@ unsaved drafts remain separate from persisted execution. Results uses the
 existing shared sandboxed document preview and provides exact HTML for
 copy/download. Live light-DOM rendering remains a separate shared capability.
 
+**Render Login graph** uses the ordinary `graphs/view.cem` resource and the
+existing native graph editor. Its import → view → export stages reuse saved
+`data/login.cem`, `templates/view.cemt` and `expected/view.html`. Changing the
+export's `out` attribute stages a reversible draft; persisted execution changes
+only after saving. Generated HTML remains an output artifact, not a new source
+resource. Results retains its normal execution graph, preview and downloads.
+
+**Results → Provenance** lists output byte ranges alongside native source URIs
+and original UTF-8 ranges. Choosing a row routes to the owning resource by its
+stable resolver address and selects that range in the existing editor. Display
+path renames do not rebind dependencies. The session uses its normal draft guard
+and verifies the captured project revision before selecting. Cancel retains the
+draft; Discard can follow unchanged provenance; Save invalidates the old result's
+revision and requires a rerun. Foreign/unavailable resources, stale revisions,
+out-of-bounds ranges and offsets inside UTF-8 characters fail explicitly. Valid
+zero-length native locations select an editor caret, including at EOF.
+
+The shared native `SourceBoundary` frame names the byte owner; numeric source
+IDs are never guessed into project paths. Constructed/computed output identifies
+its authored template instruction or expression, without inventing per-character
+input lineage. Copied native input nodes keep their own URI/ranges. Portable
+Dev templates retain these frames; Prod templates continue to strip them.
+Studio projects this declared protocol metadata, without parsing source syntax,
+serializing ASTs for handoff or adding application UI JavaScript.
+
 The view intentionally selects Login elements by local name, children by their
 parent's namespace token, and attributes that are unqualified or share their
 owner's namespace token. It uses the source-oriented native view, without
@@ -2718,7 +2744,8 @@ project root. New copies do not inherit edits from another copy. Catalog
 membership neither changes validation nor adds UI behavior.
 
 The deployed release gate requires `exampleProjects`, `projectSemanticComparison`,
-`projectQueryEquivalence`, `projectValidationRepair` and `projectTemplateOutput`.
+`projectQueryEquivalence`, `projectValidationRepair`, `projectTemplateOutput` and
+`projectGraphProvenance`.
 It exercises the ordinary workspace, shared-source editing, native execution,
 source selection, saved-versus-unsaved repair,
 repeat failure/repair, independent copies and offline reload. Separate generic
@@ -2732,7 +2759,7 @@ orchestration. No new UI JavaScript capability or application CSS is needed.
 
 The [active checklist](todo.md#amsterdam-presentation-samples-active-studio-priority)
 and [presentation audit](presentation/declarative-amsterdam-2026-handoff.md#studio-sample-audit-2026-10-17)
-track the completed HTML/CEM and XPath/CEM-QL comparisons and native template
-output, followed by a Login transformation graph and a live light-DOM
-`cem-element` view. Implement those as project resources and configurations using
-shared workspace capabilities.
+track the completed HTML/CEM and XPath/CEM-QL comparisons, native template
+output and Login graph/source provenance. The next presentation item is a live
+light-DOM `cem-element` view, using project resources and shared workspace
+capabilities.

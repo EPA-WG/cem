@@ -28,7 +28,7 @@ Home offers **Login** and **Schema examples** under **Example projects**.
 **Create project from example** makes an independent editable copy, then
 **Projects → Open project** enters the common workspace. Existing projects keep
 their saved contents. Startup restores the last selection; a fresh profile opens
-Home without auto-installing a seed. Login's README resource carries instructions. Version 2.3.0 has eleven
+Home without auto-installing a seed. Login's README resource carries instructions. Version 2.4.0 has twelve
 configurations, including XPath and **(CEM-QL)** variants of **Login semantics
 from HTML** and **Login semantics from CEM-ML**. Their queries select the XHTML `main` subtree; document
 wrappers and lexical formatting remain outside the comparison.
@@ -39,7 +39,8 @@ wrappers and lexical formatting remain outside the comparison.
 | HTML import, conversion and semantic comparison | Login HTML resource, HTML-to-CEM-ML conversion, and two ordinary query configurations share a 21-field semantic contract with the CEM source. Native import retains decoded values and provenance; the query explicitly maps namespace/mirror differences. | Preserve the bounded comparison contract and expected values when adding later examples. |
 | Intentional failure and repair | Separate syntax-valid source omits the form method; owned teaching schema reports `demo.login.method_required`. | Continue to demonstrate source selection, saved repair/reload and repeat failure through the shared editor/diagnostics. |
 | Equivalent queries | Login has native XPath and CEM-QL module resources with the same complete 21-field contract for both source formats. Ready namespaces and bounded navigation are explicit; query modules can be edited, validated and rerun. | Preserve source ownership, prefix independence, Boolean presence and offline copy isolation. |
-| Template output | Two Login render configurations share an editable native CEMT view and complete expected HTML. Both sources support saved heading/label/method edits and template instruction edits. Results uses the shared sandboxed document preview and exact HTML copy/download. | Add a Login graph configuration and trace its generated output through the existing graph tooling. |
+| Template output | Two Login render configurations share an editable native CEMT view and complete expected HTML. Both sources support saved heading/label/method edits and template instruction edits. Results uses the shared sandboxed document preview and exact HTML copy/download. | Preserve exact HTML and saved source/template edits in direct and graph execution. |
+| Graph and source provenance | Login graph imports the saved CEM resource, applies the shared view and exports HTML. Existing graph controls edit its output destination; native URI/range rows open the template with draft/revision guards. Offline copies preserve independent graph/template bytes. | Constructed output maps to template instructions/expressions; arbitrary computed data lineage is not claimed. |
 | Live light-DOM view | Shared `cem-element` runtime exists. | Add a reusable preview capability and prove saved Login edits update it. |
 
 Native source/diagnostic contracts remain unchanged. Login archive updates and
@@ -54,6 +55,20 @@ README access, all five unnumbered Login configurations, failure/repair, indepen
 copies and offline recovery through the ordinary workspace. Automated AX/reflow,
 five themes/forced colors, deterministic packaging and clean consumer installation
 also pass. Generated screenshots and Vitest attachments are excluded from Git.
+
+The Login graph/source-provenance increment passes 155 selected native tests and
+all 129 Studio browser cases through the full serial 51-task delivery gate.
+The deployed workflow edits the export destination, follows generated ranges to
+the template, preserves saved source/template/graph edits across offline reload,
+repeats schema repair and verifies independent copies and their source URIs.
+Draft/revision, UTF-8, EOF-caret and disposal guards pass. The clean-build pair
+matches across 264 files with SHA-256
+`f79ce8f431d16eb4ce9d95289c8b76609bf1a1da6876a28c2723725cffb71387`.
+Theme/forced-color, automated accessibility, packaging and clean consumer checks
+pass. UI stays declarative; native URI boundaries retain original source owners.
+Constructed/computed output maps to template instructions/expressions, without a
+claim of arbitrary per-character input lineage. Generated test artifacts remain
+excluded. The live light-DOM Login view is the next presentation implementation.
 
 ## Resume after clearing context
 

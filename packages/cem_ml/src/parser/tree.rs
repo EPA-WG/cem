@@ -551,7 +551,9 @@ impl RetainedCemTree {
         (node.source.origin().is_some() && node.range.line > 0).then_some(node.range.line)
     }
     pub fn node_source_uri(&self, id: AstNodeId) -> Option<&str> {
-        self.provenance.get(&id).and_then(|p| p.source_uri.as_deref()).or_else(|| self.document_uri())
+        self.provenance.get(&id).and_then(|p| p.source_uri.as_deref())
+            .or_else(|| self.document_uri())
+            .or_else(|| (!self.source_uri.is_empty()).then_some(self.source_uri.as_str()))
     }
     pub fn base_uri(&self) -> Option<&str> {
         self.metadata.base_uri.as_deref()

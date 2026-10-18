@@ -211,3 +211,17 @@ The acceptance criteria are documented in
 [`docs/cem-ml-ac.md`](../../docs/cem-ml-ac.md), and synchronized distribution
 ownership is defined in
 [`docs/cem-ml-deployment-contract.md`](../../docs/cem-ml-deployment-contract.md).
+
+## Named source provenance
+
+`SourceMapStack::with_source_uri` appends a `SourceBoundary { uri }` frame to a
+nonempty, unnamed stack, preserving the existing source ID and original UTF-8
+range. An existing boundary cannot be rebound. Native owners retain their
+explicit source URI even when their XDM document URI is absent. Numeric IDs stay
+local and must not be interpreted as resource addresses.
+
+The binary source-map codec encodes this transform kind as tag 15 with a nonempty
+URI payload; older tags retain their encoding. New readers accept existing
+streams. Older readers that do not support this kind reject such new metadata.
+The explicit source-map JSON protocol exposes the same frame. Runtime ASTs remain
+retained native trees; these public source maps are not an AST transport.

@@ -193,6 +193,8 @@ impl TemplateData {
 pub struct CompileTemplateOptions {
     pub host_bindings: Vec<String>,
     pub skip_cemt_function_bodies: bool,
+    /// The source owner supplies this identity; local parser IDs are not URIs.
+    pub source_uri: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -485,6 +487,11 @@ pub fn compile_template(source: &str, options: &CompileTemplateOptions) -> Templ
     while let Some(token) = tokenizer.next_token() {
         tokens.push(token);
     }
+    if let Some(uri) = options.source_uri.as_deref() {
+        for token in &mut tokens {
+            token.source_map = token.source_map.clone().with_source_uri(uri);
+        }
+    }
     let mut diagnostics = tokenizer.take_diagnostics();
     diagnostics.extend(whitespace::lower(&mut tokens));
 
@@ -558,7 +565,9 @@ pub fn compile_template_module_closure(
 ) -> TemplateArtifact {
     let expected_root_hash =
         cem_ml::content_cache::ContentHash::from_blake3(source.as_bytes()).header_value();
-    let mut root = compile_template(source, options);
+    let mut root = compile_template(source, &CompileTemplateOptions {
+        source_uri: Some(closure.root_uri.clone()), ..options.clone()
+    });
     if closure.root_content_hash != expected_root_hash {
         root.diagnostics.push(render_diagnostic(
             "cem.ql.template.module_hash_mismatch",
@@ -702,7 +711,9 @@ pub fn compile_template_module_closure(
                 .collect(),
         );
 
-        let mut artifact = compile_template(&module.source, options);
+        let mut artifact = compile_template(&module.source, &CompileTemplateOptions {
+            source_uri: Some(module.uri.clone()), ..options.clone()
+        });
         for diagnostic in &mut artifact.diagnostics {
             if diagnostic.uri.is_none() {
                 diagnostic.uri = Some(module.uri.clone());
@@ -4829,20 +4840,27 @@ fn record_string(record: &BTreeMap<String, Vec<Item>>, name: &str) -> Option<Str
 ///
 /// The CEM tokenizer stamps every token's `source_map` with the whole-document
 /// base frame, so cloning it loses per-node offsets. The accurate location lives
-/// on `token.byte_range`; this rebuilds a single-frame stack from it so render
-/// plans (and the WASM `byteOffset`) carry author-byte-exact per-node frames.
+/// on `token.byte_range`; rebuild that precise node frame and retain the
+/// explicit source owner so render plans keep both URI and original byte ranges.
 fn frame_for(token: &SchemaToken) -> SourceMapStack {
     let source_id = token
         .source_map
         .origin()
         .map(|frame| frame.source_id)
         .unwrap_or(SourceId(1));
-    SourceMapStack {
+    let source_map = SourceMapStack {
         frames: vec![SourceMapFrame {
             source_id,
             span: FrameSpan::Single(token.byte_range),
             transform: TransformKind::CemTokenizer,
         }],
+    };
+    match token.source_map.frames.iter().find_map(|frame| match &frame.transform {
+        TransformKind::SourceBoundary { uri } => Some(uri.as_str()),
+        _ => None,
+    }) {
+        Some(uri) => source_map.with_source_uri(uri),
+        None => source_map,
     }
 }
 

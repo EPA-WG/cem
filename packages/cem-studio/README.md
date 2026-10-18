@@ -341,3 +341,13 @@ the generated output; Results uses the shared sandboxed document preview and
 provides exact HTML for copy/download. Studio continues to use the existing
 declarative workspace and shared native transformation path. Live light-DOM
 output remains separate work.
+
+Login 2.4.0 adds **Render Login graph** and `graphs/view.cem` as ordinary project
+configuration/resource data. The existing graph controls stage validated changes;
+saved execution produces the same HTML and native output-to-source ranges.
+**Results → Provenance** opens the owning resource and selects its UTF-8 span
+through the normal draft/revision guards. Stable resolver addresses survive
+display-path renames. Constructed output points to template instructions;
+copied native nodes retain their own input origins. No new UI JavaScript or
+renderer is introduced. New copies receive twelve configurations; existing
+projects retain their contents. See the [Login guide](../../examples/projects/login/README.md#transformation-graph-and-source-provenance).

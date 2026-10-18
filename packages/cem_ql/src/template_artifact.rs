@@ -126,6 +126,7 @@ pub fn compile_template_artifact(
     let canonical_options = CompileTemplateOptions {
         host_bindings: host_bindings.clone(),
         skip_cemt_function_bodies: options.skip_cemt_function_bodies,
+        source_uri: options.source_uri.clone(),
     };
     let mut artifact = compile_template(source, &canonical_options);
     #[cfg(test)]

@@ -172,6 +172,31 @@ fn login_html_and_cem_queries_have_the_same_explicit_semantic_contract() {
 fn presentation_login_commands_preserve_named_fields_and_report_existing_warnings() {
     let sample = sample();
     for page in sample["configurations"].as_array().unwrap() {
+        // Graph exports are real native publications; exercise an isolated copy.
+        let copy = page["expectedGraphOutput"].as_str().map(|_| {
+            let root = std::env::temp_dir().join(format!(
+                "cem-login-project-{}",
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+            for source in sample["sources"].as_array().unwrap() {
+                let path = root.join(source["path"].as_str().unwrap());
+                fs::create_dir_all(path.parent().unwrap()).unwrap();
+                fs::copy(workspace().join(source["source"].as_str().unwrap()), path).unwrap();
+            }
+            root
+        });
+        let resource_path = |source: &serde_json::Value| {
+            copy.as_ref()
+                .map(|root| {
+                    root.join(source["path"].as_str().unwrap())
+                        .to_string_lossy()
+                        .into_owned()
+                })
+                .unwrap_or_else(|| source["source"].as_str().unwrap().to_owned())
+        };
         let source = sample["sources"]
             .as_array()
             .unwrap()
@@ -183,16 +208,16 @@ fn presentation_login_commands_preserve_named_fields_and_report_existing_warning
             .unwrap()
             .iter()
             .map(|arg| match arg.as_str().unwrap() {
-                "$source" => source["source"].as_str().unwrap(),
-                value if value.starts_with('$') => sample["sources"]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .find(|source| source["id"] == &value[1..])
-                    .unwrap()["source"]
-                    .as_str()
-                    .unwrap(),
-                value => value,
+                "$source" => resource_path(source),
+                value if value.starts_with('$') => resource_path(
+                    sample["sources"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .find(|source| source["id"] == &value[1..])
+                        .unwrap(),
+                ),
+                value => value.to_owned(),
             })
             .collect();
         let output = Command::new(env!("CARGO_BIN_EXE_cem-ml"))
@@ -207,7 +232,11 @@ fn presentation_login_commands_preserve_named_fields_and_report_existing_warning
             page["id"],
             String::from_utf8_lossy(&output.stderr)
         );
-        let text = String::from_utf8(output.stdout).unwrap();
+        let text = if let Some(path) = page["expectedGraphOutput"].as_str() {
+            fs::read_to_string(copy.as_ref().unwrap().join(path)).unwrap()
+        } else {
+            String::from_utf8(output.stdout).unwrap()
+        };
         assert!(
             !text.contains('\u{1b}'),
             "saved presentation output is plain"
@@ -271,6 +300,9 @@ fn presentation_login_commands_preserve_named_fields_and_report_existing_warning
                 .iter()
                 .all(|diagnostic| diagnostic["code"] == expected["warningCode"]
                     || diagnostic["code"] == expected["errorCode"]));
+        }
+        if let Some(root) = copy {
+            fs::remove_dir_all(root).unwrap();
         }
     }
 }

@@ -264,7 +264,7 @@ impl XPathNativeNode {
         self.tree.node(self.id).expect("validated semantic node")
     }
     pub fn source_map(&self) -> SourceMapStack {
-        self.data().source.clone()
+        self.data().source.clone().with_source_uri(self.source_uri().unwrap_or(""))
     }
     pub fn source_key(&self) -> Option<String> {
         self.tree.source_key(self.id)

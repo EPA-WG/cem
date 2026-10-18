@@ -2371,6 +2371,7 @@ fn event_source_range(event: &NormalizedEvent) -> Option<ByteRange> {
 
 fn transform_kind_label(transform: &TransformKind) -> &'static str {
     match transform {
+        TransformKind::SourceBoundary { .. } => "source-boundary",
         TransformKind::HtmlTokenizer => "html-tokenizer",
         TransformKind::XmlTokenizer => "xml-tokenizer",
         TransformKind::CemTokenizer => "cem-tokenizer",

@@ -271,6 +271,7 @@ fn seed_source_map(d: &mut Dictionaries, stack: &SourceMapStack) {
 
 fn encode_transform(t: &TransformKind) -> (u16, Option<String>) {
     match t {
+        TransformKind::SourceBoundary { uri } => (15, Some(uri.clone())),
         TransformKind::HtmlTokenizer => (0, None),
         TransformKind::XmlTokenizer => (1, None),
         TransformKind::CemTokenizer => (2, None),

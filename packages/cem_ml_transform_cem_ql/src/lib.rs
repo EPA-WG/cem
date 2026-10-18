@@ -1684,6 +1684,7 @@ impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
             source,
             &CompileTemplateOptions {
                 host_bindings: host_bindings.clone(),
+                source_uri: Some(request.template.uri.clone()),
                 ..CompileTemplateOptions::default()
             },
         );
@@ -2819,6 +2820,7 @@ fn validate_context_aware_template_embedding_source_bytes(
         &CompileTemplateOptions {
             host_bindings,
             skip_cemt_function_bodies,
+            source_uri: request.source_uri.map(str::to_owned),
         },
     );
     artifact
@@ -3858,6 +3860,7 @@ fn compile_preflighted_modules(
                 source,
                 &CompileTemplateOptions {
                     host_bindings: module_host_bindings,
+                    source_uri: Some(module.uri.clone()),
                     ..CompileTemplateOptions::default()
                 },
             );

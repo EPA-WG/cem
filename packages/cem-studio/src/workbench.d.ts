@@ -244,7 +244,8 @@ export interface CemStudioFeatureTourWorkbench {
     useNewCommandTarget(): CemStudioWorkbenchState;
     cancelCommandReplacement(): CemStudioWorkbenchState;
     navigateDiagnostic(index: number): CemStudioWorkbenchSelection;
-    navigateProvenance(index: number): CemStudioWorkbenchSelection;
+    navigateProvenance(index: number): CemStudioWorkbenchSelection | Promise<CemStudioWorkbenchState>;
+    selectSourceRange(range: Readonly<{ start: number; len: number }>, projectRevision: number, index?: number): CemStudioWorkbenchSelection;
     dispose(): void;
 }
 

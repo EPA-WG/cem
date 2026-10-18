@@ -1,0 +1,10 @@
+@doc cem-ml 1
+{run |
+    {import @content-type=application/cem @id=source @schema=https://cem.dev/ns/cem-ml/1
+        @src=../data/login.cem |
+        {transform @entrypoint=main @id=view @src=../templates/view.cemt
+            @template-content-type="application/vnd.cem.template+cem"
+            @template-schema=https://cem.dev/ns/template/cem-native/1 |
+            {export @content-type=text/html @id=page @out=../generated/login.html
+                @schema=https://cem.dev/ns/data/html/1}
+}   }   }

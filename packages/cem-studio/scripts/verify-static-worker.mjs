@@ -130,8 +130,8 @@ try {
         await exerciseExampleProjects(page, context);
         assert.deepEqual(browserErrors, []); assert.deepEqual(httpFailures, []);
         await mkdir(dirname(reportPath), { recursive: true });
-        await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, exampleProjects: true, validationRepair: true, templateOutput: true, offline: true, configurations: 11 }, null, 2)}\n`);
-        console.log('Verified deployed example project copies, schema failure/repair, template output, Save/reload and eleven offline configurations.');
+        await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, exampleProjects: true, validationRepair: true, templateOutput: true, offline: true, configurations: 12, graphProvenance: true }, null, 2)}\n`);
+        console.log('Verified deployed example project copies, schema failure/repair, template output, Save/reload graph provenance and twelve offline configurations.');
     } else if (lifecycleOnly) {
         const lifecycle = await exerciseProjectLifecycle(page, context);
         assert.deepEqual(browserErrors, []); assert.deepEqual(httpFailures, []);
@@ -837,7 +837,7 @@ async function exerciseProjectLifecycle(page, context) {
     }), graphRecords);
     await exerciseExampleProjects(page, context);
     await editor.dispose();
-    return { exampleProjects: true, projectSemanticComparison: true, projectQueryEquivalence: true, projectValidationRepair: true, projectTemplateOutput: true, graphEdgeAuthoring: true, graphNodeCreation: true, graphConfigurationAuthoring: true, stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
+    return { exampleProjects: true, projectSemanticComparison: true, projectQueryEquivalence: true, projectValidationRepair: true, projectTemplateOutput: true, projectGraphProvenance: true, graphEdgeAuthoring: true, graphNodeCreation: true, graphConfigurationAuthoring: true, stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
         guardedDraftAndFocusRetained: true, exportedExactBytes: true, trashRestore: true, offlineReopen: true, accessibility };
 }
 
@@ -845,7 +845,7 @@ async function exerciseExampleProjects(page, context) {
     const settle = () => page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
     const snapshot = () => page.evaluate(() => {
         const state = globalThis.__cemStudioApplication.workbench.snapshot();
-        return { draft: state.draft, status: state.status, projectId: state.projectId, projectRevision: state.projectRevision,
+        return { draft: state.draft, dirty: state.dirty, status: state.status, projectId: state.projectId, projectRevision: state.projectRevision,
             projection: state.projection && { kind: state.projection.kind, exitCode: state.projection.exitCode, text: state.projection.output.text, previewKind: state.projection.preview?.kind },
             diagnostics: state.validation?.diagnostics, validationStale: state.validation?.stale, validation: state.validation?.reportSummary };
     });
@@ -883,7 +883,7 @@ async function exerciseExampleProjects(page, context) {
     assert.ok((await snapshot()).draft.includes('demo.login.method_required'));
     assert.ok((await snapshot()).draft.includes('Intentional validation failure and repair'));
     const configurations = await page.evaluate(async projectId => (await globalThis.__cemStudioApplication.repository.query({ protocolVersion: 1, repository: 'studio-projects', operation: 'get-project', requestRevision: 1, parameters: { projectId } })).value.entries, firstId);
-    assert.equal(configurations.length, 11);
+    assert.equal(configurations.length, 12);
     assert.ok(configurations.every(configuration => !/^\d+\./.test(configuration.name)));
     await selectConfiguration(firstId, 'read-edit');
     const original = (await snapshot()).draft;
@@ -919,6 +919,46 @@ async function exerciseExampleProjects(page, context) {
     assert.equal(await viewFrame.getByRole('textbox', { name: 'Email', exact: true }).getAttribute('required'), '');
     assert.equal(await viewFrame.getByLabel('Password', { exact: true }).getAttribute('autocomplete'), 'current-password');
     await page.getByRole('tab', { name: 'Source and command', exact: true }).click(); await settle();
+    await selectConfiguration(firstId, 'render-graph'); await click('Run configuration');
+    await assertView(expectedView);
+    const originalGraph = (await snapshot()).draft;
+    await pick('Graph node', 'page (export)'); await pick('Graph attribute', 'out');
+    await page.getByRole('textbox', { name: 'Graph attribute value', exact: true }).fill('../generated/presentation.html');
+    await click('Set graph attribute');
+    const editedGraph = (await snapshot()).draft;
+    assert.notEqual(editedGraph, originalGraph);
+    assert.equal((await snapshot()).dirty, true);
+    await click('Run configuration');
+    assert.ok(await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().projection.provenance.every(frame => frame.outputUri.endsWith('/generated/login.html'))));
+    await click('Save and validate'); await click('Run configuration'); await assertView(expectedView);
+    const origin = await page.evaluate(async () => {
+        const app = globalThis.__cemStudioApplication;
+        const state = app.workbench.snapshot();
+        const instruction = 'Use your email and password.';
+        const outputOffset = new TextEncoder().encode(state.projection.output.text.slice(0, state.projection.output.text.indexOf(instruction))).length;
+        const frame = state.projection.provenance.map((frame, index) => ({ ...frame, index })).find(frame => frame.uri?.endsWith('/templates/view.cemt') && frame.outputRange?.start <= outputOffset && outputOffset < frame.outputRange.start + frame.outputRange.len);
+        if (!frame) return undefined;
+        const bundle = (await app.repository.query({ protocolVersion: 1, repository: 'studio-projects', operation: 'export-project', requestRevision: 1, parameters: { projectId: state.projectId } })).value;
+        return { ...frame, authored: new TextDecoder().decode(bundle.contents['login-view-template'].slice(frame.range.start, frame.range.start + frame.range.len)) };
+    });
+    assert.ok(origin, 'generated instruction must identify the native template URI/range');
+    assert.ok(origin.outputUri.endsWith('/generated/presentation.html'));
+    await page.getByRole('tab', { name: 'Results', exact: true }).click(); await settle();
+    await page.getByRole('tab', { name: 'Provenance', exact: true }).click(); await settle();
+    const provenance = page.getByRole('listbox', { name: 'Source-map provenance', exact: true });
+    assert.ok((await provenance.textContent()).includes('Output bytes'));
+    await provenance.selectOption(String(origin.index)); await settle();
+    const selectedOrigin = await page.evaluate(() => {
+        const state = globalThis.__cemStudioApplication.workbench.snapshot();
+        return { resourceId: state.resourceId, selection: state.selection, text: state.draft.slice(state.selection?.start, state.selection?.end), error: state.navigationError };
+    });
+    assert.equal(selectedOrigin.error, undefined); assert.equal(selectedOrigin.resourceId, 'login-view-template');
+    assert.equal(selectedOrigin.text, origin.authored);
+    assert.ok(selectedOrigin.text.includes('Use your email and password.'));
+    assert.equal(selectedOrigin.selection.byteStart, origin.range.start);
+    assert.deepEqual(await page.getByRole('textbox', { name: 'CEM source', exact: true }).evaluate(element => [element.selectionStart, element.selectionEnd]), [selectedOrigin.selection.start, selectedOrigin.selection.end]);
+    await selectConfiguration(firstId, 'render-graph'); await click('Reload persisted revision');
+    assert.equal((await snapshot()).draft, editedGraph);
     for (const configuration of ['semantics-html', 'semantics-cem', 'semantics-html-cemql', 'semantics-cem-cemql']) {
         await selectConfiguration(firstId, configuration); await click('Run configuration');
         assert.equal((await snapshot()).projection.kind, 'query');
@@ -1032,6 +1072,7 @@ async function exerciseExampleProjects(page, context) {
     assert.ok(diagnosticIndex >= 0);
     assert.deepEqual(failed.diagnostics[diagnosticIndex].range, { start: invalid.indexOf('{form'), len: 5 });
     await page.getByRole('tab', { name: 'Results', exact: true }).click(); await settle();
+    await page.getByRole('tab', { name: 'Diagnostics', exact: true }).click(); await settle();
     await page.getByRole('listbox', { name: 'Diagnostics', exact: true }).selectOption(String(diagnosticIndex)); await settle();
     const editor = page.getByRole('textbox', { name: 'CEM source', exact: true });
     assert.equal(await editor.evaluate(element => document.activeElement === element), true);
@@ -1061,6 +1102,11 @@ async function exerciseExampleProjects(page, context) {
         return new TextDecoder().decode(bundle.contents['login-view-template']);
     }, projectId);
     assert.equal(await persistedTemplate(firstId), editedTemplate);
+    await selectConfiguration(firstId, 'render-graph');
+    assert.equal((await snapshot()).draft, editedGraph);
+    await click('Run configuration');
+    await assertView(expectedView.replace('Sign in', 'Amsterdam sign in').replace('Use your email and password.', 'Use your Amsterdam account.'));
+
     await pick('Example projects', sampleName); await click('Create project from example');
     const secondId = await copyId(`${sampleName} (2)`);
     assert.notEqual(firstId, secondId);
@@ -1077,6 +1123,15 @@ async function exerciseExampleProjects(page, context) {
         assert.deepEqual(await semanticValues(), contract);
     }
     assert.equal(await persistedTemplate(secondId), originalTemplate);
+    await selectConfiguration(secondId, 'render-graph');
+    assert.equal((await snapshot()).draft, originalGraph);
+    await click('Run configuration'); await assertView(expectedView);
+    assert.equal(await page.evaluate(async () => {
+        const app = globalThis.__cemStudioApplication;
+        const state = app.workbench.snapshot();
+        const project = (await app.repository.query({ protocolVersion: 1, repository: 'studio-projects', operation: 'get-project', requestRevision: 1, parameters: { projectId: state.projectId } })).value;
+        return state.projection.provenance.length > 0 && state.projection.provenance.every(frame => frame.uri?.startsWith(project.rootUri));
+    }), true, 'a fresh copy must retain its own source URIs');
     for (const configuration of ['render-html', 'render-cem']) {
         await selectConfiguration(secondId, configuration); await click('Run configuration');
         await assertView(expectedView);
@@ -1403,7 +1458,8 @@ async function exerciseWorkbench(page) {
         const diagnosticIndex = snapshot.validation.diagnostics.findIndex(({ range }) => range.len > 0);
         if (diagnosticIndex < 0) throw new Error('saved revision diagnostics have no navigable source range');
         const diagnosticSelection = application.workbench.navigateDiagnostic(diagnosticIndex);
-        const provenanceSelection = application.workbench.navigateProvenance(0);
+        await application.workbench.navigateProvenance(0);
+        const provenanceSelection = application.workbench.snapshot().selection;
         await application.workbenchView.whenSettled();
         const resource = exported.value.project.resources.find(({ id }) => id === snapshot.resourceId);
         const persisted = new TextDecoder().decode(exported.value.contents[snapshot.resourceId]);

@@ -82,7 +82,7 @@ module identity, native module formatting, validation and query execution.
 
 ## Generate the Login view
 
-New version-2.3.0 copies have eleven configurations. **Render Login from HTML**
+New version-2.4.0 copies have twelve configurations. **Render Login from HTML**
 and **Render Login from CEM-ML** apply the shared `templates/view.cemt` resource
 to the saved source. Both produce the complete HTML in `expected/view.html`:
 an accessible heading and form, associated labels, autocomplete hints, required
@@ -112,3 +112,33 @@ The configurations use the existing bounded `queueSize=1024` worker policy and
 native CEMT adapter. No application UI JavaScript or additional renderer is
 introduced. Existing project copies keep their saved contents; create a fresh
 Login copy to receive these resources and configurations.
+
+## Transformation graph and source provenance
+
+**Render Login graph** opens `graphs/view.cem` in the same workspace. It imports
+saved `data/login.cem`, applies the public `main` template from
+`templates/view.cemt`, and exports `generated/login.html`. Its HTML matches
+`expected/view.html`. Generated output stays a run artifact; it does not silently
+create a source resource.
+
+Use **Graph configuration** to choose **page (export)** and its **out** attribute.
+Set it to `../generated/presentation.html`. The native graph editor stages a
+validated draft; Undo/Redo and Reload use the usual workspace behavior.
+**Run configuration** uses the saved graph. **Save and validate**, then rerun to
+change the output destination. Saved source and template edits also affect this
+configuration; relative dependencies resolve inside each project copy.
+
+In **Results → Provenance**, rows connect generated UTF-8 byte ranges to an
+explicit source URI and byte range. Select an instruction row to open
+`templates/view.cemt` and select its authored text. Resource routing uses stable
+resolver addresses even after a display-path rename. Unsaved drafts use the
+normal Save/Discard/Cancel guard. Saving changes the project revision, so rerun
+before following an older result. Missing resources, stale revisions and invalid
+or split UTF-8 ranges cannot select an unrelated source span.
+
+Native source IDs alone are local to their owners and do not identify project
+resources. The shared engine carries explicit URI boundaries through template
+compilation, portable development artifacts and binary source maps. Constructed
+or computed output points to its authored template instruction/expression; it
+does not claim per-character data lineage. Copied native input nodes retain their
+own source URI/ranges. Production template artifacts still strip source maps.

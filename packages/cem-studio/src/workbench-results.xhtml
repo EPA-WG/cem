@@ -166,8 +166,9 @@
      {cem-list @data-provenance-list="" @host-command=provenance @host-command-event=change
       @label="Source-map provenance" @selectable=true @size={if seq:count(provenance.range.start) &gt; 8 { 8 } else { seq:count(provenance.range.start) }} |
       {cem:for-each @as=frame @select=provenance |
+       {cem:variable @name=origin @select='frame.uri ?? str:concat(("Source ", frame.sourceId ?? "unknown"), "")'}
        {cem:variable @name=label
-        @select='str:concat(("Source ", frame.sourceId ?? "unknown", ": ", frame.transform, "; bytes ", frame.range.start, "–", frame.range.start + frame.range.len), "")'}
+        @select='if frame.outputRange { str:concat(("Output bytes ", frame.outputRange.start, "–", frame.outputRange.start + frame.outputRange.len, " → ", origin, "; source bytes ", frame.range.start, "–", frame.range.start + frame.range.len), "") } else { str:concat((origin, ": ", frame.transform, "; bytes ", frame.range.start, "–", frame.range.start + frame.range.len), "") }'}
        {cem-list-option @value={position - 1} |
         {$ | label}
     }}}}

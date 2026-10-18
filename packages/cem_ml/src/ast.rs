@@ -95,6 +95,21 @@ mod tests {
     }
 
     #[test]
+    fn source_uri_boundaries_round_trip_with_original_utf8_ranges() {
+        let mut doc = parse("{p | café}");
+        for node in &mut doc.nodes {
+            let source = match node {
+                CemAstNode::Document { source, .. } | CemAstNode::Element { source, .. }
+                | CemAstNode::Text { source, .. } | CemAstNode::Whitespace { source, .. } => source,
+                _ => continue,
+            };
+            *source = source.clone().with_source_uri("studio://copy/templates/café.cemt");
+        }
+        let (_, decoded) = round_trip(&doc);
+        assert_documents_equivalent(&doc, &decoded);
+    }
+
+    #[test]
     fn simple_element_round_trips() {
         let doc = parse("{p Hello}");
         let (_, decoded) = round_trip(&doc);

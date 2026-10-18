@@ -459,6 +459,7 @@ impl<'a> MetadataBudget<'a> {
                 )?;
             }
             let bytes = match &frame.transform {
+                TransformKind::SourceBoundary { uri } => uri.len(),
                 TransformKind::HandoffBoundary { child_content_type } => child_content_type.len(),
                 TransformKind::ContentTypeTransform { content_type } => content_type.len(),
                 TransformKind::TemplateTransform { function } => function.len(),

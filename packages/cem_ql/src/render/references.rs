@@ -135,11 +135,11 @@ pub fn expand_reference(reference: &CemReference<Item>) -> Vec<RenderPlanNode> {
                 | CemAstNode::Whitespace { source, .. }
                 | CemAstNode::RawText { source, .. } => Some(RenderPlanNode::Text {
                     text: value(),
-                    source_map: source.clone(),
+                    source_map: source.clone().with_source_uri(tree.node_source_uri(id).unwrap_or("")),
                 }),
                 CemAstNode::Cdata { source, .. } => Some(RenderPlanNode::Cdata {
                     text: value(),
-                    source_map: source.clone(),
+                    source_map: source.clone().with_source_uri(tree.node_source_uri(id).unwrap_or("")),
                 }),
                 _ => None,
             };

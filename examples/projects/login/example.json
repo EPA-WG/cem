@@ -1,8 +1,8 @@
 {
   "id": "login",
   "name": "Login",
-  "version": "2.3.0",
-  "description": "Login sources, equivalent XPath/CEM-QL queries, schema validation and native HTML view templates.",
+  "version": "2.4.0",
+  "description": "Login sources, equivalent queries, validation, native HTML templates and an editable transformation graph with source provenance.",
   "sources": [
     {
       "id": "login-cem",
@@ -89,6 +89,14 @@
       "contentType": "text/html",
       "schema": "https://cem.dev/ns/data/html/1",
       "role": "data"
+    },
+    {
+      "id": "login-view-graph",
+      "source": "examples/projects/login/graphs/view.cem",
+      "path": "graphs/view.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cli/transform-config/1",
+      "role": "transform-config"
     }
   ],
   "collections": [
@@ -414,6 +422,31 @@
         "queueSize=1024"
       ],
       "expectedOutput": "login-view-expected"
+    },
+    {
+      "id": "render-graph",
+      "name": "Render Login graph",
+      "kind": "transformation-graph",
+      "source": "login-view-graph",
+      "dependencies": [
+        "login-cem",
+        "login-view-template",
+        "login-view-expected"
+      ],
+      "description": "Run the saved import \u2192 view template \u2192 HTML export graph. Edit a graph attribute, save, rerun and follow generated-output provenance to its template.",
+      "argv": [
+        "transform",
+        "--config",
+        "$source",
+        "--config-content-type",
+        "application/cem",
+        "--config-schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "expectedOutput": "login-view-expected",
+      "expectedGraphOutput": "generated/login.html"
     }
   ]
 }

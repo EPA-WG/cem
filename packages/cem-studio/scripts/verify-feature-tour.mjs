@@ -60,7 +60,7 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
         assert.deepEqual(record.collections, ['amsterdam-2026']);
         assert.equal(bundle.project.entries.length, definition.configurations.length);
         for (const source of definition.sources) assert.deepEqual(bundle.contents[source.id], new Uint8Array(await readFile(resolve(workspaceRoot, source.source))));
-        assert.equal(record.version, '2.3.0');
+        assert.equal(record.version, '2.4.0');
         const contract = JSON.parse(new TextDecoder().decode(bundle.contents['login-semantic-contract']));
         assert.equal(contract.length, 21);
         for (const id of ['semantics-html', 'semantics-cem']) {
@@ -81,7 +81,7 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
             assert.ok(command.argv.includes('--ready-names'));
             assert.ok(command.argv.includes('queueSize=1024'));
         }
-        assert.equal(bundle.project.entries.length, 11);
+        assert.equal(bundle.project.entries.length, 12);
         const template = bundle.project.resources.find(resource => resource.id === 'login-view-template');
         assert.equal(template.role, 'template');
         assert.equal(template.contentType, 'application/vnd.cem.template+cem');
@@ -98,6 +98,16 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
             assert.ok(command.argv.includes('text/html'));
             assert.ok(command.argv.includes('--template-entrypoint'));
         }
+        const graph = bundle.project.resources.find(resource => resource.id === 'login-view-graph');
+        assert.equal(graph.role, 'transform-config');
+        assert.equal(graph.path, 'graphs/view.cem');
+        assert.equal(graph.schema, 'https://cem.dev/ns/cli/transform-config/1');
+        const graphConfiguration = bundle.project.entries.find(entry => entry.id === 'render-graph');
+        assert.equal(graphConfiguration.kind, 'transformation-graph');
+        for (const id of ['login-view-graph', 'login-cem', 'login-view-template', 'login-view-expected']) assert.ok(graphConfiguration.resourceIds.includes(id));
+        const graphCommand = JSON.parse(new TextDecoder().decode(bundle.contents[graphConfiguration.runConfigResourceId]));
+        assert.ok(graphCommand.argv.includes('--config'));
+        assert.ok(graphCommand.argv.includes('graphs/view.cem'));
         const repair = bundle.project.entries.find(entry => entry.id === 'validation-repair');
         assert.deepEqual(repair.resourceIds, ['login-invalid', 'command-validation-repair', 'login-schema-package', 'login-schema']);
         assert.ok(new TextDecoder().decode(bundle.contents.readme).includes('demo.login.method_required'));

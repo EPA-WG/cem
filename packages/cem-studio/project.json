@@ -282,6 +282,13 @@
                         "@epa-wg/cem-ml"
                     ],
                     "target": "build"
+                },
+                {
+                    "projects": [
+                        "cem-elements",
+                        "@epa-wg/cem-ml-cli"
+                    ],
+                    "target": "build"
                 }
             ],
             "options": {
@@ -301,7 +308,16 @@
                 "{projectRoot}/scripts/example-projects.mjs",
                 "{workspaceRoot}/examples/projects/**/*",
                 "{workspaceRoot}/examples/cem-ml/login.cem",
-                "{workspaceRoot}/examples/semantic/login.html"
+                "{workspaceRoot}/examples/semantic/login.html",
+                "{projectRoot}/src/file-system-provider.js",
+                "{projectRoot}/src/repository.js",
+                "{projectRoot}/src/resource-reference.js",
+                "{projectRoot}/src/feature-tour.js",
+                "{projectRoot}/src/preview.js",
+                {
+                    "dependentTasksOutputFiles": "**/*.{js,d.ts}",
+                    "transitive": false
+                }
             ],
             "outputs": [
                 "{projectRoot}/generated/feature-tour"

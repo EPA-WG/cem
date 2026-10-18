@@ -299,8 +299,9 @@ impl QueryItemView for CemAstView {
     fn source_map(&self) -> Option<SourceMapStack> {
         let tree = self.owner.tree.as_ref()?;
         let id = self.node?;
-        if id == 0 { Some(tree.node(0)?.source.clone()) }
-        else { Some(node_source(tree.ast().get(id)?).clone()) }
+        let source = if id == 0 { tree.node(0)?.source.clone() }
+            else { node_source(tree.ast().get(id)?).clone() };
+        Some(source.with_source_uri(tree.node_source_uri(id).unwrap_or("")))
     }
     fn field(&self, name: &str) -> Option<Vec<Item>> {
         let Some(id) = self.node else {

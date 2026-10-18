@@ -6,9 +6,9 @@ import {
     installCemStudioFeatureTour,
 } from './feature-tour.js';
 import { CEM_STUDIO_REPOSITORY_ID, createCemStudioProjectRepository } from './repository.js';
-let invalidLogin, loginSchema, loginPackage, loginHtml, loginCem, semanticsQuery, semanticsContract, semanticsCemql, viewTemplate, viewExpected;
+let invalidLogin, loginSchema, loginPackage, loginHtml, loginCem, semanticsQuery, semanticsContract, semanticsCemql, viewTemplate, viewExpected, viewGraph;
 beforeAll(async () => {
-    [invalidLogin, loginSchema, loginPackage, loginHtml, loginCem, semanticsQuery, semanticsContract, semanticsCemql, viewTemplate, viewExpected] = await Promise.all([
+    [invalidLogin, loginSchema, loginPackage, loginHtml, loginCem, semanticsQuery, semanticsContract, semanticsCemql, viewTemplate, viewExpected, viewGraph] = await Promise.all([
         new URL('../../../examples/projects/login/login-invalid.cem', import.meta.url),
         new URL('../../../examples/projects/login/login-schema.cem', import.meta.url),
         new URL('../../../examples/projects/login/login-schema-package.cem', import.meta.url),
@@ -19,6 +19,7 @@ beforeAll(async () => {
         new URL('../../../examples/projects/login/queries/semantics.cemql', import.meta.url),
         new URL('../../../examples/projects/login/templates/view.cemt', import.meta.url),
         new URL('../../../examples/projects/login/expected/view.html', import.meta.url),
+        new URL('../../../examples/projects/login/graphs/view.cem', import.meta.url),
     ].map(async url => {
         const response = await fetch(url);
         if (!response.ok) throw new Error(`Example resource is unavailable: ${url}`);
@@ -38,6 +39,42 @@ afterEach(async () => {
 });
 
 describe('CEM Studio Feature Tour copies', () => {
+    it('edits and runs the Login graph with named generated-output provenance in the browser worker', async () => {
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        const bytes = text => new TextEncoder().encode(text);
+        const template = viewTemplate.replace('@doc cem-ml 1', '@doc cem-ml 1\n// café Amsterdam');
+        const uri = 'studio://graph-copy/graphs/view.cem';
+        const render = source => validator.runResourceCommand({ bytes: bytes(source), uri,
+            contentType: 'application/cem', schema: 'https://cem.dev/ns/cli/transform-config/1', projectId: 'graph-copy', projectRootUri: 'studio://graph-copy/',
+            argv: ['transform', '--config', uri, '--config-content-type', 'application/cem', '--config-schema', 'https://cem.dev/ns/cli/transform-config/1', '--scope-budget', 'queueSize=1024'],
+            dependencies: [
+                { path: '../data/login.cem', bytes: bytes(loginCem), contentType: 'application/cem', schema: 'https://cem.dev/ns/cem-ml/1' },
+                { path: '../templates/view.cemt', bytes: bytes(template), contentType: 'application/vnd.cem.template+cem', schema: 'https://cem.dev/ns/template/cem-native/1' },
+            ] });
+        const baseline = await render(viewGraph);
+        expect(baseline.result.exitCode).toBe(0);
+        expect(baseline.output.text.trim()).toBe(viewExpected.trim());
+        const artifacts = baseline.result.result.value.value.value.artifacts;
+        const html = artifacts.find(artifact => artifact.destination.endsWith('/generated/login.html'));
+        expect(html.outputSpans.length).toBeGreaterThan(0);
+        const instruction = 'Use your email and password.';
+        const offset = bytes(viewExpected.slice(0, viewExpected.indexOf(instruction))).length;
+        const span = html.outputSpans.find(span => span.outputRange.start <= offset && offset < span.outputRange.start + span.outputRange.len);
+        const origin = span.origin.frames.find(frame => frame.transform.kind === 'SourceBoundary');
+        expect(origin.transform.uri).toBe('studio://graph-copy/templates/view.cemt');
+        const range = origin.span.ranges;
+        const authored = '```' + instruction + '```';
+        expect(new TextDecoder().decode(bytes(template).slice(range.start, range.start + range.len))).toBe(authored);
+        expect(range.start).toBe(bytes(template.slice(0, template.indexOf(authored))).length);
+        const changed = validator.authorGraph({ source: viewGraph, edit: { node: 'page', attribute: 'out', value: '../generated/presentation.html' } });
+        const rerun = await render(changed.source);
+        expect(rerun.result.exitCode).toBe(0);
+        expect(rerun.output.text.trim()).toBe(viewExpected.trim());
+        expect(rerun.result.result.value.value.value.artifacts[0].destination).toBe('studio://graph-copy/generated/presentation.html');
+        expect(() => validator.authorGraph({ source: viewGraph, edit: { node: 'page', attribute: 'id', value: 'view' } })).toThrow();
+        await expect(render(viewGraph.replace('../templates/view.cemt', '../templates/missing.cemt'))).rejects.toMatchObject({ code: 'cem.browser_command.resolve', exitCode: 6 });
+    }, 60_000);
+
     it('renders the Login view from both sources and an editable native template in the browser worker', async () => {
         const validator = await createCemStudioBrowserValidator(); validators.push(validator);
         const bytes = text => new TextEncoder().encode(text);

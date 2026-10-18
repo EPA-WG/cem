@@ -373,6 +373,9 @@ fn decode_transform(tag: u16, payload: Option<String>) -> Result<TransformKind, 
         14 => TransformKind::ExpressionEmbedding {
             expression: decode_byte_range(payload.as_deref()),
         },
+        15 => TransformKind::SourceBoundary {
+            uri: payload.filter(|uri| !uri.is_empty()).ok_or(DecodeError::InvalidMetadata)?,
+        },
         _ => return Err(DecodeError::UnknownTransformTag(tag)),
     })
 }
