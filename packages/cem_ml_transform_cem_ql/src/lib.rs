@@ -8519,6 +8519,7 @@ count + 1"#,
             nodes: document.nodes.clone(), id_table: document.id_table.clone(),
             unresolved_slots: document.unresolved_slots.clone(), diagnostics: document.diagnostics.clone(),
             format_identity: document.format_identity.clone(),
+            typed_preludes: document.typed_preludes.clone(),
         });
         let secondary_inputs = BTreeMap::new();
         let rendered = adapter

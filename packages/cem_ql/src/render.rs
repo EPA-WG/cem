@@ -1581,7 +1581,9 @@ impl RenderPlanHtmlRenderer {
                     }
                     self.render_attribute(attribute);
                 }
-                if HTML_VOID_ELEMENTS.contains(&tag) && children.is_empty() {
+                if matches!(namespace.as_deref(), None | Some("http://www.w3.org/1999/xhtml"))
+                    && HTML_VOID_ELEMENTS.contains(&tag)
+                {
                     self.out.push('>');
                     self.record_span(open_start, source_map);
                     return;

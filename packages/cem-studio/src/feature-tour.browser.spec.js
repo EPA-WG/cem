@@ -6,9 +6,9 @@ import {
     installCemStudioFeatureTour,
 } from './feature-tour.js';
 import { CEM_STUDIO_REPOSITORY_ID, createCemStudioProjectRepository } from './repository.js';
-let invalidLogin, loginSchema, loginPackage, loginHtml, loginCem, semanticsQuery, semanticsContract, semanticsCemql;
+let invalidLogin, loginSchema, loginPackage, loginHtml, loginCem, semanticsQuery, semanticsContract, semanticsCemql, viewTemplate, viewExpected;
 beforeAll(async () => {
-    [invalidLogin, loginSchema, loginPackage, loginHtml, loginCem, semanticsQuery, semanticsContract, semanticsCemql] = await Promise.all([
+    [invalidLogin, loginSchema, loginPackage, loginHtml, loginCem, semanticsQuery, semanticsContract, semanticsCemql, viewTemplate, viewExpected] = await Promise.all([
         new URL('../../../examples/projects/login/login-invalid.cem', import.meta.url),
         new URL('../../../examples/projects/login/login-schema.cem', import.meta.url),
         new URL('../../../examples/projects/login/login-schema-package.cem', import.meta.url),
@@ -17,6 +17,8 @@ beforeAll(async () => {
         new URL('../../../examples/projects/login/queries/semantics.xpath', import.meta.url),
         new URL('../../../examples/projects/login/expected/semantics.json', import.meta.url),
         new URL('../../../examples/projects/login/queries/semantics.cemql', import.meta.url),
+        new URL('../../../examples/projects/login/templates/view.cemt', import.meta.url),
+        new URL('../../../examples/projects/login/expected/view.html', import.meta.url),
     ].map(async url => {
         const response = await fetch(url);
         if (!response.ok) throw new Error(`Example resource is unavailable: ${url}`);
@@ -36,6 +38,60 @@ afterEach(async () => {
 });
 
 describe('CEM Studio Feature Tour copies', () => {
+    it('renders the Login view from both sources and an editable native template in the browser worker', async () => {
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        const bytes = text => new TextEncoder().encode(text);
+        const templateUri = 'studio://view-copy/templates/view.cemt';
+        const templateType = 'application/vnd.cem.template+cem';
+        const templateSchema = 'https://cem.dev/ns/template/cem-native/1';
+        const validate = template => validator.validateResource({ bytes: bytes(template), uri: templateUri, contentType: templateType,
+            schema: templateSchema, resourceScheme: 'studio', projectId: 'view-copy', projectRootUri: 'studio://view-copy/' });
+        expect((await validate(viewTemplate)).result.exitCode).toBe(0);
+        for (const [source, media, schema, path] of [
+            [loginHtml, 'text/html', 'https://cem.dev/ns/data/html/1', 'login.html'],
+            [loginCem, 'application/cem', 'https://cem.dev/ns/cem-ml/1', 'login.cem'],
+        ]) {
+            const uri = `studio://view-copy/data/${path}`;
+            const render = async (source, template = viewTemplate) => {
+                const outcome = await validator.runResourceCommand({ bytes: bytes(source), uri, contentType: media, schema,
+                    projectId: 'view-copy', projectRootUri: 'studio://view-copy/',
+                    argv: ['transform', uri, '--data-content-type', media, '--data-schema', schema, '--template', templateUri,
+                        '--template-content-type', templateType, '--template-schema', templateSchema, '--template-entrypoint', 'main',
+                        '--to-content-type', 'text/html', '--to-schema', 'https://cem.dev/ns/data/html/1', '--output-color-type', 'none',
+                        '--scope-budget', 'queueSize=1024'],
+                    dependencies: [{ path: '../templates/view.cemt', bytes: bytes(template), contentType: templateType, schema: templateSchema }] });
+                expect(outcome.result.exitCode).toBe(0);
+                expect(outcome.output.contentType).toBe('text/html');
+                return outcome.output.text.trim();
+            };
+            const baseline = await render(source);
+            expect(baseline).toBe(viewExpected.trim());
+            expect(baseline).not.toContain('</input>');
+            // Inspect the explicitly exported HTML artifact, independently of its serialized layout.
+            const document = new DOMParser().parseFromString(baseline, 'text/html');
+            expect(document.querySelector('main').getAttribute('aria-labelledby')).toBe('login-title');
+            expect(document.querySelector('h1').id).toBe('login-title');
+            expect(document.querySelector('h1').textContent.trim()).toBe('Sign in');
+            expect(document.querySelector('form').getAttribute('action')).toBe('#session');
+            expect(document.querySelector('form').getAttribute('method')).toBe('post');
+            expect(document.querySelector('form').getAttribute('aria-describedby')).toBe('login-help');
+            expect(document.querySelector('#login-help').textContent).toBe('Use your email and password.');
+            expect([...document.querySelectorAll('input')].map(input => [input.id, input.name, input.type, input.autocomplete, input.required]))
+                .toEqual([['email', 'email', 'email', 'email', true], ['password', 'password', 'password', 'current-password', true]]);
+            expect([...document.querySelectorAll('label')].map(label => [label.htmlFor, label.textContent.trim()]))
+                .toEqual([['email', 'Email'], ['password', 'Password']]);
+            expect(document.querySelector('button').type).toBe('submit');
+            expect(document.querySelector('button').textContent.trim()).toBe('Sign in');
+            const edited = source.replace('Sign in', 'Welcome').replace('Email', 'Email address')
+                .replace(media === 'text/html' ? 'method="post"' : '@method=post', media === 'text/html' ? 'method="get"' : '@method=get');
+            expect(await render(edited)).toBe(viewExpected.trim().replace('Sign in', 'Welcome').replace('Email', 'Email address').replace('method="post"', 'method="get"'));
+            const template = viewTemplate.replace('Use your email and password.', 'Use your Amsterdam account.');
+            expect((await validate(template)).result.exitCode).toBe(0);
+            expect(await render(source, template)).toBe(viewExpected.trim().replace('Use your email and password.', 'Use your Amsterdam account.'));
+            expect(await render(source)).toBe(viewExpected.trim());
+        }
+    }, 60_000);
+
     it('queries the same Login semantic contract with XPath and CEM-QL in the native browser worker', async () => {
         const validator = await createCemStudioBrowserValidator(); validators.push(validator);
         const bytes = text => new TextEncoder().encode(text);

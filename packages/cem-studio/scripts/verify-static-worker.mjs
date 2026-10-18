@@ -130,8 +130,8 @@ try {
         await exerciseExampleProjects(page, context);
         assert.deepEqual(browserErrors, []); assert.deepEqual(httpFailures, []);
         await mkdir(dirname(reportPath), { recursive: true });
-        await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, exampleProjects: true, validationRepair: true, offline: true, configurations: 9 }, null, 2)}\n`);
-        console.log('Verified deployed example project copies, schema failure/repair, source selection, Save/reload and nine offline configurations.');
+        await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, exampleProjects: true, validationRepair: true, templateOutput: true, offline: true, configurations: 11 }, null, 2)}\n`);
+        console.log('Verified deployed example project copies, schema failure/repair, template output, Save/reload and eleven offline configurations.');
     } else if (lifecycleOnly) {
         const lifecycle = await exerciseProjectLifecycle(page, context);
         assert.deepEqual(browserErrors, []); assert.deepEqual(httpFailures, []);
@@ -837,7 +837,7 @@ async function exerciseProjectLifecycle(page, context) {
     }), graphRecords);
     await exerciseExampleProjects(page, context);
     await editor.dispose();
-    return { exampleProjects: true, projectSemanticComparison: true, projectQueryEquivalence: true, projectValidationRepair: true, graphEdgeAuthoring: true, graphNodeCreation: true, graphConfigurationAuthoring: true, stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
+    return { exampleProjects: true, projectSemanticComparison: true, projectQueryEquivalence: true, projectValidationRepair: true, projectTemplateOutput: true, graphEdgeAuthoring: true, graphNodeCreation: true, graphConfigurationAuthoring: true, stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
         guardedDraftAndFocusRetained: true, exportedExactBytes: true, trashRestore: true, offlineReopen: true, accessibility };
 }
 
@@ -846,7 +846,7 @@ async function exerciseExampleProjects(page, context) {
     const snapshot = () => page.evaluate(() => {
         const state = globalThis.__cemStudioApplication.workbench.snapshot();
         return { draft: state.draft, status: state.status, projectId: state.projectId, projectRevision: state.projectRevision,
-            projection: state.projection && { kind: state.projection.kind, exitCode: state.projection.exitCode, text: state.projection.output.text },
+            projection: state.projection && { kind: state.projection.kind, exitCode: state.projection.exitCode, text: state.projection.output.text, previewKind: state.projection.preview?.kind },
             diagnostics: state.validation?.diagnostics, validationStale: state.validation?.stale, validation: state.validation?.reportSummary };
     });
     const click = async name => { console.log(`[cem-studio:examples] ${name}`); await page.getByRole('button', { name, exact: true }).click(); await settle(); };
@@ -883,7 +883,7 @@ async function exerciseExampleProjects(page, context) {
     assert.ok((await snapshot()).draft.includes('demo.login.method_required'));
     assert.ok((await snapshot()).draft.includes('Intentional validation failure and repair'));
     const configurations = await page.evaluate(async projectId => (await globalThis.__cemStudioApplication.repository.query({ protocolVersion: 1, repository: 'studio-projects', operation: 'get-project', requestRevision: 1, parameters: { projectId } })).value.entries, firstId);
-    assert.equal(configurations.length, 9);
+    assert.equal(configurations.length, 11);
     assert.ok(configurations.every(configuration => !/^\d+\./.test(configuration.name)));
     await selectConfiguration(firstId, 'read-edit');
     const original = (await snapshot()).draft;
@@ -895,6 +895,30 @@ async function exerciseExampleProjects(page, context) {
         return JSON.parse(new TextDecoder().decode(bundle.contents['login-semantic-contract']));
     }, firstId);
     const semanticValues = async () => { const report = JSON.parse((await snapshot()).projection.text); return report.language === 'cem-ql' ? report.result.items.map(item => item.value) : report.result.sequence.items.map(item => item.value.lexicalValue); };
+    const expectedView = await page.evaluate(async projectId => {
+        const bundle = (await globalThis.__cemStudioApplication.repository.query({ protocolVersion: 1, repository: 'studio-projects', operation: 'export-project', requestRevision: 1, parameters: { projectId } })).value;
+        return new TextDecoder().decode(bundle.contents['login-view-expected']).trim();
+    }, firstId);
+    const assertView = async expected => {
+        const projection = (await snapshot()).projection;
+        assert.equal(projection.kind, 'transform'); assert.equal(projection.exitCode, 0);
+        assert.equal(projection.text.trim(), expected); assert.equal(projection.previewKind, 'sandboxed-html');
+        const preview = page.locator('[data-cem-studio-preview] iframe');
+        assert.equal(await preview.getAttribute('sandbox'), '');
+        assert.ok((await preview.getAttribute('srcdoc')).includes(expected));
+    };
+    for (const configuration of ['render-html', 'render-cem']) {
+        await selectConfiguration(firstId, configuration); await click('Run configuration');
+        await assertView(expectedView);
+    }
+    await page.getByRole('tab', { name: 'Results', exact: true }).click(); await settle();
+    // The shared document preview loads its sandboxed iframe lazily.
+    await page.locator('[data-cem-studio-preview] iframe').scrollIntoViewIfNeeded();
+    const viewFrame = page.frameLocator('[data-cem-studio-preview] iframe');
+    await viewFrame.getByRole('heading', { name: 'Sign in', exact: true }).waitFor();
+    assert.equal(await viewFrame.getByRole('textbox', { name: 'Email', exact: true }).getAttribute('required'), '');
+    assert.equal(await viewFrame.getByLabel('Password', { exact: true }).getAttribute('autocomplete'), 'current-password');
+    await page.getByRole('tab', { name: 'Source and command', exact: true }).click(); await settle();
     for (const configuration of ['semantics-html', 'semantics-cem', 'semantics-html-cemql', 'semantics-cem-cemql']) {
         await selectConfiguration(firstId, configuration); await click('Run configuration');
         assert.equal((await snapshot()).projection.kind, 'query');
@@ -927,6 +951,8 @@ async function exerciseExampleProjects(page, context) {
         await selectConfiguration(firstId, configuration); await click('Run configuration');
         assert.deepEqual(await semanticValues(), contract.map(value => value === 'title=Sign in' ? 'title=Amsterdam sign in' : value));
     }
+    await selectConfiguration(firstId, 'render-cem'); await click('Run configuration');
+    await assertView(expectedView.replace('Sign in', 'Amsterdam sign in'));
     await selectConfiguration(firstId, 'semantics-html-cemql');
     const originalHtml = (await snapshot()).draft;
     const changedHtml = originalHtml.replace('method="post"', 'method="get"');
@@ -939,12 +965,41 @@ async function exerciseExampleProjects(page, context) {
     assert.deepEqual(await semanticValues(), contract.map(value => value === 'method=post' ? 'method=get' : value));
     await selectConfiguration(firstId, 'semantics-html'); await click('Run configuration');
     assert.deepEqual(await semanticValues(), contract.map(value => value === 'method=post' ? 'method=get' : value));
+    await selectConfiguration(firstId, 'render-html'); await click('Run configuration');
+    await assertView(expectedView.replace('method="post"', 'method="get"'));
+    await selectConfiguration(firstId, 'semantics-html');
     await click('Reload persisted revision'); assert.equal((await snapshot()).draft, changedHtml);
     await page.getByRole('textbox', { name: 'CEM source', exact: true }).fill(originalHtml); await settle();
     await click('Save and validate'); await click('Run configuration');
     assert.deepEqual(await semanticValues(), contract);
     await selectConfiguration(firstId, 'semantics-html-cemql'); await click('Run configuration');
     assert.deepEqual(await semanticValues(), contract);
+    const templateChoice = await page.evaluate(projectId => {
+        const choice = globalThis.__cemStudioApplication.workbench.snapshot().workbenches.find(choice => {
+            const selection = JSON.parse(choice.id); return selection.projectId === projectId && selection.resourceId === 'login-view-template' && !selection.entryId;
+        });
+        return `${choice.name} — ${choice.operation}`;
+    }, firstId);
+    await pick('Workbench', templateChoice);
+    const originalTemplate = (await snapshot()).draft;
+    const editedTemplate = originalTemplate.replace('Use your email and password.', 'Use your Amsterdam account.');
+    assert.notEqual(editedTemplate, originalTemplate);
+    await page.getByRole('textbox', { name: 'CEM source', exact: true }).fill(editedTemplate); await settle();
+    await click('Save and validate'); assert.equal((await snapshot()).validation.errorCount, 0);
+    for (const configuration of ['render-html', 'render-cem']) {
+        await selectConfiguration(firstId, configuration); await click('Run configuration');
+        await assertView(expectedView.replace('Use your email and password.', 'Use your Amsterdam account.')
+            .replace('Sign in', configuration === 'render-cem' ? 'Amsterdam sign in' : 'Sign in'));
+    }
+    await pick('Workbench', templateChoice); await click('Reload persisted revision');
+    assert.equal((await snapshot()).draft, editedTemplate);
+    await page.getByRole('textbox', { name: 'CEM source', exact: true }).fill(originalTemplate); await settle();
+    await click('Save and validate'); assert.equal((await snapshot()).validation.errorCount, 0);
+    await selectConfiguration(firstId, 'render-html'); await click('Run configuration');
+    await assertView(expectedView);
+    await pick('Workbench', templateChoice);
+    await page.getByRole('textbox', { name: 'CEM source', exact: true }).fill(editedTemplate); await settle();
+    await click('Save and validate');
     const queryChoice = await page.evaluate(projectId => {
         const choice = globalThis.__cemStudioApplication.workbench.snapshot().workbenches.find(choice => {
             const selection = JSON.parse(choice.id); return selection.projectId === projectId && selection.resourceId === 'login-semantics-cemql' && !selection.entryId;
@@ -1001,6 +1056,11 @@ async function exerciseExampleProjects(page, context) {
     await selectConfiguration(firstId, 'read-edit');
     await page.reload({ waitUntil: 'load' }); await waitForApplication(page, browserErrors, httpFailures); await settle();
     assert.equal((await snapshot()).draft, edited);
+    const persistedTemplate = projectId => page.evaluate(async projectId => {
+        const bundle = (await globalThis.__cemStudioApplication.repository.query({ protocolVersion: 1, repository: 'studio-projects', operation: 'export-project', requestRevision: 1, parameters: { projectId } })).value;
+        return new TextDecoder().decode(bundle.contents['login-view-template']);
+    }, projectId);
+    assert.equal(await persistedTemplate(firstId), editedTemplate);
     await pick('Example projects', sampleName); await click('Create project from example');
     const secondId = await copyId(`${sampleName} (2)`);
     assert.notEqual(firstId, secondId);
@@ -1015,6 +1075,11 @@ async function exerciseExampleProjects(page, context) {
     for (const configuration of ['semantics-html', 'semantics-cem', 'semantics-html-cemql', 'semantics-cem-cemql']) {
         await selectConfiguration(secondId, configuration); await click('Run configuration');
         assert.deepEqual(await semanticValues(), contract);
+    }
+    assert.equal(await persistedTemplate(secondId), originalTemplate);
+    for (const configuration of ['render-html', 'render-cem']) {
+        await selectConfiguration(secondId, configuration); await click('Run configuration');
+        await assertView(expectedView);
     }
     assert.equal(await page.evaluate(() => navigator.onLine), false);
 }

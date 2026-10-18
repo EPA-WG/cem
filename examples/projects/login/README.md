@@ -50,8 +50,8 @@ of the scalar query result; it is not an intermediate document or AST handoff.
 
 ## Equivalent XPath and CEM-QL queries
 
-New version-2.2.0 copies have nine configurations. The two **(CEM-QL)**
-configurations use `queries/semantics.cemql`, an executable query module with
+The four query configurations share the same 21-field semantic contract. The two
+**(CEM-QL)** configurations use `queries/semantics.cemql`, an executable query module with
 local element, attribute, annotation, label and field helpers. Run them beside
 the original XPath configurations: both languages produce the same 21 values
 from either source, including after saved edits. Boolean `required` is tested
@@ -79,3 +79,36 @@ variables still fail. Query resources and source edits remain project-local.
 Generic source Parse/Inspect for CEM-QL and standalone-expression formatting
 remain separate native adapter work. This project uses the supported executable
 module identity, native module formatting, validation and query execution.
+
+## Generate the Login view
+
+New version-2.3.0 copies have eleven configurations. **Render Login from HTML**
+and **Render Login from CEM-ML** apply the shared `templates/view.cemt` resource
+to the saved source. Both produce the complete HTML in `expected/view.html`:
+an accessible heading and form, associated labels, autocomplete hints, required
+controls and the template-owned instruction. Results uses the existing shared
+sandboxed document preview and provides exact HTML for copy/download. A live
+light-DOM Studio view is tracked separately.
+
+Edit a heading, label or form method, **Save and validate**, then rerun its render
+configuration. Unsaved changes do not replace the persisted input. Open
+`templates/view.cemt` through Resources and change **Use your email and
+password.** to **Use your Amsterdam account.**, save and validate it, then rerun
+either render configuration. Only the instruction changes. Reload restores the
+exact saved template; restore the original instruction to recover the baseline.
+New copies have independent source and template revisions.
+
+This is an explicitly authored Login projection. It selects the `main` element
+by local name, then children in the same source namespace and attributes that
+are unqualified or share their owner's source namespace. It keeps the native
+source-oriented view and does not expand or guess namespace bindings. Renamed
+producer prefixes therefore keep working. Core annotations, HTML `data-cem-*`
+mirrors, document wrappers and source declarations are outside this generated
+view. Required controls use attribute presence; absent attributes are omitted.
+The shared native writer escapes source text and attribute values. The template
+does not execute source references or supply an authentication service.
+
+The configurations use the existing bounded `queueSize=1024` worker policy and
+native CEMT adapter. No application UI JavaScript or additional renderer is
+introduced. Existing project copies keep their saved contents; create a fresh
+Login copy to receive these resources and configurations.

@@ -57,6 +57,12 @@ and declarations may surround the explicit body; output comments belong inside i
 See [CEMT compact templates](../../../../../docs/cemt-native-values.md#compact-template-bodies)
 for matching templates and expression hooks.
 
+The shared CEM Core `@cem:whitespace=layout|preserve` annotation is admitted on
+module and declaration/control nodes. Validation checks those two static values
+and continues to reject unknown core annotations. The native renderer consumes
+the policy lexically; it does not become an output attribute. Layout suppresses
+multiline source trivia, while inline spaces and evaluated text remain exact.
+
 ## Parser Facts And Diagnostics
 
 Native parsing extracts the byte-accurate CEM-ML tree, namespace bindings,

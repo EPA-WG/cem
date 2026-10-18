@@ -1,8 +1,8 @@
 {
   "id": "login",
   "name": "Login",
-  "version": "2.2.0",
-  "description": "Login source, equivalent XPath/CEM-QL queries, HTML/CEM semantic comparison, schema validation and command configurations.",
+  "version": "2.3.0",
+  "description": "Login sources, equivalent XPath/CEM-QL queries, schema validation and native HTML view templates.",
   "sources": [
     {
       "id": "login-cem",
@@ -73,6 +73,22 @@
       "contentType": "application/vnd.cem.query+cem-ql",
       "schema": "https://cem.dev/ns/query/cem-ql/1",
       "role": "query"
+    },
+    {
+      "id": "login-view-template",
+      "source": "examples/projects/login/templates/view.cemt",
+      "path": "templates/view.cemt",
+      "contentType": "application/vnd.cem.template+cem",
+      "schema": "https://cem.dev/ns/template/cem-native/1",
+      "role": "template"
+    },
+    {
+      "id": "login-view-expected",
+      "source": "examples/projects/login/expected/view.html",
+      "path": "expected/view.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
     }
   ],
   "collections": [
@@ -326,6 +342,78 @@
         "json"
       ],
       "expectedSemanticContract": "login-semantic-contract"
+    },
+    {
+      "id": "render-html",
+      "name": "Render Login from HTML",
+      "kind": "transformation",
+      "source": "login-html",
+      "dependencies": [
+        "login-view-template",
+        "login-view-expected"
+      ],
+      "description": "Generate an HTML Login form from the saved source. Edit the template instruction or a source field, save, and rerun.",
+      "argv": [
+        "transform",
+        "$source",
+        "--data-content-type",
+        "text/html",
+        "--data-schema",
+        "https://cem.dev/ns/data/html/1",
+        "--template",
+        "$login-view-template",
+        "--template-content-type",
+        "application/vnd.cem.template+cem",
+        "--template-schema",
+        "https://cem.dev/ns/template/cem-native/1",
+        "--template-entrypoint",
+        "main",
+        "--to-content-type",
+        "text/html",
+        "--to-schema",
+        "https://cem.dev/ns/data/html/1",
+        "--output-color-type",
+        "none",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "expectedOutput": "login-view-expected"
+    },
+    {
+      "id": "render-cem",
+      "name": "Render Login from CEM-ML",
+      "kind": "transformation",
+      "source": "login-cem",
+      "dependencies": [
+        "login-view-template",
+        "login-view-expected"
+      ],
+      "description": "Generate an HTML Login form from the saved source. Edit the template instruction or a source field, save, and rerun.",
+      "argv": [
+        "transform",
+        "$source",
+        "--data-content-type",
+        "application/cem",
+        "--data-schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--template",
+        "$login-view-template",
+        "--template-content-type",
+        "application/vnd.cem.template+cem",
+        "--template-schema",
+        "https://cem.dev/ns/template/cem-native/1",
+        "--template-entrypoint",
+        "main",
+        "--to-content-type",
+        "text/html",
+        "--to-schema",
+        "https://cem.dev/ns/data/html/1",
+        "--output-color-type",
+        "none",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "expectedOutput": "login-view-expected"
     }
   ]
 }

@@ -113,12 +113,12 @@
     {
       "id": "login",
       "name": "Login",
-      "version": "2.2.0",
+      "version": "2.3.0",
       "collections": [
         "amsterdam-2026"
       ],
       "archive": "./examples/login.cem-studio.json",
-      "sha256": "1bfe8d4123f94acd18c1da6ea0c4ec29d7d8ebfe84da89054577ebbc06378e88"
+      "sha256": "29f584eea1f772060906d97d02c1a95ad2f6082e573f0747e63d14bd5e12188e"
     }
   ]
 }

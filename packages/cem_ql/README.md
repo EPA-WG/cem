@@ -1192,6 +1192,12 @@ Verification: [native companion fixtures](tests/xpath_function_companion.rs) and
 
 ## Template whitespace
 
+HTML output omits end tags and child serialization for HTML void elements,
+including elements built dynamically with conditional attributes or layout
+children. Foreign namespaces retain their content/end tags, and explicit XML
+output keeps XML serialization. Output source ranges cover the bytes actually
+emitted by the shared native writer.
+
 CEM templates can opt a constructor or control node into an inherited, lexical
 whitespace policy with `@cem:whitespace=layout` or `@cem:whitespace=preserve`:
 

@@ -407,14 +407,82 @@ excluded from Git.
     bridge. Stable IDs and saved project copies remain intact. Generic query
     source Parse/Inspect and standalone-expression formatting remain explicit
     limits, scheduled after the remaining presentation functionality.
-- [ ] Add native fixtures for template output, then add its Login project
+- [x] Add native fixtures for template output, then add its Login project
   resources/configurations and browser/offline evidence.
+  - [x] Add native Login template fixtures for complete HTML output from both
+    canonical inputs, saved heading/label/method edits, Boolean attribute
+    presence, escaped content and unchanged source bytes. Keep source
+    declarations inert and name/attribute selection explicit in the template.
+  - [x] Author and natively format a shared CEM-native Login view template and
+    expected output as ordinary project resources; add transformation
+    configurations without changing existing IDs or saved project copies.
+  - [x] Add failing native renderer fixtures for constructed HTML void elements,
+    foreign namespaces and XML output; fix shared HTML serialization so layout
+    children cannot introduce invalid void-element end tags.
+  - [x] Repair the packaged DOM projection converter fixture to retain typed
+    preludes when copying its source document, then run converter parity
+    regressions against the shared HTML writer.
+  - [x] Add a failing native template-schema fixture for the documented layout
+    whitespace policy; admit the shared annotation through the owning schema
+    while preserving unknown-annotation diagnostics and native formatting;
+    update emitter fixtures for the newly enumerated core annotation.
+  - [x] Add browser-worker and deployed offline fixtures for input/template
+    edits, Save/validate, exact reload, baseline restoration and independent
+    copies through the existing shared workspace and Results controls. Open
+    Results and bring the shared lazy document preview into view before
+    inspecting its frame, then return to the source editor.
+  - [x] Update project instructions, docs and presentation handoff; verify
+    native/browser/delivery gates, record the CEM audit, then commit/push while
+    excluding generated screenshots and Vitest attachments.
+  - Native evidence: 500 selected tests pass: 5 Amsterdam sample-command
+    fixtures, 3 Login template/validation fixtures, 12 HTML/XML serialization
+    and whitespace fixtures, 26 renderer regressions and 454 core schema tests.
+    Both sources match the complete HTML artifact across heading/label/method
+    edits, empty/absent Boolean attributes, escaped text/attributes and renamed
+    CEM namespace prefixes. Template edits change only the instruction; malformed
+    templates report their source URI and publish no partial HTML. Native tabular
+    formatting is stable and template validation reports no diagnostics.
+    The template package's manifest/CLI gates and both packaged converter
+    compile/parity regressions also pass. The focused browser worker verifies
+    the exact artifact and accessible form semantics from both inputs and edits.
+  - Focused deployed evidence: all eleven configurations pass offline through
+    the common workspace. Source/template edits, exact Save/reload, restored
+    baselines, repeated schema failure/repair and independently rendered copies
+    pass. The fixture opens Results before inspecting the shared lazy iframe;
+    no component visibility or loading behavior is changed for the test.
+  - Delivery evidence (2026-10-17): the full 51-task Studio check passes,
+    including all 118 browser cases, lint/typecheck, 32 native/deployed schema
+    examples, online/offline worker execution, project/template persistence,
+    copy isolation and automated accessibility. Theme inheritance, container
+    overrides, forced colors and offline shell reload pass. Two clean builds
+    match across 264 files with aggregate SHA-256
+    `ff2a1011cbc78e5dbcf49833980588385d441186ebc169e392526f8fb4ada8f4`.
+    A clean consumer verifies static bootstrap with one runtime copy, and
+    synchronized release evidence includes `projectTemplateOutput`. Generated
+    screenshots and Vitest attachments remain excluded from Git.
+  - CEM audit: ordinary project resources/configurations reuse the declarative
+    workspace, editor, diagnostics and shared `cem-media-preview` Results view.
+    No new application UI JavaScript, shared UI capability, CSS or token defaults
+    are introduced. The native writer owns HTML void-element semantics and output
+    ranges while preserving foreign/XML serialization. The owning schema admits
+    its documented static whitespace policy and retains unknown-value/annotation
+    guards. Typed source owners remain native, without a serialized AST bridge;
+    the bounded Login projection does not infer namespace bindings or execute
+    source references. Stable IDs and saved project copies remain intact. Login
+    graph provenance and the live light-DOM view remain separate work.
+- [ ] Add a Login transformation-graph resource/configuration using the view
+  template; add native and browser/offline fixtures for execution, graph editing
+  and generated-output source provenance through the existing graph tools.
 - [ ] Implement the live light-DOM `cem-element` login view and add browser
   evidence that a saved edit visibly changes it. Keep Studio UI declarative;
   add any missing reusable control/capability to the shared packages first.
 - [ ] After the remaining presentation functionality, add native CEM-QL source
   Parse/Inspect and standalone-expression formatter adapters. Keep unsupported
   identities explicit instead of falling back to CEM-ML or inventing wrappers.
+- [x] Record the requested reusable AI element and explicit data/UI context
+  exposure in [roadmap Phase 3.3](../roadmap.md#33-ai-elements-and-dataui-context),
+  covering Chrome built-in AI and WebMCP with shared-package ownership. Keep its
+  implementation deferred behind the current Studio/Amsterdam functionality.
 - [x] Make the initial presentation sample set available through Studio's existing sample
   catalog, with read-only originals and independently editable project copies.
   Reuse canonical sources, native command/configuration semantics and stable

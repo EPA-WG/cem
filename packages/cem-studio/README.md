@@ -333,3 +333,11 @@ The query module can be edited, validated, saved and rerun in the common workspa
 Native ready-name admission and an explicit bounded query budget keep source
 ownership and namespace semantics intact. Studio supplies the trusted worker
 ceiling through existing host setup; its UI remains declarative.
+
+Login 2.3.0 adds two native template render configurations and the shared editable
+`templates/view.cemt` resource. Both canonical sources produce the same accessible
+HTML contract in `expected/view.html`. Saved source and instruction edits change
+the generated output; Results uses the shared sandboxed document preview and
+provides exact HTML for copy/download. Studio continues to use the existing
+declarative workspace and shared native transformation path. Live light-DOM
+output remains separate work.

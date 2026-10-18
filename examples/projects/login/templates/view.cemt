@@ -1,0 +1,55 @@
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@ns cem = "https://cem.dev/ns/core/1"
+@default template
+{param @name=input @required=true}
+{template @name=main @visibility=public @cem:whitespace=layout |
+    {cem:variable @name=screen
+        @select='seq:first(seq:where(input.descendants, fn(node) => node.kind == "element" && node.name == "main"))'}
+    {cem:variable @name=heading
+        @select='seq:first(seq:where(screen.children, fn(node) => node.kind == "element" && node.name == "h1" && node.namespace == screen.namespace))'}
+    {cem:variable @name=form
+        @select='seq:first(seq:where(screen.children, fn(node) => node.kind == "element" && node.name == "form" && node.namespace == screen.namespace))'}
+    {element @name=main @namespace=http://www.w3.org/1999/xhtml |
+        {cem:for-each @as=attr
+            @select='seq:where(screen.attributes, fn(attr) => attr.name == "aria-labelledby" && (attr.namespace == "" || attr.namespace == screen.namespace))' |
+            {attribute @name=aria-labelledby @value="{$attr}"}
+        }
+        {element @name=h1 @namespace=http://www.w3.org/1999/xhtml |
+            {cem:for-each @as=attr
+                @select='seq:where(heading.attributes, fn(attr) => attr.name == "id" && (attr.namespace == "" || attr.namespace == heading.namespace))' |
+                {attribute @name=id @value="{$attr}"}
+            }
+            {$ | str:normalize_space(dom:text(heading))}
+        }
+        {element @name=p @namespace=http://www.w3.org/1999/xhtml |
+            {attribute @name=id @value=login-help}
+            ```Use your email and password.```
+        }
+        {element @name=form @namespace=http://www.w3.org/1999/xhtml |
+            {cem:for-each @as=name @select='("method", "action")' |
+                {cem:for-each @as=attr
+                    @select='seq:where(form.attributes, fn(attr) => attr.name == name && (attr.namespace == "" || attr.namespace == form.namespace))' |
+                    {attribute @name="{$name}" @value="{$attr}"}
+            }   }
+            {attribute @name=aria-describedby @value=login-help}
+            {cem:for-each @as=field
+                @select='seq:where(form.children, fn(node) => node.kind == "element" && node.namespace == form.namespace && (node.name == "label" || node.name == "input" || node.name == "button"))' |
+                {call @template=field @with:field="{$field}"}
+}   }   }   }
+{template @name=field @cem:whitespace=layout |
+    {param @name=field @required=true}
+    {cem:variable @name=names
+        @select='if field.name == "label" { ("for",) } else { if field.name == "input" { ("id", "name", "type", "autocomplete") } else { ("type",) } }'}
+    {element @name="{$field.name}" @namespace=http://www.w3.org/1999/xhtml |
+        {cem:for-each @as=name @select=names |
+            {cem:for-each @as=attr
+                @select='seq:where(field.attributes, fn(attr) => attr.name == name && (attr.namespace == "" || attr.namespace == field.namespace))' |
+                {attribute @name="{$name}" @value="{$attr}"}
+        }   }
+        {cem:if @test='field.name == "input" && seq:any(field.attributes, fn(attr) => attr.name == "required" && (attr.namespace == "" || attr.namespace == field.namespace))' |
+            {attribute @name=required}
+        }
+        {cem:if @test='field.name != "input"' |
+            {$ | str:normalize_space(dom:text(field))}
+}   }   }

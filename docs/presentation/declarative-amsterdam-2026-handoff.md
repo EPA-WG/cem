@@ -28,7 +28,7 @@ Home offers **Login** and **Schema examples** under **Example projects**.
 **Create project from example** makes an independent editable copy, then
 **Projects → Open project** enters the common workspace. Existing projects keep
 their saved contents. Startup restores the last selection; a fresh profile opens
-Home without auto-installing a seed. Login's README resource carries instructions. Version 2.2.0 has nine
+Home without auto-installing a seed. Login's README resource carries instructions. Version 2.3.0 has eleven
 configurations, including XPath and **(CEM-QL)** variants of **Login semantics
 from HTML** and **Login semantics from CEM-ML**. Their queries select the XHTML `main` subtree; document
 wrappers and lexical formatting remain outside the comparison.
@@ -39,7 +39,7 @@ wrappers and lexical formatting remain outside the comparison.
 | HTML import, conversion and semantic comparison | Login HTML resource, HTML-to-CEM-ML conversion, and two ordinary query configurations share a 21-field semantic contract with the CEM source. Native import retains decoded values and provenance; the query explicitly maps namespace/mirror differences. | Preserve the bounded comparison contract and expected values when adding later examples. |
 | Intentional failure and repair | Separate syntax-valid source omits the form method; owned teaching schema reports `demo.login.method_required`. | Continue to demonstrate source selection, saved repair/reload and repeat failure through the shared editor/diagnostics. |
 | Equivalent queries | Login has native XPath and CEM-QL module resources with the same complete 21-field contract for both source formats. Ready namespaces and bounded navigation are explicit; query modules can be edited, validated and rerun. | Preserve source ownership, prefix independence, Boolean presence and offline copy isolation. |
-| Template output | Portable engine scenarios exist in Schema examples. | Add canonical Login template resources/configurations and saved-edit evidence. |
+| Template output | Two Login render configurations share an editable native CEMT view and complete expected HTML. Both sources support saved heading/label/method edits and template instruction edits. Results uses the shared sandboxed document preview and exact HTML copy/download. | Add a Login graph configuration and trace its generated output through the existing graph tooling. |
 | Live light-DOM view | Shared `cem-element` runtime exists. | Add a reusable preview capability and prove saved Login edits update it. |
 
 Native source/diagnostic contracts remain unchanged. Login archive updates and

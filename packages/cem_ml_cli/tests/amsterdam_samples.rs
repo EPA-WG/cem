@@ -221,6 +221,17 @@ fn presentation_login_commands_preserve_named_fields_and_report_existing_warning
                     expected
                 );
             }
+        } else if let Some(expected) = page["expectedOutput"].as_str() {
+            let expected_source = sample["sources"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|source| source["id"] == expected)
+                .unwrap();
+            let expected =
+                fs::read_to_string(workspace().join(expected_source["source"].as_str().unwrap()))
+                    .unwrap();
+            assert_eq!(text.trim(), expected.trim(), "{}", page["id"]);
         } else if let Some(contract) = page["expectedSemanticContract"].as_str() {
             let source = sample["sources"]
                 .as_array()

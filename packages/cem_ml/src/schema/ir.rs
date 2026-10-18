@@ -509,6 +509,15 @@ fn build_cem_core_annotations() -> BTreeMap<&'static str, AnnotationDef> {
     let mut annotations: BTreeMap<&'static str, AnnotationDef> = BTreeMap::new();
 
     annotations.insert(
+        "whitespace",
+        AnnotationDef {
+            local_name: "whitespace",
+            allowed_values: Some(vec!["layout", "preserve"]),
+            known_values: vec!["layout", "preserve"],
+            allowed_states: Vec::new(),
+        },
+    );
+    annotations.insert(
         "screen",
         AnnotationDef {
             local_name: "screen",
@@ -828,7 +837,7 @@ mod tests {
     fn cem_core_includes_every_fixture_annotation() {
         let s = CompiledSchema::cem_core();
         for name in [
-            "screen", "form", "action", "badge", "card", "list", "row", "thread", "message",
+            "screen", "form", "action", "badge", "card", "list", "row", "thread", "message", "whitespace",
         ] {
             assert!(s.annotation(name).is_some(), "missing annotation: {name}");
         }
@@ -841,6 +850,10 @@ mod tests {
         assert_eq!(
             action.allowed_values.as_deref(),
             Some(["primary", "secondary"].as_slice())
+        );
+        assert_eq!(
+            s.annotation("whitespace").unwrap().allowed_values.as_deref(),
+            Some(["layout", "preserve"].as_slice())
         );
     }
 

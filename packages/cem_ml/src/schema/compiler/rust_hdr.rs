@@ -321,11 +321,12 @@ mod tests {
         let derive_count = body
             .matches("#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]")
             .count();
-        // 3 annotation enums (Action / Badge / Message) + 1 CemState.
+        // 4 annotation enums (Action / Badge / Message / Whitespace) + CemState.
         assert_eq!(
-            derive_count, 4,
-            "expected 4 derive blocks (3 enum-typed annotations + CemState):\n{body}"
+            derive_count, 5,
+            "expected 5 derive blocks (4 enum-typed annotations + CemState):\n{body}"
         );
+        assert!(body.contains("pub enum Whitespace {\n    Layout,\n    Preserve,\n  }"));
     }
 
     #[test]

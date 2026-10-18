@@ -18,6 +18,7 @@ here until their runtime, component, and non-Figma phase prerequisites are compl
 | CEM XSLT standards engine     | Native XSLT 3.x and 4.x parsing, validation, XDM execution, serialization, conformance, and secure resource resolution over the shared CEM AST/event lifecycle. This remains distinct from the bounded custom-element XSLT 1.0 compatibility adapter.                                                       | `packages/cem_ml`, `packages/cem_ml_cli`                                 |
 | CEM Studio                    | Installable local-first PWA and npm package for exercising CEM-ML validation, conversion, query, transformation, source-map, report, and graph workflows through editable projects and a bidirectional CLI Command view.                                                                             | future `packages/cem-studio`, `@epa-wg/cem-components/studio`            |
 | CEM custom-element substrate  | Declarative no-JS runtime centered on `<cem-element>`: scoped data islands, event-to-data wiring, and light-DOM re-render from CEM-ML/CEM-QL templates. Staged in `@epa-wg/cem-elements`; edge/SSR and `@epa-wg/custom-element` adoption are follow-up phases after the browser substrate is stable. | `packages/cem-elements`, future `packages/custom-element`                |
+| CEM AI integration            | Reusable declarative elements for browser AI and explicit data/UI context exposure to models and agents, including Chrome built-in AI and WebMCP adapters. | `packages/cem-elements`, `packages/cem-components` |
 | CEM component set             | Functional parity with the user-facing Angular Material component catalog, expressed in CEM semantics and implemented on the light-DOM `<cem-element>` substrate rather than Angular runtime code.                                                                                                   | `packages/cem-components`, `packages/cem-elements`                       |
 | CEM site                      | Public docs, token/component gallery, interactive examples, and release documentation built as a static web application by the CEM-ML CLI transformation graph.                                                                                                                                      | future `apps/cem-site`                                                   |
 | Hugo framework integration    | A downstream integration of the CEM-ML stack with Hugo, initially exploring adoption of the CEM theme, component set, and accessibility tooling. Exact product shape and package ownership remain TBD.                                                                                               | future Hugo integration (TBD)                                            |
@@ -447,6 +448,61 @@ Exit criteria:
   surface.
 - Components can be used declaratively with no app JavaScript for common static and form flows.
 - The runtime can consume validated light-DOM output from the parser/document transform layer.
+
+### 3.3 AI Elements And Data/UI Context
+
+Goal: let applications use AI through reusable declarative elements on the
+`<cem-element>` substrate and expose selected CEM data and UI components as
+meaningful model/agent context. Start from
+[AI in Chrome](https://developer.chrome.com/docs/ai), covering both
+[built-in AI](https://developer.chrome.com/docs/ai/built-in-apis) and
+[WebMCP](https://developer.chrome.com/docs/ai/webmcp). Chrome documents local model
+APIs and structured tools for page interaction; these are separate integration
+surfaces that should share CEM's explicit context and lifecycle contracts.
+
+Status: planned shared capability. Keep the current Studio/Amsterdam functionality
+ahead of this work; choose public element names and attributes during design.
+
+Deliverables:
+
+- A reusable AI element/capability in `cem-elements` for availability checks,
+  session creation, declared prompts/context, model-download progress, streamed
+  output, cancellation and cleanup. Publish results and lifecycle state as slices
+  so `cem-components` can compose the UI declaratively. Browser API JavaScript
+  belongs in the shared substrate; Studio and other consumers must not implement
+  their own integration behavior.
+- An opt-in context declaration selecting data-island fields/resources and UI
+  components within the owning scope. Include declared schema/format identities,
+  labels, roles, current values, validation state and available actions, with
+  stable component/resource identities and revision/provenance where applicable.
+  Update context after committed changes and release it when its owner disconnects.
+  Private island contents and undeclared fields are outside the exported context.
+- Keep retained native CEM trees authoritative. Produce bounded text or structured
+  context only at the explicit AI API boundary, with context-size limits; avoid a
+  parallel JavaScript AST or a DOM-scraping representation of application state.
+- A WebMCP adapter exposing declared component actions as structured tools with
+  input/output contracts. Register and remove tools with the component lifecycle;
+  route calls through existing form validation, event-to-slice wiring and command
+  capabilities so human and agent interactions follow the same application rules.
+  Keep context reading distinct from actions that change state.
+- Capability detection and explicit unsupported/download/session states, verified
+  against current browser/API availability before implementation. Any additional
+  provider is an explicitly configured adapter; browser support must not silently
+  change the destination of application data. Treat generated output as data;
+  apply accepted changes through the existing validated operations.
+- Shared demos and documentation showing a selected dataset and a form's semantic
+  context, an AI result bound to declarative UI, and an agent invoking a declared
+  action. Add Studio consumption only after the shared capability is verified.
+
+Exit criteria:
+
+- Native context selection retains source identities and excludes undeclared
+  fields; browser fixtures cover context updates, nested scope isolation, owner
+  removal, unsupported APIs, session/download states, streaming and cancellation.
+- Agent tool fixtures verify discovery, argument validation, normal action results
+  and cleanup. Applications continue to work when AI support is unavailable.
+- Reusable UI lives in declarative `cem-components`, browser integration in
+  `cem-elements`, with no application-local AI JavaScript or new UI token defaults.
 
 ## Phase 3.5 - Edge/SSR Processing Follow-Up
 
