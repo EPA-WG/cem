@@ -239,15 +239,9 @@ pub fn compile_expression(
     source: &str,
     context: &StandaloneExpressionContext,
 ) -> Result<CompiledExpression, ExpressionError> {
-    let parsed = Parser::new(source).parse_module();
+    let parsed = parse_expression(source);
     let mut diagnostics = context.diagnostics.clone();
-    diagnostics.extend(
-        parsed
-            .diagnostics
-            .clone()
-            .into_iter()
-            .map(standalone_expression_source_diagnostic),
-    );
+    diagnostics.extend(parsed.diagnostics.clone());
     if has_hard_diagnostics(&diagnostics) {
         return Err(ExpressionError::diagnostics("parse", diagnostics));
     }
@@ -348,6 +342,21 @@ pub fn parse(source: &str) -> ParseResult {
     parsed
         .diagnostics
         .extend(validate_module_shape(&parsed.module));
+    parsed
+}
+
+/// Parse one standalone expression without binding names, evaluating it, or
+/// inserting a synthetic module that would shift authored source ranges.
+pub fn parse_expression(source: &str) -> ParseResult {
+    let mut parsed = Parser::new(source).parse_module();
+    parsed.diagnostics = parsed
+        .diagnostics
+        .into_iter()
+        .map(standalone_expression_source_diagnostic)
+        .collect();
+    if !has_hard_diagnostics(&parsed.diagnostics) {
+        standalone_expression(&parsed.module, &mut parsed.diagnostics);
+    }
     parsed
 }
 

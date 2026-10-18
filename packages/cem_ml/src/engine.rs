@@ -166,6 +166,7 @@ pub struct EngineContext {
     pub transform_artifact_exporter_registry: TransformArtifactExporterRegistry,
     pub query_runtime_registry: QueryRuntimeRegistry,
     pub source_validation_stages: Vec<Arc<dyn SourceValidationStage>>,
+    pub source_inspection_stages: Vec<Arc<dyn SourceInspectionStage>>,
     pub operation_control: OperationControl,
     pub schema_behavior_evaluator: Option<Arc<dyn SchemaBehaviorEvaluator>>,
     /// Explicit runtime stage for parser-backed validation with a ready model.
@@ -205,6 +206,7 @@ impl Default for EngineContext {
                 TransformArtifactExporterRegistry::with_builtin_exporters(),
             query_runtime_registry: QueryRuntimeRegistry::with_builtin_adapters(),
             source_validation_stages: Vec::new(),
+            source_inspection_stages: Vec::new(),
             operation_control: OperationControl::default(),
             schema_behavior_evaluator: None,
             input_validation_stage: None,
@@ -218,6 +220,22 @@ impl Default for EngineContext {
 /// Returning None leaves the input to the normal lifecycle/schema pipeline.
 pub trait SourceValidationStage: std::fmt::Debug + Send + Sync {
     fn validate(&self, input: &EngineInput) -> Option<Vec<Diagnostic>>;
+}
+
+/// Native source-language tooling before document-data import. A claimed but
+/// invalid identity must return diagnostics, never fall back to another parser.
+pub trait SourceInspectionStage: std::fmt::Debug + Send + Sync {
+    fn inspect(&self, input: &EngineInput) -> Option<SourceInspection>;
+}
+
+/// Typed, inert source projections. No evaluation or JSON AST handoff occurs.
+#[derive(Debug, Clone)]
+pub struct SourceInspection {
+    pub identity: FormatIdentity,
+    pub ast: Option<crate::projection::CemTreeAstStream>,
+    pub events: Option<crate::projection::CemTreeAstStream>,
+    pub offsets: Vec<crate::source::ByteRange>,
+    pub diagnostics: Vec<Diagnostic>,
 }
 
 impl EngineContext {

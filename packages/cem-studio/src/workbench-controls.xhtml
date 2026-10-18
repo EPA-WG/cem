@@ -48,7 +48,7 @@
                 {cem-alert @data-cem-studio-workbench-alert="" @label={if state.error { str:concat((state.error.code, ": ", state.error.message), "") } else { if state.validation.stale { "This result belongs to an older draft or durable revision." } else { if state.validation { str:concat((seq:count(state.validation.diagnostics.code), " diagnostics; ", state.validation.hardViolationCount, " hard violations."), "") } else { str:concat((state.path, "; ", state.contentType), "") } } }} @tone={if state.error || (state.status == "invalid") || (state.status == "conflict") { "danger" } else { "info" }}}
         }   }
 }
-        {section @aria-label="CEM-ML projections" |
+        {section @aria-label="Source projections" |
  {cem-stack @gap=md |
             {cem-action @data-cem-studio-operation-run="" @disabled={if busy || !state.runnable { true } else { null }} @host-command=run
                 @host-command-event=click @loading={if state.status == "projecting" { true } else { null }} @variant=primary | Run configuration}

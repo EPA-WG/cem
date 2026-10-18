@@ -8,6 +8,8 @@
 pub mod schema_packages;
 pub mod schema_validation_session;
 
+mod source_inspection;
+
 pub use cem_ql::api::reference_transport::RetainedReferenceSource;
 pub use cem_ql::eval::portable::export_values as export_cem_ql_values;
 pub use cem_ql::eval::portable::export_values_with_control as export_cem_ql_values_with_control;
@@ -1906,6 +1908,7 @@ pub fn register_cem_ql_artifact_exporters(context: &mut EngineContext) {
 
 pub fn register_cem_ql_runtime_adapters(context: &mut EngineContext) {
     context.source_validation_stages.push(Arc::new(CemQlSourceValidationStage));
+    context.source_inspection_stages.push(Arc::new(source_inspection::CemQlSourceInspection));
     register_cem_ql_template_adapter(&mut context.template_adapter_registry);
     register_cem_ql_schema_behavior_evaluator(context);
     register_cem_ql_source_output_converter(context);

@@ -861,14 +861,14 @@ export async function createCemStudioWorkbench(options) {
 
     async function parsePersisted(projection = 'ast', options = {}) {
         if (!CEM_STUDIO_PARSE_PROJECTIONS.includes(projection)) {
-            throw new TypeError(`unsupported CEM-ML parse projection: ${projection}`);
+            throw new TypeError(`unsupported source parse projection: ${projection}`);
         }
         return projectPersisted('parse', projection, options);
     }
 
     async function inspectPersisted(view = 'summary', options = {}) {
         if (!CEM_STUDIO_INSPECT_VIEWS.includes(view)) {
-            throw new TypeError(`unsupported CEM-ML inspect view: ${view}`);
+            throw new TypeError(`unsupported source inspect view: ${view}`);
         }
         return projectPersisted('inspect', view, options);
     }

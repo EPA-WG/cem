@@ -21,6 +21,13 @@ const browserErrors = [];
 const httpFailures = [];
 const serviceWorkerErrors = [];
 
+// Closing the browser rejects pending evaluations that otherwise outlive a
+// renderer crash and leave the release gate waiting indefinitely.
+page.once('crash', () => {
+    console.error('[cem-studio:static-worker] browser page crashed');
+    void browser.close().catch(() => undefined);
+});
+
 context.on('serviceworker', (worker) => {
     worker.on('console', (message) => {
         if (message.type() === 'error') serviceWorkerErrors.push(message.text());
@@ -130,7 +137,7 @@ try {
         await exerciseExampleProjects(page, context);
         assert.deepEqual(browserErrors, []); assert.deepEqual(httpFailures, []);
         await mkdir(dirname(reportPath), { recursive: true });
-        await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, exampleProjects: true, validationRepair: true, templateOutput: true, offline: true, configurations: 13, graphProvenance: true, liveView: true }, null, 2)}\n`);
+        await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, exampleProjects: true, validationRepair: true, templateOutput: true, offline: true, configurations: 13, graphProvenance: true, liveView: true, sourceInspection: true }, null, 2)}\n`);
         console.log('Verified deployed example project copies, schema failure/repair, template output, Save/reload graph provenance and thirteen offline configurations.');
     } else if (lifecycleOnly) {
         const lifecycle = await exerciseProjectLifecycle(page, context);
@@ -837,7 +844,7 @@ async function exerciseProjectLifecycle(page, context) {
     }), graphRecords);
     await exerciseExampleProjects(page, context);
     await editor.dispose();
-    return { exampleProjects: true, projectSemanticComparison: true, projectQueryEquivalence: true, projectValidationRepair: true, projectTemplateOutput: true, projectGraphProvenance: true, projectLiveView: true, graphEdgeAuthoring: true, graphNodeCreation: true, graphConfigurationAuthoring: true, stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
+    return { exampleProjects: true, projectSemanticComparison: true, projectQueryEquivalence: true, projectValidationRepair: true, projectTemplateOutput: true, projectGraphProvenance: true, projectLiveView: true, projectSourceInspection: true, graphEdgeAuthoring: true, graphNodeCreation: true, graphConfigurationAuthoring: true, stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
         guardedDraftAndFocusRetained: true, exportedExactBytes: true, trashRestore: true, offlineReopen: true, accessibility };
 }
 
@@ -1048,6 +1055,13 @@ async function exerciseExampleProjects(page, context) {
     }, firstId);
     await pick('Workbench', queryChoice);
     const originalQuery = (await snapshot()).draft;
+    await click('Parse persisted revision');
+    assert.ok((await snapshot()).projection.text.includes('@kind=declare-function'));
+    assert.ok((await snapshot()).projection.text.includes('https://cem.dev/ns/query/cem-ql/1'));
+    await pick('Inspect view', 'Tree');
+    await click('Inspect persisted revision');
+    assert.ok((await snapshot()).projection.text.includes('@kind=call'));
+    assert.ok((await snapshot()).projection.text.includes('byte-offset'));
     const editedQuery = originalQuery.replace('local:field("inputs", seq:count(inputs))', 'local:field("input-count", seq:count(inputs))');
     assert.notEqual(editedQuery, originalQuery);
     await page.getByRole('textbox', { name: 'CEM source', exact: true }).fill(editedQuery); await settle();

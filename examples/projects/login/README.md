@@ -76,13 +76,23 @@ result field changes. Restore and save the original to recover the baseline.
 The query host's `input` binding is recognized during validation; misspelled
 variables still fail. Query resources and source edits remain project-local.
 
-Generic source Parse/Inspect for CEM-QL and standalone-expression formatting
-remain separate native adapter work. This project uses the supported executable
-module identity, native module formatting, validation and query execution.
+With `queries/semantics.cemql` selected, use **Parse persisted revision** for the
+native AST or token events. **Inspect persisted revision** offers summary, AST,
+events, diagnostics, source offsets and tree views. These commands inspect saved
+source without running it or binding query inputs. The AST retains declaration
+and expression structure, source URI and UTF-8 byte ranges; events include trivia.
+Results are tabular CEM-ML. Unsaved edits do not change persisted inspection.
+
+The native adapter also accepts the standalone-expression content type/schema,
+without adding a module wrapper. Invalid syntax remains inspectable and mismatched
+identities produce diagnostics. Parse keeps recoverable diagnostics under its
+default policy; use `--fail-level validate` in a configuration when errors should
+produce a nonzero exit. Standalone-expression formatting is still pending;
+module formatting, validation and execution remain available.
 
 ## Generate the Login view
 
-New version-2.5.0 copies have thirteen configurations. **Render Login from HTML**
+New version-2.5.1 copies have thirteen configurations. **Render Login from HTML**
 and **Render Login from CEM-ML** apply the shared `templates/view.cemt` resource
 to the saved source. Both produce the complete HTML in `expected/view.html`:
 an accessible heading and form, associated labels, autocomplete hints, required

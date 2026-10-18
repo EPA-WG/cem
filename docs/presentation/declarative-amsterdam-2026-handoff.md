@@ -28,7 +28,7 @@ Home offers **Login** and **Schema examples** under **Example projects**.
 **Create project from example** makes an independent editable copy, then
 **Projects → Open project** enters the common workspace. Existing projects keep
 their saved contents. Startup restores the last selection; a fresh profile opens
-Home without auto-installing a seed. Login's README resource carries instructions. Version 2.5.0 has thirteen
+Home without auto-installing a seed. Login's README resource carries instructions. Version 2.5.1 has thirteen
 configurations, including XPath and **(CEM-QL)** variants of **Login semantics
 from HTML** and **Login semantics from CEM-ML**. Their queries select the XHTML `main` subtree; document
 wrappers and lexical formatting remain outside the comparison.
@@ -68,7 +68,11 @@ Theme/forced-color, automated accessibility, packaging and clean consumer checks
 pass. UI stays declarative; native URI boundaries retain original source owners.
 Constructed/computed output maps to template instructions/expressions, without a
 claim of arbitrary per-character input lineage. Generated test artifacts remain
-excluded. The next implementation is native CEM-QL source Parse/Inspect and standalone-expression formatting.
+excluded. Native CEM-QL source Parse/Inspect is available from the shared source
+controls: select `queries/semantics.cemql`, then parse its AST/events or inspect
+its structure, diagnostics and source offsets without executing it. Both module
+and standalone-expression identities retain original source coordinates.
+Standalone-expression formatting is next.
 
 The Login live-view increment adds a shared `live-preview` capability in
 `cem-elements`, declarative `cem-media-preview mode="live"`, and an ordinary

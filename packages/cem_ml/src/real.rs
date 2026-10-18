@@ -5,6 +5,7 @@
 //! that `cem-ml-cli` calls through. This is the production engine that
 //! replaces `NotImplementedEngine` in `cem-ml-cli/src/main.rs`.
 
+mod source_inspection;
 #[cfg(not(target_arch = "wasm32"))]
 mod validation_resources;
 
@@ -1757,6 +1758,26 @@ fn inspect_records_presentation_stream(
     fields: Vec<(&str, String)>,
     records: Vec<Vec<(&str, String)>>,
 ) -> projection::CemTreeAstStream {
+    inspect_records_presentation_stream_with_identity(
+        view,
+        display_uri,
+        fields,
+        records,
+        &FormatIdentity {
+            content_type: Some(CEM_ML_CONTENT_TYPE.into()),
+            schema: Some(CEM_ML_SCHEMA_URI.into()),
+            ..Default::default()
+        },
+    )
+}
+
+fn inspect_records_presentation_stream_with_identity(
+    view: &str,
+    display_uri: &str,
+    fields: Vec<(&str, String)>,
+    records: Vec<Vec<(&str, String)>>,
+    identity: &FormatIdentity,
+) -> projection::CemTreeAstStream {
     let source = SourceMapStack::default();
     let mut children = vec![inspect_projection_node(
         "inspection",
@@ -1804,8 +1825,12 @@ fn inspect_records_presentation_stream(
     let root = projection::CemTreeAstNode::Element {
         name: "ast".to_owned(),
         attributes: vec![
-            inspect_projection_attribute("schema", CEM_ML_SCHEMA_URI, &source),
-            inspect_projection_attribute("content-type", CEM_ML_CONTENT_TYPE, &source),
+            inspect_projection_attribute("schema", identity.schema.as_deref().unwrap_or(""), &source),
+            inspect_projection_attribute(
+                "content-type",
+                identity.content_type.as_deref().unwrap_or(""),
+                &source,
+            ),
             inspect_projection_attribute("hash-scheme", "blake3", &source),
             inspect_projection_attribute("source-id", display_uri, &source),
         ],
@@ -11298,6 +11323,15 @@ fn observe_pipeline_with_scope(
 impl CemMlEngine for RealCemMlEngine {
     fn parse(&self, request: ParseRequest) -> EngineResult<ParseResponse> {
         request.context.ensure_active()?;
+        let started_at = Instant::now();
+        if let Some(mut source) = source_inspection::load(&request.input, &request.context) {
+            source.diagnostics.extend(parse_budget_diagnostics(
+                &request.input.root_scope,
+                started_at.elapsed().as_nanos(),
+            ));
+            project_diagnostic_uris(&mut source.diagnostics, &request.input, &request.context);
+            return source_inspection::parse(&request, source);
+        }
         let loaded = load_document_input(&request.input, &request.context);
         let from_format = loaded.from_format;
         let run = run_pipeline_as_scoped_with_context_and_source_uri(
@@ -11428,6 +11462,9 @@ impl CemMlEngine for RealCemMlEngine {
     fn inspect(&self, request: InspectRequest) -> EngineResult<InspectResponse> {
         request.context.ensure_active()?;
         let started_at = Instant::now();
+        if let Some(source) = source_inspection::load(&request.input, &request.context) {
+            return source_inspection::inspect(&request, source, started_at);
+        }
         let loaded = load_document_input(&request.input, &request.context);
         let from_format = loaded.from_format;
         let run = run_pipeline_as_scoped_with_context_and_source_uri(

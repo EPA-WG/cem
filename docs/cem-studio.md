@@ -2681,8 +2681,15 @@ its configuration. Validation supplies only the query host's known `input` symbo
 and still reports unknown variables. Deployed offline evidence edits, validates,
 reloads and restores the module itself as well as both input sources. Result
 exports retain each language's JSON envelope; the compared string values are the
-same. Generic CEM-QL source Parse/Inspect and standalone-expression formatting
-remain separate native adapter work, after the presentation functionality.
+same. With the query resource selected, Parse produces its native AST or token
+events; Inspect offers summary, AST, events, diagnostics, UTF-8 source offsets and
+tree views. The registered shared Rust adapter uses the native module or
+standalone-expression parser according to the exact declared identity. It does
+not bind names, load imports or evaluate queries. Source ownership, URI and byte
+ranges survive direct typed CEM-tree projection to the tabular CEM-ML writer;
+JSON remains an explicitly selected export. Malformed syntax produces native
+diagnostics and recoverable structure; inconsistent identities are rejected
+without CEM-ML parser fallback. Standalone-expression formatting remains pending.
 
 The native template is an ordinary editable project resource. Its two render
 configurations produce the complete `expected/view.html` contract through the
@@ -2778,5 +2785,5 @@ dependency and rerunning replaces the view; unsaved drafts leave persisted input
 unchanged. Saved sources reopen offline, while entered credentials are discarded.
 The existing static HTML output preview continues to deny scripts and styling.
 
-Native CEM-QL source Parse/Inspect and standalone-expression formatting are next;
+Native CEM-QL source Parse/Inspect is available. Standalone-expression formatting is next;
 physical device acceptance remains behind presentation functionality.

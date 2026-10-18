@@ -168,7 +168,9 @@
             "dependsOn": [
                 {
                     "projects": [
-                        "cem-elements"
+                        "cem-elements",
+                        "@epa-wg/cem-ml",
+                        "@epa-wg/cem-ml-cli"
                     ],
                     "target": "build"
                 }
@@ -186,7 +188,7 @@
                 "{workspaceRoot}/package.json",
                 "{workspaceRoot}/yarn.lock",
                 {
-                    "dependentTasksOutputFiles": "**/*.{js,d.ts}",
+                    "dependentTasksOutputFiles": "**/*.{js,d.ts,json,wasm}",
                     "transitive": false
                 },
                 "{workspaceRoot}/examples/projects/**/*",

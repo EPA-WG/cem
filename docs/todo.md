@@ -567,8 +567,46 @@ excluded from Git.
     fields, action and alert; it does not claim cross-frame parity for every
     library capability. The template is bounded to 256 KiB, resources to 128 and
     16 MiB total, and frame height to 4096 CSS pixels before scrolling.
-- [ ] Add native CEM-QL source Parse/Inspect adapters. Keep unsupported identities
+- [x] Add native CEM-QL source Parse/Inspect adapters. Keep unsupported identities
   explicit instead of falling back to CEM-ML.
+  - [x] Add native fixtures for module/expression AST and token events, all Inspect
+    views, UTF-8 source ranges, malformed input, identity rejection and cancellation.
+    Six native adapter fixtures, six expression API regressions and eight document
+    inspection regressions pass. Token events reconstruct the exact source; emoji
+    ranges retain original UTF-8 bytes and diagnostic columns use UTF-16. Source
+    inspection resolves declared base URIs and honors cancellation/time budgets.
+  - [x] Verify that typed parameter source ranges include their annotations.
+    The regression reproduced a name-only span; the complete annotated range
+    now passes alongside the six native adapter fixtures.
+  - [x] Add a native CLI fixture for recoverable Parse diagnostics, explicit
+    fail-level rejection and repair; align native CLI and browser exit policies.
+    The fixture reproduced unconditional CLI success before the fix; all 33
+    CLI parse-related tests now pass. Parse uses the existing report failure
+    policy while preserving recoverable output and optional side reports.
+  - [x] Add browser fixtures for the Login query source Parse/Inspect path and
+    expression diagnostics through the existing shared command transport; verify
+    saved-query Parse/Inspect through deployed declarative controls and include
+    source-inspection evidence in the release gate.
+  - Delivery evidence (2026-10-18): 53 focused native tests and all 131 Studio
+    browser cases pass. The complete 52-task Studio check gate passes, including
+    saved-query source inspection, live-view interactions, validation repair,
+    independent copies, offline reload, automated accessibility, theme inheritance,
+    forced colors, 32 schema examples and a clean seven-package consumer with one
+    runtime copy. Lint/typecheck and whitespace checks pass. Two clean builds
+    match across 268 files / 175 declared assets, aggregate SHA-256
+    `be01aac90d947472bf69b18e6b6c2cfdfd948c733955237ff442511f106c803d`.
+    An earlier Chromium renderer crash did not recur in the successful full gate.
+    Its cause remains unidentified. The deployed verifier now fails promptly on
+    page crashes by closing the browser and rejecting pending evaluations.
+    Generated screenshots and Vitest attachments remain excluded from Git.
+  - CEM audit: source parsing/projection belongs to the shared Rust engine and
+    CEM-QL bridge. Native parser owners project directly to the typed CEM writer;
+    JSON is only an explicit export. Studio reuses declarative source controls
+    and command transport, adding no UI JavaScript capability or styling/token
+    defaults. Module/expression identities never fall back to a document parser;
+    AST/tree views inspect syntax without binding names, loading imports or
+    running queries. Query sources have no DOM; use AST/events and their named
+    JSON exports. Standalone-expression formatting remains a separate task.
 - [ ] Add native standalone-expression formatting without inventing module
   wrappers; preserve exact source identity and diagnostic ranges.
 - [x] Record the requested reusable AI element and explicit data/UI context

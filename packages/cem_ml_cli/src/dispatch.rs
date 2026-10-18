@@ -6402,12 +6402,13 @@ pub fn run_parse<E: CemMlEngine + ?Sized>(
             }
             resp.diagnostics.extend(embedding_diags);
             write_diagnostics(&resp.diagnostics, s);
+            let report = cem_ml::report::Report::deterministic(
+                vec![input_uri],
+                resp.diagnostics,
+                report_options_snapshot(args.fail_level, &args.context),
+            );
+            let failed = fail_for_summary(args.fail_level, &report);
             if report_requested(&args.report) {
-                let report = cem_ml::report::Report::deterministic(
-                    vec![input_uri],
-                    resp.diagnostics,
-                    report_options_snapshot(args.fail_level, &args.context),
-                );
                 if let Err(e) = write_report_files(
                     &engine_context,
                     &report,
@@ -6418,7 +6419,11 @@ pub fn run_parse<E: CemMlEngine + ?Sized>(
                     return Outcome::code(EXIT_IO);
                 }
             }
-            Outcome::ok()
+            if failed {
+                Outcome::code(EXIT_HARD_FAILURE)
+            } else {
+                Outcome::ok()
+            }
         }
         Err(e) => handle_engine_error(e, s),
     }
@@ -12678,6 +12683,39 @@ mod tests {
         for args in cases {
             assert_remote_input_uri_rejected(&args, URI);
         }
+    }
+
+    #[test]
+    fn parse_source_failure_policy_matches_browser_and_preserves_recovery() {
+        let path = write_fixture("parse-source-policy.cemql", "\"🍒\" +");
+        let engine = cem_ml::real::RealCemMlEngine::new();
+        let base = [
+            "parse",
+            path.to_str().unwrap(),
+            "--content-type",
+            "application/vnd.cem.query-expression+cem-ql",
+            "--schema",
+            "https://cem.dev/ns/query/cem-ql/1#expression",
+        ];
+        for (level, code) in [
+            ("parse", EXIT_OK),
+            ("validate", EXIT_HARD_FAILURE),
+            ("strict", EXIT_HARD_FAILURE),
+        ] {
+            let mut args = base.to_vec();
+            args.extend(["--fail-level", level]);
+            let (outcome, stdout, stderr) = run(&engine, &args);
+            assert_eq!(outcome.exit_code, code, "{level}: {stderr}");
+            assert!(stdout.contains("#expression"), "{stdout}");
+            assert!(stderr.contains("cem.ql.parse_error"), "{stderr}");
+            assert!(!stderr.contains("module_uri_missing"));
+        }
+        std::fs::write(&path, "\"🍒\"").unwrap();
+        let mut args = base.to_vec();
+        args.extend(["--fail-level", "strict"]);
+        let (outcome, stdout, stderr) = run(&engine, &args);
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.contains("🍒"), "{stdout}");
     }
 
     #[test]

@@ -2786,7 +2786,8 @@ fn css_document_metadata_fields(document: &CssDocumentAst) -> Vec<(String, Strin
 }
 
 #[allow(clippy::too_many_arguments)]
-fn projection_node(
+/// Construct one inert source-owned row in the shared AST vocabulary.
+pub fn projection_node(
     id: &str,
     kind: &str,
     parent_id: Option<&str>,
@@ -2885,7 +2886,8 @@ fn css_projection_event_kind(kind: &str) -> &'static str {
     }
 }
 
-fn projection_vocabulary_document(
+/// Wrap typed presentation nodes with the declared CEM projection namespace.
+pub fn projection_vocabulary_document(
     prefix: &str,
     namespace: &str,
     root: CemTreeAstNode,
@@ -2925,7 +2927,8 @@ fn projection_element(
     }
 }
 
-fn projection_attribute(
+/// Construct a literal projection attribute with its native source map.
+pub fn projection_attribute(
     name: &str,
     value: impl Into<String>,
     source: &SourceMapStack,

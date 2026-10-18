@@ -647,6 +647,19 @@ Current implementation status:
   colorizer; `--out` writes the same CEM-ML syntax without ANSI escapes.
   `parse --format ast-json|events-json|dom-json|json` and
   `inspect --format json` are the explicit JSON presentation boundaries.
+  The composed CEM-QL runtime registers native source Parse/Inspect for
+  `application/vnd.cem.query+cem-ql` (alias `text/cem-ql`) with
+  `https://cem.dev/ns/query/cem-ql/1`, and
+  `application/vnd.cem.query-expression+cem-ql` with the `#expression` schema.
+  Source AST/tree views retain declaration/expression structure; event views
+  retain lexer tokens including trivia. Summary, diagnostics and source-offsets
+  views are inert, with original UTF-8 coordinates and no imported modules,
+  type binding, query evaluation or synthetic module wrappers. Inconsistent
+  identities report explicit diagnostics. The existing Parse policy retains
+  recoverable errors with exit code 0; `--fail-level validate` returns a nonzero
+  exit for these errors. Source JSON exports use `ast-json`/`events-json`;
+  `dom-json`/`json` report `cem.source.dom_projection_unsupported` because query
+  source has no document DOM. Standalone-expression formatting is separate.
   Generic XML remains an explicit conversion/export target and is not inferred
   as a presentation for CEM-ML AST, DOM, or event projections.
   Transform config and CEM-native template schema targets

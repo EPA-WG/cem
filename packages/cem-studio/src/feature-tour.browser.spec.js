@@ -129,6 +129,54 @@ describe('CEM Studio Feature Tour copies', () => {
         }
     }, 60_000);
 
+    it('parses and inspects native Login query sources without evaluating or wrapping expressions', async () => {
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        const uri = 'studio://inspection-copy/queries/semantics.cemql';
+        const options = { bytes: new TextEncoder().encode(semanticsCemql), uri,
+            contentType: 'application/vnd.cem.query+cem-ql', schema: 'https://cem.dev/ns/query/cem-ql/1',
+            resourceScheme: 'studio', projectId: 'inspection-copy', projectRootUri: 'studio://inspection-copy/' };
+        for (const projection of ['ast', 'events']) {
+            const outcome = await validator.parseResource({ ...options, projection });
+            expect(outcome.result.exitCode).toBe(0);
+            expect(outcome.output.contentType).toBe('application/cem');
+            expect(outcome.output.text).toContain(uri);
+            expect(outcome.output.text).toContain(options.schema);
+            expect(outcome.output.text).toContain(projection === 'ast' ? '@kind=declare-function' : 'StringLit');
+            expect(outcome.output.text).not.toContain('\u001b');
+        }
+        for (const view of ['summary', 'ast', 'events', 'diagnostics', 'source-offsets', 'tree']) {
+            const outcome = await validator.inspectResource({ ...options, view });
+            expect(outcome.result.exitCode).toBe(0);
+            expect(outcome.output.text).toContain(uri);
+            expect(outcome.output.text).toContain(options.schema);
+        }
+        const expression = { ...options, uri: 'studio://inspection-copy/queries/expression.cemql',
+            contentType: 'application/vnd.cem.query-expression+cem-ql', schema: 'https://cem.dev/ns/query/cem-ql/1#expression',
+            bytes: new TextEncoder().encode('unknownFunction("🍒")') };
+        const parsed = await validator.parseResource(expression);
+        expect(parsed.result.exitCode).toBe(0); // Parsing does not bind or execute unknownFunction.
+        expect(parsed.output.text).toContain('@kind=call');
+        expect(parsed.output.text).toContain('🍒');
+        const broken = { ...expression, bytes: new TextEncoder().encode('"🍒" +') };
+        const recovered = await validator.parseResource(broken);
+        expect(recovered.result.exitCode).toBe(0); // Default parse policy fails only fatal diagnostics.
+        expect(recovered.result.diagnostics.items).toEqual(expect.arrayContaining([
+            expect.objectContaining({ code: 'cem.ql.parse_error', uri: broken.uri, byteOffset: 8, line: 1, column: 7 }),
+        ]));
+        const strictParse = options => validator.parseResource({ ...options, argv: [
+            'parse', options.uri, '--content-type', options.contentType, '--schema', options.schema,
+            '--fail-level', 'validate', '--no-color',
+        ] });
+        await expect(strictParse(broken)).rejects.toMatchObject({ result: { exitCode: 1 } });
+        const diagnostics = await validator.inspectResource({ ...broken, view: 'diagnostics' });
+        expect(diagnostics.output.text).toContain('cem.ql.parse_error');
+        expect(diagnostics.output.text).toContain('byte-offset');
+        expect(diagnostics.output.text).not.toContain('module_uri_missing');
+        const mismatch = { ...expression, schema: options.schema };
+        await expect(strictParse(mismatch)).rejects.toMatchObject({ result: { exitCode: 1,
+            diagnostics: { items: expect.arrayContaining([expect.objectContaining({ code: 'cem.ql.query_identity_unsupported' })]) } } });
+    }, 60_000);
+
     it('queries the same Login semantic contract with XPath and CEM-QL in the native browser worker', async () => {
         const validator = await createCemStudioBrowserValidator(); validators.push(validator);
         const bytes = text => new TextEncoder().encode(text);

@@ -60,7 +60,7 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
         assert.deepEqual(record.collections, ['amsterdam-2026']);
         assert.equal(bundle.project.entries.length, definition.configurations.length);
         for (const source of definition.sources) assert.deepEqual(bundle.contents[source.id], new Uint8Array(await readFile(resolve(workspaceRoot, source.source))));
-        assert.equal(record.version, '2.5.0');
+        assert.equal(record.version, '2.5.1');
         const contract = JSON.parse(new TextDecoder().decode(bundle.contents['login-semantic-contract']));
         assert.equal(contract.length, 21);
         for (const id of ['semantics-html', 'semantics-cem']) {
