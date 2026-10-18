@@ -607,8 +607,43 @@ excluded from Git.
     AST/tree views inspect syntax without binding names, loading imports or
     running queries. Query sources have no DOM; use AST/events and their named
     JSON exports. Standalone-expression formatting remains a separate task.
-- [ ] Add native standalone-expression formatting without inventing module
+- [x] Add native standalone-expression formatting without inventing module
   wrappers; preserve exact source identity and diagnostic ranges.
+  - [x] Add native formatter fixtures for expression identity, comments/Unicode,
+    line endings, idempotence, HTML output, invalid syntax/UTF-8, mismatched
+    source/target identities, registered module aliases, cancellation and original
+    diagnostic coordinates.
+  - [x] Add browser command fixtures for expression formatting, failure and repair
+    through the shared Studio command transport; retain module formatter regressions.
+  - [x] Add a native CLI regression for MIME-only expression schema inference,
+    explicit identity conflicts, syntax failure and repair; verify browser parity.
+  - [x] Document the native formatting contract and verify native CLI, browser,
+    packaging and release checks.
+  - Delivery evidence (2026-10-18): 27 focused native tests and all 132 Studio
+    browser cases pass, including MIME-only dispatch, original emoji diagnostic
+    coordinates, failure/repair and existing module formatting. A rebuilt CLI
+    smoke test passes explicit and MIME-only identity, malformed source and repair.
+    The complete 52-task Studio gate passes on retry, including deployed Login
+    live view, source inspection, independent copies, offline execution, automated
+    accessibility, theme inheritance/forced colors, synchronized release evidence
+    and a clean seven-package consumer with one runtime copy. Lint/typecheck and
+    whitespace checks pass. Two clean builds match across 268 files / 175 declared
+    assets, aggregate SHA-256
+    `bd79b5d435a21375b093a56a0bc79e0c95074e93500e274ddbcb7c824324514e`.
+    The first full run hit a Chromium dedicated-worker fatal trap during saved
+    Login live-view rerendering. The unchanged retry with browser stderr capture
+    passed; Nx flags workspace delivery as flaky. The crash's cause remains
+    unidentified, and no assertions or browser protections were weakened.
+    Generated screenshots and Vitest attachments remain excluded from Git.
+  - CEM audit: the shared Rust engine/CLI bridge selects the exact native source
+    kind before legacy registry defaults, parses expressions without module
+    wrappers and reuses the typed token formatter/colorizer/writer pipeline.
+    Writer identity and original source URI/UTF-8 ranges are retained; diagnostics
+    use UTF-16 columns. Formatting neither binds names nor evaluates queries,
+    and rejects module/expression relabeling. HTML is an explicit presentation
+    target. Studio retains its declarative controls and existing command transport;
+    no new UI JavaScript capability, application CSS or token defaults are added.
+    There is no JSON AST handoff between native formatting stages.
 - [x] Record the requested reusable AI element and explicit data/UI context
   exposure in [roadmap Phase 3.3](../roadmap.md#33-ai-elements-and-dataui-context),
   covering Chrome built-in AI and WebMCP with shared-package ownership. Keep its
@@ -623,10 +658,17 @@ excluded from Git.
 - [x] Record exact supported sample routes, expected results and remaining
   presentation blockers in the presentation handoff and Studio documentation.
 
-Continue with the remaining Login project resources and configurations needed by
-the Amsterdam presentation. Do not introduce dedicated example screens.
-Parameter-map authoring follows if needed by a selected presentation checkpoint;
-otherwise retain it for the later graph-editor queue. Shared components remain
+Next presentation functionality:
+
+- [ ] Audit the complete Login project against the required tutorial checkpoints;
+  close any remaining resource/configuration gaps through the common workspace.
+- [ ] After the core Login walkthrough, add the planned supplier-pipeline
+  companion as an ordinary example project, reusing native commands and shared UI.
+- [ ] Determine whether the selected presentation configurations require
+  parameter-map authoring; if so, complete its native fixtures and Save/history/
+  recovery/offline Run work below. Otherwise retain it in the later graph-editor queue.
+
+Do not introduce dedicated example screens. Shared components remain
 declarative in `cem-components`, reusable JavaScript behavior belongs in
 `cem-elements`, and Studio UI remains CEM-ML. Alert the user before introducing a
 new shared JavaScript UI capability. Physical-device/browser/AT acceptance and

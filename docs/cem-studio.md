@@ -2689,7 +2689,13 @@ not bind names, load imports or evaluate queries. Source ownership, URI and byte
 ranges survive direct typed CEM-tree projection to the tabular CEM-ML writer;
 JSON remains an explicitly selected export. Malformed syntax produces native
 diagnostics and recoverable structure; inconsistent identities are rejected
-without CEM-ML parser fallback. Standalone-expression formatting remains pending.
+without CEM-ML parser fallback. Native source formatting also accepts the exact
+standalone-expression identity through the existing Convert command. Select the
+same input/output content type and schema; the shared token formatter preserves
+comments, Unicode and source identity without binding names or adding a module.
+Malformed syntax produces original-source diagnostics and no formatted output.
+Module/expression relabeling is rejected; HTML remains an explicit presentation
+target. Existing formatter profiles and line-ending options apply.
 
 The native template is an ordinary editable project resource. Its two render
 configurations produce the complete `expected/view.html` contract through the
@@ -2785,5 +2791,6 @@ dependency and rerunning replaces the view; unsaved drafts leave persisted input
 unchanged. Saved sources reopen offline, while entered credentials are discarded.
 The existing static HTML output preview continues to deny scripts and styling.
 
-Native CEM-QL source Parse/Inspect is available. Standalone-expression formatting is next;
+Native CEM-QL source Parse/Inspect and standalone-expression formatting are
+available. Remaining presentation-needed Login resources/configurations come next;
 physical device acceptance remains behind presentation functionality.

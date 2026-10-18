@@ -659,7 +659,20 @@ Current implementation status:
   recoverable errors with exit code 0; `--fail-level validate` returns a nonzero
   exit for these errors. Source JSON exports use `ast-json`/`events-json`;
   `dom-json`/`json` report `cem.source.dom_projection_unsupported` because query
-  source has no document DOM. Standalone-expression formatting is separate.
+  source has no document DOM.
+  Native `convert` formatting accepts both source identities through the shared
+  CEM-QL token formatter/colorizer/writer. An expression uses
+  `application/vnd.cem.query-expression+cem-ql` and
+  `https://cem.dev/ns/query/cem-ql/1#expression` for both input and text output.
+  Existing registered module aliases remain supported; the expression MIME type
+  always selects the expression parser, including when the schema is omitted.
+  It does not add a module wrapper, bind names or evaluate the expression.
+  Comments, Unicode token ranges and declared text identity are retained;
+  existing formatter profiles and `lineEnding` options apply. Invalid source
+  returns diagnostics at original UTF-8/UTF-16 coordinates with no formatted
+  primary output. Formatting cannot relabel a module as an expression or vice
+  versa (`cem.ql.format_identity_unsupported`). HTML is an explicit presentation
+  target; it escapes source text and reports the HTML output identity.
   Generic XML remains an explicit conversion/export target and is not inferred
   as a presentation for CEM-ML AST, DOM, or event projections.
   Transform config and CEM-native template schema targets

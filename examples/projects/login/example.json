@@ -1,7 +1,7 @@
 {
   "id": "login",
   "name": "Login",
-  "version": "2.5.1",
+  "version": "2.5.2",
   "description": "Login sources, equivalent queries, validation, native templates, a transformation graph with source provenance and an interactive light-DOM view.",
   "sources": [
     {

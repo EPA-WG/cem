@@ -42,10 +42,11 @@ use cem_ml::parser::document::CemDocument;
 use cem_ml::parser::{AstNodeId, CemAstNode};
 use cem_ml::projection::{CemTreeAstAttribute, CemTreeAstNode, CemTreeAstStream};
 use cem_ml::query::{
-    QueryAstOwner, QueryEncodedOutput, QueryEvaluatorAdapter, QueryExecutionRequest,
-    QueryExecutionResult, QueryExportFormat, QueryExportRequest, QueryInputModel, QueryInputOwner,
-    QueryLanguage, QueryNativeArtifact, QueryNativeResult, QueryPreparationRequest,
-    QueryPreparedOwners, QueryResultExporter, QueryResultExporterRegistry, QueryRuntimeAdapter,
+    CemQlQuerySourceKind, QueryAstOwner, QueryEncodedOutput, QueryEvaluatorAdapter,
+    QueryExecutionRequest, QueryExecutionResult, QueryExportFormat, QueryExportRequest,
+    QueryInputModel, QueryInputOwner, QueryLanguage, QueryNativeArtifact, QueryNativeResult,
+    QueryPreparationRequest, QueryPreparedOwners, QueryResultExporter, QueryResultExporterRegistry,
+    QueryRuntimeAdapter,
 };
 use cem_ml::run_config::ScopeConfig;
 use cem_ml::scheduler::ScopePolicy;
@@ -57,7 +58,8 @@ use cem_ml::schema::document_model::{
 };
 use cem_ml::schema::registry::{
     CEM_ELEMENT_TEMPLATE_CONTENT_TYPE, CEM_ELEMENT_TEMPLATE_SCHEMA_URI, CEM_ML_CONTENT_TYPE,
-    CEM_ML_SCHEMA_URI, CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI,
+    CEM_ML_SCHEMA_URI, CEM_QL_CONTENT_TYPE, CEM_QL_EXPRESSION_CONTENT_TYPE,
+    CEM_QL_EXPRESSION_SCHEMA_URI, CEM_QL_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI,
     XSLT_SCHEMA_URI,
 };
 use cem_ml::source::{ByteRange, BytesSource, SourceId};
@@ -2012,15 +2014,56 @@ pub fn maybe_convert_cem_ql_source_output(request: &ConvertRequest) -> Option<Co
         .identity
         .clone()
         .unwrap_or_else(|| request.input.root_scope.format_identity());
-    if !format_identity_matches_cem_ql(&request.context, &source) {
+    let kind = cem_ql_format_source_kind(&request.context, &source);
+    let claims_query = kind.is_some()
+        || source
+            .content_type
+            .as_deref()
+            .map(content_type_essence)
+            .is_some_and(|media| {
+                matches!(
+                    media.as_str(),
+                    CEM_QL_CONTENT_TYPE | "text/cem-ql" | CEM_QL_EXPRESSION_CONTENT_TYPE
+                )
+            })
+        || matches!(
+            source.schema.as_deref(),
+            Some(CEM_QL_SCHEMA_URI | CEM_QL_EXPRESSION_SCHEMA_URI)
+        );
+    if !claims_query {
         return None;
     }
+    let Some(kind) = kind else {
+        return Some(cem_ql_failed_convert_response(
+            &request.target_scope,
+            &[cem_ql_query_diagnostic(
+                &request.input.uri,
+                "cem.ql.query_identity_unsupported",
+                "query source content type and schema must agree",
+            )],
+        ));
+    };
 
     let target = request
         .target
         .clone()
         .or_else(|| request.target_scope.format_identity_option())
         .or_else(|| cem_ql_direct_target_for_layer_format(request.to_format));
+    if let Some(target) = target.as_ref() {
+        if !format_identity_matches_html(&request.context, target)
+            && cem_ql_format_source_kind(&request.context, target) != Some(kind)
+        {
+            let diagnostic = cem_ql_query_diagnostic(
+                &request.input.uri,
+                "cem.ql.format_identity_unsupported",
+                "source formatting must preserve module/expression identity; HTML is an explicit presentation target",
+            );
+            return Some(cem_ql_failed_convert_response(
+                &request.target_scope,
+                &[diagnostic],
+            ));
+        }
+    }
     if !cem_ql_direct_target_supported(
         &request.context,
         target.as_ref(),
@@ -2030,12 +2073,19 @@ pub fn maybe_convert_cem_ql_source_output(request: &ConvertRequest) -> Option<Co
         return None;
     }
 
-    Some(convert_cem_ql_source_output(request, target.as_ref()))
+    Some(convert_cem_ql_source_output(
+        request,
+        target.as_ref(),
+        &source,
+        kind,
+    ))
 }
 
 fn convert_cem_ql_source_output(
     request: &ConvertRequest,
     target: Option<&FormatIdentity>,
+    identity: &FormatIdentity,
+    kind: CemQlQuerySourceKind,
 ) -> ConvertResponse {
     let mut diagnostics = Vec::new();
     let source = match std::str::from_utf8(&request.input.bytes) {
@@ -2046,8 +2096,20 @@ fn convert_cem_ql_source_output(
         }
     };
 
-    let parsed = cem_ql::api::parse(source);
-    diagnostics.extend(cem_ql_parse_diagnostics(&request.input.uri, &parsed));
+    let parsed = match kind {
+        CemQlQuerySourceKind::Module => cem_ql::api::parse(source),
+        CemQlQuerySourceKind::Expression => cem_ql::api::parse_expression(source),
+    };
+    if kind == CemQlQuerySourceKind::Module {
+        diagnostics.extend(cem_ql_parse_diagnostics(&request.input.uri, &parsed));
+    } else {
+        diagnostics.extend(parsed.diagnostics.clone());
+    }
+    finish_cem_ql_source_validation_diagnostics(
+        &request.input.uri,
+        &request.input.bytes,
+        &mut diagnostics,
+    );
     if diagnostics
         .iter()
         .any(|diagnostic| diagnostic.severity.is_hard_violation())
@@ -2055,7 +2117,23 @@ fn convert_cem_ql_source_output(
         return cem_ql_failed_convert_response(&request.target_scope, &diagnostics);
     }
 
-    let token_tree = cem_ql_source_token_tree(&request.input.uri, source);
+    let default_media = match kind {
+        CemQlQuerySourceKind::Module => CEM_QL_CONTENT_TYPE,
+        CemQlQuerySourceKind::Expression => CEM_QL_EXPRESSION_CONTENT_TYPE,
+    };
+    let output_identity = FormatIdentity {
+        content_type: target
+            .and_then(|t| t.content_type.clone())
+            .or_else(|| identity.content_type.clone())
+            .or_else(|| Some(default_media.into())),
+        schema: Some(kind.schema_uri().into()),
+        ..Default::default()
+    };
+    let token_tree = cem_ql_source_token_tree(
+        &request.input.uri,
+        source,
+        identity.content_type.as_deref().unwrap_or(default_media),
+    );
     let output_color_selection = match cem_ql_output_color_selection(
         &request.context,
         &request.target_scope,
@@ -2137,7 +2215,7 @@ fn convert_cem_ql_source_output(
     }
 
     let (content_type, schema, format_version) =
-        cem_ql_direct_output_primary_identity(target, html_output);
+        cem_ql_direct_output_primary_identity(Some(&output_identity), html_output);
     let bytes = content.into_bytes();
     let primary_bytes = PrimaryBytes {
         content_type,
@@ -2161,6 +2239,7 @@ fn convert_cem_ql_source_output(
             &color_profile,
             output_color_selection.as_ref(),
             html_output,
+            Some(&output_identity),
         )),
         diagnostics,
         scheduler_trace: cem_ml::report::SchedulerTraceReport::default(),
@@ -2268,13 +2347,19 @@ struct CemQlSourceTokenValueAst {
 #[derive(Debug)]
 struct CemQlCookedTokenAst(CookedTokenPayload);
 
-fn cem_ql_source_token_tree(input_uri: &str, source: &str) -> CemQlSourceTokenTreeAst {
+fn cem_ql_source_token_tree(
+    input_uri: &str,
+    source: &str,
+    content_type: &str,
+) -> CemQlSourceTokenTreeAst {
     let tokens = Lexer::new(source)
         .scan_all()
         .into_iter()
         .filter(|token| token.kind != TokenKind::EndOfInput)
         .enumerate()
-        .map(|(index, token)| cem_ql_source_token_node(input_uri, source, index, &token))
+        .map(|(index, token)| {
+            cem_ql_source_token_node(input_uri, source, content_type, index, &token)
+        })
         .collect::<Vec<_>>();
     CemQlSourceTokenTreeAst {
         input_uri: input_uri.to_owned(),
@@ -2285,11 +2370,12 @@ fn cem_ql_source_token_tree(input_uri: &str, source: &str) -> CemQlSourceTokenTr
 fn cem_ql_source_token_node(
     input_uri: &str,
     source: &str,
+    content_type: &str,
     index: usize,
     token: &Token,
 ) -> CemQlSourceTokenAst {
     let lexeme = cem_ql_token_lexeme(source, token);
-    let source_map = cem_ql_source_map(token.range);
+    let source_map = cem_ql_source_map(input_uri, content_type, token.range);
     let output_span = OutputSpan {
         output_range: ByteRange::new(0, token.range.len),
         origin: source_map.clone(),
@@ -2495,15 +2581,24 @@ fn cem_ql_token_lexeme<'a>(source: &'a str, token: &Token) -> &'a str {
     source.get(start..end).unwrap_or_default()
 }
 
-fn cem_ql_source_map(range: ByteRange) -> SourceMapStack {
+fn cem_ql_source_map(input_uri: &str, content_type: &str, range: ByteRange) -> SourceMapStack {
     SourceMapStack {
-        frames: vec![SourceMapFrame {
-            source_id: SourceId(0),
-            span: FrameSpan::Single(range),
-            transform: TransformKind::ContentTypeTransform {
-                content_type: CEM_QL_CONTENT_TYPE.to_owned(),
+        frames: vec![
+            SourceMapFrame {
+                source_id: SourceId(0),
+                span: FrameSpan::Single(range),
+                transform: TransformKind::SourceBoundary {
+                    uri: input_uri.into(),
+                },
             },
-        }],
+            SourceMapFrame {
+                source_id: SourceId(0),
+                span: FrameSpan::Single(range),
+                transform: TransformKind::ContentTypeTransform {
+                    content_type: content_type.to_owned(),
+                },
+            },
+        ],
     }
 }
 
@@ -3098,7 +3193,7 @@ fn cem_ql_failed_convert_response(
     ConvertResponse {
         primary: Value::Null,
         primary_bytes: None,
-        conversion: Some(cem_ql_convert_metadata(target_scope, "none", None, false)),
+        conversion: Some(cem_ql_convert_metadata(target_scope, "none", None, false, None)),
         diagnostics: diagnostics.to_vec(),
         scheduler_trace: cem_ml::report::SchedulerTraceReport::default(),
     }
@@ -3259,23 +3354,33 @@ fn cem_ql_target_identity_is_html(
     target.is_some_and(|identity| format_identity_matches_html(context, identity))
 }
 
-fn format_identity_matches_cem_ql(context: &EngineContext, identity: &FormatIdentity) -> bool {
-    let explicit_schema_matches = identity
-        .schema
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(|schema| schema == CEM_QL_SCHEMA_URI);
-    if let Some(content_type) = identity.content_type.as_deref() {
-        let essence = content_type_essence(content_type);
-        if essence == CEM_QL_CONTENT_TYPE || essence == "text/cem-ql" {
-            return identity.schema.is_none() || explicit_schema_matches;
-        }
-        if let Ok(descriptor) = context.schema_registry.resolve_content_type(content_type) {
-            return descriptor.schema_uri == CEM_QL_SCHEMA_URI
-                && (identity.schema.is_none() || explicit_schema_matches);
-        }
+fn cem_ql_format_source_kind(
+    context: &EngineContext,
+    identity: &FormatIdentity,
+) -> Option<CemQlQuerySourceKind> {
+    if let Some(kind) = CemQlQuerySourceKind::from_identity(identity) {
+        return Some(kind);
     }
-    explicit_schema_matches
+    let media = identity.content_type.as_deref()?;
+    // The module schema registry also lists the expression MIME type as an alias.
+    // Never let that legacy alias bypass the exact source-kind contract.
+    if matches!(
+        content_type_essence(media).as_str(),
+        CEM_QL_CONTENT_TYPE | "text/cem-ql" | CEM_QL_EXPRESSION_CONTENT_TYPE
+    ) {
+        return None;
+    }
+    let descriptor = context.schema_registry.resolve_content_type(media).ok()?;
+    (descriptor.schema_uri == CEM_QL_SCHEMA_URI
+        && identity
+            .schema
+            .as_deref()
+            .is_none_or(|schema| schema == CEM_QL_SCHEMA_URI))
+    .then_some(CemQlQuerySourceKind::Module)
+}
+
+fn format_identity_matches_cem_ql(context: &EngineContext, identity: &FormatIdentity) -> bool {
+    cem_ql_format_source_kind(context, identity).is_some()
 }
 
 fn format_identity_matches_html(context: &EngineContext, identity: &FormatIdentity) -> bool {
@@ -3293,6 +3398,7 @@ fn format_identity_matches_html(context: &EngineContext, identity: &FormatIdenti
             return descriptor.schema_uri == HTML_SCHEMA_URI
                 && (identity.schema.is_none() || explicit_schema_matches);
         }
+        return false;
     }
     explicit_schema_matches
 }
@@ -3324,6 +3430,7 @@ fn cem_ql_convert_metadata(
     color_profile: &str,
     output_color_selection: Option<&TransformTemplateOutputColorSelection>,
     html_output: bool,
+    output_identity: Option<&FormatIdentity>,
 ) -> ConvertExecutionMetadata {
     let formatter_profile = cem_ql_formatter_profile(target_scope);
     let writer_profile = output_color_selection
@@ -3332,7 +3439,15 @@ fn cem_ql_convert_metadata(
     let (writer_content_type, writer_schema, writer_category) = if html_output {
         (HTML_CONTENT_TYPE, HTML_SCHEMA_URI, "html-document")
     } else {
-        (CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI, "cem-tree")
+        (
+            output_identity
+                .and_then(|identity| identity.content_type.as_deref())
+                .unwrap_or(CEM_QL_CONTENT_TYPE),
+            output_identity
+                .and_then(|identity| identity.schema.as_deref())
+                .unwrap_or(CEM_QL_SCHEMA_URI),
+            "cem-tree",
+        )
     };
     ConvertExecutionMetadata {
         converter_id: Some(CEM_QL_DIRECT_OUTPUT_CONVERTER_ID.to_owned()),
@@ -12001,7 +12116,8 @@ value
     #[test]
     fn real_engine_convert_uses_registered_cem_ql_source_output_handler_preserves_token_ranges() {
         let source = "module \"https://example.test/queries/source-token-ranges\"\n\n// comment\ndeclare let label = \"héllo\"\n\nlabel\n";
-        let tree = cem_ql_source_token_tree("source-token-ranges.cemql", source);
+        let tree =
+            cem_ql_source_token_tree("source-token-ranges.cemql", source, CEM_QL_CONTENT_TYPE);
         let root = CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::Package { record: &tree });
         let tokens = root
             .field("tokens")
@@ -12052,6 +12168,30 @@ value
         assert_eq!(
             string_token.output_span.output_range.len,
             expected_len as u32
+        );
+        let expression = "unknown(\"🍒\")";
+        let expression_tree = cem_ql_source_token_tree(
+            "expression.cemql",
+            expression,
+            CEM_QL_EXPRESSION_CONTENT_TYPE,
+        );
+        let literal = expression_tree
+            .tokens
+            .iter()
+            .find(|token| token.value.token.kind == TokenKind::StringLit)
+            .unwrap();
+        assert_eq!(literal.value.token.range.len, 6);
+        assert_eq!(
+            literal.source_map.frames[0].transform,
+            TransformKind::SourceBoundary {
+                uri: "expression.cemql".into()
+            }
+        );
+        assert_eq!(
+            literal.source_map.frames[1].transform,
+            TransformKind::ContentTypeTransform {
+                content_type: CEM_QL_EXPRESSION_CONTENT_TYPE.into()
+            }
         );
     }
 

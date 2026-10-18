@@ -87,12 +87,17 @@ The native adapter also accepts the standalone-expression content type/schema,
 without adding a module wrapper. Invalid syntax remains inspectable and mismatched
 identities produce diagnostics. Parse keeps recoverable diagnostics under its
 default policy; use `--fail-level validate` in a configuration when errors should
-produce a nonzero exit. Standalone-expression formatting is still pending;
-module formatting, validation and execution remain available.
+produce a nonzero exit. Native expression formatting is available through an
+ordinary Convert configuration: use
+`application/vnd.cem.query-expression+cem-ql` with
+`https://cem.dev/ns/query/cem-ql/1#expression` for both input and output. It retains
+comments and Unicode, supports the existing formatter/line-ending options, and
+rejects invalid source without inventing a module. Module formatting, validation
+and execution remain available.
 
 ## Generate the Login view
 
-New version-2.5.1 copies have thirteen configurations. **Render Login from HTML**
+New version-2.5.2 copies have thirteen configurations. **Render Login from HTML**
 and **Render Login from CEM-ML** apply the shared `templates/view.cemt` resource
 to the saved source. Both produce the complete HTML in `expected/view.html`:
 an accessible heading and form, associated labels, autocomplete hints, required

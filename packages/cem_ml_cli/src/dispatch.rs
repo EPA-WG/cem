@@ -651,6 +651,13 @@ fn apply_schema_registry_defaults(context: &eng::EngineContext, scope: &mut Scop
     if scope.schema.is_some() {
         return;
     }
+    // Source-kind identity takes precedence over the registry's legacy module
+    // package alias for the standalone-expression MIME type.
+    if let Some(kind) = cem_ml::query::CemQlQuerySourceKind::from_identity(&scope.format_identity())
+    {
+        scope.schema = Some(kind.schema_uri().to_owned());
+        return;
+    }
     let Some(content_type) = scope.default_content_type.as_deref() else {
         return;
     };
@@ -18726,6 +18733,40 @@ start =
         assert!(!diagnostics
             .iter()
             .any(|diag| diag["code"] == "cem.scope.budget_unenforced"));
+    }
+
+    #[test]
+    fn standalone_expression_formatting_infers_exact_schema_from_mime() {
+        let p = write_fixture("format-mime-expression.cemql", "unknown(\"🍒\")");
+        let engine = RealCemMlEngine::new();
+        let base = [
+            "convert",
+            p.to_str().unwrap(),
+            "--content-type",
+            "application/vnd.cem.query-expression+cem-ql; charset=utf-8",
+            "--output-color-type",
+            "none",
+        ];
+        let (outcome, stdout, stderr) = run(&engine, &base);
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.contains("unknown(\"🍒\")"), "{stdout}");
+        let mut wrong = base.to_vec();
+        wrong.extend(["--schema", "https://cem.dev/ns/query/cem-ql/1"]);
+        let (outcome, _, stderr) = run(&engine, &wrong);
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE);
+        assert!(
+            stderr.contains("cem.ql.query_identity_unsupported"),
+            "{stderr}"
+        );
+        std::fs::write(&p, "\"🍒\" +").unwrap();
+        let (outcome, _, stderr) = run(&engine, &base);
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE);
+        assert!(stderr.contains("cem.ql.parse_error"), "{stderr}");
+        assert!(!stderr.contains("module_uri_missing"));
+        std::fs::write(&p, "\"🍒\"").unwrap();
+        let (outcome, stdout, stderr) = run(&engine, &base);
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.contains("🍒"));
     }
 
     #[test]

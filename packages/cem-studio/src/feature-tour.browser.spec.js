@@ -129,6 +129,35 @@ describe('CEM Studio Feature Tour copies', () => {
         }
     }, 60_000);
 
+    it('formats native standalone expressions with their own identity and original failure coordinates', async () => {
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        const uri = 'studio://format-copy/queries/expression.cemql';
+        const contentType = 'application/vnd.cem.query-expression+cem-ql';
+        const schema = 'https://cem.dev/ns/query/cem-ql/1#expression';
+        const format = (source, withSchema = true) => validator.runResourceCommand({
+            bytes: new TextEncoder().encode(source), uri, contentType, schema: withSchema ? schema : undefined,
+            projectId: 'format-copy', projectRootUri: 'studio://format-copy/',
+            argv: ['convert', uri, '--content-type', contentType, ...(withSchema ? ['--schema', schema] : []),
+                '--to-content-type', contentType, '--to-schema', schema,
+                '--cemt-formatter-profile', 'tabular', '--cemt-formatter-option', 'lineEnding=lf',
+                '--output-color-type', 'none'],
+        });
+        const source = '// café\r\nunknownFunction("🍒")\r\n';
+        const formatted = await format(source);
+        expect(formatted.result.exitCode).toBe(0);
+        expect(formatted.output.contentType).toBe(contentType);
+        expect(formatted.output.text).toBe(source.replaceAll('\r\n', '\n'));
+        expect((await format(source, false)).output.text).toBe(formatted.output.text);
+        expect((await format(formatted.output.text)).output.text).toBe(formatted.output.text);
+        await expect(format('"🍒" +')).rejects.toMatchObject({ result: {
+            diagnostics: { items: expect.arrayContaining([
+                expect.objectContaining({ code: 'cem.ql.parse_error', uri, byteOffset: 8, line: 1, column: 7 }),
+            ]) },
+        } });
+        expect((await format('"🍒"')).result.exitCode).toBe(0);
+        await expect(format('module "urn:wrong" 1')).rejects.toMatchObject({ result: { exitCode: 1 } });
+    }, 60_000);
+
     it('parses and inspects native Login query sources without evaluating or wrapping expressions', async () => {
         const validator = await createCemStudioBrowserValidator(); validators.push(validator);
         const uri = 'studio://inspection-copy/queries/semantics.cemql';
