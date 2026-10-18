@@ -1472,6 +1472,8 @@ describe('Project-owned workbench loading', () => {
         await workbench.navigateProvenance(0);
         expect(workbench.snapshot().navigationError.message).toContain('stale');
         expect(session.snapshot().selection.resourceId).toBe('source');
+        // Finish the save-triggered navigation read before closing this fixture's database.
+        await workbench.refreshNavigation();
     });
 
     it('preserves a native zero-length source location as an editor caret at EOF', async () => {

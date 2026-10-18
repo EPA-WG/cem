@@ -72,6 +72,11 @@ or ancestor scope disposal invalidate older asynchronous work. Reconnect reads c
 Portable artifacts belong to durable slice state; temporary WASM decode handles
 are released after each render, and storage I/O retains no WASM handles.
 
+Payload snapshot slot and attribute indexes preserve encounter order and own their
+arrays per snapshot. Building a group appends each entry once; it must not copy
+the growing group for every node. Authored names such as `constructor` and
+`__proto__` are ordinary own keys, including after structured-clone transport.
+
 ## First connection and payload capture
 
 When no direct marked island exists, the instance is in first-connection mode.

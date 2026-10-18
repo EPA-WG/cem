@@ -2805,8 +2805,13 @@ not execute the source as a form. A packaged standalone-expression evaluation
 example remains a presentation gap. Physical device acceptance remains behind
 presentation functionality.
 
-The 2.7.0 source-color checks pass, but the full release gate is currently blocked
-by V8 JavaScript OOM during the Login live-view workflow in long automated sessions
-with Chromium headless shell and full Chrome for Testing 148.0.7778.96. The cause
-is unresolved; source-color verification does not imply complete release or
-presentation readiness. Track the repair in [the active todo](todo.md).
+The long-session Login live-view regression now passes in Chromium 148.0.7778.96,
+including input/action, saved-source and dependency replacement, offline reopening
+and independent project copies. Shared `cem-elements` payload indexes append to
+fresh arrays instead of copying each growing group. A controlled ten-snapshot,
+4,096-item benchmark reduced sampled cumulative index allocations from 3.38 GB to
+6.48 MB; this is not a retained-heap measurement. The original fatal allocation
+stack was not captured, so this does not establish the cause of every historical
+OOM. The full 52-task Studio release gate passes, including all 134 Studio browser
+cases, 18 shared preview/index cases and 32 native/deployed examples. Remaining
+presentation work is tracked in [the active todo](todo.md).

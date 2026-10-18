@@ -116,10 +116,19 @@ Focused deployed export checks also pass: exact downloaded HTML bytes/MIME,
 sandboxed source text and blocked styles, saved/unsaved edits, offline reload and
 independent customized/fresh copies. These checks stop before the live-view workflow.
 
-The full release gate remains blocked: Chromium headless shell and full Chrome
-for Testing 148.0.7778.96 both reported V8 JavaScript OOM during the Login live-view
-workflow. The cause is unresolved. Focused export verification does not establish
-full presentation readiness; investigate this before completing rehearsal. The
+The initial full release runs hit V8 JavaScript OOM during Login live view in
+Chromium headless shell and full Chrome for Testing 148.0.7778.96. The subsequent
+shared-runtime repair removes quadratic array copying in payload indexes. The
+complete deployed workspace lifecycle now passes, including live-view interaction,
+saved replacement, offline reopening and independent project copies. A controlled
+4,096-item/ten-snapshot benchmark reduced cumulative sampled index allocations
+from 3.38 GB to 6.48 MB. The original fatal allocation stack was not captured;
+this does not establish the cause of every historical crash. All 52 Studio release
+tasks now pass, including 134 Studio browser cases, 18 shared preview/index cases,
+32 native/deployed examples and the clean seven-package consumer. Deterministic
+output remains 268 files / 175 assets, with SHA-256
+`e50745fcd26231e031df5e3ca927338930bbc8bfdd10410b1a49c420fde1a4b5`.
+Outstanding presentation examples remain in the active TODO. The
 source preview fixture verifies blocked styles against exact exported style hashes,
 including restored projections, while rejecting other console errors. It reads the
 actual sandboxed preview instead of creating extra styled documents under Studio's

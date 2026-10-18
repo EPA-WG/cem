@@ -732,18 +732,61 @@ Next presentation functionality:
   - Focused deployed verification also passes: exact HTML download bytes/MIME,
     source text in the actual sandbox, expected style blocking, saved/unsaved
     edits, offline reload and independent customized/fresh Login copies. These
-    isolated checks stop before the unresolved live-view workflow below.
-  - Release limit: the full 52-task gate is **not green**. Both Chromium headless
+    isolated checks stopped before the live-view regression repaired below.
+  - Initial release result, before the following shared-runtime repair: the full
+    52-task gate was **not green**. Both Chromium headless
     shell and full Chrome for Testing 148.0.7778.96 reported V8 JavaScript OOM
     (`CALL_AND_RETRY_LAST`) during the Login live-view workflow. The host had ample
     available memory. This does not establish the cause or prove it is the same
     fault as the earlier dedicated-worker crashes. No assertions or browser
     protections were weakened; generated screenshots/attachments remain excluded.
-- [ ] Diagnose and repair the Login live-view OOM in long Studio sessions, then
+- [x] Diagnose and repair the Login live-view OOM in long Studio sessions, then
   pass `verify:workspace-delivery` and the full Studio release gate. Keep fixes in
   the appropriate shared engine/runtime and preserve declarative Studio UI.
-  This blocks complete presentation rehearsal; do not call the release gate green
-  on the strength of the focused source-color checks.
+  The long-session regression and complete release gate now pass; focused
+  source-color checks alone were not used to close this blocker.
+  - [x] Profile long sessions and isolate excessive allocation in shared snapshot
+    indexing; distinguish cumulative allocations from retained memory.
+  - [x] Add large-payload index fixtures for ordering, independent snapshots and
+    authored property names; remove quadratic array copying in the shared runtime.
+  - [x] Verify repeated Login preview replacement and disposal; include the existing
+    live-preview capability in the exact shared capability inventory fixture.
+  - [x] Settle save-triggered navigation in the stale-provenance fixture before
+    IndexedDB teardown, then rerun the Studio browser gate.
+  - [x] Rerun the complete workspace lifecycle and Studio release gate; record
+    the result without weakening browser protections or assertions.
+  - Allocation evidence (2026-10-18): Chromium sampling identified about 6 GiB of
+    cumulative `payloadElementsByAttribute` allocation across four workspace
+    interactions. It copied each growing attribute group on every append. Shared
+    slot/attribute indexes now append to fresh per-snapshot arrays and use own-key
+    records, including authored `constructor`/`__proto__` names.
+  - Controlled before/after fixture: ten snapshots of 4,096 inert items, Chromium
+    148.0.7778.96, 32 KiB allocation sampling including collected objects. Index
+    allocations fell from 3,382,929,504 to 6,480,612 bytes; total sampled allocation
+    fell from 4,449,726,044 to 236,840,984 bytes. Elapsed time was 1,162 ms versus
+    476 ms. These are sampled cumulative allocations, not retained heap sizes or
+    a portable timing budget.
+  - Eight saved-source replacements and six unchanged reruns passed in focused
+    deployed diagnostics; replaced preview workers closed. The original fatal
+    allocation site was not captured, so the profile alone does not prove the
+    cause of every historical crash.
+  - Shared-component audit: the repair is in `cem-elements`; Studio stays
+    declarative. Snapshot ordering/independence and the existing transport shape
+    are preserved. No UI capability, styling, palette default or browser-policy
+    change is introduced. Both new browser fixtures, all 610 shared unit cases,
+    typechecking and all 18 shared live-preview browser cases pass.
+  - Release evidence: the full Studio `check` passes all 52 tasks, including all
+    134 Studio browser cases, 18 shared preview/index cases, 32 native/deployed
+    examples, deterministic packaging, online/offline workers and the clean
+    seven-package consumer. The long deployed workspace lifecycle passes Login
+    input/action, unsaved/saved replacement, dependency changes, offline reopening,
+    independent copies, theme isolation and automated accessibility checks without
+    OOM. The stale-provenance fixture awaits its final navigation read before
+    closing IndexedDB; no production Studio JavaScript was changed.
+    Deterministic output: 268 files / 175 declared assets, SHA-256
+    `e50745fcd26231e031df5e3ca927338930bbc8bfdd10410b1a49c420fde1a4b5`.
+    Generated screenshots and Vitest attachments remain excluded. Physical-device
+    and spoken-AT acceptance remain open behind presentation functionality.
 - [ ] Package a standalone Login expression resource with evaluation and formatting
   configurations, source-inspection guidance and saved-edit/offline fixtures.
 - [ ] After the core Login walkthrough, add the planned supplier-pipeline

@@ -9485,7 +9485,7 @@ function dataDocumentFromSnapshot(snapshot: DataIslandSnapshot): Record<string, 
 }
 
 function dataDocumentElementsByAttribute(snapshot: DataIslandSnapshot): Record<string, SerializedPayloadElement[]> {
-    const byAttribute: Record<string, SerializedPayloadElement[]> = {};
+    const byAttribute: Record<string, SerializedPayloadElement[]> = Object.create(null);
     for (const [name, elements] of Object.entries(snapshot.payload.elementsByAttribute)) {
         byAttribute[name] = [...elements];
     }
@@ -9502,7 +9502,7 @@ function dataDocumentElementsByAttribute(snapshot: DataIslandSnapshot): Record<s
         slot: '',
     };
     for (const name of Object.keys(hostElement.attributes)) {
-        byAttribute[name] = [...(byAttribute[name] ?? []), hostElement];
+        (byAttribute[name] ??= []).push(hostElement);
     }
     return byAttribute;
 }
@@ -10607,13 +10607,13 @@ function serializePayloadNodes(source: NodeListOf<ChildNode> | Node[], includeSt
     const nodes = sourceNodes
         .map((node, index) => serializePayloadNode(node, String(index), includeStyles, new Map()))
         .filter((node): node is SerializedPayloadNode => node !== undefined);
-    const slots: Record<string, SerializedPayloadNode[]> = {};
+    const slots: Record<string, SerializedPayloadNode[]> = Object.create(null);
     for (const node of nodes) {
         const slot = payloadSlotName(node);
         if (slot === null) {
             continue;
         }
-        slots[slot] = [...(slots[slot] ?? []), node];
+        (slots[slot] ??= []).push(node);
     }
     const data = collectPayloadChoices(nodes, 'data');
     const options = collectPayloadChoices(nodes, 'option');
@@ -10763,10 +10763,12 @@ function choicesByValue(choices: readonly SerializedPayloadChoice[]): Record<str
 function payloadElementsByAttribute(
     nodes: readonly SerializedPayloadNode[],
 ): Record<string, SerializedPayloadElement[]> {
-    const byAttribute: Record<string, SerializedPayloadElement[]> = {};
+    const byAttribute: Record<string, SerializedPayloadElement[]> = Object.create(null);
     for (const element of collectPayloadElements(nodes)) {
         for (const name of Object.keys(element.attributes)) {
-            byAttribute[name] = [...(byAttribute[name] ?? []), element];
+            // Append to the fresh index: copying the growing group for every
+            // element makes large payload/hydration snapshots allocate quadratically.
+            (byAttribute[name] ??= []).push(element);
         }
     }
     return byAttribute;
