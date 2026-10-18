@@ -317,7 +317,7 @@ fn retained_owner_runner_keeps_cancellation_budgets_and_language_admission() {
             CSS_SELECTOR_CONTENT_TYPE,
             "cem.css_selector.input_unsupported",
         ),
-        (XPATH_CONTENT_TYPE, "cem.xpath.query_input_unsupported"),
+        (XPATH_CONTENT_TYPE, "cem.xpath.namespace_unready"),
     ] {
         let mut other_language = request("*");
         other_language.query.identity = FormatIdentity {
@@ -802,13 +802,28 @@ fn property_activation_retries_keep_readiness_crossings_and_budgets_before_query
         Err(NamespacePropertyActivationError::PropertyNotReady(_))
     ));
     let ready = host
+        .prepare_namespace_property(original.clone(), policy.limits)
+        .unwrap();
+    assert!(ready.is_ready());
+    assert_eq!(ready.preparation.as_ref().unwrap().selection.work_used, 3);
+    // A changed producing context expires the preparation. It must not be
+    // admitted merely because its earlier value was ready.
+    host.set_context(origin, None);
+    assert!(matches!(
+        host.activate_namespace_properties(
+            input.captured.clone(),
+            &roots,
+            &[ready],
+            |_, _, _, _| panic!("stale input")
+        ),
+        Err(NamespacePropertyActivationError::StaleProperty(_))
+    ));
+    host.set_context(origin, Some(binding(&vendor, link)));
+    let ready = host
         .prepare_namespace_property(original, policy.limits)
         .unwrap();
     assert!(ready.is_ready());
     assert_eq!(ready.preparation.as_ref().unwrap().selection.work_used, 3);
-    // Activation consumes exactly this result. It does not traverse the chain
-    // again; current source inputs can be unavailable after explicit preparation.
-    host.set_context(origin, None);
     let activation = host
         .activate_namespace_properties(
             input.captured.clone(),
@@ -930,4 +945,62 @@ fn coordinated_pending_ingress_exposes_only_independent_ready_regions() {
     assert!(!snapshot.is_complete());
     assert_eq!(items(&response), strings(&["outside"]));
     assert!(!snapshot.completion.contains(element(&input, "item")));
+}
+
+#[test]
+fn ready_name_loading_is_explicit_and_preserves_original_native_owner() {
+    let input = import("@ns p = urn:ready\n{p:root @p:id=empty | {p:child}}");
+    let before = format!("{:?}", input.tree.ast().nodes);
+    let expression = "(seq:where(input.descendants, fn(node) => node.kind == \"element\" && node.name == \"root\").namespace, seq:where(input.descendants, fn(node) => node.kind == \"element\" && node.name == \"root\").source.namespace, seq:where(input.descendants, fn(node) => node.kind == \"element\" && node.name == \"root\"))";
+    let source_owner = || QuerySourceOwner::Cem {
+        source: input.tree.clone(),
+        lexical_scopes: Some(input.captured.clone()),
+    };
+    let prepared =
+        cem_ml::query::run_query_with_ready_names(request(expression), Some(source_owner()))
+            .unwrap();
+    assert_eq!(&items(&prepared)[..2], strings(&["urn:ready", "p"]));
+    let node = retained_cem_node(&items(&prepared)[2]).unwrap();
+    assert!(Arc::ptr_eq(node.owner(), &input.tree));
+    assert_eq!(node.node_id(), element(&input, "root"));
+    assert!(!items(&prepared)[2].source_map().unwrap().frames.is_empty());
+    assert_eq!(format!("{:?}", input.tree.ast().nodes), before);
+    let ordinary = run_query_with_source_owner(
+        request("seq:where(input.descendants, fn(node) => node.kind == \"element\" && node.name == \"root\").namespace"),
+        source_owner(),
+    )
+    .unwrap();
+    assert_eq!(items(&ordinary), strings(&["p"]));
+}
+
+#[test]
+fn ready_name_loading_rejects_pending_and_foreign_capture_without_execution() {
+    let pending = import("{host @xmlns:p={#library} | {p:item}} ");
+    let foreign = import("@ns p = urn:other\n{p:item}");
+    for (source, capture) in [(&pending, &pending.captured), (&pending, &foreign.captured)] {
+        let before = format!("{:?}", source.tree.ast().nodes);
+        let error = cem_ml::query::run_query_with_ready_names(
+            request("input"),
+            Some(QuerySourceOwner::Cem {
+                source: source.tree.clone(),
+                lexical_scopes: Some(capture.clone()),
+            }),
+        )
+        .unwrap_err();
+        let QueryRunError::Execution(error) = error else {
+            panic!("execution rejection")
+        };
+        assert!(error
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "cem.query.namespace_unready"));
+        assert_eq!(format!("{:?}", source.tree.ast().nodes), before);
+        assert!(source.tree.ast().nodes.iter().all(|node| !matches!(
+            node,
+            CemAstNode::Reference {
+                targets: Some(_),
+                ..
+            }
+        )));
+    }
 }

@@ -1,0 +1,70 @@
+module "https://cem.dev/examples/projects/login/queries/semantics"
+
+declare let html = "http://www.w3.org/1999/xhtml"
+declare let core = "https://cem.dev/ns/core/1"
+
+declare function local:elements(nodes, name) {
+    seq:where(nodes, fn(node) =>
+        node.kind == "element" && node.namespace == html && node.name == name)
+}
+
+declare function local:children(node, name) {
+    local:elements(dom:children(node), name)
+}
+
+declare function local:attributes(node, name) {
+    seq:where(node.attributes, fn(attribute) =>
+        attribute.name == name && (attribute.namespace == "" || attribute.namespace == html))
+}
+
+declare function local:annotation(node, name) {
+    seq:first((
+        dom:attribute(node, {namespace: core, name: name}),
+        dom:attribute(node, str:concat(("data-cem-", name)))
+    ))
+}
+
+declare function local:text(node) {
+    str:normalize_space(dom:text(node), "xml")
+}
+
+declare function local:label(form, node) {
+    local:text(seq:where(local:children(form, "label"), fn(candidate) =>
+        dom:text(local:attributes(candidate, "for")) == dom:text(local:attributes(node, "id"))))
+}
+
+declare function local:field(name, value) {
+    str:concat((name, "=", value))
+}
+
+{
+    let main = seq:first(local:elements(dom:descendants(input), "main"));
+    let form = seq:first(local:children(main, "form"));
+    let inputs = local:children(form, "input");
+    let email = seq:first(seq:where(inputs, fn(node) => dom:text(local:attributes(node, "name")) == "email"));
+    let password = seq:first(seq:where(inputs, fn(node) => dom:text(local:attributes(node, "name")) == "password"));
+    let submit = seq:first(local:children(form, "button"));
+    (
+        local:field("screen", dom:text(local:annotation(main, "screen"))),
+        local:field("title-id", dom:text(local:attributes(local:children(main, "h1"), "id"))),
+        local:field("title", local:text(local:children(main, "h1"))),
+        local:field("labelled-by", dom:text(local:attributes(main, "aria-labelledby"))),
+        local:field("form", dom:text(local:annotation(form, "form"))),
+        local:field("method", dom:text(local:attributes(form, "method"))),
+        local:field("action", dom:text(local:attributes(form, "action"))),
+        local:field("email-id", dom:text(local:attributes(email, "id"))),
+        local:field("email-type", dom:text(local:attributes(email, "type"))),
+        local:field("email-autocomplete", dom:text(local:attributes(email, "autocomplete"))),
+        local:field("email-required", seq:count(local:attributes(email, "required")) > 0),
+        local:field("email-label", local:label(form, email)),
+        local:field("password-id", dom:text(local:attributes(password, "id"))),
+        local:field("password-type", dom:text(local:attributes(password, "type"))),
+        local:field("password-autocomplete", dom:text(local:attributes(password, "autocomplete"))),
+        local:field("password-required", seq:count(local:attributes(password, "required")) > 0),
+        local:field("password-label", local:label(form, password)),
+        local:field("submit-type", dom:text(local:attributes(submit, "type"))),
+        local:field("submit-action", dom:text(local:annotation(submit, "action"))),
+        local:field("submit-text", local:text(submit)),
+        local:field("inputs", seq:count(inputs))
+    )
+}

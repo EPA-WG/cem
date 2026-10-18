@@ -48,10 +48,19 @@ use crate::validation::css_selector::register_css_selector_query_exporters;
 use crate::validation::xpath::register_xpath_query_exporters;
 
 thread_local! {
+    static COMMAND_RUNTIME_FACTORY: std::cell::Cell<Option<fn() -> (EngineContext, QueryResultExporterRegistry)>> = const { std::cell::Cell::new(None) };
     static COMMAND_SERVICE_OPERATIONS: CommandServiceOperationRegistryV1 =
         CommandServiceOperationRegistryV1::default();
     static COMMAND_SERVICE_ARTIFACTS: CommandServiceArtifactRegistryV1 =
         CommandServiceArtifactRegistryV1::default();
+}
+
+/// Native composition hook for the one linked runtime, installed at WASM start.
+/// No JavaScript callback or serialized document can supply an engine adapter.
+pub fn register_command_runtime_factory(
+    factory: fn() -> (EngineContext, QueryResultExporterRegistry),
+) {
+    COMMAND_RUNTIME_FACTORY.with(|slot| slot.set(Some(factory)));
 }
 
 /// Execute one command-service v1 request against JavaScript-owned async host
@@ -177,12 +186,16 @@ async fn execute_command_service(
     progress_callback: Option<Function>,
     host_configuration_json: Option<&str>,
 ) -> Result<CommandServiceResultV1, WasmCommandServiceError> {
-    let host_configuration = crate::command_host_config::decode_command_host_configuration_v1(
-        host_configuration_json,
-    ).map_err(|error| WasmCommandServiceError::new(
-        "cem.command.host_configuration_invalid", error,
-    ))?;
-    let mut context = EngineContext::default();
+    let host_configuration =
+        crate::command_host_config::decode_command_host_configuration_v1(host_configuration_json)
+            .map_err(|error| {
+            WasmCommandServiceError::new("cem.command.host_configuration_invalid", error)
+        })?;
+    let (mut context, mut query_exporters) =
+        COMMAND_RUNTIME_FACTORY.with(|slot| match slot.get() {
+            Some(factory) => factory(),
+            None => (EngineContext::default(), QueryResultExporterRegistry::new()),
+        });
     host_configuration.apply_to_context(&mut context);
     let request = decode_command_service_request_v1(request_json.as_bytes())
         .map_err(|error| WasmCommandServiceError::new(error.code(), error.to_string()))?;
@@ -197,7 +210,6 @@ async fn execute_command_service(
     let capability = capability_manifest(capability_request)
         .map_err(|error| WasmCommandServiceError::new(error.code, error.message))?;
     let limits = CommandServiceLimitsV1::default();
-    let mut query_exporters = QueryResultExporterRegistry::new();
     register_css_selector_query_exporters(&mut query_exporters);
     register_xpath_query_exporters(&mut query_exporters);
     let host = CommandServiceHostV1::new(
@@ -220,7 +232,13 @@ async fn execute_command_service(
         capability.clone(),
     )
     .map_err(host_error)?;
-    let control = OperationControl::default();
+    let control = OperationControl::with_root_policy(
+        crate::scheduler::AbortSignal::new(),
+        host_configuration.root_policy(),
+    )
+    .map_err(|error| {
+        WasmCommandServiceError::new("cem.command.host_configuration_invalid", error.to_string())
+    })?;
     let registration = COMMAND_SERVICE_OPERATIONS
         .with(|registry| registry.register(&request.request_id, control.clone()))
         .map_err(registry_error)?;

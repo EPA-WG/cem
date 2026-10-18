@@ -350,13 +350,71 @@ excluded from Git.
     Studio UI JavaScript capability, app CSS, token default or serialized AST
     bridge is introduced. Stable resource/configuration IDs remain intact and
     existing project copies retain their saved contents.
-- [ ] Add native fixtures for equivalent XPath/CEM-QL queries, then add their
+- [x] Add native fixtures for equivalent XPath/CEM-QL queries, then add their
   Login project resources/configurations and browser/offline evidence.
+  - [x] Add native Login fixtures comparing complete XPath/CEM-QL field values
+    for both canonical inputs and meaningful saved source edits; verify retained
+    source ownership/ranges and distinguish empty from absent attributes.
+  - [x] Add failing native API/CLI fixtures for explicit ready-name admission:
+    preserve ordinary authored views and source owners, reject pending/foreign
+    namespace capture without evaluation, and preserve reference reload export.
+  - [x] Expose that opt-in through shared native query orchestration and the CLI;
+    reuse same-owner namespace completion, keeping global defaults unchanged.
+  - [x] Add failing native query-budget fixtures and apply authored bounded
+    scope policy through shared orchestration, retaining default limits and
+    invalid-budget diagnostics rather than raising global limits.
+  - [x] Add native validation fixtures for the query module's implicit `input`
+    host binding; make valid editable query resources validate while preserving
+    rejection of unknown variables and ordinary library-module behavior.
+  - [x] Author and natively format the equivalent CEM-QL resource(s), preserving
+    explicit namespace/mirror mappings and inert native source semantics.
+  - [x] Add ordinary Login resources/configurations using the existing workspace
+    and expected contract; keep stable IDs and existing project copies intact.
+  - [x] Add native portable-command fixtures for ready-name lowering and query
+    source validation, and trusted-host ceiling fixtures proving commands cannot
+    raise inherited limits. Compose the existing CEM-QL adapter into the single
+    common WASM runtime; keep runtime registration and host authority native.
+  - [x] Align namespace-ingress fixtures with full-owner XPath admission and
+    stale-input rejection; prove explicit re-preparation restores readiness.
+  - [x] Add browser-worker and deployed offline fixtures for both languages,
+    saved/unsaved input and query-module edits, and independent copies; update
+    docs/handoff, run gates, audit shared components, then commit/push without
+    generated attachments.
+  - Native evidence: 116 selected tests pass: 5 Login CLI fixtures, 19 common
+    query CLI regressions, 7 module-query/source-validation/host-ceiling fixtures,
+    11 namespace-ingress fixtures, 53 native command/protocol cases and 21
+    import/typed-tree regressions. Both languages match all 21 values across
+    canonical sources, heading/method edits, empty/absent `required` and renamed
+    namespace prefixes. Source owners/maps and reload exports remain intact;
+    pending/foreign capture, stale preparations and host-limit escalation reject.
+  - Delivery evidence (2026-10-17): the 51-task Studio check gate passes,
+    including all 117 browser cases, lint/typecheck, 32 packaged schema examples,
+    online/offline worker execution and a clean consumer with one runtime copy.
+    Deployed offline checks edit, validate, rerun, reload and restore the query
+    module; both source formats and independent copies retain exact results.
+    Two clean builds match across 264 files with aggregate SHA-256
+    `168729654d457b267a8ddf91fd41ee377ab7ce431a94ba5235c8305849e76864`.
+    Debug-control and stripped common-runtime builds pass initialization,
+    rendering and debug-capability assertions. Theme inheritance, container
+    overrides, forced colors and offline shell reload pass. Generated
+    screenshots and Vitest attachments remain excluded from Git.
+  - CEM audit: ordinary project resources/configurations reuse the existing
+    declarative workspace, editor, diagnostics and Results controls. No new UI
+    JavaScript capability, app CSS or token defaults are introduced. The only
+    Studio host change supplies an explicit bounded worker ceiling. Ready names,
+    query validation, command lowering and runtime composition remain native
+    shared capabilities over retained source owners, without a serialized AST
+    bridge. Stable IDs and saved project copies remain intact. Generic query
+    source Parse/Inspect and standalone-expression formatting remain explicit
+    limits, scheduled after the remaining presentation functionality.
 - [ ] Add native fixtures for template output, then add its Login project
   resources/configurations and browser/offline evidence.
 - [ ] Implement the live light-DOM `cem-element` login view and add browser
   evidence that a saved edit visibly changes it. Keep Studio UI declarative;
   add any missing reusable control/capability to the shared packages first.
+- [ ] After the remaining presentation functionality, add native CEM-QL source
+  Parse/Inspect and standalone-expression formatter adapters. Keep unsupported
+  identities explicit instead of falling back to CEM-ML or inventing wrappers.
 - [x] Make the initial presentation sample set available through Studio's existing sample
   catalog, with read-only originals and independently editable project copies.
   Reuse canonical sources, native command/configuration semantics and stable

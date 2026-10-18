@@ -387,7 +387,17 @@ pub fn query_execution_limits(
 }
 
 pub fn run_query(request: QueryRunRequest) -> Result<QueryRunResponse, QueryRunError> {
-    run_query_impl(request, None)
+    run_query_impl(request, None, false)
+}
+
+/// Explicitly consume ready literal namespace capture over the original owner.
+/// No namespace value is evaluated and no runtime inputs or crossings are added.
+/// Imported lifecycle inputs already carry names; supplied owners are not reloaded.
+pub fn run_query_with_ready_names(
+    request: QueryRunRequest,
+    source_owner: Option<QuerySourceOwner>,
+) -> Result<QueryRunResponse, QueryRunError> {
+    run_query_impl(request, source_owner, true)
 }
 
 /// Execute using an already-retained native owner supplied by a consumer stage.
@@ -400,12 +410,13 @@ pub fn run_query_with_source_owner(
     request: QueryRunRequest,
     source_owner: QuerySourceOwner,
 ) -> Result<QueryRunResponse, QueryRunError> {
-    run_query_impl(request, Some(source_owner))
+    run_query_impl(request, Some(source_owner), false)
 }
 
 fn run_query_impl(
     request: QueryRunRequest,
     supplied_owner: Option<QuerySourceOwner>,
+    ready_names: bool,
 ) -> Result<QueryRunResponse, QueryRunError> {
     let language =
         select_query_language(&request.query.identity).map_err(QueryRunError::Contract)?;
@@ -432,15 +443,19 @@ fn run_query_impl(
         .unwrap_or_else(|| query_execution_limits(language, &request.data.root_scope))
         .map_err(QueryRunError::Contract)?;
     let resolver_policy_stamp = request.context.resolver_policy.cache_stamp();
-    let scope_policy = query_scope_policy(&request.context);
+    let (scope_policy, mut diagnostics) = query_scope_policy(
+        &request.context,
+        &request.data.root_scope,
+        language,
+        &request.data.uri,
+    );
     let safety_policy_stamp = query_safety_policy_stamp(limits);
 
-    let mut diagnostics = Vec::new();
     let source_owner = if let Some(owner) = supplied_owner {
         owner
     } else {
         let mut loaded = crate::real::load_document_input(&request.data, &request.context);
-        diagnostics = loaded.diagnostics;
+        diagnostics.extend(loaded.diagnostics);
         if has_hard_violation(&diagnostics) {
             return Err(execution_failure(language, inputs, diagnostics));
         }
@@ -484,6 +499,32 @@ fn run_query_impl(
             ));
             return Err(execution_failure(language, inputs, diagnostics));
         };
+        source_owner
+    };
+
+    let source_owner = if ready_names {
+        match source_owner {
+            QuerySourceOwner::Cem { source, lexical_scopes } => {
+                let completed = lexical_scopes.ok_or_else(|| "original namespace capture is unavailable".to_owned())
+                    .and_then(|captured| {
+                        if !Arc::ptr_eq(source.ast_owner(), captured.document()) {
+                            return Err("namespace capture belongs to another source owner".into());
+                        }
+                        crate::schema::namespace_references::NamespaceNameCompletion::new(
+                            captured, &[0], BTreeMap::new(),
+                        ).map(Arc::new).map_err(|error| format!("namespace names are not ready: {error:?}"))
+                    });
+                match completed {
+                    Ok(completion) => QuerySourceOwner::NamespaceCompleted { source, completion },
+                    Err(message) => {
+                        diagnostics.push(fatal_diagnostic(&request.data.uri, "cem.query.namespace_unready", message));
+                        return Err(execution_failure(language, inputs, diagnostics));
+                    }
+                }
+            }
+            owner => owner,
+        }
+    } else {
         source_owner
     };
 
@@ -593,12 +634,28 @@ fn query_budget_value(
     Ok(selected)
 }
 
-fn query_scope_policy(context: &EngineContext) -> ScopePolicy {
-    let mut policy = ScopePolicy::host_root();
-    if let Some(max_parallel_documents) = context.scheduler.max_parallel_documents {
-        policy.cpu_workers = policy.cpu_workers.min(max_parallel_documents.max(1));
-    }
-    policy
+pub fn query_scope_policy(
+    context: &EngineContext,
+    scope: &ScopeConfig,
+    language: QueryLanguage,
+    uri: &str,
+) -> (ScopePolicy, Vec<Diagnostic>) {
+    let mut scheduling = scope.clone();
+    // These budgets are enforced by query_execution_limits, not the scheduler.
+    scheduling.budgets.retain(|name, _| {
+        let key = name
+            .chars()
+            .filter(|character| *character != '-' && *character != '_')
+            .collect::<String>()
+            .to_ascii_lowercase();
+        !matches!(key.as_str(), "queryitems" | "querywork")
+            && !(language == QueryLanguage::XPath
+                && matches!(
+                    key.as_str(),
+                    "xpathitems" | "xpathtextbytes" | "xpathworkunits"
+                ))
+    });
+    crate::real::scheduler_policy_for_scope(context, uri, &scheduling, "query")
 }
 
 fn query_safety_policy_stamp(limits: QueryExecutionLimits) -> String {

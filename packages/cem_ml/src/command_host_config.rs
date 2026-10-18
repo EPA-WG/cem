@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 pub struct CommandHostConfigurationV1 {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub root_queue_size: Option<u32>,
     #[serde(default)]
     pub schema_package_replacement_grants: Vec<CommandHostReplacementGrantV1>,
 }
@@ -64,10 +66,20 @@ pub fn decode_command_host_configuration_v1(
             );
         }
     }
+    if config.root_queue_size == Some(0) {
+        return Err("rootQueueSize must be greater than zero".into());
+    }
     Ok(config)
 }
 
 impl CommandHostConfigurationV1 {
+    pub fn root_policy(&self) -> crate::scheduler::ScopePolicy {
+        let policy = crate::scheduler::ScopePolicy::host_root();
+        match self.root_queue_size {
+            Some(size) => policy.with_queue_size(size),
+            None => policy,
+        }
+    }
     /// Preserve exact caller identities. The shared engine checks ownership;
     /// authority does not load a manifest or mutate another execution's context.
     pub fn apply_to_context(&self, context: &mut crate::engine::EngineContext) {

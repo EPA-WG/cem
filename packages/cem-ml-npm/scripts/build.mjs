@@ -49,7 +49,7 @@ if ('bin' in packageMetadata) {
 const cargoTree = capture('cargo', [
   'tree',
   '--package',
-  'cem-ml',
+  'cem-ml-transform-cem-ql',
   '--invert',
   'wasm-bindgen',
   '--target',
@@ -82,7 +82,7 @@ const cargoBuildArguments = [
   'build',
   '--locked',
   '--package',
-  'cem-ml',
+  'cem-ml-transform-cem-ql',
   '--lib',
   '--release',
   '--target',
@@ -95,7 +95,7 @@ run('cargo', cargoBuildArguments);
 
 const wasmInput = resolve(
   cargoTargetRoot,
-  'wasm32-unknown-unknown/release/cem_ml.wasm',
+  'wasm32-unknown-unknown/release/cem_ml_transform_cem_ql.wasm',
 );
 for (const [target, outputRoot] of [
   ['web', browserRoot],

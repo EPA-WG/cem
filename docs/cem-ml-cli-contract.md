@@ -815,6 +815,27 @@ and are never evaluated by ordinary query loading. Source names and bytes remain
 unchanged. Authored queries must state domain mappings such as HTML `data-cem-*`
 mirrors and CEM namespace annotations explicitly.
 
+`query --ready-names` explicitly consumes ready literal namespace capture for
+native CEM input through the existing same-owner completion view. Missing,
+pending or foreign capture fails with `cem.query.namespace_unready`; no value
+slots, references or crossings are evaluated or granted. Ordinary CEM-QL source
+loading retains authored names. Imported lifecycle inputs already carry names.
+Reference reload sources retain the same opt-in and original-source export.
+
+Query scope policy now consumes authored scheduling budgets through the shared
+scope-policy parser. `--scope-budget queueSize=N` bounds native navigation and
+remains subject to the operation host's ceiling. A standalone CLI invocation owns
+its root policy; an embedding-supplied control cannot be raised by command
+arguments. Query-specific work/result budgets retain their independent enforcement.
+The Login query module requests 1024 items explicitly; global defaults stay 64.
+
+The single common WASM runtime composes native CEM-QL query/export and source
+validation adapters. Executable query-module validation recognizes the host's
+`input` binding and preserves unknown-variable diagnostics. Unidentified library
+module validation does not acquire that binding. Generic CEM-QL source
+Parse/Inspect and standalone-expression formatting remain separate adapters;
+the Login project uses the supported executable module identity.
+
 Existing CEM-QL expression and XPath `transform` invocations remain compatibility
 surfaces. They retain their existing options and output behavior; `query` is the
 canonical interface when the operation returns a native query result rather

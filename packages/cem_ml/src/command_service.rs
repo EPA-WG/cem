@@ -243,6 +243,8 @@ pub enum PortableOperationRequestV1 {
     Query {
         data_input_id: String,
         query_uri: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        ready_names: Option<bool>,
         output: QueryExportFormat,
     },
     Transform {
@@ -1668,6 +1670,7 @@ mod tests {
             PortableOperationRequestV1::Query {
                 data_input_id: "input:0".to_owned(),
                 query_uri: QUERY_URI.to_owned(),
+                ready_names: None,
                 output: QueryExportFormat::Json,
             },
             PortableOperationRequestV1::Transform {

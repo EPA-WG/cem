@@ -163,6 +163,13 @@ const client = await createBrowserCommandServiceClient({
 });
 ```
 
+Trusted host setup also accepts optional `rootQueueSize` (a positive integer).
+It bounds the operation root; omission retains 64. An authored command budget can
+constrain that ceiling but cannot raise it. For a larger bounded query, the host
+can admit `rootQueueSize: 1024` and the command can request
+`--scope-budget queueSize=1024`. Studio uses that combination for the Login
+CEM-QL comparison. Request/config data does not supply host configuration.
+
 Configuration is snapshotted before worker startup. Later mutation of the
 caller's object, request fields and execute options cannot replace the snapshot.
 Each execution passes it separately to the Rust-owned host configuration decoder;

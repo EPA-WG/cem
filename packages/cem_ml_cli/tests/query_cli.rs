@@ -925,3 +925,86 @@ fn query_module_local_reference_projects_duplicate_native_target_metadata() {
     assert_eq!(fs::read_to_string(data).unwrap(), source);
     fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn ready_names_are_opt_in_and_preserve_source_reload_bundles() {
+    let (root, _) = query_data();
+    let data = root.join("names.cem");
+    let source = "@ns p = http://www.w3.org/1999/xhtml\n{p:main @p:id=one | {p:span}}";
+    fs::write(&data, source).unwrap();
+    let query = "seq:where(input.descendants, fn(node) => node.kind == \"element\" && node.name == \"main\").namespace";
+    let args = [
+        "--query",
+        query,
+        "--query-content-type",
+        CEM_QL_CONTENT_TYPE,
+        "--output",
+        "json",
+    ];
+    let ordinary = assert_success(&run_query_with_data_type(&data, "application/cem", &args));
+    assert_eq!(ordinary["result"]["items"][0]["value"], "p");
+    let bundle = root.join("names.reload");
+    let mut ready = args.to_vec();
+    ready.extend([
+        "--ready-names",
+        "--export-reload-bundle",
+        bundle.to_str().unwrap(),
+    ]);
+    let expanded = assert_success(&run_query_with_data_type(&data, "application/cem", &ready));
+    assert_eq!(
+        expanded["result"]["items"][0]["value"],
+        "http://www.w3.org/1999/xhtml"
+    );
+    let mut reload = args.to_vec();
+    reload.extend(["--reload-bundle", "--ready-names"]);
+    let reloaded = assert_success(&run_query(&bundle, &reload));
+    assert_eq!(reloaded["result"]["items"], expanded["result"]["items"]);
+    assert_eq!(fs::read_to_string(&data).unwrap(), source);
+    fs::write(&data, "{host @xmlns:p={#library} | {p:item}}").unwrap();
+    let report = root.join("pending.json");
+    let rejected = run_query_with_data_type(
+        &data,
+        "application/cem",
+        &[
+            "--query",
+            "input",
+            "--query-content-type",
+            CEM_QL_CONTENT_TYPE,
+            "--ready-names",
+            "--report-json",
+            report.to_str().unwrap(),
+        ],
+    );
+    assert!(!rejected.status.success());
+    let report: serde_json::Value = serde_json::from_slice(&fs::read(report).unwrap()).unwrap();
+    assert!(diagnostic_codes(&report).contains(&"cem.query.namespace_unready"));
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn query_honors_explicit_scope_navigation_budgets_without_changing_defaults() {
+    let (root, data) = query_data();
+    fs::write(&data, format!("<root>{}</root>", "<item/>".repeat(70))).unwrap();
+    let args = [
+        "--query",
+        "seq:count(dom:descendants(input))",
+        "--query-content-type",
+        CEM_QL_CONTENT_TYPE,
+        "--output",
+        "json",
+    ];
+    assert!(!run_query(&data, &args).status.success());
+    let mut bounded = args.to_vec();
+    bounded.extend(["--scope-budget", "queueSize=1024"]);
+    let allowed = assert_success(&run_query(&data, &bounded));
+    assert_eq!(allowed["result"]["items"][0]["value"], 71);
+    let mut small = args.to_vec();
+    small.extend(["--scope-budget", "queueSize=32"]);
+    assert!(!run_query(&data, &small).status.success());
+    let mut invalid = args.to_vec();
+    invalid.extend(["--scope-budget", "queueSize=oops"]);
+    let rejected = run_query(&data, &invalid);
+    assert!(!rejected.status.success());
+    assert!(String::from_utf8_lossy(&rejected.stderr).contains("cem.scope.budget_invalid"));
+    fs::remove_dir_all(root).unwrap();
+}

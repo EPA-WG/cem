@@ -38,6 +38,7 @@ export async function createCemStudioBrowserValidator() {
     const committedWrites = new Map();
     let nextWrite = 1;
     const client = await createBrowserCommandServiceClient({
+        hostConfiguration: { schemaPackageReplacementGrants: [], rootQueueSize: 1024 },
         host: {
             currentRevision: async ({ requestId }) => {
                 const ledger = ledgers.get(requestId);

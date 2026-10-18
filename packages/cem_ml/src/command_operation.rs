@@ -39,6 +39,7 @@ use crate::transform_graph_request::{
 #[derive(Debug, Clone)]
 pub struct PreparedCommandQueryV1 {
     pub request: QueryRunRequest,
+    pub ready_names: bool,
     pub output: QueryExportFormat,
 }
 
@@ -351,6 +352,7 @@ pub fn prepare_command_operation_v1(
         PortableOperationRequestV1::Query {
             data_input_id,
             query_uri,
+            ready_names,
             output,
         } => {
             let resource = inline_resource(request, query_uri)?;
@@ -361,6 +363,7 @@ pub fn prepare_command_operation_v1(
             })?;
             Ok(PreparedPortableOperationV1::Query(Box::new(
                 PreparedCommandQueryV1 {
+                    ready_names: ready_names.unwrap_or(false),
                     request: QueryRunRequest {
                         data: engine_input(request, plan, data_input_id)?,
                         query: QuerySource {
@@ -877,7 +880,10 @@ fn scope_budgets(scope: &NormalizedRootScope) -> BTreeMap<String, String> {
         ),
         ("queueSize".to_owned(), scope.policy.queue_size.to_string()),
         ("ioStreams".to_owned(), scope.policy.io_streams.to_string()),
-        ("controlInputBytes".to_owned(), scope.policy.control_input_bytes.to_string()),
+        (
+            "controlInputBytes".to_owned(),
+            scope.policy.control_input_bytes.to_string(),
+        ),
         (
             "memoryBytes".to_owned(),
             scope.policy.memory_bytes.to_string(),
@@ -1019,7 +1025,10 @@ mod tests {
                 identity: None,
             },
         );
-        assert_eq!(engine_input(&request, &plan, "input:0").unwrap().uri, "data.xml");
+        assert_eq!(
+            engine_input(&request, &plan, "input:0").unwrap().uri,
+            "data.xml"
+        );
     }
 
     fn capability() -> CapabilityManifest {
@@ -1197,6 +1206,7 @@ mod tests {
             PortableOperationRequestV1::Query {
                 data_input_id: "input:0".to_owned(),
                 query_uri: QUERY_URI.to_owned(),
+                ready_names: None,
                 output: QueryExportFormat::Json,
             },
             PortableOperationRequestV1::Transform {
@@ -1378,12 +1388,14 @@ mod tests {
         let query = prepare(&request(PortableOperationRequestV1::Query {
             data_input_id: "input:0".to_owned(),
             query_uri: QUERY_URI.to_owned(),
+            ready_names: Some(true),
             output: QueryExportFormat::Cem,
         }))
         .expect("query prepares");
         let PreparedPortableOperationV1::Query(query) = query else {
             panic!("query preparation variant")
         };
+        assert!(query.ready_names);
         assert_eq!(query.output, QueryExportFormat::Cem);
         assert_eq!(query.request.query.uri, QUERY_URI);
         assert_eq!(

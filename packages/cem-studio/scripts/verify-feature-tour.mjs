@@ -60,7 +60,7 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
         assert.deepEqual(record.collections, ['amsterdam-2026']);
         assert.equal(bundle.project.entries.length, definition.configurations.length);
         for (const source of definition.sources) assert.deepEqual(bundle.contents[source.id], new Uint8Array(await readFile(resolve(workspaceRoot, source.source))));
-        assert.equal(record.version, '2.1.0');
+        assert.equal(record.version, '2.2.0');
         const contract = JSON.parse(new TextDecoder().decode(bundle.contents['login-semantic-contract']));
         assert.equal(contract.length, 21);
         for (const id of ['semantics-html', 'semantics-cem']) {
@@ -70,6 +70,16 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
             assert.ok(configuration.resourceIds.includes('login-semantic-contract'));
             const command = JSON.parse(new TextDecoder().decode(bundle.contents[configuration.runConfigResourceId]));
             assert.ok(command.argv.includes('queries/semantics.xpath'));
+        }
+        for (const id of ['semantics-html-cemql', 'semantics-cem-cemql']) {
+            const configuration = bundle.project.entries.find(entry => entry.id === id);
+            assert.equal(configuration.kind, 'query');
+            assert.ok(configuration.resourceIds.includes('login-semantics-cemql'));
+            assert.ok(configuration.resourceIds.includes('login-semantic-contract'));
+            const command = JSON.parse(new TextDecoder().decode(bundle.contents[configuration.runConfigResourceId]));
+            assert.ok(command.argv.includes('queries/semantics.cemql'));
+            assert.ok(command.argv.includes('--ready-names'));
+            assert.ok(command.argv.includes('queueSize=1024'));
         }
         const repair = bundle.project.entries.find(entry => entry.id === 'validation-repair');
         assert.deepEqual(repair.resourceIds, ['login-invalid', 'command-validation-repair', 'login-schema-package', 'login-schema']);

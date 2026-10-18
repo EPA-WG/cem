@@ -27,7 +27,7 @@ use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack};
 mod runtime;
 
 pub use runtime::{
-    query_execution_limits, run_query, run_query_with_source_owner, select_query_language,
+    query_execution_limits, query_scope_policy, run_query, run_query_with_ready_names, run_query_with_source_owner, select_query_language,
     QueryOwnedBindings, QueryPreparationRequest, QueryPreparedOwners, QueryRunContractError, QueryRunError,
     QueryRunFailure, QueryRunRequest, QueryRunResponse, QueryRuntimeAdapter, QueryRuntimeRegistry,
     QuerySource, QuerySourceOwner,

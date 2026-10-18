@@ -7489,7 +7489,7 @@ fn query_failure(
 }
 
 pub fn run_query(args: cli::QueryArgs, s: &mut Streams<'_>) -> Outcome {
-    let engine_context = context_for_dispatch(&args.context, s);
+    let mut engine_context = context_for_dispatch(&args.context, s);
     let input_scope = input_scope_defaults(&args.context);
     let mut input = match engine_input(
         &engine_context,
@@ -7513,6 +7513,23 @@ pub fn run_query(args: cli::QueryArgs, s: &mut Streams<'_>) -> Outcome {
             return handle_cli_request_error(CliRequestError::Usage(error.to_string()), s)
         }
     };
+    // A standalone CLI invocation owns its root policy. An embedding-supplied
+    // operation control retains its ceiling and cannot be raised by arguments.
+    #[cfg(feature = "debug-control")]
+    let supplied_control = s.operation_control.is_some();
+    #[cfg(not(feature = "debug-control"))]
+    let supplied_control = false;
+    if !supplied_control {
+        let (policy, _) = cem_ml::query::query_scope_policy(
+            &engine_context, &input.root_scope, language, &input.uri,
+        );
+        match cem_ml::operation_control::OperationControl::with_root_policy(
+            engine_context.abort_signal().clone(), policy,
+        ) {
+            Ok(control) => engine_context = engine_context.with_operation_control(control),
+            Err(error) => return handle_engine_error(eng::EngineError::Internal(error.to_string()), s),
+        }
+    }
     let (query_uri, query_bytes) = if let Some(source) = args.query.as_deref() {
         (
             format!("memory:query.{}", language.as_str()),
@@ -7592,12 +7609,19 @@ pub fn run_query(args: cli::QueryArgs, s: &mut Streams<'_>) -> Outcome {
         bindings: Default::default(),
         limits: None,
     };
-    let execution = match &retained_reload {
-        Some(owner) => cem_ml::query::run_query_with_source_owner(
+    let execution = if args.ready_names {
+        cem_ml::query::run_query_with_ready_names(
             request,
-            owner.ingress().query_source_owner(),
-        ),
-        None => cem_ml::query::run_query(request),
+            retained_reload.as_ref().map(|owner| owner.ingress().query_source_owner()),
+        )
+    } else {
+        match &retained_reload {
+            Some(owner) => cem_ml::query::run_query_with_source_owner(
+                request,
+                owner.ingress().query_source_owner(),
+            ),
+            None => cem_ml::query::run_query(request),
+        }
     };
     let response = match execution {
         Ok(response) => response,
@@ -7703,6 +7727,7 @@ pub fn run_query(args: cli::QueryArgs, s: &mut Streams<'_>) -> Outcome {
                         lexical_scopes: Some(capture),
                         ..
                     } => Some(capture.clone()),
+                    cem_ml::query::QuerySourceOwner::NamespaceCompleted { completion, .. } => Some(completion.captured().clone()),
                     _ => None,
                 });
             match capture {

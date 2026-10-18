@@ -1904,6 +1904,7 @@ pub fn register_cem_ql_artifact_exporters(context: &mut EngineContext) {
 }
 
 pub fn register_cem_ql_runtime_adapters(context: &mut EngineContext) {
+    context.source_validation_stages.push(Arc::new(CemQlSourceValidationStage));
     register_cem_ql_template_adapter(&mut context.template_adapter_registry);
     register_cem_ql_schema_behavior_evaluator(context);
     register_cem_ql_source_output_converter(context);
@@ -1911,6 +1912,62 @@ pub fn register_cem_ql_runtime_adapters(context: &mut EngineContext) {
     context
         .query_runtime_registry
         .register(CemQlQueryRuntimeAdapter);
+}
+
+#[derive(Debug)]
+struct CemQlSourceValidationStage;
+
+impl cem_ml::engine::SourceValidationStage for CemQlSourceValidationStage {
+    fn validate(&self, input: &cem_ml::engine::EngineInput) -> Option<Vec<Diagnostic>> {
+        let identity = input
+            .identity
+            .clone()
+            .unwrap_or_else(|| input.root_scope.format_identity());
+        let query_identity = identity
+            .content_type
+            .as_deref()
+            .map(content_type_essence)
+            .is_some_and(|media| {
+                media == CEM_QL_CONTENT_TYPE
+                    || media == "text/cem-ql"
+                    || media == cem_ml::schema::registry::CEM_QL_EXPRESSION_CONTENT_TYPE
+            })
+            || matches!(
+                identity.schema.as_deref(),
+                Some(CEM_QL_SCHEMA_URI)
+                    | Some(cem_ml::schema::registry::CEM_QL_EXPRESSION_SCHEMA_URI)
+            );
+        if !query_identity {
+            return None;
+        }
+        if !cem_ml::query::QueryLanguage::CemQl
+            .contract()
+            .matches_query_identity(&identity)
+        {
+            return Some(vec![cem_ql_query_diagnostic(
+                &input.uri,
+                "cem.ql.query_identity_unsupported",
+                "query source content type and schema must agree",
+            )]);
+        }
+        Some(validate_cem_ql_source_bytes(CemQlSourceValidationRequest {
+            bytes: &input.bytes,
+            source_uri: &input.uri,
+            content_type: identity.content_type.as_deref(),
+            schema: identity.schema.as_deref(),
+        }))
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen::prelude::wasm_bindgen(start)]
+pub fn initialize_common_query_runtime() {
+    cem_ml::api::wasm::register_command_runtime_factory(|| {
+        let context = engine_context_with_cem_ql_template_adapter();
+        let mut exporters = QueryResultExporterRegistry::new();
+        register_cem_ql_query_exporters(&mut exporters);
+        (context, exporters)
+    });
 }
 
 pub fn engine_context_with_cem_ql_template_adapter() -> EngineContext {
@@ -2937,9 +2994,14 @@ pub fn validate_cem_ql_source_bytes(request: CemQlSourceValidationRequest<'_>) -
             .iter()
             .any(|diagnostic| diagnostic.severity.is_hard_violation())
         {
-            diagnostics.extend(
-                cem_ql::api::type_check(&parsed.module, &CompileContext::default()).into_iter(),
-            );
+            let mut context = CompileContext::default();
+            if request.content_type.map(content_type_essence).is_some_and(|media|
+                media == CEM_QL_CONTENT_TYPE || media == "text/cem-ql")
+                || request.schema == Some(CEM_QL_SCHEMA_URI)
+            {
+                context.policy_bindings.insert("input".into(), ItemStream::empty());
+            }
+            diagnostics.extend(cem_ql::api::type_check(&parsed.module, &context));
         }
         diagnostics
     };

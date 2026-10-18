@@ -326,6 +326,7 @@ dependencies = [
  "cem-ml",
  "cem-ql",
  "serde_json",
+ "wasm-bindgen",
 ]
 
 [[package]]

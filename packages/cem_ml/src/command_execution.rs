@@ -590,7 +590,12 @@ fn execute_operation<E: CemMlEngine + ?Sized>(
             )?)
         }
         PreparedPortableOperationV1::Query(query) => {
-            let response = run_query(query.request).map_err(query_failure)?;
+            let response = if query.ready_names {
+                crate::query::run_query_with_ready_names(query.request, None)
+            } else {
+                run_query(query.request)
+            }
+            .map_err(query_failure)?;
             let encoded = query_exporters
                 .export(
                     query.output,
@@ -1701,6 +1706,7 @@ mod tests {
                 },
             }]),
             PreparedPortableOperationV1::Query(Box::new(PreparedCommandQueryV1 {
+                ready_names: false,
                 request: QueryRunRequest {
                     data: input.clone(),
                     query: QuerySource {
@@ -2058,6 +2064,7 @@ mod tests {
         let engine = FixtureEngine::default();
         let control = OperationControl::new(AbortSignal::new());
         let prepared = PreparedPortableOperationV1::Query(Box::new(PreparedCommandQueryV1 {
+            ready_names: false,
             request: QueryRunRequest {
                 data: input(),
                 query: QuerySource {

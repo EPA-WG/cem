@@ -940,6 +940,9 @@ pub struct QueryArgs {
     )]
     pub data: PathBuf,
 
+    #[arg(long, help = "Consume ready original namespace names without evaluating pending bindings; preserve authored source")]
+    pub ready_names: bool,
+
     #[arg(long, help = "Admit DATA as a verified executable reference reload bundle; never CEMV")]
     pub reload_bundle: bool,
 

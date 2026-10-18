@@ -233,12 +233,21 @@ fn presentation_login_commands_preserve_named_fields_and_report_existing_warning
             )
             .unwrap();
             let report: serde_json::Value = serde_json::from_str(&text).unwrap();
-            let values: Vec<_> = report["result"]["sequence"]["items"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|item| item["value"]["lexicalValue"].clone())
-                .collect();
+            let values: Vec<_> = if report["language"] == "cem-ql" {
+                report["result"]["items"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|item| item["value"].clone())
+                    .collect()
+            } else {
+                report["result"]["sequence"]["items"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|item| item["value"]["lexicalValue"].clone())
+                    .collect()
+            };
             assert_eq!(serde_json::Value::Array(values), expected);
         } else {
             let report: serde_json::Value = serde_json::from_str(&text).unwrap();
@@ -409,4 +418,164 @@ fn presentation_heading_edit_stays_valid_and_keeps_both_form_controls() {
     assert_eq!(text.matches("@name=input ").count(), 2);
     assert!(text.contains("@name=name @value=email"));
     assert!(text.contains("@name=name @value=password"));
+}
+
+#[test]
+fn login_xpath_and_cemql_match_values_edits_presence_and_namespace_identity() {
+    let root = workspace();
+    let contract: Vec<String> = serde_json::from_slice(
+        &fs::read(root.join("examples/projects/login/expected/semantics.json")).unwrap(),
+    )
+    .unwrap();
+    let directory = std::env::temp_dir().join(format!(
+        "cem-login-languages-{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(&directory).unwrap();
+    for (canonical, media, schema, required) in [
+        (
+            "examples/semantic/login.html",
+            "text/html",
+            "https://cem.dev/ns/data/html/1",
+            " required",
+        ),
+        (
+            "examples/cem-ml/login.cem",
+            "application/cem",
+            "https://cem.dev/ns/cem-ml/1",
+            " @required",
+        ),
+    ] {
+        let original = fs::read_to_string(root.join(canonical)).unwrap();
+        let path = directory.join(if media == "text/html" {
+            "login.html"
+        } else {
+            "login.cem"
+        });
+        let edited = original.replacen("Sign in", "Welcome", 1).replacen(
+            if media == "text/html" {
+                "method=\"post\""
+            } else {
+                "@method=post"
+            },
+            if media == "text/html" {
+                "method=\"get\""
+            } else {
+                "@method=get"
+            },
+            1,
+        );
+        let mut variants = vec![
+            (original.clone(), contract.clone()),
+            (
+                edited,
+                contract
+                    .iter()
+                    .map(|value| match value.as_str() {
+                        "title=Sign in" => "title=Welcome".into(),
+                        "method=post" => "method=get".into(),
+                        _ => value.clone(),
+                    })
+                    .collect(),
+            ),
+            (
+                original.replacen(required, &format!("{required}=\"\""), 1),
+                contract.clone(),
+            ),
+            (
+                original.replacen(required, "", 1),
+                contract
+                    .iter()
+                    .map(|value| {
+                        if value == "email-required=true" {
+                            "email-required=false".into()
+                        } else {
+                            value.clone()
+                        }
+                    })
+                    .collect(),
+            ),
+        ];
+        if media == "application/cem" {
+            variants.push((
+                original
+                    .replace("@ns cem =", "@ns core =")
+                    .replace("@cem:", "@core:"),
+                contract.clone(),
+            ));
+        }
+        for (source, expected) in variants {
+            fs::write(&path, &source).unwrap();
+            for (file, query_media, query_schema, ready) in [
+                (
+                    "semantics.xpath",
+                    "application/vnd.cem.xpath",
+                    "https://cem.dev/ns/query/xpath/1",
+                    false,
+                ),
+                (
+                    "semantics.cemql",
+                    "application/vnd.cem.query+cem-ql",
+                    "https://cem.dev/ns/query/cem-ql/1",
+                    true,
+                ),
+            ] {
+                let query = root.join("examples/projects/login/queries").join(file);
+                let mut command = Command::new(env!("CARGO_BIN_EXE_cem-ml"));
+                command.args([
+                    "query",
+                    path.to_str().unwrap(),
+                    "--content-type",
+                    media,
+                    "--schema",
+                    schema,
+                    "--query-file",
+                    query.to_str().unwrap(),
+                    "--query-content-type",
+                    query_media,
+                    "--query-schema",
+                    query_schema,
+                    "--output",
+                    "json",
+                ]);
+                if ready {
+                    command.args(["--ready-names", "--scope-budget", "queueSize=1024"]);
+                }
+                let output = command.output().unwrap();
+                assert!(
+                    output.status.success(),
+                    "{media} {file}: {} {}",
+                    String::from_utf8_lossy(&output.stdout),
+                    String::from_utf8_lossy(&output.stderr)
+                );
+                let result: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+                let values: Vec<String> = if ready {
+                    result["result"]["items"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|item| {
+                            assert_eq!(item["kind"], "atomic");
+                            assert_eq!(item["type"], "string");
+                            item["value"].as_str().unwrap().to_owned()
+                        })
+                        .collect()
+                } else {
+                    result["result"]["sequence"]["items"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|item| item["value"]["lexicalValue"].as_str().unwrap().to_owned())
+                        .collect()
+                };
+                assert_eq!(values, expected, "{media} {file}");
+                assert_eq!(fs::read_to_string(&path).unwrap(), source);
+            }
+        }
+        assert_eq!(fs::read_to_string(root.join(canonical)).unwrap(), original);
+    }
+    fs::remove_dir_all(directory).unwrap();
 }

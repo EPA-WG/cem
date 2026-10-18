@@ -47,3 +47,35 @@ Both inputs are processed as retained typed CEM trees. HTML uses its registered
 native parser/recovery and validation policy, retaining decoded values and
 original source ownership/ranges. JSON is the explicitly requested serialization
 of the scalar query result; it is not an intermediate document or AST handoff.
+
+## Equivalent XPath and CEM-QL queries
+
+New version-2.2.0 copies have nine configurations. The two **(CEM-QL)**
+configurations use `queries/semantics.cemql`, an executable query module with
+local element, attribute, annotation, label and field helpers. Run them beside
+the original XPath configurations: both languages produce the same 21 values
+from either source, including after saved edits. Boolean `required` is tested
+by attribute presence, so a present empty value differs from an absent attribute.
+Renaming a namespace prefix does not change the contract.
+
+CEM-QL configurations explicitly request `--ready-names`. This consumes ready
+literal namespace metadata over the original native source without evaluating
+pending namespace values or resolving source references. Ordinary CEM-QL source
+queries keep their authored-name view. The module preserves expanded namespaces
+and makes the same HTML-mirror/default-attribute mappings as the XPath query.
+
+The configurations request a bounded `queueSize=1024` navigation budget. Studio's
+trusted worker host supplies that ceiling; request data cannot raise a stricter
+host limit. Global defaults remain unchanged. The common browser runtime links
+CEM-QL adapters into the same WASM binary and retains the native source owners.
+
+Open `queries/semantics.cemql` through Resources, edit it, **Save and validate**,
+then select a CEM-QL configuration and **Run configuration**. For example, rename
+`local:field("inputs", seq:count(inputs))` to use `"input-count"`; only that
+result field changes. Restore and save the original to recover the baseline.
+The query host's `input` binding is recognized during validation; misspelled
+variables still fail. Query resources and source edits remain project-local.
+
+Generic source Parse/Inspect for CEM-QL and standalone-expression formatting
+remain separate native adapter work. This project uses the supported executable
+module identity, native module formatting, validation and query execution.

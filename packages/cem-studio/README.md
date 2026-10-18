@@ -326,3 +326,10 @@ Native `entries`, `entryId` and `apply-command-page` names remain compatibility
 fields; UI terminology is projects, resources and configurations. See the
 [workspace design](../../docs/cem-studio.md#example-project-catalog-and-workspace)
 and [Login configurations](../../docs/cem-studio.md#amsterdam-presentation-samples).
+
+Login 2.2.0 adds two ordinary CEM-QL configurations beside the existing XPath
+pair. Both languages implement the same 21-field contract for HTML and CEM-ML.
+The query module can be edited, validated, saved and rerun in the common workspace.
+Native ready-name admission and an explicit bounded query budget keep source
+ownership and namespace semantics intact. Studio supplies the trusted worker
+ceiling through existing host setup; its UI remains declarative.

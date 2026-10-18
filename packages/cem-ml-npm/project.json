@@ -19,6 +19,10 @@
         "{workspaceRoot}/Cargo.toml",
         "{workspaceRoot}/rust-toolchain.toml",
         "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+        "{workspaceRoot}/packages/cem_ql/Cargo.toml",
+        "{workspaceRoot}/packages/cem_ql/src/**/*",
+        "{workspaceRoot}/packages/cem_ml_transform_cem_ql/Cargo.toml",
+        "{workspaceRoot}/packages/cem_ml_transform_cem_ql/src/**/*",
         "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
         "{workspaceRoot}/packages/cem_ml/schema-packages/**/*"
       ],
@@ -38,6 +42,10 @@
         "{workspaceRoot}/Cargo.toml",
         "{workspaceRoot}/rust-toolchain.toml",
         "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+        "{workspaceRoot}/packages/cem_ql/Cargo.toml",
+        "{workspaceRoot}/packages/cem_ql/src/**/*",
+        "{workspaceRoot}/packages/cem_ml_transform_cem_ql/Cargo.toml",
+        "{workspaceRoot}/packages/cem_ml_transform_cem_ql/src/**/*",
         "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
         "{workspaceRoot}/packages/cem_ml/schema-packages/**/*"
       ],

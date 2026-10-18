@@ -165,6 +165,7 @@ pub struct EngineContext {
     pub transform_template_encode_registry: TransformTemplateEncodeImplementationRegistry,
     pub transform_artifact_exporter_registry: TransformArtifactExporterRegistry,
     pub query_runtime_registry: QueryRuntimeRegistry,
+    pub source_validation_stages: Vec<Arc<dyn SourceValidationStage>>,
     pub operation_control: OperationControl,
     pub schema_behavior_evaluator: Option<Arc<dyn SchemaBehaviorEvaluator>>,
     /// Explicit runtime stage for parser-backed validation with a ready model.
@@ -203,6 +204,7 @@ impl Default for EngineContext {
             transform_artifact_exporter_registry:
                 TransformArtifactExporterRegistry::with_builtin_exporters(),
             query_runtime_registry: QueryRuntimeRegistry::with_builtin_adapters(),
+            source_validation_stages: Vec::new(),
             operation_control: OperationControl::default(),
             schema_behavior_evaluator: None,
             input_validation_stage: None,
@@ -210,6 +212,12 @@ impl Default for EngineContext {
             convert_request_handlers: Vec::new(),
         }
     }
+}
+
+/// Registered native source-language validation, before document-data import.
+/// Returning None leaves the input to the normal lifecycle/schema pipeline.
+pub trait SourceValidationStage: std::fmt::Debug + Send + Sync {
+    fn validate(&self, input: &EngineInput) -> Option<Vec<Diagnostic>>;
 }
 
 impl EngineContext {

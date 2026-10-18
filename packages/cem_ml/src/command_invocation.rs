@@ -635,6 +635,7 @@ fn command_operation(
             Ok(PortableOperationRequestV1::Query {
                 data_input_id: single_input()?,
                 query_uri,
+                ready_names: option_bool(parsed, "ready_names").then_some(true),
                 output: enum_value(
                     "output",
                     &option_string(parsed, "output").unwrap_or_else(|| "terminal".to_owned()),
@@ -1601,6 +1602,48 @@ mod tests {
             };
             assert_eq!(error.code, "cem.command.replacement_grant_host_required");
         }
+    }
+
+    #[test]
+    fn query_ready_names_survives_native_portable_lowering() {
+        let mut command = parsed("query");
+        command.positionals.insert(
+            "data".into(),
+            ParsedCommandValueV1::String("data.xml".into()),
+        );
+        command
+            .options
+            .insert("query".into(), ParsedCommandValueV1::String("input".into()));
+        command.options.insert(
+            "query_content_type".into(),
+            ParsedCommandValueV1::String("application/vnd.cem.query-expression+cem-ql".into()),
+        );
+        command
+            .options
+            .insert("ready_names".into(), ParsedCommandValueV1::Boolean(true));
+        let mut environment = environment();
+        environment.cwd = "studio://project/".into();
+        let resources = CommandUriMapV1::from(BTreeMap::from([(
+            "studio://project/data.xml".into(),
+            VirtualResourceV1 {
+                bytes: b"<root/>".to_vec(),
+                identity: Some(FormatIdentity {
+                    content_type: Some("application/xml".into()),
+                    ..Default::default()
+                }),
+            },
+        )]));
+        let response = build_command_invocation_v1(command, environment, resources);
+        let CommandInvocationBuildResponseV1::Ready { invocation } = response else {
+            panic!("{response:?}")
+        };
+        assert!(matches!(
+            invocation.request.operation,
+            PortableOperationRequestV1::Query {
+                ready_names: Some(true),
+                ..
+            }
+        ));
     }
 
     #[test]

@@ -1154,6 +1154,7 @@ mod tests {
         let request = request(PortableOperationRequestV1::Query {
             data_input_id: "input:0".to_owned(),
             query_uri: QUERY_URI.to_owned(),
+            ready_names: None,
             output: crate::query::QueryExportFormat::Json,
         });
         let reads = missing_command_resource_reads_v1(&request, CommandServiceLimitsV1::default())

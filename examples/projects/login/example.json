@@ -1,8 +1,8 @@
 {
   "id": "login",
   "name": "Login",
-  "version": "2.1.0",
-  "description": "Login source, HTML/CEM semantic comparison, schema validation and command configurations.",
+  "version": "2.2.0",
+  "description": "Login source, equivalent XPath/CEM-QL queries, HTML/CEM semantic comparison, schema validation and command configurations.",
   "sources": [
     {
       "id": "login-cem",
@@ -65,6 +65,14 @@
       "contentType": "application/json",
       "schema": "https://cem.dev/ns/data/json/1",
       "role": "data"
+    },
+    {
+      "id": "login-semantics-cemql",
+      "source": "examples/projects/login/queries/semantics.cemql",
+      "path": "queries/semantics.cemql",
+      "contentType": "application/vnd.cem.query+cem-ql",
+      "schema": "https://cem.dev/ns/query/cem-ql/1",
+      "role": "query"
     }
   ],
   "collections": [
@@ -252,6 +260,68 @@
         "application/vnd.cem.xpath",
         "--query-schema",
         "https://cem.dev/ns/query/xpath/1",
+        "--output",
+        "json"
+      ],
+      "expectedSemanticContract": "login-semantic-contract"
+    },
+    {
+      "id": "semantics-html-cemql",
+      "name": "Login semantics from HTML (CEM-QL)",
+      "kind": "query",
+      "source": "login-html",
+      "dependencies": [
+        "login-semantics-cemql",
+        "login-semantic-contract"
+      ],
+      "description": "Run the equivalent CEM-QL module against the same 21-field contract. Consume ready namespace names explicitly with a bounded navigation budget; source declarations remain inert.",
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "text/html",
+        "--schema",
+        "https://cem.dev/ns/data/html/1",
+        "--query-file",
+        "$login-semantics-cemql",
+        "--query-content-type",
+        "application/vnd.cem.query+cem-ql",
+        "--query-schema",
+        "https://cem.dev/ns/query/cem-ql/1",
+        "--ready-names",
+        "--scope-budget",
+        "queueSize=1024",
+        "--output",
+        "json"
+      ],
+      "expectedSemanticContract": "login-semantic-contract"
+    },
+    {
+      "id": "semantics-cem-cemql",
+      "name": "Login semantics from CEM-ML (CEM-QL)",
+      "kind": "query",
+      "source": "login-cem",
+      "dependencies": [
+        "login-semantics-cemql",
+        "login-semantic-contract"
+      ],
+      "description": "Run the equivalent CEM-QL module against the same 21-field contract. Consume ready namespace names explicitly with a bounded navigation budget; source declarations remain inert.",
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--query-file",
+        "$login-semantics-cemql",
+        "--query-content-type",
+        "application/vnd.cem.query+cem-ql",
+        "--query-schema",
+        "https://cem.dev/ns/query/cem-ql/1",
+        "--ready-names",
+        "--scope-budget",
+        "queueSize=1024",
         "--output",
         "json"
       ],

@@ -1,7 +1,8 @@
 # `@epa-wg/cem-ml`
 
 Low-level browser and Node WebAssembly deployment of the common Rust `cem_ml`
-engine. This package intentionally owns no command parser, filesystem policy,
+engine and its composed native CEM-QL adapters. One linked WASM binary retains
+shared native owners across both query languages. This package intentionally owns no command parser, filesystem policy,
 npm executable, or UI state.
 
 Browser code imports the generated web loader:

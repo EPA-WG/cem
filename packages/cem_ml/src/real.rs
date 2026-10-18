@@ -3125,6 +3125,39 @@ fn validate_input_through_lifecycle(input: &EngineInput, context: &EngineContext
     LifecycleRegistry::with_builtin_adapters().load_for_source_validation(input, context)
 }
 
+fn registered_source_validation<'a>(
+    context: &EngineContext,
+    inputs: &'a [EngineInput],
+) -> EngineResult<(std::borrow::Cow<'a, [EngineInput]>, Vec<Diagnostic>)> {
+    let mut handled = Vec::new();
+    let mut diagnostics = Vec::new();
+    for (index, input) in inputs.iter().enumerate() {
+        context.ensure_active()?;
+        if let Some(mut source_diagnostics) = context
+            .source_validation_stages
+            .iter()
+            .find_map(|stage| stage.validate(input))
+        {
+            handled.push(index);
+            diagnostics.append(&mut source_diagnostics);
+        }
+        context.ensure_active()?;
+    }
+    let remaining = if handled.is_empty() {
+        std::borrow::Cow::Borrowed(inputs)
+    } else {
+        std::borrow::Cow::Owned(
+            inputs
+                .iter()
+                .enumerate()
+                .filter(|(index, _)| !handled.contains(index))
+                .map(|(_, input)| input.clone())
+                .collect(),
+        )
+    };
+    Ok((remaining, diagnostics))
+}
+
 fn scheduler_policy_from_context(context: &EngineContext) -> crate::scheduler::ScopePolicy {
     let mut policy = crate::scheduler::ScopePolicy::host_root();
 
@@ -3144,7 +3177,7 @@ fn scheduler_dispatch_error(error: crate::scheduler::QueueError) -> EngineError 
     }
 }
 
-fn scheduler_policy_for_scope(
+pub(crate) fn scheduler_policy_for_scope(
     context: &EngineContext,
     uri: &str,
     scope: &ScopeConfig,
@@ -11351,9 +11384,11 @@ impl CemMlEngine for RealCemMlEngine {
         let (context, mut all_diags) =
             context_with_loaded_schema_package_manifests(&request.context)?;
         let inputs = input_uris(&request.inputs, &context);
+        let (validation_inputs, mut source_diagnostics) = registered_source_validation(&context, &request.inputs)?;
+        all_diags.append(&mut source_diagnostics);
         let (mut validation, scheduler_trace) = run_scheduled_validation_documents(
             &context,
-            &request.inputs,
+            &validation_inputs,
             &["validatems", "validatetimebudgetms"],
         )?;
         all_diags.append(&mut validation.diagnostics);
@@ -11370,9 +11405,11 @@ impl CemMlEngine for RealCemMlEngine {
         let (context, mut all_diags) =
             context_with_loaded_schema_package_manifests(&request.context)?;
         let inputs = input_uris(&request.inputs, &context);
+        let (validation_inputs, mut source_diagnostics) = registered_source_validation(&context, &request.inputs)?;
+        all_diags.append(&mut source_diagnostics);
         let (mut validation, scheduler_trace) = run_scheduled_validation_documents(
             &context,
-            &request.inputs,
+            &validation_inputs,
             &["checkms", "checktimebudgetms"],
         )?;
         all_diags.append(&mut validation.diagnostics);

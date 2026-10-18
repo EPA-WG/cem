@@ -130,8 +130,8 @@ try {
         await exerciseExampleProjects(page, context);
         assert.deepEqual(browserErrors, []); assert.deepEqual(httpFailures, []);
         await mkdir(dirname(reportPath), { recursive: true });
-        await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, exampleProjects: true, validationRepair: true, offline: true, configurations: 7 }, null, 2)}\n`);
-        console.log('Verified deployed example project copies, schema failure/repair, source selection, Save/reload and seven offline configurations.');
+        await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, exampleProjects: true, validationRepair: true, offline: true, configurations: 9 }, null, 2)}\n`);
+        console.log('Verified deployed example project copies, schema failure/repair, source selection, Save/reload and nine offline configurations.');
     } else if (lifecycleOnly) {
         const lifecycle = await exerciseProjectLifecycle(page, context);
         assert.deepEqual(browserErrors, []); assert.deepEqual(httpFailures, []);
@@ -837,7 +837,7 @@ async function exerciseProjectLifecycle(page, context) {
     }), graphRecords);
     await exerciseExampleProjects(page, context);
     await editor.dispose();
-    return { exampleProjects: true, projectSemanticComparison: true, projectValidationRepair: true, graphEdgeAuthoring: true, graphNodeCreation: true, graphConfigurationAuthoring: true, stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
+    return { exampleProjects: true, projectSemanticComparison: true, projectQueryEquivalence: true, projectValidationRepair: true, graphEdgeAuthoring: true, graphNodeCreation: true, graphConfigurationAuthoring: true, stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
         guardedDraftAndFocusRetained: true, exportedExactBytes: true, trashRestore: true, offlineReopen: true, accessibility };
 }
 
@@ -883,7 +883,7 @@ async function exerciseExampleProjects(page, context) {
     assert.ok((await snapshot()).draft.includes('demo.login.method_required'));
     assert.ok((await snapshot()).draft.includes('Intentional validation failure and repair'));
     const configurations = await page.evaluate(async projectId => (await globalThis.__cemStudioApplication.repository.query({ protocolVersion: 1, repository: 'studio-projects', operation: 'get-project', requestRevision: 1, parameters: { projectId } })).value.entries, firstId);
-    assert.equal(configurations.length, 7);
+    assert.equal(configurations.length, 9);
     assert.ok(configurations.every(configuration => !/^\d+\./.test(configuration.name)));
     await selectConfiguration(firstId, 'read-edit');
     const original = (await snapshot()).draft;
@@ -894,8 +894,8 @@ async function exerciseExampleProjects(page, context) {
         const bundle = (await globalThis.__cemStudioApplication.repository.query({ protocolVersion: 1, repository: 'studio-projects', operation: 'export-project', requestRevision: 1, parameters: { projectId } })).value;
         return JSON.parse(new TextDecoder().decode(bundle.contents['login-semantic-contract']));
     }, firstId);
-    const semanticValues = async () => JSON.parse((await snapshot()).projection.text).result.sequence.items.map(item => item.value.lexicalValue);
-    for (const configuration of ['semantics-html', 'semantics-cem']) {
+    const semanticValues = async () => { const report = JSON.parse((await snapshot()).projection.text); return report.language === 'cem-ql' ? report.result.items.map(item => item.value) : report.result.sequence.items.map(item => item.value.lexicalValue); };
+    for (const configuration of ['semantics-html', 'semantics-cem', 'semantics-html-cemql', 'semantics-cem-cemql']) {
         await selectConfiguration(firstId, configuration); await click('Run configuration');
         assert.equal((await snapshot()).projection.kind, 'query');
         assert.deepEqual(await semanticValues(), contract);
@@ -923,9 +923,11 @@ async function exerciseExampleProjects(page, context) {
     const converted = (await snapshot()).projection;
     assert.equal(converted.kind, 'convert'); assert.equal(converted.exitCode, 0);
     for (const field of ['@name=email', '@name=password', '@method=post']) assert.ok(converted.text.includes(field), field);
-    await selectConfiguration(firstId, 'semantics-cem'); await click('Run configuration');
-    assert.deepEqual(await semanticValues(), contract.map(value => value === 'title=Sign in' ? 'title=Amsterdam sign in' : value));
-    await selectConfiguration(firstId, 'semantics-html');
+    for (const configuration of ['semantics-cem', 'semantics-cem-cemql']) {
+        await selectConfiguration(firstId, configuration); await click('Run configuration');
+        assert.deepEqual(await semanticValues(), contract.map(value => value === 'title=Sign in' ? 'title=Amsterdam sign in' : value));
+    }
+    await selectConfiguration(firstId, 'semantics-html-cemql');
     const originalHtml = (await snapshot()).draft;
     const changedHtml = originalHtml.replace('method="post"', 'method="get"');
     await page.getByRole('textbox', { name: 'CEM source', exact: true }).fill(changedHtml); await settle();
@@ -935,9 +937,33 @@ async function exerciseExampleProjects(page, context) {
     assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().projection.stale), true);
     await click('Save and validate'); await click('Run configuration');
     assert.deepEqual(await semanticValues(), contract.map(value => value === 'method=post' ? 'method=get' : value));
+    await selectConfiguration(firstId, 'semantics-html'); await click('Run configuration');
+    assert.deepEqual(await semanticValues(), contract.map(value => value === 'method=post' ? 'method=get' : value));
     await click('Reload persisted revision'); assert.equal((await snapshot()).draft, changedHtml);
     await page.getByRole('textbox', { name: 'CEM source', exact: true }).fill(originalHtml); await settle();
     await click('Save and validate'); await click('Run configuration');
+    assert.deepEqual(await semanticValues(), contract);
+    await selectConfiguration(firstId, 'semantics-html-cemql'); await click('Run configuration');
+    assert.deepEqual(await semanticValues(), contract);
+    const queryChoice = await page.evaluate(projectId => {
+        const choice = globalThis.__cemStudioApplication.workbench.snapshot().workbenches.find(choice => {
+            const selection = JSON.parse(choice.id); return selection.projectId === projectId && selection.resourceId === 'login-semantics-cemql' && !selection.entryId;
+        });
+        return `${choice.name} — ${choice.operation}`;
+    }, firstId);
+    await pick('Workbench', queryChoice);
+    const originalQuery = (await snapshot()).draft;
+    const editedQuery = originalQuery.replace('local:field("inputs", seq:count(inputs))', 'local:field("input-count", seq:count(inputs))');
+    assert.notEqual(editedQuery, originalQuery);
+    await page.getByRole('textbox', { name: 'CEM source', exact: true }).fill(editedQuery); await settle();
+    await click('Save and validate'); assert.equal((await snapshot()).validation.errorCount, 0);
+    await selectConfiguration(firstId, 'semantics-html-cemql'); await click('Run configuration');
+    assert.deepEqual(await semanticValues(), contract.map(value => value === 'inputs=2' ? 'input-count=2' : value));
+    await pick('Workbench', queryChoice); await click('Reload persisted revision');
+    assert.equal((await snapshot()).draft, editedQuery);
+    await page.getByRole('textbox', { name: 'CEM source', exact: true }).fill(originalQuery); await settle();
+    await click('Save and validate'); assert.equal((await snapshot()).validation.errorCount, 0);
+    await selectConfiguration(firstId, 'semantics-html-cemql'); await click('Run configuration');
     assert.deepEqual(await semanticValues(), contract);
     await selectConfiguration(firstId, 'validation-repair');
     assert.ok(await page.getByText('Validate the form method using the project-owned teaching schema.', { exact: false }).isVisible());
@@ -986,7 +1012,7 @@ async function exerciseExampleProjects(page, context) {
     assert.equal((await snapshot()).draft, invalid);
     await click('Validate persisted revision');
     assert.equal((await snapshot()).validation.errorCount, 1);
-    for (const configuration of ['semantics-html', 'semantics-cem']) {
+    for (const configuration of ['semantics-html', 'semantics-cem', 'semantics-html-cemql', 'semantics-cem-cemql']) {
         await selectConfiguration(secondId, configuration); await click('Run configuration');
         assert.deepEqual(await semanticValues(), contract);
     }
