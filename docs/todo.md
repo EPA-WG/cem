@@ -1011,6 +1011,17 @@ Next presentation functionality:
     URL/history/window-title and repository orchestration remain host services.
     Navigation updates retain editor ownership and drafts; stale sample loads do
     not replace a newer selection. Screenshots/attachments remain excluded.
+- [x] Remove storage/install/update scaffolding from the requested Studio layout and fix stale local previews.
+  - [x] Fixture a browser controlled by an old cache-first worker; verify the current layout loads without clearing projects or draft journals.
+  - [x] Serve local preview assets under a content-derived URL prefix while keeping the root page/project URLs and browser origin stable.
+  - [x] Remove unused shell status/control bindings and verify the rendered localhost page, shell regression cases and preview delivery.
+  - Evidence: 11 shell cases, lint/typecheck, emitted-output verification and
+    `verify:preview-reload` pass. The browser fixture deliberately keeps a stale
+    cache-first controlling worker and poisoned prior-build bootstrap response;
+    after a revision change it loads the new layout, preserves the root project/
+    file URL and persisted bytes, and recovers the unsaved draft. Existing cache
+    entries are retained. The actual localhost:8080 server now uses the revisioned
+    preview handler; its Samples layout renders without storage/install controls.
 - [ ] Add shared selection of a generated graph artifact for preview, copy and
   download, so the supplier's JSON/YAML outputs are as convenient to inspect as its
   primary HTML output. Reuse native artifact identities and shared declarative

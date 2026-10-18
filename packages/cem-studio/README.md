@@ -136,6 +136,20 @@ document head so their styles have a live runtime owner.
 
 ## Build and verification
 
+For a local Studio preview, run:
+
+```sh
+yarn nx run @epa-wg/cem-studio:serve-preview
+```
+
+Open `http://localhost:8080/`. This server gives deployment assets a prefix derived
+from the native module-asset fingerprint and emitted index. Reloading after a build
+uses fresh asset URLs even when an older cache-first worker still controls the tab.
+Project/file URLs stay at the same origin and their data and draft journals remain
+intact. No cache, IndexedDB or local storage clearing is required. The preview does
+not change the production graph output or its guarded offline update lifecycle.
+
+
 ```bash
 yarn nx run @epa-wg/cem-studio:build
 yarn nx run @epa-wg/cem-studio:test:repository
@@ -215,7 +229,8 @@ labels, truncation, action intents and availability stay in the declaration.
 `src/workbench-layout.xhtml` composes `cem-workspace layout="browser"`: a left
 column of selection actions, Samples, Saved projects and opened files; one content
 panel shows folder children or the selected file. The heading matches the window
-title, with the theme control above and a status bar below. `src/navigation.js`
+title, with the theme control above and a work status bar below. Storage/install/update
+controls are omitted from the workspace shell. `src/navigation.js`
 owns tree/resource/selection data, URL startup/history and project/file actions.
 See [navigation URLs](../../docs/cem-studio.md#navigation-urls). Samples are browsable
 without creating saved projects; Clone creates an editable independent copy.

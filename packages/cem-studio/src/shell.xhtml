@@ -2,20 +2,6 @@
  <template id="cem-studio-shell" type="text/cem-ml">
 {module |
     {slice @name=themeMode | cem-theme-light}
-    {slice @name=installState | waiting}
-    {slice @name=updateState | current}
-    {slice @name=updateReason}
-    {slice @name=updateReady | false}
-    {slice @name=fileState | checking}
-    {slice @name=fileMessage | Local file provider checking}
-    {slice @name=fileDirectory | false}
-    {slice @name=fileOpenFile | false}
-    {slice @name=fileHasProject | false}
-    {slice @name=fileHasResource | false}
-    {slice @name=canImport | false}
-    {slice @name=canExport | false}
-    {slice @name=storageState | checking}
-    {slice @name=storagePersisted | false}
  {slice @name=pageTitle | Samples - CEM Studio}
  {slice @name=workspaceStatus | ready}
  {attribute @name=class @select='datadom.slices.themeMode ?? "cem-theme-light"'}
@@ -40,9 +26,7 @@
   {div @part=workspace @data-cem-studio-workspace-mount="" | {slot | {cem-studio-workbench-layout}}}
   {footer @part=status @aria-label="Studio status" |
    {span @role=status @aria-live=polite | {$ | if datadom.slices.workspaceStatus == "opening" { "Opening…" } else { if datadom.slices.workspaceStatus == "dirty" { "Unsaved changes retained" } else { if datadom.slices.workspaceStatus == "sample" { "Sample · Clone to edit" } else { if datadom.slices.workspaceStatus == "ready" { "Ready" } else { datadom.slices.workspaceStatus } } } }}}
-   {span | {$ | if datadom.slices.storagePersisted { "Local storage persisted" } else { str:concat(("Local storage · ", datadom.slices.storageState), "") }}}
-   {cem:if @test='datadom.slices.installState == "ready"' | {cem-action @data-cem-studio-install="" @host-command=install | Install}}
-   {cem:if @test=datadom.slices.updateReady | {cem-action @host-command=update | Apply ready update}}
+
   }
  }
  }

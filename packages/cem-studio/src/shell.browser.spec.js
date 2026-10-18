@@ -75,7 +75,7 @@ describe('CEM Studio installable application shell', () => {
         update.dispose();
     });
 
-    it('binds native theme and install controls declaratively while retaining slotted workbench state', async () => {
+    it('binds the theme declaratively and omits storage/install/update controls while retaining workbench state', async () => {
         const { userEvent } = await import('vitest/browser');
         const root = document.createElement('main');
         document.body.append(root);
@@ -114,26 +114,18 @@ describe('CEM Studio installable application shell', () => {
         expect(document.activeElement).toBe(editor);
 
         expect(root.querySelector('[data-cem-studio-install]')).toBeNull();
-        const prompt = vi.fn(() => {
-            expect(navigator.userActivation.isActive).toBe(true);
-            return Promise.resolve();
-        });
+        const prompt = vi.fn(async () => undefined);
         const offer = new Event('beforeinstallprompt', { cancelable: true });
         Object.defineProperties(offer, { prompt: { value: prompt }, userChoice: { value: Promise.resolve({ outcome: 'accepted' }) } });
         window.dispatchEvent(offer);
+        shell.update.setWaitingWorker({ postMessage: vi.fn() });
         await shell.whenSettled();
-        const install = root.querySelector('[data-cem-studio-install] button');
-        expect(install.disabled).toBe(false);
-        await userEvent.click(install);
-        await vi.waitFor(() => expect(shell.install.status().state).toBe('installed'));
-        await shell.whenSettled();
-        expect(prompt).toHaveBeenCalledOnce();
-        expect(root.querySelector('[data-cem-studio-install]')).toBeNull();
-        expect(shell.install.status().state).toBe('installed');
+        expect(root.querySelector('[data-cem-studio-install], [host-command="install"], [host-command="update"]')).toBeNull();
+        expect(root.textContent).not.toContain('Local storage');
+        expect(root.textContent).not.toContain('Install');
+        expect(prompt).not.toHaveBeenCalled();
         expect(shell.view.errors).toEqual([]);
         shell.dispose();
-        install.disabled = false; install.click();
-        expect(prompt).toHaveBeenCalledOnce();
         expect(root.children).toHaveLength(0);
     });
 

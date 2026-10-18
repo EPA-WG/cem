@@ -795,6 +795,39 @@
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/navigation.json"
             ]
+        },
+        "serve-preview": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "build"
+            ],
+            "options": {
+                "command": "node scripts/serve-preview.mjs",
+                "cwd": "{projectRoot}"
+            }
+        },
+        "verify:preview-reload": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "verify:output"
+            ],
+            "options": {
+                "command": "node scripts/verify-preview-reload.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/serve-preview.mjs",
+                "{projectRoot}/scripts/verify-preview-reload.mjs",
+                "{projectRoot}/dist/static/**/*",
+                "{workspaceRoot}/dist/reports/cem-studio/build.json",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": []
         }
     },
     "tags": [

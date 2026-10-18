@@ -1089,8 +1089,8 @@ Studio does not rewrite saved command resources during startup.
 Studio uses `cem-workspace layout="browser"` for a navigation column and one
 content panel. The top heading and window title match: `<project name> · <file
 path> - CEM Studio` for a file, and the selected project/folder name when browsing.
-The theme switch is beside the heading. A bottom status bar reports the operation
-and local storage status. The former overlapping project forms, storage cards
+The theme switch is beside the heading. A bottom status bar reports the current work status. Storage/install/update
+controls are omitted from this layout. The former overlapping project forms, storage cards
 and inactive shell controls have been removed.
 
 The left column contains Create, Clone selected, Delete selected and a selection
@@ -2193,7 +2193,7 @@ The current navigator and action dialogs are described under [Navigation URLs](#
 Create copies the integrity-checked bundled CEM-ML source into a fresh UUID project
 with a user-supplied name, one source resource and no implicit configurations.
 Clone creates an independent project or resource. Repository validation and atomic
-transactions remain shared services. Archive import/export, Trash restore and
+transactions remain shared services. Archive import/export, installation/update coordination, Trash restore and
 bounded repository search remain available through their service APIs; the former
 always-visible Home/storage forms are no longer part of the shell.
 

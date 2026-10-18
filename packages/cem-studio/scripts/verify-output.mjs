@@ -116,8 +116,8 @@ assert.match(shellModule, /mountCemView/);
 assert.doesNotMatch(shellModule, /shellMarkup|innerHTML|textContent|querySelector|toggleAttribute|classList/);
 assert.match(shellView, /<template id="cem-studio-shell" type="text\/cem-ml">/);
 assert.match(shellView, /theme-command=theme/);
-assert.match(shellView, /host-command=install/);
-assert.match(shellView, /host-command=update/);
+assert.doesNotMatch(shellView, /host-command=(?:install|update)|Local storage/);
+
 assert.match(shellView, /\{slot\s*\|\s*\{cem-studio-workbench-layout\}/);
 assert.doesNotMatch(shellView, /<script|\son[a-z]+=|javascript:/i);
 const workbenchModule = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/workbench.js'), 'utf8');

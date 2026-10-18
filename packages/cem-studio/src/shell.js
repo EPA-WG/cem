@@ -448,50 +448,20 @@ export async function mountCemStudioApplicationShell(options) {
         tag: 'cem-studio-shell',
         state: {
             themeMode: theme.mode,
-            storageState: 'checking',
-            canImport: typeof options.fileSystem?.selectImport === 'function',
-            canExport: typeof options.fileSystem?.downloadExport === 'function',
         },
         commands: {
             theme: ({ value }) => theme.setMode(value),
-            install: () => install.prompt(),
-            update: () => update.activateUpdate(),
-            'open-project': () => fileSystem.openProjectDirectory(),
-            'bind-project': () => fileSystem.bindProjectDirectory(),
-            'open-resource': () => fileSystem.openResource(),
-            reconnect: () => fileSystem.reconnect(),
-            'write-back': () => fileSystem.writeBack(),
-            import: () => fileSystem.importFallback(),
-            export: () => fileSystem.exportFallback(),
         },
     });
     const unsubscribeTheme = theme.subscribe(themeMode => view.update({ themeMode }));
-    const unsubscribeInstall = install.subscribe(({ state }) => view.update({ installState: state }));
-    const unsubscribeUpdate = update.subscribe(snapshot => view.update({
-        updateState: snapshot.state, updateReason: snapshot.reason ?? '', updateReady: snapshot.updateReady,
-    }));
-    const unsubscribeFileSystem = fileSystem.subscribe(snapshot => view.update({
-        fileState: snapshot.state, fileMessage: snapshot.message,
-        fileDirectory: snapshot.capabilities.directory, fileOpenFile: snapshot.capabilities.openFile,
-        fileHasProject: Boolean(snapshot.projectId),
-        fileHasResource: Boolean(snapshot.projectId && snapshot.resourceId),
-    }));
     await fileSystem.refresh();
-    if (options.repository) {
-        options.repository.status().then(
-            status => view.update({ storageState: status.state, storagePersisted: Boolean(status.persisted) }),
-            () => view.update({ storageState: 'unavailable' }),
-        );
-    } else {
-        view.update({ storageState: 'indexedDB' in globalThis ? 'available' : 'unavailable' });
-    }
     await view.whenSettled();
     return Object.freeze({
         root, theme, install, update, fileSystem, view,
         setWorkspaceState(pageTitle, workspaceStatus) { view.update({ pageTitle, workspaceStatus }); },
         whenSettled: () => view.whenSettled(),
         dispose() {
-            unsubscribeTheme(); unsubscribeInstall(); unsubscribeUpdate(); unsubscribeFileSystem();
+            unsubscribeTheme();
             install.dispose(); update.dispose(); fileSystem.dispose(); view.dispose();
         },
     });
