@@ -2792,26 +2792,41 @@ unchanged. Saved sources reopen offline, while entered credentials are discarded
 The existing static HTML output preview continues to deny scripts and styling.
 
 Native CEM-QL source Parse/Inspect and standalone-expression formatting are
-available. Login 2.7.0 includes **Format Login (pretty)** and **Format Login (tabular)**
+available. Login includes **Format Login (pretty)** and **Format Login (tabular)**
 as ordinary Convert configurations, alongside **Export Login source colors (HTML)**,
-for sixteen configurations. The two plain formatters use the saved CEM-ML source,
+for the markup source. The two plain formatters use the saved CEM-ML source,
 preserve its semantic contract and produce plain
 copy/download output without overwriting it. Unsaved edits do not affect Run;
 saved Unicode edits, offline execution and independent copies are covered.
 The source-color configuration exports escaped, tabular CEM-ML as HTML with native
 role spans and the shared CSS-variable palette. Copy/download retains the colors;
 the existing sandboxed HTML preview continues to deny styles and scripts. It does
-not execute the source as a form. A packaged standalone-expression evaluation
-example remains a presentation gap. Physical device acceptance remains behind
-presentation functionality.
+not execute the source as a form.
 
-The long-session Login live-view regression now passes in Chromium 148.0.7778.96,
-including input/action, saved-source and dependency replacement, offline reopening
-and independent project copies. Shared `cem-elements` payload indexes append to
-fresh arrays instead of copying each growing group. A controlled ten-snapshot,
-4,096-item benchmark reduced sampled cumulative index allocations from 3.38 GB to
-6.48 MB; this is not a retained-heap measurement. The original fatal allocation
-stack was not captured, so this does not establish the cause of every historical
-OOM. The full 52-task Studio release gate passes, including all 134 Studio browser
-cases, 18 shared preview/index cases and 32 native/deployed examples. Remaining
-presentation work is tracked in [the active todo](todo.md).
+Login 2.8.0 packages `queries/summary.cem-ql` with its standalone expression
+identity and `expected/expression.json`. Twenty ordinary configurations now
+include **Evaluate Login expression (HTML)**, **Evaluate Login expression (CEM-ML)**,
+and **Format Login expression (pretty/tabular)**. Both evaluators consume saved
+native inputs and the saved expression dependency, reporting the title and
+required-field count. Formatters and persisted Parse/Inspect do not evaluate it
+or add a module wrapper. Formatting preserves comments/Unicode and source identity
+and never overwrites the resource; both current expression profiles preserve
+authored layout. Use the [Login guide](../examples/projects/login/README.md#standalone-expression-evaluation-and-formatting)
+for saved-edit and offline demonstrations. Project copies remain independent.
+Physical device acceptance remains behind presentation functionality.
+
+The shared payload-index repair at `bd8f8428` passed the complete 52-task
+release gate. It reduced sampled cumulative index allocations in a controlled
+ten-snapshot, 4,096-item benchmark from 3.38 GB to 6.48 MB; this is not retained
+heap evidence or proof of every historical OOM's cause. During the Login 2.8.0
+verification, the long-session live-view saved-dependency rerun again hit V8
+`CALL_AND_RETRY_LAST`. The current full release gate is **not green**.
+All new expression checks also pass in an isolated deployed run, including
+saved/unsaved edits, Parse/Inspect, offline reload and independent copies.
+All 11 focused native Login/sample cases and 136 Studio browser cases pass;
+32 native/deployed examples, online/offline workers, shell delivery, lint,
+typecheck and deterministic packaging also pass. The recurring OOM and remaining
+presentation work are tracked in [the active todo](todo.md). Planned shared
+[WASM memory recovery](../roadmap.md#311-wasm-memory-recovery-between-renders)
+adds checkpoint/restart resilience; it has not been implemented or validated as
+an OOM repair.

@@ -60,7 +60,7 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
         assert.deepEqual(record.collections, ['amsterdam-2026']);
         assert.equal(bundle.project.entries.length, definition.configurations.length);
         for (const source of definition.sources) assert.deepEqual(bundle.contents[source.id], new Uint8Array(await readFile(resolve(workspaceRoot, source.source))));
-        assert.equal(record.version, '2.7.0');
+        assert.equal(record.version, '2.8.0');
         const contract = JSON.parse(new TextDecoder().decode(bundle.contents['login-semantic-contract']));
         assert.equal(contract.length, 21);
         for (const id of ['semantics-html', 'semantics-cem']) {
@@ -81,7 +81,19 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
             assert.ok(command.argv.includes('--ready-names'));
             assert.ok(command.argv.includes('queueSize=1024'));
         }
-        assert.equal(bundle.project.entries.length, 16);
+        assert.equal(bundle.project.entries.length, 20);
+        const expression = bundle.project.resources.find(resource => resource.id === 'login-expression');
+        assert.equal(expression.path, 'queries/summary.cem-ql');
+        assert.equal(expression.role, 'query');
+        assert.equal(expression.contentType, 'application/vnd.cem.query-expression+cem-ql');
+        assert.equal(expression.schema, 'https://cem.dev/ns/query/cem-ql/1#expression');
+        for (const id of ['expression-html', 'expression-cem', 'expression-format-pretty', 'expression-format-tabular']) {
+            const entry = bundle.project.entries.find(entry => entry.id === id);
+            assert.ok(entry.resourceIds.includes(expression.id));
+            const command = JSON.parse(new TextDecoder().decode(bundle.contents[entry.runConfigResourceId]));
+            assert.ok(command.argv.includes(expression.contentType));
+            assert.ok(command.argv.includes(expression.schema));
+        }
         const template = bundle.project.resources.find(resource => resource.id === 'login-view-template');
         assert.equal(template.role, 'template');
         assert.equal(template.contentType, 'application/vnd.cem.template+cem');

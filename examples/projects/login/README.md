@@ -118,9 +118,40 @@ comments and Unicode, supports the existing formatter/line-ending options, and
 rejects invalid source without inventing a module. Module formatting, validation
 and execution remain available.
 
+## Standalone expression evaluation and formatting
+
+Login 2.8.0 has twenty ordinary configurations. Open `queries/summary.cem-ql`
+through Resources, or select **Format Login expression (pretty)** or
+**Format Login expression (tabular)** to edit it directly. This is one standalone
+CEM-QL expression with the explicit expression content type/schema, not a module.
+Its comment, local bindings and Unicode remain in the source.
+
+**Evaluate Login expression (HTML)** and **Evaluate Login expression (CEM-ML)**
+read their saved Login input and the same saved expression dependency. Both return
+`title=Sign in` and `required=2`, matching `expected/expression.json`. The expression
+selects HTML elements by expanded namespace and counts required attributes by
+presence. The configurations request `--ready-names` and the existing bounded
+`queueSize=1024` worker policy. They inspect the example's native source tree;
+they do not validate credentials or submit the form.
+
+Change `"title="` in the expression to `"titre 🍒="`. Run a format configuration
+before saving: the result still contains the persisted `"title="`. **Save and
+validate**, then run either evaluation configuration to see `titre 🍒=Sign in`.
+Editing and saving the input heading changes its value independently. Restore
+and save the expression to recover the baseline. Each project copy owns its
+source, expression and command revisions, including after offline reload.
+
+With the expression selected, **Parse persisted revision** and **Inspect persisted
+revision** show its native structure and source locations without evaluating it.
+The two format configurations also do not evaluate or overwrite the expression.
+They preserve comments, Unicode and expression identity and provide plain source
+for copy/download. CEM-QL's current pretty and tabular profiles preserve the
+expression's authored layout; this sample does not promise distinct layouts.
+Invalid syntax is reported; repair and save before rerunning.
+
 ## Generate the Login view
 
-New version-2.6.0 copies have fifteen configurations. **Render Login from HTML**
+**Render Login from HTML**
 and **Render Login from CEM-ML** apply the shared `templates/view.cemt` resource
 to the saved source. Both produce the complete HTML in `expected/view.html`:
 an accessible heading and form, associated labels, autocomplete hints, required

@@ -40,6 +40,73 @@ afterEach(async () => {
 });
 
 describe('CEM Studio Feature Tour copies', () => {
+    it('evaluates the packaged standalone Login expression on both native sources and project-local edits', async () => {
+        const response = await fetch(new URL('../generated/feature-tour/examples/login.cem-studio.json', import.meta.url));
+        expect(response.ok).toBe(true);
+        const bundle = parseCemStudioProjectBundle(new Uint8Array(await response.arrayBuffer()));
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        const decode = id => new TextDecoder().decode(bundle.contents[id]);
+        const expression = decode('login-expression');
+        const expected = JSON.parse(decode('login-expression-expected'));
+        for (const id of ['expression-html', 'expression-cem']) {
+            const entry = bundle.project.entries.find(entry => entry.id === id);
+            const source = bundle.project.resources.find(resource => resource.id === entry.resourceIds[0]);
+            const command = JSON.parse(decode(entry.runConfigResourceId));
+            expect(command.argv).toContain('application/vnd.cem.query-expression+cem-ql');
+            expect(command.argv).toContain('https://cem.dev/ns/query/cem-ql/1#expression');
+            const run = async (query, sourceText = decode(source.id), projectId = 'expression-copy') => {
+                const result = await validator.runResourceCommand({ bytes: new TextEncoder().encode(sourceText),
+                    uri: `studio://${projectId}/${source.path}`, contentType: source.contentType, schema: source.schema,
+                    projectId, projectRootUri: `studio://${projectId}/`, argv: command.argv,
+                    dependencies: entry.resourceIds.slice(2).map(id => {
+                        const resource = bundle.project.resources.find(resource => resource.id === id);
+                        return { path: `../${resource.path}`, bytes: id === 'login-expression' ? new TextEncoder().encode(query) : bundle.contents[id],
+                            contentType: resource.contentType, schema: resource.schema };
+                    }) });
+                expect(result.result.exitCode).toBe(0);
+                return JSON.parse(result.output.text).result.items.map(item => item.value);
+            };
+            expect(await run(expression)).toEqual(expected);
+            expect(await run(expression.replace('title=', 'titre 🍒='))).toEqual(['titre 🍒=Sign in', 'required=2']);
+            expect(await run(expression, decode(source.id).replace('Sign in', 'Bienvenue 🍒'))).toEqual(['title=Bienvenue 🍒', 'required=2']);
+            expect(await run(expression, decode(source.id), 'independent-copy')).toEqual(expected);
+        }
+        expect(decode('login-expression')).toBe(expression);
+    }, 60_000);
+
+    it('formats and inspects the packaged Login expression without evaluating or wrapping it', async () => {
+        const response = await fetch(new URL('../generated/feature-tour/examples/login.cem-studio.json', import.meta.url));
+        expect(response.ok).toBe(true);
+        const bundle = parseCemStudioProjectBundle(new Uint8Array(await response.arrayBuffer()));
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        const source = bundle.project.resources.find(resource => resource.id === 'login-expression');
+        const original = new TextDecoder().decode(bundle.contents[source.id]);
+        const options = text => ({ bytes: new TextEncoder().encode(text), uri: `studio://expression-format/${source.path}`,
+            contentType: source.contentType, schema: source.schema, resourceScheme: 'studio', projectId: 'expression-format', projectRootUri: 'studio://expression-format/' });
+        for (const profile of ['pretty', 'tabular']) {
+            const entry = bundle.project.entries.find(entry => entry.id === `expression-format-${profile}`);
+            const command = JSON.parse(new TextDecoder().decode(bundle.contents[entry.runConfigResourceId]));
+            const format = text => validator.runResourceCommand({ ...options(text), argv: command.argv });
+            const baseline = await format(original);
+            expect(baseline.output.contentType).toBe(source.contentType);
+            expect(command.argv).toContain(source.schema);
+            expect(baseline.output.text).toContain('// Login résumé');
+            expect(baseline.output.text).not.toContain('module ');
+            expect(baseline.output.text).not.toContain('\u001b');
+            expect((await format(baseline.output.text)).output.text).toBe(baseline.output.text);
+            expect((await format(original.replace('title=', 'titre 🍒='))).output.text).toContain('titre 🍒=');
+            await expect(format(`${original})`)).rejects.toMatchObject({ result: { exitCode: 1 } });
+            expect((await format(original)).output.text).toBe(baseline.output.text);
+        }
+        const parsed = await validator.parseResource(options(original));
+        expect(parsed.output.text).toContain('@kind=call');
+        expect(parsed.output.text).toContain(source.schema);
+        expect(parsed.output.text).toContain('byte-offset');
+        const inspected = await validator.inspectResource({ ...options(original), view: 'tree' });
+        expect(inspected.output.text).toContain('@kind=call');
+        expect(new TextDecoder().decode(bundle.contents[source.id])).toBe(original);
+    }, 60_000);
+
     it('runs both packaged Login formatting configurations on independent saved sources', async () => {
         const response = await fetch(new URL('../generated/feature-tour/examples/login.cem-studio.json', import.meta.url));
         expect(response.ok).toBe(true);

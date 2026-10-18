@@ -154,8 +154,8 @@ try {
         await exerciseExampleProjects(page, context);
         assertNoUnexpectedBrowserErrors(); assert.deepEqual(httpFailures, []);
         await mkdir(dirname(reportPath), { recursive: true });
-        await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, exampleProjects: true, validationRepair: true, templateOutput: true, offline: true, configurations: 16, graphProvenance: true, liveView: true, sourceInspection: true, sourceFormatting: true, sourceColors: true }, null, 2)}\n`);
-        console.log('Verified deployed example project copies, schema failure/repair, template output, Save/reload graph provenance and sixteen offline configurations.');
+        await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, exampleProjects: true, validationRepair: true, templateOutput: true, offline: true, configurations: 20, graphProvenance: true, liveView: true, sourceInspection: true, sourceFormatting: true, sourceColors: true, standaloneExpression: true }, null, 2)}\n`);
+        console.log('Verified deployed example project copies, schema failure/repair, template output, Save/reload graph provenance and twenty offline configurations.');
     } else if (lifecycleOnly) {
         const lifecycle = await exerciseProjectLifecycle(page, context);
         assertNoUnexpectedBrowserErrors(); assert.deepEqual(httpFailures, []);
@@ -861,7 +861,7 @@ async function exerciseProjectLifecycle(page, context) {
     }), graphRecords);
     await exerciseExampleProjects(page, context);
     await editor.dispose();
-    return { exampleProjects: true, projectSemanticComparison: true, projectQueryEquivalence: true, projectValidationRepair: true, projectTemplateOutput: true, projectGraphProvenance: true, projectLiveView: true, projectSourceInspection: true, projectSourceFormatting: true, projectSourceColors: true, graphEdgeAuthoring: true, graphNodeCreation: true, graphConfigurationAuthoring: true, stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
+    return { exampleProjects: true, projectSemanticComparison: true, projectQueryEquivalence: true, projectValidationRepair: true, projectTemplateOutput: true, projectGraphProvenance: true, projectLiveView: true, projectSourceInspection: true, projectSourceFormatting: true, projectSourceColors: true, projectStandaloneExpression: true, graphEdgeAuthoring: true, graphNodeCreation: true, graphConfigurationAuthoring: true, stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
         guardedDraftAndFocusRetained: true, exportedExactBytes: true, trashRestore: true, offlineReopen: true, accessibility };
 }
 
@@ -907,7 +907,7 @@ async function exerciseExampleProjects(page, context) {
     assert.ok((await snapshot()).draft.includes('demo.login.method_required'));
     assert.ok((await snapshot()).draft.includes('Intentional validation failure and repair'));
     const configurations = await page.evaluate(async projectId => (await globalThis.__cemStudioApplication.repository.query({ protocolVersion: 1, repository: 'studio-projects', operation: 'get-project', requestRevision: 1, parameters: { projectId } })).value.entries, firstId);
-    assert.equal(configurations.length, 16);
+    assert.equal(configurations.length, 20);
     assert.ok(configurations.every(configuration => !/^\d+\./.test(configuration.name)));
     await selectConfiguration(firstId, 'read-edit');
     const original = (await snapshot()).draft;
@@ -975,6 +975,38 @@ async function exerciseExampleProjects(page, context) {
         return JSON.parse(new TextDecoder().decode(bundle.contents['login-semantic-contract']));
     }, firstId);
     const semanticValues = async () => { const report = JSON.parse((await snapshot()).projection.text); return report.language === 'cem-ql' ? report.result.items.map(item => item.value) : report.result.sequence.items.map(item => item.value.lexicalValue); };
+    // One standalone expression resource is both inspected/formatted and evaluated
+    // against saved native inputs through ordinary project configurations.
+    const expressionLayouts = [];
+    let originalExpression;
+    for (const profile of ['pretty', 'tabular']) {
+        await selectConfiguration(firstId, `expression-format-${profile}`); await click('Run configuration');
+        originalExpression = (await snapshot()).draft;
+        const projection = (await snapshot()).projection;
+        assert.equal(projection.exitCode, 0);
+        assert.ok(projection.text.includes('// Login résumé') && !projection.text.includes('module '));
+        assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().projection.output.contentType), 'application/vnd.cem.query-expression+cem-ql');
+        expressionLayouts.push(projection.text);
+    }
+    const editedExpression = originalExpression.replace('title=', 'titre 🍒=');
+    await page.getByRole('textbox', { name: 'CEM source', exact: true }).fill(editedExpression); await settle();
+    await click('Run configuration');
+    assert.equal((await snapshot()).projection.text, expressionLayouts[1], 'formatting must use the saved expression');
+    await click('Save and validate');
+    assert.equal((await snapshot()).validation.errorCount, 0);
+    await click('Parse persisted revision');
+    assert.ok((await snapshot()).projection.text.includes('@kind=call'));
+    await pick('Inspect view', 'Tree'); await click('Inspect persisted revision');
+    assert.ok((await snapshot()).projection.text.includes('byte-offset'));
+    for (const id of ['expression-html', 'expression-cem']) {
+        await selectConfiguration(firstId, id); await click('Run configuration');
+        assert.deepEqual(await semanticValues(), ['titre 🍒=Sign in', 'required=2']);
+    }
+    await page.reload({ waitUntil: 'load' }); await waitForApplication(page, browserErrors, httpFailures); await settle();
+    await selectConfiguration(firstId, 'expression-format-tabular'); await click('Run configuration');
+    assert.equal((await snapshot()).draft, editedExpression);
+    assert.equal((await snapshot()).projection.text, expressionLayouts[1].replace('title=', 'titre 🍒='));
+    assert.equal(await page.evaluate(() => navigator.onLine), false);
     const expectedView = await page.evaluate(async projectId => {
         const bundle = (await globalThis.__cemStudioApplication.repository.query({ protocolVersion: 1, repository: 'studio-projects', operation: 'export-project', requestRevision: 1, parameters: { projectId } })).value;
         return new TextDecoder().decode(bundle.contents['login-view-expected']).trim();
@@ -1292,6 +1324,15 @@ async function exerciseExampleProjects(page, context) {
     assert.equal((await snapshot()).draft, originalLive);
     assert.equal((await liveView()).heading, 'Sign in');
     assert.equal((await liveView()).email, '');
+    for (const id of ['expression-html', 'expression-cem']) {
+        await selectConfiguration(secondId, id); await sourcePane(); await click('Run configuration');
+        assert.deepEqual(await semanticValues(), ['title=Sign in', 'required=2']);
+    }
+    for (const [index, profile] of ['pretty', 'tabular'].entries()) {
+        await selectConfiguration(secondId, `expression-format-${profile}`); await sourcePane(); await click('Run configuration');
+        assert.equal((await snapshot()).draft, originalExpression);
+        assert.equal((await snapshot()).projection.text, expressionLayouts[index]);
+    }
     assert.equal(await page.evaluate(() => localStorage.getItem('cem-studio-theme')), themeBefore);
     assert.equal(await page.evaluate(() => navigator.onLine), false);
 }

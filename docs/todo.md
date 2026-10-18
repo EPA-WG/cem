@@ -648,6 +648,18 @@ excluded from Git.
   exposure in [roadmap Phase 3.3](../roadmap.md#33-ai-elements-and-dataui-context),
   covering Chrome built-in AI and WebMCP with shared-package ownership. Keep its
   implementation deferred behind the current Studio/Amsterdam functionality.
+- [x] Research and record OAuth Authorization Code Flow with PKCE and Google,
+  Microsoft, GitHub and candidate Atlassian adapters in
+  [roadmap Phase 3.4](../roadmap.md#34-oauth-authorization-and-account-backed-persistence),
+  including declarative UI/shared JavaScript ownership and provider/backend limits.
+  Add Drive, OneDrive and GitHub persistence components, standalone demos and
+  subsequent Studio integration to that roadmap; keep implementation behind the
+  active presentation functionality. No live account access or credentials added.
+- [x] Record proactive WASM memory recovery between committed renders in
+  [roadmap Phase 3.1.1](../roadmap.md#311-wasm-memory-recovery-between-renders):
+  bounded portable checkpoints, whole-runtime replacement, shared owner coordination,
+  stale-result fencing, side-effect reconciliation and restart limits. Implementation
+  remains planned in the shared engine/`cem-elements`, with declarative recovery UI.
 - [x] Make the initial presentation sample set available through Studio's existing sample
   catalog, with read-only originals and independently editable project copies.
   Reuse canonical sources, native command/configuration semantics and stable
@@ -743,8 +755,9 @@ Next presentation functionality:
 - [x] Diagnose and repair the Login live-view OOM in long Studio sessions, then
   pass `verify:workspace-delivery` and the full Studio release gate. Keep fixes in
   the appropriate shared engine/runtime and preserve declarative Studio UI.
-  The long-session regression and complete release gate now pass; focused
-  source-color checks alone were not used to close this blocker.
+  Historical result at `bd8f8428`: the long-session regression and complete release
+  gate passed. A later recurrence is tracked explicitly below; this allocation
+  repair does not close that renewed blocker.
   - [x] Profile long sessions and isolate excessive allocation in shared snapshot
     indexing; distinguish cumulative allocations from retained memory.
   - [x] Add large-payload index fixtures for ordering, independent snapshots and
@@ -775,7 +788,7 @@ Next presentation functionality:
     are preserved. No UI capability, styling, palette default or browser-policy
     change is introduced. Both new browser fixtures, all 610 shared unit cases,
     typechecking and all 18 shared live-preview browser cases pass.
-  - Release evidence: the full Studio `check` passes all 52 tasks, including all
+  - Historical release evidence at `bd8f8428`: Studio `check` passed all 52 tasks, including all
     134 Studio browser cases, 18 shared preview/index cases, 32 native/deployed
     examples, deterministic packaging, online/offline workers and the clean
     seven-package consumer. The long deployed workspace lifecycle passes Login
@@ -789,6 +802,48 @@ Next presentation functionality:
     and spoken-AT acceptance remain open behind presentation functionality.
 - [ ] Package a standalone Login expression resource with evaluation and formatting
   configurations, source-inspection guidance and saved-edit/offline fixtures.
+  - [x] Add native fixtures for packaged expression evaluation on HTML/CEM inputs,
+    source/dependency edits, formatting identity/idempotence and invalid-source repair.
+  - [x] Add the expression resource and evaluation/pretty/tabular configurations to
+    the ordinary Login project; document persisted inspection and output boundaries.
+  - [x] Add packaged browser-command and deployed workspace fixtures for saved versus
+    unsaved expression edits, exact output, offline reload and independent copies.
+  - [ ] Verify the complete Studio release gate and update presentation evidence.
+  - Implementation: Login 2.8.0 has twenty ordinary configurations. One owned
+    `queries/summary.cem-ql` expression reports title/required-field count from
+    either saved native input; pretty/tabular Convert configurations preserve the
+    exact expression identity without a module wrapper. Results do not overwrite
+    source. Both current expression profiles preserve authored layout. The project
+    README documents resource selection, persisted Parse/Inspect and Unicode edits.
+  - Shared-component audit: only sample resources/configurations, documentation
+    and fixtures changed. Studio uses its existing declarative workspace, shared
+    native adapters and command transport; no production UI JavaScript, new shared
+    capability, CSS, palette or browser-policy change was required.
+  - Focused evidence (2026-10-18): both new Rust fixtures first failed on the absent
+    packaged expression, then passed. All 11 native Login/sample regressions and
+    136 Studio browser cases pass, covering HTML/CEM evaluation, input/dependency
+    edits, attribute presence, Unicode, formatting idempotence, invalid-syntax
+    repair, output identity and expression Parse/Inspect. Rust formatting and
+    whitespace checks pass. The full 52-task gate failed in
+    `verify:workspace-delivery`: V8 `CALL_AND_RETRY_LAST` during the existing Login
+    live-view saved-dependency rerun. New first-copy expression checks had passed;
+    independent-copy checks were not reached in that run. Native/deployed example
+    verification (32 examples), online/offline workers, shell delivery, lint,
+    typecheck and deterministic packaging passed. The release is not green.
+    Two clean builds matched 268 files / 175 assets, SHA-256
+    `6b9f0847fd42371cfbcdc12c1b0317ed4b445ae76f62f4b6574fe62ea9492a23`.
+  - Focused deployed evidence: the expression-only diagnostic extracted from the
+    new workspace assertions passes saved/unsaved formatting, persisted Parse/Inspect,
+    both evaluations, offline reload and original source/results in an independent
+    copy. It uses actual static output and normal browser protections. This isolated
+    run does not certify the full lifecycle or replace its failed release report.
+- [ ] Diagnose the recurring long-session Login live-view V8 OOM observed after
+  `bd8f8428`, repair the shared engine/runtime cause, and pass the complete Studio
+  release gate. Preserve the successful payload-index allocation repair and all
+  assertions. Focused expression checks cannot substitute for this release gate.
+  Evaluate the planned [WASM recovery contract](../roadmap.md#311-wasm-memory-recovery-between-renders)
+  with deterministic fixtures as separate resilience work; do not assume that
+  WASM recycling resolves the current failure without memory-domain evidence.
 - [ ] After the core Login walkthrough, add the planned supplier-pipeline
   companion as an ordinary example project, reusing native commands and shared UI.
 - [ ] Determine whether the selected presentation configurations require

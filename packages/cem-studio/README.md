@@ -366,3 +366,13 @@ while fresh copies remain independent. The example owns its light theme and
 transient form state; browser storage and navigation are disabled. The deployed
 release gate records `projectLiveView`, and `check` also runs the shared preview
 and form-control regression fixtures. See the [shared preview contract](../cem-components/docs/passive-payload-contract.md#explicit-output-preview-modes).
+
+Login 2.8.0 includes `queries/summary.cem-ql` and four additional ordinary
+configurations: evaluate against HTML or CEM-ML, and format with pretty or tabular.
+Fresh copies have twenty configurations. The shared native expression adapter
+reports the title and required-field count, formats without module wrappers,
+and supports persisted Parse/Inspect. Expression edits, input edits and project
+copies stay independent; formatting produces plain output without overwriting
+the source. The current CEM-QL profiles preserve authored layout. See the
+[standalone expression guide](../../examples/projects/login/README.md#standalone-expression-evaluation-and-formatting).
+No Studio UI JavaScript or shared UI capability was added.

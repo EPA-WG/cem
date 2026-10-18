@@ -1,8 +1,8 @@
 {
   "id": "login",
   "name": "Login",
-  "version": "2.7.0",
-  "description": "Login sources, equivalent queries, validation, native templates, a transformation graph with source provenance and an interactive light-DOM view.",
+  "version": "2.8.0",
+  "description": "Login sources, module and standalone queries, formatting, validation, native templates, a transformation graph with source provenance and an interactive light-DOM view.",
   "sources": [
     {
       "id": "login-cem",
@@ -105,6 +105,22 @@
       "contentType": "application/cem",
       "schema": "https://cem.dev/ns/cem-ml/1",
       "role": "template"
+    },
+    {
+      "id": "login-expression",
+      "source": "examples/projects/login/queries/summary.cem-ql",
+      "path": "queries/summary.cem-ql",
+      "contentType": "application/vnd.cem.query-expression+cem-ql",
+      "schema": "https://cem.dev/ns/query/cem-ql/1#expression",
+      "role": "query"
+    },
+    {
+      "id": "login-expression-expected",
+      "source": "examples/projects/login/expected/expression.json",
+      "path": "expected/expression.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
     }
   ],
   "collections": [
@@ -530,7 +546,7 @@
         "login-view-template",
         "login-view-expected"
       ],
-      "description": "Run the saved import \u2192 view template \u2192 HTML export graph. Edit a graph attribute, save, rerun and follow generated-output provenance to its template.",
+      "description": "Run the saved import → view template → HTML export graph. Edit a graph attribute, save, rerun and follow generated-output provenance to its template.",
       "argv": [
         "transform",
         "--config",
@@ -573,6 +589,126 @@
       "expectedText": [
         "@name=cem-text-field",
         "@name=cem-action"
+      ]
+    },
+    {
+      "id": "expression-html",
+      "name": "Evaluate Login expression (HTML)",
+      "kind": "query",
+      "source": "login-html",
+      "dependencies": [
+        "login-expression",
+        "login-expression-expected"
+      ],
+      "description": "Evaluate saved queries/summary.cem-ql against this saved Login source. Compare title and required-field count with expected/expression.json; edit the expression through Resources.",
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "text/html",
+        "--schema",
+        "https://cem.dev/ns/data/html/1",
+        "--query-file",
+        "$login-expression",
+        "--query-content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--query-schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--ready-names",
+        "--scope-budget",
+        "queueSize=1024",
+        "--output",
+        "json"
+      ],
+      "expectedSemanticContract": "login-expression-expected"
+    },
+    {
+      "id": "expression-cem",
+      "name": "Evaluate Login expression (CEM-ML)",
+      "kind": "query",
+      "source": "login-cem",
+      "dependencies": [
+        "login-expression",
+        "login-expression-expected"
+      ],
+      "description": "Evaluate saved queries/summary.cem-ql against this saved Login source. Compare title and required-field count with expected/expression.json; edit the expression through Resources.",
+      "argv": [
+        "query",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--query-file",
+        "$login-expression",
+        "--query-content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--query-schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--ready-names",
+        "--scope-budget",
+        "queueSize=1024",
+        "--output",
+        "json"
+      ],
+      "expectedSemanticContract": "login-expression-expected"
+    },
+    {
+      "id": "expression-format-pretty",
+      "name": "Format Login expression (pretty)",
+      "kind": "conversion",
+      "source": "login-expression",
+      "description": "Format saved queries/summary.cem-ql without evaluating it or adding a module. Plain output is available for copy/download and never overwrites the source.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--to-content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--to-schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--cemt-formatter-profile",
+        "pretty",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedText": [
+        "// Login résumé",
+        "title=",
+        "required=",
+        "dom:descendants(input)"
+      ]
+    },
+    {
+      "id": "expression-format-tabular",
+      "name": "Format Login expression (tabular)",
+      "kind": "conversion",
+      "source": "login-expression",
+      "description": "Format saved queries/summary.cem-ql without evaluating it or adding a module. Plain output is available for copy/download and never overwrites the source.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--to-content-type",
+        "application/vnd.cem.query-expression+cem-ql",
+        "--to-schema",
+        "https://cem.dev/ns/query/cem-ql/1#expression",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedText": [
+        "// Login résumé",
+        "title=",
+        "required=",
+        "dom:descendants(input)"
       ]
     }
   ]

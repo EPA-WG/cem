@@ -428,6 +428,86 @@ When the substrate hits this production-ready trigger, it is eligible for the Ed
 `@epa-wg/custom-element` monorepo migration and next-major implementation adoption happen only after that follow-up
 phase.
 
+### 3.1.1 WASM Memory Recovery Between Renders
+
+Goal: when memory approaches a configured budget, checkpoint the committed
+`cem-element` state between renders, replace the entire affected WASM runtime,
+and resume without losing edits or repeating actions.
+
+Status: planned 2026-10-18. Design and implement this in the shared native/WASM
+engine and `cem-elements`; recovery status UI belongs in declarative
+`cem-components`. Studio consumes the same mechanism. This requires shared
+JavaScript lifecycle work; alert the user before implementation. Keep diagnosis
+and repair of the recurring Studio long-session OOM as an active release blocker;
+recycling is a resilience mechanism, not evidence that the underlying fault is fixed.
+
+Deliverables:
+
+- Define per-runtime memory accounting and configurable soft/hard budgets,
+  headroom for checkpointing/restoration, growth thresholds and restart cooldowns.
+  Track WASM linear-memory capacity separately from allocator live bytes, retained
+  native trees, handles and host/worker JavaScript allocations where measurable.
+  A WASM byte count alone must not be presented as total browser memory usage or
+  a reliable prediction of renderer OOM. Use bounded workload/accounting fallbacks
+  when browser heap telemetry is unavailable; avoid allocating a large diagnostic
+  snapshot at the threshold.
+- Coordinate all owners sharing the affected runtime. Stop admitting renders,
+  finish a bounded in-flight render and its acknowledged DOM commit, then capture
+  one consistent revision before the next render. Bound or coalesce pending input
+  according to its semantics, with explicit overflow/cancellation behavior; never
+  drop accepted edits silently. Define timeout recovery from the last acknowledged
+  checkpoint when a render cannot finish. No partially applied patch is a checkpoint.
+- Reuse the normative [data-island and serialized-resume contract](docs/cem-element-lifecycle-principle.md):
+  preserve canonical attributes, payload, slices/native value artifacts, portable
+  resource state, form/validation state, source identities and accepted event
+  sequence. Keep unsaved editor state separate from persisted project revisions.
+  Save bounded portable checkpoints outside the runtime being replaced; reserve
+  recovery storage early. Rebuild derived indexes/caches from authoritative state.
+  Do not snapshot raw WASM memory, pointers, decode handles or a parallel JavaScript
+  AST, and do not reconstruct authority by scraping the rendered DOM.
+- Replace the entire affected worker/runtime generation, including its WASM
+  instance, linear memory, tables, handles and retained host references; reusing
+  compiled module code is allowed. Inventory worker and main-thread execution
+  paths before implementation and define recovery for each. A worker is an
+  isolation boundary, not a promised separate OS process. Keep the last committed
+  light DOM visible where possible, restore the checkpoint into fresh native
+  owners, reconcile, and resume scheduling only after successful validation.
+  Preserve focus, selection and scroll through the existing host lifecycle.
+- Fence messages, patches and asynchronous callbacks by runtime generation and
+  owner/revision. Late results from the retired generation cannot mutate state.
+  Define resource-specific cancellation/resumption. Never replay a submitted
+  form, storage write, OAuth exchange or other external side effect just because
+  a render is resumed. Retain operation identities and acknowledgments; expose an
+  unknown outcome for reconciliation when completion cannot be established.
+  Checkpoints must follow existing credential/private-state boundaries.
+- Expose declarative pressure/recovering/ready/failed status and bounded retry
+  diagnostics. Limit repeated restarts; if restored state already exceeds the
+  budget, retain recoverable user work and offer a declarative recovery/export
+  path instead of a restart loop. Specify behavior for checkpoint failure,
+  incompatible runtime/schema versions, offline module reload and owner disposal.
+
+Platform boundary: recovery must be proactive. The
+[WebAssembly JavaScript API](https://www.w3.org/TR/wasm-js-api-2/#out-of-memory)
+permits unrecoverable out-of-memory termination; do not rely on catching a fatal
+browser OOM. The [worker termination contract](https://html.spec.whatwg.org/multipage/workers.html#dom-worker-terminate)
+does not perform an application checkpoint, so capture state before termination.
+A page/renderer crash needs the last durable checkpoint and a reload path;
+restarting WASM alone cannot recover a dead page or fix main-thread retention.
+
+Acceptance:
+
+- Add deterministic low-budget/fault-injection fixtures for checkpoint/restart
+  equivalence, unsaved Unicode edits, native slice/source identity, nested owners,
+  concurrent renders, stale callbacks and exactly-once handling of accepted
+  events. Verify external side effects are not automatically duplicated.
+- Exercise abrupt worker loss, incomplete commits, checkpoint/restore failure,
+  unavailable telemetry, owner removal, oversized state and retry exhaustion.
+  Test offline restore and both worker/main-thread paths where supported.
+- Run repeated forced restarts and the complete long-session Studio/Login
+  lifecycle. Measure retained memory across generations separately from cumulative
+  allocation and verify old workers/handles are released. Keep existing release
+  assertions and browser protections; record recovery limits and remaining OOMs.
+
 ### 3.2 Primitives — `@epa-wg/cem-components`
 
 Deliverables:
@@ -503,6 +583,121 @@ Exit criteria:
   and cleanup. Applications continue to work when AI support is unavailable.
 - Reusable UI lives in declarative `cem-components`, browser integration in
   `cem-elements`, with no application-local AI JavaScript or new UI token defaults.
+
+### 3.4 OAuth Authorization And Account-Backed Persistence
+
+Goal: reusable CEM components for OAuth 2.0 Authorization Code Flow with PKCE,
+followed by Google Drive, OneDrive and GitHub persistence components, standalone
+demos and declarative integration into CEM Studio.
+
+Status: roadmap request recorded 2026-10-18; research/design, not a shipped API.
+Keep the active Studio/Amsterdam example work first. Public element names and
+attributes are provisional until the shared contracts and fixtures are agreed.
+
+#### Authorization: declarative surface, shared protocol implementation
+
+- Design a declarative authorization owner with provider, registered client ID,
+  scopes, redirect URI and a reference to an approved host/session service. Bind
+  Connect, Cancel, Reconnect and Disconnect through shared action components;
+  project account label, granted scopes, expiry and status/error as data slices.
+  Separate API authorization from identity/sign-in: use OIDC only for providers
+  that support that contract, and provider account APIs where appropriate.
+- Implement reusable browser/SDK/protocol behavior in `cem-elements`; compose
+  account selection, consent explanations and status UI in XHTML/CEM-ML in
+  `cem-components`. Templates configure the workflow and react to its state;
+  they do not implement cryptography, callbacks, token exchange or refresh.
+  Preserve the initiating user gesture for popups through a shared command
+  capability rather than opening a popup during an asynchronous render.
+- Use S256 PKCE for verified supporting provider/client combinations. Generate
+  and bind per-attempt verifier/state, validate the provider and exact redirect,
+  consume callbacks once, and reject expired, replayed or mismatched responses.
+  Handle popup cancellation, redirects, denied/partial consent and concurrent
+  attempts. Choose supported provider SDKs where they preserve this contract.
+- Keep client secrets and confidential token exchange in a reusable host/server
+  companion, never in markup, a bundle or Studio. The browser receives an opaque
+  session reference; raw tokens/verifiers must not appear in data islands,
+  saved projects, exported archives, logs or the proposed AI context. A verified
+  public-client adapter may keep access tokens in private runtime memory. Define
+  refresh rotation, expiry, revocation and disconnect separately; local disconnect
+  must not imply that the remote grant was revoked. Protect backend sessions and
+  callback transport with the provider's CSRF/origin requirements.
+- Alert the user before implementing a new shared JavaScript capability, as with
+  other shared controls. Studio consumes the capability declaratively; it does
+  not own provider callbacks or token handling. A static deployment must report
+  a required backend as unavailable rather than embed a secret or silently fall
+  back to another OAuth grant.
+
+Provider research baseline (official documentation reviewed 2026-10-18; reverify
+before implementation):
+
+| Provider | Documented flow and implementation boundary | Planned support |
+| --- | --- | --- |
+| Google | The requested [GIS code model](https://developers.google.com/identity/oauth2/web/guides/use-code-model) returns a code by popup or redirect and exchanges it on a backend. It does not document caller-supplied PKCE parameters. | Google adapter plus shared backend bridge. Prove a supported S256 path for the selected web client/SDK before advertising PKCE; a code-model integration alone is not evidence of PKCE support. |
+| Microsoft | [Microsoft identity authorization-code flow](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-auth-code-flow) requires PKCE for SPAs and a `spa` redirect registration for token-endpoint CORS. | Microsoft adapter using the supported library and registered SPA or backend profile; explicit tenant/account and Graph scope configuration. |
+| GitHub | Both [OAuth Apps](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps) and [GitHub App user authorization](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app) document S256 PKCE. The documented code exchange also requires a client secret. | Shared backend exchange; prefer a GitHub App with selected repository permissions for persistence. Distinguish user authorization from installation-token authority. No private app key in the browser. |
+| Atlassian (candidate) | [Cloud OAuth 2.0 3LO](https://developer.atlassian.com/cloud/jira/platform/oauth-2-3lo-apps/) documents a client-secret exchange and rotating refresh tokens; this guide does not establish PKCE support. | Research adapter, cloud/site selection and refresh concurrency. Confirm PKCE/client support before committing to parity; report unsupported combinations explicitly. |
+
+#### Persistence: shared providers, demos, then Studio composition
+
+- Define one revisioned persistence capability over the existing repository/provider
+  boundary: list/open/read, save a revision, rename/move, explicit deletion, change
+  notification and reconnect. Bind commands, payload/resource references and results
+  declaratively. Keep remote bytes in the native import path with declared formats
+  and schemas; API metadata is transport data, not a replacement application AST.
+- Keep stable project/resource identities independent of remote names and paths.
+  Provider bindings reference account, container, remote object ID and revision
+  (ETag/blob/commit SHA where available). Use tested conditional writes; when an
+  endpoint lacks compare-and-swap, expose that limitation and design immutable
+  revisions or an explicit conflict path instead of claiming safe overwrites.
+  Specify an atomic project archive first where multi-resource transactions are
+  unavailable; separate local saves from acknowledged remote synchronization.
+- **Google Drive:** reusable provider with app-created/user-selected files, list,
+  open, save and revision/conflict handling. Start from the narrow
+  [`drive.file` scope](https://developers.google.com/workspace/drive/api/guides/api-specific-auth)
+  and shared Picker integration where selection grants access. Support appropriate
+  [upload/resume behavior](https://developers.google.com/workspace/drive/api/guides/manage-uploads),
+  cancellation, quota and revoked permissions. Define ordinary project-file storage
+  separately from Google Docs/Sheets native-document conversion.
+- **OneDrive:** reusable Microsoft Graph provider. Offer a bounded app-folder mode
+  using [`Files.ReadWrite.AppFolder` and `approot`](https://learn.microsoft.com/en-us/graph/onedrive-sharepoint-appfolder);
+  arbitrary user-selected locations are a separate consent/permission profile.
+  Preserve drive/item identities and verify
+  [conditional resumable uploads](https://learn.microsoft.com/en-us/graph/api/driveitem-createuploadsession?view=graph-rest-1.0),
+  conflict results, quota and personal/work-or-school account behavior.
+- **GitHub:** reusable repository/branch/path provider with explicit remote commit
+  intent, commit messages and read-only access where sufficient. Use the
+  [Contents API](https://docs.github.com/en/rest/repos/contents) for bounded single-file
+  archive updates with the expected blob SHA. For a directory project, create one
+  Git tree/commit and advance the [branch reference](https://docs.github.com/en/rest/git/refs)
+  without force; handle a changed branch as a conflict. Do not treat a sequence of
+  file writes as an atomic project save. Respect selected repository permissions,
+  protected branches, rate limits and file-size limits; make branch/PR delivery an
+  explicit optional workflow. GitHub repository persistence is distinct from Gists.
+- Provide a standalone declarative demo and source/packed/bundle gallery coverage
+  for each provider before Studio integration. Demonstrate connect, choose location,
+  open, edit, save, reopen, external-change conflict and disconnect. Use fixtures
+  for denied/revoked consent, token expiry, offline edits, retries, partial uploads,
+  quota and concurrent writers; live acceptance uses separately configured test
+  accounts/apps and records which provider/client combinations actually passed.
+- Integrate the verified components into Studio's existing projects/resources/
+  configurations workspace. Keep IndexedDB local work, recovery and archive export
+  functional without an account. Remote synchronization is opt-in, preserves local
+  drafts on failure and exposes pending/conflicted/synced state through shared UI.
+  Share the authorization session by opaque reference, never by copying credentials
+  into project configuration. No dedicated cloud-project screens or Studio-owned
+  provider behavior.
+
+Exit criteria and delivery order:
+
+1. Version the authorization/session and persistence contracts; add protocol and
+   isolation fixtures before implementing reusable behavior.
+2. Deliver verified Google, Microsoft and GitHub authorization adapters and shared
+   declarative demos; keep Atlassian conditional on the research findings above.
+3. Deliver Drive and OneDrive components/demos, then GitHub repository persistence;
+   each has exact-byte round trips, conflict/retry/cancellation and offline evidence.
+4. Compose those components in Studio and verify Save/reopen, stable references,
+   account/project isolation, recovery, permission loss and clean package delivery.
+   Data-island serialization, exported projects and AI context contain no credentials.
 
 ## Phase 3.5 - Edge/SSR Processing Follow-Up
 
@@ -697,15 +892,19 @@ Deliverables:
 - Provide validation diagnostics with source ranges, data/result/report/source-map previews, conversion input/output
   views, query variables and scopes, transformation traces, graph-stage inspection, and safe sandboxed HTML previews.
 - Provide a bidirectional CLI Command view that displays and copies the active command, effective inputs/config, and
-  output; edited commands can transactionally update the current page, target another page, or create a named page.
+  output; edited commands can transactionally update the current configuration,
+  target another configuration, or create a named configuration.
 - Put reusable workbench controls and composites in `@epa-wg/cem-components` or its `/studio` export; keep routing,
-  persistence, provider credentials, worker lifecycle, and service-worker orchestration in `@epa-wg/cem-studio`.
+  project persistence coordination, worker lifecycle, and service-worker orchestration in `@epa-wg/cem-studio`.
+  Shared account authorization, credential/session handling and remote persistence
+  behavior belong to the reusable capabilities in [Phase 3.4](#34-oauth-authorization-and-account-backed-persistence).
 - Classify every proposed Studio control against the pinned Angular Material parity matrix. If a counterpart exists,
   finish the general `<cem-element>`-based `@epa-wg/cem-components` implementation and parity tests before building
   the Studio composition. A `/studio` or application-local component may lead only when the matrix records no Angular
   Material counterpart; reusable behavior discovered there still moves into the component package.
-- Keep account-backed S3, NoSQL, Git repository, and GitHub Gist storage behind one revisioned provider contract as a
-  post-local-MVP wishlist.
+- Add Google Drive, OneDrive and GitHub repository persistence through the shared
+  components, demos and provider contract in [Phase 3.4](#34-oauth-authorization-and-account-backed-persistence).
+  S3, NoSQL and GitHub Gist remain later providers behind that same revisioned contract.
 
 Progress: **publishable package, graph-owned offline workbench, UI ownership,
 versioned local repository, portable operation matrix, and opt-in local-file

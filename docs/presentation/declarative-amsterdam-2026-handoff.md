@@ -28,7 +28,7 @@ Home offers **Login** and **Schema examples** under **Example projects**.
 **Create project from example** makes an independent editable copy, then
 **Projects → Open project** enters the common workspace. Existing projects keep
 their saved contents. Startup restores the last selection; a fresh profile opens
-Home without auto-installing a seed. Login's README resource carries instructions. Version 2.7.0 has sixteen
+Home without auto-installing a seed. Login's README resource carries instructions. Version 2.8.0 has twenty
 configurations, including XPath and **(CEM-QL)** variants of **Login semantics
 from HTML** and **Login semantics from CEM-ML**. Their queries select the XHTML `main` subtree; document
 wrappers and lexical formatting remain outside the comparison.
@@ -40,6 +40,7 @@ wrappers and lexical formatting remain outside the comparison.
 | HTML import, conversion and semantic comparison | Login HTML resource, HTML-to-CEM-ML conversion, and two ordinary query configurations share a 21-field semantic contract with the CEM source. Native import retains decoded values and provenance; the query explicitly maps namespace/mirror differences. | Preserve the bounded comparison contract and expected values when adding later examples. |
 | Intentional failure and repair | Separate syntax-valid source omits the form method; owned teaching schema reports `demo.login.method_required`. | Continue to demonstrate source selection, saved repair/reload and repeat failure through the shared editor/diagnostics. |
 | Equivalent queries | Login has native XPath and CEM-QL module resources with the same complete 21-field contract for both source formats. Ready namespaces and bounded navigation are explicit; query modules can be edited, validated and rerun. | Preserve source ownership, prefix independence, Boolean presence and offline copy isolation. |
+| Standalone expression | `queries/summary.cem-ql` reports title and required-field count from either saved input. Two native formatting configurations and persisted Parse/Inspect use the expression identity without module wrappers. | Current pretty/tabular expression profiles preserve authored layout; edits require Save before evaluation or formatting changes. |
 | Template output | Two Login render configurations share an editable native CEMT view and complete expected HTML. Both sources support saved heading/label/method edits and template instruction edits. Results uses the shared sandboxed document preview and exact HTML copy/download. | Preserve exact HTML and saved source/template edits in direct and graph execution. |
 | Graph and source provenance | Login graph imports the saved CEM resource, applies the shared view and exports HTML. Existing graph controls edit its output destination; native URI/range rows open the template with draft/revision guards. Offline copies preserve independent graph/template bytes. | Constructed output maps to template instructions/expressions; arbitrary computed data lineage is not claimed. |
 | Live light-DOM view | **Login live view** opens the saved CEM template and HTML data in the shared script-free preview. Shared fields/action/alert remain interactive; theme and transient state stay separate from Studio. | Saved template/data changes, offline reload and independent copies are covered by the deployed gate. |
@@ -73,12 +74,15 @@ excluded. Native CEM-QL source Parse/Inspect is available from the shared source
 controls: select `queries/semantics.cemql`, then parse its AST/events or inspect
 its structure, diagnostics and source offsets without executing it. Both module
 and standalone-expression identities retain original source coordinates.
-A standalone-expression project resource and evaluation configuration remain to be packaged.
+Login 2.8.0 packages `queries/summary.cem-ql`: evaluate its title/required-field
+summary against HTML or CEM-ML, or format the expression with pretty/tabular.
+Fresh copies have twenty ordinary configurations; saved inputs and expression
+edits remain independent in each project. See the Login project guide.
 Standalone-expression formatting is available through an ordinary Convert
 configuration with matching expression input/output identity. It uses the shared
 native token formatter without module wrappers; invalid source retains original
-diagnostic coordinates. Remaining presentation-needed Login resources and
-configurations come next.
+diagnostic coordinates. The current expression profiles preserve authored layout.
+The supplier-pipeline companion is the next presentation example.
 
 The Login live-view increment adds a shared `live-preview` capability in
 `cem-elements`, declarative `cem-media-preview mode="live"`, and an ordinary
@@ -119,12 +123,12 @@ independent customized/fresh copies. These checks stop before the live-view work
 The initial full release runs hit V8 JavaScript OOM during Login live view in
 Chromium headless shell and full Chrome for Testing 148.0.7778.96. The subsequent
 shared-runtime repair removes quadratic array copying in payload indexes. The
-complete deployed workspace lifecycle now passes, including live-view interaction,
+complete deployed workspace lifecycle passed at `bd8f8428`, including live-view interaction,
 saved replacement, offline reopening and independent project copies. A controlled
 4,096-item/ten-snapshot benchmark reduced cumulative sampled index allocations
 from 3.38 GB to 6.48 MB. The original fatal allocation stack was not captured;
 this does not establish the cause of every historical crash. All 52 Studio release
-tasks now pass, including 134 Studio browser cases, 18 shared preview/index cases,
+tasks passed at that revision, including 134 Studio browser cases, 18 shared preview/index cases,
 32 native/deployed examples and the clean seven-package consumer. Deterministic
 output remains 268 files / 175 assets, with SHA-256
 `e50745fcd26231e031df5e3ca927338930bbc8bfdd10410b1a49c420fde1a4b5`.
@@ -133,6 +137,20 @@ source preview fixture verifies blocked styles against exact exported style hash
 including restored projections, while rejecting other console errors. It reads the
 actual sandboxed preview instead of creating extra styled documents under Studio's
 CSP. No production UI JavaScript or sandbox-policy change is introduced.
+
+Login 2.8.0 adds standalone expression evaluation and pretty/tabular formatting,
+with 11 native Login/sample regressions and all 136 Studio browser cases passing.
+The full release gate subsequently failed in the existing long-session live-view
+saved-dependency rerun with V8 `CALL_AND_RETRY_LAST`; presentation release readiness
+is blocked again. New first-copy expression checks passed before that crash. An isolated deployed
+run subsequently passed all new expression checks, including offline reload and
+independent copies; it does not replace the failed full lifecycle.
+The previous allocation repair remains valid, but did not eliminate every OOM.
+Native/deployed examples (32), worker/offline and shell delivery, lint/typecheck
+and deterministic packaging passed; the current build hash is
+`6b9f0847fd42371cfbcdc12c1b0317ed4b445ae76f62f4b6574fe62ea9492a23`
+(268 files / 175 assets). See the active TODO for the renewed blocker and the
+[planned shared memory recovery](../../roadmap.md#311-wasm-memory-recovery-between-renders).
 
 ## Resume after clearing context
 
