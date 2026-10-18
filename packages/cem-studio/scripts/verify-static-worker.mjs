@@ -12,7 +12,8 @@ const outputRoot = resolve(projectRoot, 'dist/static');
 const lifecycleOnly = process.argv.includes('--lifecycle-only');
 const shellOnly = process.argv.includes('--shell-only');
 const presentationOnly = process.argv.includes('--presentation-only');
-const reportPath = resolve(workspaceRoot, `dist/reports/cem-studio/${presentationOnly ? 'presentation-samples' : lifecycleOnly ? 'workspace-delivery' : shellOnly ? 'shell-delivery' : 'static-worker'}.json`);
+const supplierOnly = process.argv.includes('--supplier-only');
+const reportPath = resolve(workspaceRoot, `dist/reports/cem-studio/${supplierOnly ? 'supplier-project' : presentationOnly ? 'presentation-samples' : lifecycleOnly ? 'workspace-delivery' : shellOnly ? 'shell-delivery' : 'static-worker'}.json`);
 const server = await startStaticServer(outputRoot);
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CEM_STUDIO_CHROME });
 const context = await browser.newContext({ serviceWorkers: 'allow' });
@@ -134,7 +135,7 @@ try {
         assert.equal(await retainedCommand.evaluate(element => element === document.querySelector('[data-cem-studio-command-editor] textarea')), true);
     }
     await retainedEditor.dispose(); await retainedCommand.dispose();
-    if (!shellOnly && !lifecycleOnly && !presentationOnly) {
+    if (!shellOnly && !lifecycleOnly && !presentationOnly && !supplierOnly) {
         await page.getByRole('textbox', { name: 'Project name', exact: true }).fill('Deployed starter');
         await page.getByRole('button', { name: 'Create CEM-ML project', exact: true }).click();
         await page.waitForFunction(() => globalThis.__cemStudioApplication.workbench.snapshot().home.projects.some(project => project.name === 'Deployed starter'));
@@ -150,12 +151,17 @@ try {
         assert.equal(starter.entries, 0);
     }
 
-    if (presentationOnly) {
+    if (supplierOnly) {
+        await context.setOffline(true);
+        await exerciseSupplierProject(page, context);
+        assertNoUnexpectedBrowserErrors(); assert.deepEqual(httpFailures, []);
+        console.log('Verified deployed Supplier project, saved/draft edits, absent-output failure/repair and offline independent copies.');
+    } else if (presentationOnly) {
         await exerciseExampleProjects(page, context);
         assertNoUnexpectedBrowserErrors(); assert.deepEqual(httpFailures, []);
         await mkdir(dirname(reportPath), { recursive: true });
-        await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, exampleProjects: true, validationRepair: true, templateOutput: true, offline: true, configurations: 20, graphProvenance: true, liveView: true, sourceInspection: true, sourceFormatting: true, sourceColors: true, standaloneExpression: true }, null, 2)}\n`);
-        console.log('Verified deployed example project copies, schema failure/repair, template output, Save/reload graph provenance and twenty offline configurations.');
+        await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, exampleProjects: true, validationRepair: true, templateOutput: true, offline: true, configurations: 23, loginConfigurations: 20, supplierConfigurations: 3, supplierPipeline: true, graphProvenance: true, liveView: true, sourceInspection: true, sourceFormatting: true, sourceColors: true, standaloneExpression: true }, null, 2)}\n`);
+        console.log('Verified deployed example project copies, schema failure/repair, template output, Save/reload graph provenance and twenty-three offline configurations across Login and Supplier pipeline.');
     } else if (lifecycleOnly) {
         const lifecycle = await exerciseProjectLifecycle(page, context);
         assertNoUnexpectedBrowserErrors(); assert.deepEqual(httpFailures, []);
@@ -266,8 +272,9 @@ try {
     assert.equal(featureTour.projectId, 'feature-tour');
     assert.equal(featureTour.exampleCount, 32);
     assert.equal(featureTour.validatedCount, featureTour.exampleCount);
-    assert.equal(featureTour.cachedSampleResponses, featureTour.cacheUrlCount + 3);
+    assert.equal(featureTour.cachedSampleResponses, featureTour.cacheUrlCount + 4);
     assert.equal(featureTour.exampleProjectCached, true);
+    assert.equal(featureTour.supplierProjectCached, true);
 
     const workbench = await exerciseWorkbench(page);
     assert.equal(workbench.status, 'invalid');
@@ -861,7 +868,7 @@ async function exerciseProjectLifecycle(page, context) {
     }), graphRecords);
     await exerciseExampleProjects(page, context);
     await editor.dispose();
-    return { exampleProjects: true, projectSemanticComparison: true, projectQueryEquivalence: true, projectValidationRepair: true, projectTemplateOutput: true, projectGraphProvenance: true, projectLiveView: true, projectSourceInspection: true, projectSourceFormatting: true, projectSourceColors: true, projectStandaloneExpression: true, graphEdgeAuthoring: true, graphNodeCreation: true, graphConfigurationAuthoring: true, stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
+    return { supplierPipeline: true, exampleProjects: true, projectSemanticComparison: true, projectQueryEquivalence: true, projectValidationRepair: true, projectTemplateOutput: true, projectGraphProvenance: true, projectLiveView: true, projectSourceInspection: true, projectSourceFormatting: true, projectSourceColors: true, projectStandaloneExpression: true, graphEdgeAuthoring: true, graphNodeCreation: true, graphConfigurationAuthoring: true, stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
         guardedDraftAndFocusRetained: true, exportedExactBytes: true, trashRestore: true, offlineReopen: true, accessibility };
 }
 
@@ -1335,6 +1342,89 @@ async function exerciseExampleProjects(page, context) {
     }
     assert.equal(await page.evaluate(() => localStorage.getItem('cem-studio-theme')), themeBefore);
     assert.equal(await page.evaluate(() => navigator.onLine), false);
+    await exerciseSupplierProject(page, context);
+}
+
+async function exerciseSupplierProject(page, _context) {
+    const settle = () => page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
+    const click = async name => { console.log(`[cem-studio:supplier] ${name}`); await page.getByRole('button', { name, exact: true }).click(); await settle(); };
+    const pick = async (name, option) => { await page.getByRole('combobox', { name, exact: true }).click(); await page.getByRole('option', { name: option, exact: true }).click(); await settle(); };
+    const copyId = name => page.evaluate(name => JSON.parse(globalThis.__cemStudioApplication.workbench.snapshot().home.projects.find(project => project.name === name).id).projectId, name);
+    const configuration = async (projectId, entryId) => {
+        const label = await page.evaluate(({ projectId, entryId }) => {
+            const choice = globalThis.__cemStudioApplication.workbench.snapshot().workbenches.find(choice => {
+                const selection = JSON.parse(choice.id); return selection.projectId === projectId && selection.entryId === entryId;
+            });
+            return `${choice.name} — ${choice.operation}`;
+        }, { projectId, entryId });
+        await pick('Workbench', label);
+        if (!await page.evaluate(() => Boolean(globalThis.__cemStudioApplication.session.snapshot().transition))) {
+            await page.getByRole('tab', { name: 'Source and command', exact: true }).click(); await settle();
+        }
+    };
+    const output = () => page.evaluate(() => {
+        const state = globalThis.__cemStudioApplication.workbench.snapshot();
+        const artifacts = state.projection?.nativeResult?.result?.value?.value?.value?.artifacts ?? [];
+        return { exitCode: state.projection?.exitCode, count: artifacts.length,
+            json: artifacts.find(artifact => artifact.destination.endsWith('/availability.json'))?.primary,
+            html: state.projection?.output.text, diagnostics: state.projection?.diagnostics,
+            provenance: state.projection?.provenance, resourceId: state.resourceId, draft: state.draft };
+    });
+    const run = async (projectId, quantity) => {
+        await configuration(projectId, 'availability'); await click('Run configuration');
+        const result = await output();
+        assert.equal(result.exitCode, 0); assert.equal(result.count, 3);
+        assert.equal(result.json[0].quantity, quantity);
+        assert.equal(result.json[0].available, quantity > 0);
+        assert.equal(result.json[2].status, 'unknown'); assert.equal(result.json[3].status, 'ambiguous');
+        assert.ok(result.html.includes('Supplier availability'));
+        return result;
+    };
+    await pick('Example projects', 'Supplier pipeline'); await click('Create project from example');
+    const firstId = await copyId('Supplier pipeline');
+    await pick('Projects', 'Supplier pipeline'); await click('Open project');
+    const baseline = await run(firstId, 7);
+    const index = baseline.provenance.findIndex(frame => frame.uri?.endsWith('/templates/view.cemt') && frame.outputUri?.endsWith('/availability.html'));
+    assert.ok(index >= 0);
+    await page.getByRole('tab', { name: 'Results', exact: true }).click(); await settle();
+    await page.getByRole('tab', { name: 'Provenance', exact: true }).click(); await settle();
+    await page.getByRole('listbox', { name: 'Source-map provenance', exact: true }).selectOption(String(index)); await settle();
+    assert.equal((await output()).resourceId, 'supplier-view');
+    await configuration(firstId, 'stock-source');
+    const original = (await output()).draft;
+    await click('Run configuration');
+    const savedStockProjection = (await output()).html;
+    const editor = page.getByRole('textbox', { name: 'CEM source', exact: true });
+    await editor.fill(original.replace('SKU-A,7', 'SKU-A,0')); await settle();
+    await click('Run configuration');
+    assert.equal((await output()).html, savedStockProjection);
+    await configuration(firstId, 'availability');
+    assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.session.snapshot().transition?.stage), 'source');
+    await click('Discard draft');
+    await run(firstId, 7);
+    await configuration(firstId, 'stock-source');
+    await editor.fill(original.replace('SKU-A,7', 'SKU-A,0')); await settle(); await click('Save and validate');
+    await run(firstId, 0);
+    await configuration(firstId, 'stock-source');
+    await editor.fill(original.replace('SKU-A,7', 'SKU-A,many')); await settle(); await click('Save and validate');
+    await configuration(firstId, 'availability'); await click('Run configuration');
+    const failure = await output();
+    assert.equal(failure.exitCode, 1);
+    await page.getByRole('tab', { name: 'Results', exact: true }).click(); await settle();
+    assert.equal(await page.getByRole('button', { name: 'Copy exact output', exact: true }).isDisabled(), true);
+    assert.equal(await page.getByRole('button', { name: 'Download exact output', exact: true }).isDisabled(), true);
+    assert.equal(await page.getByText('No output was published. See the command diagnostics below.', { exact: true }).count(), 1);
+    assert.ok(failure.diagnostics.some(diagnostic => diagnostic.message.includes('invalid data number')));
+    await configuration(firstId, 'stock-source'); await editor.fill(original.replace('SKU-A,7', 'SKU-A,0')); await settle(); await click('Save and validate');
+    await run(firstId, 0);
+    await page.reload({ waitUntil: 'load' }); await waitForApplication(page, browserErrors, httpFailures); await settle();
+    assert.equal(await page.evaluate(() => navigator.onLine), false);
+    await run(firstId, 0);
+    await pick('Example projects', 'Supplier pipeline'); await click('Create project from example');
+    const secondId = await copyId('Supplier pipeline (2)'); assert.notEqual(firstId, secondId);
+    await pick('Projects', 'Supplier pipeline (2)'); await click('Open project');
+    await run(secondId, 7);
+    await configuration(secondId, 'stock-source'); assert.equal((await output()).draft, original);
 }
 
 async function inspectWorkspaceAccessibility(page, context) {
@@ -1636,6 +1726,7 @@ async function validateFeatureTour(page, initialStatus) {
             validatedCount,
             cachedSampleResponses: (await sampleCache.keys()).length,
             exampleProjectCached: Boolean(await sampleCache.match(new URL('./samples/examples/login.cem-studio.json', document.baseURI))),
+            supplierProjectCached: Boolean(await sampleCache.match(new URL('./samples/examples/supplier-pipeline.cem-studio.json', document.baseURI))),
         };
     }, initialStatus);
 }

@@ -40,6 +40,7 @@ export interface CemStudioResourceCommandOptions {
 }
 
 export interface CemStudioCommandOutput {
+    readonly available?: boolean;
     readonly uri: string;
     readonly contentType: string;
     readonly byteLength: number;

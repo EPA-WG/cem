@@ -1,0 +1,60 @@
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@ns cem = "https://cem.dev/ns/core/1"
+@default template
+{param @name=input @required=true}
+{param @name=stock @required=true}
+{template @name=main @visibility=public @cem:whitespace=layout |
+    {cem:variable @name=products
+        @select='seq:where(input.descendants, fn(node) => node.kind == "element" && node.namespace == "urn:demo:supplier" && node.name == "product")'}
+    {cem:variable @name=rows
+        @select='seq:where(stock.descendants, fn(node) => node.kind == "element" && node.namespace == "cem:generic-data" && node.name == "object")'}
+    {element @name=array @namespace=cem:generic-data |
+        {cem:for-each @as=product @select=products |
+            {cem:variable @name=id @select='dom:text(dom:attribute(product, "id"))'}
+            {cem:variable @name=matches
+                @select='seq:where(rows, fn(row) => dom:text(seq:where(row.children, fn(cell) => dom:text(dom:attribute(cell, "name")) == "product_id")) == id)'}
+            {cem:variable @name=count @select="seq:count(matches)"}
+            {cem:variable @name=duplicate
+                @select='count > 1 || seq:count(seq:where(products, fn(other) => dom:text(dom:attribute(other, "id")) == id)) > 1'}
+            {cem:variable @name=quantityText
+                @select='if count == 1 && !duplicate { dom:text(seq:where(seq:first(matches).children, fn(cell) => dom:text(dom:attribute(cell, "name")) == "quantity")) } else { "0" }'}
+            {cem:variable @name=quantity @select="num:integer(quantityText)"}
+            {cem:variable @name=quantityValue @select='if str:concat((quantity,)) == quantityText { quantity } else { "invalid-integer" }'}
+            {cem:variable @name=status
+                @select='if duplicate { "ambiguous" } else { if count == 0 { "unknown" } else { if quantity < 0 { "invalid" } else { if quantity == 0 { "out-of-stock" } else { "available" } } } }'}
+            {element @name=object @namespace=cem:generic-data |
+                {element @name=property @namespace=cem:generic-data |
+                    {attribute @name=name @value=id}
+                    {element @name=string @namespace=cem:generic-data |
+                        {$ | id}
+                    }
+                }
+                {element @name=property @namespace=cem:generic-data |
+                    {attribute @name=name @value=name}
+                    {element @name=string @namespace=cem:generic-data |
+                        {$ | dom:text(seq:where(product.children, fn(node) => node.name == "name" && node.namespace == "urn:demo:supplier"))}
+                    }
+                }
+                {element @name=property @namespace=cem:generic-data |
+                    {attribute @name=name @value=quantity}
+                    {element @name=number @namespace=cem:generic-data |
+                        {$ | quantityValue}
+                    }
+                }
+                {element @name=property @namespace=cem:generic-data |
+                    {attribute @name=name @value=available}
+                    {element @name=boolean @namespace=cem:generic-data |
+                        {$ | status == "available"}
+                    }
+                }
+                {element @name=property @namespace=cem:generic-data |
+                    {attribute @name=name @value=status}
+                    {element @name=string @namespace=cem:generic-data |
+                        {$ | status}
+                    }
+                }
+            }
+        }
+    }
+}

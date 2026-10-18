@@ -1,0 +1,151 @@
+{
+  "id": "supplier-pipeline",
+  "name": "Supplier pipeline",
+  "version": "1.0.0",
+  "description": "XML products and CSV stock reconciled through explicit native domain rules into JSON, YAML and HTML, with failure/repair and source provenance.",
+  "collections": [
+    "amsterdam-2026"
+  ],
+  "sources": [
+    {
+      "id": "supplier-catalog",
+      "source": "examples/projects/supplier-pipeline/data/catalog.xml",
+      "path": "data/catalog.xml",
+      "contentType": "application/xml",
+      "schema": "https://cem.dev/ns/data/xml/1",
+      "role": "data"
+    },
+    {
+      "id": "supplier-stock",
+      "source": "examples/projects/supplier-pipeline/data/stock.csv",
+      "path": "data/stock.csv",
+      "contentType": "text/csv;header=present",
+      "schema": "https://cem.dev/ns/data/csv/1",
+      "role": "data"
+    },
+    {
+      "id": "supplier-reconcile",
+      "source": "examples/projects/supplier-pipeline/templates/reconcile.cemt",
+      "path": "templates/reconcile.cemt",
+      "contentType": "application/vnd.cem.template+cem",
+      "schema": "https://cem.dev/ns/template/cem-native/1",
+      "role": "template"
+    },
+    {
+      "id": "supplier-view",
+      "source": "examples/projects/supplier-pipeline/templates/view.cemt",
+      "path": "templates/view.cemt",
+      "contentType": "application/vnd.cem.template+cem",
+      "schema": "https://cem.dev/ns/template/cem-native/1",
+      "role": "template"
+    },
+    {
+      "id": "supplier-graph",
+      "source": "examples/projects/supplier-pipeline/graphs/availability.cem",
+      "path": "graphs/availability.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cli/transform-config/1",
+      "role": "transform-config"
+    },
+    {
+      "id": "supplier-expected-json",
+      "source": "examples/projects/supplier-pipeline/expected/availability.json",
+      "path": "expected/availability.json",
+      "contentType": "application/json",
+      "schema": "https://cem.dev/ns/data/json/1",
+      "role": "data"
+    },
+    {
+      "id": "supplier-expected-yaml",
+      "source": "examples/projects/supplier-pipeline/expected/availability.yaml",
+      "path": "expected/availability.yaml",
+      "contentType": "application/yaml",
+      "schema": "https://cem.dev/ns/data/yaml/1",
+      "role": "data"
+    },
+    {
+      "id": "supplier-expected-html",
+      "source": "examples/projects/supplier-pipeline/expected/availability.html",
+      "path": "expected/availability.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "readme",
+      "source": "examples/projects/supplier-pipeline/README.md",
+      "path": "README.md",
+      "contentType": "text/markdown",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "role": "data"
+    }
+  ],
+  "configurations": [
+    {
+      "id": "catalog-source",
+      "name": "Inspect supplier catalog",
+      "kind": "inspection",
+      "source": "supplier-catalog",
+      "argv": [
+        "parse",
+        "$source",
+        "--content-type",
+        "application/xml",
+        "--schema",
+        "https://cem.dev/ns/data/xml/1",
+        "--format",
+        "ast",
+        "--no-color"
+      ]
+    },
+    {
+      "id": "stock-source",
+      "name": "Inspect supplier stock",
+      "kind": "inspection",
+      "source": "supplier-stock",
+      "argv": [
+        "parse",
+        "$source",
+        "--content-type",
+        "text/csv;header=present",
+        "--schema",
+        "https://cem.dev/ns/data/csv/1",
+        "--format",
+        "ast",
+        "--no-color"
+      ]
+    },
+    {
+      "id": "availability",
+      "name": "Supplier availability pipeline",
+      "kind": "transformation-graph",
+      "source": "supplier-graph",
+      "dependencies": [
+        "supplier-catalog",
+        "supplier-stock",
+        "supplier-reconcile",
+        "supplier-view",
+        "supplier-expected-json",
+        "supplier-expected-yaml",
+        "supplier-expected-html"
+      ],
+      "description": "Match saved XML products and CSV stock by ID; generate an HTML view, JSON service payload and YAML partner feed. Edit stock through Resources, save and rerun.",
+      "argv": [
+        "transform",
+        "--config",
+        "$source",
+        "--config-content-type",
+        "application/cem",
+        "--config-schema",
+        "https://cem.dev/ns/cli/transform-config/1",
+        "--scope-budget",
+        "queueSize=1024"
+      ],
+      "expectedGraphOutputs": {
+        "generated/availability.json": "supplier-expected-json",
+        "generated/availability.yaml": "supplier-expected-yaml",
+        "generated/availability.html": "supplier-expected-html"
+      }
+    }
+  ]
+}

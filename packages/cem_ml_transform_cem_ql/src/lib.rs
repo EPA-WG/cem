@@ -1884,6 +1884,7 @@ impl TransformTemplateAdapter for CemQlExpressionTransformTemplateAdapter {
     }
 }
 
+mod data_export;
 mod xslt_runtime;
 
 pub fn register_cem_ql_template_adapter(registry: &mut TransformTemplateAdapterRegistry) {
@@ -1906,6 +1907,8 @@ pub fn register_cem_ql_artifact_exporters(context: &mut EngineContext) {
     context
         .transform_artifact_exporter_registry
         .register(CemQlJsonResultExporter);
+    let data_exporter = data_export::ConstructedDataExporter::new(context);
+    context.transform_artifact_exporter_registry.register(data_exporter);
 }
 
 pub fn register_cem_ql_runtime_adapters(context: &mut EngineContext) {
@@ -4852,7 +4855,7 @@ mod reference_view_tests {
                 | CemAstNode::Reference { source, .. } => source,
                 _ => unreachable!(),
             };
-            assert_eq!(target.source_map().as_ref(), Some(source));
+            assert_eq!(target.source_map(), Some(source.clone().with_source_uri("memory:artifact.cem")));
             assert_eq!(
                 target
                     .view()

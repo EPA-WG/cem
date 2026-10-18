@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { parseCemStudioProjectBundle } from '../src/file-system-provider.js';
 
@@ -40,8 +41,8 @@ assert.equal(
     catalog.projectResourceCount,
     catalog.exampleCount * 2 + catalog.dependencyCount + catalog.workbenchResourceCount,
 );
-assert.deepEqual(sampleIndex.projects.map(project => project.id), ['schema-examples', 'login']);
-assert.equal(sampleIndex.cacheUrls.length, catalog.cacheUrlCount + 3);
+assert.deepEqual(sampleIndex.projects.map(project => project.id), ['schema-examples', 'login', 'supplier-pipeline']);
+assert.equal(sampleIndex.cacheUrls.length, catalog.cacheUrlCount + 4);
 assert.deepEqual(sampleIndex.collections, [{ id: 'amsterdam-2026', name: 'Amsterdam 2026' }]);
 const definition = await readJson(resolve(workspaceRoot, 'examples/projects/login/example.json'));
 for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
@@ -126,6 +127,37 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
         assert.deepEqual(repair.resourceIds, ['login-invalid', 'command-validation-repair', 'login-schema-package', 'login-schema']);
         assert.ok(new TextDecoder().decode(bundle.contents.readme).includes('demo.login.method_required'));
         assert.deepEqual(JSON.parse(new TextDecoder().decode(bundle.contents[repair.runConfigResourceId])).schemaPackages, [{ uri: 'schemas/login-schema-package.cem' }]);
+    } else if (record.id === 'supplier-pipeline') {
+        const supplier = await readJson(resolve(workspaceRoot, 'examples/projects/supplier-pipeline/example.json'));
+        assert.deepEqual(record.collections, ['amsterdam-2026']);
+        assert.equal(record.version, supplier.version);
+        assert.equal(bundle.project.entries.length, supplier.configurations.length);
+        for (const source of supplier.sources) assert.deepEqual(bundle.contents[source.id], new Uint8Array(await readFile(resolve(workspaceRoot, source.source))));
+        const pipeline = bundle.project.entries.find(entry => entry.id === 'availability');
+        assert.equal(pipeline.kind, 'transformation-graph');
+        for (const id of ['supplier-stock', 'supplier-catalog', 'supplier-reconcile', 'supplier-view']) assert.ok(pipeline.resourceIds.includes(id));
+        assert.ok(new TextDecoder().decode(bundle.contents.readme).includes('Failure and repair'));
+        const command = JSON.parse(new TextDecoder().decode(bundle.contents[pipeline.runConfigResourceId]));
+        assert.ok(command.argv.includes('graphs/availability.cem'));
+        const directory = await mkdtemp(resolve(tmpdir(), 'cem-studio-supplier-'));
+        try {
+            for (const resource of bundle.project.resources) {
+                const path = resolve(directory, resource.path);
+                await mkdir(dirname(path), { recursive: true });
+                await writeFile(path, bundle.contents[resource.id]);
+            }
+            for (const entry of bundle.project.entries) {
+                const command = JSON.parse(new TextDecoder().decode(bundle.contents[entry.runConfigResourceId]));
+                run(cli, command.argv, directory);
+            }
+            const outputs = supplier.configurations.find(configuration => configuration.id === 'availability').expectedGraphOutputs;
+            for (const [path, expectedId] of Object.entries(outputs)) {
+                const actual = await readFile(resolve(directory, path), 'utf8');
+                const expected = new TextDecoder().decode(bundle.contents[expectedId]);
+                if (path.endsWith('.json')) assert.deepEqual(JSON.parse(actual), JSON.parse(expected));
+                else assert.equal(actual.trim(), expected.trim());
+            }
+        } finally { await rm(directory, { recursive: true, force: true }); }
     } else if (record.id === 'schema-examples') {
         for (const configuration of catalog.workbenches) {
             const resource = bundle.project.resources.find(item => item.id === configuration.runConfigResourceId);

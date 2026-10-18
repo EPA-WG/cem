@@ -49,6 +49,74 @@ fn graph_authoring_describes_native_nodes_and_retains_noop_bytes() {
 }
 
 #[test]
+fn graph_authoring_keeps_result_identity_separate_from_template_and_exports() {
+    let source = "{run | {import @id=data @src=data.xml | {transform @id=model @src=model.cemt @content-type=application/cem @schema=https://cem.dev/ns/cem-ml/1 @template-content-type=application/vnd.cem.template+cem | {export @id=service @out=result.json @content-type=application/json @schema=https://cem.dev/ns/data/json/1}}}}";
+    let described = author_transform_config(request(source, None)).unwrap();
+    let fields = &described
+        .nodes
+        .iter()
+        .find(|node| node.id == "model")
+        .unwrap()
+        .fields;
+    for (name, value) in [
+        ("content-type", "application/cem"),
+        ("schema", "https://cem.dev/ns/cem-ml/1"),
+    ] {
+        assert_eq!(
+            fields
+                .iter()
+                .find(|field| field.id == name)
+                .unwrap()
+                .value
+                .as_deref(),
+            Some(value)
+        );
+    }
+    assert_eq!(described.source, source);
+    let edited = author_transform_config(request(
+        source,
+        Some(edit("model", "content-type", Some("application/xml"))),
+    ))
+    .unwrap();
+    let model = edited.nodes.iter().find(|node| node.id == "model").unwrap();
+    assert_eq!(
+        model
+            .fields
+            .iter()
+            .find(|field| field.id == "content-type")
+            .unwrap()
+            .value
+            .as_deref(),
+        Some("application/xml")
+    );
+    assert_eq!(
+        model
+            .fields
+            .iter()
+            .find(|field| field.id == "template-content-type")
+            .unwrap()
+            .value
+            .as_deref(),
+        Some("application/vnd.cem.template+cem")
+    );
+    let service = edited
+        .nodes
+        .iter()
+        .find(|node| node.id == "service")
+        .unwrap();
+    assert_eq!(
+        service
+            .fields
+            .iter()
+            .find(|field| field.id == "content-type")
+            .unwrap()
+            .value
+            .as_deref(),
+        Some("application/json")
+    );
+}
+
+#[test]
 fn graph_authoring_edits_native_ast_and_validates_candidate_before_publication() {
     let before = author_transform_config(request(GRAPH, None)).unwrap();
     let changed = author_transform_config(request(

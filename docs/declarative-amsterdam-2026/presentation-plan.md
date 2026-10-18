@@ -191,8 +191,9 @@ questions. Product descriptions arrive as XML and stock as CSV. Explicitly
 match records by product ID, convert numeric values under a stated rule,
 select availability, and branch to a YAML partner feed, a JSON service payload,
 and a web view. Graph joins organize artifacts; the domain query owns the
-business matching. This proposed extension makes multiple inputs and outputs,
-each in its own format, concrete without replacing the promised core.
+business matching. The [Supplier pipeline project](../../examples/projects/supplier-pipeline/README.md)
+makes multiple inputs and outputs, each in its own format, concrete alongside
+the core Login journey.
 
 ```mermaid
 flowchart LR
@@ -206,10 +207,11 @@ flowchart LR
     V --> P["Partner ordering portal"]
 ```
 
-For this companion, prepare one source set, mapping, domain rule, expected-result
-set, and failure case across the selected hosts. The composed example remains
-proposed until its fixtures, commands, and outputs are verified; individual
-repository operations do not establish the whole demonstration.
+The checked-in project contains one source set, mapping, domain rule,
+expected-result set and failure/repair case for the native CLI and Studio browser
+worker. See the [handoff](../presentation/declarative-amsterdam-2026-handoff.md)
+for current verification evidence. Additional service/library and embedding hosts
+remain proposals until their own composed fixtures and outputs are verified.
 
 | Entry point | Companion demonstration | Host responsibility and boundary |
 | --- | --- | --- |

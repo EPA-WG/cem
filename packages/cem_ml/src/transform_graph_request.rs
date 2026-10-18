@@ -1055,7 +1055,15 @@ impl TransformGraphRequestLowerer<'_> {
                     &template_entrypoint,
                     &params,
                 ),
-                target: None,
+                target: if node.content_type.is_some() || node.schema.is_some() {
+                    Some(FormatIdentity {
+                        content_type: node.content_type.clone(),
+                        schema: node.schema.clone(),
+                        ..FormatIdentity::default()
+                    })
+                } else {
+                    None
+                },
                 primary_input: primary_variant.id.clone(),
                 secondary_inputs,
                 scheduler_scope_ids: TransformStageSchedulerScopeIds {
@@ -3189,7 +3197,9 @@ fn zip_join_groups(
 
 fn apply_stage_targets(stages: &mut [TransformGraphStage], exports: &[TransformGraphExport]) {
     for stage in stages {
-        stage.target = export_target_for_stage(&stage.id, exports);
+        if stage.target.is_none() {
+            stage.target = export_target_for_stage(&stage.id, exports);
+        }
     }
 }
 

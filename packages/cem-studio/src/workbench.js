@@ -2601,7 +2601,7 @@ function workbenchResultState(state) {
             revision: projection.revision, diagnostics: projection.diagnostics, provenance: projection.provenance,
             preview: projection.preview, expected: projection.expected, summary: projection.summary,
             transfer: projection.transfer, output: projection.output && {
-                contentType: projection.output.contentType, byteLength: projection.output.byteLength },
+                available: projection.output.available, contentType: projection.output.contentType, byteLength: projection.output.byteLength },
             trace: records(projection.trace), graph: records(projection.graph) } };
 }
 

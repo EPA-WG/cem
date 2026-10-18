@@ -81,6 +81,9 @@ pub const TRANSFORM_CONFIG_SCHEMA_ELEMENTS: &[TransformConfigElementSchema] = &[
         optional_attributes: &[
             "id",
             "input",
+            "content-type",
+            "contentType",
+            "schema",
             "with:*",
             "entrypoint",
             "template-content-type",

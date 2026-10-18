@@ -5,6 +5,7 @@
     "./examples/login.cem-studio.json",
     "./examples/schema-examples.cem-studio.json",
     "./examples/starter.cem-studio.json",
+    "./examples/supplier-pipeline.cem-studio.json",
     "./feature-tour/catalog.json",
     "./feature-tour/feature-tour.project.json",
     "./feature-tour/resources/cem-ast-projection-basic-ast.cem-bin",
@@ -119,6 +120,16 @@
       ],
       "archive": "./examples/login.cem-studio.json",
       "sha256": "2bc105da6baf8a1a2952cd9d888ab55249dd4fcc3c9cc0c3f211e371a76d3ce3"
+    },
+    {
+      "id": "supplier-pipeline",
+      "name": "Supplier pipeline",
+      "version": "1.0.0",
+      "collections": [
+        "amsterdam-2026"
+      ],
+      "archive": "./examples/supplier-pipeline.cem-studio.json",
+      "sha256": "74b5dd34b9cfbe004e7893fc05e10b31f9ce7ad2ad1bde17ecbe2a5e65e57710"
     }
   ]
 }

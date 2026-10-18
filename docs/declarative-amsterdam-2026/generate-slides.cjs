@@ -194,7 +194,7 @@ line(s,3.9,3.42,4.8,4.02,C.purple,1.7,true);line(s,3.9,5.29,4.8,4.57,C.purple,1.
 box(s,4.85,3.6,3.15,1.45,C.pale,C.pale);text(s,'Shared domain rules',5.07,3.83,2.75,.53,22,{bold:true,align:'center'});
 ['YAML partner feed','JSON service response','Availability view'].forEach((v,i)=>{line(s,8.02,4.33,9.0,3.1+i*1.34,C.purple,1.5,true);box(s,9.08,2.72+i*1.34,3.64,.78);text(s,v,9.25,2.88+i*1.34,3.3,.45,19,{bold:true});});
 pill(s,'Companion scenario',.65,6.36,2.85);
-note(s,'The small login exercise demonstrates a lifecycle, not the limit of the platform. Consider a supplier catalog in XML and a stock feed in CSV. Explicit domain rules reconcile their records and produce a YAML feed, a JSON response and a view. Connectors handle locations; import/export adapters handle representations.','This is a companion design scenario, not a completed composed supplier demonstration. Joins need explicit key matching, numeric conversion and missing/duplicate record rules.');
+note(s,'The small login exercise demonstrates a lifecycle, not the limit of the platform. Consider a supplier catalog in XML and a stock feed in CSV. Explicit domain rules reconcile their records and produce a YAML feed, a JSON response and a view. Connectors handle locations; import/export adapters handle representations.','The checked-in Supplier pipeline project composes this scenario in the native CLI and Studio browser worker. Its authored rules cover key matching, numeric conversion and missing/duplicate records. Additional service and portal embedding hosts remain future demonstrations.');
 }
 // 35–47: Queries, transformation, provenance and embedding.
 {

@@ -198,6 +198,23 @@ Reference semantics:
 - secondary artifacts are passed to the transform engine as named inputs.
 - document order must not imply joins; joins are explicit only.
 
+A transform can declare its result with `@content-type` and `@schema`, separately
+from `@template-content-type` / `@template-schema`. Explicit result identities
+take precedence over the existing direct-export inference. The supplier example
+uses a CEM result to retain its constructed domain tree while branching to another
+template and multiple publication formats.
+
+Constructed `cem:generic-data` trees can publish to explicit matching JSON or YAML
+content-type/schema pairs through the packages' native formatters. This bounded
+export accepts one root of `array`, `object`/named `property`, `string`, `number`,
+`boolean` or empty `null` elements; unknown namespaces/content, duplicate keys and
+invalid scalar values are errors. Strings retain their whitespace. Exports are
+limited to 4,096 visited nodes and 64 nested value levels. The native render owner
+is read directly, without a serialized AST handoff. Computed source frames remain
+template provenance; this is not a promise of original-cell lineage. The
+[supplier project](../examples/projects/supplier-pipeline/README.md) demonstrates
+the contracts together.
+
 Current implementation slice:
 
 - `cem_ml::transform_config::parse_transform_graph_config` parses CEM-ML config

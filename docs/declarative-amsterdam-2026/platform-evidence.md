@@ -76,8 +76,13 @@ Current CEM contracts and measured behavior govern those decisions.
 ## CLI, library, and pipeline applications
 
 CEM's processing foundation supports adoption independently of a web interface.
-These sources establish entry points and graph capabilities; the proposed
-supplier CLI/service/view comparison still needs a composed fixture.
+The [Supplier pipeline project](../../examples/projects/supplier-pipeline/README.md)
+composes XML products and CSV stock into HTML, JSON and YAML in the native CLI
+and Studio browser worker. Its native fixture is
+[`supplier_pipeline.rs`](../../packages/cem_ml_cli/tests/supplier_pipeline.rs),
+with browser/offline acceptance in the Studio delivery gate. These are the
+selected composed hosts; a small library/service embedding demonstration remains
+planned.
 
 | Surface | Evidence | Positioning use |
 | --- | --- | --- |

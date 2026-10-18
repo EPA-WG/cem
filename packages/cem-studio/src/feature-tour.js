@@ -1,3 +1,4 @@
+import { readCommandOutput } from '@epa-wg/cem-elements/command-result';
 import { commandSchema, parseCemMlCommandText, serializeCemMlCommandText } from '@epa-wg/cem-ml-cli/browser-commands';
 import {
     CEM_STUDIO_LIMITS,
@@ -13,7 +14,6 @@ export const CEM_STUDIO_PROJECT_CEM_CONTENT_TYPE = 'application/vnd.cem.studio-p
 export const CEM_STUDIO_PROJECT_CONTENT_TYPE = 'application/vnd.cem.studio-project+json';
 export const CEM_STUDIO_PROJECT_SCHEMA = 'https://cem.dev/ns/studio/project/1';
 
-const CEM_STDOUT_URI = 'cem-stdio://stdout';
 const ARTIFACT_READ_BYTES = 1024 * 1024;
 const PORTABLE_STUDIO_OPERATIONS = new Set(['parse', 'inspect', 'convert', 'query', 'transform', 'trace']);
 
@@ -116,16 +116,12 @@ export async function createCemStudioBrowserValidator() {
             const presentation = projectBrowserCommandPresentation(invocation.presentation, result);
             let output;
             if (readOutput) {
-                try {
-                    output = await readCommandOutput(
-                        handle,
-                        result,
-                        invocation.presentation.stdoutArtifactUri,
-                        committedWrites.get(requestId),
-                    );
-                } catch (error) {
-                    if (result.exitCode === 0) throw error;
-                }
+                output = await readCommandOutput(handle, result, {
+                    requestedUri: invocation.presentation.stdoutArtifactUri,
+                    maxBytes: CEM_STUDIO_LIMITS.resultBytes,
+                    chunkBytes: ARTIFACT_READ_BYTES,
+                    committedPublications: committedWrites.get(requestId),
+                });
             }
             if (result.exitCode !== 0) {
                 const diagnostics = result.diagnostics?.items
@@ -682,69 +678,6 @@ function freezeCommandValue(value) {
         );
     }
     return value;
-}
-
-async function readCommandOutput(handle, result, requestedUri = CEM_STDOUT_URI, committed = []) {
-    const artifacts = result?.artifacts?.items ?? [];
-    const artifact =
-        artifacts.find(({ uri }) => uri === requestedUri) ?? artifacts.find(({ kind }) => kind === 'output');
-    let metadata;
-    let bytes;
-    if (artifact) {
-        metadata = artifact;
-        assertCemStudioResultSize(artifact.byteLength);
-        bytes = new Uint8Array(artifact.byteLength);
-        let offset = 0;
-        while (offset < artifact.byteLength) {
-            const read = await handle.readArtifact(artifact, {
-                offset,
-                maxBytes: Math.min(ARTIFACT_READ_BYTES, CEM_STUDIO_LIMITS.resultBytes, artifact.byteLength - offset),
-            });
-            if (read.metadata.offset !== offset || read.bytes.byteLength === 0) {
-                throw new Error(`CEM-ML command returned an invalid artifact range at byte ${offset}`);
-            }
-            bytes.set(read.bytes, offset);
-            offset += read.bytes.byteLength;
-        }
-    } else {
-        const publication =
-            committed.find(({ request }) => request.uri === requestedUri) ??
-            committed.find(({ request }) => request.kind === 'output');
-        if (!publication) {
-            throw new Error(
-                `CEM-ML command omitted its ${requestedUri} output publication: ${JSON.stringify({
-                    operation: result?.operation,
-                    status: result?.status,
-                    exitCode: result?.exitCode,
-                    artifacts: artifacts.map(({ kind, uri, byteLength }) => ({ kind, uri, byteLength })),
-                    committed: committed.map(({ request }) => ({
-                        kind: request.kind,
-                        uri: request.uri,
-                        byteLength: request.byteLength,
-                    })),
-                })}`,
-            );
-        }
-        metadata = publication.request;
-        assertCemStudioResultSize(metadata.byteLength);
-        assertCemStudioResultSize(publication.bytes);
-        bytes = publication.bytes;
-    }
-    if (bytes.byteLength !== metadata.byteLength) {
-        throw new Error(`CEM-ML command output length ${bytes.byteLength} does not match ${metadata.byteLength}`);
-    }
-    const digest = await sha256(bytes);
-    if (digest !== metadata.sha256) {
-        throw new Error(`CEM-ML command output hash ${digest} does not match ${metadata.sha256}`);
-    }
-    return Object.freeze({
-        uri: metadata.uri ?? requestedUri,
-        contentType: metadata.contentType,
-        byteLength: metadata.byteLength,
-        sha256: metadata.sha256,
-        bytes: bytes.slice(),
-        text: new TextDecoder().decode(bytes),
-    });
 }
 
 async function fetchJson(url, fetchResource) {

@@ -219,11 +219,16 @@
   {cem-tabs @label="Projection results" @value=output |
    {cem-tab @label="Operation output" @value=output |
  {cem-stack @gap=md |
-    {call @template=result-preview @with:preview="{$projection.preview}"}
+    {cem:if @test='projection.output.available == false' |
+     {cem-alert @label="No output was published. See the command diagnostics below." @tone=warning}
+    }
+    {cem:if @test='projection.output.available ?? true' |
+     {call @template=result-preview @with:preview="{$projection.preview}"}
+    }
     {cem-grid |
-     {cem-action @data-cem-studio-projection-copy="" @disabled={if busy || !projection.output || (projection.preview.kind == "download") { true } else { null }} @host-command=copy-output
+     {cem-action @data-cem-studio-projection-copy="" @disabled={if busy || !projection.output || (projection.output.available == false) || (projection.preview.kind == "download") { true } else { null }} @host-command=copy-output
       @host-command-event=click @variant=alternate | Copy exact output}
-     {cem-action @data-cem-studio-projection-download="" @disabled={if busy || !projection.output { true } else { null }} @host-command=download-output
+     {cem-action @data-cem-studio-projection-download="" @disabled={if busy || !projection.output || (projection.output.available == false) { true } else { null }} @host-command=download-output
       @host-command-event=click @variant=contextual | Download exact output}
     }
     {cem-alert @data-cem-studio-projection-transfer="" @label={projection.transfer.message ?? "Copy or download the exact verified operation output."} @tone={if projection.transfer.status == "failed" { "danger" } else { "info" }}}

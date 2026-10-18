@@ -39,7 +39,8 @@
             "path": "./assets/@epa-wg/cem-studio/feature-tour.js",
             "contentType": "text/javascript",
             "moduleImports": {
-                "@epa-wg/cem-ml-cli/browser-commands": "@epa-wg/cem-ml-cli/browser-commands"
+                "@epa-wg/cem-ml-cli/browser-commands": "@epa-wg/cem-ml-cli/browser-commands",
+                "@epa-wg/cem-elements/command-result": "@epa-wg/cem-elements/command-result"
             }
         },
         "@epa-wg/cem-studio/workbench": {
@@ -79,6 +80,10 @@
         },
         "@epa-wg/cem-studio/resource-reference": {
             "path": "./assets/@epa-wg/cem-studio/resource-reference.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/command-result": {
+            "path": "./assets/@epa-wg/cem-elements/dist/lib/command-result.js",
             "contentType": "text/javascript"
         }
     },

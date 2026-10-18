@@ -5,6 +5,14 @@ Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
 `@epa-wg/cem-elements` provides the `<cem-element>` browser substrate for declarative light-DOM custom elements. It is
 the Phase 3.1 runtime gate before the project moves into Edge/SSR support and later `@epa-wg/custom-element` adoption.
 
+Hosts can import `readCommandOutput` from `@epa-wg/cem-elements/command-result`
+without registering custom elements. It reads retained artifacts or committed
+publications with explicit byte/chunk limits and verifies length and SHA-256.
+Failed commands that publish nothing return `available: false`; published empty
+files return `available: true`. Missing successful outputs and corrupt publications
+remain errors. Declarative consumers can retain diagnostics and disable output
+transfers when `available` is false.
+
 Native CEM-ML node/reference values in relationship attributes use the shared
 [reference-to-ID consumer](../../docs/cem-element-reference-ids-design.md): preserve
 an explicit target ID or generate one from persisted instance identity and output

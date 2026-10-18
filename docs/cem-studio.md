@@ -2815,6 +2815,31 @@ authored layout. Use the [Login guide](../examples/projects/login/README.md#stan
 for saved-edit and offline demonstrations. Project copies remain independent.
 Physical device acceptance remains behind presentation functionality.
 
+The **Supplier pipeline** example (1.0.0, Amsterdam 2026) is an ordinary portable
+project alongside Login and the schema examples. Its three configurations inspect
+the XML catalog, inspect CSV stock and run the availability graph. It explicitly
+matches product IDs, checks integer conversion and handles missing/duplicate stock,
+then publishes an HTML view, JSON service payload and YAML partner feed from one
+retained domain result. The operation preview shows HTML; all three artifacts are
+available in the graph result. Copy/download currently transfers the primary output.
+The [project guide](../examples/projects/supplier-pipeline/README.md) explains saved
+versus unsaved edits, intentional failure/repair, offline reopening and independent
+copies. HTML provenance navigates to authored view-template ranges. Computed results
+do not claim arbitrary original-cell lineage. The implementation reuses Studio's
+declarative workspace and adds reusable native graph/export support in the engine.
+The shared `cem-elements/command-result` reader retains failed commands with no
+published output. Studio's declarative results show their diagnostics and disable
+copy/download; successful empty publications remain transferable. Studio wires the
+shared reader into its existing command host without implementing a new UI capability.
+
+The Supplier increment passes the complete 52-task release gate serially, including
+137 Studio browser cases, all Login/Supplier deployed lifecycle checks and the
+clean seven-package consumer. Two clean builds match 270 files / 176 assets,
+SHA-256 `9dcd5c53671456d377cde10ff21a87fea20beca3f94b577217e37ed32e500577`.
+Shared checks also pass: 616 unit cases, lint and type checks. The failure-result
+repair preserves previews for existing output descriptors without an availability
+marker. All 85 workbench cases pass with their original assertions and timeouts.
+
 The shared payload-index repair at `bd8f8428` passed the complete 52-task
 release gate. It reduced sampled cumulative index allocations in a controlled
 ten-snapshot, 4,096-item benchmark from 3.38 GB to 6.48 MB; this is not retained

@@ -1,0 +1,22 @@
+@doc cem-ml 1
+{run |
+    {import @content-type=application/xml @id=catalog @schema=https://cem.dev/ns/data/xml/1
+        @src=../data/catalog.xml}
+    {import @content-type="text/csv;header=present" @id=stock @schema=https://cem.dev/ns/data/csv/1
+        @src=../data/stock.csv}
+    {transform @content-type=application/cem @entrypoint=main @id=availability @input=catalog
+        @schema=https://cem.dev/ns/cem-ml/1 @src=../templates/reconcile.cemt
+        @template-content-type="application/vnd.cem.template+cem"
+        @template-schema=https://cem.dev/ns/template/cem-native/1 @with:stock=stock |
+        {transform @entrypoint=main @id=view @src=../templates/view.cemt
+            @template-content-type="application/vnd.cem.template+cem"
+            @template-schema=https://cem.dev/ns/template/cem-native/1 |
+            {export @content-type=text/html @id=web @out=../generated/availability.html
+                @schema=https://cem.dev/ns/data/html/1}
+        }
+        {export @content-type=application/json @id=service @out=../generated/availability.json
+            @schema=https://cem.dev/ns/data/json/1}
+        {export @content-type=application/yaml @id=partner @out=../generated/availability.yaml
+            @schema=https://cem.dev/ns/data/yaml/1}
+    }
+}

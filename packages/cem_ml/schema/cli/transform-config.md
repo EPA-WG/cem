@@ -21,7 +21,7 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 | `import` | `src` | `id`, `content-type`, `contentType`, `schema`, `opaque` | `join`, `convert`, `transform`, `rewrite-importmap`, `export` |
 | `join` | `mode` | `id`, `input`, `by`, `with:*` | `convert`, `transform`, `rewrite-importmap`, `export` |
 | `convert` | none | `id`, `input`, `content-type`, `contentType`, `schema`, `converter` | `join`, `convert`, `transform`, `rewrite-importmap`, `export` |
-| `transform` | `src` | `id`, `input`, `with:*`, `entrypoint`, `template-content-type`, `templateContentType`, `template-schema`, `templateSchema` | `param`, `join`, `convert`, `transform`, `rewrite-importmap`, `export` |
+| `transform` | `src` | `id`, `input`, `with:*`, `content-type`, `contentType`, `schema`, `entrypoint`, `template-content-type`, `templateContentType`, `template-schema`, `templateSchema` | `param`, `join`, `convert`, `transform`, `rewrite-importmap`, `export` |
 | `rewrite-importmap` | `target-map` | `id`, `input`, `source-map`, `sourceMap`, `targetMap`, `mode`, `missing` | `export` |
 | `param` | `name`, `value` | none | none |
 | `export` | `out` | `id`, `content-type`, `contentType`, `schema`, `style-policy`, `stylePolicy` | none |
@@ -62,6 +62,11 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
   hierarchical query view can feed CEMT directly; it does not serialize the
   DOM through JSON, raw HTML, or a replacement tree.
 - `transform` creates a template application node from `@src`.
+- `transform @content-type @schema` declares its result identity independently
+  of its template identity and final export formats. An explicit result takes
+  precedence over export inference; omitted result attributes preserve existing
+  inference. A CEM-native stage producing `application/cem` with
+  `https://cem.dev/ns/cem-ml/1` retains a typed CEM tree for subsequent stages.
 - `transform @entrypoint` selects a public CEM-native template entrypoint.
 - `transform` child `param @name @value` records provide caller params for that transform stage.
 - Graph params and entrypoints are stage-local; top-level CLI `--param` and

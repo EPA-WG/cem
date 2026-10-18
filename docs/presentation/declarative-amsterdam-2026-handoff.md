@@ -82,7 +82,21 @@ Standalone-expression formatting is available through an ordinary Convert
 configuration with matching expression input/output identity. It uses the shared
 native token formatter without module wrappers; invalid source retains original
 diagnostic coordinates. The current expression profiles preserve authored layout.
-The supplier-pipeline companion is the next presentation example.
+The Supplier pipeline companion (1.0.0) is available as an ordinary Amsterdam
+example project. Its three configurations inspect XML products and CSV stock,
+then run a native graph producing HTML, JSON and YAML. Domain rules cover exact
+ID matching, numeric conversion, missing/duplicate records and failure/repair.
+The [project guide](../../examples/projects/supplier-pipeline/README.md) explains
+saved edits, draft guards, offline reopening and independent copies. The complete
+52-task Studio release gate passes serially: 137 Studio browser cases, 25 shared
+preview/registry cases, native/deployed schema examples, all Login/Supplier
+lifecycle checks and a clean seven-package consumer. Two clean builds match 270
+files / 176 assets, SHA-256
+`9dcd5c53671456d377cde10ff21a87fea20beca3f94b577217e37ed32e500577`.
+The shared engine owns result identities and data export; `cem-elements` owns the
+bounded output reader, including failed commands with no publication. Studio's
+results remain declarative. Primary HTML is previewable/transferable; convenient
+selection of JSON/YAML artifacts is next. Library/service hosting remains separate work.
 
 The Login live-view increment adds a shared `live-preview` capability in
 `cem-elements`, declarative `cem-media-preview mode="live"`, and an ordinary

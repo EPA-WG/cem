@@ -40,6 +40,45 @@ afterEach(async () => {
 });
 
 describe('CEM Studio Feature Tour copies', () => {
+    it('runs the packaged supplier pipeline with native multi-format output, edits, failure/repair and isolated copies', async () => {
+        const response = await fetch(new URL('../generated/feature-tour/examples/supplier-pipeline.cem-studio.json', import.meta.url));
+        expect(response.ok).toBe(true);
+        const bundle = parseCemStudioProjectBundle(new Uint8Array(await response.arrayBuffer()));
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        const decode = id => new TextDecoder().decode(bundle.contents[id]);
+        const configuration = bundle.project.entries.find(entry => entry.id === 'availability');
+        expect(configuration.kind).toBe('transformation-graph');
+        const source = bundle.project.resources.find(resource => resource.id === 'supplier-graph');
+        const original = decode('supplier-stock');
+        const command = JSON.parse(decode(configuration.runConfigResourceId));
+        const run = (stock = original, projectId = 'supplier-copy') => validator.runResourceCommand({
+            bytes: bundle.contents[source.id], uri: `studio://${projectId}/${source.path}`,
+            contentType: source.contentType, schema: source.schema, projectId, projectRootUri: `studio://${projectId}/`, argv: command.argv,
+            dependencies: configuration.resourceIds.slice(2).map(id => {
+                const resource = bundle.project.resources.find(resource => resource.id === id);
+                return { path: `../${resource.path}`, bytes: id === 'supplier-stock' ? new TextEncoder().encode(stock) : bundle.contents[id],
+                    contentType: resource.contentType, schema: resource.schema };
+            }),
+        });
+        const artifacts = result => result.result.result.value.value.value.artifacts;
+        const json = result => artifacts(result).find(artifact => artifact.destination.endsWith('/availability.json')).primary;
+        const baseline = await run();
+        expect(baseline.result.exitCode).toBe(0);
+        expect(artifacts(baseline)).toHaveLength(3);
+        expect(json(baseline)).toEqual(JSON.parse(decode('supplier-expected-json')));
+        expect(baseline.output.text.trim()).toBe(decode('supplier-expected-html').trim());
+        expect(artifacts(baseline).find(artifact => artifact.destination.endsWith('.yaml')).primary.trim()).toBe(decode('supplier-expected-yaml').trim());
+        expect(artifacts(baseline).flatMap(artifact => artifact.outputSpans ?? []).flatMap(span => span.origin.frames))
+            .toEqual(expect.arrayContaining([expect.objectContaining({ transform: expect.objectContaining({ uri: 'studio://supplier-copy/templates/view.cemt' }) })]));
+        expect(json(await run(original.replace('SKU-A,7', 'SKU-A,0')))[0]).toMatchObject({ quantity: 0, available: false, status: 'out-of-stock' });
+        await expect(run(original.replace('SKU-A,7', 'SKU-A,many'))).rejects.toMatchObject({ result: { exitCode: 1 }, output: { available: false, byteLength: 0, text: '' } });
+        expect(json(await run())).toEqual(json(baseline));
+        const independent = await run(original, 'supplier-independent');
+        expect(json(independent)).toEqual(json(baseline));
+        expect(artifacts(independent).every(artifact => artifact.destination.startsWith('studio://supplier-independent/'))).toBe(true);
+        expect(decode('supplier-stock')).toBe(original);
+    }, 60_000);
+
     it('evaluates the packaged standalone Login expression on both native sources and project-local edits', async () => {
         const response = await fetch(new URL('../generated/feature-tour/examples/login.cem-studio.json', import.meta.url));
         expect(response.ok).toBe(true);

@@ -13574,28 +13574,30 @@ impl CemMlEngine for RealCemMlEngine {
                     let identity = export.target.clone().or_else(|| artifact.identity.clone());
                     let style_projection =
                         transform_graph_html_style_projection_for_export(export, &request.exports);
-                    let Ok((primary, primary_bytes, source_map, output_spans)) =
+                    let (primary, primary_bytes, source_map, output_spans) = match
                         transform_graph_export_primary(
                             &request.context,
                             artifact,
                             &metadata,
                             identity.as_ref(),
                             style_projection,
-                        )
-                    else {
-                        diagnostics.push(Diagnostic {
-                            uri: artifact.uri.clone(),
-                            code: "cem.transform_runtime.export_representation_unsupported"
-                                .to_owned(),
-                            severity: Severity::Fatal,
-                            message: format!(
-                                "transform graph export `{}` cannot encode native representation `{}`",
-                                export.id,
-                                artifact.body.representation_id()
-                            ),
-                            ..Diagnostic::default()
-                        });
-                        return;
+                        ) {
+                        Ok(encoded) => encoded,
+                        Err(message) => {
+                            diagnostics.push(Diagnostic {
+                                uri: artifact.uri.clone(),
+                                code: "cem.transform_runtime.export_representation_unsupported"
+                                    .to_owned(),
+                                severity: Severity::Fatal,
+                                message: format!(
+                                    "transform graph export `{}` cannot encode native representation `{}`: {message}",
+                                    export.id,
+                                    artifact.body.representation_id()
+                                ),
+                                ..Diagnostic::default()
+                            });
+                            return;
+                        }
                     };
                     exported.push(TransformGraphArtifact {
                         export_id: export.id.clone(),

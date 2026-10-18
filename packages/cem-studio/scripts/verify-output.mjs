@@ -216,11 +216,13 @@ assert.deepEqual(
 assert.equal(runtimeMetadata.commonVersion, packageMetadata.version);
 assert.equal(themeMetadata.version, packageMetadata.dependencies['@epa-wg/cem-theme']);
 assert.equal(sampleIndex.commonVersion, packageMetadata.version);
-assert.equal(sampleIndex.projects.length, 2);
+assert.equal(sampleIndex.projects.length, 3);
 assert.equal(sampleIndex.projects[0].id, 'schema-examples');
 assert.equal(sampleIndex.projects[1].id, 'login');
 assert.equal(sampleIndex.projects[1].archive, './examples/login.cem-studio.json');
 assert.ok(sampleIndex.cacheUrls.includes(sampleIndex.projects[1].archive));
+assert.equal(sampleIndex.projects[2].id, 'supplier-pipeline');
+assert.ok(sampleIndex.cacheUrls.includes(sampleIndex.projects[2].archive));
 assert.equal(featureTourCatalog.commonVersion, packageMetadata.version);
 // The tour includes one passing example per canonical runtime schema package.
 assert.ok(runtimeMetadata.schemaPackages.manifestCount > 0);
@@ -237,7 +239,7 @@ assert.equal(
         featureTourCatalog.dependencyCount +
         featureTourCatalog.workbenchResourceCount,
 );
-assert.equal(sampleIndex.cacheUrls.length, featureTourCatalog.cacheUrlCount + 3);
+assert.equal(sampleIndex.cacheUrls.length, featureTourCatalog.cacheUrlCount + 4);
 assert.match(serviceWorker, /event\.data\?\.type === 'cem-studio-activate-update'/);
 assert.match(serviceWorker, /event\.waitUntil\(self\.skipWaiting\(\)\)/);
 const contentSecurityPolicy = securityHeaders.headers['Content-Security-Policy'];

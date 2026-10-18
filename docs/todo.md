@@ -901,11 +901,67 @@ Next presentation functionality:
     content; the CLI build normally deletes that source after emission. The first
     standalone type-check attempt lacked that prerequisite. The temporary source
     is removed after verification and is not committed.
-- [ ] After the core Login walkthrough, add the planned supplier-pipeline
+- [x] After the core Login walkthrough, add the planned supplier-pipeline
   companion as an ordinary example project, reusing native commands and shared UI.
-- [ ] Determine whether the selected presentation configurations require
+  - [x] Add native supplier fixtures for XML catalog + CSV stock reconciliation,
+    explicit product-ID matching, numeric quantities, missing/duplicate records,
+    JSON/YAML/HTML outputs, source provenance and failure/repair without partial publication.
+  - [x] Add shared native fixtures and implementation for explicit transform-stage
+    result identities and bounded constructed generic-data JSON/YAML export, using
+    package-owned formatters. Reject unsupported values and duplicate keys; retain
+    template provenance without a JSON AST handoff or application-owned serializer.
+  - [x] Update the existing native-reference fixture to assert the original source
+    frames plus the retained owner's explicit URI boundary; its old raw-stack
+    equality conflicts with the current provenance contract exposed by the full suite.
+  - [x] Package the supplier resources, native templates/graph, expected outputs,
+    README and ordinary configurations in the existing Amsterdam example catalog.
+  - [x] Add shared command-output fixtures and repair for failed commands with no
+    publication: retain native diagnostics, explicitly mark unavailable output,
+    disable declarative transfers and preserve bounded reads/digest verification.
+    The first full gate exposed the missing projection; native output rejection is correct.
+    Preserve previews for existing output descriptors that omit the optional marker;
+    the existing result-owner fixtures cover this compatibility boundary.
+  - [x] Add browser/deployed fixtures for saved versus unsaved stock edits,
+    graph execution, failure/repair, source navigation, offline reopening and
+    independently editable project copies; preserve all Login acceptance checks.
+  - [x] Run the complete Studio release gate, update presentation evidence and
+    audit shared-package ownership before committing the completed example.
+  - Evidence: all 52 Studio release tasks pass serially, including 137 Studio
+    browser cases, 25 shared preview/registry cases, 32 deployed schema examples,
+    online/offline workers, shell/theme/forced-color checks, the complete Login
+    and Supplier lifecycle, automated accessibility and the clean seven-package
+    consumer. Native checks pass: 106 adapter unit cases, 12 graph-authoring cases,
+    three Supplier pipeline cases and seven existing Login/Amsterdam cases.
+    All 616 shared unit cases, shared/Studio lint and type checks pass. The standalone
+    shared type check uses the temporary generated CLI schema prerequisite described
+    above; that source is removed afterward and excluded from delivery.
+  - The initial gates exposed absent-output diagnostics loss and a preview
+    compatibility regression for legacy descriptors without the availability flag;
+    both are repaired. Two workbench cases also timed out in the parallel run.
+    All 85 workbench cases pass serially with the original assertions and timeouts.
+    The complete Login live-view saved-dependency/offline/copy sequence passes.
+  - Two clean builds match 270 files / 176 declared assets, SHA-256
+    `9dcd5c53671456d377cde10ff21a87fea20beca3f94b577217e37ed32e500577`.
+    Audit: domain rules stay in the example's native templates; constructed-data
+    export and result identities stay in shared Rust packages; bounded output
+    reading stays in `cem-elements`. Studio only wires the shared reader and data
+    field into its existing host and declarative results. Existing CEM alerts/actions
+    provide failure and disabled states without local CSS or token defaults. Primary
+    HTML remains the preview/copy/download target; artifact selection is next below.
+    Generated screenshots and Vitest attachments remain excluded from delivery.
+- [x] Determine whether the selected presentation configurations require
   parameter-map authoring; if so, complete its native fixtures and Save/history/
   recovery/offline Run work below. Otherwise retain it in the later graph-editor queue.
+  Decision: Login and Supplier pipeline use saved resources and native primary/named
+  artifact inputs; neither requires literal parameter-map authoring. Keep that
+  authoring feature in the later graph-editor queue.
+- [ ] Add shared selection of a generated graph artifact for preview, copy and
+  download, so the supplier's JSON/YAML outputs are as convenient to inspect as its
+  primary HTML output. Reuse native artifact identities and shared declarative
+  controls; any reusable JavaScript capability belongs in `cem-elements`.
+- [ ] Deliver the planned ordinary Markdown + CEM-ML site example with Hugo-inspired
+  folders, using [the site roadmap](../roadmap.md#studio-example-markdown--cem-ml-site-project)
+  and the same projects/resources/configurations workspace.
 
 Do not introduce dedicated example screens. Shared components remain
 declarative in `cem-components`, reusable JavaScript behavior belongs in

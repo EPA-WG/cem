@@ -1,0 +1,30 @@
+[
+  {
+    "id": "SKU-A",
+    "name": "Café cups",
+    "quantity": 7,
+    "available": true,
+    "status": "available"
+  },
+  {
+    "id": "SKU-B",
+    "name": "Tea pots",
+    "quantity": 0,
+    "available": false,
+    "status": "out-of-stock"
+  },
+  {
+    "id": "SKU-C",
+    "name": "Glass jars",
+    "quantity": 0,
+    "available": false,
+    "status": "unknown"
+  },
+  {
+    "id": "SKU-D",
+    "name": "Serving trays",
+    "quantity": 0,
+    "available": false,
+    "status": "ambiguous"
+  }
+]
