@@ -20,3 +20,5 @@ export * from './shell.js';
 export * from './workbench.js';
 export * from './preview.js';
 export * from './project-session.js';
+
+export { createCemStudioNavigation } from './navigation.js';

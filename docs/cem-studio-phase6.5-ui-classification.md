@@ -32,7 +32,7 @@ and commands remain application services that drive shared controls.
 | Behavior | Accepted disposition | Visible CEM owners | Composition gate |
 | --- | --- | --- | --- |
 | `shell-command-bar` | Reuse general controls | `cem-app-bar`, actions, select, badge | Open within the single-row app-bar and native-action subsets. |
-| `responsive-workspace-layout` | Studio orchestration | `cem-grid`, `cem-stack`, `cem-surface` | Open; no grid-list, sidenav, or splitter behavior is claimed. |
+| `responsive-workspace-layout` | Studio orchestration | `cem-workspace`, `cem-grid`, `cem-stack`, `cem-surface` | Open; browser layout retains navigation/content regions with model-owned URL selection; workbench mode keeps four regions. No splitter behavior is claimed. |
 | `compact-pane-navigation` | Reuse general controls | `cem-tabs`, `cem-tab` payloads | Open; Studio owns pane routes and preserved workbench selection. |
 | `home-and-projects` | Studio orchestration | card, select, text field, actions, badge, alert, progress | Open; sample loading/copying stays in services and its controls stay declarative. |
 | `project-hierarchy` | Reuse general controls | `cem-tree`, `cem-tree-item` | Open; Studio owns data, selection, loading, and routes. |

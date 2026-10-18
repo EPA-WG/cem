@@ -488,6 +488,7 @@ export async function mountCemStudioApplicationShell(options) {
     await view.whenSettled();
     return Object.freeze({
         root, theme, install, update, fileSystem, view,
+        setWorkspaceState(pageTitle, workspaceStatus) { view.update({ pageTitle, workspaceStatus }); },
         whenSettled: () => view.whenSettled(),
         dispose() {
             unsubscribeTheme(); unsubscribeInstall(); unsubscribeUpdate(); unsubscribeFileSystem();
@@ -500,12 +501,12 @@ async function installComponents() {
     const runtime = new CemElementRuntime({ declarationTag: 'cem-studio-component-declaration' });
     const source = import.meta.resolve('@epa-wg/cem-components/components.xhtml');
     const registered = [], diagnostics = [];
-    for (const tag of ['cem-icon', 'cem-icon-button', 'cem-theme-switch', 'cem-dropdown', 'cem-menu', 'cem-menu-item', 'cem-stack', 'cem-grid', 'cem-text', 'cem-fieldset', 'cem-action', 'cem-alert', 'cem-app-bar', 'cem-badge', 'cem-card', 'cem-media-preview', 'cem-select', 'cem-dialog', 'cem-list', 'cem-tab', 'cem-table', 'cem-tree', 'cem-tabs', 'cem-text-field', 'cem-textarea']) {
+    for (const tag of ['cem-icon', 'cem-icon-button', 'cem-theme-switch', 'cem-dropdown', 'cem-menu', 'cem-menu-item', 'cem-workspace', 'cem-expansion', 'cem-stack', 'cem-grid', 'cem-text', 'cem-fieldset', 'cem-action', 'cem-alert', 'cem-app-bar', 'cem-badge', 'cem-card', 'cem-media-preview', 'cem-select', 'cem-dialog', 'cem-list', 'cem-tab', 'cem-table', 'cem-tree', 'cem-tabs', 'cem-text-field', 'cem-textarea']) {
         if (customElements.get(tag)) continue;
         const declaration = document.createElement(runtime.declarationTag);
         declaration.setAttribute('tag', tag);
         declaration.setAttribute('src', `${source}#${tag}`);
-        const capability = { 'cem-dropdown': 'popup', 'cem-menu': 'composite-menu', 'cem-menu-item': 'action-control', 'cem-action': 'action-command', 'cem-select': 'choice-select', 'cem-dialog': 'native-surface', 'cem-list': 'native-list', 'cem-tree': 'tree-view', 'cem-tabs': 'tab-panels', 'cem-text-field': 'form-control', 'cem-textarea': 'form-control' }[tag];
+        const capability = { 'cem-dropdown': 'popup', 'cem-menu': 'composite-menu', 'cem-menu-item': 'action-control', 'cem-expansion': 'disclosure-panel', 'cem-action': 'action-command', 'cem-select': 'choice-select', 'cem-dialog': 'native-surface', 'cem-list': 'native-list', 'cem-tree': 'tree-view', 'cem-tabs': 'tab-panels', 'cem-text-field': 'form-control', 'cem-textarea': 'form-control' }[tag];
         if (capability) declaration.setAttribute('capability', capability);
         document.head.append(declaration);
         runtime.registerDeclaration(declaration);
@@ -518,11 +519,14 @@ async function installComponents() {
     }
     for (const [tag, source] of [
         ['cem-studio-shell', './shell.xhtml#cem-studio-shell'],
+        ['cem-studio-project-picker', './project-picker.xhtml#cem-studio-project-picker'],
         ['cem-studio-workbench-navigation', './workbench-navigation.xhtml#cem-studio-workbench-navigation'],
         ['cem-studio-workbench-controls', './workbench-controls.xhtml#cem-studio-workbench-controls'],
         ['cem-studio-workbench-command', './workbench-command.xhtml#cem-studio-workbench-command'],
         ['cem-studio-workbench-layout', './workbench-layout.xhtml#cem-studio-workbench-layout'],
         ['cem-studio-workbench-results', './workbench-results.xhtml#cem-studio-workbench-results'],
+        ['cem-studio-workbench-preview', './workbench-preview.xhtml#cem-studio-workbench-preview'],
+        ['cem-studio-workbench-tools', './workbench-tools.xhtml#cem-studio-workbench-tools'],
     ]) {
         const declaration = document.createElement(runtime.declarationTag);
         declaration.setAttribute('tag', tag);

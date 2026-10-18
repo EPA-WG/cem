@@ -7,12 +7,7 @@
         "tag": "v22.1.1",
         "commit": "0b67c3c38141049657b1167479accc80e455d2bd"
     },
-    "principles": [
-        "Every visible control is rendered by @epa-wg/cem-components on the cem-elements-backed @epa-wg/custom-element substrate.",
-        "A pinned Angular Material counterpart is completed as a general CEM component before Studio composition uses missing behavior.",
-        "A reusable /studio composite may lead only when the pinned catalog has no counterpart for the composite capability.",
-        "Studio owns routes, data, selection, persistence, workers, updates, search, and command orchestration, but not control DOM or interaction semantics."
-    ],
+    "principles": ["Every visible control is rendered by @epa-wg/cem-components on the cem-elements-backed @epa-wg/custom-element substrate.", "A pinned Angular Material counterpart is completed as a general CEM component before Studio composition uses missing behavior.", "A reusable /studio composite may lead only when the pinned catalog has no counterpart for the composite capability.", "Studio owns routes, data, selection, persistence, workers, updates, search, and command orchestration, but not control DOM or interaction semantics."],
     "generalParityGates": [],
     "deferredGeneralCapabilities": [
         {
@@ -42,33 +37,27 @@
             "generalComponents": ["cem-app-bar", "cem-action", "cem-icon-button", "cem-select", "cem-badge"],
             "studioComponents": [],
             "materialReferences": ["toolbar", "button", "select", "badge"],
-            "contractBounds": [
-                "Use cem-app-bar only as its proven single title/context/action header.",
-                "Use native text/icon action variants, standalone badges, and the covered select contract; do not claim FAB, generic toolbar, or attached-badge behavior."
-            ],
+            "contractBounds": ["Use cem-app-bar only as its proven single title/context/action header.", "Use native text/icon action variants, standalone badges, and the covered select contract; do not claim FAB, generic toolbar, or attached-badge behavior."],
             "applicationOwns": ["current route and command", "run state", "theme state", "installation and update orchestration"],
             "evidence": ["docs/cem-studio.md#responsive-layout", "packages/cem-components/tests/angular-material-parity.json"]
         },
         {
             "id": "responsive-workspace-layout",
             "surface": "Application shell",
-            "requirement": "Expanded explorer/editor/preview/console regions collapse to navigable panes at semantic breakpoints without losing selection.",
+            "requirement": "A heading/theme bar, model-backed navigator, selected folder/file panel and status bar retain selection through URL history and semantic reflow.",
             "disposition": "application-orchestration",
             "compositionGate": "open",
-            "generalComponents": ["cem-grid", "cem-stack", "cem-surface"],
+            "generalComponents": ["cem-workspace", "cem-grid", "cem-stack", "cem-surface"],
             "studioComponents": [],
             "materialReferences": ["grid-list", "sidenav"],
-            "contractBounds": [
-                "cem-grid remains generic responsive layout rather than claiming Material grid-list tile semantics.",
-                "No drawer, backdrop, push mode, modal focus, or resizable-splitter behavior is claimed."
-            ],
-            "applicationOwns": ["semantic breakpoint selection", "pane arrangement", "preserved selected resource, run, diagnostic, and graph node"],
+            "contractBounds": ["cem-workspace owns retained regions; layout=browser exposes navigation and content, with optional workbench preview/tools regions. cem-grid remains a generic layout.", "No drawer, backdrop, push mode, modal focus, or resizable-splitter behavior is claimed."],
+            "applicationOwns": ["URL selection and history transport", "project, sample and resource datasets", "folder listing and guarded file admission"],
             "evidence": ["docs/cem-studio.md#responsive-layout", "packages/cem-components/docs/angular-material-parity.md"]
         },
         {
             "id": "compact-pane-navigation",
             "surface": "Application shell",
-            "requirement": "Compact widths expose explorer, editor, preview, and console as one accessible pane switcher.",
+            "requirement": "Compact widths retain all named workspace regions in document order; tool tabs switch supporting panels without hiding the editor or preview.",
             "disposition": "reuse-general",
             "compositionGate": "open",
             "generalComponents": ["cem-tabs", "cem-tab"],

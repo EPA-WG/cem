@@ -1,0 +1,47 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-studio-project-picker">
+ <template id="cem-studio-project-picker" type="text/cem-ml">
+{module |
+ {slice @name=navigation}{slice @name=pending | false}
+ {body |
+ {style @type=text/css |```
+:scope { display: block; min-inline-size: 0; }
+[part~='listing'] { display: grid; gap: var(--cem-gap-related); margin: 0; padding: 0; list-style: none; }
+[part~='entry'] { display: grid; gap: var(--cem-gap-related); padding: var(--cem-inset-container); border-block-end: var(--cem-stroke-boundary) solid currentColor; overflow-wrap: anywhere; }
+[part~='form'] { display: grid; gap: max(var(--cem-gap-related), var(--cem-coupling-guard-min)); }
+```}
+ {cem:if @test=datadom.slices.navigation |
+  {cem:variable @name=nav @select=datadom.slices.navigation}
+  {cem:if @test='nav.error &amp;&amp; !nav.action' | {cem-alert @tone=danger @label={nav.error.message}}}
+  {cem:if @test='nav.content == "folder"' |
+   {p | {$ | nav.selected.description}}
+   {ul @part=listing @aria-label="Folder contents" |
+    {cem:for-each @as=item @select=nav.children |
+     {li @part=entry |
+      {cem-icon-button @image={if item.icon == "file" { "▤" } else { if item.icon == "configuration" { "▷" } else { if item.icon == "project" { "◇" } else { "▱" } } }} @label={item.name} @align=start @variant=navigation @value={item.key} @host-command=open-entity @host-command-event=click}
+      {span | {$ | item.description}}
+     }
+    }
+   }
+   {cem:if @test='seq:count(nav.children.key) == 0' | {p | This folder is empty.}}
+  }
+  {cem:if @test='nav.content == "sample-file"' |
+   {cem-textarea @label={nav.path ?? nav.selected.name} @value={nav.sampleText} @readonly=true @rows=24}
+  }
+  {cem:if @test=nav.action |
+   {cem-dialog @label={str:concat((nav.action.kind, " · ", nav.action.target), "")} @mode=modal @default-open=true @closedby=closerequest @host-command=cancel-action @host-command-event=cem-close |
+    {cem:if @test=nav.error | {cem-alert @tone=danger @label={nav.error.message}}}
+    {form @part=form @host-command=submit-action @host-command-event=submit |
+     {cem:choose |
+      {cem:when @test='nav.action.kind == "delete"' | {p | Delete the selected item? Projects move to Trash. Referenced files cannot be deleted.}}
+      {cem:otherwise | {cem-text-field @name=name @label={if nav.action.createKind == "file" { "File path" } else { "Project name" }} @required=true @maxlength=120}}
+     }
+     {cem-action @type=submit @variant=primary @disabled={if datadom.slices.pending { true } else { null }} | {$ | if nav.action.kind == "delete" { "Delete" } else { if nav.action.kind == "clone" { "Clone" } else { "Create" } }}}
+     {cem-action @type=button @host-command=cancel-action @variant=contextual | Cancel}
+    }
+   }
+  }
+ }
+ }
+}
+ </template>
+</cem-element>

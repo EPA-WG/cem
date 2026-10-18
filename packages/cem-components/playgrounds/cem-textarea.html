@@ -123,6 +123,7 @@
 {slice @name=selectionDirection | none}
 {slice @name=selectionFocus | absent}
 {slice @name=rows | 4}
+{slice @name=fit | content}
 {slice @name=cols | 30}
 {slice @name=minlength}
 {slice @name=maxlength}
@@ -249,7 +250,13 @@
     {section @aria-label="Field preview" |
         {h2 | Preview}
         {form @id=field-form |
-            {cem-textarea @autocomplete="{$datadom.slices.autocomplete}" @busy={if datadom.slices.busy == "absent" { null } else { datadom.slices.busy }}
+            {fieldset @aria-label=fit @role=radiogroup @slice=fit @slice-event=change @slice-value="$target.value" |
+ {legend | fit}
+ {cem-radio @name=textarea-fit @value=content @checked={if datadom.slices.fit == "content" {true} else {null}} | content}
+ {cem-radio @name=textarea-fit @value=fill @checked={if datadom.slices.fit == "fill" {true} else {null}} | fill}
+}
+{div @style="block-size:60vb" |
+{cem-textarea @fit={datadom.slices.fit} @autocomplete="{$datadom.slices.autocomplete}" @busy={if datadom.slices.busy == "absent" { null } else { datadom.slices.busy }}
                 @class="{$datadom.slices.class}" @cols="{$datadom.slices.cols}"
                 @describedby="{$datadom.slices.describedby}" @disabled={if datadom.slices.disabled == "absent" { null } else { datadom.slices.disabled }} @error="{$datadom.slices.error}"
                 @form={if datadom.slices.form { datadom.slices.form } else { null }} @hidden={if datadom.slices.hidden == "absent" { null } else { datadom.slices.hidden }} @id=field-preview @indicator="{$datadom.slices.indicator}" @invalid={if datadom.slices.invalid == "absent" { null } else { datadom.slices.invalid }}
@@ -263,6 +270,7 @@
                 @selection-start="{$datadom.slices.selectionStart}" @value="{$datadom.slices.value}" |
                 {span @id=field-help @slot=help | Help text}
             }
+}
             {p @id=field-error | Error description}
             {cem-action @type=reset | Reset}
         }

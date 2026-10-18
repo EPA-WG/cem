@@ -736,6 +736,26 @@
         "@epa-wg/cem-elements/dist/lib/dom-realm.js": {
             "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/dom-realm.js",
             "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-studio/project-picker-view": {
+            "path": "../src/project-picker.xhtml",
+            "contentType": "application/xhtml+xml"
+        },
+        "@epa-wg/cem-studio/workbench-tools-view": {
+            "path": "../src/workbench-tools.xhtml",
+            "contentType": "application/xhtml+xml"
+        },
+        "@epa-wg/cem-studio/workbench-preview-view": {
+            "path": "../src/workbench-preview.xhtml",
+            "contentType": "application/xhtml+xml"
+        },
+        "@epa-wg/cem-components/components/cem-workspace": {
+            "path": "../../../node_modules/@epa-wg/cem-components/src/components/cem-workspace/cem-workspace.xhtml",
+            "contentType": "application/xhtml+xml"
+        },
+        "@epa-wg/cem-studio/navigation": {
+            "path": "../src/navigation.js",
+            "contentType": "text/javascript"
         }
     }
 }

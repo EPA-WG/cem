@@ -15,6 +15,10 @@ light DOM. `cem-action` supplies submit and reset commands.
   internals; the native control has no submission name or form owner.
 - `rows`, `cols`, `minlength`, `maxlength`, `autocomplete`, and `placeholder`
   forward to the native textarea. Without dimensions, browser defaults apply.
+- `fit="fill"` fills a definite parent width and height. The label and help retain
+  their own rows, and the native textarea uses the remaining space without a
+  resize grip. Omit it (or use `content`) for browser `rows`/`cols` sizing and
+  resizing. Input identity, focus, selection, submission and reset are unchanged.
 - `disabled`, `required`, `readonly`, `busy`, and `hidden` use attribute presence,
   including the string `false`. A disabled containing fieldset disables the control.
 - `invalid` forwards the ARIA string; it does not impose custom validity.

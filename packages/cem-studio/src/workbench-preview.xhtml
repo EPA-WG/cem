@@ -1,0 +1,31 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-studio-workbench-preview">
+ <template id="cem-studio-workbench-preview" type="text/cem-ml">
+{module |
+ {slice @name=state}
+
+ {body |
+{style @type=text/css |```
+:scope { display: block; block-size: 100%; min-block-size: 0; }
+[part~='preview'] { block-size: 100%; min-block-size: 0; }
+```}
+  {cem:variable @name=projection @select=datadom.slices.state.projection}
+  {cem:variable @name=preview @select=projection.preview}
+  {section @part=preview @aria-label={preview.label ?? "Result preview"} @data-cem-studio-preview="" @data-cem-studio-preview-kind={preview.kind ?? null} |
+   {cem:choose |
+    {cem:when @test='projection.output.available == false' |
+     {cem-alert @label="No output was published. See the command diagnostics below." @tone=warning}
+    }
+    {cem:when @test=preview |
+     {cem:variable @name=mode @select='if preview.kind == "text" { "text" } else { if preview.kind == "sandboxed-html" { "document" } else { if preview.kind == "live-cem" { "live" } else { "message" } } }'}
+     {cem:variable @name=value @select='if preview.kind == "text" { preview.text } else { if preview.kind == "sandboxed-html" || preview.kind == "live-cem" { preview.source } else { preview.reason } }'}
+     {cem-media-preview @fit=fill @source-uri={preview.sourceUri} @resource-set={preview.resourceSet} @label={preview.label} @mode={mode} @truncated={if preview.truncated { true } else { null }} @value={value}}
+    }
+    {cem:otherwise |
+     {cem-alert @label="Run an operation to preview its bounded result" @tone=info}
+    }
+   }
+  }
+ }
+}
+ </template>
+</cem-element>

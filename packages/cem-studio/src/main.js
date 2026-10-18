@@ -1,3 +1,4 @@
+import { createCemStudioNavigation } from './navigation.js';
 import '@epa-wg/custom-element';
 
 import {
@@ -32,10 +33,10 @@ const session = createCemStudioProjectSession({
     storage: { getItem: key => globalThis.localStorage.getItem(key), setItem: (key, value) => globalThis.localStorage.setItem(key, value) },
     openWorkbench: (selection, { signal }) => createCemStudioProjectWorkbench({ repository, validator, selection, signal }),
 });
-await session.recover();
 const starter = await exampleProjects.starter.load();
-const workbench = await createCemStudioSessionWorkbench({ repository, session,
-    home: { starter, examples: exampleProjects.examples, provider: fileSystemProvider, selectImport: selectProjectArchive } });
+const sessionWorkbench = await createCemStudioSessionWorkbench({ repository, session,
+    home: { starter, examples: exampleProjects.examples, collections: Array.isArray(exampleProjects.catalog.collections) ? exampleProjects.catalog.collections : [], provider: fileSystemProvider, selectImport: selectProjectArchive } });
+const workbench = await createCemStudioNavigation({ workbench: sessionWorkbench, repository, examples: exampleProjects.examples, collections: Array.isArray(exampleProjects.catalog.collections) ? exampleProjects.catalog.collections : [], browser: globalThis });
 const shell = await mountCemStudioApplicationShell({
     root: mounted.root,
     registration,
@@ -52,6 +53,8 @@ const shell = await mountCemStudioApplicationShell({
 /** @type {string | undefined} */
 let providerSelection;
 const unsubscribeUpdateState = workbench.subscribe((snapshot) => {
+    shell.setWorkspaceState(snapshot.navigation.title, snapshot.navigation.status);
+    document.title = snapshot.navigation.title;
     const identity = JSON.stringify([snapshot.projectId, snapshot.resourceId]);
     if (identity !== providerSelection) {
         providerSelection = identity;

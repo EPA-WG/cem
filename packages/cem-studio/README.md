@@ -212,8 +212,18 @@ rejects stale validation results and excludes duplicate pending operations.
 The adapter forwards bounded command metadata and serialized change values;
 labels, truncation, action intents and availability stay in the declaration.
 
-`src/workbench-layout.xhtml` and `src/workbench-results.xhtml` own the remaining
-result, execution, expected, trace, graph, validation and provenance views.
+`src/workbench-layout.xhtml` composes `cem-workspace layout="browser"`: a left
+column of selection actions, Samples, Saved projects and opened files; one content
+panel shows folder children or the selected file. The heading matches the window
+title, with the theme control above and a status bar below. `src/navigation.js`
+owns tree/resource/selection data, URL startup/history and project/file actions.
+See [navigation URLs](../../docs/cem-studio.md#navigation-urls). Samples are browsable
+without creating saved projects; Clone creates an editable independent copy.
+
+Command/configuration tools, preview and diagnostics remain available under
+**Commands and results** when a saved file/configuration is selected. The shell
+authors its workspace in the slot fallback; the host adapter binds that existing
+layout, retaining its editor across theme/status updates. Views remain CEM-ML.
 Navigation and exact output transfers use the same host-service boundary.
 `cem-media-preview` supplies literal text, isolated documents and download
 messages. Unrelated updates retain native previews and focus; pending transfers
@@ -245,66 +255,22 @@ isolates late workbench results. Project-owned workbenches now load durable conf
 resources, dependencies and native command resources without requiring a catalog.
 Startup uses guarded project navigation with shared CEM dialogs; Feature Tour
 metadata is optional. Empty/read-only resources remain selectable, and failed
-Save/Apply or cancelled navigation retains the active workbench. Home now lists projects, creates a fresh bounded CEM-ML starter and imports archives
-through create-only validated transactions. Open project uses the session guards.
-Explorer and bounded repository search now use guarded record identities.
-Source/command and result panes retain their declared view elements and editor
-selection through shared tabs. Reload restores the last admitted identity and saved
-bytes. Repository changes refresh navigation/search without replacing drafts; Home
-provides recoverable Trash/Restore. Provider operations retain their admitted target,
-and updates wait for explicit Save/Apply or draft reset. Deployed lifecycle acceptance
-now has a dedicated `verify:workspace-delivery` gate covering two user projects,
-offline Save/Apply/run and recovery, actual archive import/export, Trash/Restore,
-accessible names, keyboard focus and 320/390/1280px reflow. Its versioned browser
-evidence joins Studio `check`; physical-device/spoken AT coverage remains separate.
-Reuse existing CEM list, tree, tabs, dialog, editor and
-result controls; add missing reusable behavior in `cem-elements` and its styled
-declaration in `cem-components` before Studio adoption.
-
-The [ordered checklist](../../docs/todo.md#cem-studio-delivery-planning) owns
-execution. Source and command drafts now autosave to a bounded local recovery
-journal, with baseline checks, visible failures and downloadable backups. Save/Apply
-remain explicit project operations. Shared CEM forms now support project/configuration rename,
-subproject creation, subtree copy/move/reorder and resource creation/copy, with
-revision-checked session undo/redo. The Operation form section now edits native-metadata
-scalar, enum and boolean command options through shared CEM controls, with stale
-submission checks and explicit Apply/Run. Parse/inspect projects also support
-resource-path rename with stable native references and unreferenced deletion,
-using revision checks and undo/redo. Grouped command options and native graph
-scalar editing are available. Graph creation now adds named nodes under
-schema-approved parents through declarative shared forms, with native validation,
-draft undo/redo and explicit Save/Run. Existing IDs and resource references stay
-stable. Graph edge forms now support subtree parent moves, input overrides/reset
-and named secondary bindings, with cycle rejection and preservation checks.
-Parameter-map forms remain a follow-up alongside broader dependency formats and
-simultaneous/resizable panes. See
-[graph authoring](../../docs/cem-studio.md#bounded-graph-configuration-authoring).
-Broader browser/device/AT acceptance remains independently open. Studio functionality
-and sample availability for the Amsterdam presentation now lead the implementation
-queue; the active todo records the required login journey and remaining work.
-
-Project tree edits preserve resource IDs and immutable `referencePath` addresses.
-New resources receive an ID-based address; native import captures legacy addresses
-once. Rename changes metadata, refreshes the dataset projection and never rewrites
-consumer bytes. Custom Chromium and browser paint-proof research are retired.
-
-Studio installs the shared `cem-stack`, `cem-grid` and `cem-text` declarations.
-Page sections use `--cem-gap-section`, blocks use `--cem-layout-stack-gap`, and
-related form controls use `--cem-gap-related`. Responsive action grids and shared
-text avoid browser-default paragraph margins or application-local spacing CSS.
-These compositions inherit the theme's normal/dense/sparse spacing modes.
-
-Studio uses the shared contextual sun/moon theme menu (tooltip: “Change theme”).
-It restores `cem-studio-theme` from local storage before mounting the shell,
-defaulting to light. Menu choices retain the shared selected-action styling.
+Save/Apply or cancelled navigation retains the active workbench. The current
+navigator renders Samples, Saved projects and opened files from application data;
+URL parameters select folders/files/configurations, and an empty URL selects
+Samples. Action dialogs expose project/file creation, cloning and deletion.
+Native persistence, search, archive/provider and Trash/Restore services remain
+available. Draft recovery follows explicit URL admission. The current deployed
+layout is covered by `verify:navigation`; older monolithic lifecycle selectors
+require migration after the retired Home/storage forms were removed.
 
 ## Example projects
 
 Studio serves predefined and user-created/customized projects in one workspace.
-A fresh profile opens Home. Select **Login** or **Schema examples** under
-**Example projects**, choose **Create project from example**, then open it from
-**Projects**. **Create CEM-ML project** starts with a neutral source resource.
-Startup restores an existing selection without installing a special example.
+The default URL opens Samples. Browse **Login**, **Supplier pipeline** or
+**Schema examples** in their collection, then **Clone selected** to create an
+editable saved project. **Create** starts a neutral project from a catalog root.
+Project/file URLs reopen the requested resources; an empty URL always opens Samples.
 
 Projects own resources and configurations. Authored example definitions live in
 `examples/projects/*/example.json`; Amsterdam membership is catalog metadata.
@@ -376,3 +342,13 @@ copies stay independent; formatting produces plain output without overwriting
 the source. The current CEM-QL profiles preserve authored layout. See the
 [standalone expression guide](../../examples/projects/login/README.md#standalone-expression-evaluation-and-formatting).
 No Studio UI JavaScript or shared UI capability was added.
+
+The URL-driven shell has a focused deployed-browser gate:
+
+```sh
+yarn nx run @epa-wg/cem-studio:verify:navigation
+```
+
+It checks model-backed sample/project/folder/file selection, matching titles,
+Back/Forward, bookmark reload, action dialogs, draft guards, theme retention,
+responsive/forced-color paint, and native Supplier Run after an offline reload.

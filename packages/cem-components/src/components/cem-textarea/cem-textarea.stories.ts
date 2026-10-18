@@ -32,7 +32,7 @@ export const SelectionPropertyControls = meta.story({
         const source = await cemComponentPlaygroundSource('cem-textarea');
         await Promise.all(['cem-field', 'cem-radio', 'cem-action'].map(loadCemComponent));
         const document = new DOMParser().parseFromString(source, 'text/html');
-        const template = document.querySelector('main > cem-element > template') as HTMLTemplateElement;
+        const template = document.querySelector('cem-gallery-page > template')!.content.querySelector('main > cem-element > template') as HTMLTemplateElement;
         return { selectionPropertyMarkup: `<cem-element>${template.outerHTML}</cem-element>` };
     }],
     render: (_args, { loaded }) => String(loaded.selectionPropertyMarkup),
@@ -517,5 +517,29 @@ export const RequiredMarkerOverrides = meta.story({
         }
         expect(storybookCemRuntime().diagnosticsFor(host)).toEqual([]);
         expect(storybookCemRuntime().diagnosticsFor(projected)).toEqual([]);
+    },
+});
+
+export const FilledPanel = meta.story({
+    render: () => '<div style="inline-size:600px;block-size:400px"><cem-textarea fit="fill" label="Current file" value="Retained source"><span slot="help">Saved explicitly</span></cem-textarea></div>',
+    play: async ({ canvasElement }) => {
+        const container = canvasElement.querySelector('div')!;
+        const host = canvasElement.querySelector<HTMLElement>('cem-textarea')!;
+        await whenCemRendered(host);
+        const input = host.querySelector('textarea')!;
+        input.value = 'Unsaved source'; input.dispatchEvent(new Event('input', { bubbles: true })); await whenCemRendered(host);
+        input.focus(); input.setSelectionRange(2, 7);
+        for (const width of [600, 240]) {
+            container.style.inlineSize = `${width}px`;
+            const rect = input.getBoundingClientRect();
+            expect(rect.width).toBe(width); expect(rect.height).toBeGreaterThan(300);
+            expect(host.getBoundingClientRect().height).toBe(400);
+            expect(host.scrollWidth).toBe(width);
+        }
+        host.setAttribute('label', 'Selected file'); await whenCemRendered(host);
+        expect(host.querySelector('textarea')).toBe(input);
+        expect(input.value).toBe('Unsaved source'); expect([input.selectionStart, input.selectionEnd]).toEqual([2, 7]);
+        expect(document.activeElement).toBe(input);
+        expect(storybookCemRuntime().diagnosticsFor(host)).toEqual([]);
     },
 });

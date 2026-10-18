@@ -226,6 +226,35 @@ export const NativeActivation = meta.story({
  },
 });
 
+export const BranchActivation = meta.story({
+ name: 'optionally activates folders while arrows remain disclosure-only',
+ render: () => treeContractFixture,
+ play: async ({ canvasElement }) => {
+  if (import.meta.env.MODE !== 'test') return;
+  const { userEvent } = await import('vitest/browser');
+  const host = requiredElement<TestCemTree>(canvasElement, '#project-tree');
+  await whenCemRendered(host);
+  host.setAttribute('activate-branches', '');
+  const values: string[] = [];
+  host.addEventListener('cem-tree-activate', event => values.push((event as CustomEvent).detail.value));
+  const node = () => treeNode(treeParts(canvasElement, '#project-tree'), 'apps');
+  await userEvent.click(node());
+  await nextRenderFrame();
+  expect(values).toEqual(['apps']);
+  expect(node().getAttribute('aria-expanded')).toBe('false');
+  await userEvent.keyboard('{ArrowRight}');
+  await nextRenderFrame();
+  expect(node().getAttribute('aria-expanded')).toBe('true');
+  expect(values).toEqual(['apps']);
+  node().focus();
+  await userEvent.keyboard('{Enter}');
+  expect(values).toEqual(['apps', 'apps']);
+  host.removeAttribute('activate-branches');
+  await userEvent.click(node());
+  expect(values).toEqual(['apps', 'apps']);
+ },
+});
+
 export const VisibleRovingFocus = meta.story({
  name: "moves roving focus through visible nodes, parent-child arrows, boundaries, and typeahead without selection",
  render: () => treeContractFixture,

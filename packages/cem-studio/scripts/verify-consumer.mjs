@@ -63,6 +63,7 @@ try {
         'dist/static/assets/@epa-wg/cem-studio/file-system-provider.js',
         'dist/static/assets/@epa-wg/cem-studio/feature-tour.js',
         'dist/static/assets/@epa-wg/cem-studio/workbench.js',
+        'dist/static/assets/@epa-wg/cem-studio/navigation.js',
         'dist/static/assets/@epa-wg/cem-studio/project-session.js',
         'dist/static/assets/@epa-wg/cem-studio/preview.js',
         'dist/static/assets/@epa-wg/cem-ml-cli/dist/browser-worker.js',
@@ -75,6 +76,7 @@ try {
         'src/repository.d.ts',
         'src/preview.d.ts',
         'src/workbench.d.ts',
+        'src/navigation.d.ts',
         'src/project-session.d.ts',
     ]) {
         assert.ok(statSync(resolve(installedStudioRoot, path)).isFile(), `installed package is missing ${path}`);

@@ -125,23 +125,7 @@
     {cem:otherwise |
      {cem-alert @label={emptyLabel} @tone=info}
  }}}}
- {template @name=result-preview |
-  {param @name=preview}
-  {body |
-   {section @aria-label={preview.label ?? "Result preview"} @data-cem-studio-preview="" @data-cem-studio-preview-kind={preview.kind ?? null} |
- {cem-stack @gap=md |
-    {cem:choose |
-     {cem:when @test=preview |
-      {cem:variable @name=mode
-       @select='if preview.kind == "text" { "text" } else { if preview.kind == "sandboxed-html" { "document" } else { if preview.kind == "live-cem" { "live" } else { "message" } } }'}
-      {cem:variable @name=value
-       @select='if preview.kind == "text" { preview.text } else { if preview.kind == "sandboxed-html" || preview.kind == "live-cem" { preview.source } else { preview.reason } }'}
-      {cem-media-preview @source-uri={preview.sourceUri} @resource-set={preview.resourceSet} @label={preview.label} @mode={mode} @truncated={if preview.truncated { true } else { null }} @value={value}}
-     }
-     {cem:otherwise |
-      {cem-alert @label="Run an operation to preview its bounded result" @tone=info}
- }}}
-}}}
+
  {template @name=result-diagnostics |
   {param @name=diagnostics}
   {body |
@@ -219,12 +203,6 @@
   {cem-tabs @label="Projection results" @value=output |
    {cem-tab @label="Operation output" @value=output |
  {cem-stack @gap=md |
-    {cem:if @test='projection.output.available == false' |
-     {cem-alert @label="No output was published. See the command diagnostics below." @tone=warning}
-    }
-    {cem:if @test='projection.output.available ?? true' |
-     {call @template=result-preview @with:preview="{$projection.preview}"}
-    }
     {cem-grid |
      {cem-action @data-cem-studio-projection-copy="" @disabled={if busy || !projection.output || (projection.output.available == false) || (projection.preview.kind == "download") { true } else { null }} @host-command=copy-output
       @host-command-event=click @variant=alternate | Copy exact output}

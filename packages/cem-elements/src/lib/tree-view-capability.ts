@@ -398,7 +398,10 @@ function handleClick(instance: HTMLElement, state: TreeState, event: Event): voi
 
     state.focusValue = item.value;
     state.refocusValue = item.value;
-    if (isBranch(item)) toggleItem(instance, state, item);
+    if (isBranch(item)) {
+        toggleItem(instance, state, item);
+        if (instance.hasAttribute('activate-branches')) activateItem(instance, item);
+    }
     else activateItem(instance, item);
 }
 

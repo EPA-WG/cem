@@ -955,6 +955,62 @@ Next presentation functionality:
   Decision: Login and Supplier pipeline use saved resources and native primary/named
   artifact inputs; neither requires literal parameter-map authoring. Keep that
   authoring feature in the later graph-editor queue.
+- [x] Implement the requested classic IDE workspace, following the supplied
+  IntelliJ screenshot and VS Code's explorer/editor/panel organization.
+  - [x] Audit existing shell, retained editor, resource navigation and preview;
+    identify reusable declarative layout and existing interaction capabilities.
+  - [x] Fixture and implement a shared declarative workspace with named explorer,
+    editor, preview and tools regions; retain DOM/focus, responsive reflow,
+    inherited theme spacing and five-theme paint in colocated plays, plus
+    forced colors through the deployed fixture.
+  - [x] Fixture and implement shared `cem-textarea fit="fill"` sizing, retained
+    input/selection, narrow widths and a bounded playground/gallery example.
+  - [x] Fixture and implement current-file editing beside an independent preview;
+    move command/configuration/diagnostic tools below, keep draft guards and focus.
+  - [x] Fixture and implement directory/file branches, saved-project selection,
+    collection-grouped predefined project selection and explicit creation/save.
+  - [x] Add component playground/gallery/docs and planned Figma inventory, update Studio design and acceptance
+    fixtures, verify source/deployment-bundle delivery and visually inspect the running Studio.
+  - Verification: 87 Studio workbench cases, 11 shell cases and 29 colocated
+    workspace/media-preview/textarea plays pass. Typecheck, lint, the 55-component
+    style and planned Figma inventories, and Studio UI classification pass.
+    Graph-emitted static output is deterministic (274 files); the deployed Supplier
+    flow passes native Run, saved/draft edits, failure/repair, offline reload and
+    independent-copy checks with the new layout and disclosure navigation.
+  - Visual inspection: a 1440×1000 desktop holds the three-column workspace inside
+    the viewport; the source control fills its 592px-wide region. At 900/390/320px
+    regions reflow without horizontal page overflow. Editor and preview remain
+    visible through tool-tab changes; forced colors retain four readable regions.
+    Generated screenshots and Vitest attachments remain excluded from delivery.
+  - CEM audit: generic layout and bounded textarea/media sizing live in declarative
+    `cem-components`; project/catalog/folder projection stays in Studio CEM-ML.
+    Host JavaScript only binds existing service views and commands. The shell
+    authors its workspace, retaining DOM, selection and focus through theme and
+    status updates. Existing theme tokens own paint/spacing/typography; inherited
+    inset overrides, all five themes and Canvas/CanvasText are verified. No new
+    JavaScript UI capability or public token family is introduced. Resizable panes,
+    editor tabs and physical-device/spoken-AT acceptance remain later work.
+- [x] Replace the overlapping Studio forms with the requested URL-driven navigator.
+  - [x] Fixture shared opt-in tree branch activation, preserving default disclosure and keyboard behavior.
+  - [x] Model samples, saved projects, opened files, folder children and selection in application data; fixture URL startup, history, invalid routes and guarded file admission.
+  - [x] Render a matching window/page heading, theme control, left action/tree column, selected folder/file body and status bar; remove obsolete shell scaffolding.
+  - [x] Wire Create/Clone/Delete to durable services, preserve resource identities and drafts, and verify real navigation, theme retention and responsive geometry.
+  - [x] Update design/docs and run relevant shared, Studio and deployed-browser checks.
+  - Verification: 91 Studio workbench + 11 shell browser cases and 17 shared
+    workspace/tree plays pass. Studio lint/typecheck, UI classification and the
+    55-component style/planned Figma inventories pass. `verify:navigation` passes
+    the graph-emitted app with URL startup/history, no-parameter Samples recovery,
+    directory listings, project/resource Create/Clone/Delete, guarded Save/reload,
+    matching heading/window title, five themes, inherited inset overrides,
+    1440/900/390/320px geometry, forced colors, native provenance URL/range and
+    offline Supplier Run. Static output is deterministic: 181 assets / 275 files.
+  - CEM audit: shared browser/workbench layout remains in declarative
+    `cem-workspace`; the opt-in branch activation substrate lives in
+    `cem-elements`. Studio trees/resources/selection are application data;
+    declarations own icons, count/status formatting and visible composition.
+    URL/history/window-title and repository orchestration remain host services.
+    Navigation updates retain editor ownership and drafts; stale sample loads do
+    not replace a newer selection. Screenshots/attachments remain excluded.
 - [ ] Add shared selection of a generated graph artifact for preview, copy and
   download, so the supplier's JSON/YAML outputs are as convenient to inspect as its
   primary HTML output. Reuse native artifact identities and shared declarative
@@ -962,6 +1018,10 @@ Next presentation functionality:
 - [ ] Deliver the planned ordinary Markdown + CEM-ML site example with Hugo-inspired
   folders, using [the site roadmap](../roadmap.md#studio-example-markdown--cem-ml-site-project)
   and the same projects/resources/configurations workspace.
+- [ ] Migrate the older monolithic delivery script from retired Home/dropdown/storage
+  selectors to current navigator actions; retain its broader engine/provider cases
+  separately from the focused `verify:navigation` layout gate. Keep this helper
+  acceptance work behind the presentation functionality above.
 
 Do not introduce dedicated example screens. Shared components remain
 declarative in `cem-components`, reusable JavaScript behavior belongs in
@@ -973,7 +1033,7 @@ unrelated helper work remain independently open, behind presentation functionali
 
 ### Remaining declarative UI migration
 
-Current inventory: **54 canonical / 0 legacy components / 0 legacy authored
+Current inventory: **55 canonical / 0 legacy components / 0 legacy authored
 code files**. Follow the [declarative UI principle](declarative-ui-principle.md)
 and [component development pattern](component-development-pattern.md).
 

@@ -112,7 +112,7 @@ window.cemPlaygroundRuntime = runtime;
 <cem-gallery-page id="playground-theme" heading="cem-media-preview: Property playground">
 <template><p class="component-description">Preview projected media with a caption, exact literal text, an isolated document, a live CEM view, or a message. Media retains its native alternative text. Use <a href="./cem-avatar-gallery.html">cem-avatar</a> for a compact named identity.</p><p><a href="./cem-media-preview-gallery.html">Full examples and variation matrix</a> · <a href="./cem-media-preview.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-media-preview/cem-media-preview.stories.ts">Automated stories</a></p><main><p>Media is the default mode. Its default slot and caption slot both fall back to label. Text, document, live, and message modes read value. For live mode enter CEM-ML such as {p | Hello}; source-uri names its owner, and resource-set supplies explicit resource text. Text preserves whitespace and markup literally; truncated adds “(truncated)” to its accessible name without changing the value. Attribute presence enables truncated, including the text “false”. Document previews keep a fixed empty sandbox and deny scripts, styling, and network access.</p><cem-element class="properties"><template type="text/cem-ml">
 {slice @name=label | Policy preview}
-{slice @name=mode | media}
+{slice @name=mode | media}{slice @name=fit | content}
 {slice @name=value | Preview content}
 {slice @name=sourceUri | preview://gallery/edited.cem}
 {slice @name=resources | ```{"resources":[]}```}
@@ -159,13 +159,20 @@ window.cemPlaygroundRuntime = runtime;
  {cem-radio @checked={if datadom.slices.content == "fallback" {true} else {null}} @label=fallback @name=property-content @value=fallback}
  {cem-radio @checked={if datadom.slices.content == "projected" {true} else {null}} @label=projected @name=property-content @value=projected}
 }
-{cem-media-preview @source-uri="{$datadom.slices.sourceUri}" @resource-set="{$datadom.slices.resources}" @class="{$datadom.slices.class}" @dir="{$datadom.slices.dir}" @hidden={if datadom.slices.hidden == "present" {true} else {null}}
+{fieldset @aria-label=fit @role=radiogroup @slice=fit @slice-event=change @slice-value="$target.value" |
+ {legend | fit}
+ {cem-radio @checked={if datadom.slices.fit == "content" {true} else {null}} @label=content @name=property-fit @value=content}
+ {cem-radio @checked={if datadom.slices.fit == "fill" {true} else {null}} @label=fill @name=property-fit @value=fill}
+}
+{div @style="block-size:60vb" |
+{cem-media-preview @fit={datadom.slices.fit} @source-uri="{$datadom.slices.sourceUri}" @resource-set="{$datadom.slices.resources}" @class="{$datadom.slices.class}" @dir="{$datadom.slices.dir}" @hidden={if datadom.slices.hidden == "present" {true} else {null}}
  @label="{$datadom.slices.label}" @mode="{$datadom.slices.mode}" @truncated={if datadom.slices.truncated { true } else { null }}
  @value="{$datadom.slices.value}" |
  {cem:if @test='datadom.slices.content == "projected"' |
   {span | Media content}
   {strong @slot=caption | Projected caption}
 }}
+}
 </template></cem-element><cem-element><template type="text/cem-ml">{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-media-preview"}{cem:if @test="datadom.slices.sourceUrl" | {p | {a @href="{$datadom.slices.sourceUrl}" | Open canonical XHTML}}{cem-demo-element @legend="Canonical source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}}</template></cem-element></main></template>
 </cem-gallery-page>
 </body></html>

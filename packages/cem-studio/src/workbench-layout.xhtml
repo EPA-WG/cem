@@ -1,27 +1,39 @@
 <cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-studio-workbench-layout">
-  <template id="cem-studio-workbench-layout" type="text/cem-ml">
+ <template id="cem-studio-workbench-layout" type="text/cem-ml">
 {module |
- {slice @name=pane | source}
+ {slice @name=pane | source}{slice @name=navigation}
  {body |
-{section @aria-label="Project workbench" @data-cem-studio-workbench="" |
- {cem-stack @gap=lg |
- {div @data-cem-studio-workbench-navigation-mount="" | {cem-studio-workbench-navigation}}
- {cem-tabs @label="Workbench panes" @selected-index={if datadom.slices.pane == "results" { 1 } else { 0 }}
-    @host-command=select-pane @host-command-event=cem-tab |
-  {cem-tab @value=source @label="Source and command" |
- {cem-stack @gap=md |
-   {div @data-cem-studio-workbench-controls-mount="" | {cem-studio-workbench-controls}}
-   {div @data-cem-studio-workbench-command-mount="" | {cem-studio-workbench-command}}
+ {style @type=text/css |```
+:scope { display: block; block-size: 100%; min-block-size: 0; min-inline-size: 0; }
+[part~='root'] { block-size: 100%; min-block-size: 0; }
+[part~='content'] { display: grid; gap: var(--cem-gap-related); min-inline-size: 0; align-content: start; }
+[part~='file'][hidden] { display: none; }
+```}
+ {section @part=root @aria-label="Project workbench" @data-cem-studio-workbench="" |
+  {cem-workspace @label="Studio workspace" @layout=browser @fit=fill @navigation-label=Navigation @editor-label=Contents |
+   {div @slot=navigation @data-cem-studio-workbench-navigation-mount="" | {cem-studio-workbench-navigation}}
+   {span @slot=editor-heading | {$ | datadom.slices.navigation.selected.name ?? "Samples"}}
+   {div @slot=editor @part=content |
+    {div @data-cem-studio-project-picker-mount="" | {cem-studio-project-picker}}
+    {section @part=file @aria-label="Selected file" @hidden={if datadom.slices.navigation &amp;&amp; datadom.slices.navigation.content != "file" { true } else { null }} |
+     {div @data-cem-studio-workbench-controls-mount="" | {cem-studio-workbench-controls}}
+     {cem-expansion @label="Commands and results" @expanded={if datadom.slices.navigation { null } else { true }} |
+      {cem-tabs @label="Workbench panes" @selected-index={if datadom.slices.pane == "results" { 1 } else { 0 }} @host-command=select-pane @host-command-event=cem-tab |
+       {cem-tab @value=source @label="Source and command" |
+        {div @data-cem-studio-workbench-command-mount="" | {cem-studio-workbench-command}}
+        {div @data-cem-studio-workbench-tools-mount="" | {cem-studio-workbench-tools}}
+       }
+       {cem-tab @value=results @label=Results |
+        {div @data-cem-studio-workbench-preview-mount="" | {cem-studio-workbench-preview}}
+        {div @data-cem-studio-workbench-results-mount="" | {cem-studio-workbench-results}}
+       }
+      }
+     }
+    }
+   }
   }
-}
-  {cem-tab @value=results @label=Results |
- {cem-stack @gap=md |
-   {div @data-cem-studio-workbench-results-mount="" | {cem-studio-workbench-results}}
-  }
-}
+ }
  }
 }
-}
-}}
-  </template>
+ </template>
 </cem-element>

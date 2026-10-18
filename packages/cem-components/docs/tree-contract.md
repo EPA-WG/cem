@@ -171,3 +171,11 @@ The `ProjectScale` story also renders and expands 128 resource leaves without
 losing any identities. The shared runtime hashes repeated native binary artifacts
 with a versioned binary content address rather than serializing a full artifact
 for each typed attribute; tree payload and selection semantics are unchanged.
+
+### Folder navigation
+
+`activate-branches` opts into `cem-tree-activate` for branch clicks and native
+Enter/Space activation as well as leaves. The branch still toggles and emits
+`cem-tree-toggle`. Arrow keys only disclose or move focus. Without this attribute,
+branches retain their disclosure-only behavior. Selection remains application-owned
+through `selected-values`; expanding a branch does not select it automatically.

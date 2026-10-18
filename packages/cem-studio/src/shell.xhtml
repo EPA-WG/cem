@@ -1,5 +1,5 @@
 <cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-studio-shell">
-  <template id="cem-studio-shell" type="text/cem-ml">
+ <template id="cem-studio-shell" type="text/cem-ml">
 {module |
     {slice @name=themeMode | cem-theme-light}
     {slice @name=installState | waiting}
@@ -16,65 +16,36 @@
     {slice @name=canExport | false}
     {slice @name=storageState | checking}
     {slice @name=storagePersisted | false}
-    {attribute @name=class @select='datadom.slices.themeMode ?? "cem-theme-light"'}
-    {attribute @name=data-theme @select='datadom.slices.themeMode ?? "cem-theme-light"'}
-    {attribute @name=data-cem-studio-shell @select='""'}
-    {attribute @name=data-cem-studio-state @select='"ready"'}
-    {body |
- {cem-stack @gap=lg |
-        {cem-stack @gap=lg |
-            {cem-app-bar @label="CEM Studio" |
-                {span @slot=title | CEM Studio}
-            }
-            {section @aria-label="Application controls" |
- {cem-grid @gap=md |
-                {cem-badge @data-cem-studio-storage-state="" @label={if datadom.slices.storagePersisted { "Local storage persisted" } else { str:concat(("Local storage ", datadom.slices.storageState), "") }} @tone={if datadom.slices.storageState == "ready" { "success" } else { if datadom.slices.storageState == "unavailable" { "danger" } else { if (datadom.slices.storageState == "checking") || (datadom.slices.storageState == "available") { "info" } else { "warning" } } }}}
-                {cem-badge @data-cem-studio-install-state="" @label={if datadom.slices.installState == "waiting" { "Install availability waiting" } else { if datadom.slices.installState == "ready" { "Install ready" } else { if datadom.slices.installState == "prompting" { "Install prompt open" } else { if datadom.slices.installState == "installed" { "Installed" } else { if datadom.slices.installState == "dismissed" { "Install dismissed" } else { "Install unavailable" } } } } }} @tone=info}
-                {cem-theme-switch @data-cem-studio-theme="" @theme-command=theme @storage-key=cem-studio-theme @value={datadom.slices.themeMode ?? "cem-theme-light"}}
-                {cem-action @data-cem-studio-install="" @disabled={if datadom.slices.installState != "ready" { true } else { null }} @host-command=install
-                    @variant=contextual | Install}
-            }
+ {slice @name=pageTitle | Samples - CEM Studio}
+ {slice @name=workspaceStatus | ready}
+ {attribute @name=class @select='datadom.slices.themeMode ?? "cem-theme-light"'}
+ {attribute @name=data-theme @select='datadom.slices.themeMode ?? "cem-theme-light"'}
+ {attribute @name=data-cem-studio-shell @select='""'}
+ {attribute @name=data-cem-studio-state @select='"ready"'}
+ {body |
+ {style @type=text/css |```
+:scope { display: block; min-inline-size: 0; color: var(--cem-palette-comfort-text); background-color: var(--cem-palette-comfort); font-family: var(--cem-typography-ui-font-family); }
+[part~='root'] { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--cem-gap-related); min-inline-size: 0; min-block-size: calc(100dvb - 2 * var(--cem-gap-related)); }
+[part~='heading'] { margin: 0; font: inherit; overflow-wrap: anywhere; }
+[part~='workspace'], [part~='workspace'] > * { min-inline-size: 0; min-block-size: 0; block-size: 100%; }
+[part~='status'] { display: flex; flex-wrap: wrap; gap: var(--cem-gap-related); justify-content: space-between; padding: var(--cem-inset-container); border-block-start: var(--cem-stroke-boundary) solid currentColor; }
+@media (min-width: 840px) { [part~='root'] { block-size: calc(100dvb - 2 * var(--cem-gap-related)); } }
+@media (forced-colors: active) { :scope { color: CanvasText; background-color: Canvas; } }
+```}
+ {div @part=root |
+  {cem-app-bar @label="CEM Studio" |
+   {h1 @slot=title @part=heading | {$ | datadom.slices.pageTitle}}
+   {cem-theme-switch @data-cem-studio-theme="" @theme-command=theme @storage-key=cem-studio-theme @value={datadom.slices.themeMode}}
+  }
+  {div @part=workspace @data-cem-studio-workspace-mount="" | {slot | {cem-studio-workbench-layout}}}
+  {footer @part=status @aria-label="Studio status" |
+   {span @role=status @aria-live=polite | {$ | if datadom.slices.workspaceStatus == "opening" { "Opening…" } else { if datadom.slices.workspaceStatus == "dirty" { "Unsaved changes retained" } else { if datadom.slices.workspaceStatus == "sample" { "Sample · Clone to edit" } else { if datadom.slices.workspaceStatus == "ready" { "Ready" } else { datadom.slices.workspaceStatus } } } }}}
+   {span | {$ | if datadom.slices.storagePersisted { "Local storage persisted" } else { str:concat(("Local storage · ", datadom.slices.storageState), "") }}}
+   {cem:if @test='datadom.slices.installState == "ready"' | {cem-action @data-cem-studio-install="" @host-command=install | Install}}
+   {cem:if @test=datadom.slices.updateReady | {cem-action @host-command=update | Apply ready update}}
+  }
+ }
+ }
 }
-            {cem-card @label="Local-first workbench" |
-                {span @slot=title | Local-first CEM-ML workbench}
- {cem-stack @gap=md |
-                {cem-text | Projects remain in this browser while CEM-ML commands run in the dedicated local worker.}
-                {cem-badge @label="Offline ready" @tone=success}
-            }
-}
-            {cem-card @label="Local file provider" |
-                {span @slot=title | Opt-in local files}
- {cem-stack @gap=md |
-                {cem-text | Local handles remain outside portable projects and require explicit permission before write-back.}
-            }
-}
-            {section @aria-label="Local file provider controls" |
- {cem-stack @gap=md |
-                {cem-badge @data-cem-studio-provider-state="" @label={if datadom.slices.fileState == "checking" { "Local files checking" } else { if datadom.slices.fileState == "unsupported" { "Local files unsupported" } else { if datadom.slices.fileState == "unbound" { "Local files not connected" } else { if datadom.slices.fileState == "prompt-permission" { "Local file permission required" } else { if datadom.slices.fileState == "denied-permission" { "Local file permission denied" } else { if datadom.slices.fileState == "permission-required" { "Local file permission required" } else { if datadom.slices.fileState == "conflict" { "External file conflict" } else { if datadom.slices.fileState == "fallback" { "Using IndexedDB fallback" } else { if datadom.slices.fileState == "working" { "Local file operation running" } else { if datadom.slices.fileState == "ready" { "Local files connected" } else { "Local file provider ready" } } } } } } } } } }} @tone={if datadom.slices.fileState == "ready" { "success" } else { if (datadom.slices.fileState == "conflict") || str:contains(datadom.slices.fileState, "permission") { "warning" } else { if datadom.slices.fileState == "fallback" { "danger" } else { "info" } } }}}
-                {cem-grid |
-                {cem-action @data-cem-studio-open-project="" @disabled={if (datadom.slices.fileState == "working") || !datadom.slices.fileDirectory { true } else { null }} @host-command=open-project
-                    @variant=alternate | Open project folder}
-                {cem-action @data-cem-studio-bind-project="" @disabled={if (datadom.slices.fileState == "working") || !datadom.slices.fileHasProject || !datadom.slices.fileDirectory { true } else { null }} @host-command=bind-project
-                    @variant=contextual | Bind current project folder}
-                {cem-action @data-cem-studio-open-resource="" @disabled={if (datadom.slices.fileState == "working") || !datadom.slices.fileHasResource || !datadom.slices.fileOpenFile { true } else { null }} @host-command=open-resource
-                    @variant=contextual | Open resource file}
-                {cem-action @data-cem-studio-provider-reconnect="" @disabled={if (datadom.slices.fileState == "working") || !datadom.slices.fileHasProject || (datadom.slices.fileState == "unbound") { true } else { null }} @host-command=reconnect
-                    @variant=contextual | Reconnect permission}
-                {cem-action @data-cem-studio-provider-write="" @disabled={if (datadom.slices.fileState == "working") || !datadom.slices.fileHasProject || (datadom.slices.fileState != "ready") { true } else { null }} @host-command=write-back
-                    @variant=alternate | Save back to folder}
-                {cem-action @data-cem-studio-import-fallback="" @disabled={if (datadom.slices.fileState == "working") || !datadom.slices.canImport { true } else { null }} @host-command=import
-                    @variant=contextual | Import project backup}
-                {cem-action @data-cem-studio-export-fallback="" @disabled={if (datadom.slices.fileState == "working") || !datadom.slices.fileHasProject || !datadom.slices.canExport { true } else { null }} @host-command=export
-                    @variant=contextual | Export project backup}
-                }
-                {cem-alert @data-cem-studio-provider-alert="" @label={datadom.slices.fileMessage} @tone={if datadom.slices.fileState == "ready" { "success" } else { if (datadom.slices.fileState == "conflict") || str:contains(datadom.slices.fileState, "permission") { "warning" } else { if datadom.slices.fileState == "fallback" { "danger" } else { "info" } } }}}
-            }
-}
-            {cem-alert @data-cem-studio-update-state="" @label={if datadom.slices.updateState == "ready" { "An update is ready; save work before applying it" } else { if datadom.slices.updateState == "persisting" { "Persisting project before update" } else { if datadom.slices.updateState == "blocked" { if datadom.slices.updateReason == "persistence-failed" { "Update blocked because project persistence failed" } else { if datadom.slices.updateReason == "unsaved-work" { "Save source and Apply or reset the command draft before updating" } else { "Update waiting for active work to finish" } } } else { if datadom.slices.updateState == "activating" { "Applying update" } else { "Application is current" } } } }} @tone={if datadom.slices.updateState == "blocked" { "warning" } else { "info" }}}
-            {cem-action @data-cem-studio-update="" @disabled={if !datadom.slices.updateReady || (datadom.slices.updateState == "activating") { true } else { null }} @host-command=update @variant=alternate | Apply ready update}
-        }
-        {slot}
-}
-}   }
-  </template>
+ </template>
 </cem-element>

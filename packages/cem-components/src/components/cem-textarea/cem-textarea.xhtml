@@ -1,9 +1,15 @@
 <cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-textarea" capability="form-control">
   <template id="cem-textarea" type="text/cem-ml">
     {attribute @name=label | Textarea}
+    {attribute @name=fit | content}
     {attribute @name=required-marker | *}
     {attribute @name=indicator | underline}
     {style @type="text/css" |```
+        :scope:where([fit='fill']) { display: block; inline-size: 100%; block-size: 100%; min-inline-size: 0; min-block-size: 0; }
+        :scope:where([fit='fill']) [part~='root'] { display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: var(--cem-gap-related); block-size: 100%; min-inline-size: 0; min-block-size: 0; }
+        :scope:where([fit='fill']) [part~='label'] { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: var(--cem-gap-related); min-inline-size: 0; min-block-size: 0; }
+        :scope:where([fit='fill']) [part~='control'] { box-sizing: border-box; inline-size: 100%; block-size: 100%; min-inline-size: 0; min-block-size: 0; resize: none; }
+
         :scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
         [part~="required-marker"] { margin-inline-start: var(--cem-dim-x-small); }
 

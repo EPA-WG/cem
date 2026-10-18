@@ -118,24 +118,38 @@ assert.match(shellView, /<template id="cem-studio-shell" type="text\/cem-ml">/);
 assert.match(shellView, /theme-command=theme/);
 assert.match(shellView, /host-command=install/);
 assert.match(shellView, /host-command=update/);
-assert.match(shellView, /\{slot\}/);
+assert.match(shellView, /\{slot\s*\|\s*\{cem-studio-workbench-layout\}/);
 assert.doesNotMatch(shellView, /<script|\son[a-z]+=|javascript:/i);
 const workbenchModule = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/workbench.js'), 'utf8');
 const workbenchControls = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/workbench-controls.xhtml'), 'utf8');
 assert.match(workbenchModule, /mountCemView/);
 assert.doesNotMatch(workbenchModule, /editor\.focus\(|editor\.setSelectionRange\(|function statusLabel|function statusTone/);
 assert.match(workbenchControls, /<template id="cem-studio-workbench-controls" type="text\/cem-ml">/);
-for (const command of ['edit', 'save', 'reload', 'run', 'parse', 'inspect']) {
+for (const command of ['edit', 'save', 'reload', 'run']) {
     assert.match(workbenchControls, new RegExp(`host-command=${command}(?:\\s|$)`));
 }
+const toolsView = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/workbench-tools.xhtml'), 'utf8');
+for (const command of ['parse', 'inspect', 'edit-graph', 'create-graph-node', 'edit-graph-edge', 'undo-graph', 'redo-graph']) {
+    assert.match(toolsView, new RegExp(`host-command=${command}(?:\\s|$)`));
+}
+const pickerView = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/project-picker.xhtml'), 'utf8');
+for (const command of ['open-entity', 'submit-action', 'cancel-action']) {
+    assert.match(pickerView, new RegExp(`host-command=${command}(?:\\s|$)`));
+}
+for (const view of [toolsView, pickerView]) assert.doesNotMatch(view, /<script|\son[a-z]+=|javascript:/i);
 assert.match(workbenchControls, /selection-request=/);
 assert.doesNotMatch(workbenchControls, /@variant=(?:quiet|secondary)|<script|\son[a-z]+=|javascript:/i);
 
 const navigationView = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/workbench-navigation.xhtml'), 'utf8');
-for (const command of ['select-workbench', 'open-entity', 'search-projects', 'open-search', 'navigation-cancel']) {
+for (const command of ['create-selected', 'clone-selected', 'delete-selected', 'open-entity', 'navigation-cancel']) {
     assert.ok(navigationView.includes(`host-command=${command}`));
 }
 assert.match(navigationView, /host-command-event=cem-tree-activate/);
+assert.match(navigationView, /@activate-branches=true/);
+const navigationModule = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/navigation.js'), 'utf8');
+assert.match(navigationModule, /popstate/);
+assert.doesNotMatch(navigationModule, /innerHTML|textContent|querySelector|createElement|classList/);
+assert.doesNotMatch(shellView, /Local-first workbench|Local file provider controls|@label="Project storage"/);
 assert.doesNotMatch(navigationView, /<script|\son[a-z]+=|javascript:/i);
 
 const commandView = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/workbench-command.xhtml'), 'utf8');
@@ -155,7 +169,11 @@ assert.match(resultsView, /<template id="cem-studio-workbench-results" type="tex
 for (const command of ['copy-output', 'download-output', 'diagnostic', 'provenance']) {
     assert.match(resultsView, new RegExp(`host-command=${command}(?:\\s|$)`));
 }
-assert.match(resultsView, /cem-media-preview/);
+const previewView = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/workbench-preview.xhtml'), 'utf8');
+assert.match(previewView, /cem-media-preview/);
+assert.match(layoutView, /cem-workspace/);
+assert.match(layoutView, /@layout=browser/);
+for (const region of ['navigation', 'editor']) assert.match(layoutView, new RegExp(`@slot=${region}(?:\\s|$)`));
 assert.doesNotMatch(resultsView, /@variant=(?:quiet|secondary)|<script|\son[a-z]+=|javascript:/i);
 assert.doesNotMatch(workbenchModule, /innerHTML|textContent|addEventListener|removeEventListener|workbenchMarkup|renderWorkbench|Markup\(/);
 

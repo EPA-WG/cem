@@ -120,3 +120,5 @@ function resolveRoot(candidate) {
     if (!root) throw new Error(`CEM Studio mount root not found: ${selector}`);
     return root;
 }
+
+export { createCemStudioNavigation } from './navigation.js';

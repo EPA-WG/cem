@@ -116,7 +116,7 @@
             "tag": "cem-textarea",
             "category": "Input",
             "representation": "component-set",
-            "properties": {"name": "text", "value": "text", "placeholder": "text", "indicator": "variant", "busy": "boolean", "slot:label": "slot", "slot:help": "slot"},
+            "properties": {"fit": "variant", "name": "text", "value": "text", "placeholder": "text", "indicator": "variant", "busy": "boolean", "slot:label": "slot", "slot:help": "slot"},
             "states": ["default", "hover", "focus-visible", "disabled", "loading", "invalid", "required", "readonly"],
             "tokenFamilies": ["palette", "stroke", "bend", "gap", "typography"],
             "documentation": ["packages/cem-components/docs/component-reference.md#inputs"],
@@ -283,6 +283,16 @@
             "figma": {"status": "planned", "locator": "03 Components / Layout / cem-grid", "revision": null}
         },
         {
+            "tag": "cem-workspace",
+            "category": "Layout",
+            "representation": "structural",
+            "properties": {"label": "text", "navigation-label": "text", "editor-label": "text", "preview-label": "text", "tools-label": "text", "fit": "variant", "layout": "variant", "slot:navigation": "slot", "slot:editor": "slot", "slot:preview": "slot", "slot:tools": "slot", "slot:navigation-heading": "slot", "slot:editor-heading": "slot", "slot:preview-heading": "slot", "slot:tools-heading": "slot"},
+            "states": [],
+            "tokenFamilies": ["gap", "inset", "palette", "stroke", "bend", "typography", "responsive"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#layout"],
+            "figma": {"status": "planned", "locator": "03 Components / Layout / cem-workspace", "revision": null}
+        },
+        {
             "tag": "cem-divider",
             "category": "Layout",
             "representation": "component-set",
@@ -376,7 +386,7 @@
             "tag": "cem-media-preview",
             "category": "Content",
             "representation": "component-set",
-            "properties": {"slot:default": "slot", "slot:caption": "slot"},
+            "properties": {"fit": "variant", "slot:default": "slot", "slot:caption": "slot"},
             "states": ["default", "loading"],
             "tokenFamilies": ["palette", "stroke", "bend", "gap", "typography"],
             "documentation": ["packages/cem-components/docs/component-reference.md#content"],
@@ -386,7 +396,7 @@
             "tag": "cem-tree",
             "category": "Content",
             "representation": "component-set",
-            "properties": {"label": "text", "expanded-values": "text", "selection": "variant", "selected-values": "text", "disabled": "boolean", "loading-label": "text", "slot:default": "slot"},
+            "properties": {"label": "text", "expanded-values": "text", "activate-branches": "boolean", "selection": "variant", "selected-values": "text", "disabled": "boolean", "loading-label": "text", "slot:default": "slot"},
             "states": ["default", "hover", "focus-visible", "selected", "loading"],
             "tokenFamilies": ["palette", "content", "control", "stroke", "bend", "gap", "coupling", "typography"],
             "documentation": ["packages/cem-components/docs/component-reference.md#content", "packages/cem-components/docs/tree-contract.md"],

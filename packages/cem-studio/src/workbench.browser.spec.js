@@ -3,6 +3,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { describeCemStudioOperationFields, describeCemStudioOperationGroups, editCemStudioOperationField, editCemStudioOperationFields, createCemStudioBrowserValidator } from './feature-tour.js';
 import { createCemStudioFileSystemProvider, serializeCemStudioProjectBundle } from './file-system-provider.js';
+import { createCemStudioNavigation } from './navigation.js';
 import { createCemStudioProjectRepository } from './repository.js';
 import { createCemStudioProjectSession } from './project-session.js';
 import { mountCemStudioApplicationShell } from './shell.js';
@@ -52,6 +53,31 @@ describe('CEM Studio Feature Tour workbench', () => {
         expect(source.slice(selection.start, selection.end)).toBe('{form');
         expect(selection.byteLength).toBe(5);
         expect(workbench.snapshot().validation.diagnostics[0].sourceMap.frames).toHaveLength(2);
+    });
+
+    it('retains the mounted workspace through shell theme and status updates', async () => {
+        const repository = await repositoryWithSource('original source');
+        const workbench = await createWorkbench(repository, validatorFor(validResult()));
+        await workbench.selectWorkbench(featureTourSeed().catalog.workbenches[0].id);
+        const root = document.createElement('main'); document.body.append(root);
+        const shell = await mountCemStudioApplicationShell({ root }); shells.push(shell);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
+        await shell.whenSettled(); await view.whenSettled();
+        const workspace = root.querySelector('cem-workspace');
+        const editor = root.querySelector('[data-cem-studio-editor] textarea');
+        workbench.updateDraft('retained unsaved source'); await view.whenSettled();
+        editor.focus(); editor.setSelectionRange(2, 8);
+        for (const mode of ['cem-theme-dark', 'cem-theme-contrast-light']) {
+            shell.theme.setMode(mode); shell.view.update({ storageState: mode });
+            await shell.whenSettled(); await view.whenSettled();
+            expect(view.root.isConnected).toBe(true);
+            expect(root.querySelector('cem-workspace')).toBe(workspace);
+            expect(root.querySelector('[data-cem-studio-workspace-mount]').contains(workspace)).toBe(true);
+            expect(root.querySelector('[data-cem-studio-editor] textarea')).toBe(editor);
+            expect(editor.value).toBe('retained unsaved source');
+            expect([editor.selectionStart, editor.selectionEnd]).toEqual([2, 8]);
+            expect(document.activeElement).toBe(editor);
+        }
     });
 
     it('stages native graph attributes with stale guards and bounded reversible drafts', async () => {
@@ -541,7 +567,7 @@ describe('CEM Studio Feature Tour workbench', () => {
             .map(row => [...row.querySelectorAll('[role="cell"]')].map(cell => cell.textContent.trim()));
         expect(reportRows).toEqual(expect.arrayContaining([['Inputs', '1'], ['Warnings', '0'], ['Hard violations', '1']]));
         expect(
-            root.querySelectorAll('button:not(cem-action button):not(cem-icon-button button):not(cem-select button):not(cem-tabs button)'),
+            root.querySelectorAll('button:not(cem-action button):not(cem-icon-button button):not(cem-select button):not(cem-tabs button):not(cem-expansion button):not(cem-tree button)'),
         ).toHaveLength(0);
 
         const paneTabs = [...root.querySelector('cem-tabs[label="Workbench panes"]').querySelectorAll('[role="tab"]')]
@@ -549,10 +575,12 @@ describe('CEM Studio Feature Tour workbench', () => {
         const diagnostics = root.querySelector('cem-list[data-diagnostic-list] select');
         for (let attempt = 0; attempt < 2; attempt++) {
             paneTabs.find(tab => tab.textContent === 'Results').click(); await view.whenSettled();
-            expect(editor.closest('[role="tabpanel"]').hidden).toBe(true);
+            expect(editor.closest('[role="tabpanel"]')).toBeNull();
+            expect(editor.checkVisibility()).toBe(true);
             diagnostics.value = '0'; diagnostics.dispatchEvent(new Event('change', { bubbles: true }));
             await view.whenSettled();
-            expect(editor.closest('[role="tabpanel"]').hidden).toBe(false);
+            expect(editor.closest('[role="tabpanel"]')).toBeNull();
+            expect(editor.checkVisibility()).toBe(true);
             expect(document.activeElement).toBe(editor);
             expect(editor.selectionStart).toBe(workbench.snapshot().selection.start);
         }
@@ -563,6 +591,7 @@ describe('CEM Studio Feature Tour workbench', () => {
         expect(workbench.snapshot().selection).toMatchObject({ kind: 'diagnostic', byteStart: rangeStart });
         expect(document.activeElement).toBe(editor);
         editor.setSelectionRange(0, 0);
+        root.querySelector('cem-expansion[label="Editor details"] button').click(); await view.whenSettled();
         const reload = root.querySelector('[data-cem-studio-reload] button');
         reload.focus();
         await workbench.copyCommand(async () => undefined);
@@ -820,7 +849,7 @@ describe('CEM Studio Feature Tour workbench', () => {
         });
         views.push(view);
 
-        selectValue(root, '[data-cem-studio-workbench-select]', 'conversion');
+        await workbench.selectWorkbench('conversion');
         await view.whenSettled();
         root.querySelector('cem-action[data-cem-studio-operation-run] button').click();
         await view.whenSettled();
@@ -861,7 +890,7 @@ describe('CEM Studio Feature Tour workbench', () => {
         expect(root.querySelector('[data-cem-studio-provenance]').textContent).toContain('No source-map provenance');
         expect(
             root.querySelectorAll(
-                '[data-cem-studio-workbench] button:not(cem-action button):not(cem-icon-button button):not(cem-select button):not(cem-tabs button)',
+                '[data-cem-studio-workbench] button:not(cem-action button):not(cem-icon-button button):not(cem-select button):not(cem-tabs button):not(cem-expansion button):not(cem-tree button)',
             ),
         ).toHaveLength(0);
     });
@@ -1026,7 +1055,7 @@ describe('CEM Studio Feature Tour workbench', () => {
         expect(workbench.snapshot().command).toMatchObject({ status: 'current', draftText: original, changes: [] });
         expect(
             root.querySelectorAll(
-                '[data-cem-studio-workbench] button:not(cem-action button):not(cem-icon-button button):not(cem-select button):not(cem-tabs button)',
+                '[data-cem-studio-workbench] button:not(cem-action button):not(cem-icon-button button):not(cem-select button):not(cem-tabs button):not(cem-expansion button):not(cem-tree button)',
             ),
         ).toHaveLength(0);
     });
@@ -1384,7 +1413,7 @@ describe('CEM Studio Feature Tour workbench', () => {
 });
 
 describe('Project-owned workbench loading', () => {
-    async function fixture(id = 'alpha', empty = false, extra = false, extraText = 'additional text') {
+    async function fixture(id = 'alpha', empty = false, extra = false, extraText = 'additional text', extraPath = 'extra.cem') {
         const repository = await repositoryWithSource('project source');
         const bundle = (await repository.query(request('export-project', { projectId: 'feature-tour' }))).value;
         bundle.project.id = id;
@@ -1393,7 +1422,7 @@ describe('Project-owned workbench loading', () => {
         if (empty) { bundle.project.entries = []; bundle.project.resources = []; bundle.contents = {}; }
         if (extra) {
             const bytes = new TextEncoder().encode(extraText);
-            bundle.project.resources.push({ ...bundle.project.resources.find(item => item.id === 'source'), id: 'extra', role: 'data', path: 'extra.cem', referencePath: 'extra.cem', sha256: await digest(bytes) });
+            bundle.project.resources.push({ ...bundle.project.resources.find(item => item.id === 'source'), id: 'extra', role: 'data', path: extraPath, referencePath: extraPath, sha256: await digest(bytes) });
             bundle.contents.extra = bytes;
         }
         await repository.execute(request('import-project', { bundle }));
@@ -1414,7 +1443,9 @@ describe('Project-owned workbench loading', () => {
         const session = createCemStudioProjectSession({ openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator, selection }) });
         workbenches.push(session);
         await session.select({ projectId: 'alpha', resourceId: 'source' });
-        const workbench = await createCemStudioSessionWorkbench({ repository, session }); workbenches.push(workbench);
+        const base = await createCemStudioSessionWorkbench({ repository, session });
+        const workbench = await createCemStudioNavigation({ workbench: base, repository }); workbenches.push(workbench);
+        await workbench.openEntity('project=alpha&file=source');
         return { source, repository, session, workbench };
     }
 
@@ -1426,6 +1457,8 @@ describe('Project-owned workbench loading', () => {
         expect(workbench.snapshot().navigationError).toBeUndefined();
         expect(session.snapshot().selection).toEqual({ projectId: 'alpha', resourceId: 'extra' });
         expect(workbench.snapshot().path).toBe('moved/view.cemt');
+        expect(workbench.snapshot().navigation.selection.file).toBe('extra');
+        expect(workbench.snapshot().navigation.title).toBe('alpha · moved/view.cemt - CEM Studio');
         const selected = workbench.snapshot().selection;
         expect(selected).toMatchObject({ kind: 'provenance', byteStart: 9, byteLength: 11 });
         expect(source.slice(selected.start, selected.end)).toBe('{p | target');
@@ -1443,6 +1476,7 @@ describe('Project-owned workbench loading', () => {
             expect(workbench.snapshot().draft).toBe('retained graph draft');
         } else {
             expect(session.snapshot().selection.resourceId).toBe('extra');
+            expect(workbench.snapshot().navigation.selection.file).toBe('extra');
             if (decision === 'discard') expect(workbench.snapshot().selection?.kind).toBe('provenance');
             else {
                 expect(workbench.snapshot().selection).toBeUndefined();
@@ -1623,6 +1657,111 @@ describe('Project-owned workbench loading', () => {
         expect(missing.snapshot().selection.projectId).toBe('alpha');
     });
 
+    async function navigatorFixture(url = 'https://studio.test/') {
+        const repository = await fixture('alpha', false, true, 'nested source', 'templates/café forms/view.cemt');
+        const bundle = (await repository.query(request('export-project', { projectId: 'alpha' }))).value;
+        const examples = [{ id: 'login', name: 'Login', collections: ['amsterdam', 'examples'], description: 'Semantic login forms', load: vi.fn(async () => structuredClone(bundle)) }];
+        const session = createCemStudioProjectSession({ openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator: validatorFor(validResult()), selection }) });
+        workbenches.push(session);
+        const base = await createCemStudioSessionWorkbench({ repository, session, home: { starter: bundle, examples } });
+        const browser = new EventTarget();
+        browser.location = new URL(url);
+        browser.history = { pushState: vi.fn((_, __, url) => { browser.location = new URL(url); }), replaceState: vi.fn((_, __, url) => { browser.location = new URL(url); }) };
+        const workbench = await createCemStudioNavigation({ workbench: base, repository, examples, collections: [{ id: 'amsterdam', name: 'Amsterdam', description: 'Presentation examples' }], browser });
+        workbenches.push(workbench);
+        return { repository, session, workbench, browser, examples };
+    }
+
+    it('models default samples, project folders and read-only sample files without creating saved projects', async () => {
+        const { repository, workbench, browser, examples } = await navigatorFixture();
+        expect(workbench.snapshot().navigation).toMatchObject({ title: 'Samples - CEM Studio', selection: { key: 'samples' }, count: 1, countKind: 'folder', content: 'folder' });
+        expect(workbench.snapshot().navigation.children[0]).toMatchObject({ name: 'Amsterdam', description: 'Presentation examples', icon: 'folder' });
+        const before = (await repository.query(request('list-projects', {}))).value;
+        await workbench.openEntity('collection=amsterdam');
+        expect(workbench.snapshot().navigation).toMatchObject({ count: 1, countKind: 'project' });
+        await workbench.openEntity('sample=login');
+        expect(examples[0].load).toHaveBeenCalledOnce();
+        expect(workbench.snapshot().navigation.files.name).toBe('alpha');
+        await workbench.openEntity('sample=login&folder=templates%2Fcaf%C3%A9+forms%2F');
+        expect(workbench.snapshot().navigation.children[0]).toMatchObject({ name: 'view.cemt', resourceId: 'extra', kind: 'file' });
+        await workbench.openEntity('sample=login&file=extra');
+        expect(workbench.snapshot().navigation).toMatchObject({ content: 'sample-file', sampleText: 'nested source', count: 1, countKind: 'file', title: 'alpha · templates/café forms/view.cemt - CEM Studio', canDelete: false });
+        expect(new URL(browser.location).searchParams.get('file')).toBe('extra');
+        expect((await repository.query(request('list-projects', {}))).value).toEqual(before);
+        expect(examples[0].load).toHaveBeenCalledOnce();
+    });
+
+    it('admits URL resource IDs, preserves Unicode folder paths and cancels history navigation without losing drafts', async () => {
+        const { workbench, browser, session } = await navigatorFixture('https://studio.test/?project=alpha&file=extra');
+        expect(session.snapshot().selection).toEqual({ projectId: 'alpha', resourceId: 'extra' });
+        expect(workbench.snapshot().navigation.expanded).toContain('folder=templates%2F');
+        workbench.updateDraft('retain this source');
+        const accepted = browser.location.href;
+        browser.location = new URL('https://studio.test/?project=alpha&file=source');
+        browser.dispatchEvent(new Event('popstate'));
+        await vi.waitFor(() => expect(session.snapshot().transition?.stage).toBe('source'));
+        expect(workbench.snapshot().navigation.selection.file).toBe('extra');
+        await workbench.resolveNavigation('cancel');
+        expect(browser.location.href).toBe(accepted);
+        expect(workbench.snapshot().draft).toBe('retain this source');
+        await workbench.openEntity('project=alpha&file=source');
+        await workbench.resolveNavigation('discard');
+        expect(workbench.snapshot().navigation.selection.file).toBe('source');
+        expect(new URL(browser.location).searchParams.get('file')).toBe('source');
+        await workbench.openEntity('project=alpha&file=missing');
+        expect(workbench.snapshot().navigation.error.message).toContain('unavailable');
+        expect(workbench.snapshot().navigation.selection.file).toBe('source');
+        expect(workbench.snapshot().draft).toBe('project source');
+    });
+
+    it('renders model-owned trees and folder listings, clones samples and creates/deletes files through the action bar', async () => {
+        const { repository, workbench, session } = await navigatorFixture();
+        const root = document.createElement('main'); document.body.append(root);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
+        const treeNode = label => [...root.querySelectorAll('[role=treeitem]')].find(item => item.getAttribute('aria-label') === label);
+        const { userEvent } = await import('vitest/browser');
+        await userEvent.click(treeNode('Amsterdam')); await view.whenSettled();
+        expect(root.querySelector('[aria-label="Folder contents"]').textContent).toContain('Login');
+        await userEvent.click(treeNode('Login')); await view.whenSettled();
+        expect(workbench.snapshot().navigation.selection.sample).toBe('login');
+        root.querySelector('[host-command="clone-selected"] button').click(); await view.whenSettled();
+        const submit = async name => {
+            const input = root.querySelector('cem-dialog cem-text-field input');
+            if (input) { input.value = name; input.dispatchEvent(new InputEvent('input', { bubbles: true })); }
+            root.querySelector('form[host-command="submit-action"]').requestSubmit(); await view.whenSettled();
+        };
+        await submit('My Login');
+        const id = workbench.snapshot().navigation.selection.project;
+        expect(id).toMatch(/^project-/); expect(workbench.snapshot().navigation.title).toBe('My Login - CEM Studio');
+        root.querySelector('[host-command="create-selected"] button').click(); await view.whenSettled(); await submit('new.cem');
+        expect(workbench.snapshot().navigation).toMatchObject({ content: 'file', selected: { name: 'new.cem' } });
+        const resourceId = session.snapshot().selection.resourceId;
+        expect(root.querySelector('[data-cem-studio-editor] textarea')).not.toBeNull();
+        root.querySelector('[host-command="delete-selected"] button').click(); await view.whenSettled(); await submit();
+        expect(workbench.snapshot().navigation.content).toBe('folder');
+        expect((await repository.query(request('get-project', { projectId: id }))).value.resources.some(item => item.id === resourceId)).toBe(false);
+        expect((await repository.query(request('get-project', { projectId: 'alpha' }))).value.resources).toHaveLength(3);
+    });
+
+    it('ignores a superseded sample load failure and keeps the accepted URL and model selection', async () => {
+        const { workbench, browser, examples } = await navigatorFixture();
+        const pending = deferred();
+        examples[0].load.mockImplementationOnce(async () => { await pending.promise; throw new Error('Late sample failure'); });
+        const opening = workbench.openEntity('sample=login');
+        await workbench.openEntity('view=projects');
+        pending.resolve(); await opening;
+        expect(workbench.snapshot().navigation).toMatchObject({ selection: { view: 'projects' }, content: 'folder' });
+        expect(workbench.snapshot().navigation.error).toBeUndefined();
+        expect(new URL(browser.location).searchParams.get('view')).toBe('projects');
+    });
+
+    it('rejects invalid startup links while retaining the samples root and a recoverable error', async () => {
+        const { workbench } = await navigatorFixture('https://studio.test/?project=missing&file=unknown');
+        expect(workbench.snapshot().navigation).toMatchObject({ selection: { key: 'samples' }, content: 'folder', error: { message: 'The requested project is missing or in Trash.' } });
+        await workbench.openEntity('samples');
+        expect(workbench.snapshot().navigation.error).toBeUndefined();
+    });
+
     it('composes Home creation and archive import with guarded project admission', async () => {
         const repository = await fixture();
         const starter = (await repository.query(request('export-project', { projectId: 'alpha' }))).value;
@@ -1638,22 +1777,18 @@ describe('Project-owned workbench loading', () => {
         workbenches.push(workbench);
         const root = document.createElement('main'); document.body.append(root);
         const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
-        const name = root.querySelector('cem-text-field[name="name"] input');
-        name.value = 'My project'; name.dispatchEvent(new InputEvent('input', { bubbles: true }));
-        root.querySelector('form[host-command="home-create"]').requestSubmit(); await view.whenSettled();
+        await workbench.createProject('My project'); await view.whenSettled();
         expect(workbench.snapshot().home.error).toBeUndefined();
         const created = workbench.snapshot().home.projects.find(item => item.name === 'My project');
         expect(created).toBeDefined();
         expect(JSON.parse(created.id).projectId).not.toBe('alpha');
-        selectValue(root.querySelector('form[host-command="home-trash"]'), '[name="project"]', created.id);
-        root.querySelector('form[host-command="home-trash"]').requestSubmit(); await view.whenSettled();
+        await workbench.setProjectTrashed(JSON.parse(created.id).projectId, true); await view.whenSettled();
         expect(workbench.snapshot().home.trash.some(item => item.id === JSON.parse(created.id).projectId)).toBe(true);
-        root.querySelector('form[host-command="home-restore"]').requestSubmit(); await view.whenSettled();
+        await workbench.setProjectTrashed(JSON.parse(created.id).projectId, false); await view.whenSettled();
         expect(workbench.snapshot().home.trash).toHaveLength(0);
         expect(workbench.snapshot().home.projects.some(item => item.id === created.id)).toBe(true);
         workbench.updateDraft('keep this draft');
-        selectValue(root, '[name="project"]', created.id);
-        root.querySelector('form[host-command="home-open"]').requestSubmit(); await view.whenSettled();
+        await workbench.selectWorkbench(created.id); await view.whenSettled();
         expect(session.snapshot().transition.stage).toBe('source');
         dialogAction(root, 'Cancel navigation').click(); await view.whenSettled();
         expect(workbench.snapshot().draft).toBe('keep this draft');
@@ -1697,9 +1832,7 @@ describe('Project-owned workbench loading', () => {
         expect(workbench.snapshot().validation.stale).toBe(true);
         expect(workbench.snapshot().draft).toBe('keep this draft');
         expect((await repository.query(request('export-project', { projectId: 'alpha' }))).value.contents).toEqual(original.contents);
-        const form = root.querySelector('form[host-command="home-example"]');
-        expect(form).not.toBeNull();
-        form.requestSubmit(); await view.whenSettled();
+        await workbench.createExampleProject('arbitrary-project'); await view.whenSettled();
         expect(workbench.snapshot().home.error).toBeUndefined();
         const first = workbench.snapshot().home.projects.find(project => project.name === 'Example project');
         expect(first).toBeDefined();
@@ -1708,13 +1841,12 @@ describe('Project-owned workbench loading', () => {
         const copied = (await repository.query(request('export-project', { projectId: JSON.parse(first.id).projectId }))).value;
         expect(copied.contents).toEqual(original.contents);
         expect(copied.project.resources.map(resource => resource.id)).toEqual(original.project.resources.map(resource => resource.id));
-        root.querySelector('form[host-command="home-example"]').requestSubmit(); await view.whenSettled();
+        await workbench.createExampleProject('arbitrary-project'); await view.whenSettled();
         const second = workbench.snapshot().home.projects.find(project => project.name === 'Example project (2)');
         expect(second).toBeDefined(); expect(second.id).not.toBe(first.id);
         await workbench.createExampleProject('missing');
         expect(workbench.snapshot().home.error).toBeDefined();
-        selectValue(root.querySelector('form[host-command="home-open"]'), '[name="project"]', first.id);
-        root.querySelector('form[host-command="home-open"]').requestSubmit(); await view.whenSettled();
+        await workbench.selectWorkbench(first.id); await view.whenSettled();
         expect(session.snapshot().transition.stage).toBe('source');
         dialogAction(root, 'Cancel navigation').click(); await view.whenSettled();
         expect(workbench.snapshot().draft).toBe('keep this draft');
@@ -1756,7 +1888,7 @@ describe('Project-owned workbench loading', () => {
         workbenches.push(workbench);
         const root = document.createElement('main'); document.body.append(root);
         const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
-        expect(root.textContent).toContain('No projects yet');
+        expect(workbench.snapshot().home.projects).toHaveLength(0);
         const query = vi.spyOn(repository, 'query').mockRejectedValueOnce(new Error('Storage unavailable'));
         await expect(workbench.refreshNavigation()).rejects.toThrow('Storage unavailable'); query.mockRestore();
         await view.whenSettled(); expect(root.textContent).toContain('Storage unavailable');
@@ -1768,27 +1900,21 @@ describe('Project-owned workbench loading', () => {
         const session = createCemStudioProjectSession({ openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator, selection }) });
         workbenches.push(session);
         await session.select({ projectId: 'project with spaces', resourceId: 'source' });
-        const workbench = await createCemStudioSessionWorkbench({ repository, session }); workbenches.push(workbench);
+        const base = await createCemStudioSessionWorkbench({ repository, session });
+        const workbench = await createCemStudioNavigation({ workbench: base, repository }); workbenches.push(workbench);
+        await workbench.openEntity('project=project+with+spaces&file=source');
         const root = document.createElement('main'); document.body.append(root);
         const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
-        const tree = root.querySelector('cem-tree');
-        const node = key => [...tree.querySelectorAll('[role="treeitem"]')].find(item => item.dataset.treeValue === key);
-        const key = selection => encodeURIComponent(JSON.stringify(selection));
-        const current = key({ projectId: 'project with spaces', resourceId: 'source' });
-        const target = key({ projectId: 'project with spaces', resourceId: 'extra' });
-        const project = node(`project:${key({ projectId: 'project with spaces' })}`);
-        project.focus(); project.click(); await view.whenSettled();
-        expect(project.getAttribute('aria-expanded')).toBe('true');
-        expect(session.snapshot().transition).toBeUndefined();
+        const tree = root.querySelector('cem-tree[label="project with spaces"]');
+        const node = key => [...tree.querySelectorAll('[role=treeitem]')].find(item => item.dataset.treeValue === key);
+        const current = 'project=project+with+spaces&file=source';
+        const target = 'project=project+with+spaces&file=extra';
+        const project = node('project=project+with+spaces');
+        project.focus();
         const { userEvent } = await import('vitest/browser');
         await userEvent.keyboard('{ArrowRight}');
         expect(document.activeElement).not.toBe(project);
         expect(tree.getAttribute('selected-values')).toBe(current);
-        const folder = node(`branch:${key({ projectId: 'project with spaces', entryId: 'schema-package-examples' })}`);
-        folder.click(); await view.whenSettled();
-        const page = node(key({ projectId: 'project with spaces', entryId: 'validate-cem-ml' }));
-        expect(page.getAttribute('aria-level')).toBe('3');
-        node(`resources:${key({ projectId: 'project with spaces' })}`).click(); await view.whenSettled();
         workbench.updateDraft('draft with retained selection'); await view.whenSettled();
         const editor = root.querySelector('[data-cem-studio-editor] textarea');
         editor.focus(); editor.setSelectionRange(2, 7);
@@ -1796,7 +1922,8 @@ describe('Project-owned workbench loading', () => {
         const buttons = [...tabs.querySelectorAll(':scope > [role="tablist"] [role="tab"], :scope > div > [role="tablist"] [role="tab"]')];
         const paneButtons = buttons.length ? buttons : [...tabs.querySelectorAll('[role="tab"]')].filter(item => item.closest('cem-tabs') === tabs);
         paneButtons.find(item => item.textContent === 'Results').click(); await view.whenSettled();
-        expect(editor.closest('[role="tabpanel"]').hidden).toBe(true);
+        expect(editor.closest('[role="tabpanel"]')).toBeNull();
+        expect(editor.checkVisibility()).toBe(true);
         paneButtons.find(item => item.textContent === 'Source and command').click(); await view.whenSettled();
         expect(root.querySelector('[data-cem-studio-editor] textarea')).toBe(editor);
         expect([editor.selectionStart, editor.selectionEnd]).toEqual([2, 7]);
@@ -1822,15 +1949,12 @@ describe('Project-owned workbench loading', () => {
         const workbench = await createCemStudioSessionWorkbench({ repository, session }); workbenches.push(workbench);
         const root = document.createElement('main'); document.body.append(root);
         const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
-        const query = root.querySelector('cem-text-field[name="query"] input');
-        query.value = 'additional'; query.dispatchEvent(new InputEvent('input', { bubbles: true }));
-        root.querySelector('form[host-command="search-projects"]').requestSubmit(); await view.whenSettled();
+        await workbench.searchProjects('additional'); await view.whenSettled();
         const found = workbench.snapshot().explorer.search.results;
         expect(found).toHaveLength(1); expect(found[0].entityId).toBe('extra');
         await workbench.searchProjects('additional'); expect(workbench.snapshot().explorer.search.results).toEqual(found);
         workbench.updateDraft('search keeps draft'); await view.whenSettled();
-        selectValue(root, '[name="result"]', found[0].key);
-        root.querySelector('form[host-command="open-search"]').requestSubmit(); await view.whenSettled();
+        await workbench.openEntity(found[0].key); await view.whenSettled();
         expect(session.snapshot().transition.stage).toBe('source');
         dialogAction(root, 'Cancel navigation').click(); await view.whenSettled();
         let resolveOld;
@@ -1842,10 +1966,10 @@ describe('Project-owned workbench loading', () => {
         expect(workbench.snapshot().explorer.search.results).toEqual(found);
         spy.mockRestore();
         await workbench.searchProjects('zzzznotfound'); await view.whenSettled();
-        expect(root.textContent).toContain('No matching projects');
+        expect(workbench.snapshot().explorer.search.results).toHaveLength(0);
         const failure = vi.spyOn(repository, 'query').mockRejectedValueOnce(new Error('Search unavailable'));
         await workbench.searchProjects('additional'); failure.mockRestore(); await view.whenSettled();
-        expect(root.textContent).toContain('Search unavailable');
+        expect(workbench.snapshot().explorer.search.error.message).toBe('Search unavailable');
         expect(workbench.snapshot().draft).toBe('search keeps draft');
         expect((await original(request('get-project', { projectId: 'beta' }))).value.id).toBe('beta');
     }, 30000);
@@ -1953,7 +2077,7 @@ describe('Project-owned workbench loading', () => {
         const root = document.createElement('main'); document.body.append(root);
         const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
         const target = workbench.snapshot().workbenches.find(item => item.selection.projectId === 'beta');
-        selectValue(root, '[data-cem-studio-workbench-select]', target.id); await view.whenSettled();
+        await workbench.selectWorkbench(target.id); await view.whenSettled();
         const execute = vi.spyOn(repository, 'execute'); execute.mockRejectedValueOnce(new Error('Save unavailable'));
         dialogAction(root, 'Save source').click(); await view.whenSettled();
         expect(session.snapshot()).toMatchObject({ status: 'failed', transition: { stage: 'source' }, workbench: { dirty: true } });
@@ -1985,7 +2109,7 @@ describe('Project-owned workbench loading', () => {
         const root = document.createElement('main'); document.body.append(root);
         const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
         const target = workbench.snapshot().workbenches.find(item => item.selection.projectId === 'beta');
-        selectValue(root, '[data-cem-studio-workbench-select]', target.id); await view.whenSettled();
+        await workbench.selectWorkbench(target.id); await view.whenSettled();
         dialogAction(root, 'Save source').click(); await view.whenSettled();
         expect(session.snapshot().transition.stage).toBe('command');
         dialogAction(root, 'Apply command').click(); await view.whenSettled();
@@ -2016,7 +2140,7 @@ describe('Project-owned workbench loading', () => {
         const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
         workbench.updateDraft('retain late draft');
         const target = workbench.snapshot().workbenches.find(item => item.selection.projectId === 'beta');
-        selectValue(root, '[data-cem-studio-workbench-select]', target.id); await view.whenSettled();
+        await workbench.selectWorkbench(target.id); await view.whenSettled();
         dialogAction(root, 'Discard draft').click();
         await vi.waitFor(() => expect(session.snapshot().status).toBe('opening'));
         dialogAction(root, 'Cancel navigation').click();
@@ -2037,21 +2161,20 @@ describe('Project-owned workbench loading', () => {
         const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
         workbench.updateDraft('retain me');
         const target = workbench.snapshot().workbenches.find(item => item.selection.projectId === 'beta');
-        selectValue(root, '[data-cem-studio-workbench-select]', target.id);
+        await workbench.selectWorkbench(target.id);
         await view.whenSettled();
         expect(root.querySelector('dialog[open]')).not.toBeNull();
         dialogAction(root, 'Cancel navigation').click(); await view.whenSettled();
         expect(session.snapshot().workbench.draft).toBe('retain me');
-        expect(root.querySelector('cem-select[data-cem-studio-workbench-select]').value).toBe(workbench.snapshot().workbenchId);
-        const selector = root.querySelector('cem-select[data-cem-studio-workbench-select] button');
+        const selector = root.querySelector('[data-cem-studio-editor] textarea');
         selector.focus();
         await vi.waitFor(() => expect(document.activeElement).toBe(selector));
-        selectValue(root, '[data-cem-studio-workbench-select]', target.id); await view.whenSettled();
+        await workbench.selectWorkbench(target.id); await view.whenSettled();
         const dialog = root.querySelector('dialog[open]');
         dialog.requestClose(); await view.whenSettled();
         expect(session.snapshot().transition).toBeUndefined();
         await vi.waitFor(() => expect(document.activeElement).toBe(selector));
-        selectValue(root, '[data-cem-studio-workbench-select]', target.id); await view.whenSettled();
+        await workbench.selectWorkbench(target.id); await view.whenSettled();
         dialogAction(root, 'Discard draft').click(); await view.whenSettled();
         expect(session.snapshot()).toMatchObject({ status: 'ready', selection: { projectId: 'beta' },
             workbench: { status: 'empty', editable: false } });

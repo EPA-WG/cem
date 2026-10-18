@@ -113,8 +113,7 @@ describe('CEM Studio installable application shell', () => {
         expect([editor.selectionStart, editor.selectionEnd]).toEqual([2, 8]);
         expect(document.activeElement).toBe(editor);
 
-        const install = root.querySelector('[data-cem-studio-install] button');
-        expect(install.disabled).toBe(true);
+        expect(root.querySelector('[data-cem-studio-install]')).toBeNull();
         const prompt = vi.fn(() => {
             expect(navigator.userActivation.isActive).toBe(true);
             return Promise.resolve();
@@ -123,14 +122,14 @@ describe('CEM Studio installable application shell', () => {
         Object.defineProperties(offer, { prompt: { value: prompt }, userChoice: { value: Promise.resolve({ outcome: 'accepted' }) } });
         window.dispatchEvent(offer);
         await shell.whenSettled();
+        const install = root.querySelector('[data-cem-studio-install] button');
         expect(install.disabled).toBe(false);
         await userEvent.click(install);
         await vi.waitFor(() => expect(shell.install.status().state).toBe('installed'));
         await shell.whenSettled();
         expect(prompt).toHaveBeenCalledOnce();
-        expect(root.querySelector('[data-cem-studio-install] button')).toBe(install);
-        expect(install.disabled).toBe(true);
-        expect(root.querySelector('[data-cem-studio-install-state]').getAttribute('label')).toBe('Installed');
+        expect(root.querySelector('[data-cem-studio-install]')).toBeNull();
+        expect(shell.install.status().state).toBe('installed');
         expect(shell.view.errors).toEqual([]);
         shell.dispose();
         install.disabled = false; install.click();
@@ -138,27 +137,27 @@ describe('CEM Studio installable application shell', () => {
         expect(root.children).toHaveLength(0);
     });
 
-    it('applies inherited section and block rhythm through installed shared layouts', async () => {
+    it('applies inherited workspace and control rhythm through installed shared layouts', async () => {
         const root = document.createElement('main');
-        root.style.setProperty('--cem-gap-section', '31px');
+        root.style.setProperty('--cem-gap-related', '31px');
         root.style.setProperty('--cem-layout-stack-gap', '19px');
         document.body.append(root);
         const shell = await mountCemStudioApplicationShell({ root, storage: memoryStorage({}) });
         mountedShells.push(shell);
         expect(customElements.get('cem-stack')).toBeDefined();
         expect(customElements.get('cem-grid')).toBeDefined();
-        expect(root.querySelector('cem-card cem-text .cem-text')).not.toBeNull();
-        await expect.poll(() => root.querySelector('cem-stack[gap="lg"] > .cem-stack')).toBeTruthy();
-        const section = root.querySelector('cem-stack[gap="lg"] > .cem-stack');
-        expect(getComputedStyle(section).display).toBe('flex');
+        const section = root.querySelector('cem-studio-shell > [part=root]');
+        const status = root.querySelector('footer[aria-label="Studio status"]');
+        expect(getComputedStyle(section).display).toBe('grid');
         expect(getComputedStyle(section).rowGap).toBe('31px');
-        const controls = root.querySelector('section[aria-label="Application controls"] cem-grid > .cem-grid');
-        expect(controls).not.toBeNull();
-        expect(getComputedStyle(controls).rowGap).toBe('19px');
-        root.style.setProperty('--cem-gap-section', '37px');
-        root.style.setProperty('--cem-layout-stack-gap', '23px');
+        expect(getComputedStyle(status).columnGap).toBe('31px');
+        shell.setWorkspaceState('Login · source.cem - CEM Studio', 'Unsaved changes');
+        await shell.whenSettled();
+        expect(root.querySelector('h1').textContent).toBe('Login · source.cem - CEM Studio');
+        expect(status.textContent).toContain('Unsaved changes');
+        root.style.setProperty('--cem-gap-related', '37px');
         expect(getComputedStyle(section).rowGap).toBe('37px');
-        expect(getComputedStyle(controls).rowGap).toBe('23px');
+        expect(getComputedStyle(status).columnGap).toBe('37px');
     });
 
     it('renders production CEM controls and persists every repository-defined theme mode', async () => {
@@ -178,13 +177,12 @@ describe('CEM Studio installable application shell', () => {
         ]);
         expect(root.querySelector('cem-app-bar header')).not.toBeNull();
         expect(root.querySelector('cem-theme-switch [part=trigger] button')).not.toBeNull();
-        expect(root.querySelector('cem-action button')).not.toBeNull();
-        expect(root.querySelectorAll('button:not(cem-action button):not(cem-icon-button button):not(cem-select button):not(cem-dropdown button)')).toHaveLength(0);
+        expect(root.querySelector('h1').textContent).toBe('Samples - CEM Studio');
+        expect(root.querySelectorAll('button:not(cem-action button):not(cem-icon-button button):not(cem-select button):not(cem-dropdown button):not(cem-expansion button):not(cem-tabs button):not(cem-tree button)')).toHaveLength(0);
         for (const action of root.querySelectorAll('cem-action')) {
             expect(['primary', 'explicit', 'contextual', 'alternate', 'destructive']).toContain(action.getAttribute('variant'));
         }
-        expect(root.querySelector('[data-cem-studio-install]').getAttribute('variant')).toBe('contextual');
-        expect(root.querySelector('[data-cem-studio-open-project]').getAttribute('variant')).toBe('alternate');
+        expect(root.querySelector('[data-cem-studio-open-project]')).toBeNull();
 
         for (const mode of CEM_STUDIO_THEME_MODES) {
             shell.theme.setMode(mode);
@@ -306,7 +304,7 @@ describe('CEM Studio installable application shell', () => {
         expect(new TextDecoder().decode(exported.value.contents.source)).toBe('Offline project bytes');
     });
 
-    it('keeps local-file permission and fallback flows behind production CEM actions', async () => {
+    it('retains local-file permission and backup services without obsolete shell controls', async () => {
         const provider = {
             capabilities: () => ({
                 available: true,
@@ -356,27 +354,20 @@ describe('CEM Studio installable application shell', () => {
         });
         mountedShells.push(shell);
 
-        expect(root.querySelectorAll('button:not(cem-action button):not(cem-icon-button button):not(cem-select button):not(cem-dropdown button)')).toHaveLength(0);
+        expect(root.querySelectorAll('button:not(cem-action button):not(cem-icon-button button):not(cem-select button):not(cem-dropdown button):not(cem-expansion button):not(cem-tabs button):not(cem-tree button)')).toHaveLength(0);
         expect(provider.reconnect).not.toHaveBeenCalled();
-        expect(root.querySelector('[data-cem-studio-provider-state]').getAttribute('label')).toBe(
-            'Local file permission required',
-        );
-
-        root.querySelector('cem-action[data-cem-studio-provider-reconnect] button').click();
+        expect(shell.fileSystem.status().state).toBe('prompt-permission');
+        await shell.fileSystem.reconnect();
         await vi.waitFor(() => expect(provider.reconnect).toHaveBeenCalledWith({
             projectId: 'offline-project',
             requestPermission: true,
         }));
         await vi.waitFor(() => expect(shell.fileSystem.status()).toMatchObject({ state: 'denied-permission' }));
-        expect(root.querySelector('[data-cem-studio-provider-alert]').getAttribute('label')).toContain(
-            'IndexedDB',
-        );
-
-        root.querySelector('cem-action[data-cem-studio-export-fallback] button').click();
+        await shell.fileSystem.exportFallback();
         await vi.waitFor(() => expect(downloadExport).toHaveBeenCalledWith(expect.objectContaining({
             filename: 'offline-project.cem-studio.json',
         })));
-        root.querySelector('cem-action[data-cem-studio-import-fallback] button').click();
+        await shell.fileSystem.importFallback();
         await vi.waitFor(() => expect(provider.importFallback).toHaveBeenCalledWith({
             archive: expect.any(Uint8Array),
         }));

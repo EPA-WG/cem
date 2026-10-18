@@ -32,13 +32,12 @@ renderer, tutorial step or dedicated example screen.
 - A project owns source, schema, query, template, command/configuration and
   documentation resources. Configurations reference these resources by stable
   identity and use the native CLI command or run-config format.
-- Home lists predefined **Example projects**. **Create project from example**
-  verifies the archive and imports an independent editable project. **Projects**
-  opens that copy through the same admission/draft guards as imported and newly
-  created projects. Creating a copy never switches away from an active draft.
-- Startup restores the last admitted project/resource/configuration when it
-  exists. A fresh profile opens Home without installing or selecting an example.
-  **Create CEM-ML project** uses a neutral source-only starter.
+- Samples lists predefined projects in collection folders. Browsing opens their
+  files read-only. **Clone selected** verifies/imports an independent editable
+  project into Saved projects, then requests guarded admission to the new copy.
+- The URL selects the opened project, folder, file or configuration. With no
+  selection parameters, startup selects Samples; it does not restore a previous
+  project implicitly. **Create** uses a neutral source-only starter at catalog roots.
 - The deterministic catalog at `samples/index.json` lists `projects` with an id,
   name, version, archive URI, SHA-256 and optional `collections`. `starter` uses
   the same archive contract. Collection membership is discovery metadata; it
@@ -1087,41 +1086,62 @@ Studio does not rewrite saved command resources during startup.
 
 ### Responsive Layout
 
-An expanded desktop layout should provide:
+Studio uses `cem-workspace layout="browser"` for a navigation column and one
+content panel. The top heading and window title match: `<project name> · <file
+path> - CEM Studio` for a file, and the selected project/folder name when browsing.
+The theme switch is beside the heading. A bottom status bar reports the operation
+and local storage status. The former overlapping project forms, storage cards
+and inactive shell controls have been removed.
 
-```text
-┌──────────────── command bar / run status / theme / install ────────────────┐
-│ Project explorer │ editor or configuration form │ preview / inspector      │
-│                  │                              │                          │
-├──────────────────┴──────────────────────────────┴──────────────────────────┤
-│ diagnostics / report / event trace / graph execution console              │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+The left column contains Create, Clone selected, Delete selected and a selection
+count, followed by Samples, Saved projects and the opened project's Files tree.
+Folder selection lists children with an icon, name and description in the main
+panel. File selection shows its source. Configurations appear in the project
+hierarchy and use the same editor and command workbench. **Commands and results**
+contains the command, source/graph tools, output preview and diagnostics.
 
-At compact widths, these become navigable panes rather than squeezed columns.
-Use CEM semantic breakpoints based on available space, not device names. Preserve
-the selected resource, run, diagnostic, and graph node while switching panes.
+All tree nodes, resource metadata, folder children, action availability and the
+selection record reside in `navigation.js` application data. Studio declarations
+render those records; JavaScript only handles domain services and browser routing.
+Shared `cem-tree activate-branches` emits folder activation as well as disclosure;
+arrow keys remain disclosure/focus operations. Stable resource IDs remain distinct
+from display/export paths, including Unicode directory names.
 
-### Primary Screens
+### Navigation URLs
 
-1. **Home and projects:** recent projects, create/import, Feature Tour, storage
-   health, offline/update status, and optional provider status.
-2. **Project explorer:** accessible tree with project, subproject, data set,
-   resource, configuration, conversion, query, transformation, and graph node
-   types; keyboard reordering and context actions.
-3. **Resource editor:** source, identity, schema, base URI, URL/snapshot, revision,
-   and validation state.
-4. **Run workbench:** command-specific form generated from the typed request
-   schema, with an advanced normalized-config preview.
-5. **CLI Command:** editable round-trip command, resolved input/config/output
-   panes, copy actions, change preview, and an Apply target for the current,
-   existing, or newly named project configuration.
-6. **Results:** structured data, rendered-safe preview, raw text/bytes,
-   diagnostics, report, event trace, source trace, and download.
-7. **Transformation graph:** authored nodes/edges, validation, runnable stages,
-   active/completed/failed state, edge data preview, timings, and click-to-source.
-8. **Project settings:** defaults, resolver/network policy, budgets, storage,
-   export, provider wishlist integration, and destructive actions.
+The URL is the selection authority at startup and on Back/Forward. Opening Studio
+without selection parameters selects the Samples root, even when a previous
+project was open. Existing local drafts are recovered when their project/resource
+is explicitly reopened; startup does not silently restore the previous selection.
+
+| Selection | Query parameters |
+| --- | --- |
+| Samples root | none |
+| Samples collection | `collection=amsterdam-2026` |
+| Sample project | `sample=supplier-pipeline` |
+| Saved projects root | `view=projects` |
+| Saved project | `project=<project-id>` |
+| File | project or sample plus `file=<stable-resource-id>` |
+| Directory | project or sample plus `folder=<project-relative-directory/>` |
+| Configuration | project or sample plus `configuration=<configuration-id>` |
+
+Paths and IDs are URL encoded. Only admitted saved-project/file selections update
+the trees and heading; unsaved source/command drafts use the existing Save, Apply,
+Discard and Cancel guard. Cancelling history navigation restores the accepted URL.
+Missing projects/files and conflicting roots show an error while retaining the
+previous selection (Samples on initial load). Unrelated URL parameters survive.
+
+Samples load lazily for browsing without creating saved projects. Clone selected
+creates an independent editable project with its own identity and storage. Create
+adds a project at catalog roots or a resource in a saved project; Clone selected
+also copies a saved resource. Delete moves a saved project to Trash or deletes an
+unreferenced resource. Deletion requires confirmation and repository dependency
+checks; active drafts must be saved/reset first. Sample files remain read-only.
+
+At container widths below 840px navigation and content stack; wider containers
+place navigation on the left. The desktop shell fits the viewport and regions
+scroll internally. Theme/status updates retain the authored workspace and editor
+DOM, focus and selection. Styling uses inherited CEM tokens and forced colors.
 
 ### CLI Command View and Round Trip
 
@@ -2167,77 +2187,51 @@ Studio proposal.
 - [GitHub: REST API for repository contents](https://docs.github.com/en/rest/repos/contents)
 - [AWS: Uploading S3 objects with presigned URLs](https://docs.aws.amazon.com/AmazonS3/latest/userguide/PresignedUrlUploadObject.html)
 
-### Home, creation and archive import
+### Project creation and archive services
 
-Home is a persistent shared-control card above the retained workbench. It lists
-live projects, opens them through session admission, and exposes explicit refresh,
-creation and archive import. Creating or importing persists a project without
-leaving the active draft; Open project requests the guarded transition separately.
-The workbench selector then exposes that project's configurations and resources.
+The current navigator and action dialogs are described under [Navigation URLs](#navigation-urls).
+Create copies the integrity-checked bundled CEM-ML source into a fresh UUID project
+with a user-supplied name, one source resource and no implicit configurations.
+Clone creates an independent project or resource. Repository validation and atomic
+transactions remain shared services. Archive import/export, Trash restore and
+bounded repository search remain available through their service APIs; the former
+always-visible Home/storage forms are no longer part of the shell.
 
-Creation copies the integrity-checked bundled CEM-ML source into a fresh UUID
-project with a user-supplied name. It carries one source resource and no implicit
-command configurations. The repository validates the normalized project through the native
-boundary before its atomic create transaction. Import uses the existing archive
-codec and the same create-only transaction: an existing identity is never replaced.
-Boot continues to preserve existing Feature Tour copies.
+### Explorer and retained content
 
-Home reports empty, storage, operation-success and failure states. Picker cancellation
-is silent and leaves drafts unchanged; file-read failures are reported. Creation
-and import are serialized by the service. Failed or cancelled navigation does not
-remove a successfully created/imported project. Recovery of the last admitted selection and active-provider coordination follow
-the contract below.
+Studio renders the navigation model through canonical `cem-tree` controls. Folder
+activation updates the directory listing and URL; arrows move focus/disclose without
+navigating. File and configuration selection follows admitted identities, retaining
+source/command drafts through Save/Apply failures and cancellation. Resource paths
+project as folders while resource IDs remain stable in links.
 
-### Explorer, search and retained panes
+The selected saved file is edited in the main content panel. **Commands and results**
+contains the command/configuration tools, preview and diagnostics. Shared host views
+bind already-authored elements, retaining declaration ownership and editor identity
+through shell theme/status changes. Provenance navigation commits its admitted file
+URL and source range through the same guard. No app-local UI listeners or JavaScript
+markup implement the navigator; icon/count/status formatting stays in declarations.
 
-Studio composes the canonical `cem-tree` with project, nested configuration and resource
-records. Stable URI-encoded record identities contain no whitespace or display
-labels. Parent activation only expands the hierarchy; an explicit child opens a
-branch's own record. Focus movement never selects or navigates. Selected state
-follows committed session admission, so Save/Apply failures and Cancel retain the
-previous selection and draft. Missing destinations report a navigation error.
-
-Search submits at most 500 characters to the existing repository index and shows
-up to 50 results in its deterministic score/key order. Result activation resolves
-project/configuration/resource identity through the same guarded session. Empty, pending
-and failed search states are declarative; newer searches supersede older results.
-Successful saves and command Apply refresh navigation and any active search.
-
-Navigation remains available above the retained Source and command / Results
-panes at compact and expanded widths. The shared host-view service can now bind
-to already-authored view elements, preserving declaration ownership and editor
-identity/caret through tab reconciliation. Validated tab values cross the shared
-host bridge; diagnostic and provenance commands reveal Source before applying
-its range/focus request. No application event handlers, DOM
-rendering, local CSS or new theme tokens implement these interactions.
-
-The 128-resource shared tree fixture exposed repeated native binary expansion in
-render-plan hashing. Binary-bearing addresses now use the versioned shared hash
-contract documented in `cem-elements`; native typed artifacts remain intact.
-Resizable simultaneous panes and broader device/AT acceptance remain separate work.
-
+Resizable panes and broader device/AT acceptance remain separate work.
 
 ### Recovery and active-project providers
 
-The session stores only its last admitted project/configuration/resource identity in local
-browser storage (`cem-studio-selection-v1`). Admission, rather than a highlighted
-row or pending transition, commits this preference. Reload reopens the exact
-IndexedDB bytes through the ordinary project resolver. Missing/trashed destinations
-return to Home with an explanation; corrupt or unavailable
-selection storage does not prevent opening projects. No draft or local preference
-is embedded in exported project data. Unsaved text uses the separate local recovery journal described below.
+The session records its last admitted identity in `cem-studio-selection-v1` for
+explicit session recovery consumers. Studio startup uses the URL instead. A bookmark
+reopens exact IndexedDB bytes through the ordinary project resolver; missing or
+trashed destinations leave Samples selected and report the failed request. Local
+preferences and unsaved text never enter exported project data. Draft journals are
+restored when the corresponding project/resource is explicitly opened.
 
-Repository change notifications, including other tabs, refresh Home, explorer and
-active search. They never overwrite a source or command draft. Changed revisions
-and missing selections are reported; Save/Apply retain their optimistic revision
-checks. Home moves a selected project to recoverable Trash and restores it using
-its current revision. Trashing the active project keeps its drafts available;
-resource writes are rejected until restore. Export remains an exact persisted
-backup and does not silently save drafts.
+Repository notifications refresh the saved-project and file datasets without
+replacing editor drafts. Changed revisions/missing selections are reported and
+Save/Apply keep optimistic revision checks. Delete moves a saved project to
+recoverable Trash; the repository's restore service checks the current revision.
+Export remains an exact persisted backup and does not silently save drafts.
 
 The file provider follows the admitted project/resource. Each explicit operation
 captures that target before invoking the browser API. Late status/picker results
-cannot replace a newer target. Imported projects appear in Home; opening them uses
+cannot replace a newer target. Imported projects appear in Saved projects; opening them uses
 guarded navigation. Permissions are requested only by explicit actions, and
 cancellation/denial leave archive import/export available.
 
@@ -2249,6 +2243,15 @@ asynchronous persistence. Durable save status and validation results remain dist
 
 
 ### Deployed workspace acceptance
+
+`verify:navigation` verifies the current URL-driven shell, model-backed trees and
+folder listing, Create/Clone/Delete dialogs, matching heading/title, URL reload and
+history, guarded edits, theme retention, inherited inset overrides, responsive and
+forced-color paint, provenance URLs, and native Supplier Run after offline reload.
+The older monolithic shell/lifecycle delivery script still targets the retired
+Home/dropdown/storage forms; migrating those broader acceptance scenarios remains
+separate helper work. Its historical coverage below is not a current-layout pass.
+
 
 `@epa-wg/cem-studio:verify:workspace-delivery` runs the graph-emitted application
 in Chromium and participates in Studio `check` and package verification. It uses

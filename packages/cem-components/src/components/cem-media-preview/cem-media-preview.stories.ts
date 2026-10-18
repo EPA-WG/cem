@@ -204,3 +204,15 @@ export const LiveCem = meta.story({
         expect(host.querySelector('iframe')).toBeNull();
     },
 });
+
+export const FilledTextPreview = meta.story({
+    render: () => '<div style="block-size:400px"><cem-media-preview fit="fill" mode="text" label="Output" value="' + 'Long output&#10;'.repeat(100) + '"></cem-media-preview></div>',
+    play: async ({ canvasElement }) => {
+        const host = required<HTMLElement>(canvasElement, 'cem-media-preview'); await whenCemRendered(host);
+        expect(host.getBoundingClientRect().height).toBe(400);
+        const root = required<HTMLElement>(host, '[part=root]');
+        expect(root.getBoundingClientRect().height).toBeLessThanOrEqual(400);
+        const text = required<HTMLElement>(host, '[part=text]');
+        expect(text.scrollHeight).toBeGreaterThan(text.clientHeight);
+    },
+});

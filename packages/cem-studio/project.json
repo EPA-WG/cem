@@ -158,6 +158,9 @@
                 "{projectRoot}/src/workbench-navigation.xhtml",
                 "{projectRoot}/src/workbench-command.xhtml",
                 "{projectRoot}/src/workbench-layout.xhtml",
+                "{projectRoot}/src/workbench-preview.xhtml",
+                "{projectRoot}/src/workbench-tools.xhtml",
+                "{projectRoot}/src/project-picker.xhtml",
                 "{projectRoot}/src/workbench-results.xhtml"
             ],
             "outputs": []
@@ -237,9 +240,14 @@
                 "{projectRoot}/src/workbench-navigation.xhtml",
                 "{projectRoot}/src/workbench-command.xhtml",
                 "{projectRoot}/src/workbench-layout.xhtml",
+                "{projectRoot}/src/workbench-preview.xhtml",
+                "{projectRoot}/src/workbench-tools.xhtml",
+                "{projectRoot}/src/project-picker.xhtml",
                 "{projectRoot}/src/workbench-results.xhtml",
                 "{projectRoot}/src/project-session.js",
-                "{projectRoot}/src/project-session.d.ts"
+                "{projectRoot}/src/project-session.d.ts",
+                "{projectRoot}/src/navigation.js",
+                "{projectRoot}/src/navigation.d.ts"
             ],
             "outputs": []
         },
@@ -764,6 +772,28 @@
             ],
             "outputs": [
                 "{workspaceRoot}/dist/reports/cem-studio/workspace-delivery.json"
+            ]
+        },
+        "verify:navigation": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "verify:determinism"
+            ],
+            "options": {
+                "command": "node scripts/verify-navigation.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-navigation.mjs",
+                "{projectRoot}/dist/static/**/*",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/reports/cem-studio/navigation.json"
             ]
         }
     },

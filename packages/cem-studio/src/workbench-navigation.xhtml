@@ -1,209 +1,42 @@
 <cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-studio-workbench-navigation">
-  <template id="cem-studio-workbench-navigation" type="text/cem-ml">
+ <template id="cem-studio-workbench-navigation" type="text/cem-ml">
 {module |
-    {slice @name=state}
-    {slice @name=selectionRequest}
-    {slice @name=pending | false}
-    {template @name=entity |
-        {param @name=item}
-        {body | {cem-tree-item @value={item.key} @label={item.name} |
-            {cem:for-each @as=child @select=item.children | {call @template=entity @with:item={child}}}
-        }}
+ {slice @name=state}{slice @name=pending | false}
+ {template @name=tree-node |
+  {param @name=item}
+  {body |
+   {cem-tree-item @value={item.key} @label={item.name} |
+    {cem:for-each @as=child @select=item.children | {call @template=tree-node @with:item={child}}}
+   }
+  }
+ }
+ {body |
+ {style @type=text/css |```
+:scope { display: block; min-inline-size: 0; }
+[part~='navigation'] { display: grid; gap: var(--cem-gap-related); }
+[part~='actions'] { display: flex; flex-wrap: wrap; align-items: center; gap: max(var(--cem-gap-related), var(--cem-coupling-guard-min)); }
+```}
+ {cem:if @test=datadom.slices.state |
+  {cem:variable @name=state @select=datadom.slices.state}
+  {cem:variable @name=nav @select=state.navigation}
+  {cem:variable @name=busy @select='datadom.slices.pending || nav.busy'}
+  {nav @part=navigation @aria-label="Studio navigation" |
+   {cem:if @test=nav |
+   {div @part=actions @role=group @aria-label="Selection actions" |
+    {cem-icon-button @image="+" @aria-label="Create" @variant=contextual @host-command=create-selected @disabled={if busy { true } else { null }}}
+    {cem-icon-button @image="▣" @aria-label="Clone selected" @variant=contextual @host-command=clone-selected @disabled={if busy || !nav.canClone { true } else { null }}}
+    {cem-icon-button @image="×" @aria-label="Delete selected" @variant=contextual @host-command=delete-selected @disabled={if busy || !nav.canDelete { true } else { null }}}
+    {span @aria-live=polite | {$ | str:concat((nav.count, " ", nav.countKind, if nav.count == 1 { "" } else { "s" }), "")}}
+   }
+   {cem:for-each @as=root @select='(nav.samples, nav.saved, nav.files)' |
+    {cem:if @test=root |
+     {cem-tree @label={root.name} @selection=single @activate-branches=true @selected-values={nav.selection.key} @expanded-values={str:concat((root.key, nav.expanded), " ")} @host-command=open-entity @host-command-event=cem-tree-activate |
+      {call @template=tree-node @with:item={root}}
+     }
     }
-    {body |
-        {cem-stack @gap=lg |
-        {cem:variable @name=state @select=datadom.slices.state}
-        {cem:variable @name=working
-            @select='(state.status == "saving") || (state.status == "validating") || (state.status == "projecting") || (state.command.application.status == "applying") || (state.command.application.status == "running")'}
-        {cem:variable @name=busy @select='datadom.slices.pending || working'}
-        {cem:if @test=state.home |
-            {cem-card @label="Studio Home" |
-                {span @slot=title | Home}
- {cem-stack @gap=md |
-                {cem-alert @label={state.home.storage ?? "Storage information unavailable"}}
-                {cem:if @test=state.home.error | {cem-alert @tone=danger @label={state.home.error.message}}}
-                {cem:if @test=state.home.message | {cem-alert @tone=success @label={state.home.message}}}
-                {cem:if @test='seq:count(state.home.projects.id) == 0' | {cem-alert @label="No projects yet. Create a project or import an archive."}}
-                {form @host-command=home-open @host-command-event=submit |
- {cem-stack @gap=sm |
-                    {cem-select @name=project |
-                        {span @slot=label | Projects}
-                        {cem:for-each @as=project @select=state.home.projects | {option @value={project.id} | {$ | project.name}}}
-                    }
-                    {cem-action @type=submit @variant=primary @disabled={if busy || (seq:count(state.home.projects.id) == 0) { true } else { null }} | Open project}
-                }
-}
-                {form @host-command=home-trash @host-command-event=submit |
- {cem-stack @gap=sm |
-                    {cem-select @name=project | {span @slot=label | Move project to Trash}
-                        {cem:for-each @as=project @select=state.home.projects | {option @value={project.id} | {$ | project.name}}}
-                    }
-                    {cem-action @type=submit @variant=destructive @disabled={if busy || (seq:count(state.home.projects.id) == 0) { true } else { null }} | Move to Trash}
-                }
-}
-                {cem:if @test='seq:count(state.home.trash.id) > 0' |
-                    {form @host-command=home-restore @host-command-event=submit |
- {cem-stack @gap=sm |
-                        {cem-select @name=project | {span @slot=label | Projects in Trash}
-                            {cem:for-each @as=project @select=state.home.trash | {option @value={project.id} | {$ | project.name}}}
-                        }
-                        {cem-action @type=submit @disabled={if busy { true } else { null }} | Restore project}
-                    }
-}
-                }
-                {form @host-command=home-create @host-command-event=submit |
- {cem-stack @gap=sm |
-                    {cem-text-field @name=name @label="Project name" @required=true @maxlength=120}
-                    {cem-action @type=submit @disabled={if busy { true } else { null }} | Create CEM-ML project}
-                }
-}
-                {cem:if @test='seq:count(state.home.examples.id) > 0' |
-                    {form @host-command=home-example @host-command-event=submit |
-                        {cem-stack @gap=sm |
-                            {cem-select @name=example |
-                                {span @slot=label | Example projects}
-                                {span @slot=help | Create an editable project from an example, then open it from Projects.}
-                                {cem:for-each @as=example @select=state.home.examples | {option @value={example.id} | {$ | example.name}}}
-                            }
-                            {cem-action @type=submit @disabled={if busy { true } else { null }} | Create project from example}
-                        }
-                    }
-                }
-                {cem-action @host-command=home-import @disabled={if busy { true } else { null }} | Import project archive}
-            }
-}
-        }
-        {cem-select @data-cem-studio-workbench-select="" @disabled={if working { true } else { null }} @host-command=select-workbench
-            @host-command-event=change @name=operation-workbench @value={state.workbenchId}
-            @value-request={if state.sessionStatus { str:concat((state.sessionStatus, state.transition.id ?? "", state.workbenchId), "|") } else { null }} |
-            {span @slot=label | Workbench}
-            {cem:for-each @as=workbench @select=state.workbenches |
-                {option @value={workbench.id} |
-                    {$ | str:concat((workbench.name, " — ", workbench.operation), "")}
-        }   }   }
-        {cem:if @test=state.draftRecovery |
-            {cem-alert @tone={if state.draftRecovery.blocked { "danger" } else { "info" }} @label={state.draftRecovery.message}}
-            {cem:if @test=state.draftRecovery.available |
-                {cem-action @host-command=recovery-download @disabled={if busy { true } else { null }} | Download draft recovery backup}
-            }
-            {cem:if @test=state.draftRecovery.blocked |
-                {cem-action @host-command=recovery-clear @variant=destructive @disabled={if busy { true } else { null }} | Clear stored recovery and keep current editor drafts}
-            }
-        }
-        {cem:if @test=state.navigationError | {cem-alert @tone=danger @label={state.navigationError.message}}}
-        {cem:if @test=state.sessionStatus |
-            {cem-action @host-command=refresh-navigation @disabled={if busy { true } else { null }} @variant=contextual | Refresh projects}
-        }
-        {cem:if @test=state.structure |
-            {cem-card @label="Project structure" |
-                {span @slot=title | Project structure}
- {cem-stack @gap=md |
-                {cem-alert @label="Copied configurations share resource references. Resource copies create independent files. Save or reset drafts before editing structure."}
-                {cem:if @test=state.structure.message | {cem-alert @tone=success @label={state.structure.message}}}
-                {cem:if @test=state.structure.error | {cem-alert @tone=danger @label={state.structure.error.message}}}
-                {form @host-command=structure-edit @host-command-event=submit |
- {cem-stack @gap=sm |
-                    {input @type=hidden @name=kind @value=rename-project}
-                    {cem-text-field @name=name @label="Project display name" @value={state.structure.name} @required=true @maxlength=120}
-                    {cem-action @type=submit @disabled={if busy || state.structure.busy { true } else { null }} | Rename project}
-                }
-}
-                {form @host-command=structure-edit @host-command-event=submit |
- {cem-stack @gap=sm |
-                    {input @type=hidden @name=kind @value=create-subproject}
-                    {cem-text-field @name=name @label="New subproject name" @required=true @maxlength=120}
-                    {cem-select @name=parent | {span @slot=label | New subproject parent}
-                        {option @value="" | Project root}
-                        {cem:for-each @as=entry @select=state.structure.parents | {option @value={entry.id} | {$ | entry.name}}}
-                    }
-                    {cem-action @type=submit @disabled={if busy || state.structure.busy { true } else { null }} | Create subproject}
-                }
-}
-                {cem:if @test='seq:count(state.structure.entries.id) > 0' |
-                    {form @host-command=structure-edit @host-command-event=submit |
- {cem-stack @gap=sm |
-                        {cem-select @name=id | {span @slot=label | Configuration to edit}
-                            {cem:for-each @as=entry @select=state.structure.entries | {option @value={entry.id} | {$ | entry.name}}}
-                        }
-                        {cem-select @name=kind | {span @slot=label | Configuration edit}
-                            {option @value=rename-entry | Rename configuration}
-                            {option @value=copy-entry | Copy configuration and descendants}
-                            {option @value=move-entry | Move configuration}
-                            {option @value=reorder-entry | Reorder among siblings}
-                        }
-                        {cem-text-field @name=name @label="Configuration name for rename or copy" @maxlength=120}
-                        {cem-select @name=parent | {span @slot=label | Move destination}
-                            {option @value="" | Project root}
-                            {cem:for-each @as=entry @select=state.structure.parents | {option @value={entry.id} | {$ | entry.name}}}
-                        }
-                        {cem-select @name=direction | {span @slot=label | Reorder direction}
-                            {option @value=up | Up}{option @value=down | Down}
-                        }
-                        {cem-action @type=submit @disabled={if busy || state.structure.busy { true } else { null }} | Edit configuration}
-                    }
-}
-                }
-                {cem-alert @label="Rename and delete support data, parse/inspect and bounded opaque graph projects. Referenced deletion and unsupported dependency formats are blocked. Set a new path for create, copy or rename; Undo uses bounded session history."}
-                {form @host-command=structure-edit @host-command-event=submit |
- {cem-stack @gap=sm |
-                    {cem-select @name=kind | {span @slot=label | Resource edit}
-                        {option @value=create-resource | Create CEM-ML resource}
-                        {option @value=copy-resource | Copy resource}
-                        {option @value=rename-resource | Rename resource}
-                    }
-                    {cem-select @name=id | {span @slot=label | Resource to edit}
-                        {cem:for-each @as=resource @select=state.structure.resources | {option @value={resource.id} | {$ | resource.path}}}
-                    }
-                    {cem-text-field @name=path @label="New resource path"}
-                    {cem-textarea @name=content @label="Initial CEM-ML source"}
-                    {cem-action @type=submit @disabled={if busy || state.structure.busy { true } else { null }} | Apply resource edit}
-                    {cem-action @type=submit @name=action @value=delete-resource @variant=destructive @disabled={if busy || state.structure.busy { true } else { null }} | Delete unreferenced resource}
-                }
-}
-                {cem-action @host-command=structure-undo @disabled={if busy || state.structure.busy || !state.structure.canUndo { true } else { null }} | Undo structure edit}
-                {cem-action @host-command=structure-redo @disabled={if busy || state.structure.busy || !state.structure.canRedo { true } else { null }} | Redo structure edit}
-            }
-}
-        }
-        {cem:if @test=state.explorer |
-            {cem-card @label="Project explorer" |
-                {span @slot=title | Explorer}
- {cem-stack @gap=md |
-                {cem:if @test='seq:count(state.explorer.nodes.key) > 0' |
-                    {cem-tree @label="Projects and resources" @selection=single @selected-values={state.explorer.selected}
-                        @host-command=open-entity @host-command-event=cem-tree-activate |
-                        {cem:for-each @as=item @select=state.explorer.nodes | {call @template=entity @with:item={item}}}
-                    }
-                }
-                {form @host-command=search-projects @host-command-event=submit |
- {cem-stack @gap=sm |
-                    {cem-text-field @name=query @label="Search projects" @maxlength=500}
-                    {cem-action @type=submit @disabled={if busy { true } else { null }} | Search}
-                }
-}
-                {cem:if @test='state.explorer.search.status == "searching"' | {cem-alert @label="Searching projects…"}}
-                {cem:if @test=state.explorer.search.error | {cem-alert @tone=danger @label={state.explorer.search.error.message}}}
-                {cem:if @test='state.explorer.search.status == "ready"' |
-                    {cem:choose |
-                        {cem:when @test='seq:count(state.explorer.search.results.key) == 0' | {cem-alert @label="No matching projects, configurations or resources."}}
-                        {cem:otherwise |
-                            {form @host-command=open-search @host-command-event=submit |
- {cem-stack @gap=sm |
-                                {cem-select @name=result @required=true |
-                                    {span @slot=label | Search results (up to 50)}
-                                    {cem:for-each @as=result @select=state.explorer.search.results |
-                                        {option @value={result.key} | {$ | str:concat((result.title, if (result.kind == "entry") || (result.kind == "page") { "configuration" } else { result.kind }, result.path), " — ")}}
-                                    }
-                                }
-                                {cem-action @type=submit @variant=primary @disabled={if busy { true } else { null }} | Open result}
-                            }
-}
-                        }
-                    }
-                }
-            }
-}
-        }
+   }
+   }
+   {cem:if @test='state.navigationError &amp;&amp; (nav.selection.project || !str:starts_with(state.navigationError.code, "cem.studio.selection."))' | {cem-alert @tone=danger @label={state.navigationError.message}}}
         {cem:if @test=state.transition |
             {cem-dialog @label="Resolve drafts before navigation" @mode=modal @default-open=true
                 @closedby=closerequest @host-command=navigation-cancel @host-command-event=cem-close |
@@ -229,6 +62,10 @@
                 }
             }
         }
-}   }   }
-  </template>
+
+  }
+ }
+ }
+}
+ </template>
 </cem-element>

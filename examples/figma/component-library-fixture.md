@@ -13,6 +13,7 @@ planned canvas assets already exist.
 | `cem-tab` | `payload` | Nested only inside the `cem-tabs` local-view owner, with no standalone interaction asset |
 | `cem-tree-item` | `payload` | Nested only inside the `cem-tree` visual owner, with no standalone interaction asset |
 | `cem-stack` | `structural` | Auto Layout composition owner using the declared gap property |
+| `cem-workspace` | `structural` | Retained explorer/editor/preview/tools slots, semantic container reflow and bounded fill sizing |
 
 ## Review procedure
 

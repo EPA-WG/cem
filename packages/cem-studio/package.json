@@ -63,6 +63,7 @@
         "src/preview.d.ts",
         "src/shell.d.ts",
         "src/workbench.d.ts",
+        "src/navigation.d.ts",
         "src/project-session.d.ts",
         "README.md",
         "LICENSE"

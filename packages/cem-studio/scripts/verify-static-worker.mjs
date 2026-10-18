@@ -128,15 +128,23 @@ try {
         await retainedEditor.evaluate(element => { element.focus(); element.setSelectionRange(1, 4); });
         await page.getByRole('tab', { name: 'Results', exact: true }).click();
         await page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
-        assert.equal(await retainedEditor.evaluate(element => element.isConnected && element.closest('[role="tabpanel"]').hidden), true);
+        assert.equal(await retainedEditor.evaluate(element => element.isConnected && element.checkVisibility() && element.closest('[role="tabpanel"]') === null), true);
         await page.getByRole('tab', { name: 'Source and command', exact: true }).click();
         await page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
         assert.deepEqual(await retainedEditor.evaluate(element => [element === document.querySelector('[data-cem-studio-editor] textarea'), element.selectionStart, element.selectionEnd]), [true, 1, 4]);
         assert.equal(await retainedCommand.evaluate(element => element === document.querySelector('[data-cem-studio-command-editor] textarea')), true);
     }
+    await verifyWorkspaceGeometry(page);
+    await page.emulateMedia({ forcedColors: 'active' });
+    const regions = await page.locator('cem-workspace').evaluate(host => [...host.querySelectorAll('[part~=region]')].map(region => {
+        const style = getComputedStyle(region); return { foreground: style.color, background: style.backgroundColor, border: parseFloat(style.borderTopWidth) };
+    }));
+    assert.equal(regions.length, 4);
+    for (const region of regions) { assert.notEqual(region.foreground, region.background); assert.ok(region.border > 0); }
+    await page.emulateMedia({ forcedColors: 'none' });
     await retainedEditor.dispose(); await retainedCommand.dispose();
     if (!shellOnly && !lifecycleOnly && !presentationOnly && !supplierOnly) {
-        await page.getByRole('textbox', { name: 'Project name', exact: true }).fill('Deployed starter');
+        await (await revealStudioControl(page, 'textbox', 'Project name')).fill('Deployed starter');
         await page.getByRole('button', { name: 'Create CEM-ML project', exact: true }).click();
         await page.waitForFunction(() => globalThis.__cemStudioApplication.workbench.snapshot().home.projects.some(project => project.name === 'Deployed starter'));
         const starter = await page.evaluate(async () => {
@@ -436,6 +444,46 @@ try {
     await server.close();
 }
 
+async function verifyWorkspaceGeometry(page) {
+    const geometry = await page.locator('cem-workspace').evaluate(host => {
+        const root = host.querySelector('[part=root]');
+        const rect = name => host.querySelector(`[part~="${name}"]`).getBoundingClientRect().toJSON();
+        return { width: host.clientWidth, height: root.getBoundingClientRect().height, viewportHeight: innerHeight,
+            columns: getComputedStyle(root).gridTemplateColumns.split(' ').length,
+            navigation: rect('navigation'), editor: rect('editor'), preview: rect('preview'), tools: rect('tools'),
+            source: host.querySelector('[data-cem-studio-editor] textarea')?.getBoundingClientRect().toJSON() };
+    });
+    const columns = geometry.width >= 1200 ? 3 : geometry.width >= 840 ? 2 : 1;
+    assert.equal(geometry.columns, columns, JSON.stringify(geometry));
+    if (columns === 3) {
+        assert.ok(geometry.navigation.right <= geometry.editor.left);
+        assert.ok(geometry.editor.right <= geometry.preview.left);
+        assert.ok(geometry.editor.bottom <= geometry.tools.top);
+        assert.ok(geometry.height <= geometry.viewportHeight);
+        assert.ok(geometry.source?.width >= geometry.editor.width * 0.8, 'source editor must fill its region');
+        assert.ok(geometry.source?.height >= 100, 'source editor must reserve usable editing space');
+    } else if (columns === 1) assert.ok(geometry.editor.bottom <= geometry.preview.top);
+    return geometry;
+}
+
+async function revealStudioElement(page, candidate) {
+    if (await candidate.count() === 1 && !await candidate.isVisible()) {
+        const ancestors = await candidate.evaluate(element => {
+            const labels = [];
+            for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+                if (parent.localName === 'cem-expansion' && !parent.hasAttribute('expanded')) labels.unshift(parent.getAttribute('label'));
+            }
+            return labels;
+        });
+        for (const label of ancestors) await page.getByRole('button', { name: label, exact: true }).click();
+    }
+}
+
+async function revealStudioControl(page, role, name) {
+    await revealStudioElement(page, page.getByRole(role, { name, exact: true, includeHidden: true }));
+    return page.getByRole(role, { name, exact: true });
+}
+
 async function exerciseProjectLifecycle(page, context) {
     const settle = () => page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
     const snapshot = () => page.evaluate(() => {
@@ -446,15 +494,16 @@ async function exerciseProjectLifecycle(page, context) {
     });
     const choose = async (selector, name) => {
         const host = page.locator(selector);
+        await revealStudioElement(page, host);
         await host.getByRole('combobox').click();
         await host.getByRole('option', { name, exact: true }).click();
         await settle();
     };
-    const click = async name => { console.log(`[cem-studio:lifecycle] ${name}`); await page.getByRole('button', { name, exact: true }).click(); await settle(); };
+    const click = async name => { console.log(`[cem-studio:lifecycle] ${name}`); await (await revealStudioControl(page, 'button', name)).click(); await settle(); };
     const source = page.getByRole('textbox', { name: 'CEM source', exact: true });
     const names = ['Acceptance Alpha', 'Acceptance Beta'];
     await context.setOffline(false);
-    await page.getByRole('textbox', { name: 'Project name', exact: true }).fill(names[0]);
+    await (await revealStudioControl(page, 'textbox', 'Project name')).fill(names[0]);
     await click('Create CEM-ML project');
     const alpha = await page.evaluate(async name => {
         const app = globalThis.__cemStudioApplication;
@@ -614,7 +663,7 @@ async function exerciseProjectLifecycle(page, context) {
         await page.getByRole('option', { name: option, exact: true }).click();
         await settle();
     };
-    await page.getByRole('textbox', { name: 'Project display name', exact: true }).fill('Acceptance Alpha edited');
+    await (await revealStudioControl(page, 'textbox', 'Project display name')).fill('Acceptance Alpha edited');
     await click('Rename project');
     assert.equal((await structure()).name, 'Acceptance Alpha edited');
     await page.getByRole('textbox', { name: 'New subproject name', exact: true }).fill('Acceptance section');
@@ -880,8 +929,8 @@ async function exerciseExampleProjects(page, context) {
             projection: state.projection && { kind: state.projection.kind, exitCode: state.projection.exitCode, text: state.projection.output.text, previewKind: state.projection.preview?.kind },
             diagnostics: state.validation?.diagnostics, validationStale: state.validation?.stale, validation: state.validation?.reportSummary };
     });
-    const click = async name => { console.log(`[cem-studio:examples] ${name}`); await page.getByRole('button', { name, exact: true }).click(); await settle(); };
-    const pick = async (name, option) => { await page.getByRole('combobox', { name, exact: true }).click(); await page.getByRole('option', { name: option, exact: true }).click(); await settle(); };
+    const click = async name => { console.log(`[cem-studio:examples] ${name}`); await (await revealStudioControl(page, 'button', name)).click(); await settle(); };
+    const pick = async (name, option) => { await (await revealStudioControl(page, 'combobox', name)).click(); await page.getByRole('option', { name: option, exact: true }).click(); await settle(); };
     const sampleName = 'Login';
     const copyId = name => page.evaluate(name => JSON.parse(globalThis.__cemStudioApplication.workbench.snapshot().home.projects.find(project => project.name === name).id).projectId, name);
     const selectConfiguration = async (projectId, entryId) => {
@@ -1347,8 +1396,8 @@ async function exerciseExampleProjects(page, context) {
 
 async function exerciseSupplierProject(page, _context) {
     const settle = () => page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
-    const click = async name => { console.log(`[cem-studio:supplier] ${name}`); await page.getByRole('button', { name, exact: true }).click(); await settle(); };
-    const pick = async (name, option) => { await page.getByRole('combobox', { name, exact: true }).click(); await page.getByRole('option', { name: option, exact: true }).click(); await settle(); };
+    const click = async name => { console.log(`[cem-studio:supplier] ${name}`); await (await revealStudioControl(page, 'button', name)).click(); await settle(); };
+    const pick = async (name, option) => { await (await revealStudioControl(page, 'combobox', name)).click(); await page.getByRole('option', { name: option, exact: true }).click(); await settle(); };
     const copyId = name => page.evaluate(name => JSON.parse(globalThis.__cemStudioApplication.workbench.snapshot().home.projects.find(project => project.name === name).id).projectId, name);
     const configuration = async (projectId, entryId) => {
         const label = await page.evaluate(({ projectId, entryId }) => {
@@ -1453,9 +1502,9 @@ async function inspectWorkspaceAccessibility(page, context) {
         const layout = await page.evaluate(() => ({ viewport: innerWidth, content: document.documentElement.scrollWidth,
             overflow: Array.from(document.querySelectorAll('body *')).filter(element => element.getBoundingClientRect().right > innerWidth + 1 && element.getBoundingClientRect().width > 0).slice(-12).map(element => ({ tag: element.localName, part: element.getAttribute('part'), text: element.textContent.slice(0, 90), right: element.getBoundingClientRect().right })) }));
         assert.ok(layout.content <= layout.viewport + 1, `horizontal page overflow at ${width}: ${JSON.stringify(layout)}`);
-        layouts.push(layout);
+        layouts.push({ ...layout, workspace: await verifyWorkspaceGeometry(page) });
     }
-    const field = page.getByRole('textbox', { name: 'Project name', exact: true });
+    const field = await revealStudioControl(page, 'textbox', 'Project name');
     await field.focus(); await page.keyboard.press('Tab');
     assert.equal(await page.getByRole('button', { name: 'Create CEM-ML project', exact: true }).evaluate(element => document.activeElement === element), true);
     const focus = await page.evaluate(() => {
@@ -1770,7 +1819,7 @@ async function exerciseWorkbench(page) {
             provenanceSelection,
             componentsOnly:
                 document.querySelectorAll(
-                    '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button):not(cem-tree button)',
+                    '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button):not(cem-tree button):not(cem-expansion button)',
                 ).length === 0,
             reportVisible: Boolean(document.querySelector('[data-cem-studio-workbench] cem-table [role="table"]')),
         };
@@ -1835,7 +1884,7 @@ async function exerciseProjections(page) {
             inspect,
             componentsOnly:
                 document.querySelectorAll(
-                    '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button):not(cem-tree button)',
+                    '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button):not(cem-tree button):not(cem-expansion button)',
                 ).length === 0,
             controlsInstalled: Boolean(
                 document.querySelector('[data-cem-studio-workbench] cem-select .cem-select__control') &&
@@ -1901,7 +1950,7 @@ async function exercisePortableOperations(page) {
             results,
             componentsOnly:
                 document.querySelectorAll(
-                    '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button):not(cem-tree button)',
+                    '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button):not(cem-tree button):not(cem-expansion button)',
                 ).length === 0,
             controlsInstalled: Boolean(
                 document.querySelector('[data-cem-studio-workbench-select] .cem-select__control') &&
@@ -1989,7 +2038,7 @@ async function exerciseCommandView(page) {
                 before.value.project.revision === after.value.project.revision,
             componentsOnly:
                 document.querySelectorAll(
-                    '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button):not(cem-tree button)',
+                    '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button):not(cem-tree button):not(cem-expansion button)',
                 ).length === 0,
             controlsInstalled: Boolean(
                 document.querySelector('cem-textarea[data-cem-studio-command-editor] textarea') &&
@@ -2070,7 +2119,7 @@ async function exerciseCommandApplyAndRun(page) {
                 runtime: ran.projection.executionIdentity.runtime,
                 componentsOnly:
                     document.querySelectorAll(
-                        '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button):not(cem-tree button)',
+                        '[data-cem-studio-workbench] button:not(cem-action button):not(cem-select button):not(cem-tabs button):not(cem-tree button):not(cem-expansion button)',
                     ).length === 0,
                 controlsInstalled: Boolean(
                     document.querySelector('[data-cem-studio-workbench] cem-text-field input') &&
@@ -2264,7 +2313,7 @@ async function inspectShell(page) {
             state: document.querySelector('[data-cem-studio-shell]')?.getAttribute('data-cem-studio-state'),
             theme: document.querySelector('[data-cem-studio-shell]')?.getAttribute('data-theme'),
             controlsOnly:
-                document.querySelectorAll('button:not(cem-action button):not(cem-icon-button button):not(cem-select button):not(cem-tabs button):not(cem-tree button)')
+                document.querySelectorAll('button:not(cem-action button):not(cem-icon-button button):not(cem-select button):not(cem-tabs button):not(cem-tree button):not(cem-expansion button)')
                     .length === 0,
             componentsInstalled: Boolean(
                 document.querySelector('cem-app-bar header') &&

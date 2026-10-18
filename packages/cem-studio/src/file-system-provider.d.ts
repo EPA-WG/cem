@@ -141,6 +141,7 @@ export declare function parseCemStudioProjectBundle(
 };
 
 export interface CemStudioExampleProject {
+    readonly description?: string;
     readonly id: string;
     readonly name: string;
     readonly collections: readonly string[];

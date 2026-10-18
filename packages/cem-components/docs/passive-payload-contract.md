@@ -1,6 +1,6 @@
 # Passive components and inert payloads
 
-All 53 public components now have canonical XHTML/CEM-ML declarations,
+All 55 public components now have canonical XHTML/CEM-ML declarations,
 colocated CSF Next plays, property pages and five-theme galleries. The final
 nine owners complete the declarative migration. The closed migration inventory
 requires zero legacy tags and zero authored JavaScript/TypeScript outside the
@@ -130,3 +130,7 @@ The text viewport's `60vb` maximum is a structural scrolling bound; it does not
 substitute a typography measure or arbitrary dimension token. Frames retain their
 native default block size and fit the container inline axis. Forced colors use
 Canvas/CanvasText/Highlight and reduced motion requires no animated behavior.
+
+`cem-media-preview[fit="fill"]` fills a bounded parent for Studio/workspace previews.
+Text remains scrollable and document/live frames retain their existing sandbox and
+CSP. Omitted or unsupported `fit` values retain natural sizing.

@@ -21,7 +21,7 @@ export async function loadCemStudioExampleProjects({ baseUrl, commonVersion, fet
             (record.collections !== undefined && (!Array.isArray(record.collections) || record.collections.some(id => typeof id !== 'string')))) {
             throw new Error('Studio example-project metadata is invalid');
         }
-        return Object.freeze({ id: record.id, name: record.name, collections: Object.freeze([...(record.collections ?? [])]),
+        return Object.freeze({ id: record.id, name: record.name, description: record.description, collections: Object.freeze([...(record.collections ?? [])]),
             async load() {
                 const response = await fetchResource(new URL(record.archive, base));
                 if (!response.ok) throw new Error('The selected example project is unavailable');
