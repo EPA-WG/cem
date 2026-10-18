@@ -660,6 +660,18 @@ excluded from Git.
   bounded portable checkpoints, whole-runtime replacement, shared owner coordination,
   stale-result fencing, side-effect reconciliation and restart limits. Implementation
   remains planned in the shared engine/`cem-elements`, with declarative recovery UI.
+- [x] Record unchanged render/stylesheet reuse in
+  [roadmap Phase 3.1.2](../roadmap.md#312-reuse-unchanged-render-content-and-stylesheets),
+  separating compiled native artifacts, stylesheet installations and per-instance
+  committed projections, with complete dependency keys, bounded ownership/eviction
+  and no prior-connection chains. Optimization remains planned independently of
+  repairing the verified retention defect.
+- [x] Check the Studio catalog for a Markdown + CEM-ML site with Hugo-inspired
+  folders and record the missing ordinary example project in
+  [the site roadmap](../roadmap.md#studio-example-markdown--cem-ml-site-project).
+  Existing Markdown schema fixtures and the standalone playground do not provide
+  this project-level demo. Implementation remains planned after active repair and
+  agreed presentation functionality, with shared-package ownership preserved.
 - [x] Make the initial presentation sample set available through Studio's existing sample
   catalog, with read-only originals and independently editable project copies.
   Reuse canonical sources, native command/configuration semantics and stable
@@ -800,7 +812,7 @@ Next presentation functionality:
     `e50745fcd26231e031df5e3ca927338930bbc8bfdd10410b1a49c420fde1a4b5`.
     Generated screenshots and Vitest attachments remain excluded. Physical-device
     and spoken-AT acceptance remain open behind presentation functionality.
-- [ ] Package a standalone Login expression resource with evaluation and formatting
+- [x] Package a standalone Login expression resource with evaluation and formatting
   configurations, source-inspection guidance and saved-edit/offline fixtures.
   - [x] Add native fixtures for packaged expression evaluation on HTML/CEM inputs,
     source/dependency edits, formatting identity/idempotence and invalid-source repair.
@@ -808,7 +820,7 @@ Next presentation functionality:
     the ordinary Login project; document persisted inspection and output boundaries.
   - [x] Add packaged browser-command and deployed workspace fixtures for saved versus
     unsaved expression edits, exact output, offline reload and independent copies.
-  - [ ] Verify the complete Studio release gate and update presentation evidence.
+  - [x] Verify the complete Studio release gate and update presentation evidence.
   - Implementation: Login 2.8.0 has twenty ordinary configurations. One owned
     `queries/summary.cem-ql` expression reports title/required-field count from
     either saved native input; pretty/tabular Convert configurations preserve the
@@ -829,7 +841,7 @@ Next presentation functionality:
     live-view saved-dependency rerun. New first-copy expression checks had passed;
     independent-copy checks were not reached in that run. Native/deployed example
     verification (32 examples), online/offline workers, shell delivery, lint,
-    typecheck and deterministic packaging passed. The release is not green.
+    typecheck and deterministic packaging passed. That release attempt was not green.
     Two clean builds matched 268 files / 175 assets, SHA-256
     `6b9f0847fd42371cfbcdc12c1b0317ed4b445ae76f62f4b6574fe62ea9492a23`.
   - Focused deployed evidence: the expression-only diagnostic extracted from the
@@ -837,13 +849,58 @@ Next presentation functionality:
     both evaluations, offline reload and original source/results in an independent
     copy. It uses actual static output and normal browser protections. This isolated
     run does not certify the full lifecycle or replace its failed release report.
-- [ ] Diagnose the recurring long-session Login live-view V8 OOM observed after
+  - Release follow-up (2026-10-18): the shared stylesheet retention repair below
+    passes the complete 52-task gate, including all expression assertions in the
+    full deployed lifecycle, offline reopening and independent copies.
+- [x] Diagnose the recurring long-session Login live-view V8 OOM observed after
   `bd8f8428`, repair the shared engine/runtime cause, and pass the complete Studio
   release gate. Preserve the successful payload-index allocation repair and all
   assertions. Focused expression checks cannot substitute for this release gate.
   Evaluate the planned [WASM recovery contract](../roadmap.md#311-wasm-memory-recovery-between-renders)
   with deterministic fixtures as separate resilience work; do not assume that
   WASM recycling resolves the current failure without memory-domain evidence.
+  - [x] Add a shared browser regression proving retired stylesheet generations
+    become collectible after replacement while the current generation remains live;
+    cover worker/fallback CSS and cancelled preparation without losing active styles.
+  - [x] Break verified retention paths and compare long-session heap growth before
+    and after, then pass shared lifecycle tests and the complete Studio release gate.
+  - Diagnosis (2026-10-18): the deployed heap snapshot showed live scope disposal
+    listeners retaining a stylesheet preparation closure, then repeated `previous`
+    connection/unobserve/release links. Retired abort reasons retained V8 exception
+    stacks and publication closures with full snapshots and patch data. This is a
+    verified JavaScript retention path; WASM recycling is not required for the fix.
+  - Repair: clear the preparation's previous connection on activation/cancellation,
+    retaining the retired connection only locally during synchronous cleanup.
+    Adoption still happens before old-generation abort notifications. The new
+    Chromium collection fixture failed before the change and passes afterward;
+    it covers worker/fallback CSS, ten successive replacements and a cancelled
+    preparation retained by the caller. Current CSS stays installed and prior
+    generations become collectible. All 25 shared-preview/registry cases pass.
+  - Heap evidence: a read-only `Runtime.getHeapUsage` monitor on the deployed
+    lifecycle observed normal main-thread JavaScript collection from about
+    1.14 GB to 135 MB during independent-copy checks, then below 115 MB. No forced
+    collection or restart was used in that delivery run. These are sampled JS
+    heap readings, not total browser memory, a matched allocation benchmark or
+    proof of a general memory bound; the before-fix snapshot establishes the
+    retention path and the red/green fixture establishes its collection repair.
+  - Audit: shared `cem-elements` lifecycle change only; Studio remains declarative.
+    No new capability, native format, token default, browser-policy change or
+    production forced collection/restart was added. The complete 52-task Studio
+    release gate passes: 136 Studio browser cases, 25 shared preview/registry cases,
+    32 native/deployed examples, online/offline workers, shell delivery, deployed
+    two-project lifecycle/accessibility and the clean seven-package consumer.
+    The previously failing live-view saved-dependency rerun, offline reopening and
+    independent-copy expression checks all pass. Two clean builds match 268 files /
+    175 assets, SHA-256
+    `76fd8ac70d158465538c91bb0152d7a28966b6eae78bc0739f745028aef5cb02`.
+    Historical failures above remain recorded; no claim covers every possible OOM.
+    Generated screenshots and Vitest attachments remain excluded.
+  - Additional shared checks: all 610 unit cases and lint pass. The standalone
+    `cem-elements:typecheck` passes after temporarily regenerating the CLI command
+    schema from the native build artifact with the existing builder's exact module
+    content; the CLI build normally deletes that source after emission. The first
+    standalone type-check attempt lacked that prerequisite. The temporary source
+    is removed after verification and is not committed.
 - [ ] After the core Login walkthrough, add the planned supplier-pipeline
   companion as an ordinary example project, reusing native commands and shared UI.
 - [ ] Determine whether the selected presentation configurations require

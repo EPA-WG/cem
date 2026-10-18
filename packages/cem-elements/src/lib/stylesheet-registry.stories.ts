@@ -419,3 +419,45 @@ export const ReentrantConnectionReplacement: Story = {
         }
     },
 };
+
+/** Browser-runner-only: collection is forced explicitly, never inferred from timing. */
+export const RetiredGenerationsCollectible: Story = {
+    render: () => '<section aria-label="Stylesheet generation retention"><p>Collection assertions run in the Chromium test runner.</p></section>',
+    play: async ({ canvasElement }) => {
+        if (import.meta.env.MODE !== 'test') return;
+        const { cdp } = await import('vitest/browser');
+        const root = canvasElement.querySelector('section')!;
+        for (const fallback of [false, true]) {
+            const f = fixture(root, fallback);
+            try {
+                const element = f.instance('registry-retention');
+                const own = await f.source(element.localName, [{ css: ':host { --private: url(icon); }', scope: null }]);
+                f.registry.register(own.options);
+                const replace = async (variant: string) => {
+                    const pending = f.registry.prepareReplacement({ element, declaration: own.options.declaration,
+                        sharedScope: 'controls', scope: f.consumers, context: context(variant) });
+                    await pending.ready;
+                    const entries = pending.takeCommits();
+                    if (!entries || !DeclarationStyleOwnership.commitGroup(entries) || !pending.activate()) throw new Error('replacement failed');
+                    return new WeakRef(pending.signal);
+                };
+                const retired = await replace('old');
+                for (let i = 0; i < 8; i++) await replace(`replacement-${i}`);
+                const current = await replace('current');
+                // An abandoned preparation must preserve the committed generation.
+                const cancelled = f.registry.prepareReplacement({ element, declaration: own.options.declaration,
+                    sharedScope: 'controls', scope: f.consumers, context: context('cancelled') });
+                await cancelled.ready; cancelled.cancelPreparation();
+                expect(getComputedStyle(element).getPropertyValue('--private')).toContain('/current.svg');
+                const latest = await replace('latest');
+                await f.registry.flush();
+                await cdp().send('HeapProfiler.collectGarbage');
+                expect(retired.deref() === undefined).toBe(true);
+                expect(current.deref() === undefined).toBe(true);
+                expect(cancelled.signal.aborted).toBe(true);
+                expect(latest.deref()?.aborted).toBe(false);
+                expect(getComputedStyle(element).getPropertyValue('--private')).toContain('/latest.svg');
+            } finally { await f.dispose(); }
+        }
+    },
+};

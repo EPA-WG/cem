@@ -81,7 +81,7 @@ export class CemStylesheetRegistry {
         this.reconcile(this.observer?.takeRecords() ?? []);
         this.preparations.get(input.element)?.release();
         const options = { ...input, context: structuredClone(input.context) };
-        const previous = this.current.get(options.element);
+        let previous = this.current.get(options.element);
         const sourceRevision = this.sourceRevision;
         const abort = new AbortController();
         const loads = new Map<Source, { installation: CemPreparedStylesheets<RegistryScope>; ready: Promise<Result> }>();
@@ -93,6 +93,7 @@ export class CemStylesheetRegistry {
         const release = () => {
             if (activated) { this.removeConnection(activated); return; }
             if (abort.signal.aborted) return;
+            previous = undefined;
             abort.abort(); unobserve();
             if (this.preparations.get(options.element) === handle) this.preparations.delete(options.element);
             for (const load of loads.values()) this.clean(load.installation);
@@ -131,8 +132,13 @@ export class CemStylesheetRegistry {
                 this.connections.add(activated);
                 const connection = activated;
                 const live = { signal: abort.signal, whenReady: () => this.whenReady(connection), release };
+                // Live callbacks retain this preparation's closure. Keeping the old
+                // connection here chains every retired generation (including abort
+                // reasons and their captured render state) to the current one.
+                const retired = previous;
+                previous = undefined;
                 try { adopt?.(live); }
-                finally { if (previous) this.removeConnection(previous); }
+                finally { if (retired) this.removeConnection(retired); }
                 if (connection.released) return undefined;
                 return live;
             },

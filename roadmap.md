@@ -437,9 +437,10 @@ and resume without losing edits or repeating actions.
 Status: planned 2026-10-18. Design and implement this in the shared native/WASM
 engine and `cem-elements`; recovery status UI belongs in declarative
 `cem-components`. Studio consumes the same mechanism. This requires shared
-JavaScript lifecycle work; alert the user before implementation. Keep diagnosis
-and repair of the recurring Studio long-session OOM as an active release blocker;
-recycling is a resilience mechanism, not evidence that the underlying fault is fixed.
+JavaScript lifecycle work; alert the user before implementation. The verified
+Studio stylesheet-retention repair passes the complete release gate independently
+of recovery. Continue requiring the long-session gate for lifecycle changes;
+recycling is a resilience mechanism, not evidence that an underlying fault is fixed.
 
 Deliverables:
 
@@ -507,6 +508,80 @@ Acceptance:
   lifecycle. Measure retained memory across generations separately from cumulative
   allocation and verify old workers/handles are released. Keep existing release
   assertions and browser protections; record recovery limits and remaining OOMs.
+
+### 3.1.2 Reuse Unchanged Render Content And Stylesheets
+
+Goal: reuse previously rendered content when its source, template and effective
+inputs are unchanged. Avoid recompiling/reinstalling unchanged CSS on every render,
+while preserving DOM identity, edited controls and the normal component lifecycle.
+
+Status: planned 2026-10-18. Extend the existing native template/artifact caches,
+bounded processing LRU and render-plan diff machinery; do not introduce a parallel
+JavaScript AST or a Studio-specific cache. Shared engine/`cem-elements` owns the
+implementation; components and Studio continue to declare their inputs normally.
+The observed stylesheet `previous` connection retention is a lifecycle defect to
+repair independently, not a cache strategy. A live replacement must not retain a
+linked history of prior connections to achieve reuse.
+
+Organize reuse into distinct ownership layers:
+
+| Layer | Cache identity | Reuse and lifetime |
+| --- | --- | --- |
+| Parsed/compiled native artifacts | Source content/revision, content type/schema, template and imported-module closure identities, compile options, engine/format version and applicable policy | Share immutable native artifacts through explicit leases. Reuse existing artifact caches, release native owners on eviction, and invalidate handles on runtime replacement. |
+| Derived stylesheet artifacts | CSS source/import closure identities, URL/module-map resolution context, declaration/shared/instance scope, native context inputs, engine version and policy | Reuse immutable native CSS output; keep an unchanged consumer installation and its style nodes. Share only across compatible scopes and contexts. Update leases/refcounts rather than chaining replacement closures. |
+| Per-instance rendered projection | Template artifact plus effective data/attribute/payload/native-slice/resource revisions, form/validation state, scope/context and rendering policy | Retain the current committed plan and live DOM in their owning instance. Skip pure render work only when the complete dependency identity is unchanged; otherwise reconcile against that plan and preserve unchanged subtrees. Do not share live nodes between instances. |
+
+Deliverables:
+
+- Specify dependency identity before optimizing. Unchanged template/source text
+  alone does not make a render unchanged: slice events, edited form values,
+  validation, resource results, imported modules, URL resolution and scope changes
+  can affect output. Start with conservative complete revision keys; add selective
+  dependency/read tracking only after native semantics and fixtures prove it safe.
+  Opaque or nondeterministic dependencies remain uncacheable unless their provider
+  supplies a valid revision/freshness contract.
+- Compute identities at canonical mutation/import boundaries and reuse immutable
+  revisions/hashes. Avoid repeatedly serializing or hashing entire payloads simply
+  to discover no change. Include transitive imported resources and explicit refresh
+  or invalidation requests. An equal output hash can avoid DOM/style replacement,
+  but does not by itself authorize skipping evaluation or resource lifecycle work.
+- Separate stylesheet installation lifetime from render-attempt lifetime. When CSS
+  identity and ownership are unchanged, carry the active installation forward into
+  the new DOM commit without recreating loads, styles or abort controllers. Changed
+  CSS still uses atomic preparation/publication and retires the old installation
+  after successful adoption; cancellation leaves the committed styles intact.
+  Inherited theme custom properties should continue to update through CSS without
+  rebuilding unchanged stylesheets; actual native CSS context changes invalidate
+  the appropriate artifact.
+- Preserve form state, focus/selection, scoped styles, event bindings, resource
+  subscriptions, provenance and diagnostics on cache hits. Distinguish a pure
+  projection cache hit from acknowledging an event or completing a command.
+  Never suppress an accepted action, replay a side effect or reuse stale validation
+  merely because the visible output is identical. Gate asynchronous cache results
+  by owner/revision/runtime generation before publication.
+- Bound reusable artifacts by bytes as well as entry count, with explicit pinned
+  live leases, LRU eviction and admission/backpressure when active state exceeds
+  the budget. Keep only the current committed projection plus bounded in-flight
+  work per instance. Released cache entries must not retain DOM, prior connections,
+  abort reasons, callbacks or historical snapshots. Do not pin full source buffers
+  unnecessarily through tiny slices or provenance records.
+- Integrate with the planned WASM restart contract: portable source/artifact identity
+  may survive a checkpoint, but old runtime handles cannot. Reacquire native owners
+  and rebuild derived caches after restart. Record hit/miss reasons, retained bytes
+  and native-owner counts using bounded diagnostics, with no payload/history log.
+
+Acceptance:
+
+- Add shared fixtures proving unchanged rerenders reuse native compilation, CSS
+  installations/style nodes and DOM identity. Verify changed dependencies invalidate
+  only the affected layers, including data/form edits, nested owners, imported CSS,
+  module maps, resource freshness, scoped context, themes and runtime replacement.
+- Exercise cancelled/failed publication, disconnect/reconnect, cache eviction and
+  ownership isolation. Confirm obsolete generations are collectible and current
+  leases remain valid, in worker and fallback modes.
+- Compare long Studio/Login sessions for native calls, style/DOM replacements,
+  render latency, retained memory and output equivalence. Performance evidence must preserve
+  validation, accessibility, offline behavior and existing release assertions.
 
 ### 3.2 Primitives — `@epa-wg/cem-components`
 
@@ -862,6 +937,42 @@ package and every Cargo crate with `publish = true`; cached static, search,
 interactive, accessibility, deterministic-output, and dependency-artifact gates
 close through `cem-site:verify`.
 
+### Studio Example: Markdown + CEM-ML Site Project
+
+Status: planned. The current Studio catalog has a Markdown schema-package
+example, but no complete Markdown/CEM-ML site project with a Hugo-inspired
+folder structure. The standalone Markdown/CEM-ML playground does not fill this
+project-level demonstration gap.
+
+- Add an ordinary portable example under `examples/projects/`, discovered through
+  `example.json` and opened in the existing Studio workspace. Use projects,
+  resources and configurations throughout, with independently editable copies;
+  do not introduce a dedicated example screen.
+- Demonstrate `content/` Markdown documents, `layouts/` CEM-ML templates and
+  reusable partials, `data/`, `assets/`, `static/` and explicit site/build
+  configurations. Include a home resource, a section index and at least two
+  articles so folder-relative references and shared layout composition are visible.
+  Define supported metadata/front-matter handling through native schema contracts
+  before relying on it. This layout is Hugo-inspired; Hugo configuration and
+  Go-template compatibility belong to Phase 7.
+- Compose the native Markdown-to-HTML transform with CEM-ML/CEMT layout and
+  navigation through an explicit graph. Show source provenance from content and
+  shared partials to emitted HTML, with deterministic output paths and declared
+  resource dependencies rather than application-owned conversion code.
+- Provide configurations for validation, build and preview. Demonstrate editing
+  an article and a shared layout, rerunning dependent outputs, and intentional
+  validation failure followed by repair. Reuse shared light-DOM preview, with
+  relative links/assets resolving within the generated site and the existing
+  preview policy governing active content.
+- Include expected output fixtures, portable project export/import and offline
+  reopen/run checks. Verify nested paths, multiple outputs, missing dependencies,
+  independent copies and stable output digests in the normal Studio delivery gate.
+- Keep Studio orchestration declarative. Reusable declarative controls belong in
+  `cem-components`; any required JavaScript behavior belongs in `cem-elements`
+  and must be raised before implementation. Native parsing/build semantics remain
+  in the shared engine. Schedule this project after the active Login repair and
+  agreed presentation functionality, using the Phase 6 native site contracts.
+
 ## Phase 6.5 - CEM Studio PWA And Browser Workbench
 
 Goal: provide an installable, local-first browser application that exposes the synchronized CEM-ML CLI command model
@@ -889,6 +1000,8 @@ Deliverables:
   access is unavailable, unsupported, or denied.
 - Seed an editable Feature Tour generated from actual schema-package examples and capability manifests so the initial
   hierarchy demonstrates supported content types through transformation graphs without drifting from the engine.
+- Add the planned [Markdown + CEM-ML site example](#studio-example-markdown--cem-ml-site-project)
+  as an ordinary project with Hugo-inspired folders, using the same catalog and workspace.
 - Provide validation diagnostics with source ranges, data/result/report/source-map previews, conversion input/output
   views, query variables and scopes, transformation traces, graph-stage inspection, and safe sandboxed HTML previews.
 - Provide a bidirectional CLI Command view that displays and copies the active command, effective inputs/config, and

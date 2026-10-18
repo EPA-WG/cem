@@ -217,7 +217,7 @@
                 }
             ],
             "options": {
-                "command": "yarn vitest --config packages/cem-elements/vitest.config.mts --project=storybook --run packages/cem-elements/src/lib/live-preview.stories.ts packages/cem-elements/src/lib/payload-index.stories.ts packages/cem-components/src/components/cem-media-preview/cem-media-preview.stories.ts packages/cem-elements/src/lib/form-control.stories.ts",
+                "command": "yarn vitest --config packages/cem-elements/vitest.config.mts --project=storybook --run packages/cem-elements/src/lib/live-preview.stories.ts packages/cem-elements/src/lib/payload-index.stories.ts packages/cem-elements/src/lib/stylesheet-registry.stories.ts packages/cem-components/src/components/cem-media-preview/cem-media-preview.stories.ts packages/cem-elements/src/lib/form-control.stories.ts",
                 "cwd": "{workspaceRoot}"
             },
             "inputs": [

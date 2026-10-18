@@ -140,17 +140,33 @@ CSP. No production UI JavaScript or sandbox-policy change is introduced.
 
 Login 2.8.0 adds standalone expression evaluation and pretty/tabular formatting,
 with 11 native Login/sample regressions and all 136 Studio browser cases passing.
-The full release gate subsequently failed in the existing long-session live-view
+The full release gate at `9466e617` subsequently failed in the existing long-session live-view
 saved-dependency rerun with V8 `CALL_AND_RETRY_LAST`; presentation release readiness
-is blocked again. New first-copy expression checks passed before that crash. An isolated deployed
+was blocked again. New first-copy expression checks passed before that crash. An isolated deployed
 run subsequently passed all new expression checks, including offline reload and
 independent copies; it does not replace the failed full lifecycle.
 The previous allocation repair remains valid, but did not eliminate every OOM.
 Native/deployed examples (32), worker/offline and shell delivery, lint/typecheck
-and deterministic packaging passed; the current build hash is
+and deterministic packaging passed; that build hash was
 `6b9f0847fd42371cfbcdc12c1b0317ed4b445ae76f62f4b6574fe62ea9492a23`
-(268 files / 175 assets). See the active TODO for the renewed blocker and the
-[planned shared memory recovery](../../roadmap.md#311-wasm-memory-recovery-between-renders).
+(268 files / 175 assets).
+
+The October 18 follow-up repairs a verified stylesheet-retention chain in shared
+`cem-elements`: activation/cancellation clears the prior connection reference,
+preventing live callbacks from retaining retired generations and their abort stacks.
+The collection regression fails before the fix and passes after it in worker and
+fallback modes. The complete 52-task release gate is now green, including all
+136 Studio browser cases, 25 shared preview/registry cases, 32 native/deployed
+examples, online/offline workers, shell delivery and the clean seven-package
+consumer. The full deployed lifecycle passes the previously failing live-view
+saved-dependency rerun, offline reopening, independent copies, expression checks
+and automated accessibility. Deterministic output: 268 files / 175 assets, SHA-256
+`76fd8ac70d158465538c91bb0152d7a28966b6eae78bc0739f745028aef5cb02`.
+Studio remains declarative; no new capability or browser-policy change was required.
+See the active TODO for remaining presentation functionality. Planned
+[render reuse](../../roadmap.md#312-reuse-unchanged-render-content-and-stylesheets)
+and [memory recovery](../../roadmap.md#311-wasm-memory-recovery-between-renders)
+remain separate work; passing this gate is not a claim that every OOM is impossible.
 
 ## Resume after clearing context
 

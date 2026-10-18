@@ -2819,14 +2819,24 @@ The shared payload-index repair at `bd8f8428` passed the complete 52-task
 release gate. It reduced sampled cumulative index allocations in a controlled
 ten-snapshot, 4,096-item benchmark from 3.38 GB to 6.48 MB; this is not retained
 heap evidence or proof of every historical OOM's cause. During the Login 2.8.0
-verification, the long-session live-view saved-dependency rerun again hit V8
-`CALL_AND_RETRY_LAST`. The current full release gate is **not green**.
-All new expression checks also pass in an isolated deployed run, including
-saved/unsaved edits, Parse/Inspect, offline reload and independent copies.
-All 11 focused native Login/sample cases and 136 Studio browser cases pass;
-32 native/deployed examples, online/offline workers, shell delivery, lint,
-typecheck and deterministic packaging also pass. The recurring OOM and remaining
-presentation work are tracked in [the active todo](todo.md). Planned shared
-[WASM memory recovery](../roadmap.md#311-wasm-memory-recovery-between-renders)
-adds checkpoint/restart resilience; it has not been implemented or validated as
-an OOM repair.
+verification at `9466e617`, the long-session live-view saved-dependency rerun again
+hit V8 `CALL_AND_RETRY_LAST`. The October 18 follow-up identifies a separate shared
+stylesheet retention path: each live replacement closure retained its previous
+connection, whose abort reason could retain exception stacks and render snapshots.
+`cem-elements` now clears that reference on activation and cancellation. A Chromium
+collection regression fails before the repair and passes afterward in worker and
+fallback modes, including cancelled preparations and preserved active styles.
+
+The complete 52-task release gate now passes: 136 Studio browser cases, 25 shared
+preview/registry cases, 32 native/deployed examples, online/offline workers, shell
+delivery, deterministic packaging and the clean seven-package consumer. The full
+deployed lifecycle passes live-view saved-dependency replacement, offline reopening,
+independent copies and all Login 2.8.0 expression checks, plus automated accessibility.
+Two clean builds match 268 files / 175 assets, SHA-256
+`76fd8ac70d158465538c91bb0152d7a28966b6eae78bc0739f745028aef5cb02`.
+This repairs a verified retention defect; it does not establish a general browser
+memory bound. Studio remains declarative, with no new shared JavaScript capability.
+Remaining presentation work is tracked in [the active todo](todo.md). Planned shared
+[unchanged render reuse](../roadmap.md#312-reuse-unchanged-render-content-and-stylesheets)
+and [WASM memory recovery](../roadmap.md#311-wasm-memory-recovery-between-renders)
+remain separate optimization and resilience work; neither is implemented by this repair.

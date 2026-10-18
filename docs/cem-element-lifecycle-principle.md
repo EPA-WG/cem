@@ -77,6 +77,13 @@ arrays per snapshot. Building a group appends each entry once; it must not copy
 the growing group for every node. Authored names such as `constructor` and
 `__proto__` are ordinary own keys, including after structured-clone transport.
 
+Retained stylesheet replacement owns only the current generation after publication.
+A preparation may reference the previous connection while it needs to preserve or
+replace its styles, but must clear that reference on activation or cancellation.
+Retired abort signals can retain exception stacks and render snapshots; disconnecting
+listeners alone does not release a chain reachable from the current connection.
+The active generation remains owned until its normal replacement or disposal.
+
 ## First connection and payload capture
 
 When no direct marked island exists, the instance is in first-connection mode.
