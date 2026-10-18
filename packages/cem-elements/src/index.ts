@@ -41,3 +41,5 @@ export type { CemTreeActivateDetail, CemTreeToggleDetail } from './lib/tree-view
 
 export type { CemSortDirection, CemSortDetail } from './lib/sort-action-capability.js';
 export type { CemPageDetail } from './lib/pagination-capability.js';
+
+export { mountCemLivePreview, type CemLivePreview, type CemLivePreviewOptions, type CemLivePreviewResource, type CemLivePreviewResources } from './lib/live-preview.js';

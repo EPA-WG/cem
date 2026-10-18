@@ -1,3 +1,4 @@
+import { isDomInstance } from './dom-realm.js';
 import { interactionReference as reference, nativeInteractionReference as nativeReference } from './interaction-reference.js';
 import type { CemProducedElementBehavior } from './cem-elements.js';
 import { captureCemSurfaceInvocation, type CemSurfaceInvocation } from './surface-invocation.js';
@@ -155,7 +156,7 @@ export const CEM_ACTION_COMMAND_CAPABILITY: CemProducedElementBehavior = {
     connected(host) {
         if (states.has(host)) return;
         const root = host.getRootNode();
-        if (!(root instanceof Document) && !(root instanceof ShadowRoot)) return;
+        if (!isDomInstance(root, 'Document') && !isDomInstance(root, 'ShadowRoot')) return;
         const abort = new AbortController();
         states.set(host, { root, abort });
         if (host.matches('[command-target],[interaction],[commandfor],[popovertarget]')) observe(host, root);

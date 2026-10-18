@@ -260,7 +260,9 @@
                 {
                     "dependentTasksOutputFiles": "**/*.{js,d.ts,xhtml}",
                     "transitive": false
-                }
+                },
+                "{workspaceRoot}/examples/projects/login/**/*",
+                "{workspaceRoot}/examples/semantic/login.html"
             ],
             "outputs": [],
             "dependsOn": [
@@ -695,7 +697,13 @@
         "check": {
             "executor": "nx:run-commands",
             "dependsOn": [
-                "verify:release-evidence"
+                "verify:release-evidence",
+                {
+                    "projects": [
+                        "cem-elements"
+                    ],
+                    "target": "test:live-preview"
+                }
             ],
             "options": {
                 "command": "node -e \"console.log('CEM Studio package, deterministic deployment, and clean consumer checks passed.')\"",

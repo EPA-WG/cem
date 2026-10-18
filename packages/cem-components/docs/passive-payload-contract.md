@@ -96,6 +96,24 @@ mode default/caption slots and label fallbacks. Explicit modes read `value`:
   deny-all CSP, including scripts, styles, network, frames, forms and media.
   Host attributes cannot widen that policy. Document content has an opaque origin;
   the component's CEM theme styles the outer surface, not the isolated document.
+- `live` interprets `value` as a CEM-ML template through the shared `live-preview`
+  capability. `source-uri` names the template owner. Optional `resource-set` is
+  an explicit JSON transport envelope: `{ "resources": [{ "uri": "...",
+  "contentType": "...", "text": "..." }], "styles": ["..."] }`. Its text bodies
+  enter the normal native import/declaration boundaries. There is no ambient fetch.
+  Optional `declarations: [{ tag, uri }]` registers components and preflights their
+  CSS before the view mounts; dynamic `cem-element` output is rejected. Output
+  is limited to HTML; foreign namespaces such as SVG/MathML are not admitted.
+  A parent-owned runtime renders into the frame's **light DOM**. The frame has
+  `sandbox="allow-same-origin"` so the parent can manage it; scripts remain
+  forbidden by both sandbox and CSP. This is distinct from document mode's opaque
+  sandbox. Navigation elements/attributes are rejected before initial or incremental
+  publication; forms cannot navigate. Browser storage, location controls, repository
+  services, nested live previews and stylesheet fetches are disabled. Supplied CSS
+  stays within the frame, which inherits no page theme. Form values and slices are
+  transient and are destroyed on source/resource replacement or disconnect.
+  The frame fits its content up to 4096 CSS pixels, then scrolls. A polite status
+  reports readiness and errors. Limits: 256 KiB template, 128 resources, 16 MiB total.
 - `message` renders literal explanatory text, for example why bytes require a
   download. Slots remain owned by media mode; unknown modes fall back to media.
 
@@ -103,7 +121,7 @@ Transport services own decoding, content-type selection and byte budgets; the
 component never guesses content types or fetches external source. Studio retains
 its 256 KiB inline limit and exact-byte download service. The native declarative
 renderer owns content and frame identity: unrelated updates retain focus and do
-not write an unchanged `srcdoc`. There is no component JavaScript.
+not write an unchanged `srcdoc`. The declaration contains no JavaScript; live lifecycle, resource admission and realm handling belong to `cem-elements`.
 
 The figure uses D0 comfort colors, D1 related gaps, D3 media bend and D5 boundary
 strokes. Text uses the complete D6 script typography role and D1 container inset;

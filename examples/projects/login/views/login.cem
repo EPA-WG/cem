@@ -1,0 +1,19 @@
+{slice @name=notice | This local example does not send credentials.}
+{http-request @slice=login @url="../data/login.html" @method=GET @content-type=text/html}
+{cem:variable @name=heading
+ @select='if (datadom.slices.login.state ?? "") == "loaded" { seq:first(seq:where(datadom.slices.login.data.descendants, fn(node) => node.kind == "element" && node.name == "h1")) } else { () }'}
+{style @type=text/css | ```
+section { display: grid; gap: var(--cem-gap-group); padding: var(--cem-inset-container); background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); }
+```}
+{section @class=cem-theme-light @aria-label="Login example" |
+ {h1 | {$str:normalize_space(dom:text(heading))}}
+ {p | Edit and save this view or its Login data, then run the configuration again.}
+ {cem-text-field @label=Email @name=email @type=email @autocomplete=email @required}
+ {cem-text-field @label=Password @name=password @type=password @autocomplete=current-password @required}
+ {cem-action @label="Sign in locally" @slice=notice @slice-event=click
+  @slice-value="'Local interaction received. No credentials were sent.'"}
+ {cem-alert @tone=info @label={datadom.slices.notice}}
+ {cem:if @test='(datadom.slices.login.state ?? "") == "failed"' |
+  {cem-alert @tone=danger @label="Login data could not be loaded from this project."}
+ }
+}

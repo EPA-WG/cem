@@ -715,6 +715,22 @@
         "@epa-wg/cem-studio/workbench-results-view": {
             "path": "./assets/@epa-wg/cem-studio/workbench-results.xhtml",
             "contentType": "application/xhtml+xml"
+        },
+        "@epa-wg/cem-elements/dist/lib/live-preview.js": {
+            "path": "./assets/@epa-wg/cem-elements/dist/lib/live-preview.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/live-preview-capability.js": {
+            "path": "./assets/@epa-wg/cem-elements/dist/lib/live-preview-capability.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/live-preview-policy.js": {
+            "path": "./assets/@epa-wg/cem-elements/dist/lib/live-preview-policy.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/dom-realm.js": {
+            "path": "./assets/@epa-wg/cem-elements/dist/lib/dom-realm.js",
+            "contentType": "text/javascript"
         }
     }
 }

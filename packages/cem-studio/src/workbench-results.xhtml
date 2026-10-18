@@ -133,10 +133,10 @@
     {cem:choose |
      {cem:when @test=preview |
       {cem:variable @name=mode
-       @select='if preview.kind == "text" { "text" } else { if preview.kind == "sandboxed-html" { "document" } else { "message" } }'}
+       @select='if preview.kind == "text" { "text" } else { if preview.kind == "sandboxed-html" { "document" } else { if preview.kind == "live-cem" { "live" } else { "message" } } }'}
       {cem:variable @name=value
-       @select='if preview.kind == "text" { preview.text } else { if preview.kind == "sandboxed-html" { preview.source } else { preview.reason } }'}
-      {cem-media-preview @label={preview.label} @mode={mode} @truncated={if preview.truncated { true } else { null }} @value={value}}
+       @select='if preview.kind == "text" { preview.text } else { if preview.kind == "sandboxed-html" || preview.kind == "live-cem" { preview.source } else { preview.reason } }'}
+      {cem-media-preview @source-uri={preview.sourceUri} @resource-set={preview.resourceSet} @label={preview.label} @mode={mode} @truncated={if preview.truncated { true } else { null }} @value={value}}
      }
      {cem:otherwise |
       {cem-alert @label="Run an operation to preview its bounded result" @tone=info}

@@ -82,7 +82,7 @@ module identity, native module formatting, validation and query execution.
 
 ## Generate the Login view
 
-New version-2.4.0 copies have twelve configurations. **Render Login from HTML**
+New version-2.5.0 copies have thirteen configurations. **Render Login from HTML**
 and **Render Login from CEM-ML** apply the shared `templates/view.cemt` resource
 to the saved source. Both produce the complete HTML in `expected/view.html`:
 an accessible heading and form, associated labels, autocomplete hints, required
@@ -142,3 +142,21 @@ compilation, portable development artifacts and binary source maps. Constructed
 or computed output points to its authored template instruction/expression; it
 does not claim per-character data lineage. Copied native input nodes retain their
 own source URI/ranges. Production template artifacts still strip source maps.
+
+### Login live view
+
+Open **Login live view** in an ordinary Studio project copy. Its configuration parses
+`views/login.cem`, then the shared `cem-media-preview` renders that saved template
+in a script-free frame using `cem-element` light DOM. The configuration's explicit
+`live-preview` tag opts a template resource into this presentation. `preview-component:<tag>` tags
+select its shared controls for declaration and CSS preflight. The view reads
+`data/login.html` through the native resource importer and uses shared text fields,
+action and alert controls. The HTML/CEM comparison and graph remain independently
+runnable configurations.
+
+Edit the local action label, **Save and validate**, then **Run configuration**.
+Change the HTML source's first `Sign in` heading, save, and run the live view again.
+Unsaved drafts never replace persisted execution inputs. Reload works offline;
+a fresh project copy keeps the original view and data. Fields and the local action
+show transient interaction only: credentials are neither submitted nor saved.
+The example owns its light theme; it does not read or write Studio's theme key.

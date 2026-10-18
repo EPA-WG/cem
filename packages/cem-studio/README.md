@@ -340,7 +340,7 @@ HTML contract in `expected/view.html`. Saved source and instruction edits change
 the generated output; Results uses the shared sandboxed document preview and
 provides exact HTML for copy/download. Studio continues to use the existing
 declarative workspace and shared native transformation path. Live light-DOM
-output remains separate work.
+output is available through the shared preview capability below.
 
 Login 2.4.0 adds **Render Login graph** and `graphs/view.cem` as ordinary project
 configuration/resource data. The existing graph controls stage validated changes;
@@ -351,3 +351,18 @@ display-path renames. Constructed output points to template instructions;
 copied native nodes retain their own input origins. No new UI JavaScript or
 renderer is introduced. New copies receive twelve configurations; existing
 projects retain their contents. See the [Login guide](../../examples/projects/login/README.md#transformation-graph-and-source-provenance).
+
+
+Login 2.5.0 adds **Login live view**, the thirteenth configuration. Its saved
+`views/login.cem` template reads the project's HTML data through the native loader
+and composes shared text fields, action and alert controls. `live-preview` opts an
+inspection configuration into this presentation; `preview-component:<tag>` tags
+select the shared declarations to preflight. Studio supplies explicit resource
+bytes and packaged library CSS; `cem-elements` owns the script-free frame,
+light-DOM rendering, interactions, resource admission and disposal.
+
+Save and rerun to see template/data edits. Offline reload preserves those sources,
+while fresh copies remain independent. The example owns its light theme and
+transient form state; browser storage and navigation are disabled. The deployed
+release gate records `projectLiveView`, and `check` also runs the shared preview
+and form-control regression fixtures. See the [shared preview contract](../cem-components/docs/passive-payload-contract.md#explicit-output-preview-modes).

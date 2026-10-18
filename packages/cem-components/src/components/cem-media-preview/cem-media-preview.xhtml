@@ -1,5 +1,5 @@
 <cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-media-preview">
-  <template id="cem-media-preview" type="text/cem-ml">
+  <template id="cem-media-preview" type="text/cem-ml" capability="live-preview">
 {style @type=text/css | ```
 :scope { display: block; min-inline-size: 0; }
 :scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
@@ -17,6 +17,7 @@
 {attribute @name=label | Media preview}
 {attribute @name=mode | media}
 {attribute @name=value}
+{slice @name=previewStatus}
 {cem:variable @name=textLabel
  @select='if seq:count(datadom.attributes.truncated) &gt; 0 { str:concat((label, " (truncated)"), "") } else { label }'}
 {figure @aria-label="{$label}" @class=cem-media-preview @part=root @cem:whitespace=layout |
@@ -28,6 +29,10 @@
   {cem:when @test='mode == "document"' |
    {iframe @allow="" @loading=lazy @part=document @referrerpolicy=no-referrer @sandbox="" @srcdoc={str:concat(("&lt;!doctype html&gt;&lt;html&gt;&lt;head&gt;&lt;meta charset=\"utf-8\"&gt;&lt;meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; base-uri 'none'; connect-src 'none'; font-src 'none'; form-action 'none'; frame-src 'none'; img-src 'none'; media-src 'none'; object-src 'none'; script-src 'none'; style-src 'none'; worker-src 'none'\"&gt;&lt;meta name=\"referrer\" content=\"no-referrer\"&gt;&lt;title&gt;Sandboxed document preview&lt;/title&gt;&lt;/head&gt;&lt;body&gt;", value, "&lt;/body&gt;&lt;/html&gt;"), "")}
     @title="{$label}"}
+  }
+  {cem:when @test='mode == "live"' |
+   {iframe @allow="" @part="document live-document" @referrerpolicy=no-referrer @sandbox=allow-same-origin @title="{$label}"}
+   {p @part=message @role=status @aria-live=polite | {$ | datadom.slices.previewStatus}}
   }
   {cem:when @test='mode == "message"' |
    {p @part=message |

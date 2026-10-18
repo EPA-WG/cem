@@ -1,8 +1,8 @@
 {
   "id": "login",
   "name": "Login",
-  "version": "2.4.0",
-  "description": "Login sources, equivalent queries, validation, native HTML templates and an editable transformation graph with source provenance.",
+  "version": "2.5.0",
+  "description": "Login sources, equivalent queries, validation, native templates, a transformation graph with source provenance and an interactive light-DOM view.",
   "sources": [
     {
       "id": "login-cem",
@@ -97,6 +97,14 @@
       "contentType": "application/cem",
       "schema": "https://cem.dev/ns/cli/transform-config/1",
       "role": "transform-config"
+    },
+    {
+      "id": "login-live-view",
+      "source": "examples/projects/login/views/login.cem",
+      "path": "views/login.cem",
+      "contentType": "application/cem",
+      "schema": "https://cem.dev/ns/cem-ml/1",
+      "role": "template"
     }
   ],
   "collections": [
@@ -447,6 +455,36 @@
       ],
       "expectedOutput": "login-view-expected",
       "expectedGraphOutput": "generated/login.html"
+    },
+    {
+      "id": "live-view",
+      "name": "Login live view",
+      "kind": "inspection",
+      "source": "login-live-view",
+      "dependencies": [
+        "login-html"
+      ],
+      "tags": [
+        "live-preview",
+        "preview-component:cem-text-field",
+        "preview-component:cem-action",
+        "preview-component:cem-alert"
+      ],
+      "argv": [
+        "parse",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--format",
+        "ast",
+        "--no-color"
+      ],
+      "expectedText": [
+        "@name=cem-text-field",
+        "@name=cem-action"
+      ]
     }
   ]
 }

@@ -151,7 +151,7 @@ export const OutputPropertyControls = meta.story({
         const source = await cemComponentPlaygroundSource('cem-media-preview');
         await Promise.all(['cem-field', 'cem-radio', 'cem-textarea', 'cem-checkbox'].map(loadCemComponent));
         const document = new DOMParser().parseFromString(source, 'text/html');
-        const template = document.querySelector('main > cem-element.properties > template') as HTMLTemplateElement;
+        const template = document.querySelector('cem-gallery-page > template')!.content.querySelector('cem-element.properties > template') as HTMLTemplateElement;
         return { propertyMarkup: `<cem-element>${template.outerHTML}</cem-element>` };
     }],
     render: (_args, { loaded }) => String(loaded.propertyMarkup),
@@ -175,6 +175,32 @@ export const OutputPropertyControls = meta.story({
         expect(required<HTMLIFrameElement>(canvasElement, 'cem-media-preview iframe').srcdoc).toContain(text);
         within(modes).getByRole('radio', { name: 'message', exact: true }).click(); await settle();
         expect(required(canvasElement, 'cem-media-preview [part=message]').textContent).toBe(text);
+        editor.value = '{p | Live property edit}'; editor.dispatchEvent(new Event('input', { bubbles: true })); await settle();
+        within(modes).getByRole('radio', { name: 'live', exact: true }).click(); await settle();
+        await waitFor(() => expect(required<HTMLIFrameElement>(canvasElement, 'cem-media-preview iframe').contentDocument?.querySelector('p')?.textContent).toBe('Live property edit'));
+        const owner = within(canvasElement).getByRole('textbox', { name: 'source-uri', exact: true }) as HTMLInputElement;
+        owner.value = 'preview://changed/edited.cem'; owner.dispatchEvent(new Event('input', { bubbles: true })); await settle();
+        expect(required(canvasElement, 'cem-media-preview').getAttribute('source-uri')).toBe(owner.value);
+        expect(required(canvasElement, 'cem-media-preview').getAttribute('resource-set')).toBe('{"resources":[]}');
         expect(storybookCemRuntime().diagnosticsFor(declaration).filter(d => d.severity === 'error' || d.severity === 'fatal')).toEqual([]);
+    },
+});
+
+export const LiveCem = meta.story({
+    render: () => '<cem-media-preview mode="live" label="Interactive example" source-uri="preview://example/view.cem"></cem-media-preview>',
+    play: async ({ canvasElement }) => {
+        const host = required<HTMLElement>(canvasElement, 'cem-media-preview');
+        host.setAttribute('value', '{slice @name=message | Ready}{button @type=button @slice=message @slice-event=click @slice-value="\'Clicked\'" | Try it}{p | {$datadom.slices.message}}');
+        await whenCemRendered(host);
+        await waitFor(() => expect(host.querySelector('[role=status]')?.textContent).toBe('Live view ready'));
+        const frame = required<HTMLIFrameElement>(host, 'iframe');
+        expect(frame.sandbox.value).toBe('allow-same-origin');
+        expect(frame.contentDocument?.querySelector('cem-live-view')?.shadowRoot).toBeNull();
+        frame.contentDocument!.querySelector('button')!.click();
+        await waitFor(() => expect(frame.contentDocument?.querySelector('p')?.textContent).toBe('Clicked'));
+        host.setAttribute('value', '{p | Saved edit}');
+        await waitFor(() => expect(frame.contentDocument?.querySelector('p')?.textContent).toBe('Saved edit'));
+        host.setAttribute('mode', 'text'); await whenCemRendered(host);
+        expect(host.querySelector('iframe')).toBeNull();
     },
 });

@@ -199,6 +199,117 @@
                 "{workspaceRoot}/packages/cem_ml/schema-packages/cem-ml/v1/examples/formatter-coloring-pipeline.package-artifacts.fixture.cem"
             ]
         },
+        "test:live-preview": {
+            "executor": "nx:run-commands",
+            "cache": true,
+            "dependsOn": [
+                {
+                    "projects": [
+                        "cem_ql"
+                    ],
+                    "target": "build:wasm"
+                },
+                {
+                    "projects": [
+                        "@epa-wg/cem-demo-element"
+                    ],
+                    "target": "build"
+                }
+            ],
+            "options": {
+                "command": "yarn vitest --config packages/cem-elements/vitest.config.mts --project=storybook --run packages/cem-elements/src/lib/live-preview.stories.ts packages/cem-components/src/components/cem-media-preview/cem-media-preview.stories.ts packages/cem-elements/src/lib/form-control.stories.ts",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                {
+                    "env": "STORYBOOK_CEM_RETAINED_CSS"
+                },
+                "{projectRoot}/docs/demo-storybook-coverage.json",
+                "{projectRoot}/.storybook/demo-coverage.ts",
+                "{projectRoot}/index.html",
+                "{projectRoot}/demo/**/*.html",
+                "{projectRoot}/.storybook/**/*",
+                "{projectRoot}/src/**/*.ts",
+                "{projectRoot}/src/**/*.css",
+                "{workspaceRoot}/packages/custom-element/demo/http-request.html",
+                "{workspaceRoot}/packages/custom-element/demo/npm-versions-demo.html",
+                "{workspaceRoot}/packages/custom-element/demo/http-data*.json",
+                "{workspaceRoot}/packages/custom-element/demo/http-pokemon.json",
+                "{workspaceRoot}/packages/custom-element/demo/npm-versions.json",
+                "{workspaceRoot}/packages/custom-element/demo/http-data.cemt",
+                "{workspaceRoot}/packages/custom-element/demo/cem-loader-demo.css",
+                "{projectRoot}/demo/attributes.html",
+                "{projectRoot}/demo/external-template.html",
+                "{projectRoot}/demo/html-template.*",
+                "{projectRoot}/demo/*.cemt",
+                "{projectRoot}/demo/*.xsl",
+                "{projectRoot}/demo/*.xslt",
+                "{projectRoot}/demo/*.svg",
+                "{projectRoot}/demo/http-data.xml",
+                "{projectRoot}/demo/http-data.cemt",
+                "{projectRoot}/demo/demo.css",
+                "{projectRoot}/demo/data-slices.html",
+                "{projectRoot}/demo/dom-merge.html",
+                "{projectRoot}/demo/xpath-functions.html",
+                "{projectRoot}/demo/xpath-nodes.html",
+                "{projectRoot}/demo/xpath-sequences.html",
+                "{projectRoot}/demo/xpath-aggregates.html",
+                "{projectRoot}/demo/xpath-sort.html",
+                "{projectRoot}/demo/xpath-validation.html",
+                "{projectRoot}/demo/xpath-maps-arrays.html",
+                "{projectRoot}/demo/form.html",
+                "{projectRoot}/demo/for-each.html",
+                "{projectRoot}/demo/data-table.html",
+                "{projectRoot}/demo/table-inspector.html",
+                "{projectRoot}/demo/cell-overrides.html",
+                "{projectRoot}/demo/pokemon-cells.json",
+                "{projectRoot}/demo/stock-cells.xml",
+                "{projectRoot}/demo/pokemon/**/*",
+                "{projectRoot}/demo/data-tree.html",
+                "{projectRoot}/demo/tree-source.xml",
+                "{projectRoot}/demo/tree-source.json",
+                "{projectRoot}/demo/hex-grid.html",
+                "{projectRoot}/demo/framework-logos/*.svg",
+                "{projectRoot}/demo/http-request.html",
+                "{projectRoot}/demo/local-storage.html",
+                "{projectRoot}/demo/location-element.html",
+                "{projectRoot}/demo/http-data*.json",
+                "{projectRoot}/demo/http-pokemon.json",
+                "{projectRoot}/demo/functions/str.html",
+                "{projectRoot}/demo/functions/dom.html",
+                "{projectRoot}/demo/module-url.html",
+                "{projectRoot}/demo/module-url-referrer.html",
+                "{projectRoot}/demo/embed-1.html",
+                "{projectRoot}/demo/embed-lib.html",
+                "{projectRoot}/demo/lib-dir/*.svg",
+                "{projectRoot}/demo/lib-dir/embed-lib.html",
+                "{projectRoot}/demo/npm-versions-demo.html",
+                "{projectRoot}/demo/npm-versions.json",
+                "{projectRoot}/demo/scoped-css.html",
+                "{projectRoot}/demo/scoped-css-*.css",
+                "{projectRoot}/demo/external-template-templates.html",
+                "{projectRoot}/demo/set-url.html",
+                "{workspaceRoot}/packages/cem-components/src/components/**/*",
+                "{workspaceRoot}/packages/cem-components/index.html",
+                "{workspaceRoot}/packages/cem-components/examples/*.html",
+                "{projectRoot}/tests/parity/legacy/**/*",
+                "{projectRoot}/tests/parity/material/**/*",
+                "{projectRoot}/vitest.config.mts",
+                "{projectRoot}/package.json",
+                "{workspaceRoot}/package.json",
+                "{workspaceRoot}/yarn.lock",
+                "{workspaceRoot}/examples/cem-ml/login.cem",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.cemt",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.fixture.cem",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/cem-ml/v1/formatters/formatter-coloring-pipeline.cemt",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/cem-ml/v1/formatters/cem-tree-helpers.cemt",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/cem-ml/v1/colorizers/formatter-coloring-pipeline.cemt",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/cem-ml/v1/colorizers/cem-tree-helpers.cemt",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/cem-ml/v1/examples/formatter-coloring-pipeline.package-artifacts.fixture.cem",
+                "{workspaceRoot}/packages/cem-components/playgrounds/cem-media-preview*.html"
+            ],
+            "outputs": []
+        },
         "test": {
             "executor": "nx:run-commands",
             "dependsOn": [

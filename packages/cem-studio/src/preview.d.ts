@@ -9,6 +9,7 @@ export interface CemStudioLimits {
 }
 
 export type CemStudioPreview =
+    | Readonly<{ kind: 'live-cem'; label: string; source: string; sourceUri: string; resourceSet: string }>
     | Readonly<{
           kind: 'sandboxed-html';
           label: string;
@@ -56,3 +57,7 @@ export declare function createCemStudioPreview(options: {
     label?: string;
 }): CemStudioPreview;
 export declare function redactCemStudioSecrets(value: unknown): string;
+
+export declare function createCemStudioLivePreview(options: {
+    source: string; sourceUri: string; components?: readonly string[]; dependencies: readonly { path: string; contentType: string; bytes: Uint8Array }[];
+}): Promise<CemStudioPreview>;

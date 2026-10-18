@@ -1,3 +1,6 @@
+import { isDomInstance } from './dom-realm.js';
+import { CEM_LIVE_PREVIEW_CAPABILITY } from './live-preview-capability.js';
+import { validateLivePreviewFrames, validateLivePreviewNodes } from './live-preview-policy.js';
 import { resolveAriaReferenceProfile, DEFAULT_ARIA_REFERENCE_PROFILE, withoutAriaReferenceProfileStamp, type CemAriaReferenceProfile } from './aria-reference-profile.js';
 import { isCemNativeSuggestionsBinding, type CemNativeSuggestionsBinding, type CemNativeSuggestionRow } from './native-suggestions-publication.js';
 import type { CemElementReferenceInputs, CemElementPlacementUse } from './element-reference-inputs.js';
@@ -601,6 +604,8 @@ export interface CemElementRuntimeOptions {
      * Document; scope ancestry is never inferred from DOM ancestry.
      */
     declarationScope?: CemDeclarationScope;
+    /** Script-free preview: restrict output and deny ambient storage/location resources. */
+    restrictedPreview?: boolean;
     /** Environment ceiling for UTF-8 control input; scopes may only lower it. Default: 8 MiB. */
     controlInputBytes?: number;
     nativeValueLimits?: Partial<CemValueArtifactLimits>;
@@ -765,6 +770,7 @@ export interface CemDeclarationRegistrationOptions {
  * cem-elements and are versioned as part of the declaration identity.
  */
 export const CEM_DECLARATIVE_CAPABILITIES = Object.freeze({
+    'live-preview': { behavior: CEM_LIVE_PREVIEW_CAPABILITY, behaviorIdentity: 'cem-elements-live-preview-v1' },
     'progress-status': { behavior: CEM_PROGRESS_STATUS_CAPABILITY, behaviorIdentity: 'cem-elements-progress-status-v1' },
     'disclosure-panel': { behavior: CEM_DISCLOSURE_PANEL_CAPABILITY, behaviorIdentity: 'cem-elements-disclosure-panel-v1' },
     'sort-action': { behavior: CEM_SORT_ACTION_CAPABILITY, behaviorIdentity: 'cem-elements-sort-action-v1' },
@@ -1753,6 +1759,7 @@ export class CemElementRuntime {
     private readonly logger?: Pick<Console, 'warn' | 'error'>;
     private readonly declarationsByDocument = new WeakMap<Document, Map<string, CompiledDeclaration>>();
     private readonly declarationScopeOption?: CemDeclarationScope;
+    private readonly restrictedPreview: boolean;
     private readonly diagnostics = new WeakMap<object, CemElementDiagnostic[]>();
     private readonly initializedInstances = new WeakSet<HTMLElement>();
     private readonly nativeCheckedPreservations = new WeakMap<HTMLElement, (element: Element) => boolean>();
@@ -1846,6 +1853,7 @@ export class CemElementRuntime {
         this.ariaReferenceProfile = resolveAriaReferenceProfile(options.ariaReferenceProfile);
         this.declarationTag = options.declarationTag ?? DEFAULT_DECLARATION_TAG;
         this.declarationScopeOption = options.declarationScope;
+        this.restrictedPreview = options.restrictedPreview ?? false;
         this.controlInputPolicy = resolveCemControlInputPolicy(options.controlInputBytes, options.declarationScope);
         this.nativeValueLimits = resolveCemValueArtifactLimits(options.nativeValueLimits, options.declarationScope);
         const policyStamp = options.scopePolicyStamp ?? DEFAULT_SCOPE_POLICY_STAMP;
@@ -1857,6 +1865,7 @@ export class CemElementRuntime {
             this.scopePolicyStamp += `:native-values:${edgeContentAddress('template-artifact', this.nativeValueLimits).digest}`;
         }
         if (this.ariaReferenceProfile !== DEFAULT_ARIA_REFERENCE_PROFILE) this.scopePolicyStamp += `:aria-reference:${this.ariaReferenceProfile}`;
+        if (this.restrictedPreview) this.scopePolicyStamp += ':restricted-preview-v1';
         this.privacyPolicyStamp = options.privacyPolicyStamp ?? DEFAULT_PRIVACY_POLICY_STAMP;
         this.logger = options.logger;
         this.moduleUrlRootOption = options.moduleUrlRoot;
@@ -2156,6 +2165,7 @@ export class CemElementRuntime {
             ]);
             return Promise.resolve();
         }
+        if (this.restrictedPreview && capabilityName === 'live-preview') throw new Error('cem.preview.nesting_denied');
         const capability = capabilityName
             ? CEM_DECLARATIVE_CAPABILITIES[capabilityName as CemDeclarativeCapabilityName]
             : undefined;
@@ -3264,6 +3274,15 @@ export class CemElementRuntime {
         });
     }
 
+    /** Preflight an explicitly owned declaration's CSS before mounting a group of views. */
+    async prepareDeclarationStylesheets(declaration: HTMLElement): Promise<void> {
+        await this.whenDeclarationSettled(declaration);
+        const compiled = this.declarationOwners.get(declaration)?.compiled;
+        if (!compiled) throw new Error('No active declaration to prepare');
+        assertCemDeclarationScopeActive(compiled.declarationScope);
+        await this.prepareRetainedStylesheets(compiled);
+    }
+
     private prepareRetainedStylesheets(compiled: CompiledDeclaration): Promise<void> {
         const transport = this.retainedStylesheets;
         if (!transport || compiled.mode === 'xslt') return Promise.resolve();
@@ -3848,6 +3867,7 @@ export class CemElementRuntime {
                 const entries = registry.takeCommits();
                 if (!entries) throw new Error('superseded registry preparation');
                 const bounds = this.ensureRenderBounds(instance, this.ensureDataIsland(instance));
+                if (this.restrictedPreview) validateLivePreviewFrames(result.frames);
                 const patch = preparePatchFramesForRange(bounds, result.frames, revision, instance.ownerDocument,
                     this.processingPatchOptions(instance, compiled));
                 return { entries, registryConnection: registry, instanceStyles: styles, patch,
@@ -4037,6 +4057,7 @@ export class CemElementRuntime {
         token: number,
         uses: readonly CemElementPlacementUse[] = [],
     ): Promise<void> {
+        if (this.restrictedPreview) validateLivePreviewFrames(frames);
         const marker = (node: SerializedNode): boolean => node.kind === 'element'
             && (Object.keys(node.attributes).some(name => name.startsWith('data-cem-placement-ref-')) || node.children.some(marker));
         const addsPlacement = frames.some(frame => frame.type === 'ops' && frame.ops.some(op =>
@@ -4082,7 +4103,7 @@ export class CemElementRuntime {
             for (let node: Node | null = root.nodeType === 1 ? root : walker.nextNode(); node; node = walker.nextNode()) {
                 if (++visited > this.nativeValueLimits.maxValues) throw new Error('Native row DOM mapping exceeds bounds');
                 const identity = (node as HTMLElement & { cemRenderNodeId?: string }).cemRenderNodeId;
-                if (!identity || !required.has(identity) || !(node instanceof HTMLElement)) continue;
+                if (!identity || !required.has(identity) || !isDomInstance(node, 'HTMLElement')) continue;
                 if (byId.has(identity)) throw new Error('Ambiguous native render node identity');
                 byId.set(identity, node);
             }
@@ -5815,7 +5836,7 @@ export class CemElementRuntime {
         declaration: LocalStorageDeclaration,
     ): void {
         const window = instance.ownerDocument.defaultView;
-        const storage = localStorageForWindow(window);
+        const storage = this.restrictedPreview ? null : localStorageForWindow(window);
         if (!storage || !window) {
             this.recordDiagnostics(instance, [
                 resourceDiagnostic(
@@ -6122,7 +6143,7 @@ export class CemElementRuntime {
         active: ActiveLocalStorageResource,
     ): () => void {
         const window = instance.ownerDocument.defaultView;
-        const storage = localStorageForWindow(window);
+        const storage = this.restrictedPreview ? null : localStorageForWindow(window);
         if (!window || !storage) {
             return () => undefined;
         }
@@ -6154,7 +6175,7 @@ export class CemElementRuntime {
         declaration: LocationElementDeclaration,
         writer: number,
     ): void {
-        const window = instance.ownerDocument.defaultView;
+        const window = this.restrictedPreview ? null : instance.ownerDocument.defaultView;
         if (!window) {
             this.recordDiagnostics(instance, [
                 resourceDiagnostic(
@@ -6775,6 +6796,7 @@ export class CemElementRuntime {
         token: number,
         uses: readonly CemElementPlacementUse[] = [],
     ): Promise<void> {
+        if (this.restrictedPreview) validateLivePreviewNodes(renderPlan.nodes);
         if (!uses.length && placementRoutes(renderPlan).length) throw new Error('Foreign placement plan needs fresh native admission');
         return this.publishElementPlacements(instance, token, uses, () => this.commitRenderPlanUnchecked(instance, compiled, island, renderPlan, token));
     }
@@ -9914,15 +9936,15 @@ function isWordBoundary(value: string | undefined): boolean {
 
 /** Event values come from live native or form-associated custom controls. */
 function formControlEventValue(target: EventTarget | null): string | null {
-    if (target instanceof HTMLButtonElement || target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) {
+    if (isDomInstance(target, 'HTMLButtonElement') || isDomInstance(target, 'HTMLInputElement') || isDomInstance(target, 'HTMLTextAreaElement') || isDomInstance(target, 'HTMLSelectElement')) {
         return target.value;
     }
-    if (target instanceof HTMLElement && (target.constructor as typeof HTMLElement & { formAssociated?: boolean }).formAssociated === true) {
+    if (isDomInstance(target, 'HTMLElement') && (target.constructor as typeof HTMLElement & { formAssociated?: boolean }).formAssociated === true) {
         const value = (target as HTMLElement & { value?: unknown }).value;
         return typeof value === 'string' ? value : null;
     }
-    const button = target instanceof Element ? target.closest('button') : null;
-    if (button instanceof HTMLButtonElement) {
+    const button = isDomInstance(target, 'Element') ? target.closest('button') : null;
+    if (isDomInstance(button, 'HTMLButtonElement')) {
         return button.value;
     }
     return null;
@@ -9934,14 +9956,14 @@ function evaluateSliceEventValue(
     slices: Record<string, unknown>,
 ): TemplateValue {
     const target = event.target ?? event.currentTarget;
-    if (target instanceof HTMLInputElement && (target.type === 'checkbox' || target.type === 'radio')) {
+    if (isDomInstance(target, 'HTMLInputElement') && (target.type === 'checkbox' || target.type === 'radio')) {
         const readsChecked = expression !== null && isExplicitCheckedExpression(expression);
         if (!target.checked && !readsChecked) {
             return '';
         }
     }
     if (expression === null) {
-        return formControlEventValue(target) ?? (target instanceof Element ? target.getAttribute('value') : null);
+        return formControlEventValue(target) ?? (isDomInstance(target, 'Element') ? target.getAttribute('value') : null);
     }
     return evaluateSliceValue(expression, event, slices);
 }
@@ -9985,7 +10007,7 @@ function evaluateSliceAtom(expression: string, event: Event, slices: Record<stri
         return event.type;
     }
     if (body === '$target.checked') {
-        return target instanceof HTMLInputElement ? target.checked : null;
+        return isDomInstance(target, 'HTMLInputElement') ? target.checked : null;
     }
     if (body === '$target.value') {
         return formControlEventValue(target);
@@ -10111,10 +10133,10 @@ function parseConcatArguments(value: string): string[] | null {
 
 function eventAliasValue(name: string, event: Event, target: EventTarget | null): unknown {
     if (name === 'value') {
-        return formControlEventValue(target) ?? (target instanceof Element ? target.getAttribute('value') : null);
+        return formControlEventValue(target) ?? (isDomInstance(target, 'Element') ? target.getAttribute('value') : null);
     }
     if (name === 'checked') {
-        return target instanceof HTMLInputElement ? target.checked : null;
+        return isDomInstance(target, 'HTMLInputElement') ? target.checked : null;
     }
     const record = event as unknown as Record<string, unknown>;
     const value = record[name];
@@ -10171,17 +10193,17 @@ function serializeEventPayload(event: Event, sliceValue: TemplateValue): Seriali
 }
 
 function serializeEventTarget(target: EventTarget | null): SerializedEventTarget | null {
-    if (!(target instanceof Element)) {
+    if (!isDomInstance(target, 'Element')) {
         return null;
     }
     return {
         tag: target.localName,
         id: target.getAttribute('id'),
         name: target.getAttribute('name'),
-        type: target instanceof HTMLInputElement ? target.type : target.getAttribute('type'),
+        type: isDomInstance(target, 'HTMLInputElement') ? target.type : target.getAttribute('type'),
         value: formControlEventValue(target),
-        checked: target instanceof HTMLInputElement ? target.checked : null,
-        dataset: target instanceof HTMLElement ? datasetEntries(target) : {},
+        checked: isDomInstance(target, 'HTMLInputElement') ? target.checked : null,
+        dataset: isDomInstance(target, 'HTMLElement') ? datasetEntries(target) : {},
     };
 }
 

@@ -525,18 +525,52 @@ excluded from Git.
     generator now declares the built packages and source modules it imports.
     Canceled navigation refreshes stop before follow-up storage queries, so a
     disposed workbench cannot reopen IndexedDB through its background refresh.
-- [ ] Implement the live light-DOM `cem-element` login view and add browser
+- [x] Implement the live light-DOM `cem-element` login view and add browser
   evidence that a saved edit visibly changes it. Keep Studio UI declarative;
   add any missing reusable control/capability to the shared packages first.
-  - [ ] Design and implement the reusable live-preview boundary in shared
+  - [x] Design and implement the reusable live-preview boundary in shared
     packages, with explicit resource ownership and lifecycle cleanup. Alert the
     user if a new JavaScript UI capability is required in `cem-elements`.
-  - [ ] Add the live Login view as ordinary project resources/configurations,
+  - [x] Add shared preview fixtures for script/navigation/storage/network denial,
+    UTF-8 resources, interactive light DOM, property controls, semantic token
+    styling/overrides, replacement/disposal and independent frames.
+  - [x] Add the live Login view as ordinary project resources/configurations,
     then prove saved edits, reload and independent offline copies through native
     and browser fixtures. Keep example storage/theme state independent of Studio.
-- [ ] After the remaining presentation functionality, add native CEM-QL source
-  Parse/Inspect and standalone-expression formatter adapters. Keep unsupported
-  identities explicit instead of falling back to CEM-ML or inventing wrappers.
+  - Verification: five native Amsterdam sample fixtures, 130 Studio browser
+    cases and 16 shared preview/component/form-control plays pass. The deployed
+    workspace proves real pointer/keyboard interaction, persisted versus unsaved
+    templates, saved HTML data, offline reload, independent copies and the
+    unchanged Studio theme key. Normal/forced-color paint, inherited spacing
+    overrides and automated accessibility pass. Parent-realm inspection keeps
+    Playwright's child-realm listeners out of the script-disabled frame; native
+    input is retained and the zero-console-error assertion remains strict.
+    The full serial 52-task Studio check passes, including synchronized release
+    evidence and clean consumer installation. Runtime lint/build and Studio
+    lint/typecheck pass (runtime story non-null assertions remain lint warnings).
+    Two clean builds match across 268 files with aggregate SHA-256
+    `9f3f1e21b5f4a5c49a09754d29b13ddfc747cd844ac0a17c11af2ae95cb12eee`.
+    Generated screenshots and Vitest attachments remain excluded from Git.
+  - CEM audit: `cem-media-preview` remains a declarative shared component. Its
+    new `live-preview` capability, scope/iframe lifecycle, explicit resource
+    admission and cross-realm control handling belong to `cem-elements`; the
+    user was alerted before adding this reusable JavaScript capability. Studio
+    only transports saved original source/resource text and shared library assets.
+    JSON names the transport envelope; native imports retain the data model.
+    Declaration CSS is preflighted before mounting; no component-local public
+    token defaults or Studio-owned DOM/event handlers are added. Login consumes
+    group gaps, container insets and comfort colors, accepts inherited token
+    overrides, and owns its light theme separately from the shell. Entered form
+    values are transient, and the local action does not submit credentials.
+    Scripts, navigation, ambient storage, nested previews and network fallback
+    are excluded. Initial live coverage uses native controls and shared text
+    fields, action and alert; it does not claim cross-frame parity for every
+    library capability. The template is bounded to 256 KiB, resources to 128 and
+    16 MiB total, and frame height to 4096 CSS pixels before scrolling.
+- [ ] Add native CEM-QL source Parse/Inspect adapters. Keep unsupported identities
+  explicit instead of falling back to CEM-ML.
+- [ ] Add native standalone-expression formatting without inventing module
+  wrappers; preserve exact source identity and diagnostic ranges.
 - [x] Record the requested reusable AI element and explicit data/UI context
   exposure in [roadmap Phase 3.3](../roadmap.md#33-ai-elements-and-dataui-context),
   covering Chrome built-in AI and WebMCP with shared-package ownership. Keep its

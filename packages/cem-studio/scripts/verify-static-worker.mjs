@@ -130,8 +130,8 @@ try {
         await exerciseExampleProjects(page, context);
         assert.deepEqual(browserErrors, []); assert.deepEqual(httpFailures, []);
         await mkdir(dirname(reportPath), { recursive: true });
-        await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, exampleProjects: true, validationRepair: true, templateOutput: true, offline: true, configurations: 12, graphProvenance: true }, null, 2)}\n`);
-        console.log('Verified deployed example project copies, schema failure/repair, template output, Save/reload graph provenance and twelve offline configurations.');
+        await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, exampleProjects: true, validationRepair: true, templateOutput: true, offline: true, configurations: 13, graphProvenance: true, liveView: true }, null, 2)}\n`);
+        console.log('Verified deployed example project copies, schema failure/repair, template output, Save/reload graph provenance and thirteen offline configurations.');
     } else if (lifecycleOnly) {
         const lifecycle = await exerciseProjectLifecycle(page, context);
         assert.deepEqual(browserErrors, []); assert.deepEqual(httpFailures, []);
@@ -837,7 +837,7 @@ async function exerciseProjectLifecycle(page, context) {
     }), graphRecords);
     await exerciseExampleProjects(page, context);
     await editor.dispose();
-    return { exampleProjects: true, projectSemanticComparison: true, projectQueryEquivalence: true, projectValidationRepair: true, projectTemplateOutput: true, projectGraphProvenance: true, graphEdgeAuthoring: true, graphNodeCreation: true, graphConfigurationAuthoring: true, stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
+    return { exampleProjects: true, projectSemanticComparison: true, projectQueryEquivalence: true, projectValidationRepair: true, projectTemplateOutput: true, projectGraphProvenance: true, projectLiveView: true, graphEdgeAuthoring: true, graphNodeCreation: true, graphConfigurationAuthoring: true, stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
         guardedDraftAndFocusRetained: true, exportedExactBytes: true, trashRestore: true, offlineReopen: true, accessibility };
 }
 
@@ -883,7 +883,7 @@ async function exerciseExampleProjects(page, context) {
     assert.ok((await snapshot()).draft.includes('demo.login.method_required'));
     assert.ok((await snapshot()).draft.includes('Intentional validation failure and repair'));
     const configurations = await page.evaluate(async projectId => (await globalThis.__cemStudioApplication.repository.query({ protocolVersion: 1, repository: 'studio-projects', operation: 'get-project', requestRevision: 1, parameters: { projectId } })).value.entries, firstId);
-    assert.equal(configurations.length, 12);
+    assert.equal(configurations.length, 13);
     assert.ok(configurations.every(configuration => !/^\d+\./.test(configuration.name)));
     await selectConfiguration(firstId, 'read-edit');
     const original = (await snapshot()).draft;
@@ -1136,6 +1136,70 @@ async function exerciseExampleProjects(page, context) {
         await selectConfiguration(secondId, configuration); await click('Run configuration');
         await assertView(expectedView);
     }
+    // Ordinary configuration: save source, rerun, reopen offline, and compare a fresh copy.
+    const themeBefore = await page.evaluate(() => localStorage.getItem('cem-studio-theme'));
+    await selectConfiguration(firstId, 'live-view');
+    const originalLive = (await snapshot()).draft;
+    // Inspect through the parent realm: injected child-realm event helpers cannot
+    // execute in a script-disabled frame. Keep genuine pointer/keyboard input.
+    const liveFrame = () => page.locator('iframe[part~="live-document"]');
+    const liveView = () => liveFrame().evaluate(frame => {
+        const document = frame.contentDocument;
+        const style = frame.contentWindow.getComputedStyle(document.querySelector('section[aria-label="Login example"]'));
+        return { heading: document.querySelector('h1').textContent.trim(),
+            actions: [...document.querySelectorAll('cem-action button')].map(button => button.textContent.trim()),
+            email: document.querySelector('cem-text-field[label=Email] input').value,
+            gap: parseFloat(style.rowGap), inset: parseFloat(style.paddingTop), background: style.backgroundColor, color: style.color };
+    });
+    const liveClick = async selector => {
+        const point = await liveFrame().evaluate((frame, selector) => {
+            frame.scrollIntoView({ block: 'center' });
+            const control = frame.contentDocument.querySelector(selector); control.scrollIntoView({ block: 'nearest' });
+            const outer = frame.getBoundingClientRect(), inner = control.getBoundingClientRect();
+            return { x: outer.x + frame.clientLeft + inner.x + inner.width / 2, y: outer.y + frame.clientTop + inner.y + inner.height / 2 };
+        }, selector);
+        await page.mouse.click(point.x, point.y);
+    };
+    const sourcePane = async () => { await page.getByRole('tab', { name: 'Source and command', exact: true }).click(); await settle(); };
+    const liveReady = async () => {
+        await page.getByRole('tab', { name: 'Results', exact: true }).click(); await settle();
+        await page.getByRole('tab', { name: 'Operation output', exact: true }).click(); await settle();
+        await page.waitForFunction(() => document.querySelector('cem-media-preview[mode=live] [role=status]')?.textContent === 'Live view ready');
+        assert.equal((await snapshot()).projection.previewKind, 'live-cem');
+    };
+    await sourcePane(); await click('Run configuration'); await liveReady();
+    assert.equal((await liveView()).heading, 'Sign in');
+    const livePaint = await liveView();
+    assert.ok(livePaint.gap > 0 && livePaint.inset > 0 && livePaint.background !== 'rgba(0, 0, 0, 0)' && livePaint.color !== livePaint.background, JSON.stringify(livePaint));
+    await page.emulateMedia({ forcedColors: 'active' });
+    const forcedPaint = await liveView(); assert.notEqual(forcedPaint.color, forcedPaint.background);
+    await page.emulateMedia({ forcedColors: 'none' });
+    await liveClick('cem-text-field[label=Email] input'); await page.keyboard.type('demo@example.com');
+    assert.equal((await liveView()).email, 'demo@example.com');
+    await liveClick('cem-action button');
+    await page.waitForFunction(() => document.querySelector('iframe[part~="live-document"]').contentDocument.querySelector('cem-alert')?.getAttribute('label') === 'Local interaction received. No credentials were sent.');
+    const editedLive = originalLive.replace('Sign in locally', 'Continue locally');
+    await sourcePane();
+    await page.getByRole('textbox', { name: 'CEM source', exact: true }).fill(editedLive); await settle();
+    await sourcePane(); await click('Run configuration'); await liveReady();
+    assert.deepEqual((await liveView()).actions, ['Sign in locally']);
+    await sourcePane(); await click('Save and validate'); await click('Run configuration'); await liveReady();
+    assert.deepEqual((await liveView()).actions, ['Continue locally']);
+    await selectConfiguration(firstId, 'semantics-html'); await sourcePane();
+    await page.getByRole('textbox', { name: 'CEM source', exact: true }).fill(originalHtml.replace('Sign in', 'Welcome Amsterdam')); await settle();
+    await click('Save and validate');
+    await selectConfiguration(firstId, 'live-view'); await sourcePane(); await click('Run configuration'); await liveReady();
+    assert.equal((await liveView()).heading, 'Welcome Amsterdam');
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForFunction(() => globalThis.__cemStudioApplication?.workbench?.snapshot().home && globalThis.__cemStudioApplication.workbench.snapshot().status !== 'loading'); await settle();
+    await selectConfiguration(firstId, 'live-view'); await sourcePane(); await click('Run configuration'); await liveReady();
+    assert.equal((await snapshot()).draft, editedLive);
+    assert.equal((await liveView()).heading, 'Welcome Amsterdam');
+    await selectConfiguration(secondId, 'live-view'); await sourcePane(); await click('Run configuration'); await liveReady();
+    assert.equal((await snapshot()).draft, originalLive);
+    assert.equal((await liveView()).heading, 'Sign in');
+    assert.equal((await liveView()).email, '');
+    assert.equal(await page.evaluate(() => localStorage.getItem('cem-studio-theme')), themeBefore);
     assert.equal(await page.evaluate(() => navigator.onLine), false);
 }
 

@@ -1174,3 +1174,28 @@ accessors and nested owners cannot acquire command authority. Unlike tree token
 identities, tab values may contain whitespace. Services can project admitted pane
 state through declaration slices, including revealing a retained editor before a
 source-range request; no tab DOM methods or app event listeners are needed.
+
+
+### Script-free live previews
+
+`mountCemLivePreview(frame, { source, sourceUri, resources, styles?, declarations?, onError? })`
+returns `{ ready, dispose }`. `resources` contains explicit `{ uri, contentType, text }`
+transport records, `styles` names supplied CSS resources, and optional `declarations`
+contains `{ tag, uri }` entries. The `live-preview` declarative capability backs
+`cem-media-preview mode="live"`; ordinary applications should use that component.
+
+Each mount creates a fresh iframe document, custom-element registry and root
+CEM declaration scope. The parent runtime owns compilation, native resource import,
+light-DOM rendering and event bindings. Source is installed as inert template text.
+No project-authored JavaScript runs. The frame allows same-origin access for the
+parent but has no script, form-navigation, popup or download permission. A fixed
+CSP denies network; only explicitly supplied native resource bodies can load.
+`restrictedPreview` additionally rejects active/navigation output before each patch,
+and disables ambient local-storage and location resources. This option alone is
+not a sandbox: use the shared mount, which establishes the complete boundary.
+
+Replacement/disposal cancels pending mounting, detaches resize observation, removes
+produced instances, disposes their scope and clears resource ownership. Form state
+is temporary; theme CSS must be supplied explicitly. Realm-aware input bindings use
+the control's owning window. The shared tests cover UTF-8 resources, denied output,
+interaction, replacement, independent frames and storage/location isolation.

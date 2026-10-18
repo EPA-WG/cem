@@ -1,7 +1,7 @@
 import { projectResourceUri } from './resource-reference.js';
 import { describeCemStudioOperationFields, describeCemStudioOperationGroups, editCemStudioOperationField, editCemStudioOperationFields } from './feature-tour.js';
 import { CEM_STUDIO_REPOSITORY_ID } from './repository.js';
-import { CEM_STUDIO_LIMITS, createCemStudioPreview, redactCemStudioSecrets } from './preview.js';
+import { CEM_STUDIO_LIMITS, createCemStudioPreview, createCemStudioLivePreview, redactCemStudioSecrets } from './preview.js';
 import { installCemStudioShellComponents } from './shell.js';
 import { mountCemView } from '@epa-wg/cem-elements';
 
@@ -888,12 +888,17 @@ export async function createCemStudioWorkbench(options) {
                         if (!error?.result || !error?.output || !error?.parsed) throw error;
                         outcome = { result: error.result, presentation: error.presentation, output: error.output, parsed: error.parsed };
                     }
+                    const live = persisted.currentEntry?.tags?.includes('live-preview')
+                        && persisted.project.resources.find(resource => resource.id === example.resourceId)?.role === 'template'
+                        && outcome.result.exitCode === 0
+                        ? await createCemStudioLivePreview({ source: persisted.text, sourceUri: example.referenceUri, dependencies: persisted.dependencies,
+                            components: persisted.currentEntry.tags.filter(tag => tag.startsWith('preview-component:')).map(tag => tag.slice('preview-component:'.length)) }) : undefined;
                     const latest = await readPersisted();
                     const operation = outcome.parsed.commandPath[0];
                     const stale = version !== editVersion || commandVersion !== commandEditVersion || state.dirty
                         || latest.projectRevision !== persisted.projectRevision || latest.resourceRevision !== persisted.resourceRevision || Boolean(outcome.result.stale);
                     const projection = freezeProjection({ ...projectCommandProjection(operation, commandProjectionMode(outcome.parsed, operation), outcome,
-                        persisted.text, { projectRevision: persisted.projectRevision, resourceRevision: persisted.resourceRevision, sha256: persisted.sha256 }, persisted.expected), stale });
+                        persisted.text, { projectRevision: persisted.projectRevision, resourceRevision: persisted.resourceRevision, sha256: persisted.sha256 }, persisted.expected), ...(live ? { preview: live } : {}), stale });
                     return publish({ ...state, status: stale ? 'projection-stale' : projection.exitCode === 0 ? 'projected' : 'projection-invalid', projection, operation });
                 } catch (error) { publish({ ...state, status: 'failed', error: normalizedError(error) }); throw error; }
             }

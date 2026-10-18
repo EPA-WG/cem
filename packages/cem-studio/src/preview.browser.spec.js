@@ -7,14 +7,20 @@ import {
     assertCemStudioResultSize,
     assertCemStudioSourceSet,
     createCemStudioPreview,
+    createCemStudioLivePreview,
     redactCemStudioSecrets,
 } from './preview.js';
 import { installCemStudioShellComponents } from './shell.js';
 
-let runtime;
+let runtime, loginView, loginData;
 beforeAll(async () => {
+    [loginView, loginData] = await Promise.all([
+        new URL('../../../examples/projects/login/views/login.cem', import.meta.url),
+        new URL('../../../examples/semantic/login.html', import.meta.url),
+    ].map(async url => { const response = await fetch(url); if (!response.ok) throw new Error(String(response.status)); return response.text(); }));
     const map = document.createElement('script'); map.type = 'importmap';
     map.textContent = JSON.stringify({ imports: {
+        '@epa-wg/cem-theme': new URL('../../cem-theme/dist/index.js', import.meta.url).href,
         '@epa-wg/cem-components/components.xhtml': new URL('../../cem-components/dist/components.xhtml', import.meta.url).href,
     } });
     document.head.append(map);
@@ -140,3 +146,39 @@ describe('CEM Studio bounded preview boundary', () => {
         ).toBe('GET https://[redacted]@example.test/file?token=[redacted]&safe=yes Authorization: Bearer [redacted]');
     });
 });
+
+
+it('renders the Login project through shared light DOM with saved data and template replacements', async () => {
+    const host = document.createElement('cem-media-preview'); host.setAttribute('mode', 'live');
+    host.setAttribute('label', 'Login live view'); document.body.append(host);
+    async function show(source, data, project = 'login-one') {
+        const preview = await createCemStudioLivePreview({ source, sourceUri: `studio://${project}/views/login.cem`, components: ['cem-text-field', 'cem-action', 'cem-alert'], dependencies: [{
+            path: `studio://${project}/data/login.html`, contentType: 'text/html', bytes: new TextEncoder().encode(data),
+        }] });
+        host.setAttribute('value', preview.source); host.setAttribute('source-uri', preview.sourceUri); host.setAttribute('resource-set', preview.resourceSet);
+        await runtime.whenRenderSettled(host);
+        await expect.poll(() => host.querySelector('[role=status]')?.textContent, { timeout: 15000 }).toBe('Live view ready');
+        return host.querySelector('iframe').contentDocument;
+    }
+    const first = await show(loginView, loginData);
+    expect(first.querySelector('h1').textContent).toBe('Sign in');
+    expect(first.querySelector('cem-text-field').shadowRoot).toBeNull();
+    expect(first.querySelector('input[type=password]')).not.toBeNull();
+    const surface = first.querySelector('section');
+    const style = () => first.defaultView.getComputedStyle(surface);
+    expect(parseFloat(style().paddingTop)).toBeGreaterThan(0);
+    expect(parseFloat(style().rowGap)).toBeGreaterThan(0);
+    expect(style().backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
+    // Consumer overrides remain inherited through the shared light-DOM root.
+    first.querySelector('cem-live-view').style.setProperty('--cem-inset-container', '23px');
+    first.querySelector('cem-live-view').style.setProperty('--cem-gap-group', '17px');
+    expect(style().paddingTop).toBe('23px'); expect(style().rowGap).toBe('17px');
+    first.querySelector('cem-action button').click();
+    await expect.poll(() => first.querySelector('cem-alert').getAttribute('label')).toContain('Local interaction received');
+    const edited = await show(loginView.replace('Sign in locally', 'Continue locally'), loginData.replace('Sign in', 'Welcome café'));
+    expect(edited.querySelector('h1').textContent).toBe('Welcome café');
+    expect(edited.querySelector('cem-action button').textContent).toContain('Continue locally');
+    const independent = await show(loginView, loginData, 'login-two');
+    expect(independent.querySelector('h1').textContent).toBe('Sign in');
+    expect(independent.querySelector('cem-alert').getAttribute('label')).toBe('This local example does not send credentials.');
+}, 30000);

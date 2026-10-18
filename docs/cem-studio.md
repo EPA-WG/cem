@@ -2690,7 +2690,7 @@ existing CEMT adapter and native HTML writer. Source heading/label/method edits
 and template instruction edits are reflected after Save and validate and Run;
 unsaved drafts remain separate from persisted execution. Results uses the
 existing shared sandboxed document preview and provides exact HTML for
-copy/download. Live light-DOM rendering remains a separate shared capability.
+copy/download. Live light-DOM rendering uses the shared `cem-media-preview` live capability described below.
 
 **Render Login graph** uses the ordinary `graphs/view.cem` resource and the
 existing native graph editor. Its import → view → export stages reuse saved
@@ -2744,8 +2744,8 @@ project root. New copies do not inherit edits from another copy. Catalog
 membership neither changes validation nor adds UI behavior.
 
 The deployed release gate requires `exampleProjects`, `projectSemanticComparison`,
-`projectQueryEquivalence`, `projectValidationRepair`, `projectTemplateOutput` and
-`projectGraphProvenance`.
+`projectQueryEquivalence`, `projectValidationRepair`, `projectTemplateOutput`,
+`projectGraphProvenance` and `projectLiveView`.
 It exercises the ordinary workspace, shared-source editing, native execution,
 source selection, saved-versus-unsaved repair,
 repeat failure/repair, independent copies and offline reload. Separate generic
@@ -2755,11 +2755,28 @@ startup is verified to leave a fresh project repository empty.
 
 All visible controls remain XHTML/CEM-ML compositions of shared CEM components.
 JavaScript handles archive loading, integrity checks and repository/engine
-orchestration. No new UI JavaScript capability or application CSS is needed.
+orchestration. The live-preview lifecycle is shared JavaScript in `cem-elements`; no Studio-owned UI JavaScript is added.
 
 The [active checklist](todo.md#amsterdam-presentation-samples-active-studio-priority)
 and [presentation audit](presentation/declarative-amsterdam-2026-handoff.md#studio-sample-audit-2026-10-17)
 track the completed HTML/CEM and XPath/CEM-QL comparisons, native template
-output and Login graph/source provenance. The next presentation item is a live
-light-DOM `cem-element` view, using project resources and shared workspace
-capabilities.
+output and Login graph/source provenance. Login 2.5.0 also provides **Login live view** as its thirteenth ordinary configuration.
+`views/login.cem` is a template resource, with `data/login.html` as an explicit dependency.
+A successful persisted parse in a configuration tagged `live-preview` presents the
+saved source through `cem-media-preview mode="live"`. `preview-component:<tag>`
+tags select declarations from the supplied shared component bundle before mounting. Studio transports bounded
+original resource text and the packaged shared component/theme library; it does
+not render preview DOM or attach interaction handlers. The shared `cem-elements`
+capability owns the fresh script-free frame, declaration scope, resource resolver,
+light-DOM updates and cleanup. Original resource URIs remain tied to stable IDs.
+
+The preview uses local native imports with no network fallback. It rejects
+navigation/active output before patch publication and disables browser storage,
+location resources and nested previews. Its own theme and transient form state
+are independent of the Studio shell and other project copies. Saving a source or
+dependency and rerunning replaces the view; unsaved drafts leave persisted inputs
+unchanged. Saved sources reopen offline, while entered credentials are discarded.
+The existing static HTML output preview continues to deny scripts and styling.
+
+Native CEM-QL source Parse/Inspect and standalone-expression formatting are next;
+physical device acceptance remains behind presentation functionality.

@@ -261,7 +261,15 @@ const mediaPreview = componentBundle.match(/<cem-element\b[^>]*\btag="cem-media-
 assert.ok(mediaPreview, 'canonical media-preview declaration is missing');
 assert.match(mediaPreview, /default-src 'none'/);
 assert.match(mediaPreview, /@sandbox=""/);
-assert.doesNotMatch(mediaPreview, /allow-scripts|allow-same-origin/);
+assert.doesNotMatch(mediaPreview, /allow-scripts/);
+const documentBranch = mediaPreview.slice(mediaPreview.indexOf('mode == "document"'), mediaPreview.indexOf('mode == "live"'));
+assert.match(documentBranch, /@sandbox=""/);
+assert.doesNotMatch(documentBranch, /allow-same-origin/);
+assert.match(mediaPreview, /@sandbox=allow-same-origin/);
+const livePreviewRuntime = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-elements/dist/lib/live-preview.js'), 'utf8');
+assert.match(livePreviewRuntime, /script-src 'none'/);
+assert.match(livePreviewRuntime, /form-action 'none'/);
+assert.doesNotMatch(livePreviewRuntime, /allow-scripts/);
 assert.equal(packageMetadata.exports['.'].import, './dist/static/assets/@epa-wg/cem-studio/bootstrap.js');
 assert.equal(packageMetadata.exports['./shell'].import, './dist/static/assets/@epa-wg/cem-studio/shell.js');
 assert.equal(

@@ -28,7 +28,7 @@ Home offers **Login** and **Schema examples** under **Example projects**.
 **Create project from example** makes an independent editable copy, then
 **Projects → Open project** enters the common workspace. Existing projects keep
 their saved contents. Startup restores the last selection; a fresh profile opens
-Home without auto-installing a seed. Login's README resource carries instructions. Version 2.4.0 has twelve
+Home without auto-installing a seed. Login's README resource carries instructions. Version 2.5.0 has thirteen
 configurations, including XPath and **(CEM-QL)** variants of **Login semantics
 from HTML** and **Login semantics from CEM-ML**. Their queries select the XHTML `main` subtree; document
 wrappers and lexical formatting remain outside the comparison.
@@ -41,7 +41,7 @@ wrappers and lexical formatting remain outside the comparison.
 | Equivalent queries | Login has native XPath and CEM-QL module resources with the same complete 21-field contract for both source formats. Ready namespaces and bounded navigation are explicit; query modules can be edited, validated and rerun. | Preserve source ownership, prefix independence, Boolean presence and offline copy isolation. |
 | Template output | Two Login render configurations share an editable native CEMT view and complete expected HTML. Both sources support saved heading/label/method edits and template instruction edits. Results uses the shared sandboxed document preview and exact HTML copy/download. | Preserve exact HTML and saved source/template edits in direct and graph execution. |
 | Graph and source provenance | Login graph imports the saved CEM resource, applies the shared view and exports HTML. Existing graph controls edit its output destination; native URI/range rows open the template with draft/revision guards. Offline copies preserve independent graph/template bytes. | Constructed output maps to template instructions/expressions; arbitrary computed data lineage is not claimed. |
-| Live light-DOM view | Shared `cem-element` runtime exists. | Add a reusable preview capability and prove saved Login edits update it. |
+| Live light-DOM view | **Login live view** opens the saved CEM template and HTML data in the shared script-free preview. Shared fields/action/alert remain interactive; theme and transient state stay separate from Studio. | Saved template/data changes, offline reload and independent copies are covered by the deployed gate. |
 
 Native source/diagnostic contracts remain unchanged. Login archive updates and
 collection metadata never overwrite existing saved projects. Continue from the
@@ -68,7 +68,22 @@ Theme/forced-color, automated accessibility, packaging and clean consumer checks
 pass. UI stays declarative; native URI boundaries retain original source owners.
 Constructed/computed output maps to template instructions/expressions, without a
 claim of arbitrary per-character input lineage. Generated test artifacts remain
-excluded. The live light-DOM Login view is the next presentation implementation.
+excluded. The next implementation is native CEM-QL source Parse/Inspect and standalone-expression formatting.
+
+The Login live-view increment adds a shared `live-preview` capability in
+`cem-elements`, declarative `cem-media-preview mode="live"`, and an ordinary
+Login template/configuration. Five native sample fixtures, 130 Studio browser
+cases and 16 focused shared plays pass. Deployed evidence covers real typing and
+clicking, saved-versus-unsaved template changes, saved HTML data, offline reload,
+independent copies, theme isolation and normal/forced-color paint. No Studio UI
+JavaScript is added. Resource bodies remain original text until native import;
+script-free frames own separate declarations, styles and transient form state.
+Scripts, navigation, ambient storage and network fallback remain disabled.
+The complete serial 52-task Studio release gate passes, including clean consumer
+installation and synchronized evidence with `projectLiveView`. Two clean builds
+match across 268 files with SHA-256
+`9f3f1e21b5f4a5c49a09754d29b13ddfc747cd844ac0a17c11af2ae95cb12eee`.
+Generated screenshots and Vitest attachments remain excluded from Git.
 
 ## Resume after clearing context
 

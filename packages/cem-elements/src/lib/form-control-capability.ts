@@ -1,3 +1,4 @@
+import { isDomInstance } from './dom-realm.js';
 import type { CemProducedElementBehavior, CemProducedElementBehaviorContext } from './cem-elements.js';
 import { createCemEditorAttributeClaim, type CemEditorAttributeClaim } from './editor-attributes.js';
 import { createCemEditorDatalistClaim, type CemEditorDatalistClaim } from './editor-datalist.js';
@@ -345,7 +346,7 @@ function editorProvider(instance: HTMLElement, state: FormControlState): CemEdit
                     const current = () => valid() && !datalist.valid && editable(instance, state) && !state.composing
                         && control === controlFor(instance) && state.revision === request.revision
                         && state.authoredValue === instance.getAttribute('value') && (request.current?.() ?? true);
-                    if (!control || !current() || control instanceof HTMLInputElement && control.type === 'file') return false;
+                    if (!control || !current() || isDomInstance(control, 'HTMLInputElement') && control.type === 'file') return false;
                     const probe = control.cloneNode(false) as Control; probe.value = value;
                     if (probe.value !== value) return false;
                     const before = new InputEvent('beforeinput', { bubbles: true, composed: true, cancelable: true,
@@ -409,7 +410,7 @@ function implicitSubmit(instance: HTMLElement, state: FormControlState, event: K
     const control = controlFor(instance);
     const imeOwned = state.composing || event.isComposing || state.imePresses.has(event.code || event.key);
     if (!event.isTrusted || event.key !== 'Enter' || imeOwned || event.defaultPrevented
-        || event.target !== control || !(control instanceof HTMLInputElement)
+        || event.target !== control || !isDomInstance(control, 'HTMLInputElement')
         || !implicitSubmissionTypes.has(control.type) || control.form) return;
     // A task (not a microtask checkpoint between native listeners) lets outer
     // key handlers cancel first. The detached native input has no
@@ -428,7 +429,7 @@ function implicitSubmit(instance: HTMLElement, state: FormControlState, event: K
         }
         // Count native text controls and the equivalent form-control hosts.
         const blockers = [...form.elements].filter(node => {
-            const input = node instanceof HTMLElement && states.has(node) ? controlFor(node) : node;
+            const input = isDomInstance(node, 'HTMLElement') && states.has(node) ? controlFor(node) : node;
             return input instanceof HTMLInputElement && implicitSubmissionTypes.has(input.type);
         });
         if (blockers.length <= 1) form.requestSubmit();
