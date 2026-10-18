@@ -2792,5 +2792,11 @@ unchanged. Saved sources reopen offline, while entered credentials are discarded
 The existing static HTML output preview continues to deny scripts and styling.
 
 Native CEM-QL source Parse/Inspect and standalone-expression formatting are
-available. Remaining presentation-needed Login resources/configurations come next;
-physical device acceptance remains behind presentation functionality.
+available. Login 2.6.0 adds **Format Login (pretty)** and **Format Login (tabular)**
+as ordinary Convert configurations, bringing the project to fifteen configurations.
+Both use the saved CEM-ML source, preserve its semantic contract and produce plain
+copy/download output without overwriting it. Unsaved edits do not affect Run;
+saved Unicode edits, offline execution and independent copies are covered.
+Native CEM-ML HTML color output and a packaged standalone-expression evaluation
+example remain presentation gaps. Physical device acceptance remains behind
+presentation functionality.

@@ -660,8 +660,49 @@ excluded from Git.
 
 Next presentation functionality:
 
-- [ ] Audit the complete Login project against the required tutorial checkpoints;
-  close any remaining resource/configuration gaps through the common workspace.
+- [x] Audit the complete Login project against the required tutorial checkpoints;
+  identify remaining gaps and deliver the plain-formatting increment through
+  the common workspace.
+  - [x] Add explicit pretty/tabular Login Convert configurations over the shared
+    saved source and document the remaining color/expression presentation gaps.
+  - [x] Add native fixtures for both layouts, unchanged input, retained semantic
+    fields, plain output, idempotence and saved Unicode heading edits.
+  - [x] Add browser fixtures using the packaged configuration argv and deployed
+    offline Save/rerun/copy-isolation coverage through existing Studio controls.
+  - [x] Verify sample generation, browser/native tests and Studio release checks;
+    record the shared-component audit and update the presentation handoff.
+  - Audit: read/edit, validation repair, typed inspection, HTML conversion,
+    equivalent queries, native templates/graph/provenance and live view already
+    have project resources. Login 2.6.0 adds the missing pretty/tabular source
+    configurations, bringing the total to fifteen. Source-color output and a
+    packaged standalone-expression evaluation remain explicit follow-ups below;
+    complete rehearsal/participant delivery is not claimed.
+  - Evidence (2026-10-18): the new native fixture first failed on the absent
+    configurations, then passes both profiles, idempotence, source preservation,
+    Unicode heading edits and the complete 21-field semantic contract. All six
+    native Login sample/format tests and all 133 Studio browser cases pass.
+    Deployed offline checks prove unsaved versus saved Run, exact restored
+    outputs and fresh-copy isolation. The 52-task Studio gate passes on its first
+    run, including `projectSourceFormatting` release evidence, live view,
+    source inspection, automated accessibility/reflow, inherited theme/forced
+    colors, 32 schema examples and a clean seven-package consumer with one runtime
+    copy. Lint/typecheck and whitespace checks pass. Two clean builds match across
+    268 files / 175 declared assets, aggregate SHA-256
+    `d127039d3192495a9640225f8f91b80a1a4aef1d0e70b8e39a3bcda056841a3f`.
+    The historical Chromium crash did not recur; its unresolved cause remains
+    documented above. Generated screenshots and Vitest attachments are excluded.
+  - CEM audit: this increment is authored project data and guidance. Both
+    configurations call the existing shared native Convert formatter with exact
+    CEM-ML identity and plain output; formatting does not overwrite saved sources.
+    The existing declarative Studio workspace and shared controls own all UI.
+    No UI JavaScript capability, component CSS or public token default is added.
+    The native semantic check reads formatted CEM-ML directly; JSON is only the
+    explicitly selected scalar comparison report, with no AST handoff.
+- [ ] Complete native CEM-ML source-color output before adding a colored Login
+  presentation configuration. The 2026-10-18 audit confirms `html-css-vars` still
+  returns plain CEM-ML; retain the approved browser-highlighter slide fallback.
+- [ ] Package a standalone Login expression resource with evaluation and formatting
+  configurations, source-inspection guidance and saved-edit/offline fixtures.
 - [ ] After the core Login walkthrough, add the planned supplier-pipeline
   companion as an ordinary example project, reusing native commands and shared UI.
 - [ ] Determine whether the selected presentation configurations require

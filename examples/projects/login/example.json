@@ -1,7 +1,7 @@
 {
   "id": "login",
   "name": "Login",
-  "version": "2.5.2",
+  "version": "2.6.0",
   "description": "Login sources, equivalent queries, validation, native templates, a transformation graph with source provenance and an interactive light-DOM view.",
   "sources": [
     {
@@ -177,6 +177,66 @@
         "@name=input",
         "@value=\"Sign in\"",
         "@byte-offset="
+      ]
+    },
+    {
+      "id": "format-pretty",
+      "name": "Format Login (pretty)",
+      "kind": "conversion",
+      "source": "login-cem",
+      "description": "Format saved data/login.cem with the native pretty profile. Plain output is available for copy/download; formatting does not overwrite the source.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--to-content-type",
+        "application/cem",
+        "--to-schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--cemt-formatter-profile",
+        "pretty",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedText": [
+        "@name=email",
+        "@name=password",
+        "@method=post",
+        "@required",
+        "Sign in"
+      ]
+    },
+    {
+      "id": "format-tabular",
+      "name": "Format Login (tabular)",
+      "kind": "conversion",
+      "source": "login-cem",
+      "description": "Format saved data/login.cem with the native tabular profile. Plain output is available for copy/download; formatting does not overwrite the source.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--to-content-type",
+        "application/cem",
+        "--to-schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "none"
+      ],
+      "expectedText": [
+        "@name=email",
+        "@name=password",
+        "@method=post",
+        "@required",
+        "Sign in"
       ]
     },
     {

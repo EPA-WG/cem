@@ -4,6 +4,25 @@ Open any resource or configuration in the shared Studio workspace. Edit and save
 `data/login.cem`, then use **Validate login**, **Parse login**, or **Inspect login**.
 **Convert HTML to CEM-ML** uses `data/login.html` as its input.
 
+## Format the saved source
+
+**Format Login (pretty)** and **Format Login (tabular)** both read saved
+`data/login.cem` through native Convert with the exact CEM-ML identity. Pretty
+uses expanded closing lines; tabular compacts adjacent closing braces. The two
+layouts retain the same 21-field semantic contract used by the comparison queries.
+Results provides plain CEM-ML for copy/download, without ANSI escapes. Formatting
+produces a run result and never overwrites the source resource.
+
+Change the first `Sign in` heading to `Bienvenue 🍒`. Run before saving to see the
+persisted version; then **Save and validate** and rerun either format configuration
+to see the change. Restore and save the original heading to recover the baseline.
+Saved sources and commands work offline and remain independent in each copy.
+
+Source-color presentation is still a separate gap: native CEM-ML Convert currently
+returns plain text for `html-css-vars`. These configurations deliberately request
+`none`. The existing external slide preview uses the shared browser highlighter;
+Studio does not claim colored output from these plain formatting configurations.
+
 ## Intentional validation failure and repair
 
 `data/login-invalid.cem` is syntax-valid but omits `@method=post` from the form.
@@ -97,13 +116,12 @@ and execution remain available.
 
 ## Generate the Login view
 
-New version-2.5.2 copies have thirteen configurations. **Render Login from HTML**
+New version-2.6.0 copies have fifteen configurations. **Render Login from HTML**
 and **Render Login from CEM-ML** apply the shared `templates/view.cemt` resource
 to the saved source. Both produce the complete HTML in `expected/view.html`:
 an accessible heading and form, associated labels, autocomplete hints, required
 controls and the template-owned instruction. Results uses the existing shared
-sandboxed document preview and provides exact HTML for copy/download. A live
-light-DOM Studio view is tracked separately.
+sandboxed document preview and provides exact HTML for copy/download. The separate **Login live view** configuration provides interactive light-DOM rendering.
 
 Edit a heading, label or form method, **Save and validate**, then rerun its render
 configuration. Unsaved changes do not replace the persisted input. Open

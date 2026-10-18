@@ -1,4 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { parseCemStudioProjectBundle } from './file-system-provider.js';
 
 import {
     CEM_STUDIO_FEATURE_TOUR_SEED_ID,
@@ -39,6 +40,40 @@ afterEach(async () => {
 });
 
 describe('CEM Studio Feature Tour copies', () => {
+    it('runs both packaged Login formatting configurations on independent saved sources', async () => {
+        const response = await fetch(new URL('../generated/feature-tour/examples/login.cem-studio.json', import.meta.url));
+        expect(response.ok).toBe(true);
+        const bundle = parseCemStudioProjectBundle(new Uint8Array(await response.arrayBuffer()));
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        const source = bundle.project.resources.find(resource => resource.id === 'login-cem');
+        const original = new TextDecoder().decode(bundle.contents[source.id]);
+        const layouts = [];
+        for (const profile of ['pretty', 'tabular']) {
+            const entry = bundle.project.entries.find(entry => entry.id === `format-${profile}`);
+            expect(entry.resourceIds).toContain(source.id);
+            const command = JSON.parse(new TextDecoder().decode(bundle.contents[entry.runConfigResourceId]));
+            expect(command.argv).toContain(profile);
+            const format = async (text, projectId) => {
+                const result = await validator.runResourceCommand({ bytes: new TextEncoder().encode(text),
+                    uri: `studio://${projectId}/${source.path}`, contentType: source.contentType, schema: source.schema,
+                    projectId, projectRootUri: `studio://${projectId}/`, argv: command.argv });
+                expect(result.result.exitCode).toBe(0);
+                expect(result.output.contentType).toBe('application/cem');
+                expect(result.output.text).not.toContain('\u001b');
+                return result.output.text;
+            };
+            const baseline = await format(original, 'format-copy');
+            expect(baseline).toContain('@method=post');
+            expect(baseline).toContain('@required');
+            expect(await format(original.replace('Sign in', 'Bienvenue 🍒'), 'format-copy'))
+                .toBe(baseline.replace('Sign in', 'Bienvenue 🍒'));
+            expect(await format(original, 'independent-copy')).toBe(baseline);
+            expect(new TextDecoder().decode(bundle.contents[source.id])).toBe(original);
+            layouts.push(baseline);
+        }
+        expect(layouts[0]).not.toBe(layouts[1]);
+    }, 60_000);
+
     it('edits and runs the Login graph with named generated-output provenance in the browser worker', async () => {
         const validator = await createCemStudioBrowserValidator(); validators.push(validator);
         const bytes = text => new TextEncoder().encode(text);

@@ -28,7 +28,7 @@ Home offers **Login** and **Schema examples** under **Example projects**.
 **Create project from example** makes an independent editable copy, then
 **Projects → Open project** enters the common workspace. Existing projects keep
 their saved contents. Startup restores the last selection; a fresh profile opens
-Home without auto-installing a seed. Login's README resource carries instructions. Version 2.5.2 has thirteen
+Home without auto-installing a seed. Login's README resource carries instructions. Version 2.6.0 has fifteen
 configurations, including XPath and **(CEM-QL)** variants of **Login semantics
 from HTML** and **Login semantics from CEM-ML**. Their queries select the XHTML `main` subtree; document
 wrappers and lexical formatting remain outside the comparison.
@@ -36,6 +36,7 @@ wrappers and lexical formatting remain outside the comparison.
 | Required presentation content | Available project content | Remaining work |
 | --- | --- | --- |
 | Read/edit/validate/inspect | Login CEM-ML source with shared-source parse, validation and inspection configurations. | Preserve existing three reference warnings in expected results. |
+| Pretty/tabular source formatting | **Format Login (pretty)** and **Format Login (tabular)** use saved CEM-ML through native Convert; output is plain, copyable and downloadable. | Native CEM-ML HTML-color output still returns plain text; the approved external slide preview uses the shared browser highlighter. |
 | HTML import, conversion and semantic comparison | Login HTML resource, HTML-to-CEM-ML conversion, and two ordinary query configurations share a 21-field semantic contract with the CEM source. Native import retains decoded values and provenance; the query explicitly maps namespace/mirror differences. | Preserve the bounded comparison contract and expected values when adding later examples. |
 | Intentional failure and repair | Separate syntax-valid source omits the form method; owned teaching schema reports `demo.login.method_required`. | Continue to demonstrate source selection, saved repair/reload and repeat failure through the shared editor/diagnostics. |
 | Equivalent queries | Login has native XPath and CEM-QL module resources with the same complete 21-field contract for both source formats. Ready namespaces and bounded navigation are explicit; query modules can be edited, validated and rerun. | Preserve source ownership, prefix independence, Boolean presence and offline copy isolation. |
@@ -72,7 +73,8 @@ excluded. Native CEM-QL source Parse/Inspect is available from the shared source
 controls: select `queries/semantics.cemql`, then parse its AST/events or inspect
 its structure, diagnostics and source offsets without executing it. Both module
 and standalone-expression identities retain original source coordinates.
-Standalone-expression formatting is also available through an ordinary Convert
+A standalone-expression project resource and evaluation configuration remain to be packaged.
+Standalone-expression formatting is available through an ordinary Convert
 configuration with matching expression input/output identity. It uses the shared
 native token formatter without module wrappers; invalid source retains original
 diagnostic coordinates. Remaining presentation-needed Login resources and
@@ -92,6 +94,15 @@ installation and synchronized evidence with `projectLiveView`. Two clean builds
 match across 268 files with SHA-256
 `9f3f1e21b5f4a5c49a09754d29b13ddfc747cd844ac0a17c11af2ae95cb12eee`.
 Generated screenshots and Vitest attachments remain excluded from Git.
+
+The Login formatting audit increment (2.6.0) adds two ordinary saved-source
+Convert configurations: **Format Login (pretty)** and **Format Login (tabular)**.
+Six native sample/format tests and all 133 Studio browser cases pass. The full
+52-task release gate proves offline saved/unsaved formatting, restored output and
+independent copies, alongside existing Login workflows. The project keeps fifteen
+configurations; original sources are not overwritten. Native CEM-ML HTML coloring
+and a packaged standalone-expression evaluation remain the next presentation gaps.
+No new Studio UI JavaScript, component capability or styling is introduced.
 
 ## Resume after clearing context
 

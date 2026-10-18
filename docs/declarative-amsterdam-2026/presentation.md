@@ -306,9 +306,14 @@ lexical spelling or that arbitrary conversions are lossless.
 | Query / transform | Select part of the same document, evaluate an expression, and apply one prepared CEM-QL template to produce the web view. | Exact query/expression/template, graph, output, source-byte and transformation trace, and a visible effect from one participant edit. |
 | Render | Show the generated view through the prepared `<cem-element>` integration. | Browser result, light-DOM inspection, declarative data/events/query/template bindings, and the exact supported integration path. |
 
-The query/template and validation-error variant are preparation work, not yet
-verified tutorial files. Add their fixture actions to [docs/todo.md](../todo.md)
-before creating them, following the repository's native-first workflow.
+The Login project now packages validation failure/repair, equivalent XPath and
+CEM-QL modules, a native CEMT template and graph, source provenance, the light-DOM
+view, and pretty/tabular formatting configurations. The
+[Studio sample audit](../presentation/declarative-amsterdam-2026-handoff.md#studio-sample-audit-2026-10-17)
+records their supported boundaries. Native CEM-ML source-color output and a
+packaged standalone-expression evaluation example remain open in
+[docs/todo.md](../todo.md). Keep new fixture actions there before implementation;
+the complete presentation rehearsal and participant delivery are still separate.
 
 For structural inspection, follow the
 [repository presentation boundary](../../CLAUDE.md#cem-ml-presentation-boundary):
