@@ -8601,6 +8601,14 @@ pub(crate) fn execute_transform_template_typed_cem_tree_writer(
         request.identity,
         request.insertion_context,
     );
+    if transform_template_typed_cem_tree_html_color_profile(request.insertion_context).is_some() {
+        identity.target = TransformTemplateEncodingTarget {
+            content_type: HTML_CONTENT_TYPE.to_owned(),
+            schema: HTML_SCHEMA_URI.to_owned(),
+            category: "html-document".to_owned(),
+            context: None,
+        };
+    }
     identity.produces = TransformTemplateOutputProducedKind::Text;
     let (source_map, output_spans) = match identity.source_map_policy {
         TransformTemplateSourceMapPolicy::None => (None, Vec::new()),
@@ -9181,6 +9189,8 @@ struct TransformTemplateCemTreeRenderedText {
     line_ending: String,
     terminal_color_profile: Option<TransformTemplateColorOutputProfile>,
     markdown_color_profile: Option<TransformTemplateColorOutputProfile>,
+    html_color_profile: Option<TransformTemplateColorOutputProfile>,
+    html_color_ranges: Vec<(ByteRange, String)>,
 }
 
 impl TransformTemplateCemTreeRenderedText {
@@ -9210,6 +9220,16 @@ impl TransformTemplateCemTreeRenderedText {
         role: Option<&str>,
     ) {
         if text.is_empty() {
+            return;
+        }
+        if self.html_color_profile.is_some() {
+            if let Some(role) = role {
+                self.html_color_ranges.push((
+                    ByteRange::new(self.text.len() as u64, text.len() as u32),
+                    role.to_owned(),
+                ));
+            }
+            self.push_mapped(text, source_map);
             return;
         }
         let sgr = self
@@ -9284,6 +9304,33 @@ impl TransformTemplateCemTreeRenderedText {
     fn apply_text_edits(&mut self, mut edits: Vec<TransformTemplateRenderedTextEdit>) {
         edits.sort_by(|left, right| right.start.cmp(&left.start));
         for edit in edits {
+            // Keep presentation ranges in the same coordinate space as the final
+            // formatted text. Closing-scope compaction can replace several tokens.
+            let start = edit.start as u64;
+            let end = edit.end as u64;
+            let delta = edit.replacement.len() as i128 - (end - start) as i128;
+            let roles: BTreeSet<_> = self
+                .html_color_ranges
+                .iter()
+                .filter(|(range, _)| range.start < end && range.end() > start)
+                .map(|(_, role)| role.clone())
+                .collect();
+            self.html_color_ranges.retain_mut(|(range, _)| {
+                if range.end() <= start {
+                    true
+                } else if range.start >= end {
+                    range.start = transform_template_shift_byte_offset(range.start, delta);
+                    true
+                } else {
+                    false
+                }
+            });
+            if roles.len() == 1 && !edit.replacement.is_empty() {
+                self.html_color_ranges.push((
+                    ByteRange::new(start, edit.replacement.len() as u32),
+                    roles.into_iter().next().unwrap(),
+                ));
+            }
             self.text
                 .replace_range(edit.start..edit.end, &edit.replacement);
             self.adjust_output_spans_for_edit(
@@ -9292,6 +9339,76 @@ impl TransformTemplateCemTreeRenderedText {
                 edit.replacement.len() as u64,
             );
         }
+    }
+
+    fn finish_html_presentation(&mut self, tab_size: usize) {
+        let Some(profile) = self.html_color_profile.take() else {
+            return;
+        };
+        // Formatting and tabular compaction finish before HTML is emitted. The
+        // typed color overlay supplies roles; no lexer or JSON projection is used.
+        transform_template_ensure_text_ends_with_newline(&mut self.text);
+        self.html_color_ranges.sort_by_key(|(range, _)| range.start);
+        let mut boundaries = vec![0, self.text.len() as u64];
+        for (range, _) in &self.html_color_ranges {
+            boundaries.extend([range.start, range.end()]);
+        }
+        for span in &self.output_spans {
+            boundaries.extend([span.output_range.start, span.output_range.end()]);
+        }
+        boundaries.sort_unstable();
+        boundaries.dedup();
+        let color = TransformTemplateWriterTokenColorProfile::Html(profile);
+        let mut html =
+            crate::conversion_output::html_pre_container_prefix("cem-output-cem", tab_size);
+        let mut spans = Vec::new();
+        let mut colors = self.html_color_ranges.iter().peekable();
+        let mut origins = self.output_spans.iter().peekable();
+        for pair in boundaries.windows(2) {
+            let (start, end) = (pair[0], pair[1]);
+            while colors.peek().is_some_and(|(range, _)| range.end() <= start) {
+                colors.next();
+            }
+            while origins
+                .peek()
+                .is_some_and(|span| span.output_range.end() <= start)
+            {
+                origins.next();
+            }
+            let role = colors
+                .peek()
+                .filter(|(range, _)| range.start <= start && range.end() >= end)
+                .map(|(_, role)| role.as_str());
+            let text = transform_template_writer_token_rendered_text_for_role(
+                &self.text[start as usize..end as usize],
+                role,
+                Some(&color),
+            );
+            let output_range = ByteRange::new(html.len() as u64, text.len() as u32);
+            if let Some(span) = origins
+                .peek()
+                .filter(|span| span.output_range.start <= start && span.output_range.end() >= end)
+            {
+                let mut origin = span.origin.clone();
+                origin.push(SourceMapFrame {
+                    source_id: origin
+                        .frames
+                        .last()
+                        .map(|frame| frame.source_id)
+                        .unwrap_or(SourceId(0)),
+                    span: FrameSpan::Single(output_range),
+                    transform: TransformKind::InterpreterRender,
+                });
+                spans.push(OutputSpan {
+                    output_range,
+                    origin,
+                });
+            }
+            html.push_str(&text);
+        }
+        html.push_str("</pre>");
+        self.text = html;
+        self.output_spans = spans;
     }
 
     fn adjust_output_spans_for_edit(&mut self, start: u64, end: u64, replacement_len: u64) {
@@ -9701,6 +9818,26 @@ fn transform_template_rendered_text_close_scope_separator(indent: &str) -> Strin
     indent.to_owned()
 }
 
+fn transform_template_typed_cem_tree_html_color_profile(
+    context: &TransformTemplateEncodedArtifactInsertionContext,
+) -> Option<TransformTemplateColorOutputProfile> {
+    if transform_template_cem_tree_writer_syntax(context)
+        != TransformTemplateCemTreeWriterSyntax::Cem
+    {
+        return None;
+    }
+    context
+        .output_color_type
+        .as_deref()
+        .or(context.color_profile.as_deref())
+        .and_then(|selector| parse_transform_template_output_color_type(selector).ok())
+        .filter(|selection| selection.target.category == "html-color")
+        .and_then(|selection| {
+            TransformTemplateColorOutputProfile::html_from_selector(&selection.output_color_type)
+                .ok()
+        })
+}
+
 fn transform_template_typed_cem_tree_to_rendered_text(
     artifact: &CemtTreeArtifact,
     writer_boundary_context: &TransformTemplateEncodedArtifactInsertionContext,
@@ -9724,6 +9861,8 @@ fn transform_template_typed_cem_tree_to_rendered_text(
         terminal_color_profile,
         markdown_color_profile,
     );
+    rendered.html_color_profile =
+        transform_template_typed_cem_tree_html_color_profile(writer_boundary_context);
     rendered.line_ending = transform_template_line_ending_data_from_selector(
         typed_cemt_format_decision(formatted, "line-ending"),
     );
@@ -9746,6 +9885,10 @@ fn transform_template_typed_cem_tree_to_rendered_text(
         indent,
     );
     rendered.finish_terminal_color_boundary();
+    let tab_size = typed_cemt_format_decision(formatted, "tab-size")
+        .and_then(|value| value.parse().ok())
+        .unwrap_or_else(crate::conversion_output::default_formatter_tab_size);
+    rendered.finish_html_presentation(tab_size);
     Ok(rendered)
 }
 

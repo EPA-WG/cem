@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, extname, resolve, sep } from 'node:path';
@@ -18,6 +19,8 @@ const context = await browser.newContext({ serviceWorkers: 'allow' });
 const page = await context.newPage();
 page.setDefaultTimeout(30_000);
 const browserErrors = [];
+const sourceColorStyleDenials = [];
+const sourceColorStyleHashes = new Set();
 const httpFailures = [];
 const serviceWorkerErrors = [];
 
@@ -36,12 +39,26 @@ context.on('serviceworker', (worker) => {
 
 page.on('pageerror', (error) => browserErrors.push(error.message));
 page.on('console', (message) => {
+    // Restored projections can report CSP denials after their configuration has
+    // changed. Validate these against exact exported styles at every error gate.
+    const styleHash = message.text().match(/'sha256-([^']+)'/)?.[1];
+    if (message.type() === 'error' && message.location().url === 'about:srcdoc' && styleHash
+        && /^Applying inline style violates the following Content Security Policy directive 'style-src(?:-attr)? 'none''/.test(message.text())) {
+        sourceColorStyleDenials.push({ hash: styleHash, message: message.text() });
+        return;
+    }
     if (message.type() === 'error' && !message.text().startsWith('Failed to load resource:')) {
         browserErrors.push(message.text());
     } else if (message.text().startsWith('[cem-studio:feature-tour]')) {
         console.log(message.text());
     }
 });
+function assertNoUnexpectedBrowserErrors() {
+    assert.deepEqual(browserErrors, []);
+    assert.deepEqual(sourceColorStyleDenials.filter(report => !sourceColorStyleHashes.has(report.hash)), [],
+        'Only the exact styles exported by the source-color fixture may produce expected CSP denials');
+}
+
 page.on('response', (response) => {
     if (response.status() >= 400) httpFailures.push(`${response.status()} ${response.url()}`);
 });
@@ -135,13 +152,13 @@ try {
 
     if (presentationOnly) {
         await exerciseExampleProjects(page, context);
-        assert.deepEqual(browserErrors, []); assert.deepEqual(httpFailures, []);
+        assertNoUnexpectedBrowserErrors(); assert.deepEqual(httpFailures, []);
         await mkdir(dirname(reportPath), { recursive: true });
-        await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, exampleProjects: true, validationRepair: true, templateOutput: true, offline: true, configurations: 15, graphProvenance: true, liveView: true, sourceInspection: true, sourceFormatting: true }, null, 2)}\n`);
-        console.log('Verified deployed example project copies, schema failure/repair, template output, Save/reload graph provenance and fifteen offline configurations.');
+        await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, exampleProjects: true, validationRepair: true, templateOutput: true, offline: true, configurations: 16, graphProvenance: true, liveView: true, sourceInspection: true, sourceFormatting: true, sourceColors: true }, null, 2)}\n`);
+        console.log('Verified deployed example project copies, schema failure/repair, template output, Save/reload graph provenance and sixteen offline configurations.');
     } else if (lifecycleOnly) {
         const lifecycle = await exerciseProjectLifecycle(page, context);
-        assert.deepEqual(browserErrors, []); assert.deepEqual(httpFailures, []);
+        assertNoUnexpectedBrowserErrors(); assert.deepEqual(httpFailures, []);
         await mkdir(dirname(reportPath), { recursive: true });
         await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, source: 'graph-emitted-static-output', browser: { engine: 'chromium', version: browser.version(), platform: process.platform }, shell, lifecycle }, null, 2)}\n`, 'utf8');
         console.log('Verified deployed two-project lifecycle and automated accessibility acceptance.');
@@ -161,7 +178,7 @@ try {
         assert.equal(offline.themesStyled, true);
         assert.equal(offline.inheritedOverrides, true);
         assert.deepEqual(offline.errors, []);
-        assert.deepEqual(browserErrors, []);
+        assertNoUnexpectedBrowserErrors();
         assert.deepEqual(httpFailures, []);
         await mkdir(dirname(reportPath), { recursive: true });
         await writeFile(reportPath, `${JSON.stringify({ schemaVersion: 1, shell, hardening, offline }, null, 2)}\n`, 'utf8');
@@ -364,7 +381,7 @@ try {
     const offlineFileSystemFallback = await exerciseFileSystemFallback(page, 'offline-project');
     assert.equal(offlineFileSystemFallback.sha256, onlineFileSystemFallback.sha256);
     assert.equal(offlineFileSystemFallback.importedExact, true);
-    assert.deepEqual(browserErrors, []);
+    assertNoUnexpectedBrowserErrors();
     assert.deepEqual(httpFailures, []);
 
     const report = {
@@ -844,7 +861,7 @@ async function exerciseProjectLifecycle(page, context) {
     }), graphRecords);
     await exerciseExampleProjects(page, context);
     await editor.dispose();
-    return { exampleProjects: true, projectSemanticComparison: true, projectQueryEquivalence: true, projectValidationRepair: true, projectTemplateOutput: true, projectGraphProvenance: true, projectLiveView: true, projectSourceInspection: true, projectSourceFormatting: true, graphEdgeAuthoring: true, graphNodeCreation: true, graphConfigurationAuthoring: true, stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
+    return { exampleProjects: true, projectSemanticComparison: true, projectQueryEquivalence: true, projectValidationRepair: true, projectTemplateOutput: true, projectGraphProvenance: true, projectLiveView: true, projectSourceInspection: true, projectSourceFormatting: true, projectSourceColors: true, graphEdgeAuthoring: true, graphNodeCreation: true, graphConfigurationAuthoring: true, stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
         guardedDraftAndFocusRetained: true, exportedExactBytes: true, trashRestore: true, offlineReopen: true, accessibility };
 }
 
@@ -890,7 +907,7 @@ async function exerciseExampleProjects(page, context) {
     assert.ok((await snapshot()).draft.includes('demo.login.method_required'));
     assert.ok((await snapshot()).draft.includes('Intentional validation failure and repair'));
     const configurations = await page.evaluate(async projectId => (await globalThis.__cemStudioApplication.repository.query({ protocolVersion: 1, repository: 'studio-projects', operation: 'get-project', requestRevision: 1, parameters: { projectId } })).value.entries, firstId);
-    assert.equal(configurations.length, 15);
+    assert.equal(configurations.length, 16);
     assert.ok(configurations.every(configuration => !/^\d+\./.test(configuration.name)));
     await selectConfiguration(firstId, 'read-edit');
     const original = (await snapshot()).draft;
@@ -915,6 +932,44 @@ async function exerciseExampleProjects(page, context) {
         formattedLayouts.push(baseline);
     }
     assert.notEqual(formattedLayouts[0], formattedLayouts[1]);
+    const styleDenialsBefore = sourceColorStyleDenials.length;
+    await selectConfiguration(firstId, 'source-colors'); await click('Run configuration');
+    const sourceColors = (await snapshot()).projection.text;
+    assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().projection.output.contentType), 'text/html');
+    assert.ok(sourceColors.includes('--cem-color-') && sourceColors.includes('data-role='));
+    assert.equal((await snapshot()).projection.previewKind, 'sandboxed-html');
+    await page.getByRole('tab', { name: 'Results', exact: true }).click(); await settle();
+    const sourcePreview = page.locator('[data-cem-studio-preview] iframe');
+    assert.equal(await sourcePreview.getAttribute('sandbox'), '');
+    assert.ok((await sourcePreview.getAttribute('srcdoc')).includes(sourceColors));
+    await sourcePreview.scrollIntoViewIfNeeded();
+    const sourceAttribute = page.frameLocator('[data-cem-studio-preview] iframe').locator('[data-role="syntax.attribute"]').first();
+    await sourceAttribute.waitFor();
+    const sourceFrame = page.frameLocator('[data-cem-studio-preview] iframe');
+    assert.equal(await sourceFrame.locator('pre').textContent(), formattedLayouts[1]);
+    const exportedStyles = await sourceFrame.locator('pre[style], pre [style]').evaluateAll(elements => elements.map(element => element.getAttribute('style')));
+    assert.ok(exportedStyles.length > 0);
+    for (const style of exportedStyles) sourceColorStyleHashes.add(createHash('sha256').update(style).digest('base64'));
+
+    assert.ok((await sourceAttribute.getAttribute('style')).includes('font-weight: 700'));
+    assert.equal(await sourceAttribute.evaluate(element => getComputedStyle(element).fontWeight), '400');
+    assert.ok(sourceColorStyleDenials.length > styleDenialsBefore, 'The sandbox must report blocking the exported styles');
+    assertNoUnexpectedBrowserErrors();
+    await page.getByRole('tab', { name: 'Source and command', exact: true }).click(); await settle();
+    assert.equal(await page.evaluate(async () => {
+        const workbench = globalThis.__cemStudioApplication.workbench;
+        let downloaded;
+        await workbench.downloadProjection(async file => { downloaded = file; });
+        const output = workbench.snapshot().projection.output;
+        return downloaded.contentType === 'text/html' && downloaded.bytes.byteLength === output.byteLength
+            && downloaded.bytes.every((byte, index) => byte === output.bytes[index]);
+    }), true);
+    await page.getByRole('textbox', { name: 'CEM source', exact: true }).fill(original.replace('Sign in', 'Bienvenue 🍒')); await settle();
+    await click('Run configuration'); assert.equal((await snapshot()).projection.text, sourceColors);
+    await click('Save and validate'); await click('Run configuration');
+    assert.equal((await snapshot()).projection.text, sourceColors.replace('Sign in', 'Bienvenue 🍒'));
+    await page.getByRole('textbox', { name: 'CEM source', exact: true }).fill(original); await settle();
+    await click('Save and validate');
     const contract = await page.evaluate(async projectId => {
         const bundle = (await globalThis.__cemStudioApplication.repository.query({ protocolVersion: 1, repository: 'studio-projects', operation: 'export-project', requestRevision: 1, parameters: { projectId } })).value;
         return JSON.parse(new TextDecoder().decode(bundle.contents['login-semantic-contract']));
@@ -1231,6 +1286,8 @@ async function exerciseExampleProjects(page, context) {
         await selectConfiguration(secondId, `format-${profile}`); await sourcePane(); await click('Run configuration');
         assert.equal((await snapshot()).projection.text, formattedLayouts[index]);
     }
+    await selectConfiguration(secondId, 'source-colors'); await sourcePane(); await click('Run configuration');
+    assert.equal((await snapshot()).projection.text, sourceColors);
     await selectConfiguration(secondId, 'live-view'); await sourcePane(); await click('Run configuration'); await liveReady();
     assert.equal((await snapshot()).draft, originalLive);
     assert.equal((await liveView()).heading, 'Sign in');

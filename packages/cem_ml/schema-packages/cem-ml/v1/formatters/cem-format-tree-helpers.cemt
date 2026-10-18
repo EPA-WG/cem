@@ -20,20 +20,28 @@
         {body |
             {$ applyEdits(
                 appendFormatNode(
-                    call("cem.format-tree.build-envelope", {
-                        subject: call("cem.format-tree.build-nodes", { subject: $subject }),
-                        mode: $mode,
-                        formatterProfile: $formatterProfile,
-                        lineEnding: $lineEnding,
-                        indent: $indent,
-                        ordering: $ordering,
-                        wrapColumn: $wrapColumn
-                    }),
+                    appendFormatNode(
+                        call("cem.format-tree.build-envelope", {
+                            subject: call("cem.format-tree.build-nodes", { subject: $subject }),
+                            mode: $mode,
+                            formatterProfile: $formatterProfile,
+                            lineEnding: $lineEnding,
+                            indent: $indent,
+                            ordering: $ordering,
+                            wrapColumn: $wrapColumn
+                        }),
+                        {
+                            kind: "format-decision",
+                            name: "cemt-tree-patches",
+                            formatterRole: "formatter.cemt.patch",
+                            value: "applyEdits"
+                        }
+                    ),
                     {
                         kind: "format-decision",
-                        name: "cemt-tree-patches",
-                        formatterRole: "formatter.cemt.patch",
-                        value: "applyEdits"
+                        name: "tab-size",
+                        formatterRole: "formatter.tab-size",
+                        value: toString($tabSize)
                     }
                 ),
                 [{ kind: "set", path: "canonical", value: true }]

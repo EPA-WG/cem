@@ -2792,11 +2792,21 @@ unchanged. Saved sources reopen offline, while entered credentials are discarded
 The existing static HTML output preview continues to deny scripts and styling.
 
 Native CEM-QL source Parse/Inspect and standalone-expression formatting are
-available. Login 2.6.0 adds **Format Login (pretty)** and **Format Login (tabular)**
-as ordinary Convert configurations, bringing the project to fifteen configurations.
-Both use the saved CEM-ML source, preserve its semantic contract and produce plain
+available. Login 2.7.0 includes **Format Login (pretty)** and **Format Login (tabular)**
+as ordinary Convert configurations, alongside **Export Login source colors (HTML)**,
+for sixteen configurations. The two plain formatters use the saved CEM-ML source,
+preserve its semantic contract and produce plain
 copy/download output without overwriting it. Unsaved edits do not affect Run;
 saved Unicode edits, offline execution and independent copies are covered.
-Native CEM-ML HTML color output and a packaged standalone-expression evaluation
-example remain presentation gaps. Physical device acceptance remains behind
+The source-color configuration exports escaped, tabular CEM-ML as HTML with native
+role spans and the shared CSS-variable palette. Copy/download retains the colors;
+the existing sandboxed HTML preview continues to deny styles and scripts. It does
+not execute the source as a form. A packaged standalone-expression evaluation
+example remains a presentation gap. Physical device acceptance remains behind
 presentation functionality.
+
+The 2.7.0 source-color checks pass, but the full release gate is currently blocked
+by V8 JavaScript OOM during the Login live-view workflow in long automated sessions
+with Chromium headless shell and full Chrome for Testing 148.0.7778.96. The cause
+is unresolved; source-color verification does not imply complete release or
+presentation readiness. Track the repair in [the active todo](todo.md).

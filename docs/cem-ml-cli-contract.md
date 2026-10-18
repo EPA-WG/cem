@@ -673,6 +673,18 @@ Current implementation status:
   primary output. Formatting cannot relabel a module as an expression or vice
   versa (`cem.ql.format_identity_unsupported`). HTML is an explicit presentation
   target; it escapes source text and reports the HTML output identity.
+  CEM-ML source Convert also accepts `html`, `html-css-vars`, `html-classes`, and
+  `html-inline-style` while selecting CEM-ML syntax as its conversion target.
+  The typed CEM-tree writer emits an escaped `<pre>` with role spans after
+  formatting and tabular closing-scope compaction. Text content equals the plain
+  formatter output; `tabSize` is carried into the preformatted container. Public
+  primary bytes and writer metadata report `text/html` and the HTML schema.
+  Retained source-frame chains are remapped to emitted HTML byte ranges; there
+  is no formatted-source reparse or JSON AST handoff. This presents CEM-ML source,
+  independently of converting a document to live HTML. The legacy `html` color
+  profile remains supported; an explicit `--output-color-type none` selects plain
+  CEM-ML. Class output needs a host stylesheet; CSS-variable output uses the
+  shared palette fallbacks and accepts inherited `--cem-color-*` overrides.
   Generic XML remains an explicit conversion/export target and is not inferred
   as a presentation for CEM-ML AST, DOM, or event projections.
   Transform config and CEM-native template schema targets

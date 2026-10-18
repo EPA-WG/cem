@@ -18,10 +18,14 @@ persisted version; then **Save and validate** and rerun either format configurat
 to see the change. Restore and save the original heading to recover the baseline.
 Saved sources and commands work offline and remain independent in each copy.
 
-Source-color presentation is still a separate gap: native CEM-ML Convert currently
-returns plain text for `html-css-vars`. These configurations deliberately request
-`none`. The existing external slide preview uses the shared browser highlighter;
-Studio does not claim colored output from these plain formatting configurations.
+**Export Login source colors (HTML)** uses the native tabular writer with
+`--output-color-type html-css-vars`. Copy/download contains escaped CEM-ML inside
+`<pre>` and role-tagged spans, with HTML output identity and inherited
+`--cem-color-*` properties plus the shared palette fallbacks. Open the exported
+HTML to see source colors; it contains source text, not an active Login form.
+Studio's existing sandboxed HTML preview blocks styles and scripts, so colors
+are not displayed there. The plain configurations still request `none`.
+The approved external slide preview remains unchanged.
 
 ## Intentional validation failure and repair
 

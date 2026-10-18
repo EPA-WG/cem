@@ -18053,8 +18053,13 @@ mod tests {
                 "wrapping",
                 "whitespace",
                 "cemt-tree-patches",
+                "tab-size",
             ]
         );
+        assert!(matches!(
+            &overlay.operations[7].kind,
+            CemtFormatOperationKind::Decision { value } if value == "8"
+        ));
         assert!(matches!(
             overlay.operations[0].kind,
             CemtFormatOperationKind::Marker

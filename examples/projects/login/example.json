@@ -1,7 +1,7 @@
 {
   "id": "login",
   "name": "Login",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "description": "Login sources, equivalent queries, validation, native templates, a transformation graph with source provenance and an interactive light-DOM view.",
   "sources": [
     {
@@ -236,6 +236,35 @@
         "@name=password",
         "@method=post",
         "@required",
+        "Sign in"
+      ]
+    },
+    {
+      "id": "source-colors",
+      "name": "Export Login source colors (HTML)",
+      "kind": "conversion",
+      "source": "login-cem",
+      "description": "Export the saved Login source as escaped, colored HTML. Copy/download preserves the native source colors; the sandboxed Studio preview blocks styles.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "application/cem",
+        "--schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--to-content-type",
+        "application/cem",
+        "--to-schema",
+        "https://cem.dev/ns/cem-ml/1",
+        "--cemt-formatter-profile",
+        "tabular",
+        "--output-color-type",
+        "html-css-vars"
+      ],
+      "expectedText": [
+        "<pre class=\"cem-output cem-output-cem\"",
+        "data-role=\"syntax.",
+        "--cem-color-",
         "Sign in"
       ]
     },

@@ -240,6 +240,15 @@ fn cemt_output_pipeline_for_scope(
         pipeline.writer_insertion_context.output_color_type = Some(output_color_type.to_owned());
         if parse_transform_template_output_color_type(output_color_type)
             .ok()
+            .is_some_and(|selection| selection.target.category == "html-color")
+            && pipeline.writer_insertion_context.content_type == CEM_ML_CONTENT_TYPE
+        {
+            pipeline.cemt_options.color_profile = Some("html".to_owned());
+            pipeline.cemt_insertion_context.color_profile = Some("html".to_owned());
+            pipeline.writer_insertion_context.color_profile = Some("html".to_owned());
+        }
+        if parse_transform_template_output_color_type(output_color_type)
+            .ok()
             .is_some_and(|selection| selection.target.category == "terminal-color")
         {
             pipeline.writer_insertion_context.color_capability = Some(output_color_type.to_owned());
@@ -286,6 +295,25 @@ fn convert_metadata_for_direct_output_pipeline(
     }
 }
 
+fn cem_output_pipeline_is_html(pipeline: &ConversionOutputPipeline) -> bool {
+    pipeline.writer_insertion_context.content_type == CEM_ML_CONTENT_TYPE
+        && pipeline
+            .writer_insertion_context
+            .output_color_type
+            .as_deref()
+            .or(pipeline.writer_insertion_context.color_profile.as_deref())
+            .and_then(|selector| parse_transform_template_output_color_type(selector).ok())
+            .is_some_and(|selection| selection.target.category == "html-color")
+}
+
+fn cem_output_identity(pipeline: &ConversionOutputPipeline) -> (&'static str, &'static str) {
+    if cem_output_pipeline_is_html(pipeline) {
+        (HTML_CONTENT_TYPE, HTML_SCHEMA_URI)
+    } else {
+        (CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI)
+    }
+}
+
 fn convert_output_pipeline_metadata(
     pipeline: &ConversionOutputPipeline,
 ) -> ConvertOutputPipelineMetadata {
@@ -329,9 +357,21 @@ fn convert_output_pipeline_metadata(
                     .color_profile
                     .clone()
                     .or_else(|| pipeline.cemt_options.color_profile.clone()),
-                content_type: Some(pipeline.writer_insertion_context.content_type.clone()),
-                schema: Some(pipeline.writer_insertion_context.schema.clone()),
-                category: pipeline.writer_insertion_context.category.clone(),
+                content_type: Some(if cem_output_pipeline_is_html(pipeline) {
+                    HTML_CONTENT_TYPE.to_owned()
+                } else {
+                    pipeline.writer_insertion_context.content_type.clone()
+                }),
+                schema: Some(if cem_output_pipeline_is_html(pipeline) {
+                    HTML_SCHEMA_URI.to_owned()
+                } else {
+                    pipeline.writer_insertion_context.schema.clone()
+                }),
+                category: if cem_output_pipeline_is_html(pipeline) {
+                    Some("html-document".to_owned())
+                } else {
+                    pipeline.writer_insertion_context.category.clone()
+                },
                 produces: Some(pipeline.writer_produces.as_str().to_owned()),
             },
         ],
@@ -1565,7 +1605,7 @@ fn convert_cem_tree_stream_with_cemt_pipeline(
     let output_spans =
         serde_json::to_value(pipeline_execution.output_spans).unwrap_or_else(|_| json!([]));
     Ok(json!({
-        "kind": "cem",
+        "kind": if cem_output_pipeline_is_html(&pipeline) { "html" } else { "cem" },
         "content": content,
         "sourceMap": source_map,
         "outputSpans": output_spans,
@@ -1617,9 +1657,21 @@ fn cem_presentation_primary_bytes(
         })?;
     let bytes = text.as_bytes().to_vec();
     Ok(PrimaryBytes {
-        content_type: CEM_ML_CONTENT_TYPE.to_owned(),
-        schema: Some(schema.to_owned()),
-        format_version: "cem-ml/1".to_owned(),
+        content_type: cem_output_identity(&pipeline).0.to_owned(),
+        schema: Some(
+            if cem_output_pipeline_is_html(&pipeline) {
+                HTML_SCHEMA_URI
+            } else {
+                schema
+            }
+            .to_owned(),
+        ),
+        format_version: if cem_output_pipeline_is_html(&pipeline) {
+            "html/1"
+        } else {
+            "cem-ml/1"
+        }
+        .to_owned(),
         hash_scheme: "cem-text/1+blake3".to_owned(),
         hash: text_content_hash(&bytes),
         bytes,
@@ -11728,8 +11780,8 @@ impl CemMlEngine for RealCemMlEngine {
                                     if let Some(content) = value.get("content").and_then(Value::as_str) {
                                         primary_bytes = Some(primary_bytes_from_text_document(
                                             content,
-                                            if is_xml { XML_CONTENT_TYPE } else { CEM_ML_CONTENT_TYPE },
-                                            if is_xml { XML_SCHEMA_URI } else { CEM_ML_SCHEMA_URI },
+                                            if is_xml { XML_CONTENT_TYPE } else { cem_output_identity(&pipeline).0 },
+                                            if is_xml { XML_SCHEMA_URI } else { cem_output_identity(&pipeline).1 },
                                         ));
                                     }
                                     primary = Some(value);
@@ -12462,8 +12514,8 @@ impl CemMlEngine for RealCemMlEngine {
                     if let Some(content) = cem_primary.get("content").and_then(Value::as_str) {
                         primary_bytes = Some(primary_bytes_from_text_document(
                             content,
-                            CEM_ML_CONTENT_TYPE,
-                            CEM_ML_SCHEMA_URI,
+                            cem_output_identity(&pipeline).0,
+                            cem_output_identity(&pipeline).1,
                         ));
                     }
                     cem_primary

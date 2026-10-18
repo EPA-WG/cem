@@ -28,7 +28,7 @@ Home offers **Login** and **Schema examples** under **Example projects**.
 **Create project from example** makes an independent editable copy, then
 **Projects → Open project** enters the common workspace. Existing projects keep
 their saved contents. Startup restores the last selection; a fresh profile opens
-Home without auto-installing a seed. Login's README resource carries instructions. Version 2.6.0 has fifteen
+Home without auto-installing a seed. Login's README resource carries instructions. Version 2.7.0 has sixteen
 configurations, including XPath and **(CEM-QL)** variants of **Login semantics
 from HTML** and **Login semantics from CEM-ML**. Their queries select the XHTML `main` subtree; document
 wrappers and lexical formatting remain outside the comparison.
@@ -36,7 +36,7 @@ wrappers and lexical formatting remain outside the comparison.
 | Required presentation content | Available project content | Remaining work |
 | --- | --- | --- |
 | Read/edit/validate/inspect | Login CEM-ML source with shared-source parse, validation and inspection configurations. | Preserve existing three reference warnings in expected results. |
-| Pretty/tabular source formatting | **Format Login (pretty)** and **Format Login (tabular)** use saved CEM-ML through native Convert; output is plain, copyable and downloadable. | Native CEM-ML HTML-color output still returns plain text; the approved external slide preview uses the shared browser highlighter. |
+| Pretty/tabular source formatting | **Format Login (pretty)** and **Format Login (tabular)** use saved CEM-ML through native Convert; output is plain, copyable and downloadable. | **Export Login source colors (HTML)** exports native escaped source colors. Studio’s sandboxed preview blocks styles; the approved external slide preview stays unchanged. |
 | HTML import, conversion and semantic comparison | Login HTML resource, HTML-to-CEM-ML conversion, and two ordinary query configurations share a 21-field semantic contract with the CEM source. Native import retains decoded values and provenance; the query explicitly maps namespace/mirror differences. | Preserve the bounded comparison contract and expected values when adding later examples. |
 | Intentional failure and repair | Separate syntax-valid source omits the form method; owned teaching schema reports `demo.login.method_required`. | Continue to demonstrate source selection, saved repair/reload and repeat failure through the shared editor/diagnostics. |
 | Equivalent queries | Login has native XPath and CEM-QL module resources with the same complete 21-field contract for both source formats. Ready namespaces and bounded navigation are explicit; query modules can be edited, validated and rerun. | Preserve source ownership, prefix independence, Boolean presence and offline copy isolation. |
@@ -101,8 +101,29 @@ Six native sample/format tests and all 133 Studio browser cases pass. The full
 52-task release gate proves offline saved/unsaved formatting, restored output and
 independent copies, alongside existing Login workflows. The project keeps fifteen
 configurations; original sources are not overwritten. Native CEM-ML HTML coloring
-and a packaged standalone-expression evaluation remain the next presentation gaps.
+was the next presentation gap; the 2.7.0 increment below closes it.
 No new Studio UI JavaScript, component capability or styling is introduced.
+
+The Login source-color increment (2.7.0) adds **Export Login source colors (HTML)**
+through the shared native typed writer. It preserves pretty/tabular text, escaped
+markup, source-frame chains and HTML output identity. The exported CSS-variable
+palette supports inherited overrides; Studio's static preview still blocks styles.
+All 21 focused native/sample tests and 134 Studio browser cases pass, as do native
+example verification, lint/typecheck and deterministic packaging (268 files / 175
+assets, SHA-256 `9cca99c285fa98ba99ac790ff1268b925274bce09b96cc310754dee4385df29a`).
+
+Focused deployed export checks also pass: exact downloaded HTML bytes/MIME,
+sandboxed source text and blocked styles, saved/unsaved edits, offline reload and
+independent customized/fresh copies. These checks stop before the live-view workflow.
+
+The full release gate remains blocked: Chromium headless shell and full Chrome
+for Testing 148.0.7778.96 both reported V8 JavaScript OOM during the Login live-view
+workflow. The cause is unresolved. Focused export verification does not establish
+full presentation readiness; investigate this before completing rehearsal. The
+source preview fixture verifies blocked styles against exact exported style hashes,
+including restored projections, while rejecting other console errors. It reads the
+actual sandboxed preview instead of creating extra styled documents under Studio's
+CSP. No production UI JavaScript or sandbox-policy change is introduced.
 
 ## Resume after clearing context
 

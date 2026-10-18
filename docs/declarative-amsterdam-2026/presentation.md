@@ -308,10 +308,10 @@ lexical spelling or that arbitrary conversions are lossless.
 
 The Login project now packages validation failure/repair, equivalent XPath and
 CEM-QL modules, a native CEMT template and graph, source provenance, the light-DOM
-view, and pretty/tabular formatting configurations. The
+view, pretty/tabular formatting and native HTML source-color export configurations. The
 [Studio sample audit](../presentation/declarative-amsterdam-2026-handoff.md#studio-sample-audit-2026-10-17)
-records their supported boundaries. Native CEM-ML source-color output and a
-packaged standalone-expression evaluation example remain open in
+records their supported boundaries. A packaged standalone-expression evaluation
+example remains open in
 [docs/todo.md](../todo.md). Keep new fixture actions there before implementation;
 the complete presentation rehearsal and participant delivery are still separate.
 

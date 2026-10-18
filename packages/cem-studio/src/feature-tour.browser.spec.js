@@ -74,6 +74,45 @@ describe('CEM Studio Feature Tour copies', () => {
         expect(layouts[0]).not.toBe(layouts[1]);
     }, 60_000);
 
+    it('exports packaged Login source colors as inert HTML with exact tabular text', async () => {
+        const response = await fetch(new URL('../generated/feature-tour/examples/login.cem-studio.json', import.meta.url));
+        expect(response.ok).toBe(true);
+        const bundle = parseCemStudioProjectBundle(new Uint8Array(await response.arrayBuffer()));
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        const source = bundle.project.resources.find(resource => resource.id === 'login-cem');
+        const original = new TextDecoder().decode(bundle.contents[source.id]);
+        const run = async (id, text, projectId = 'source-colors') => {
+            const entry = bundle.project.entries.find(entry => entry.id === id);
+            const command = JSON.parse(new TextDecoder().decode(bundle.contents[entry.runConfigResourceId]));
+            const result = await validator.runResourceCommand({ bytes: new TextEncoder().encode(text),
+                uri: `studio://${projectId}/${source.path}`, contentType: source.contentType, schema: source.schema,
+                projectId, projectRootUri: `studio://${projectId}/`, argv: command.argv });
+            expect(result.result.exitCode).toBe(0);
+            return result.output;
+        };
+        for (const text of [original, original.replace('Sign in', 'Bienvenue 🍒 <script>alert(1)</script> & café')]) {
+            const plain = await run('format-tabular', text);
+            const output = await run('source-colors', text);
+            expect(output.contentType).toBe('text/html');
+            const document = new DOMParser().parseFromString(output.text, 'text/html');
+            expect(document.querySelector('pre').textContent).toBe(plain.text);
+            expect(document.querySelectorAll('form, input, script')).toHaveLength(0);
+            expect(document.querySelectorAll('span[data-role][style]').length).toBeGreaterThan(0);
+            expect(output.text).toContain('--cem-color-');
+            expect(output.text).not.toContain('\u001b');
+            const host = globalThis.document.createElement('div');
+            host.style.setProperty('--cem-color-syntax-attribute', 'rgb(7, 38, 83)');
+            host.append(document.querySelector('pre'));
+            globalThis.document.body.append(host);
+            try {
+                expect(getComputedStyle(host.querySelector('[data-role="syntax.attribute"]')).color).toBe('rgb(7, 38, 83)');
+            } finally { host.remove(); }
+        }
+        expect((await run('source-colors', original, 'fresh-copy')).text)
+            .toBe((await run('source-colors', original)).text);
+        expect(new TextDecoder().decode(bundle.contents[source.id])).toBe(original);
+    }, 60_000);
+
     it('edits and runs the Login graph with named generated-output provenance in the browser worker', async () => {
         const validator = await createCemStudioBrowserValidator(); validators.push(validator);
         const bytes = text => new TextEncoder().encode(text);

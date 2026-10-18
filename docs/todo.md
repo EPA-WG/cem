@@ -698,9 +698,52 @@ Next presentation functionality:
     No UI JavaScript capability, component CSS or public token default is added.
     The native semantic check reads formatted CEM-ML directly; JSON is only the
     explicitly selected scalar comparison report, with no AST handoff.
-- [ ] Complete native CEM-ML source-color output before adding a colored Login
-  presentation configuration. The 2026-10-18 audit confirms `html-css-vars` still
-  returns plain CEM-ML; retain the approved browser-highlighter slide fallback.
+- [x] Emit native CEM-ML HTML source colors and expose them as a Login
+  presentation configuration. Preserve the approved slide preview independently.
+  - [x] Add native fixtures for HTML selectors, plain/terminal regressions, exact
+    pretty/tabular text, escaped markup/Unicode, source ranges and HTML identity.
+  - [x] Implement HTML presentation in the shared typed writer without reparsing
+    formatted source or using a JSON AST handoff; retain layout and provenance.
+  - [x] Add a Login colored-source export configuration and browser/deployed
+    fixtures for HTML text, inherited palette overrides, saved edits, download
+    identity and offline copies.
+  - [x] Verify the sandbox denies exported inline styles, matching source-preview
+    CSP denials to exact exported style hashes (including restored projections),
+    while keeping unknown styles and other console errors fatal.
+  - [x] Update docs and verify native/browser behavior and focused deployed export
+    checks; record sandbox limits and the unresolved full release blocker below.
+  - Shared-component audit: Login 2.7.0 adds **Export Login source colors (HTML)**
+    as an ordinary configuration (sixteen total). The shared Rust typed writer
+    consumes formatter/color overlays, finishes tabular compaction before HTML
+    escaping and retains tab-size decisions and source-frame chains. Attribute
+    output retains its existing attribute-name owner. HTML output identity is
+    explicit. Existing shared palette styles and inherited custom properties
+    are reused; no new UI JavaScript, component CSS or theme defaults are added.
+    Studio's existing static HTML preview still blocks styles/scripts; copy and
+    download retain source colors. The approved slide artifact stays unchanged.
+  - Evidence (2026-10-18): the source-color fixtures first failed on plain output;
+    all 3 now pass, including escaped markup/Unicode, exact pretty/tabular text,
+    custom tab size/CRLF, retained owner frames and HTML identity. All 7 typed
+    pipeline/writer regressions and 11 native Login/sample cases pass. All 134
+    Studio browser cases pass, including the packaged argv, inert HTML text and
+    inherited palette override. Lint/typecheck and native example verification
+    pass. Two clean builds match across 268 files / 175 declared assets, SHA-256
+    `9cca99c285fa98ba99ac790ff1268b925274bce09b96cc310754dee4385df29a`.
+  - Focused deployed verification also passes: exact HTML download bytes/MIME,
+    source text in the actual sandbox, expected style blocking, saved/unsaved
+    edits, offline reload and independent customized/fresh Login copies. These
+    isolated checks stop before the unresolved live-view workflow below.
+  - Release limit: the full 52-task gate is **not green**. Both Chromium headless
+    shell and full Chrome for Testing 148.0.7778.96 reported V8 JavaScript OOM
+    (`CALL_AND_RETRY_LAST`) during the Login live-view workflow. The host had ample
+    available memory. This does not establish the cause or prove it is the same
+    fault as the earlier dedicated-worker crashes. No assertions or browser
+    protections were weakened; generated screenshots/attachments remain excluded.
+- [ ] Diagnose and repair the Login live-view OOM in long Studio sessions, then
+  pass `verify:workspace-delivery` and the full Studio release gate. Keep fixes in
+  the appropriate shared engine/runtime and preserve declarative Studio UI.
+  This blocks complete presentation rehearsal; do not call the release gate green
+  on the strength of the focused source-color checks.
 - [ ] Package a standalone Login expression resource with evaluation and formatting
   configurations, source-inspection guidance and saved-edit/offline fixtures.
 - [ ] After the core Login walkthrough, add the planned supplier-pipeline
