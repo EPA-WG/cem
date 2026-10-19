@@ -3230,5 +3230,10 @@ remain separate from this repair. Shared `cem-elements` now also retains freshly
 evaluated unchanged DOM, preserving edited controls and contenteditable content,
 focus and selection across ordinary data updates in DOM and CEM-ML modes. Complete
 ownership/revision checks fence reuse; Studio adds no JavaScript UI behavior.
-Native evaluation and resource freshness still run. WASM restart/recovery remains
-future resilience work.
+Native evaluation and resource freshness still run. Shared root reconciliation now
+also preserves compatible DOM and edits when roots are inserted, removed or reordered,
+and explicitly clears empty output without removing data islands/styles. Produced
+children retain current resources on internal sibling moves; real removal or a
+change of parent keeps the ordinary context lifecycle. Studio consumes the shared
+runtime without application JavaScript for this behavior. WASM restart/recovery
+remains future resilience work.

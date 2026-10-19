@@ -559,6 +559,12 @@ complete owner/revision identities and releases consumed/cancelled snapshots.
 Browser fixtures cover native controls, editable content, focus/selection, changed
 bindings and worker/fallback integration. Evaluation and resource work still run;
 selective dependency/read tracking and pure evaluation memoization remain future work.
+Incremental root publication is now implemented through an atomic owned-range
+operation, including empty output. Matching native-derived root identities preserve
+controls, edits and focus/selection; corruption and ownership changes still recover.
+Same-parent produced-element moves retain resource/style owners in native and fallback
+DOM paths. Restricted preview and placement admission cover the new operation;
+render engine `1.7.0` and processing-host `v24` fence incompatible peers.
 
 Organize reuse into distinct ownership layers:
 

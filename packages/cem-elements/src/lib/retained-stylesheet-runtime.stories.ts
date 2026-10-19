@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect, waitFor } from 'storybook/test';
 import { CemElementRuntime, writeDataIslandHydrationData, type CemElementRuntimeOptions } from './cem-elements.js';
+import { applyRenderPlanToRange, diffRenderPlansToPatchFrames, preparePatchFramesForRange, renderPlanIdentity, type RenderPlan } from './projection.js';
 import { createCemDeclarationScope } from './declaration-scope.js';
 
 export default { title: 'CEM Elements/Retained Stylesheet Runtime', tags: ['test'] } satisfies Meta;
@@ -28,7 +29,7 @@ function fixture(root: HTMLElement, fallback: boolean, read?: Reader) {
             if (fallback) throw new Error('fixture selects fallback');
             return new Worker(request.scriptUrl, { type: request.type, name: request.name });
         } });
-    function declare(name: string, source: string, mode: 'dom' | 'cem-ml' = 'cem-ml', sharedScope?: string) {
+    function declare(name: string, source: string, mode: 'dom' | 'cem-ml' = 'cem-ml', sharedScope?: string, registration: Parameters<CemElementRuntime['registerDeclaration']>[1] = {}) {
         const tag = `${name}-${suffix}`;
         const declaration = document.createElement('div'); declaration.setAttribute('tag', tag); declaration.setAttribute('version', '1.0.0');
         if (sharedScope) declaration.setAttribute('scope', sharedScope);
@@ -36,7 +37,7 @@ function fixture(root: HTMLElement, fallback: boolean, read?: Reader) {
         if (mode === 'cem-ml') { template.setAttribute('type', 'text/cem-ml'); template.textContent = source; }
         else template.innerHTML = source;
         declaration.append(template); root.append(declaration);
-        runtime.registerDeclaration(declaration);
+        runtime.registerDeclaration(declaration, registration);
         return { declaration, tag, ready: runtime.whenDeclarationSettled(declaration).then(() => { expect(runtime.diagnosticsFor(declaration).filter(d => d.code !== 'cem.processing_host.worker_startup_fallback')).toEqual([]); }) };
     }
     return { runtime, scope, parent, suffix, declare, workerCalls: () => workerCalls,
@@ -643,5 +644,138 @@ export const DataUpdatesKeepEditedDom: Story = {
                 expect(f.runtime.diagnosticsFor(instance).filter(d => d.severity === 'error' || d.severity === 'fatal')).toEqual([]);
             } finally { f.dispose(); }
         }
+    },
+};
+
+export const NativeRootChangesKeepEditsAndStyles: Story = {
+    render: () => '<section aria-label="Native changing roots"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section')!;
+        for (const fallback of [false, true]) {
+            const f = fixture(root, fallback);
+            try {
+                const declaration = f.declare('changing-roots', css(':host { --root-fixture: installed; }')
+                    + `{attribute @name=state | base}{cem:if @test='state != "empty"' | {cem:if @test='state == "extra"' | {p | Extra}}{input @value=Original}{textarea | Original}{div @contenteditable=true | Original}}`);
+                await declaration.ready;
+                const instance = document.createElement(declaration.tag); root.append(instance);
+                await f.runtime.whenRenderSettled(instance);
+                const input = instance.querySelector('input')!, area = instance.querySelector('textarea')!, editor = instance.querySelector<HTMLElement>('[contenteditable]')!;
+                if (!input || !area || !editor) throw new Error(`missing initial native roots: ${JSON.stringify(f.runtime.diagnosticsFor(instance))}`);
+                const island = instance.querySelector('template[data-cem-island="instance"]');
+                const style = declaration.declaration.querySelector<HTMLStyleElement>('style[data-cem-declaration-style]');
+                if (!island || !style) throw new Error('missing retained native owners');
+                const sheet = style.sheet;
+                input.value = 'User input'; area.value = 'User area'; editor.textContent = 'User editor';
+                area.focus(); area.setSelectionRange(1, 4, 'backward');
+                for (const state of ['extra', 'base', 'extra', 'base']) {
+                    instance.setAttribute('state', state); await f.runtime.whenRenderSettled(instance);
+                    expect(!!instance.querySelector('p')).toBe(state === 'extra');
+                    expect(instance.querySelector('input')).toBe(input); expect(instance.querySelector('textarea')).toBe(area);
+                    expect([input.value, area.value, editor.textContent]).toEqual(['User input', 'User area', 'User editor']);
+                    expect(document.activeElement).toBe(area);
+                    expect([area.selectionStart, area.selectionEnd, area.selectionDirection]).toEqual([1, 4, 'backward']);
+                }
+                instance.setAttribute('state', 'empty'); await f.runtime.whenRenderSettled(instance);
+                expect(instance.querySelector('input,textarea,[contenteditable],p')).toBeNull();
+                expect(instance.querySelector('template[data-cem-island="instance"]')).toBe(island);
+                expect(style.sheet).toBe(sheet); expect(getComputedStyle(instance).getPropertyValue('--root-fixture').trim()).toBe('installed');
+                instance.setAttribute('state', 'base'); await f.runtime.whenRenderSettled(instance);
+                expect(instance.querySelector('input')).not.toBe(input); expect(instance.querySelector('input')!.value).toBe('Original');
+                expect(style.sheet).toBe(sheet);
+                expect(f.runtime.diagnosticsFor(instance).filter(d => d.severity === 'error' || d.severity === 'fatal')).toEqual([]);
+            } finally { f.dispose(); }
+        }
+    },
+};
+
+export const ProducedRootMovesKeepOwners: Story = {
+    render: () => '<section aria-label="Produced root moves"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section')!;
+        for (const fallback of [false, true]) for (const legacyMove of [false, true]) {
+            let reads = 0;
+            const f = fixture(root, fallback, async () => { reads++; return response(':host { --child-import: ready; }'); });
+            try {
+                const counts = { connected: 0, disconnected: 0 };
+                const declaration = f.declare('moving-child', css('@import "./moving.css";') + '{attribute @name=label | Original}{input @value={$label}}', 'cem-ml', undefined,
+                    { behaviorIdentity: 'root-lifecycle-probe-v1', behavior: { connected: () => { counts.connected++; }, disconnected: () => { counts.disconnected++; } } });
+                await declaration.ready;
+                const host = document.createElement('div'); root.append(host);
+                if (legacyMove) Object.defineProperty(host, 'moveBefore', { value: undefined });
+                const bounds = { start: document.createComment('start'), end: document.createComment('end') }; host.append(bounds.start, bounds.end);
+                const before: RenderPlan = { producedTag: 'moving-parent', instanceId: 'parent', templateArtifactId: 'parent-template', dataRevision: '1',
+                    scopePolicyStamp: 'policy', outputTarget: 'light-dom', nodes: [
+                        { kind: 'element', tag: 'p', namespace: null, renderNodeId: 'sibling', attributes: [], children: [] },
+                        { kind: 'element', tag: declaration.tag, namespace: null, renderNodeId: 'child', attributes: [], children: [] },
+                    ] };
+                const options = {
+                    preserveElementAttribute: (current: Element, _desired: Element, attribute: Attr) => current.localName === declaration.tag
+                        && ['data-cem-render-scope', 'data-cem-css-context', 'scope'].includes(attribute.name),
+                    preserveElementChildren: (current: Element) => current.localName === declaration.tag,
+                };
+                applyRenderPlanToRange(bounds, before, document, options);
+                const child = host.querySelector<HTMLElement>(declaration.tag)!; await f.runtime.whenRenderSettled(child);
+                const input = child.querySelector('input')!; input.value = 'User edit'; input.focus(); input.setSelectionRange(1, 4);
+                const island = child.querySelector('template[data-cem-island="instance"]');
+                const readCount = reads;
+                const style = declaration.declaration.querySelector<HTMLStyleElement>('style[data-cem-declaration-style]');
+                if (!style) throw new Error('missing produced child stylesheet');
+                const sheet = style.sheet;
+                const after = { ...before, dataRevision: '2', nodes: [...before.nodes].reverse() };
+                expect(preparePatchFramesForRange(bounds, diffRenderPlansToPatchFrames(before, after), renderPlanIdentity(after), document, options)
+                    .commit(renderPlanIdentity(after)).status).toBe('applied');
+                await f.runtime.whenRenderSettled(child);
+                // The fresh parent revision still evaluates/revalidates imports.
+                // A reorder preserves the live installation across publication.
+                expect(reads).toBeGreaterThan(readCount);
+                expect(counts).toEqual({ connected: 1, disconnected: 0 });
+                const movedStyle = declaration.declaration.querySelector<HTMLStyleElement>('style[data-cem-declaration-style]');
+                expect(movedStyle, `native key ${style.getAttribute('data-cem-style-key')} -> ${movedStyle?.getAttribute('data-cem-style-key')}`).toBe(style);
+                expect(style.sheet).toBe(sheet);
+                expect(host.querySelector(declaration.tag)).toBe(child); expect(child.querySelector('input')).toBe(input);
+                expect(child.querySelector('template[data-cem-island="instance"]')).toBe(island);
+                expect(input.value).toBe('User edit'); expect(document.activeElement).toBe(input);
+                expect([input.selectionStart, input.selectionEnd]).toEqual([1, 4]);
+                const updated = structuredClone(after); updated.dataRevision = '3';
+                const childInput = updated.nodes.find(node => node.kind === 'element' && node.tag === declaration.tag);
+                if (childInput?.kind !== 'element') throw new Error('missing produced child input');
+                childInput.attributes.push({ name: 'label', value: 'Model update' });
+                expect(preparePatchFramesForRange(bounds, diffRenderPlansToPatchFrames(after, updated), renderPlanIdentity(updated), document, options)
+                    .commit(renderPlanIdentity(updated)).status).toBe('applied');
+                await f.runtime.whenRenderSettled(child);
+                expect(input.value).toBe('Model update'); expect(reads).toBeGreaterThan(readCount);
+                const reverted = { ...before, dataRevision: '4' };
+                expect(preparePatchFramesForRange(bounds, diffRenderPlansToPatchFrames(updated, reverted), renderPlanIdentity(reverted), document, options)
+                    .commit(renderPlanIdentity(reverted)).status).toBe('applied');
+                await f.runtime.whenRenderSettled(child);
+                expect(input.value).toBe('Original');
+                const beforeReparent = reads;
+                // A cross-parent move still follows the ordinary context lifecycle.
+                const other = document.createElement('div'); root.append(other); other.append(child);
+                await f.runtime.whenRenderSettled(child);
+                expect(reads).toBeGreaterThan(beforeReparent);
+                expect(counts).toEqual({ connected: 2, disconnected: 1 });
+                const countAfterMove = reads; child.remove();
+                expect(counts).toEqual({ connected: 2, disconnected: 2 });
+                expect(child.isConnected).toBe(false); expect(reads).toBe(countAfterMove);
+            } finally { f.dispose(); }
+        }
+    },
+};
+
+export const DeclarationImportDataOnlyKeepsCssom: Story = {
+    render: () => '<section></section>', play: async ({ canvasElement }) => {
+        const f = fixture(canvasElement.querySelector('section')!, true, async () => response(':host { --import-data-only: ready; }'));
+        try {
+            const declaration = f.declare('import-data-only', css('@import "./data-only.css";') + '{attribute @name=label | Before}{p | {$label}}');
+            await declaration.ready;
+            const instance = document.createElement(declaration.tag); canvasElement.querySelector('section')!.append(instance);
+            await f.runtime.whenRenderSettled(instance);
+            const style = declaration.declaration.querySelector<HTMLStyleElement>('style[data-cem-declaration-style]')!;
+            const sheet = style.sheet;
+            instance.setAttribute('label', 'After'); await f.runtime.whenRenderSettled(instance);
+            expect(declaration.declaration.querySelector('style[data-cem-declaration-style]')).toBe(style);
+            expect(style.sheet).toBe(sheet);
+        } finally { f.dispose(); }
     },
 };

@@ -135,6 +135,40 @@ binding is intentional. Cancellation/stale admission cannot publish a candidate.
 Consumed or cancelled prepared patches release their frame snapshots, targets,
 range and option callbacks even while the consumed handle remains reachable.
 
+Root topology changes use a single atomic `reconcileRoots` operation carrying the
+fresh evaluated root list, including an explicit empty list. It cannot mix with
+targeted operations, and duplicate root identities are rejected. Matching element
+IDs, tags and namespaces retain live nodes; available text/comment IDs also match
+at the range boundary. Restored text without in-memory IDs reconciles through the
+range instead of emitting unresolvable text targets. Insertions/removals/reordering
+retain compatible controls and their edited state. Empty output removes owned
+roots while keeping bounds, the data island, styles and explicitly preserved nodes.
+A later nonempty render creates new nodes for roots that were actually removed.
+
+Root integrity compares live identities with the last committed root list, rather
+than treating a deliberate change in the next list as corruption. Damaged roots
+still trigger scope recovery; ownership changes still replace the scope. Root
+transactions retain normal revision, cancellation and prepared-range guards.
+Restricted live previews validate every serialized root and descendant, and
+placement markers continue to require fresh native admission. The render engine
+is `1.7.0`, with processing-host protocol `v24`; incompatible explicit frame engine
+versions are rejected before mutation.
+
+Same-parent moves use `moveBefore` when supported and ordinary insertion otherwise.
+A synchronous weak move flag lets produced CEM descendants retain live connections,
+resource consumers and stylesheet ownership through either internal reorder path.
+The flag holds no state/history and clears in `finally`. Both stylesheet document
+observers drain earlier genuine removals before the operation and exclude only the
+exact verified move records afterward. Weak listener subscriptions retain no prior
+consumer or installation history. Real removal and moves to
+another parent still follow the ordinary context/disconnect/reconnect lifecycle.
+Focus and input selection survive reorders; connected editable selection endpoints
+are restored on the fallback path. Child evaluation, provenance updates and import
+freshness continue normally; an authored child-input comparison cannot authorize
+skipping them. Matching stylesheet installations and live controls survive the
+fresh publication. Host snapshots and mutation invalidation retain their existing
+contract, including changed and reverted attributes and native capsule handoffs.
+
 This does not skip imports or provider/event/command evaluation. Selective native
 read tracking, pure evaluation memoization and whole-process OOM recovery are separate
 work; DOM identity does not authorize any of them.

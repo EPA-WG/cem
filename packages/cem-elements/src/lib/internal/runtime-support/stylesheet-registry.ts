@@ -1,3 +1,4 @@
+import { observeRenderOrderMoves, type CemRenderOrderMoveObserver } from '../../projection.js';
 import {
     assertCemDeclarationScopeActive, onCemDeclarationScopeDispose, type CemDeclarationScope,
 } from '../../declaration-scope.js';
@@ -71,6 +72,7 @@ export class CemStylesheetRegistry {
     private readonly cleanup = new Set<Promise<void>>();
     private readonly cleanupErrors: unknown[] = [];
     private readonly observer: MutationObserver | undefined;
+    private readonly moveObserver: CemRenderOrderMoveObserver | undefined;
     private disposed = false;
     private sourceRevision = 0;
     private readonly preparations = new Map<HTMLElement, CemPreparedStylesheetConnection>();
@@ -190,6 +192,18 @@ export class CemStylesheetRegistry {
         if (Observer) {
             this.observer = new Observer(records => this.reconcile(records));
             this.observer.observe(document, { childList: true, subtree: true });
+            const observer = this.observer;
+            this.moveObserver = {
+                before: () => this.reconcile(observer.takeRecords()),
+                after: (node, parent) => {
+                    const records = observer.takeRecords();
+                    const current = node.isConnected && node.parentNode === parent;
+                    this.reconcile(records.filter(record => !(current && record.target === parent
+                        && record.removedNodes.length === 1 && record.removedNodes[0] === node
+                        && (record.addedNodes.length === 0 || record.addedNodes.length === 1 && record.addedNodes[0] === node))));
+                },
+            };
+            observeRenderOrderMoves(document, this.moveObserver);
         }
     }
 

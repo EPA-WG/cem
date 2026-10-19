@@ -91,6 +91,81 @@ fn conditional_labels_preserve_native_disclosure_provenance_in_repeated_branches
     assert_eq!(before_maps[0], before_maps[1]);
 }
 
+#[test]
+fn conditional_root_changes_keep_surviving_native_output_and_provenance() {
+    let source = "{cem:if @test=visible | {p | Before}}{input @value=Original}{cem:if @test=visible | {p | After}}";
+    let artifact = compile_template(
+        source,
+        &CompileTemplateOptions {
+            host_bindings: vec!["visible".into()],
+            ..Default::default()
+        },
+    );
+    assert!(
+        artifact.diagnostics.is_empty(),
+        "{:?}",
+        artifact.diagnostics
+    );
+    let render = |visible| {
+        render_compiled_template(
+            &artifact,
+            &TemplateData::default().with_binding("visible", bool_value(visible)),
+        )
+    };
+    let before = render(false);
+    let expanded = render(true);
+    let after = render(false);
+    for plan in [&before, &expanded, &after] {
+        assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);
+    }
+    assert_eq!(before.nodes.len(), 1);
+    assert_eq!(expanded.nodes.len(), 3);
+    assert_eq!(render_plan_to_html(&before), render_plan_to_html(&after));
+    let input_source = |plan: &cem_ql::render::RenderPlan| {
+        plan.nodes
+            .iter()
+            .find_map(|node| match node {
+                RenderPlanNode::Element {
+                    tag, source_map, ..
+                } if tag == "input" => Some(source_map.clone()),
+                _ => None,
+            })
+            .unwrap()
+    };
+    assert!(!input_source(&before).frames.is_empty());
+    assert_eq!(input_source(&before), input_source(&expanded));
+    assert_eq!(input_source(&before), input_source(&after));
+    let empty_artifact = compile_template(
+        "{cem:if @test=visible | {p | Conditional}}",
+        &CompileTemplateOptions {
+            host_bindings: vec!["visible".into()],
+            ..Default::default()
+        },
+    );
+    assert!(
+        empty_artifact.diagnostics.is_empty(),
+        "{:?}",
+        empty_artifact.diagnostics
+    );
+    let empty = render_compiled_template(
+        &empty_artifact,
+        &TemplateData::default().with_binding("visible", bool_value(false)),
+    );
+    assert!(empty.diagnostics.is_empty(), "{:?}", empty.diagnostics);
+    assert!(empty.nodes.is_empty());
+    assert!(render_plan_to_html(&empty).is_empty());
+    let repeated = render_template(
+        "{cem:for-each @select='(3, 1, 2)' @as=n | {p | {$n}}}",
+        &TemplateData::default(),
+    );
+    assert!(
+        repeated.diagnostics.is_empty(),
+        "{:?}",
+        repeated.diagnostics
+    );
+    assert_eq!(repeated.rendered, "<p>3</p><p>1</p><p>2</p>");
+}
+
 fn record(fields: impl IntoIterator<Item = (&'static str, Vec<Item>)>) -> Item {
     Item::Record(
         fields

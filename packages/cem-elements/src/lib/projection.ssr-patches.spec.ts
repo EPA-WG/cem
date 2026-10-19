@@ -29,10 +29,10 @@ it('reconciles only the nearest element containing changed text and comments', (
     expect(ops(before, after)).toMatchObject([{ op: 'reconcileChildren', target: { id: 'inner' } }]);
 });
 
-it.each(['text', 'comment'] as const)('falls back to the owned range for changed root %s nodes', kind => {
+it.each(['text', 'comment'] as const)('reconciles the owned range for changed root %s nodes without targeting unretained IDs', kind => {
     const before = plan([{ kind, text: 'Before', renderNodeId: 'root' }, element([text('Kept')])]);
     const after = plan([{ kind, text: 'After', renderNodeId: 'root' }, element([text('Kept')])]);
-    expect(ops(before, after).map(op => op.op)).toEqual(['replaceScope', 'replaceScope']);
+    expect(ops(before, after).map(op => op.op)).toEqual(['reconcileRoots']);
     expect(ops(before, before)).toEqual([]);
 });
 

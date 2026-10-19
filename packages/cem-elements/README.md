@@ -240,6 +240,19 @@ Prepared patch handles drop snapshots, DOM targets and callbacks on consumption 
 cancellation. Fresh native evaluation and resource loading still run; no
 source-only render cache or Studio JavaScript is introduced.
 
+Root insertion/removal/reordering now reconciles the owned range atomically,
+including explicit empty output. Matching root identities retain DOM and edits;
+removed roots are recreated when they return. Bounds, data islands, styles and
+explicitly preserved runtime nodes survive an empty render. Committed root receipts
+still detect corruption and ownership changes still replace the scope. Available
+text IDs preserve root text nodes; restored text without IDs reconciles the range.
+Same-parent produced-element moves preserve their live resources through native and
+fallback DOM moves, including focus/editable selection. Child evaluation and imports
+remain fresh; matching CSSOM/control identity survives those publications. The root operation is isolated from targeted operations and
+covered by restricted-preview/placement admission. Render engine `1.7.0` and worker
+protocol `v24` fence this patch vocabulary; incompatible frame versions reject
+before mutation. Ordinary data/provider/resource evaluation remains unchanged.
+
 The asynchronous `executeNativeSsrInitialRenderFixture` evidence host now loads
 native payload CSS and returns `instanceStylesheetHtml` for direct host children
 outside the render range. Worker/fallback hydration preserves its DOM and animation

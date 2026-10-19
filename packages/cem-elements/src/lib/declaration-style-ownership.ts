@@ -8,7 +8,7 @@ import { placeManagedStylesheets } from './internal/runtime-support/stylesheet-d
 import { deferStylesheetNotifications, stylesheetNotificationsDeferred,
     notifyStylesheetLifecycle as runNotifications } from './internal/runtime-support/stylesheet-notifications.js';
 import type { PreparedPatchFrames, RenderRevision, PatchFramesApplyDiagnostic } from './projection.js';
-import { renderRevisionKey } from './projection.js';
+import { renderRevisionKey, observeRenderOrderMoves, type CemRenderOrderMoveObserver } from './projection.js';
 import type { CemPreparedStylesheetConnection, CemStylesheetConnection } from './internal/runtime-support/stylesheet-registry.js';
 import type { PreparedInstanceStylesheets } from './internal/runtime-support/instance-stylesheet-installation.js';
 
@@ -80,6 +80,7 @@ interface Owner {
 }
 
 interface DocumentOwnership {
+    moveObserver: CemRenderOrderMoveObserver;
     observer: MutationObserver;
     registrations: Set<WeakRef<DeclarationStyleOwnership>>;
 }
@@ -104,7 +105,20 @@ export class DeclarationStyleOwnership {
             const registrations = new Set<WeakRef<DeclarationStyleOwnership>>();
             const observer = new document.defaultView.MutationObserver(records => reconcileDocument(registrations, records));
             observer.observe(document, { childList: true, subtree: true });
-            ownership = { observer, registrations };
+            const moveObserver: CemRenderOrderMoveObserver = {
+                before: () => reconcileDocument(registrations, observer.takeRecords()),
+                after: (node, parent) => {
+                    const records = observer.takeRecords();
+                    // Only the exact verified same-parent renderer move is exempt.
+                    // Earlier removals were drained; all other records still retire owners.
+                    const current = node.isConnected && node.parentNode === parent;
+                    reconcileDocument(registrations, records.filter(record => !(current && record.target === parent
+                        && record.removedNodes.length === 1 && record.removedNodes[0] === node
+                        && (record.addedNodes.length === 0 || record.addedNodes.length === 1 && record.addedNodes[0] === node))));
+                },
+            };
+            ownership = { observer, registrations, moveObserver };
+            observeRenderOrderMoves(document, moveObserver);
             documents.set(document, ownership);
         }
         ownership?.registrations.add(new WeakRef(this));

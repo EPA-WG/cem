@@ -24,7 +24,7 @@ function serialized(node: SerializedNode): void {
 export function validateLivePreviewFrames(frames: readonly PatchFrame[]): void {
     for (const frame of frames) if (frame.type === 'ops') for (const op of frame.ops) {
         if (op.op === 'setAttribute') attribute(op.name, op.value);
-        else if (op.op === 'reconcileChildren') op.children.forEach(child => serialized(child.node));
+        else if ((op.op === 'reconcileChildren' || op.op === 'reconcileRoots')) op.children.forEach(child => serialized(child.node));
         else if ('node' in op) serialized(op.node.node);
     }
 }

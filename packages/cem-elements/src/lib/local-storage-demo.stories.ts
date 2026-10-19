@@ -105,7 +105,7 @@ export const EveryAuthoredSample: Story = {
                 expect(unchanged.map(key => localStorage.getItem(key))).toEqual(before);
                 for (const instance of instances) {
                     expect([...new Set(cemDiagnosticCodes(instance))].sort(), `${legend} diagnostics`).toEqual(index === 7
-                        ? ['cem-element.local_storage_json_invalid', 'cem.render_plan_apply.replace_scope'] : []);
+                        ? ['cem-element.local_storage_json_invalid'] : []);
                 }
             });
         }
@@ -149,30 +149,27 @@ export const NativeJsonRootTransitions: Story = {
             node.kind === 'element' && node.tag === 'p' ? [node.renderNodeId] : []);
         expect(rootIds(loaded)).toEqual(rootIds(pending));
         const applied = applyRenderPlanToRange(bounds, loaded, document);
-        expect(applied.mode).toBe('replaceScope');
-        expect(applied.diagnostics).toEqual([{
-            code: 'cem.render_plan_apply.replace_scope', severity: 'warning', reason: 'recovery',
-            message: 'retained render scope root identities did not match the next render plan; replaced the scope',
-        }]);
-        expect(canvasElement.querySelector('p')).not.toBe(originalParagraph);
+        expect(applied.mode).toBe('patch');
+        expect(applied.diagnostics).toEqual([]);
+        expect(canvasElement.querySelector('p')).toBe(originalParagraph);
         expect(textList(canvasElement, 'li')).toEqual(['a: 1', 'b: B']);
         const loadedParagraph = canvasElement.querySelector('p');
         const array = await plan('[1,2,3]');
         expect(rootIds(array)).toEqual(rootIds(loaded));
         // Object and array lists come from distinct authored branches. Their
-        // source-based IDs differ, so the accepted root-set recovery applies.
+        // source-based IDs differ; reconcile those roots while retaining the paragraph.
         const listId = (value: RenderPlan) => value.nodes.find(node =>
             node.kind === 'element' && (node.tag === 'ul' || node.tag === 'ol'))?.renderNodeId;
         expect(listId(loaded)).toBeTruthy();
         expect(listId(array)).toBeTruthy();
         expect(listId(array)).not.toBe(listId(loaded));
         const arrayApplied = applyRenderPlanToRange(bounds, array, document);
-        expect(arrayApplied.mode).toBe('replaceScope');
+        expect(arrayApplied.mode).toBe('patch');
         expect(arrayApplied.diagnostics).toEqual(applied.diagnostics);
-        expect(canvasElement.querySelector('p')).not.toBe(loadedParagraph);
+        expect(canvasElement.querySelector('p')).toBe(loadedParagraph);
         expect(textList(canvasElement, 'li')).toEqual(['1', '2', '3']);
         const scalar = await plan('false');
-        expect(applyRenderPlanToRange(bounds, scalar, document).mode).toBe('replaceScope');
+        expect(applyRenderPlanToRange(bounds, scalar, document).mode).toBe('patch');
         expect(textList(canvasElement, 'output')).toEqual(['false', 'false']);
     },
 };

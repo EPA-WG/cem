@@ -16,6 +16,7 @@ import {
     preparePatchFramesForRange,
     retainCapturedPayloadEnvelope,
     captureNativeCheckedEdits,
+    isRenderOrderMove,
     applyRenderPlanToRange,
     edgeContentAddress,
     materializeRenderPlan,
@@ -2756,11 +2757,20 @@ export class CemElementRuntime {
             }
 
             connectedCallback(): void {
-                connectProducedInstance(this, compiled);
+                if (!isRenderOrderMove(this)) connectProducedInstance(this, compiled);
             }
 
             disconnectedCallback(): void {
-                disconnectProducedInstance(this);
+                if (!isRenderOrderMove(this)) disconnectProducedInstance(this);
+            }
+
+            connectedMoveCallback(): void {
+                // Internal sibling reorders keep their live owners. Other moves
+                // reacquire ancestor/module context through the ordinary lifecycle.
+                if (!isRenderOrderMove(this)) {
+                    disconnectProducedInstance(this);
+                    connectProducedInstance(this, compiled);
+                }
             }
 
             formDisabledCallback(disabled: boolean): void {
@@ -4067,7 +4077,7 @@ export class CemElementRuntime {
             && (Object.keys(node.attributes).some(name => name.startsWith('data-cem-placement-ref-')) || node.children.some(marker));
         const addsPlacement = frames.some(frame => frame.type === 'ops' && frame.ops.some(op =>
             op.op === 'setAttribute' ? op.value !== null && op.name.startsWith('data-cem-placement-ref-')
-                : op.op === 'reconcileChildren' ? op.children.some(child => marker(child.node))
+                : (op.op === 'reconcileChildren' || op.op === 'reconcileRoots') ? op.children.some(child => marker(child.node))
                     : 'node' in op && marker(op.node.node)));
         if (!uses.length && addsPlacement) throw new Error('Foreign placement patch needs fresh native admission');
         return this.publishElementPlacements(instance, token, uses, () => this.commitProcessingFramesUnchecked(instance, compiled, island, frames, resourceControls, revision, token));

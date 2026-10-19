@@ -97,7 +97,7 @@ export type RenderPlanNode =
       };
 
 /** Render-engine / patch-transport schema version (FF-6 SemVer axis, BR-VC-5). */
-export const RENDER_ENGINE_VERSION = '1.6.0';
+export const RENDER_ENGINE_VERSION = '1.7.0';
 
 /** Edge render-state record schema version (FF-6 SemVer axis, BR-VC-5). */
 export const EDGE_RENDER_STATE_VERSION = '1.1.0';
@@ -124,7 +124,7 @@ function authoredPlanChildren(container: Node, children: readonly RenderPlanNode
 
 // Authored light-DOM inputs and a custom element's rendered output have different owners.
 const renderedChildren = new WeakMap<Element, { plan?: readonly RenderPlanNode[]; nodes: ChildNode[]; owner?: string }>();
-const renderedRangeOwners = new WeakMap<Comment, { end: Comment; parent: Node; owner: string }>();
+const renderedRangeOwners = new WeakMap<Comment, { end: Comment; parent: Node; owner: string; rootIds: string[] }>();
 function isRegisteredCustomElement(element: Element): boolean {
     return element.namespaceURI === XHTML_NAMESPACE
         && !!element.ownerDocument.defaultView?.customElements.get(element.localName);
@@ -372,6 +372,7 @@ export type PatchNodePayload = {
 export type DomPatchOp =
     | { op: 'replace'; target: DomPatchTarget; node: PatchNodePayload }
     | { op: 'reconcileChildren'; target: DomPatchTarget; children: PatchNodePayload[] }
+    | { op: 'reconcileRoots'; children: PatchNodePayload[] }
     | { op: 'setText'; target: DomPatchTarget; value: string }
     | { op: 'setAttribute'; target: DomPatchTarget; name: string; value: string | null; nativeValue?: NativeCemValue }
     | {
@@ -2062,6 +2063,11 @@ export function applyRenderPlanToRange(
     document: Document,
     options: RenderPlanApplyOptions = {},
 ): RenderPlanApplyResult {
+    return applyOwnedRenderPlanToRange(bounds, plan, document, options);
+}
+
+function applyOwnedRenderPlanToRange(bounds: RenderPlanDomRange, plan: RenderPlan, document: Document,
+    options: RenderPlanApplyOptions, rootReconciliation = false): RenderPlanApplyResult {
     const parent = bounds.start.parentNode;
     if (!parent || bounds.end.parentNode !== parent) {
         throw new Error('cem-element render bounds are not attached to the same parent');
@@ -2078,10 +2084,11 @@ export function applyRenderPlanToRange(
     try {
         const recovery: RenderScopeRecoveryReason | undefined = ownershipChanged
             ? { reason: 'recovery', message: 'render scope ownership changed; replaced the scope' }
-            : renderScopeRecoveryReason(bounds, plan, options);
-        renderedRangeOwners.set(bounds.start, { end: bounds.end, parent, owner });
+            : renderScopeRecoveryReason(bounds, plan, options, previousOwner?.rootIds, rootReconciliation);
+        const remember = () => renderedRangeOwners.set(bounds.start, { end: bounds.end, parent, owner, rootIds: planRootIds(plan, options) });
         if (recovery) {
             replaceRangeWithRenderPlan(bounds, plan, document, options);
+            remember();
             return {
                 mode: 'replaceScope',
                 diagnostics: [
@@ -2103,6 +2110,7 @@ export function applyRenderPlanToRange(
             plan.nodes,
             context,
         );
+        remember();
         return { mode: 'patch', diagnostics: [] };
     } finally {
         finishCheckedRefresh();
@@ -2127,6 +2135,12 @@ export function applyPatchFramesToRange(
     const validation = validatePatchFrames(bounds, frames, expectedRevision, document, options);
     if (!validation.ok) return validation.result;
     const { parsed, resolved } = validation;
+    const roots = parsed.ops.find(operation => operation.op === 'reconcileRoots');
+    if (roots?.op === 'reconcileRoots') {
+        const plan: RenderPlan = { ...parsed.commit.nextRenderPlan, nodes: roots.children.map(child => deserializePatchNode(child.node)) };
+        applyOwnedRenderPlanToRange(bounds, plan, document, options, true);
+        return { status: 'applied', diagnostics: [] };
+    }
     const replacements = parsed.ops.filter((operation): operation is Extract<DomPatchOp, { op: 'replaceScope' }> => operation.op === 'replaceScope');
     if (replacements.length) {
         const plan: RenderPlan = { ...parsed.commit.nextRenderPlan,
@@ -2209,7 +2223,7 @@ export function applyPatchFramesToRange(
 type ValidatedPatch = {
     ok: true;
     parsed: Extract<ReturnType<typeof parseCommittedPatchFrames>, { ok: true }>;
-    resolved: Array<{ operation: Exclude<DomPatchOp, { op: 'replaceScope' }>; target: Node }>;
+    resolved: Array<{ operation: Exclude<DomPatchOp, { op: 'replaceScope' | 'reconcileRoots' }>; target: Node }>;
 } | { ok: false; result: { status: 'stale' | 'aborted'; diagnostics: PatchFramesApplyDiagnostic[] } };
 
 function validatePatchFrames(bounds: RenderPlanDomRange, frames: readonly PatchFrame[], expectedRevision: RenderRevision,
@@ -2227,12 +2241,20 @@ function validatePatchFrames(bounds: RenderPlanDomRange, frames: readonly PatchF
         || bounds.start.ownerDocument !== document || bounds.end.ownerDocument !== document) {
         return { ok: false, result: abortedPatch('patch render bounds must be ordered siblings in the target document') };
     }
+    const roots = parsed.ops.filter(operation => operation.op === 'reconcileRoots');
+    if (roots.length && parsed.ops.length !== 1) return { ok: false,
+        result: abortedPatch('a root reconciliation must be the only operation in its transaction') };
+    if (roots[0]?.op === 'reconcileRoots') {
+        const ids = roots[0].children.map(child => child.node.renderNodeId);
+        if (new Set(ids).size !== ids.length) return { ok: false,
+            result: abortedPatch('root reconciliation requires unique root identities') };
+    }
     const replacements = parsed.ops.filter(operation => operation.op === 'replaceScope');
     if (replacements.length && replacements.length !== parsed.ops.length) return { ok: false,
         result: abortedPatch('a replaceScope transaction cannot mix scope replacement with targeted operations') };
-    const resolved: Array<{ operation: Exclude<DomPatchOp, { op: 'replaceScope' }>; target: Node }> = [];
+    const resolved: Array<{ operation: Exclude<DomPatchOp, { op: 'replaceScope' | 'reconcileRoots' }>; target: Node }> = [];
     for (const operation of parsed.ops) {
-        if (operation.op === 'replaceScope') continue;
+        if (operation.op === 'replaceScope' || operation.op === 'reconcileRoots') continue;
         const target = findNodeByRenderIdentityInRange(bounds, operation.target.id, options);
         if (!target || ((operation.op === 'setAttribute' || operation.op === 'reconcileChildren') && target.nodeType !== 1)) {
             return { ok: false, result: abortedPatch(`patch target \`${operation.target.id}\` was not present in the rendered range`) };
@@ -2316,6 +2338,9 @@ function parseCommittedPatchFrames(frames: readonly PatchFrame[]):
     const commit = frames.at(-1);
     if (!begin || begin.type !== 'begin' || !commit || commit.type !== 'commit') {
         return invalidPatch('a patch transaction requires begin and commit frames');
+    }
+    if (begin.renderEngineVersion !== undefined && begin.renderEngineVersion !== RENDER_ENGINE_VERSION) {
+        return invalidPatch('patch render engine version is incompatible with this publisher');
     }
     if (begin.transactionId !== commit.transactionId) {
         return invalidPatch('patch begin and commit transaction IDs must match');
@@ -2528,6 +2553,7 @@ interface RenderRangeFocusSnapshot {
     renderId: string | null;
     owner: Element | null;
     selection?: TextControlSelectionSnapshot;
+    editableSelection?: { anchor: Node; anchorOffset: number; focus: Node; focusOffset: number };
 }
 
 interface TextControlSelectionSnapshot {
@@ -2556,7 +2582,7 @@ function replaceRangeWithRenderPlan(
     let current = bounds.start.nextSibling;
     while (current && current !== bounds.end) {
         const next = current.nextSibling;
-        current.parentNode?.removeChild(current);
+        if (!options.preserveNode?.(current)) current.parentNode?.removeChild(current);
         current = next;
     }
     const nodes = plan.nodes.flatMap((node) => createRenderPlanDomNodes(node, { plan, document, options }));
@@ -2565,31 +2591,21 @@ function replaceRangeWithRenderPlan(
     }
 }
 
-function renderScopeRecoveryReason(
-    bounds: RenderPlanDomRange,
-    plan: RenderPlan,
-    options: RenderPlanApplyOptions,
-): RenderScopeRecoveryReason | undefined {
-    const currentIds = elementRenderIdentitiesBetween(bounds.start.nextSibling, bounds.end);
-    const desiredIds = plan.nodes.flatMap((node) =>
-        node.kind === 'element' && !isTransientRenderPlanElement(node, options) ? [node.renderNodeId] : [],
-    );
-    if (currentIds.length === 0) {
-        return undefined;
-    }
-    if (desiredIds.length === 0) {
-        return {
-            reason: 'recovery',
-            message: 'retained render scope had element identities but the next render plan has no element roots',
-        };
-    }
-    const current = new Set(currentIds);
-    const desired = new Set(desiredIds);
-    if (desiredIds.some((id) => !current.has(id)) || currentIds.some((id) => !desired.has(id))) {
-        return {
-            reason: 'recovery',
-            message: 'retained render scope root identities did not match the next render plan; replaced the scope',
-        };
+function planRootIds(plan: RenderPlan, options: RenderPlanApplyOptions): string[] {
+    return plan.nodes.flatMap(node => node.kind === 'element' && !isTransientRenderPlanElement(node, options) ? [node.renderNodeId] : []);
+}
+
+function renderScopeRecoveryReason(bounds: RenderPlanDomRange, plan: RenderPlan, options: RenderPlanApplyOptions,
+    previousRootIds?: readonly string[], rootReconciliation = false): RenderScopeRecoveryReason | undefined {
+    // Compare live roots with the last committed roots, rather than treating an
+    // intentional topology change in the next plan as corruption.
+    if (!previousRootIds && rootReconciliation) return undefined;
+    const currentIds = elementRenderIdentitiesBetween(bounds.start.nextSibling, bounds.end, options);
+    const expectedIds = previousRootIds ?? planRootIds(plan, options);
+    if (!previousRootIds && currentIds.length === 0) return undefined;
+    if (currentIds.length !== expectedIds.length || currentIds.some((id, index) => id !== expectedIds[index])) {
+        return { reason: 'recovery',
+            message: 'retained render scope root identities did not match the committed render plan; replaced the scope' };
     }
     return undefined;
 }
@@ -2601,11 +2617,12 @@ function isTransientRenderPlanElement(
     return options.transientElementTags?.includes(node.tag) ?? false;
 }
 
-function elementRenderIdentitiesBetween(first: ChildNode | null, end: Node): string[] {
+function elementRenderIdentitiesBetween(first: ChildNode | null, end: Node, options: RenderPlanApplyOptions): string[] {
     const ids: string[] = [];
     let current: ChildNode | null = first;
     while (current && current !== end) {
-        if (current.nodeType === 1) {
+        if (current.nodeType === 1 && !options.preserveNode?.(current)
+            && !options.transientElementTags?.includes((current as Element).localName)) {
             const id = renderIdentity(current);
             if (id) {
                 ids.push(id);
@@ -2671,8 +2688,15 @@ function sameProjectionValue(a: unknown, b: unknown): boolean {
         const right = new Uint8Array(b);
         return new Uint8Array(a).every((byte, index) => byte === right[index]);
     }
-    if (Array.isArray(a) !== Array.isArray(b)) return false;
-    const left = Object.keys(a), right = Object.keys(b);
+    if (Array.isArray(a) || Array.isArray(b)) {
+        if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+        for (let index = 0; index < a.length; index++) if (!sameProjectionValue(a[index], b[index])) return false;
+        return true;
+    }
+    // Optional undefined fields are absent on JSON transport and present after
+    // structured-node reconstruction; both describe the same projected input.
+    const keys = (value: object) => Object.keys(value).filter(key => (value as Record<string, unknown>)[key] !== undefined);
+    const left = keys(a), right = keys(b);
     return left.length === right.length && left.every(key => Object.prototype.hasOwnProperty.call(b, key)
         && sameProjectionValue((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]));
 }
@@ -2703,10 +2727,67 @@ function mergeCustomElementInputs(element: Element, desired: readonly RenderPlan
     // Reorder only authored children; leave component-owned output in place.
     for (let index = next.length - 2; index >= 0; index--) {
         if (next[index].compareDocumentPosition(next[index + 1]) & Node.DOCUMENT_POSITION_PRECEDING) {
-            element.insertBefore(next[index], next[index + 1]);
+            moveConnectedNodeBefore(element, next[index], next[index + 1]);
         }
     }
     renderedChildren.set(element, { plan: desired, nodes: next, owner: renderPlanOwnerKey(context.plan) });
+}
+
+// Source and packaged runtimes share only this transient browser lifecycle flag.
+// It carries no plan/state and is cleared synchronously after the DOM operation.
+const RENDER_ORDER_MOVES = Symbol.for('cem.render-order-moves.v1');
+const moveEnvironment = globalThis as typeof globalThis & { [RENDER_ORDER_MOVES]?: WeakSet<Node> };
+const renderOrderMoves = moveEnvironment[RENDER_ORDER_MOVES] ??= new WeakSet<Node>();
+
+export interface CemRenderOrderMoveObserver {
+    before(): void;
+    after(node: Node, parent: Node): void;
+}
+const ORDER_MOVE_OBSERVERS = Symbol.for('cem.render-order-move-observers.v1');
+const observerEnvironment = globalThis as typeof globalThis & { [ORDER_MOVE_OBSERVERS]?: WeakMap<Document, Set<WeakRef<CemRenderOrderMoveObserver>>> };
+const orderMoveObservers = observerEnvironment[ORDER_MOVE_OBSERVERS] ??= new WeakMap<Document, Set<WeakRef<CemRenderOrderMoveObserver>>>();
+
+/** Ownership observers keep their listener; movement holds only weak subscriptions. */
+export function observeRenderOrderMoves(document: Document, observer: CemRenderOrderMoveObserver): void {
+    let observers = orderMoveObservers.get(document);
+    if (!observers) orderMoveObservers.set(document, observers = new Set());
+    observers.add(new WeakRef(observer));
+}
+
+function renderOrderMoveObservers(document: Document | null): CemRenderOrderMoveObserver[] {
+    const observers = document && orderMoveObservers.get(document);
+    if (!observers) return [];
+    const live: CemRenderOrderMoveObserver[] = [];
+    for (const reference of observers) {
+        const observer = reference.deref();
+        if (observer) live.push(observer); else observers.delete(reference);
+    }
+    return live;
+}
+
+export function isRenderOrderMove(node: Node): boolean {
+    for (let current: Node | null = node; current; current = current.parentNode) {
+        if (renderOrderMoves.has(current)) return true;
+    }
+    return false;
+}
+
+function moveConnectedNodeBefore(parent: Node, node: Node, reference: Node | null): void {
+    const target = parent as Node & { moveBefore?: (node: Node, reference: Node | null) => void };
+    const reorder = node.parentNode === parent && parent.isConnected && node.isConnected;
+    const observers = reorder ? renderOrderMoveObservers(parent.ownerDocument) : [];
+    // Drain genuine prior removals before recording this managed move.
+    for (const observer of observers) observer.before();
+    const marked = renderOrderMoves.has(node);
+    if (reorder) renderOrderMoves.add(node);
+    try {
+        if (target.moveBefore && parent.isConnected && node.isConnected && parent.ownerDocument === node.ownerDocument) {
+            target.moveBefore(node, reference);
+        } else parent.insertBefore(node, reference);
+    } finally {
+        try { for (const observer of observers) observer.after(node, parent); }
+        finally { if (reorder && !marked) renderOrderMoves.delete(node); }
+    }
 }
 
 function moveRenderPlanMatchBefore(parent: Node, match: RenderPlanNodeMatch, reference: Node | null): void {
@@ -2714,7 +2795,7 @@ function moveRenderPlanMatchBefore(parent: Node, match: RenderPlanNodeMatch, ref
     let current: Node | null = match.first;
     while (current && current !== after) {
         const next: ChildNode | null = current.nextSibling as ChildNode | null;
-        parent.insertBefore(current, reference);
+        moveConnectedNodeBefore(parent, current, reference);
         current = next;
     }
 }
@@ -2728,7 +2809,7 @@ function matchRenderPlanNode(
     if (!current || current === end) {
         return null;
     }
-    const direct = matchRenderPlanNodeAt(current, desired, context);
+    const direct = matchRenderPlanNodeAt(current, desired, context, end !== null);
     if (direct) {
         return direct;
     }
@@ -2736,7 +2817,7 @@ function matchRenderPlanNode(
     const desiredId = desired.kind === 'element' ? desired.renderNodeId : dynamicRangeId(desired);
     let sibling = current.nextSibling as ChildNode | null;
     while (sibling && sibling !== end) {
-        const match = matchRenderPlanNodeAt(sibling, desired, context);
+        const match = matchRenderPlanNodeAt(sibling, desired, context, end !== null);
         if (match && (desired.kind !== 'element' || renderIdentity(sibling) === desiredId)) {
             return match;
         }
@@ -2749,6 +2830,7 @@ function matchRenderPlanNodeAt(
     current: ChildNode,
     desired: RenderPlanNode,
     context: RenderPlanApplyContext,
+    rootIdentity = false,
 ): RenderPlanNodeMatch | null {
     if (context.options.preserveNode?.(current)) return null;
     if (desired.kind === 'text' || desired.kind === 'comment') {
@@ -2757,6 +2839,8 @@ function matchRenderPlanNodeAt(
             return rangeEnd ? { first: current, after: rangeEnd.nextSibling as ChildNode | null, rangeEnd } : null;
         }
         const desiredType = desired.kind === 'text' ? 3 : 8;
+        const currentId = (current as Node & { cemRenderNodeId?: string }).cemRenderNodeId;
+        if (rootIdentity && currentId && currentId !== textNodePatchId(desired)) return null;
         return current.nodeType === desiredType
             ? { first: current, after: current.nextSibling as ChildNode | null }
             : null;
@@ -3280,7 +3364,15 @@ function captureRenderRangeFocus(bounds: RenderPlanDomRange): RenderRangeFocusSn
         renderId: renderIdentity(active),
         owner: producedFocusOwner(active),
         selection: captureTextControlSelection(active),
+        editableSelection: captureEditableSelection(active),
     };
+}
+
+function captureEditableSelection(element: Element): RenderRangeFocusSnapshot['editableSelection'] {
+    if (!(element as HTMLElement).isContentEditable) return undefined;
+    const selection = element.ownerDocument.getSelection();
+    if (!selection?.anchorNode || !selection.focusNode || !element.contains(selection.anchorNode) || !element.contains(selection.focusNode)) return undefined;
+    return { anchor: selection.anchorNode, anchorOffset: selection.anchorOffset, focus: selection.focusNode, focusOffset: selection.focusOffset };
 }
 
 function restoreRenderRangeFocus(snapshot: RenderRangeFocusSnapshot | null): void {
@@ -3300,6 +3392,16 @@ function restoreRenderRangeFocus(snapshot: RenderRangeFocusSnapshot | null): voi
         focusElement(element);
     }
     restoreTextControlSelection(element, snapshot.selection);
+    const point = snapshot.editableSelection;
+    if (point && element === snapshot.element && element.contains(point.anchor) && element.contains(point.focus)) {
+        const length = (node: Node) => node.nodeType === 3 ? (node.nodeValue?.length ?? 0) : node.childNodes.length;
+        const anchorOffset = Math.min(point.anchorOffset, length(point.anchor)), focusOffset = Math.min(point.focusOffset, length(point.focus));
+        const selection = document.getSelection();
+        if (selection && (selection.anchorNode !== point.anchor || selection.focusNode !== point.focus
+            || selection.anchorOffset !== anchorOffset || selection.focusOffset !== focusOffset)) {
+            selection.setBaseAndExtent(point.anchor, anchorOffset, point.focus, focusOffset);
+        }
+    }
 }
 
 function focusRestorationElement(snapshot: RenderRangeFocusSnapshot): Element | null {
@@ -3499,28 +3601,19 @@ function valueToText(value: TemplateValue): string {
 }
 
 function diffRenderPlans(previous: RenderPlan | null, next: RenderPlan, textNodeIdsAvailable = true): DomPatchOp[] {
-    if (!previous) {
-        return next.nodes.map((node) => ({
-            op: 'replaceScope',
-            scopeId: next.producedTag,
-            node: structuredPatchNode(node),
-            reason: 'first-render',
-        }));
+    const ambiguous = (nodes: readonly RenderPlanNode[]) => new Set(nodes.map(renderNodeId)).size !== nodes.length;
+    if (!previous || renderPlanOwnerKey(previous) !== renderPlanOwnerKey(next)
+        || ambiguous(previous.nodes) || ambiguous(next.nodes)) {
+        return next.nodes.length ? next.nodes.map(node => ({
+            op: 'replaceScope', scopeId: next.producedTag, node: structuredPatchNode(node),
+            reason: previous ? 'fallback' : 'first-render',
+        })) : [{ op: 'reconcileRoots', children: [] }];
     }
-
-    if (
-        renderPlanOwnerKey(previous) !== renderPlanOwnerKey(next) ||
-        previous.nodes.length !== next.nodes.length ||
-        (!textNodeIdsAvailable && previous.nodes.some((node, index) => changedTextTarget(node, next.nodes[index])))
-    ) {
-        return next.nodes.map((node) => ({
-            op: 'replaceScope',
-            scopeId: next.producedTag,
-            node: structuredPatchNode(node),
-            reason: 'fallback',
-        }));
+    if (previous.nodes.length !== next.nodes.length
+        || previous.nodes.some((node, index) => node.kind !== next.nodes[index].kind || renderNodeId(node) !== renderNodeId(next.nodes[index]))
+        || (!textNodeIdsAvailable && previous.nodes.some((node, index) => changedTextTarget(node, next.nodes[index])))) {
+        return [{ op: 'reconcileRoots', children: next.nodes.map(structuredPatchNode) }];
     }
-
     const ops: DomPatchOp[] = [];
     for (let index = 0; index < next.nodes.length; index += 1) {
         diffRenderNode(previous.nodes[index], next.nodes[index], ops, textNodeIdsAvailable);
