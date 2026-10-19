@@ -51,6 +51,14 @@ pub struct EvaluationDependencies {
     current_item: Option<DependencyVersion>,
 }
 impl EvaluationDependencies {
+    pub(crate) fn query_identity(&self) -> &ContentHash {
+        &self.query
+    }
+
+    pub fn reads_current_item(&self) -> bool {
+        self.current_item.is_some()
+    }
+
     pub fn binding_names(&self) -> impl Iterator<Item = &str> {
         self.bindings.keys().map(String::as_str)
     }
@@ -131,8 +139,25 @@ pub fn evaluate_tracked_with_control(
     ItemStream,
     Result<EvaluationDependencies, EvaluationTrackingError>,
 ) {
+    evaluate_tracked_internal(query, context, freshness, control, scope, false, None)
+}
+
+pub(crate) fn evaluate_tracked_internal<'a>(
+    query: &'a CompiledQuery,
+    context: &'a EvaluationContext,
+    freshness: &EvaluationFreshness,
+    control: &OperationControl,
+    scope: ExecutionScopeId,
+    protected: bool,
+    template_host: Option<&'a mut dyn crate::native::TemplateQueryHost>,
+) -> (
+    ItemStream,
+    Result<EvaluationDependencies, EvaluationTrackingError>,
+) {
     let mut ctx = EvalCtx::new(query, context, control, scope);
     ctx.reads = Some(ReadTracker::default());
+    ctx.recovery_depth = usize::from(protected);
+    ctx.template_host = template_host;
     let result = ctx.evaluate_root();
     let receipt = capture(query, context, freshness, &ctx, &result);
     (result, receipt)
@@ -213,7 +238,7 @@ fn pure_operations(query: &CompiledQuery) -> bool {
     })
 }
 
-fn validate_stamp(
+pub(crate) fn validate_stamp(
     stamp: &DependencyVersion,
     budget: &mut usize,
 ) -> Result<(), EvaluationTrackingError> {
@@ -247,6 +272,13 @@ fn validate_stamp(
 // the portable artifact serializer currently encodes source + binding names.
 // Bound encoding before allocation, including programmatically constructed IR.
 fn query_identity(query: &CompiledQuery) -> Result<ContentHash, EvaluationTrackingError> {
+    bounded_identity(b"cem.ql.evaluation-reads/1\n", &(crate::VERSION, query))
+}
+
+pub(crate) fn bounded_identity<T: serde::Serialize>(
+    domain: &[u8],
+    value: &T,
+) -> Result<ContentHash, EvaluationTrackingError> {
     struct Bounded(Vec<u8>);
     impl Write for Bounded {
         fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
@@ -260,8 +292,7 @@ fn query_identity(query: &CompiledQuery) -> Result<ContentHash, EvaluationTracki
             Ok(())
         }
     }
-    let mut out = Bounded(b"cem.ql.evaluation-reads/1\n".to_vec());
-    rmp_serde::encode::write_named(&mut out, &(crate::VERSION, query))
-        .map_err(|_| EvaluationTrackingError::Bounds)?;
+    let mut out = Bounded(domain.to_vec());
+    rmp_serde::encode::write_named(&mut out, value).map_err(|_| EvaluationTrackingError::Bounds)?;
     Ok(ContentHash::from_blake3(&out.0))
 }

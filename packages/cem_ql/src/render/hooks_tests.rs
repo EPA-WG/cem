@@ -2,6 +2,7 @@ use super::*;
 
 fn renderer() -> PlanRenderer<'static> {
     PlanRenderer {
+        read_dependencies: None,
         evaluation_context: EvaluationContext::default(),
         diagnostics: Vec::new(),
         templates: BTreeMap::new(),

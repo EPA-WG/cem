@@ -24,6 +24,7 @@ use crate::api::{CompileContext, EvaluationContext, PreparedTypeChecking};
 use crate::eval::{effective_boolean, AtomValue, EvalError, Item, ItemStream, QueryContextScope};
 use crate::ir::CompiledQuery;
 
+pub mod read_dependencies;
 mod dependencies;
 pub(crate) use dependencies::compilation_identity;
 pub use dependencies::{compile_template_module_closure_with_dependencies, TemplateDependencyCompilation};
@@ -1129,7 +1130,7 @@ fn static_stylesheet_text(children: &[TemplateNode]) -> Option<String> {
 }
 
 pub fn render_compiled_template(artifact: &TemplateArtifact, data: &TemplateData) -> RenderPlan {
-    render_compiled_template_internal(artifact, data, None, None, false).plan
+    render_compiled_template_internal(artifact, data, None, None, false, None).plan
 }
 
 pub fn render_compiled_template_with_control(
@@ -1138,7 +1139,7 @@ pub fn render_compiled_template_with_control(
     control: &OperationControl,
     scope: ExecutionScopeId,
 ) -> RenderPlan {
-    render_compiled_template_internal(artifact, data, Some((control, scope)), None, false).plan
+    render_compiled_template_internal(artifact, data, Some((control, scope)), None, false, None).plan
 }
 
 /// A native adapter can resolve module calls inside the active rendering scope,
@@ -1173,7 +1174,7 @@ pub fn render_compiled_template_with_calls(
     calls: &dyn TemplateCallHandler,
     protected: bool,
 ) -> TemplateCallResult {
-    render_compiled_template_internal(artifact, data, control, Some(calls), protected)
+    render_compiled_template_internal(artifact, data, control, Some(calls), protected, None)
 }
 
 fn render_compiled_template_internal(
@@ -1182,6 +1183,7 @@ fn render_compiled_template_internal(
     control: Option<(&OperationControl, ExecutionScopeId)>,
     calls: Option<&dyn TemplateCallHandler>,
     protected: bool,
+    read_dependencies: Option<&mut read_dependencies::RenderReadTracker>,
 ) -> TemplateCallResult {
     let owned_control = OperationControl::with_root_policy(Default::default(), ScopePolicy::host_root().with_queue_size(128)).expect("valid renderer default policy");
     let control = Some(control.unwrap_or((&owned_control, cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID)));
@@ -1208,6 +1210,7 @@ fn render_compiled_template_internal(
     #[cfg(test)]
     profile.next("render/renderer-metadata");
     let mut renderer = PlanRenderer {
+        read_dependencies,
         evaluation_context: EvaluationContext {
             execution_budget: None,
             scope: QueryContextScope(0),
@@ -2928,6 +2931,7 @@ impl TemplateCompiler<'_> {
 }
 
 struct PlanRenderer<'a> {
+    read_dependencies: Option<&'a mut read_dependencies::RenderReadTracker>,
     evaluation_context: EvaluationContext,
     diagnostics: Vec<Diagnostic>,
     templates: BTreeMap<String, TemplateBody>,
@@ -3871,18 +3875,24 @@ impl PlanRenderer<'_> {
         let borrow_context = query.binding_dependencies().is_some();
         #[cfg(test)]
         let borrow_context = borrow_context && !copy_profile_tests::force_context_copy();
-        let stream = if borrow_context {
+        let mut tracking = self.read_dependencies.take();
+        let freshness = tracking.as_deref_mut().and_then(|tracker| tracker.query_freshness(query));
+        let (stream, receipt) = if borrow_context {
             #[cfg(test)]
             let _profile = crate::compile_profile::Span::new("render/borrowed-evaluation");
-            crate::eval::Evaluator::evaluate_internal(
-                query, &self.evaluation_context, &control, scope, protected, None,
+            read_dependencies::evaluate_query(
+                query, &self.evaluation_context, freshness.as_ref(), &control, scope, protected, None,
             )
         } else {
             let context = self.evaluation_context.for_query(query);
-            crate::eval::Evaluator::evaluate_internal(
-                query, &context, &control, scope, protected, Some(self),
+            read_dependencies::evaluate_query(
+                query, &context, freshness.as_ref(), &control, scope, protected, Some(self),
             )
         };
+        if let (Some(tracker), Some(receipt)) = (tracking.as_deref_mut(), receipt) {
+            tracker.observe(receipt);
+        }
+        self.read_dependencies = tracking;
         if self.recovery_depth > 0 {
             if let Some(error) = &stream.error {
                 if let Some(diagnostic) = stream

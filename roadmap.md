@@ -562,8 +562,14 @@ native query read tracking is now available through an opt-in bounded receipt.
 Taken branches and optimized field reads record whole binding dependencies;
 provider-owned pure/freshness stamps, native IR/provenance and scope/policy must
 match. Opaque calls, failed/cancelled work and oversized metadata remain ineligible.
-Render-wide aggregation, host provider contracts and pure evaluation memoization
-remain future work. See [native read receipts](packages/cem_ql/README.md#native-evaluation-read-receipts).
+CEM-ML now aggregates native query reads, including declarations, loops,
+local variables, named/match templates and focus, under complete provider freshness.
+The native `DependencySnapshot` bridge includes closure, policy, resolver and scope
+identity. Whole-render matching conservatively includes every provider axis;
+query invocations remain distinct and opaque/cancelled/repaired work is ineligible.
+Bounded receipts retain no native input/output owners or preceding render history.
+Pure render-evaluation memoization remains the next step, with independent runtime,
+event/command/resource admission. See [render receipts](packages/cem_ql/README.md#cem-ml-render-dependency-receipts).
 Incremental root publication is now implemented through an atomic owned-range
 operation, including empty output. Matching native-derived root identities preserve
 controls, edits and focus/selection; corruption and ownership changes still recover.

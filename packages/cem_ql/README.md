@@ -1546,12 +1546,78 @@ budget; temporary native-query encoding has a separate 1 MiB cap checked while
 writing. Receipts retain no input/output values, native views, provider callbacks,
 DOM nodes or previous receipt chain. There is no new WASM transport or Studio JS.
 
-This is an opt-in native query dependency contract, not an enabled render-result
-cache. CEM-ML render-wide receipt aggregation and host provider contracts are still
-required before selective render evaluation can be skipped. A match never replaces
+This is an opt-in native query dependency contract. CEM-ML render-wide aggregation
+and complete native provider contracts are available below; render-result caching
+remains disabled. A match never replaces
 current operation/cancellation admission, runtime-generation ownership, accepted
 events, commands, resource freshness or publication checks. Opaque render inputs
 continue through the existing evaluation path.
+
+## CEM-ML render dependency receipts
+
+`render::read_dependencies::render_compiled_template_with_dependencies` returns
+the ordinary `TemplateCallResult` and an independent `Result<RenderDependencies,
+RenderTrackingError>`. Control and custom-template-handler variants preserve the
+existing execution scopes, recovery behavior and native callbacks. Rendering
+always runs; this API does not cache or suppress evaluation, events or resources.
+Ordinary render entrypoints do not allocate a tracker or require freshness data.
+
+The renderer aggregates the query receipts actually evaluated by declarations,
+attributes, conditionals, loops, local variables, named/match templates and local
+focus. Query identities, read binding names and focus usage are deduplicated;
+evaluation count remains available. Native output, host attribute updates and
+source/output provenance follow the ordinary rendering path. A failed, cancelled,
+diagnostic-bearing or repaired failed attempt cannot publish a qualifying receipt.
+
+`RenderFreshness` requires explicit provider-owned versions for **all** shared
+render axes: data, attributes, payload, slices, resources, form, validation,
+events, refresh and providers, plus an environment stamp. Missing/opaque stamps
+are ineligible, including unknown/pending resource freshness. Non-opaque versions
+attest complete value, absence, provenance and access freshness with pure reads.
+The host must pin inputs for the render and revalidate currentness before publication.
+Native provider versions must also cover value identity and alias relationships;
+equal lexical bytes are insufficient for identity-sensitive queries.
+The providers axis includes native views and external focus; environment includes
+hidden provider/resolver configuration and schema/access policy. Every axis
+participates even when the taken query path omits a binding. This conservative
+contract covers implicit renderer reads and synthesized `datadom`, not just queries.
+
+`RenderFreshness::from_snapshot` bridges the existing native `DependencySnapshot`.
+It accepts only a complete ready `RenderProjection` snapshot with valid source/
+import closure, engine/format, policy, resolver, scope and every input version.
+The native snapshot identity becomes the environment stamp; provider input versions
+remain explicit. Pending/failed/released closures, opaque metadata and compilation-
+only identities cannot qualify. An unavailable contract leaves ordinary rendering
+available with default opaque freshness.
+
+The aggregate also fingerprints the actual native template nodes, embedded query
+IR, stylesheets, module map, provenance and receiver/output/value type contracts.
+Effective operation policy participates independently. `matches` checks these and
+the complete freshness snapshot; the policy variant supports explicit scope ceilings.
+Local values derive from the complete template/provider snapshot. Each query
+invocation receives a separate native freshness stamp so changing loop variables
+or call parameters cannot alias transient query receipts. Only whole-render input
+matching is offered; these transient query receipts are not cached independently.
+
+Opaque native/dynamic/CEMT query calls and reader/resolver/DOM/report operations
+remain ineligible under the query proof. Custom template handlers still execute
+but cannot claim purity through input stamps. Inherited captured expression scopes
+remain opaque; ordinary locally declared CEM-ML templates are covered by the
+native artifact. Even caught query failures make the aggregate ineligible.
+
+Metadata has a combined 1 MiB string/stamp budget, at most 1,024 distinct queries
+and 1,024 read names. Query and template encodings each have a separate 1 MiB cap
+while writing. Overflow discards metadata and preserves ordinary rendering. A
+receipt retains no artifact trees, input/output values, hooks, callbacks, native
+views, DOM handles or previous render history. No new JS, WASM wire format or
+Studio-specific behavior is introduced.
+
+Render memoization is the next separate step. A matching receipt never replaces
+operation/cancellation admission, current runtime ownership, accepted-event and
+command execution, resource freshness or native publication checks. Native hosts
+without complete immutable/current provider contracts remain on ordinary evaluation.
+Finer binding-to-axis invalidation requires a later provenance proof; read-name
+membership alone cannot authorize ignoring a changed provider axis.
 
 ## Template compilation dependency receipts
 
