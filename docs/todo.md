@@ -1100,7 +1100,7 @@ Next presentation functionality:
     file URL and persisted bytes, and recovers the unsaved draft. Existing cache
     entries are retained. The actual localhost:8080 server now uses the revisioned
     preview handler; its Samples layout renders without storage/install controls.
-- [ ] Add shared selection of a generated graph artifact for preview, copy and
+- [x] Add shared selection of a generated graph artifact for preview, copy and
   download, so the supplier's JSON/YAML outputs are as convenient to inspect as its
   primary HTML output. Reuse native artifact identities and shared declarative
   controls; any reusable JavaScript capability belongs in `cem-elements`.
