@@ -210,6 +210,15 @@ patches trigger full-render recovery. Runtime state is adopted before retiring
 old styles, and resource work settles outside the queue. Hydration waits for
 imports while preserving compatible rendered DOM and animation names.
 
+Prepared registry replacements compare predecessor generation tokens without owning
+old connections. Activation rebinds scope observers and live callbacks outside the
+preparation closure, then clears transferred commit records. Cancellation drops
+candidate records and load bookkeeping while preserving committed styles. A live
+connection therefore does not retain completed preparations or a predecessor chain.
+Forced Chromium collection fixtures cover both worker and fallback paths, including
+ancestor scope disposal. This ownership repair does not enable CSS/DOM reuse; see
+[the lifecycle contract](../../docs/cem-element-lifecycle-principle.md).
+
 The asynchronous `executeNativeSsrInitialRenderFixture` evidence host now loads
 native payload CSS and returns `instanceStylesheetHtml` for direct host children
 outside the render range. Worker/fallback hydration preserves its DOM and animation

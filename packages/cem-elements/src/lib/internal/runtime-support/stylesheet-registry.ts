@@ -54,6 +54,7 @@ interface Source {
     unobserve: () => void;
 }
 interface Connection {
+    generation: symbol;
     options: CemStylesheetConsumer;
     loads: Map<Source, { installation?: Pick<CemStylesheetInstallation, 'dispose'>; ready: Promise<Result> }>;
     revision: number;
@@ -81,7 +82,8 @@ export class CemStylesheetRegistry {
         this.reconcile(this.observer?.takeRecords() ?? []);
         this.preparations.get(input.element)?.release();
         const options = { ...input, context: structuredClone(input.context) };
-        let previous = this.current.get(options.element);
+        // Snapshot identity, never an ownership link to the preceding connection.
+        const predecessor = this.current.get(options.element)?.generation;
         const sourceRevision = this.sourceRevision;
         const abort = new AbortController();
         const loads = new Map<Source, { installation: CemPreparedStylesheets<RegistryScope>; ready: Promise<Result> }>();
@@ -93,16 +95,19 @@ export class CemStylesheetRegistry {
         const release = () => {
             if (activated) { this.removeConnection(activated); return; }
             if (abort.signal.aborted) return;
-            previous = undefined;
-            abort.abort(); unobserve();
+            prepared = false;
+            entries = undefined;
             if (this.preparations.get(options.element) === handle) this.preparations.delete(options.element);
-            for (const load of loads.values()) this.clean(load.installation);
+            abort.abort(); unobserve(); unobserve = () => undefined;
+            const abandoned = Array.from(loads.values());
+            loads.clear();
+            for (const load of abandoned) this.clean(load.installation);
         };
         const current = () => !abort.signal.aborted && !this.disposed && options.element.isConnected
             && options.element.ownerDocument === this.document && !options.scope.disposed
             && (activated ? !activated.released && this.current.get(options.element) === activated
                 : sourceRevision === this.sourceRevision && this.preparations.get(options.element) === handle
-                    && this.current.get(options.element) === previous);
+                    && this.current.get(options.element)?.generation === predecessor);
         const handle: CemPreparedStylesheetConnection = {
             element: options.element,
             check: candidates => !activated && current() && taken && entries === candidates,
@@ -126,17 +131,19 @@ export class CemStylesheetRegistry {
             },
             activate: adopt => {
                 if (activated || !current() || !entries || !entries.every(entry => DeclarationStyleOwnership.isCurrentCommit(entry))) return undefined;
-                activated = { options, loads, revision: 0, released: false, abort, unobserve };
+                const retired = this.current.get(options.element);
+                const connection: Connection = { generation: Symbol(), options, loads, revision: 0,
+                    released: false, abort, unobserve: () => undefined };
+                activated = connection;
+                entries = undefined;
                 this.preparations.delete(options.element);
-                this.current.set(options.element, activated);
-                this.connections.add(activated);
-                const connection = activated;
-                const live = { signal: abort.signal, whenReady: () => this.whenReady(connection), release };
-                // Live callbacks retain this preparation's closure. Keeping the old
-                // connection here chains every retired generation (including abort
-                // reasons and their captured render state) to the current one.
-                const retired = previous;
-                previous = undefined;
+                this.current.set(options.element, connection);
+                this.connections.add(connection);
+                // Detach the preparation observer and create live callbacks in
+                // separate method scopes, without capturing this transaction.
+                unobserve(); unobserve = () => undefined;
+                this.observeConnection(connection);
+                const live = this.connectionView(connection);
                 try { adopt?.(live); }
                 finally { if (retired) this.removeConnection(retired); }
                 if (connection.released) return undefined;
@@ -153,7 +160,7 @@ export class CemStylesheetRegistry {
                     if (!current()) break;
                     const occurrences = source.options.occurrences.filter(occurrence => occurrence.scope.kind === 'private'
                         ? source.options.declaration === options.declaration : occurrence.scope.name === options.sharedScope);
-                    if (!occurrences.length && !previous?.loads.has(source)) continue;
+                    if (!occurrences.length && !this.current.get(options.element)?.loads.has(source)) continue;
                     const installation = prepareRetainedStylesheets({ ...source.options, occurrences,
                         consumer: `registry-prepared:${crypto.randomUUID()}`, context: options.context,
                         lease: source.options.ownership.stageConsumer(options.element, options.scope) });
@@ -208,7 +215,7 @@ export class CemStylesheetRegistry {
         }
         this.reconcile(this.observer?.takeRecords() ?? []);
         this.preparations.get(options.element)?.release();
-        const connection: Connection = { options: { ...options, context: structuredClone(options.context) },
+        const connection: Connection = { generation: Symbol(), options: { ...options, context: structuredClone(options.context) },
             loads: new Map(), revision: 0, released: false, abort: new AbortController(), unobserve: () => undefined };
         const previous = this.current.get(options.element);
         this.current.set(options.element, connection);
@@ -216,10 +223,19 @@ export class CemStylesheetRegistry {
         // Publish first: an abort handler may synchronously connect another generation.
         if (previous) this.removeConnection(previous);
         if (!connection.released) {
-            connection.unobserve = observeScopes([options.scope], () => this.removeConnection(connection));
+            this.observeConnection(connection);
             for (const source of this.sources.values()) this.attach(source, connection);
         }
-        return { signal: connection.abort.signal, whenReady: () => this.whenReady(connection), release: () => this.removeConnection(connection) };
+        return this.connectionView(connection);
+    }
+
+    private observeConnection(connection: Connection): void {
+        connection.unobserve = observeScopes([connection.options.scope], () => this.removeConnection(connection));
+    }
+
+    private connectionView(connection: Connection): CemStylesheetConnection {
+        return { signal: connection.abort.signal,
+            whenReady: () => this.whenReady(connection), release: () => this.removeConnection(connection) };
     }
 
     /** Await all submitted native cleanup; readers that ignore abort cannot delay it. */
@@ -292,6 +308,7 @@ export class CemStylesheetRegistry {
         connection.released = true;
         connection.revision++;
         connection.unobserve();
+        connection.unobserve = () => undefined;
         if (this.current.get(connection.options.element) === connection) {
             this.current.delete(connection.options.element);
             this.preparations.get(connection.options.element)?.release();

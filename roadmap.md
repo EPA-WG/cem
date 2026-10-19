@@ -542,9 +542,12 @@ Extend the existing native template/artifact caches,
 bounded processing LRU and render-plan diff machinery; do not introduce a parallel
 JavaScript AST or a Studio-specific cache. Shared engine/`cem-elements` owns the
 implementation; components and Studio continue to declare their inputs normally.
-The observed stylesheet `previous` connection retention is a lifecycle defect to
-repair independently, not a cache strategy. A live replacement must not retain a
-linked history of prior connections to achieve reuse.
+Stylesheet replacement ownership is repaired independently of caching: predecessor
+identity uses a generation token, live observers/callbacks do not retain preparation
+closures, and activation/cancellation clears transferred records. Forced Chromium
+collection verifies completed/cancelled preparations and retired generations in
+worker/fallback modes. A live replacement retains no linked connection history.
+Unchanged DOM/style reuse remains the next implementation step.
 
 Organize reuse into distinct ownership layers:
 

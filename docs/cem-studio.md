@@ -1251,8 +1251,12 @@ are checked before reuse. Opaque/invalid closures compile normally without cachi
 capacity refusal does not fail compilation. Hits reload independent native owners.
 Shared processing checks supersession/disposal after awaits and releases rejected
 handles. Studio adds no cache, JavaScript UI or persistence changes. Render/provider
-evaluation, imported resources and CSS loading still run normally. Retaining unchanged
-DOM/styles and repairing previous-connection stylesheet retention remain next.
+evaluation, imported resources and CSS loading still run normally. Shared stylesheet
+replacement now retains only live connection state: generation tokens replace
+predecessor ownership links, live callbacks/observers are detached from preparations,
+and activation/cancellation drops transferred commit records. Cancelled replacements
+preserve committed styles; ancestor scope disposal releases live owners. Studio adds
+no JavaScript behavior. Retaining unchanged DOM/styles remains next.
 
 Build choices include native graph, template, conversion and query configurations,
 plus live-view configurations. An ordinary CEM-ML document also gets a derived

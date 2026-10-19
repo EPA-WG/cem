@@ -78,11 +78,21 @@ the growing group for every node. Authored names such as `constructor` and
 `__proto__` are ordinary own keys, including after structured-clone transport.
 
 Retained stylesheet replacement owns only the current generation after publication.
-A preparation may reference the previous connection while it needs to preserve or
-replace its styles, but must clear that reference on activation or cancellation.
+A preparation compares an opaque predecessor generation and the registry's source
+revision; it does not own the preceding connection. The registry preserves that
+connection until successful activation. Activation creates live callbacks and
+scope observers outside the preparation's closure, then retires the predecessor.
+The live connection must not retain its preparation object or transferred commit
+array. Activation and cancellation clear transferred records; cancellation also
+clears staged load bookkeeping and removed scope listeners while preserving the
+committed generation. Caller-held commit groups still require their normal guards.
+
 Retired abort signals can retain exception stacks and render snapshots; disconnecting
-listeners alone does not release a chain reachable from the current connection.
-The active generation remains owned until its normal replacement or disposal.
+listeners alone does not release a reachable ownership chain. Forced Chromium
+collection fixtures verify both retired generations and completed/cancelled preparation
+records in worker and fallback modes. The active generation remains owned until
+normal replacement, disconnection or scope disposal. This is lifecycle cleanup;
+unchanged CSS/DOM reuse requires its own complete dependency identities.
 
 ## First connection and payload capture
 

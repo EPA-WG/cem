@@ -461,3 +461,101 @@ export const RetiredGenerationsCollectible: Story = {
         }
     },
 };
+
+/** Browser-runner-only: live ownership must not keep a prepared transaction alive. */
+export const PreparedOwnershipCollectible: Story = {
+    render: () => '<section aria-label="Stylesheet preparation retention"><p>Collection assertions run in the Chromium test runner.</p></section>',
+    play: async ({ canvasElement }) => {
+        if (import.meta.env.MODE !== 'test') return;
+        const { cdp } = await import('vitest/browser');
+        const root = canvasElement.querySelector('section')!;
+        for (const fallback of [false, true]) {
+            const f = fixture(root, fallback);
+            try {
+                const element = f.instance('registry-preparation-retention');
+                const own = await f.source(element.localName, [{ css: ':host { --private: url(icon); }', scope: null }]);
+                f.registry.register(own.options);
+                const consumerScope = createCemDeclarationScope({ document, parent: f.consumers });
+                const options = { element, declaration: own.options.declaration, sharedScope: 'controls', scope: consumerScope };
+                const activate = async () => {
+                    const pending = f.registry.prepareReplacement({ ...options, context: context('active') });
+                    expect(await pending.ready).toMatchObject({ status: 'prepared' });
+                    const entries = pending.takeCommits();
+                    if (!entries || !DeclarationStyleOwnership.commitGroup(entries)) throw new Error('missing prepared entries');
+                    const connection = pending.activate();
+                    if (!connection) throw new Error('missing live connection');
+                    return { connection, preparation: new WeakRef(pending), entries: new WeakRef(entries) };
+                };
+                const active = await activate();
+                await f.registry.flush();
+                await cdp().send('HeapProfiler.collectGarbage');
+                expect(active.preparation.deref() === undefined).toBe(true);
+                expect(active.entries.deref() === undefined).toBe(true);
+                expect(await active.connection.whenReady()).toMatchObject({ status: 'ready', installed: 1 });
+                expect(getComputedStyle(element).getPropertyValue('--private')).toContain('/active.svg');
+                const cancel = async () => {
+                    const pending = f.registry.prepareReplacement({ ...options, context: context('cancelled') });
+                    await pending.ready;
+                    const entries = pending.takeCommits();
+                    if (!entries) throw new Error('missing cancelled entries');
+                    pending.cancelPreparation();
+                    return { pending, entries: new WeakRef(entries) };
+                };
+                const cancelled = await cancel();
+                await f.registry.flush();
+                await cdp().send('HeapProfiler.collectGarbage');
+                expect(cancelled.entries.deref() === undefined).toBe(true);
+                expect(cancelled.pending.signal.aborted).toBe(true);
+                expect(active.connection.signal.aborted).toBe(false);
+                expect(getComputedStyle(element).getPropertyValue('--private')).toContain('/active.svg');
+                f.consumers.dispose();
+                expect(active.connection.signal.aborted).toBe(true);
+                expect(await active.connection.whenReady()).toMatchObject({ status: 'cancelled' });
+                active.connection.release(); // Releasing a retired handle is idempotent.
+                await f.registry.flush();
+                expect(own.element.querySelectorAll('style')).toHaveLength(0);
+                expect(element.hasAttribute('data-cem-css-context')).toBe(false);
+                expect(f.native.host.mode).toBe(fallback ? 'main-thread' : 'worker');
+            } finally { await f.dispose(); }
+        }
+    },
+};
+
+export const ReentrantPreparedRetirement: Story = {
+    render: () => '<section aria-label="Reentrant stylesheet retirement"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section')!;
+        for (const fallback of [false, true]) {
+            const f = fixture(root, fallback);
+            try {
+                const element = f.instance('registry-reentrant-retirement');
+                const own = await f.source(element.localName, [{ css: ':host { --private: url(icon); }', scope: null }]);
+                f.registry.register(own.options);
+                const options = { element, declaration: own.options.declaration, sharedScope: 'controls', scope: f.consumers };
+                const first = f.registry.connect({ ...options, context: context('first') });
+                await first.whenReady();
+                const pending = f.registry.prepareReplacement({ ...options, context: context('prepared') });
+                await pending.ready;
+                const entries = pending.takeCommits();
+                if (!entries || !DeclarationStyleOwnership.commitGroup(entries)) throw new Error('missing prepared group');
+                const state: { adopted?: ReturnType<CemStylesheetRegistry['connect']>; latest?: ReturnType<CemStylesheetRegistry['connect']> } = {};
+                first.signal.addEventListener('abort', () => {
+                    state.latest = f.registry.connect({ ...options, context: context('latest') });
+                }, { once: true });
+                expect(pending.activate(connection => { state.adopted = connection; })).toBeUndefined();
+                expect(state.adopted?.signal.aborted).toBe(true);
+                if (!state.latest) throw new Error('missing reentrant connection');
+                expect(await state.latest.whenReady()).toMatchObject({ status: 'ready', installed: 1 });
+                pending.release(); first.release();
+                await f.registry.flush();
+                expect(state.latest.signal.aborted).toBe(false);
+                expect(getComputedStyle(element).getPropertyValue('--private')).toContain('/latest.svg');
+                expect(own.element.querySelectorAll('style')).toHaveLength(1);
+                state.latest.release(); await f.registry.flush();
+                expect(own.element.querySelectorAll('style')).toHaveLength(0);
+                expect(element.hasAttribute('data-cem-css-context')).toBe(false);
+                expect(f.native.host.mode).toBe(fallback ? 'main-thread' : 'worker');
+            } finally { await f.dispose(); }
+        }
+    },
+};
