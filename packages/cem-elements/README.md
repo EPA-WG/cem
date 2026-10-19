@@ -216,8 +216,17 @@ preparation closure, then clears transferred commit records. Cancellation drops
 candidate records and load bookkeeping while preserving committed styles. A live
 connection therefore does not retain completed preparations or a predecessor chain.
 Forced Chromium collection fixtures cover both worker and fallback paths, including
-ancestor scope disposal. This ownership repair does not enable CSS/DOM reuse; see
-[the lifecycle contract](../../docs/cem-element-lifecycle-principle.md).
+ancestor scope disposal.
+
+Freshly validated native output now retains unchanged stylesheet installations.
+Instance receipts compare native owner/cache/context identity, occurrence and live
+host/mode/policy; matching CSS and markers avoid DOM writes or reinsertion.
+Declaration sheets also retain CSSOM when siblings are added/removed. Ordering and
+altered text/metadata are repaired with necessary DOM operations only. Changed native
+identity remounts instance CSS even when bytes match. Imports still load and validate
+on every attempt; pending/failed/cancelled loads preserve committed styles. This
+retains CSSOM and running animations without skipping rendering or adding an app
+cache. See [the lifecycle contract](../../docs/cem-element-lifecycle-principle.md).
 
 The asynchronous `executeNativeSsrInitialRenderFixture` evidence host now loads
 native payload CSS and returns `instanceStylesheetHtml` for direct host children

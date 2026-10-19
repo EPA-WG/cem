@@ -248,3 +248,129 @@ export const ExplicitPublication: Story = {
         }
     },
 };
+
+export const UnchangedCssomAndFreshImports: Story = {
+    render: () => '<section aria-label="Unchanged instance stylesheet installation"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section')!;
+        for (const fallback of [false, true]) {
+            const f = fixture(root, fallback);
+            try {
+                let reads = 0;
+                let imported = ':host { --value: var(--fixture-reuse-theme, first); animation: steady 60s linear infinite; } @keyframes steady { from { opacity: .9; } to { opacity: 1; } }';
+                const options = { ...f.options, sources: [{ css: '@import "./child.css";', scope: null }],
+                    read: async () => { reads++; return response(imported); } };
+                let active = stageInstanceStylesheets(options);
+                expect(await active.ready).toEqual(fallback ? [expect.objectContaining({
+                    code: 'cem.processing_host.worker_startup_fallback', severity: 'warning' })] : []);
+                expect(f.value()).toBe('first');
+                const animation = f.element.getAnimations()[0];
+                expect(animation !== undefined).toBe(true);
+                const style = f.element.querySelector('style')!;
+                const sheet = style.sheet;
+                const text = style.firstChild;
+                const observer = new MutationObserver(() => undefined);
+                observer.observe(f.element, { childList: true, subtree: true, attributes: true, characterData: true });
+                try {
+                    for (let i = 0; i < 4; i++) {
+                        const next = prepareInstanceStylesheets(options);
+                        expect(await next.ready).toMatchObject({ status: 'prepared' });
+                        expect(observer.takeRecords()).toHaveLength(0);
+                        expect(next.commit()).toBe(true);
+                        active.dispose();
+                        active = { ready: Promise.resolve([]), dispose: next.dispose };
+                        expect(observer.takeRecords()).toHaveLength(0);
+                        expect(style.sheet === sheet).toBe(true);
+                        expect(f.element.getAnimations()[0] === animation).toBe(true);
+                        expect(style.firstChild === text).toBe(true);
+                    }
+                    expect(reads).toBe(5); // Dependency freshness is checked on every attempt.
+                    root.style.setProperty('--fixture-reuse-theme', 'theme');
+                    expect(f.value()).toBe('theme');
+                    const themed = prepareInstanceStylesheets(options);
+                    await themed.ready; expect(themed.commit()).toBe(true);
+                    active.dispose(); active = { ready: Promise.resolve([]), dispose: themed.dispose };
+                    expect(observer.takeRecords()).toHaveLength(0);
+                    expect(style.sheet === sheet).toBe(true);
+                    expect(f.element.getAnimations()[0] === animation).toBe(true);
+                    const cancelled = prepareInstanceStylesheets(options);
+                    await cancelled.ready; cancelled.cancelPreparation();
+                    expect(observer.takeRecords()).toHaveLength(0);
+                    expect(style.sheet === sheet).toBe(true);
+                    imported = ':host { --value: changed; }';
+                    const changed = prepareInstanceStylesheets(options);
+                    await changed.ready;
+                    expect(changed.commit()).toBe(true);
+                    active.dispose();
+                    expect(f.value()).toBe('changed');
+                    expect(style.sheet === sheet).toBe(false);
+                    expect(observer.takeRecords().length).toBeGreaterThan(0);
+                    changed.dispose();
+                    expect(f.element.querySelector('style')).toBeNull();
+                } finally { observer.disconnect(); active.dispose(); }
+                expect(f.native.host.mode).toBe(fallback ? 'main-thread' : 'worker');
+            } finally { root.style.removeProperty('--fixture-reuse-theme'); f.dispose(); }
+        }
+    },
+};
+
+export const NativeIdentitySiblingsAndDomRepair: Story = {
+    render: () => '<section aria-label="Instance stylesheet reuse admission"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section')!;
+        for (const fallback of [false, true]) {
+            const f = fixture(root, fallback);
+            try {
+                await f.native.compile('reuse-admission-warmup', []);
+                let active = stageInstanceStylesheets(f.options);
+                expect(await active.ready).toEqual([]);
+                const first = f.element.querySelector('style')!;
+                let sheet = first.sheet;
+                const replace = async (options: InstanceStylesheetInstallationOptions) => {
+                    const next = prepareInstanceStylesheets({ ...options, artifactId: `reuse:${crypto.randomUUID()}` });
+                    expect(await next.ready).toMatchObject({ status: 'prepared' });
+                    expect(next.commit()).toBe(true);
+                    active.dispose();
+                    active = { ready: Promise.resolve([]), dispose: next.dispose };
+                };
+                const extra = { ...f.options, sources: [...f.options.sources, { css: ':host { --value: second; }', scope: null }] };
+                await replace(extra);
+                expect(first.sheet === sheet).toBe(true);
+                expect(f.element.querySelectorAll('style')).toHaveLength(2);
+                expect(f.value()).toBe('second');
+                const second = f.element.querySelectorAll('style')[1];
+                f.element.insertBefore(second, first);
+                await replace(extra);
+                expect(f.element.querySelector('style') === first).toBe(true);
+                expect(first.sheet === sheet).toBe(true);
+                expect(f.value()).toBe('second');
+                await replace(f.options);
+                expect(first.sheet === sheet).toBe(true);
+                expect(f.element.querySelectorAll('style')).toHaveLength(1);
+                const text = first.textContent;
+                const changedBase = { ...f.options, baseUrl: 'https://example.test/other/main.css' };
+                await replace(changedBase);
+                expect(first.textContent).toBe(text); // Same bytes are insufficient if native identity changed.
+                expect(first.sheet === sheet).toBe(false);
+                sheet = first.sheet;
+                first.setAttribute('data-cem-instance-style', 'tampered');
+                await replace(changedBase);
+                expect(first.getAttribute('data-cem-instance-style')).toBe('0');
+                expect(first.sheet === sheet).toBe(true);
+                first.textContent = ':host { --value: tampered; }';
+                await replace(changedBase);
+                expect(f.value()).toBe('client');
+                expect(first.sheet === sheet).toBe(false);
+                sheet = first.sheet;
+                f.element.append(f.content);
+                await replace(changedBase);
+                expect(first === f.element.lastChild).toBe(true);
+                expect(first.sheet === sheet).toBe(false);
+                expect(f.element.querySelector('p') === f.content).toBe(true);
+                active.dispose();
+                expect(f.element.querySelector('style')).toBeNull();
+                expect(f.native.host.mode).toBe(fallback ? 'main-thread' : 'worker');
+            } finally { f.dispose(); }
+        }
+    },
+};

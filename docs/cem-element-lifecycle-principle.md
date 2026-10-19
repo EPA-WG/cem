@@ -91,8 +91,27 @@ Retired abort signals can retain exception stacks and render snapshots; disconne
 listeners alone does not release a reachable ownership chain. Forced Chromium
 collection fixtures verify both retired generations and completed/cancelled preparation
 records in worker and fallback modes. The active generation remains owned until
-normal replacement, disconnection or scope disposal. This is lifecycle cleanup;
-unchanged CSS/DOM reuse requires its own complete dependency identities.
+normal replacement, disconnection or scope disposal.
+
+Stylesheet installation reuse follows fresh native validation, including import
+reads, redirect/response policy and effective resolution context. Native CSS
+identities cover the complete source/import closure, base URLs and managed scope.
+Declaration owners retain matching derived style nodes; instance nodes retain one
+current weakly keyed receipt for native owner/cache/context identity, occurrence,
+processing host/mode and policy. No source-only or browser AST cache authorizes reuse.
+Native load ownership still transfers through the current publication transaction.
+
+Matching installed CSS and metadata stay in place, preserving CSSOM and animations.
+Only necessary ordering/attachment changes run. Managed instance styles form a
+suffix outside the render range; declaration sheets keep their relative native
+occurrence order. Native identity changes remount instance installations even when
+CSS bytes happen to match. Altered text/metadata are repaired from admitted native
+output. Added/removed siblings do not reinstall unchanged sheets. Pending, failed
+or cancelled candidates preserve committed styles. Disposing an owning generation
+deletes its installation receipts; no predecessor history is added.
+
+This does not skip imports, provider/event evaluation or DOM rendering. Full
+unchanged-DOM reuse and focus/form-state acceptance remain subsequent work.
 
 ## First connection and payload capture
 

@@ -1256,7 +1256,12 @@ replacement now retains only live connection state: generation tokens replace
 predecessor ownership links, live callbacks/observers are detached from preparations,
 and activation/cancellation drops transferred commit records. Cancelled replacements
 preserve committed styles; ancestor scope disposal releases live owners. Studio adds
-no JavaScript behavior. Retaining unchanged DOM/styles remains next.
+no JavaScript behavior. Fresh native stylesheet validation now retains matching
+installed nodes and CSSOM, including through ordinary data edits and inherited
+theme changes. Unchanged native identities preserve animations; changed identity,
+content, order or context causes the required repair/reinstallation. Imports still
+revalidate; pending or rejected candidates preserve committed styles. Source/input
+and complete DOM reuse remain separate from this installation optimization.
 
 Build choices include native graph, template, conversion and query configurations,
 plus live-view configurations. An ordinary CEM-ML document also gets a derived

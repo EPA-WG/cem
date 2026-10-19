@@ -516,7 +516,8 @@ inputs are unchanged. Avoid recompiling/reinstalling unchanged CSS on every rend
 while preserving DOM identity, edited controls and the normal component lifecycle.
 
 Status: native identity/invalidation, bounded storage and checked native/WASM
-compilation hits implemented 2026-10-19. DOM/style reuse remains planned. Shared native dependency snapshots now
+compilation hits and stylesheet installation reuse implemented 2026-10-19.
+Complete DOM reuse remains planned. Shared native dependency snapshots now
 cover complete source/import closures, effective options, engine/format,
 policy/resolution/scope and explicit render/provider freshness revisions. The
 opt-in native template compilation receipt preserves ordinary render/provenance
@@ -535,8 +536,9 @@ independent owners from leased binary IR; shared processing rejects superseded o
 disposed results and sends new CEM owners through native checks. Opaque/invalid
 closures remain uncached, and capacity refusal preserves successful compilation.
 See [checked compilation](packages/cem_ql/README.md#checked-template-compilation-cache).
-Render/provider evaluation and CSS/resource loading retain their normal lifecycle;
-DOM/style reuse remains subsequent work.
+Render/provider evaluation and CSS/resource loading retain their normal lifecycle.
+Native-validated unchanged stylesheet installations now preserve CSSOM and animations;
+complete DOM reuse remains subsequent work.
 
 Extend the existing native template/artifact caches,
 bounded processing LRU and render-plan diff machinery; do not introduce a parallel
@@ -547,7 +549,11 @@ identity uses a generation token, live observers/callbacks do not retain prepara
 closures, and activation/cancellation clears transferred records. Forced Chromium
 collection verifies completed/cancelled preparations and retired generations in
 worker/fallback modes. A live replacement retains no linked connection history.
-Unchanged DOM/style reuse remains the next implementation step.
+Fresh native emissions now reuse matching stylesheet installations with minimal
+DOM placement, per-node native identity receipts and current host/policy admission.
+Import reads and validation continue; changed identities or damaged DOM trigger
+repair/reinstallation. Data edits and inherited theme changes preserve matching
+CSSOM and animations. Complete unchanged-DOM reuse remains the next step.
 
 Organize reuse into distinct ownership layers:
 

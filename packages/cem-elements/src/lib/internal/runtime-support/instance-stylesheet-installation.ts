@@ -2,6 +2,7 @@ import type { CemOwnedStylesheet } from '../../declaration-style-ownership.js';
 import { installRetainedStylesheets, prepareRetainedStylesheets, type CemPreparedStylesheets, type CemStylesheetInstallation, type CemStylesheetInstallationOptions } from './stylesheet-installation.js';
 import { cemProcessingFailureDiagnostics, createCemProcessingTextSource, type CemProcessingDiagnostic } from './processing-host.js';
 import { notifyStylesheetLifecycle } from './stylesheet-notifications.js';
+import { placeManagedStylesheets } from './stylesheet-dom-order.js';
 
 export interface InstanceStylesheetInstallation {
     ready: Promise<readonly CemProcessingDiagnostic[]>;
@@ -21,6 +22,10 @@ export type InstanceStylesheetInstallationOptions = Pick<CemStylesheetInstallati
 type Generation = { dispose(): void };
 const generations = new WeakMap<HTMLElement, { active?: Generation; pending?: Generation }>();
 const nodeOwners = new WeakMap<HTMLStyleElement, Generation>();
+// One current native receipt per live node, never a source/body or generation cache.
+type InstallationReceipt = { index: number; ownerKey: string; cacheKey: string; contextMarker: string | null;
+    host: InstanceStylesheetInstallationOptions['host'] | undefined; mode: string | undefined; policy: string | undefined };
+const nodeReceipts = new WeakMap<HTMLStyleElement, InstallationReceipt>();
 
 export function installInstanceStylesheets(options: InstanceStylesheetInstallationOptions): InstanceStylesheetInstallation {
     return install(options, false);
@@ -95,7 +100,7 @@ function install(input: InstanceStylesheetInstallationOptions | EmittedInstanceS
         if (ownership.pending === generation) ownership.pending = undefined;
         if (ownership.active === generation) ownership.active = undefined;
         for (const node of nodes) {
-            if (nodeOwners.get(node) === generation) { node.remove(); nodeOwners.delete(node); }
+            if (nodeOwners.get(node) === generation) { node.remove(); nodeOwners.delete(node); nodeReceipts.delete(node); }
         }
         nodes = [];
         releaseNative?.();
@@ -128,15 +133,37 @@ function install(input: InstanceStylesheetInstallationOptions | EmittedInstanceS
         const candidates = staged
             ? Array.from(element.querySelectorAll<HTMLStyleElement>(':scope > style[data-cem-instance-style]'))
             : retainedNodes;
-        nodes = outputs.map((output, index) => {
-            const style = candidates[index] ?? element.ownerDocument.createElement('style');
+        const available = new Set(candidates);
+        const indexed = new Map<number, HTMLStyleElement>();
+        for (const style of candidates) {
+            const index = nodeReceipts.get(style)?.index ?? Number(style.getAttribute('data-cem-instance-style'));
+            if (Number.isSafeInteger(index) && index >= 0 && !indexed.has(index)) indexed.set(index, style);
+        }
+        const remount = new Set<HTMLStyleElement>();
+        nodes = outputs.map(output => {
+            const indexedStyle = indexed.get(output.index);
+            const style = indexedStyle && available.has(indexedStyle) ? indexedStyle
+                : available.values().next().value ?? element.ownerDocument.createElement('style');
+            available.delete(style);
+            const receipt: InstallationReceipt = { index: output.index, ...output.output.identity,
+                host, mode: host?.mode, policy: 'scopePolicyStamp' in options ? options.scopePolicyStamp : undefined };
+            const prior = nodeReceipts.get(style);
+            // Native loading/authorization has already completed. Reuse only the
+            // matching emitted installation, not an unchecked source-text guess.
+            if (!receipt.ownerKey || !receipt.cacheKey || (prior && (prior.index !== receipt.index || prior.ownerKey !== receipt.ownerKey
+                || prior.cacheKey !== receipt.cacheKey || prior.contextMarker !== receipt.contextMarker
+                || prior.host !== receipt.host || prior.mode !== receipt.mode || prior.policy !== receipt.policy))) remount.add(style);
             nodeOwners.set(style, generation);
-            style.setAttribute('data-cem-instance-style', String(output.index));
+            nodeReceipts.set(style, receipt);
+            const marker = String(output.index);
+            if (style.getAttribute('data-cem-instance-style') !== marker) style.setAttribute('data-cem-instance-style', marker);
             if (style.textContent !== output.output.css) style.textContent = output.output.css;
-            element.append(style);
             return style;
         });
-        for (const node of candidates.slice(outputs.length)) node.remove();
+        for (const node of available) node.remove();
+        // Keep the managed suffix in order without removing/reinserting an
+        // unchanged style: insertion recreates CSSOM and can restart animations.
+        placeManagedStylesheets(element, nodes, true, remount);
         ownership.active = generation;
         ownership.pending = undefined;
         if (previous) notifyStylesheetLifecycle([() => previous.dispose()]);

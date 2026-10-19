@@ -567,3 +567,39 @@ export const PayloadCssContextAndSourceChanges: Story = {
         }
     },
 };
+
+export const DataUpdatesKeepStylesheetInstallations: Story = {
+    render: () => '<section aria-label="Runtime stylesheet installation reuse"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section')!;
+        for (const fallback of [false, true]) for (const mode of ['dom', 'cem-ml'] as const) {
+            const f = fixture(root, fallback);
+            try {
+                const declaration = f.declare('stable-installation', mode === 'dom'
+                    ? '<style>:host { --declaration: present; }</style><attribute name=label>Before</attribute><p>${$label}</p>'
+                    : css(':host { --declaration: present; }') + '{attribute @name=label | Before}{p | {$label}}', mode);
+                await declaration.ready;
+                const instance = document.createElement(declaration.tag);
+                const payload = document.createElement('template');
+                payload.innerHTML = '<style>p { --instance: present; }</style>';
+                instance.append(payload); root.append(instance);
+                await f.runtime.whenRenderSettled(instance);
+                const instanceStyle = instance.querySelector<HTMLStyleElement>('style[data-cem-instance-style]');
+                const declarationStyle = declaration.declaration.querySelector<HTMLStyleElement>('style[data-cem-declaration-style]');
+                if (!instanceStyle || !declarationStyle) throw new Error('missing native stylesheet installations');
+                const instanceSheet = instanceStyle.sheet, declarationSheet = declarationStyle.sheet;
+                expect(instanceSheet !== null && declarationSheet !== null).toBe(true);
+                for (let i = 0; i < 3; i++) {
+                    instance.setAttribute('label', `Value ${i}`);
+                    await f.runtime.whenRenderSettled(instance);
+                    expect(instance.querySelector('p')?.textContent).toBe(`Value ${i}`);
+                    expect(instance.querySelector('style[data-cem-instance-style]') === instanceStyle).toBe(true);
+                    expect(instanceStyle.sheet === instanceSheet).toBe(true);
+                    expect(declarationStyle.sheet === declarationSheet).toBe(true);
+                    expect(getComputedStyle(instance).getPropertyValue('--declaration').trim()).toBe('present');
+                    expect(getComputedStyle(instance.querySelector('p')!).getPropertyValue('--instance').trim()).toBe('present');
+                }
+            } finally { f.dispose(); }
+        }
+    },
+};

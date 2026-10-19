@@ -557,3 +557,63 @@ export const CoordinatedContextReplacement: Story = {
         }
     },
 };
+
+export const UnchangedSiblingsKeepCssom: Story = {
+    render: () => '<section aria-label="Stable declaration stylesheet installations"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section')!;
+        for (const fallback of [false, true]) {
+            const native = nativeCssStoryHost(fallback);
+            const scope = createCemDeclarationScope({ document });
+            const ownership = new DeclarationStyleOwnership(document, scope);
+            const declaration = document.createElement('div'); root.append(declaration); ownership.add(declaration, scope);
+            const element = document.createElement('native-stable-sheets'); root.append(element);
+            const releases: Promise<unknown>[] = [];
+            try {
+                const { artifact } = await native.compile(element.localName, [
+                    { css: ':host { --first: yes; }', scope: null }, { css: ':host { --second: yes; }', scope: null }]);
+                let sequence = 0;
+                const prepare = async (indices: number[]) => {
+                    const consumer = `stable:${++sequence}`;
+                    const lease = ownership.stageConsumer(element, scope);
+                    const outputs = [];
+                    for (const index of indices) {
+                        const output = await native.host.stylesheet({ action: 'begin', artifact, consumer, index,
+                            scope: { kind: 'private', tag: element.localName }, baseUrl: 'https://example.test/main.css', context: nativeCssStoryContext }).result;
+                        if (output.status !== 'ready') throw new Error('missing native output');
+                        outputs.push({ index, scope: { kind: 'private' as const }, output });
+                    }
+                    return { lease, outputs, release: () => {
+                        releases.push(native.host.stylesheet({ action: 'release', artifact, consumer }).result);
+                    } };
+                };
+                const initial = await prepare([0]); expect(DeclarationStyleOwnership.commitGroup([initial])).toBe(true);
+                const first = declaration.querySelector('style')!; const sheet = first.sheet;
+                const equal = await prepare([0]); expect(DeclarationStyleOwnership.commitGroup([equal])).toBe(true);
+                expect(first.sheet === sheet).toBe(true);
+                const extra = await prepare([0, 1]); expect(DeclarationStyleOwnership.commitGroup([extra])).toBe(true);
+                expect(first.sheet === sheet).toBe(true);
+                expect(declaration.querySelectorAll('style')).toHaveLength(2);
+                const second = declaration.querySelectorAll('style')[1];
+                declaration.insertBefore(second, first);
+                ownership.reconcile();
+                expect(declaration.querySelector('style') === first).toBe(true);
+                expect(first.sheet === sheet).toBe(true);
+                const smaller = await prepare([0]); expect(DeclarationStyleOwnership.commitGroup([smaller])).toBe(true);
+                expect(first.sheet === sheet).toBe(true);
+                expect(declaration.querySelectorAll('style')).toHaveLength(1);
+                first.textContent = 'native-stable-sheets { --first: tampered; }';
+                first.setAttribute('data-cem-style-key', 'tampered');
+                const repaired = await prepare([0]); expect(DeclarationStyleOwnership.commitGroup([repaired])).toBe(true);
+                expect(first.textContent).toBe(repaired.outputs[0].output.css);
+                expect(first.getAttribute('data-cem-style-key')).toBe(repaired.outputs[0].output.identity.cacheKey);
+                expect(getComputedStyle(element).getPropertyValue('--first').trim()).toBe('yes');
+                smaller.lease.release();
+                expect(declaration.querySelector('style') === first).toBe(true);
+                repaired.lease.release();
+                expect(declaration.querySelector('style')).toBeNull();
+                expect(native.host.mode).toBe(fallback ? 'main-thread' : 'worker');
+            } finally { scope.dispose(); await Promise.all(releases); native.dispose(); root.replaceChildren(); }
+        }
+    },
+};

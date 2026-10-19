@@ -4,6 +4,7 @@ import {
 
 import type { CemProcessingStylesheetResult } from './internal/runtime-support/processing-host.js';
 import { declarationStylesheetAttributes } from './declaration-style-markup.js';
+import { placeManagedStylesheets } from './internal/runtime-support/stylesheet-dom-order.js';
 import { deferStylesheetNotifications, stylesheetNotificationsDeferred,
     notifyStylesheetLifecycle as runNotifications } from './internal/runtime-support/stylesheet-notifications.js';
 import type { PreparedPatchFrames, RenderRevision, PatchFramesApplyDiagnostic } from './projection.js';
@@ -235,11 +236,15 @@ export class DeclarationStyleOwnership {
             let set = this.derived.get(key);
             if (!set) {
                 const style = this.takeServerStyle(source) ?? this.document.createElement('style');
-                for (const [name, value] of Object.entries(declarationStylesheetAttributes(source))) style.setAttribute(name, value);
-                if (style.textContent !== source.output.css) style.textContent = source.output.css;
                 set = { source, style, consumers: new Set() };
                 this.derived.set(key, set);
             }
+            // Matching native output may retain its installation, but live DOM
+            // bytes/metadata must still match the freshly authorized emission.
+            for (const [name, value] of Object.entries(declarationStylesheetAttributes(source))) {
+                if (set.style.getAttribute(name) !== value) set.style.setAttribute(name, value);
+            }
+            if (set.style.textContent !== source.output.css) set.style.textContent = source.output.css;
             set.consumers.add(consumer);
             consumer.sets.push(set);
         }
@@ -483,10 +488,7 @@ export class DeclarationStyleOwnership {
         if (!element) {
             for (const style of ordered) style.remove();
         } else {
-            const mounted = Array.from(element.children).filter(child => ordered.includes(child as HTMLStyleElement));
-            if (mounted.length !== ordered.length || mounted.some((style, index) => style !== ordered[index])) {
-                for (const style of ordered) element.append(style);
-            }
+            placeManagedStylesheets(element, ordered, false);
         }
     }
 
