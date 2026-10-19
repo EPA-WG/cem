@@ -1076,8 +1076,16 @@ The ordinary configuration still declares its resource IDs; Build uses the
 captured saved manifest and the shared command/output/preview services. No
 Studio folder walker, converter or UI behavior is involved. Native traversal
 and output-set bounds remain enforced; empty folders do not emit artifacts.
-The complete Markdown site project, supported content metadata and reusable
-layouts/partials are subsequent work, with their parsing in the native engine.
+Native site builds support opt-in YAML front matter and retained common
+metadata through Markdown conversion, HTML recovery and CEMT layout/partial
+composition. The [Markdown contract](../packages/cem_ml/schema-packages/markdown/v1/README.md#native-site-metadata-and-layout-inputs)
+defines reserved field types, bounds and original source coordinates. Page
+metadata is `input.metadata`; site-wide data/navigation uses an explicit
+`@with:site` graph input. Template modules and output destinations remain
+explicit, independently of `layout`/`slug` metadata. Studio consumes native
+artifact provenance without reconstructing source locations. The complete
+ordinary Markdown site example, editing and portable/offline acceptance remain
+subsequent work.
 
 Each build attempt captures a configuration identity/revision, input resource
 identities/revisions/hashes, relevant tree snapshot, engine versions and resolver

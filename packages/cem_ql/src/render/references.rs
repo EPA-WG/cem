@@ -69,10 +69,11 @@ impl PlanRenderer<'_> {
                 out.push(occurrence(item.clone(), source.clone()));
             } else if item.atom().is_some() {
                 let text = self.render_stream_text(&ItemStream::once(item.clone()), source);
-                out.push(RenderPlanNode::Text {
-                    text,
-                    source_map: source.clone(),
-                });
+                let mut origin = item.source_map().unwrap_or_default();
+                for frame in &source.frames {
+                    if !origin.frames.contains(frame) { origin.frames.push(frame.clone()); }
+                }
+                out.push(RenderPlanNode::Text { text, source_map: origin });
             } else {
                 self.fail_insertion(
                     "Expression content requires native nodes or atomic values",
@@ -158,7 +159,7 @@ pub fn expand_reference(reference: &CemReference<Item>) -> Vec<RenderPlanNode> {
         let Some(node) = native(item) else {
             result.push(RenderPlanNode::Text {
                 text: item_to_string(item),
-                source_map: SourceMapStack::default(),
+                source_map: item.source_map().unwrap_or_default(),
             });
             continue;
         };

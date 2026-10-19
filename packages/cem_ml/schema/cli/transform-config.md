@@ -193,6 +193,15 @@ string as an `xsl:with-param` value for named template entrypoints. Plain
 }
 ```
 
+For site metadata, opt into native YAML front matter on the import with
+`front-matter=yaml` in its Markdown content type. The recovered DOM provides
+`input.metadata` as common CEM data nodes and `input.sourceUri` alongside
+`input.children`. Add site-wide data/navigation as a separate import and bind
+it with `transform @with:site=site`; reusable partials remain declared CEMT
+module imports. Metadata does not trigger resource discovery, select templates
+or rewrite destinations. The full contract and bounds are in the
+[Markdown package](../../schema-packages/markdown/v1/README.md#native-site-metadata-and-layout-inputs).
+
 The layout in this example receives the native DOM projection as its implicit
 `input` value. A complete layout can recursively emit `input.children` with the
 CEM transform vocabulary while adding shared navigation and page structure.

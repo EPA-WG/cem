@@ -162,6 +162,8 @@ struct TransformOutputMetadata {
     source_map: Option<SourceMapStack>,
     output_spans: Vec<OutputSpan>,
     raw_content: Option<String>,
+    generated: bool,
+    document_metadata: Option<Arc<crate::validation::generic_data::GenericDataDocumentAst>>,
 }
 
 impl RealCemMlEngine {
@@ -3467,6 +3469,8 @@ fn collect_transform_graph_join_metadata(
         },
         output_spans,
         raw_content: None,
+        generated: false,
+        document_metadata: None,
     }
 }
 
@@ -3502,6 +3506,7 @@ fn convert_transform_graph_artifact(
     context: &EngineContext,
     conversion: &TransformGraphConversion,
     input: &TransformTemplateDataArtifact,
+    input_metadata: Option<&TransformOutputMetadata>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<(TransformTemplateDataArtifact, TransformOutputMetadata)> {
     let Some(source) = input.identity.as_ref() else {
@@ -3607,6 +3612,13 @@ fn convert_transform_graph_artifact(
                     });
                     return None;
                 };
+                let mut document = document;
+                if let Some(metadata) = input_metadata.filter(|metadata| metadata.generated) {
+                    document.origin_spans = Some(crate::source_map::SourceMapIndex::new(
+                        metadata.output_spans.clone(),
+                    ));
+                    document.metadata = metadata.document_metadata.clone();
+                }
                 Arc::new(document)
             }
             TransformArtifactBody::Lifecycle(stream) => match stream.as_ref() {
@@ -3643,18 +3655,26 @@ fn convert_transform_graph_artifact(
                 return None;
             }
         };
-        let source_map = Some(SourceMapStack {
-            frames: vec![crate::source_map::SourceMapFrame {
-                source_id: SourceId(1),
-                span: crate::source_map::FrameSpan::Single(ByteRange::new(
-                    0,
-                    u32::try_from(document.source.byte_length).unwrap_or(u32::MAX),
-                )),
-                transform: crate::source_map::TransformKind::ContentTypeTransform {
-                    content_type: HTML_CONTENT_TYPE.to_owned(),
-                },
-            }],
-        });
+        let source_map =
+            if let Some(metadata) = input_metadata.filter(|metadata| metadata.generated) {
+                metadata.source_map.clone()
+            } else {
+                Some(
+                    SourceMapStack {
+                        frames: vec![crate::source_map::SourceMapFrame {
+                            source_id: SourceId(1),
+                            span: crate::source_map::FrameSpan::Single(ByteRange::new(
+                                0,
+                                u32::try_from(document.source.byte_length).unwrap_or(u32::MAX),
+                            )),
+                            transform: crate::source_map::TransformKind::ContentTypeTransform {
+                                content_type: HTML_CONTENT_TYPE.into(),
+                            },
+                        }],
+                    }
+                    .with_source_uri(&document.source.uri),
+                )
+            };
         return Some((
             TransformTemplateDataArtifact::new(
                 conversion.id.clone(),
@@ -3666,6 +3686,8 @@ fn convert_transform_graph_artifact(
                 source_map,
                 output_spans: Vec::new(),
                 raw_content: None,
+                generated: true,
+                document_metadata: None,
             },
         ));
     }
@@ -3726,6 +3748,8 @@ fn convert_transform_graph_artifact(
                     source_map,
                     output_spans: Vec::new(),
                     raw_content: Some(content),
+                    generated: true,
+                    document_metadata: None,
                 },
             ));
         }
@@ -3777,6 +3801,8 @@ fn convert_transform_graph_artifact(
                 source_map: execution.source_map,
                 output_spans: execution.output_spans,
                 raw_content: Some(content),
+                generated: true,
+                document_metadata: None,
             },
         ));
     }
@@ -3801,17 +3827,20 @@ fn convert_transform_graph_artifact(
                         diagnostics,
                     )?;
                     let mapping_preserved = content == html.content;
-                    let source_map = mapping_preserved.then(|| SourceMapStack {
-                        frames: vec![crate::source_map::SourceMapFrame {
-                            source_id: SourceId(1),
-                            span: crate::source_map::FrameSpan::Single(ByteRange::new(
-                                0,
-                                u32::try_from(document.source.byte_length).unwrap_or(u32::MAX),
-                            )),
-                            transform: crate::source_map::TransformKind::ContentTypeTransform {
-                                content_type: MARKDOWN_CONTENT_TYPE.to_owned(),
-                            },
-                        }],
+                    let source_map = mapping_preserved.then(|| {
+                        SourceMapStack {
+                            frames: vec![crate::source_map::SourceMapFrame {
+                                source_id: SourceId(1),
+                                span: crate::source_map::FrameSpan::Single(ByteRange::new(
+                                    0,
+                                    u32::try_from(document.source.byte_length).unwrap_or(u32::MAX),
+                                )),
+                                transform: crate::source_map::TransformKind::ContentTypeTransform {
+                                    content_type: MARKDOWN_CONTENT_TYPE.to_owned(),
+                                },
+                            }],
+                        }
+                        .with_source_uri(&document.source.uri)
                     });
                     let output_spans = if mapping_preserved {
                         html.output_spans
@@ -3878,6 +3907,14 @@ fn convert_transform_graph_artifact(
             source_map,
             output_spans,
             raw_content: Some(content),
+            generated: true,
+            document_metadata: match &input.body {
+                TransformArtifactBody::Lifecycle(stream) => match stream.as_ref() {
+                    LoadedInputAstStream::MarkdownDocument(document) => document.metadata.clone(),
+                    _ => None,
+                },
+                _ => input_metadata.and_then(|metadata| metadata.document_metadata.clone()),
+            },
         },
     ))
 }
@@ -4829,6 +4866,8 @@ fn importmap_rewrite_output_metadata(
         source_map: input.source_map,
         output_spans,
         raw_content: Some(rewritten.to_owned()),
+        generated: input.generated,
+        document_metadata: input.document_metadata,
     }
 }
 
@@ -8119,14 +8158,24 @@ fn markdown_document_ast_to_html(
                     code_block = Some(MarkdownHtmlCodeBlock {
                         info: event.info.clone().unwrap_or_default(),
                         text: String::new(),
-                        origin: Some(event.source_range.source_map()),
+                        origin: Some(
+                            event
+                                .source_range
+                                .source_map()
+                                .with_source_uri(&document.source.uri),
+                        ),
                     });
                 } else if event.tag.as_deref() == Some("image") {
                     image = Some(MarkdownHtmlImage {
                         destination: event.destination.clone().unwrap_or_default(),
                         title: event.title.clone(),
                         alt: String::new(),
-                        origin: Some(event.source_range.source_map()),
+                        origin: Some(
+                            event
+                                .source_range
+                                .source_map()
+                                .with_source_uri(&document.source.uri),
+                        ),
                     });
                 } else {
                     if event.tag.as_deref() == Some("table-row")
@@ -8202,7 +8251,12 @@ fn markdown_document_ast_to_html(
             &mut output_spans,
             output_start,
             html.len(),
-            Some(event.source_range.source_map()),
+            Some(
+                event
+                    .source_range
+                    .source_map()
+                    .with_source_uri(&document.source.uri),
+            ),
         );
     }
 
@@ -13122,10 +13176,7 @@ impl CemMlEngine for RealCemMlEngine {
         })
     }
 
-    fn transform_graph(
-        &self,
-        request: TransformGraphRequest,
-    ) -> EngineResult<TransformGraphResponse> {
+    fn transform_graph(&self, request: TransformGraphRequest) -> EngineResult<TransformGraphResponse> {
         request.context.ensure_active()?;
         let started_at = Instant::now();
         let trace = crate::scheduler::SchedulerTrace::new();
@@ -13185,6 +13236,8 @@ impl CemMlEngine for RealCemMlEngine {
                         source_map: None,
                         output_spans: Vec::new(),
                         raw_content: String::from_utf8(import.input.bytes.clone()).ok(),
+                        generated: false,
+                        document_metadata: None,
                     },
                 );
             });
@@ -13238,8 +13291,7 @@ impl CemMlEngine for RealCemMlEngine {
                 pool.submit(format!("{}:join", join.id), &abort)
                     .map_err(scheduler_dispatch_error)?;
                 pool.run_to_completion(&abort, |_| {
-                    let artifact =
-                        collect_transform_graph_join(join, &artifacts, &artifact_metadata);
+                    let artifact = collect_transform_graph_join(join, &artifacts, &artifact_metadata);
                     let metadata = collect_transform_graph_join_metadata(join, &artifact_metadata);
                     artifacts.insert(join.id.clone(), Arc::new(artifact));
                     artifact_metadata.insert(join.id.clone(), metadata);
@@ -13269,6 +13321,7 @@ impl CemMlEngine for RealCemMlEngine {
                         &request.context,
                         conversion,
                         &primary_input,
+                        artifact_metadata.get(&conversion.primary_input),
                         &mut diagnostics,
                     ) {
                         artifacts.insert(conversion.id.clone(), Arc::new(artifact));
@@ -13501,8 +13554,7 @@ impl CemMlEngine for RealCemMlEngine {
                     Err(message) => {
                         diagnostics.push(Diagnostic {
                             uri: Some(stage.template.uri.clone()),
-                            code: "cem.transform_runtime.output_representation_unsupported"
-                                .to_owned(),
+                            code: "cem.transform_runtime.output_representation_unsupported".to_owned(),
                             severity: Severity::Fatal,
                             message,
                             node: Some(diagnostic_node),
@@ -13512,9 +13564,7 @@ impl CemMlEngine for RealCemMlEngine {
                             artifacts: exported,
                             module_asset_manifest: request.module_asset_manifest.clone(),
                             diagnostics,
-                            scheduler_trace: crate::report::SchedulerTraceReport::from_trace(
-                                &trace,
-                            ),
+                            scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
                         });
                     }
                 };
@@ -13528,6 +13578,8 @@ impl CemMlEngine for RealCemMlEngine {
                             artifacts.get(&stage.id).expect("stage artifact inserted"),
                             None,
                         ),
+                        generated: true,
+                        document_metadata: None,
                     },
                 );
                 completed_stages.insert(stage.id.clone());
@@ -13537,9 +13589,8 @@ impl CemMlEngine for RealCemMlEngine {
                 diagnostics.push(Diagnostic {
                     code: "cem.transform_runtime.graph_order_invalid".to_owned(),
                     severity: Severity::Fatal,
-                    message:
-                        "transform graph stages could not be ordered from their declared inputs"
-                            .to_owned(),
+                    message: "transform graph stages could not be ordered from their declared inputs"
+                        .to_owned(),
                     details: None,
                     ..Diagnostic::default()
                 });
@@ -15600,6 +15651,8 @@ mod tests {
                     source_map: Some(first_source_map.clone()),
                     output_spans: vec![test_output_span(1, 2, 100)],
                     raw_content: None,
+                    generated: false,
+                    document_metadata: None,
                 },
             ),
             (
@@ -15608,6 +15661,8 @@ mod tests {
                     source_map: Some(second_source_map.clone()),
                     output_spans: vec![test_output_span(4, 3, 200)],
                     raw_content: None,
+                    generated: false,
+                    document_metadata: None,
                 },
             ),
         ]);
@@ -15777,6 +15832,7 @@ mod tests {
             &EngineContext::default(),
             &conversion,
             &input,
+            None,
             &mut diagnostics,
         )
         .expect("registered HTML recovery converter should execute");
@@ -15797,6 +15853,54 @@ mod tests {
         }));
         assert!(metadata.source_map.is_some());
         assert!(metadata.raw_content.is_none());
+    }
+
+    #[test]
+    fn html_recovery_does_not_relabel_unmapped_generated_offsets_as_authored_sources() {
+        let input = encoded_text_test_artifact(
+            "html",
+            Some("content.md"),
+            FormatIdentity {
+                content_type: Some(HTML_CONTENT_TYPE.into()),
+                schema: Some(HTML_SCHEMA_URI.into()),
+                ..Default::default()
+            },
+            "<p>Generated text</p>",
+        );
+        let conversion = TransformGraphConversion {
+            id: "dom".into(),
+            primary_input: "html".into(),
+            converter_id: Some("html-to-cem-dom-projection-rust".into()),
+            target: FormatIdentity {
+                content_type: Some(CEM_DOM_PROJECTION_CONTENT_TYPE.into()),
+                schema: Some(CEM_DOM_PROJECTION_SCHEMA_URI.into()),
+                ..Default::default()
+            },
+            target_scope: ScopeConfig::default(),
+            scheduler_scope_id: 1,
+        };
+        let metadata = TransformOutputMetadata {
+            generated: true,
+            ..Default::default()
+        };
+        let mut diagnostics = vec![];
+        let (output, metadata) = convert_transform_graph_artifact(
+            &EngineContext::default(),
+            &conversion,
+            &input,
+            Some(&metadata),
+            &mut diagnostics,
+        )
+        .unwrap();
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let TransformArtifactBody::HtmlDomProjection(document) = output.body else {
+            panic!("retained HTML")
+        };
+        assert!(metadata.source_map.is_none());
+        assert!(document
+            .events
+            .iter()
+            .all(|event| document.source_map_for_range(event.source_range).is_none()));
     }
 
     #[test]
@@ -15829,6 +15933,7 @@ mod tests {
             &EngineContext::default(),
             &recovery,
             &input,
+            None,
             &mut diagnostics,
         )
         .expect("generated HTML recovery");
@@ -15859,6 +15964,7 @@ mod tests {
             &EngineContext::default(),
             &xml,
             &dom,
+            None,
             &mut diagnostics,
         )
         .expect("DOM to XML converter");
@@ -15930,6 +16036,8 @@ mod tests {
                 test_output_span(content_end, source.len() - content_end, content_end as u64),
             ],
             raw_content: Some(source.to_owned()),
+            generated: false,
+            document_metadata: None,
         };
         let rewrite = TransformGraphImportMapRewrite {
             id: "rewrite-importmap".to_owned(),
@@ -16008,6 +16116,8 @@ mod tests {
             source_map: None,
             output_spans: Vec::new(),
             raw_content: Some(raw.to_owned()),
+            generated: false,
+            document_metadata: None,
         };
         let target = FormatIdentity {
             content_type: Some("text/css; charset=utf-8".to_owned()),
@@ -16099,6 +16209,8 @@ mod tests {
             source_map: Some(source_map.clone()),
             output_spans: vec![first_span.clone(), second_span.clone()],
             raw_content: Some(raw.to_owned()),
+            generated: false,
+            document_metadata: None,
         };
         let target = FormatIdentity {
             content_type: Some(CSS_CONTENT_TYPE.to_owned()),
@@ -16153,6 +16265,8 @@ mod tests {
             source_map: None,
             output_spans: Vec::new(),
             raw_content: Some(raw.to_owned()),
+            generated: false,
+            document_metadata: None,
         };
         let target = FormatIdentity {
             content_type: Some(HTML_CONTENT_TYPE.to_owned()),
@@ -16207,6 +16321,8 @@ mod tests {
             source_map: Some(source_map.clone()),
             output_spans: vec![before_span.clone(), style_span, after_span.clone()],
             raw_content: Some(raw.to_owned()),
+            generated: false,
+            document_metadata: None,
         };
         let target = FormatIdentity {
             content_type: Some(HTML_CONTENT_TYPE.to_owned()),
@@ -16269,6 +16385,8 @@ mod tests {
             source_map: Some(source_map.clone()),
             output_spans: vec![before_span.clone(), style_span, after_span.clone()],
             raw_content: Some(raw.to_owned()),
+            generated: false,
+            document_metadata: None,
         };
         let target = FormatIdentity {
             content_type: Some(HTML_CONTENT_TYPE.to_owned()),
@@ -16321,6 +16439,8 @@ mod tests {
             source_map: None,
             output_spans: Vec::new(),
             raw_content: Some(raw.to_owned()),
+            generated: false,
+            document_metadata: None,
         };
         let target = FormatIdentity {
             content_type: Some(HTML_CONTENT_TYPE.to_owned()),

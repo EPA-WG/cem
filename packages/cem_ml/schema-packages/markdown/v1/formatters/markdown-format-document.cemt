@@ -149,6 +149,15 @@
             {$ match($event.kind, {
                 start: call("markdown.format-document.start", { event: $event, profile: $profile }),
                 end: call("markdown.format-document.end", { event: $event, profile: $profile }),
+                "front-matter": [
+                    call("markdown.format-document.event-token", {
+                        event: $event,
+                        kind: "markdown.front-matter",
+                        text: call("markdown.format-document.event-text", { event: $event }),
+                        role: "syntax.raw",
+                        profile: $profile
+                    })
+                ],
                 text: [
                     call("markdown.format-document.event-token", {
                         event: $event,

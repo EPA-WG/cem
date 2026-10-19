@@ -7186,7 +7186,7 @@ fn markdown_event_evaluator_field<'a>(
             },
         )),
         "sourceMap" => Some(CemtEvaluatorValueRef::OwnedSourceMap(Arc::new(
-            event.source_range.source_map(),
+            event.source_range.source_map().with_source_uri(&event.source_uri),
         ))),
         _ => None,
     }

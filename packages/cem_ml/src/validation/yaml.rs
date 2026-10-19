@@ -809,6 +809,18 @@ pub fn extract_yaml_parse_report(request: YamlSourceValidationRequest<'_>) -> Ya
         }
     }
 
+    let positions = yaml_source_positions(
+        &source.text,
+        report.facts.iter().filter_map(|fact| fact.byte_offset),
+    );
+    for fact in &mut report.facts {
+        if let Some(offset) = &mut fact.byte_offset {
+            let position = positions[offset];
+            *offset = position.byte_offset;
+            fact.line = Some(position.line);
+            fact.column = Some(position.column);
+        }
+    }
     report
 }
 
@@ -868,9 +880,82 @@ pub fn validate_yaml_parse_report(
         .collect()
 }
 
+/// Translate only requested parser character positions. Retained lookup space
+/// scales with events/facts, including for a single multi-megabyte scalar.
+fn yaml_source_positions(source: &str, requested: impl IntoIterator<Item = u64>) -> BTreeMap<u64, YamlSourcePosition> {
+    let mut requested: Vec<_> = requested.into_iter().collect();
+    requested.sort_unstable();
+    requested.dedup();
+    let mut scalars = source.char_indices();
+    let (mut character, mut byte_offset, mut line_start, mut line) = (0u64, 0u64, 0u64, 1u32);
+    let mut positions = BTreeMap::new();
+    for requested in requested {
+        while character < requested {
+            let Some((start, scalar)) = scalars.next() else { break; };
+            byte_offset = (start + scalar.len_utf8()) as u64;
+            character += 1;
+            // Match LineIndex::project: one-based lines and UTF-8 byte columns.
+            if scalar == '\n' { line = line.saturating_add(1); line_start = byte_offset; }
+        }
+        positions.insert(requested, YamlSourcePosition { byte_offset, line,
+            column: u32::try_from(byte_offset.saturating_sub(line_start).saturating_add(1)).unwrap_or(u32::MAX) });
+    }
+    positions
+}
+
 fn capture_yaml_events(source: &str) -> Result<YamlParseCapture, yaml_rust2::scanner::ScanError> {
     let mut capture = YamlParseCapture::default();
     Parser::new_from_str(source).load(&mut capture, true)?;
+    let mut scalar_ends = BTreeMap::new();
+    let mut pending = None;
+    for token in Scanner::new(source.chars()) {
+        let position = token.0.index() as u64;
+        if let Some(start) = pending {
+            if position > start {
+                scalar_ends.insert(start, position);
+                pending = None;
+            }
+        }
+        if matches!(token.1, TokenType::Scalar(..) | TokenType::Alias(_)) {
+            pending = Some(position);
+        }
+    }
+    if let Some(start) = pending {
+        scalar_ends.insert(start, source.chars().count() as u64);
+    }
+    let positions = yaml_source_positions(
+        source,
+        capture
+            .events
+            .iter()
+            .map(|event| event.range.start.byte_offset)
+            .chain(scalar_ends.keys().copied())
+            .chain(scalar_ends.values().copied()),
+    );
+    let mut stack = Vec::new();
+    for index in 0..capture.events.len() {
+        let marked = &mut capture.events[index];
+        let character_offset = marked.range.start.byte_offset;
+        marked.range.start = positions[&character_offset];
+        let start = marked.range.start.byte_offset;
+        match marked.event {
+            Event::Scalar(..) | Event::Alias(_) => {
+                marked.range.byte_length = scalar_ends
+                    .get(&character_offset)
+                    .map_or(0, |end| positions[end].byte_offset.saturating_sub(start));
+            }
+            Event::DocumentStart | Event::MappingStart(..) | Event::SequenceStart(..) => {
+                stack.push(index)
+            }
+            Event::DocumentEnd | Event::MappingEnd | Event::SequenceEnd => {
+                if let Some(open) = stack.pop() {
+                    let range = &mut capture.events[open].range;
+                    range.byte_length = start.saturating_sub(range.start.byte_offset);
+                }
+            }
+            _ => {}
+        }
+    }
     Ok(capture)
 }
 
@@ -920,6 +1005,16 @@ fn collect_yaml_lexical_facts(source: &str) -> YamlLexicalFacts {
         }
     }
 
+    let positions = yaml_source_positions(
+        source,
+        facts
+            .directives
+            .iter()
+            .map(|directive| directive.range.start.byte_offset),
+    );
+    for directive in &mut facts.directives {
+        directive.range.start = positions[&directive.range.start.byte_offset];
+    }
     facts
 }
 
@@ -1574,6 +1669,42 @@ mod tests {
     const PARSE_ERROR_DIAGNOSTIC: &str = "cem.yaml.parse_error";
     const UNSAFE_TAG_DIAGNOSTIC: &str = "cem.yaml.unsafe_tag";
     const DUPLICATE_ANCHOR_DIAGNOSTIC: &str = "cem.yaml.duplicate_anchor";
+
+    #[test]
+    fn yaml_sparse_coordinates_keep_long_unicode_scalars_and_eof_in_original_bytes() {
+        let source = format!("{}\nkey: Café", "🍒".repeat(65536));
+        let positions = yaml_source_positions(&source, [0, 65537, 65542, 999999]);
+        assert_eq!(positions.len(), 4);
+        assert_eq!(positions[&65537], YamlSourcePosition { line: 2, column: 1, byte_offset: 262145 });
+        assert_eq!(positions[&65542].byte_offset as usize, source.find("Café").unwrap());
+        assert_eq!(positions[&999999].byte_offset as usize, source.len());
+        assert_eq!(positions[&999999].column, 11);
+    }
+
+    #[test]
+    fn yaml_unicode_source_ranges_are_authored_utf8_bytes() {
+        let source = "title: Café 🍒\r\ndraft: false\r\ntags: [one, two]\r\n";
+        let (document, diagnostics) =
+            yaml_document_ast_from_source_bytes(YamlSourceValidationRequest {
+                bytes: source.as_bytes(),
+                source_uri: "memory:metadata.yaml",
+                content_type: Some("application/yaml"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let document = document.unwrap();
+        let root = document.documents[0].root.as_ref().unwrap();
+        let draft = &root.mapping[1].value;
+        assert_eq!(
+            draft.range.start.byte_offset as usize,
+            source.find("false").unwrap()
+        );
+        assert!(draft.range.byte_length >= 5);
+        let title = &root.mapping[0].value;
+        let start = title.range.start.byte_offset as usize;
+        let end = start + title.range.byte_length as usize;
+        assert!(source[start..end].contains("Café 🍒"));
+        assert!(root.range.byte_length >= end as u64);
+    }
 
     #[test]
     fn yaml_parse_report_facts_are_schema_bound() {

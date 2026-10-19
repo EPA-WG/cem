@@ -41,6 +41,78 @@ afterEach(async () => {
 });
 
 describe('CEM Studio Feature Tour workbench', () => {
+    it('builds native site metadata and source provenance and retains the last success on invalid front matter', async () => {
+        // Literal asset URLs let Vite serve the shared native fixture verbatim.
+        const [graph, layout, partial, site] = await Promise.all([
+            new URL('../../cem_ml_transform_cem_ql/tests/fixtures/site-metadata/graphs/build.cem', import.meta.url),
+            new URL('../../cem_ml_transform_cem_ql/tests/fixtures/site-metadata/layouts/page.cemt', import.meta.url),
+            new URL('../../cem_ml_transform_cem_ql/tests/fixtures/site-metadata/layouts/partials/content.cemt', import.meta.url),
+            new URL('../../cem_ml_transform_cem_ql/tests/fixtures/site-metadata/data/site.json', import.meta.url),
+        ].map(async url => { const response = await fetch(url); expect(response.ok, url.href).toBe(true); return response.text(); }));
+        const repository = await repositoryWithSource('unrelated saved source');
+        const exported = (await repository.query(request('export-project', { projectId: 'feature-tour' }))).value;
+        const first = '---\r\ntitle: Page A\r\ndescription: Café\r\n---\r\n# Body A\r\n';
+        const command = { $schema: 'https://cem.dev/ns/cli/command/1', schemaVersion: 1, commandSchemaVersion: 1,
+            commonVersion: '0.1.0', binaryName: 'cem-ml', argv: ['transform', '--config', 'graphs/build.cem',
+                '--config-content-type', 'application/cem', '--config-schema', 'https://cem.dev/ns/cli/transform-config/1'] };
+        const definitions = [
+            ['home', 'content/index.md', 'text/markdown; charset=utf-8', first],
+            ['next', 'content/posts/next.md', 'text/markdown; charset=utf-8', '---\ntitle: Page B\n---\n# Body B\n'],
+            ['site', 'data/site.json', 'application/json', site],
+            ['layout', 'layouts/page.cemt', 'application/vnd.cem.transform+cem', layout],
+            ['partial', 'layouts/partials/content.cemt', 'application/vnd.cem.transform+cem', partial],
+            ['graph', 'graphs/build.cem', 'application/cem', graph, 'https://cem.dev/ns/cli/transform-config/1'],
+            ['command', 'config/build.command.json', 'application/vnd.cem.cli-command+json', JSON.stringify(command), 'https://cem.dev/ns/cli/command/1'],
+        ];
+        const contents = {}, resources = [];
+        for (const [id, path, contentType, content, schema] of definitions) {
+            const bytes = new TextEncoder().encode(content); contents[id] = bytes;
+            resources.push({ id, path, referencePath: path, contentType, schema, revision: 1, sourceKind: 'project-file',
+                role: id === 'graph' ? 'transform-config' : id === 'command' ? 'run-config' : 'data', sha256: await digest(bytes) });
+        }
+        const bundle = { project: { ...exported.project, id: 'metadata-site', name: 'Metadata site', rootUri: 'studio://metadata-site/', resources,
+            entries: [{ id: 'build', name: 'Build site', kind: 'transformation-graph', runConfigResourceId: 'command', resourceIds: ['graph', 'command', ...resources.filter(item => !['graph', 'command'].includes(item.id)).map(item => item.id)] }] }, contents };
+        await repository.execute(request('import-project', { bundle }));
+        const validator = await createCemStudioBrowserValidator();
+        try {
+            const preview = createCemStudioProjectPreview({ repository, validator }); workbenches.push(preview);
+            const refresh = async () => {
+                const current = (await repository.query(request('export-project', { projectId: 'metadata-site' }))).value;
+                preview.setContext({ key: 'project=metadata-site', project: current.project });
+            };
+            await refresh(); await preview.build();
+            expect(preview.snapshot().attempt, JSON.stringify(preview.snapshot().attempt)).toMatchObject({ status: 'succeeded' });
+            const successful = preview.snapshot().projection.buildRun;
+            const resourceSet = preview.snapshot().preview.resourceSet;
+            expect(successful.artifacts.map(item => item.path).sort()).toEqual(['generated/index.html', 'generated/posts/next.html']);
+            for (const [path, title, heading, source] of [['index.html', 'Page A', 'Body A', 'content/index.md'], ['posts/next.html', 'Page B', 'Body B', 'content/posts/next.md']]) {
+                const output = preview.snapshot().projection.outputs.find(item => item.uri.endsWith(`/generated/${path}`));
+                const html = new DOMParser().parseFromString(output.text, 'text/html');
+                expect(html.title).toBe(title); expect(html.querySelector('h1').textContent).toBe(heading);
+                expect(html.querySelector('footer').textContent).toBe('Shared footer');
+                expect([...html.querySelectorAll('nav a')].map(item => item.textContent)).toEqual(['Home', 'Next']);
+                const artifact = successful.artifacts.find(item => item.uri === output.uri);
+                expect(artifact.provenance).toEqual(expect.arrayContaining([
+                    expect.objectContaining({ uri: `studio://metadata-site/${source}` }),
+                    expect.objectContaining({ uri: 'studio://metadata-site/layouts/partials/content.cemt' }),
+                ]));
+            }
+            await repository.execute(request('save-resource', { projectId: 'metadata-site', resourceId: 'home', expectedProjectRevision: 1,
+                expectedResourceRevision: 1, content: '---\ntitle: [broken\n---\n# Body A\n' }));
+            await refresh(); await preview.build();
+            expect(preview.snapshot().attempt.status).toBe('failed');
+            expect(preview.snapshot().attempt.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'cem.markdown.front_matter_invalid' })]));
+            expect(preview.snapshot().projection.buildRun).toBe(successful);
+            expect(preview.snapshot().preview.resourceSet).toBe(resourceSet);
+            await repository.execute(request('save-resource', { projectId: 'metadata-site', resourceId: 'home', expectedProjectRevision: 2,
+                expectedResourceRevision: 2, content: first.replace('Page A', 'Repaired page') }));
+            await refresh(); await preview.build();
+            expect(preview.snapshot().attempt, JSON.stringify(preview.snapshot().attempt)).toMatchObject({ status: 'succeeded' });
+            expect(preview.snapshot().projection.outputs.find(item => item.uri.endsWith('/generated/index.html')).text).toContain('<title>Repaired page</title>');
+            expect(preview.snapshot().projection.buildRun).not.toBe(successful);
+        } finally { await validator.close(); }
+    }, 60_000);
+
     it('builds rooted native content and mixed static assets in the ordinary project preview', async () => {
         const repository = await repositoryWithSource('unrelated saved source');
         const exported = (await repository.query(request('export-project', { projectId: 'feature-tour' }))).value;

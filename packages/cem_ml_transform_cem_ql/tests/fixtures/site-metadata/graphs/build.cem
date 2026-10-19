@@ -1,0 +1,14 @@
+{run |
+  {import @id=site @src="../data/site.json" @content-type=application/json}
+  {import @id=content @src="../content/**/*.md" @root="../content"
+      @content-type="text/markdown; charset=utf-8; variant=CommonMark; front-matter=yaml"
+      @schema=https://cem.dev/ns/data/markdown/1 |
+    {convert @id=html @content-type=text/html @schema=https://cem.dev/ns/data/html/1 @converter=markdown-to-html-rust |
+      {convert @id=dom @content-type=application/vnd.cem.dom+cem-bin @schema=https://cem.dev/ns/projection/dom/1 @converter=html-to-cem-dom-projection-rust |
+        {transform @id=layout @src="../layouts/page.cemt" @entrypoint=page @with:site=site |
+          {export @id=pages @out="../generated/{dir}/{stem}.html" @content-type=text/html}
+        }
+      }
+    }
+  }
+}

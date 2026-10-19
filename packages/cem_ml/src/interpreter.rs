@@ -43,7 +43,7 @@ pub struct TransformOutput {
 /// One contiguous run of generated output bytes paired with the source
 /// frames they originated from. Tier A emits one span per AST node-derived
 /// output chunk (open tag, attribute, text, close tag).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct OutputSpan {

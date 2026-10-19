@@ -485,6 +485,11 @@ fn native_markdown_conversion_retains_folder_paths_through_export() {
         assert!(html.starts_with("<h1 "));
         assert!(html.contains(&format!(">{title}</h1>")));
         assert!(artifact.source_map.is_some());
+        let uri = format!("studio://site/content/{}", path.replace(".html", ".md"));
+        for span in &artifact.output_spans {
+            assert!(span.origin.frames.iter().any(|frame| matches!(&frame.transform,
+                cem_ml::source_map::TransformKind::SourceBoundary { uri: actual } if actual == &uri)), "{span:?}");
+        }
     }
 }
 

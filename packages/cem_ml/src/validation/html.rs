@@ -28,6 +28,11 @@ pub struct HtmlSourceValidationRequest<'a> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HtmlDocumentAst {
     pub source: HtmlDocumentSource,
+    /// Native conversion origins. None denotes authored HTML; Some(empty)
+    /// denotes generated content with no admitted character mapping.
+    pub origin_spans: Option<crate::source_map::SourceMapIndex>,
+    /// Common retained metadata imported at the source boundary.
+    pub metadata: Option<Arc<crate::validation::generic_data::GenericDataDocumentAst>>,
     /// Decoded source retained for lossless nested content-type formatter
     /// handoffs. Byte ranges on events and child AST streams index this text.
     pub source_text: String,
@@ -43,6 +48,16 @@ pub struct HtmlDocumentAst {
 }
 
 impl HtmlDocumentAst {
+    pub fn source_map_for_range(&self, range: HtmlSourceRange) -> Option<SourceMapStack> {
+        match &self.origin_spans {
+            Some(spans) => spans.map_range(ByteRange::new(
+                range.start.byte_offset,
+                range.byte_length.try_into().unwrap_or(u32::MAX),
+            )),
+            None => Some(range.source_map().with_source_uri(&self.source.uri)),
+        }
+    }
+
     #[cfg(test)]
     pub fn to_cemt_subject(&self) -> Value {
         json!({
@@ -904,6 +919,8 @@ pub fn html_document_ast_from_source_bytes(
         value: Some(normalized_encoding.clone()),
     });
     let ast = HtmlDocumentAst {
+        origin_spans: None,
+        metadata: None,
         source: source_info,
         source_text: source.to_owned(),
         source_syntax_tokens: OnceLock::new(),

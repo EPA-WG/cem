@@ -944,6 +944,13 @@ example, but no complete Markdown/CEM-ML site project with a Hugo-inspired
 folder structure. The standalone Markdown/CEM-ML playground does not fill this
 project-level demonstration gap.
 
+Native foundations also support opt-in YAML front matter, retained common
+metadata in HTML DOM projections, explicit site/navigation inputs and named
+content/layout/partial provenance. The bounded contract is documented in the
+[Markdown package](packages/cem_ml/schema-packages/markdown/v1/README.md#native-site-metadata-and-layout-inputs).
+The full ordinary example and its portable/offline editing acceptance remain
+planned below.
+
 Native foundations now include rooted recursive imports with retained source
 identities, folder-relative output bindings and mixed byte-preserving static
 asset publication. Studio's existing captured build and shared artifact-tree
@@ -952,8 +959,8 @@ preview consume those outputs; the complete ordinary site example remains next.
 Use the [project build/artifact preview model](docs/cem-studio.md#project-builds-and-artifact-previews):
 the generated site is one immutable artifact tree from a build configuration,
 and preview navigation is independent of the source file open in the editor.
-Implement single-document and Supplier multi-artifact selection, then shared
-relative-asset/site navigation before using this example to prove the full flow.
+Reuse the completed single-document/Supplier artifact selection and shared
+relative-asset navigation when this example proves the complete site flow.
 
 - Add an ordinary portable example under `examples/projects/`, discovered through
   `example.json` and opened in the existing Studio workspace. Use projects,
@@ -963,8 +970,8 @@ relative-asset/site navigation before using this example to prove the full flow.
   reusable partials, `data/`, `assets/`, `static/` and explicit site/build
   configurations. Include a home resource, a section index and at least two
   articles so folder-relative references and shared layout composition are visible.
-  Define supported metadata/front-matter handling through native schema contracts
-  before relying on it. This layout is Hugo-inspired; Hugo configuration and
+  Use the supported native metadata/front-matter schema contract and explicit
+  layout/navigation inputs. This layout is Hugo-inspired; Hugo configuration and
   Go-template compatibility belong to Phase 7.
 - Compose the native Markdown-to-HTML transform with CEM-ML/CEMT layout and
   navigation through an explicit graph. Show source provenance from content and

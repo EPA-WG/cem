@@ -5130,6 +5130,7 @@ impl QueryItemView for CemDocumentQueryView {
 #[derive(Debug, Clone)]
 struct HtmlDomDocumentQueryView {
     document: Arc<HtmlDocumentAst>,
+    metadata: Option<Item>,
 }
 
 impl HtmlDomDocumentQueryView {
@@ -5171,6 +5172,8 @@ impl QueryItemView for HtmlDomDocumentQueryView {
         Some(vec![
             ("kind".to_owned(), atom_items("document")),
             ("children".to_owned(), self.root_children()),
+            ("metadata".to_owned(), self.metadata.clone().into_iter().collect()),
+            ("sourceUri".to_owned(), atom_items(self.document.source.uri.clone())),
         ])
     }
 
@@ -5178,6 +5181,8 @@ impl QueryItemView for HtmlDomDocumentQueryView {
         Some(match name {
             "kind" => atom_items("document"),
             "children" => self.root_children(),
+            "metadata" => self.metadata.clone().into_iter().collect(),
+            "sourceUri" => atom_items(self.document.source.uri.clone()),
             _ => Vec::new(),
         })
     }
@@ -5319,13 +5324,16 @@ impl QueryItemView for HtmlDomNodeQueryView {
                 | HtmlEventKind::Rcdata
                 | HtmlEventKind::Comment,
                 "data" | "value",
-            ) => atom_items(event.value.as_deref().unwrap_or(&event.lexeme).to_owned()),
+            ) => vec![cem_ql::eval::sourced_atom(
+                AtomValue::String(event.value.as_deref().unwrap_or(&event.lexeme).to_owned()),
+                self.source_map(),
+            )],
             _ => Vec::new(),
         })
     }
 
     fn source_map(&self) -> Option<SourceMapStack> {
-        self.event().map(|event| event.source_range.source_map())
+        self.event().and_then(|event| self.document.source_map_for_range(event.source_range))
     }
 }
 
@@ -5386,7 +5394,7 @@ impl QueryItemView for HtmlDomAttributeQueryView {
             "value" => vec![attribute
                 .value
                 .as_ref()
-                .map(|value| Item::Atomic(AtomValue::String(value.clone())))
+                .map(|value| cem_ql::eval::sourced_atom(AtomValue::String(value.clone()), self.source_map()))
                 .unwrap_or(Item::Atomic(AtomValue::Null))],
             _ => Vec::new(),
         })
@@ -5394,7 +5402,7 @@ impl QueryItemView for HtmlDomAttributeQueryView {
 
     fn source_map(&self) -> Option<SourceMapStack> {
         self.attribute()
-            .map(|attribute| attribute.source_range.source_map())
+            .and_then(|attribute| self.document.source_map_for_range(attribute.source_range))
     }
 }
 
@@ -5855,6 +5863,8 @@ fn artifact_query_stream(artifact: &TransformTemplateDataArtifact) -> Result<Ite
         TransformArtifactBody::HtmlDomProjection(document) => {
             Ok(ItemStream::once(Item::native(HtmlDomDocumentQueryView {
                 document: Arc::clone(document),
+                metadata: document.metadata.clone().map(cem_ml::import::retain_generic_data).transpose()?
+                    .map(cem_ql::eval::imported_cem_tree),
             })))
         }
         TransformArtifactBody::Lifecycle(owner) => lifecycle_query_stream(Arc::clone(owner)),

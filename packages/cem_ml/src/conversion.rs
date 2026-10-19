@@ -25840,6 +25840,56 @@ mod tests {
     }
 
     #[test]
+    fn markdown_front_matter_survives_every_native_formatter_profile() {
+        use crate::validation::markdown::{
+            markdown_document_ast_from_source_bytes, MarkdownSourceValidationRequest,
+        };
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let source = "---\r\ntitle: Café\r\ndraft: false\r\n---\r\n# Body\r\n";
+        let (document, diagnostics) =
+            markdown_document_ast_from_source_bytes(MarkdownSourceValidationRequest {
+                bytes: source.as_bytes(),
+                source_uri: "studio://site/content/a.md",
+                content_type: Some("text/markdown; charset=utf-8; front-matter=yaml"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        for profile in ["compact", "pretty", "tabular"] {
+            let scope = ScopeConfig {
+                cemt_formatter_profile: Some(profile.into()),
+                cemt_formatter_options: BTreeMap::from([("lineEnding".into(), "preserve".into())]),
+                ..Default::default()
+            };
+            let output = execute_markdown_document_output_pipeline_with_environment(
+                &environment,
+                document.clone().unwrap(),
+                &scope,
+                Some("studio://site/content/a.md"),
+            );
+            assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+            let text = output.output.as_ref().and_then(Value::as_str).unwrap();
+            assert!(
+                text.starts_with(source.split("# Body").next().unwrap()),
+                "{profile}: {text:?}"
+            );
+            let (reopened, diagnostics) =
+                markdown_document_ast_from_source_bytes(MarkdownSourceValidationRequest {
+                    bytes: text.as_bytes(),
+                    source_uri: "studio://site/content/a.md",
+                    content_type: Some("text/markdown; charset=utf-8; front-matter=yaml"),
+                });
+            assert!(diagnostics.is_empty(), "{diagnostics:?}");
+            assert!(reopened.unwrap().metadata.is_some());
+        }
+    }
+
+    #[test]
     fn builtin_markdown_lifecycle_output_uses_typed_materialized_ast_pipeline() {
         use crate::validation::markdown::{
             markdown_document_ast_from_source_bytes, MarkdownSourceValidationRequest,

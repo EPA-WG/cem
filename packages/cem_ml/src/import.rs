@@ -780,6 +780,25 @@ fn validate_data_ast(native: &LoadedInputAstStream, max_values: usize) -> Result
     Ok(())
 }
 
+/// Retain an already imported format-independent data tree, including embedded
+/// source coordinates. No serialization or second parser participates.
+pub fn retain_generic_data(
+    data: Arc<GenericDataDocumentAst>,
+) -> Result<Arc<RetainedCemTree>, String> {
+    if data.source.byte_length > MAX_DOCUMENT_BYTES {
+        return Err("Source exceeds the 16 MiB document import limit.".into());
+    }
+    let mut builder = ImportBuilder::new();
+    builder.generic_data(&data)?;
+    RetainedCemTree::new(
+        builder.ast,
+        &data.source.uri,
+        "",
+        builder.semantics,
+        Some(data.clone()),
+    )
+}
+
 fn project_native(
     native: Arc<LoadedInputAstStream>,
     source: &str,

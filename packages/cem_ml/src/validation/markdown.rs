@@ -1,3 +1,5 @@
+mod front_matter;
+
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::schema::document_model::compile_schema_document_model;
 use crate::schema::package_sources::builtin_schema_package_source;
@@ -33,6 +35,7 @@ pub struct MarkdownDocumentAst {
     pub variant_facts: Vec<MarkdownVariantFact>,
     pub parse_facts: Vec<MarkdownParseFact>,
     pub events: Vec<MarkdownEventAst>,
+    pub metadata: Option<std::sync::Arc<crate::validation::generic_data::GenericDataDocumentAst>>,
     pub line_ending: Option<String>,
 }
 
@@ -425,6 +428,7 @@ impl MarkdownParseFactKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MarkdownEventAst {
+    pub source_uri: std::sync::Arc<str>,
     pub index: usize,
     pub kind: String,
     pub tag: Option<String>,
@@ -455,7 +459,7 @@ impl MarkdownEventAst {
             "byteOffset": self.source_range.start.byte_offset,
             "byteLength": self.source_range.byte_length,
             "sourceRange": self.source_range.to_cemt_subject(),
-            "sourceMap": self.source_range.source_map(),
+            "sourceMap": self.source_range.source_map().with_source_uri(&self.source_uri),
         })
     }
 }
@@ -556,10 +560,16 @@ pub fn markdown_document_ast_from_source_bytes(
         }
     };
 
+    let front_matter = decoded.map(|source| {
+        front_matter::read(source, request.source_uri, parameters.get("front-matter"))
+    });
+    let body_offset = front_matter.as_ref().map_or(0, |value| value.body_offset);
     let events = decoded
         .map(|source| {
             collect_markdown_events_and_facts(
                 source,
+                body_offset,
+                request.source_uri,
                 markdown_parser_options(parameters.get("variant").map(String::as_str)),
                 &mut parse_facts,
                 catalog,
@@ -578,9 +588,15 @@ pub fn markdown_document_ast_from_source_bytes(
         variant_facts,
         parse_facts,
         events,
+        metadata: front_matter
+            .as_ref()
+            .and_then(|value| value.metadata.clone()),
         line_ending,
     };
-    let diagnostics = markdown_document_ast_diagnostics(&document, request.source_uri, catalog);
+    let mut diagnostics = markdown_document_ast_diagnostics(&document, request.source_uri, catalog);
+    if let Some(front_matter) = front_matter {
+        diagnostics.extend(front_matter.diagnostics);
+    }
 
     (Some(document), diagnostics)
 }
@@ -614,16 +630,37 @@ fn collect_markdown_variant_facts(
 
 fn collect_markdown_events_and_facts(
     source: &str,
+    body_offset: usize,
+    source_uri: &str,
     options: pulldown_cmark::Options,
     parse_facts: &mut Vec<MarkdownParseFact>,
     catalog: &MarkdownDiagnosticCatalog,
 ) -> Vec<MarkdownEventAst> {
     let line_index = LineIndex::from_utf8(source);
-    let parser = pulldown_cmark::Parser::new_ext(source, options).into_offset_iter();
+    let parser =
+        pulldown_cmark::Parser::new_ext(&source[body_offset..], options).into_offset_iter();
+    let source_uri: std::sync::Arc<str> = source_uri.into();
     let mut events = Vec::new();
-
+    if body_offset > 0 {
+        let mut prefix = markdown_event_ast(
+            0,
+            &pulldown_cmark::Event::Text(source[..body_offset].into()),
+            0..body_offset,
+            &line_index,
+            &source_uri,
+        );
+        prefix.kind = "front-matter".into();
+        events.push(prefix);
+    }
     for (index, (event, range)) in parser.enumerate() {
-        let event_ast = markdown_event_ast(index, &event, range, &line_index);
+        let index = index + usize::from(body_offset > 0);
+        let event_ast = markdown_event_ast(
+            index,
+            &event,
+            range.start + body_offset..range.end + body_offset,
+            &line_index,
+            &source_uri,
+        );
         if matches!(
             event,
             pulldown_cmark::Event::Html(_) | pulldown_cmark::Event::InlineHtml(_)
@@ -766,8 +803,10 @@ fn markdown_event_ast(
     event: &pulldown_cmark::Event<'_>,
     range: std::ops::Range<usize>,
     line_index: &LineIndex,
+    source_uri: &std::sync::Arc<str>,
 ) -> MarkdownEventAst {
     MarkdownEventAst {
+        source_uri: source_uri.clone(),
         index,
         kind: markdown_event_kind(event).to_owned(),
         tag: markdown_event_tag(event),
@@ -1098,12 +1137,142 @@ mod tests {
     }
 
     #[test]
+    fn front_matter_is_opt_in_and_keeps_original_body_coordinates() {
+        let source = "---\r\ntitle: Café\r\ndraft: false\r\n---\r\n# Body\r\n";
+        let (ordinary, _) = open_ast_with_content_type(source, "text/markdown; charset=utf-8");
+        assert!(ordinary.events.iter().any(|event| event
+            .text
+            .as_deref()
+            .is_some_and(|text| text.contains("title:"))));
+        let (document, diagnostics) =
+            open_ast_with_content_type(source, "text/markdown; charset=utf-8; front-matter=yaml");
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        assert!(!document
+            .events
+            .iter()
+            .filter(|event| event.kind != "front-matter")
+            .any(|event| event
+                .text
+                .as_deref()
+                .is_some_and(|text| text.contains("title:"))));
+        let body = document
+            .events
+            .iter()
+            .find(|event| event.text.as_deref() == Some("Body"))
+            .unwrap();
+        assert_eq!(body.source_range.start.line, 5);
+        assert_eq!(
+            body.source_range.start.byte_offset as usize,
+            source.find("Body").unwrap()
+        );
+    }
+
+    #[test]
+    fn front_matter_rejects_invalid_contracts_before_body_rendering() {
+        for (source, option, code) in [
+            (
+                "---\ntitle: [broken\n---\n# Body",
+                "yaml",
+                "cem.markdown.front_matter_invalid",
+            ),
+            (
+                "---\ntitle: unclosed\n# Body",
+                "yaml",
+                "cem.markdown.front_matter_unclosed",
+            ),
+            (
+                "---\n- item\n---\n# Body",
+                "yaml",
+                "cem.markdown.front_matter_invalid",
+            ),
+            (
+                "---\ntitle: A\ntitle: B\n---\n# Body",
+                "yaml",
+                "cem.markdown.front_matter_invalid",
+            ),
+            ("# Body", "toml", "cem.markdown.front_matter_unsupported"),
+        ] {
+            let (_, diagnostics) = open_ast_with_content_type(
+                source,
+                &format!("text/markdown; charset=utf-8; front-matter={option}"),
+            );
+            assert!(
+                diagnostics.iter().any(
+                    |diagnostic| diagnostic.code == code && diagnostic.severity.is_hard_violation()
+                ),
+                "{source}: {diagnostics:?}"
+            );
+        }
+    }
+
+    #[test]
     fn markdown_source_validator_accepts_commonmark() {
         let diagnostics = validate(
             "# Release Notes\n\nThis document has **strong** text and a list.\n\n- Added schema validation.\n",
         );
 
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn front_matter_retains_common_typed_values_and_original_metadata_ranges() {
+        use crate::validation::generic_data::GenericDataValueAst as V;
+        let source = "---\r\ntitle: Café\r\ndraft: false\r\nweight: 3\r\ntags: [native, site]\r\ncustom: {nested: 1}\r\n---\r\n# Body\r\n";
+        let (document, diagnostics) =
+            open_ast_with_content_type(source, "text/markdown; charset=utf-8; front-matter=yaml");
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let metadata = document.metadata.unwrap();
+        let Some(V::Mapping { entries, .. }) = metadata.documents[0].root.as_ref() else {
+            panic!("common mapping")
+        };
+        assert_eq!(entries.len(), 5);
+        assert!(matches!(entries[1].value, V::Boolean { value: false, .. }));
+        assert!(matches!(entries[2].value, V::Number { .. }));
+        let range = entries[0].value.source_range();
+        assert_eq!(
+            entries[1].value.source_range().byte_offset as usize,
+            source.find("false").unwrap()
+        );
+        assert_eq!(range.line, 2);
+        assert_eq!(range.byte_offset as usize, source.find("Café").unwrap());
+        assert!(range.source_map.as_ref().unwrap().frames.iter().any(|frame| matches!(&frame.transform, TransformKind::SourceBoundary { uri } if uri == &metadata.source.uri)));
+        let tree = crate::import::retain_generic_data(metadata).unwrap();
+        assert!(tree.ast().nodes.len() > 6);
+    }
+
+    #[test]
+    fn front_matter_bounds_and_reserved_types_fail_without_changing_ordinary_markdown() {
+        let deep = format!(
+            "---\ncustom: {}0{}\n---\n# Body",
+            "[".repeat(66),
+            "]".repeat(66)
+        );
+        let large = format!("---\ntitle: {}\n---\n# Body", "a".repeat(65536));
+        let many = format!("---\ncustom: [{}]\n---\n# Body", vec!["0"; 4100].join(","));
+        for source in [
+            deep,
+            large,
+            many,
+            "---\ndraft: yes\n---\n# Body".into(),
+            "---\ntags: [a, 1]\n---\n# Body".into(),
+            "---\ncustom: &a [*a]\n---\n# Body".into(),
+        ] {
+            let (_, diagnostics) =
+                open_ast_with_content_type(&source, "text/markdown; charset=utf-8; front-matter=yaml");
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.severity.is_hard_violation()
+                        && diagnostic.code.starts_with("cem.markdown.front_matter_")),
+                "{diagnostics:?}"
+            );
+        }
+        let (plain, diagnostics) = open_ast_with_content_type(
+            "# No metadata",
+            "text/markdown; charset=utf-8; front-matter=yaml",
+        );
+        assert!(plain.metadata.is_none());
+        assert!(diagnostics.is_empty());
     }
 
     #[test]
@@ -1140,7 +1309,7 @@ mod tests {
                 .and_then(|events| events.iter().find(|event| event["text"] == "Release Notes"))
                 .and_then(|event| event["sourceMap"]["frames"].as_array())
                 .map(Vec::len),
-            Some(1)
+            Some(2)
         );
     }
 

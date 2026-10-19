@@ -23,6 +23,8 @@ use crate::parser::{BinaryOp, QuantifierKind, SetOp, UnaryOp};
 use crate::resolve::BindingId;
 use crate::types::Type;
 
+mod source;
+pub use source::sourced_atom;
 mod data;
 mod budget;
 pub use budget::QueryExecutionBudget;

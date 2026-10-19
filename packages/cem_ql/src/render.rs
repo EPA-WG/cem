@@ -5077,6 +5077,60 @@ mod tests {
     }
 
     #[test]
+    fn interpolation_preserves_native_atomic_origins_and_template_frames() {
+        #[derive(Debug)]
+        struct Sourced;
+        impl crate::eval::QueryItemView for Sourced {
+            fn as_any(&self) -> &dyn std::any::Any {
+                self
+            }
+            fn representation_id(&self) -> &'static str {
+                "test.sourced-string"
+            }
+            fn identity(&self) -> String {
+                "source:8".into()
+            }
+            fn kind(&self) -> crate::eval::QueryItemViewKind {
+                crate::eval::QueryItemViewKind::Atomic
+            }
+            fn atom(&self) -> Option<AtomValue> {
+                Some(AtomValue::String("Café".into()))
+            }
+            fn source_map(&self) -> Option<SourceMapStack> {
+                Some(stack(8, 5).with_source_uri("studio://site/content/a.md"))
+            }
+        }
+        let compiled = compile_template(
+            "{p | {$input}}",
+            &CompileTemplateOptions {
+                host_bindings: vec!["input".into()],
+                source_uri: Some("studio://site/layouts/page.cemt".into()),
+                ..Default::default()
+            },
+        );
+        let plan = render_compiled_template(
+            &compiled,
+            &TemplateData {
+                bindings: BTreeMap::from([("input".into(), ItemStream::once(Item::native(Sourced)))]),
+                ..Default::default()
+            },
+        );
+        let output = render_plan_to_html_with_source_map(&plan);
+        assert_eq!(output.rendered, "<p>Café</p>");
+        let span = output
+            .output_spans
+            .iter()
+            .find(|span| span.output_range.start == 3)
+            .unwrap();
+        for expected in [
+            "studio://site/content/a.md",
+            "studio://site/layouts/page.cemt",
+        ] {
+            assert!(span.origin.frames.iter().any(|frame| matches!(&frame.transform, TransformKind::SourceBoundary { uri } if uri == expected)), "{span:?}");
+        }
+    }
+
+    #[test]
     fn source_map_render_preserves_html_output() {
         let plan = sample_plan();
 

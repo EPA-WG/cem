@@ -41,6 +41,68 @@ The schema describes Markdown resources as a document model:
 Variant-specific parsers can refine this model through converter profiles
 instead of changing the generic Markdown schema identity.
 
+### Native site metadata and layout inputs
+
+Site graphs can opt into YAML front matter with
+`text/markdown; charset=utf-8; variant=CommonMark; front-matter=yaml`.
+Without that parameter, `---` and following text retain ordinary Markdown
+semantics. With it, an optional opening `---` line at byte zero starts metadata;
+a closing `---` line ends it. LF and CRLF are supported. A missing block is valid.
+
+```markdown
+---
+title: Native site
+description: Shared layouts and retained sources
+draft: false
+weight: 2
+tags: [native, site]
+---
+# Article content
+```
+
+The native YAML importer decodes one mapping into retained common data nodes.
+Keys must be strings and unique at every level. `title`, `description`, `layout`,
+`slug` and `date` are strings; `draft` is a boolean; `weight` is an integer;
+`tags` is a sequence of strings. Additional literal mapping/sequence/scalar
+values are allowed. Dates have no implicit scheduling semantics. Anchors,
+aliases and explicit tags are rejected. Metadata is bounded to 64 KiB, 64
+collection levels, 4,096 values including keys, and 16,384 scanner tokens.
+Invalid, unclosed, unsupported or excessive metadata produces a schema-owned
+error before rendering.
+
+A lexical `front-matter` event keeps the complete original prefix for Markdown
+formatting and inspection. HTML conversion omits it from page content. Metadata
+and body ranges retain the containing Markdown URI and original UTF-8 byte
+coordinates, including text after Unicode and CRLF. Shared YAML imports also
+retain nonempty lexical scalar and collection spans in UTF-8 coordinates.
+
+The registered Markdown-to-HTML and HTML-to-DOM graph edges carry metadata into
+the native DOM projection: `input.children` contains content, `input.metadata`
+is a retained common CEM data document (empty when absent), and `input.sourceUri`
+is the stable content resource address. CEMT can select metadata fields through
+the same common-node operations used for ordinary JSON/YAML data. Interpolating
+the selected native text nodes preserves their metadata provenance; computed
+strings do not automatically acquire character lineage.
+
+Site-wide data and navigation are ordinary declared graph inputs, for example
+`import @id=site @src="data/site.json" @content-type=application/json` and
+`transform @with:site=site`. A site can use a `title` string and an ordered
+`navigation` sequence of `{label, href}` records, validated by its project-owned
+schema. CEMT decides how those values render. Layout/partial modules remain
+explicit template dependencies; `layout` and `slug` metadata never initiate a
+load or choose an output path. Native `{path}`, `{dir}` and `{stem}` bindings
+continue to own deterministic destinations. This is a native site contract;
+Hugo/Go templates and TOML/JSON front matter are not supported by this option.
+
+HTML recovery retains indexed writer origins instead of interpreting generated
+HTML offsets as original Markdown positions. Writer token frames remain
+unchanged; equal byte lengths do not imply character-level alignment. CEMT text
+interpolation retains
+native scalar origins alongside its template frames; shared layout and imported
+partial frames remain separately named. Synthetic/unmapped bytes do not acquire
+content lineage. An output formatter that changes generated HTML currently
+invalidates its character mappings rather than guessing new offsets.
+
 ### HTML table data projection
 
 When converted Markdown tables are exposed as CEM-QL data, each body row has a

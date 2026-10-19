@@ -1,0 +1,22 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@ns cem = "https://cem.dev/ns/core/1"
+@default transform
+{module |
+  {param @name=input @type=any @required=true}
+  {param @name=site @type=any @required=true}
+  {import @as=content @src="partials/content.cemt"}
+  {template @name=page @visibility=public @cem:whitespace=layout | {body |
+    {html | {head | {title | {$seq:where(input.metadata.children.children, fn(p) => p.attributes.value == "title").children.children}}}
+      {element @name=body @namespace=http://www.w3.org/1999/xhtml |
+        {nav |
+          {$seq:where(site.children.children, fn(p) => p.attributes.value == "title").children.children}
+          {cem:for-each @select='seq:where(site.children.children, fn(p) => p.attributes.value == "navigation").children.children' @as=link |
+            {a @href='{$seq:where(link.children, fn(p) => p.attributes.value == "href").children.children.value}' | {$seq:where(link.children, fn(p) => p.attributes.value == "label").children.children}}
+          }
+        }
+        {call @from=content @template=main @with:input="{$input}"}
+      }
+    }
+  }}
+}

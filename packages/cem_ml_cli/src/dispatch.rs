@@ -9467,7 +9467,14 @@ mod tests {
         .unwrap();
         assert_eq!(source_map["exportId"], "page:0");
         assert_eq!(source_map["input"], "html:0");
-        assert!(source_map["frames"].as_array().unwrap().len() == 1);
+        assert_eq!(source_map["frames"].as_array().unwrap().len(), 2);
+        assert_eq!(source_map["frames"][0]["transform"]["kind"], "ContentTypeTransform");
+        assert_eq!(source_map["frames"][1]["transform"]["kind"], "SourceBoundary");
+        assert_eq!(source_map["frames"][1]["transform"]["uri"], root.join("content/first.md").to_string_lossy().as_ref());
+        assert_eq!(source_map["frames"][0]["span"], source_map["frames"][1]["span"]);
+        let second: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(root.join("dist/second.html.map")).unwrap()).unwrap();
+        assert_eq!(second["frames"][1]["transform"]["uri"], root.join("content/second.md").to_string_lossy().as_ref());
         assert!(!source_map["outputSpans"].as_array().unwrap().is_empty());
     }
 

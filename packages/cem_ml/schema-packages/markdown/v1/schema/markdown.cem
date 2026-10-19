@@ -22,7 +22,7 @@
     }
 
     {elements |
-        {element @name="document" @required-attributes="encoding" @optional-attributes="charset variant source-id byte-offset byte-length" @children="block* reference*"}
+        {element @name="document" @required-attributes="encoding" @optional-attributes="charset variant front-matter source-id byte-offset byte-length" @children="block* reference*"}
         {element @name="block" @required-attributes="kind" @optional-attributes="level info language marker source-id byte-offset byte-length" @children="inline* block* html*"}
         {element @name="inline" @required-attributes="kind" @optional-attributes="text destination title reference source-id byte-offset byte-length" @children="inline* html*"}
         {element @name="reference" @required-attributes="label destination" @optional-attributes="title source-id byte-offset byte-length"}
@@ -33,6 +33,7 @@
         {attribute @name="encoding" @type="schema:identifier" @values="utf-8 us-ascii other"}
         {attribute @name="charset" @type="schema:identifier"}
         {attribute @name="variant" @type="schema:string"}
+        {attribute @name="front-matter" @type="schema:identifier" @values="yaml"}
         {attribute @name="source-id" @type="schema:identifier"}
         {attribute @name="byte-offset" @type="cemml:integer"}
         {attribute @name="byte-length" @type="cemml:integer"}
@@ -54,6 +55,11 @@
         {constraint @kind="markdown-source-parser" @target="document" @policy="delegate-to-markdown-parser"}
         {constraint @kind="text-markdown-primary" @target="document" @policy="text/markdown is the canonical media type for Markdown resources"}
         {constraint @kind="charset-parameter-required-when-explicit" @target="document" @policy="explicit text/markdown content types require a charset parameter"}
+        {constraint @kind="front-matter-opt-in" @target="document" @policy="Only text/markdown front-matter=yaml enables a leading --- delimited YAML metadata mapping. Omission preserves ordinary Markdown semantics."}
+        {constraint @kind="front-matter-native-tree" @target="document" @policy="Import one mapping through the native YAML boundary into retained common CEM data, with original Markdown URI and UTF-8 coordinates. Preserve its lexical front-matter event during Markdown formatting; omit that event from HTML content."}
+        {constraint @kind="front-matter-values" @target="document" @policy="String unique keys; title/description/layout/slug/date strings, draft boolean, weight integer, tags string sequence. Additional literal values allowed. No anchors, aliases or explicit tags."}
+        {constraint @kind="front-matter-bounds" @target="document" @policy="At most 64 KiB metadata, 64 YAML collection levels, 4096 values including keys and 16384 scanner tokens. Reject malformed, unclosed or unsupported metadata before rendering."}
+        {constraint @kind="site-layout-inputs" @target="document" @policy="The recovered native DOM exposes metadata as common CEM nodes and sourceUri. Site data/navigation are declared graph side inputs; metadata never loads templates, discovers resources or chooses output paths implicitly."}
         {constraint @kind="variant-preserved" @target="document" @policy="preserve text/markdown variant parameter when present"}
         {constraint @kind="block-order-preserved" @target="document" @policy="required"}
         {constraint @kind="inline-order-preserved" @target="block" @policy="required"}
@@ -70,6 +76,10 @@
         {diagnostic @code="cem.markdown.charset_missing" @severity="warning"}
         {diagnostic @code="cem.markdown.unknown_variant" @severity="warning"}
         {diagnostic @code="cem.markdown.embedded_html_rejected" @severity="error"}
+        {diagnostic @code="cem.markdown.front_matter_invalid" @severity="error"}
+        {diagnostic @code="cem.markdown.front_matter_unclosed" @severity="error"}
+        {diagnostic @code="cem.markdown.front_matter_unsupported" @severity="error"}
+        {diagnostic @code="cem.markdown.front_matter_limit" @severity="error"}
         {diagnostic @code="cem.markdown.source_map_unavailable" @severity="info"}
         {diagnostic @code="cem.markdown.table_header_empty" @severity="warning"}
         {diagnostic @code="cem.markdown.table_header_duplicate" @severity="warning"}
