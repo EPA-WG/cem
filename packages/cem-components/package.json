@@ -37,6 +37,8 @@
         "./playgrounds/cem-text-field-gallery.html": "./dist/cem-text-field-gallery.html",
         "./playgrounds/cem-icon.html": "./dist/cem-icon.html",
         "./playgrounds/cem-icon-gallery.html": "./dist/cem-icon-gallery.html",
+        "./playgrounds/cem-source-editor.html": "./dist/cem-source-editor.html",
+        "./playgrounds/cem-source-editor-gallery.html": "./dist/cem-source-editor-gallery.html",
         "./playgrounds/cem-textarea.html": "./dist/cem-textarea.html",
         "./playgrounds/cem-textarea-gallery.html": "./dist/cem-textarea-gallery.html",
         "./playgrounds/assets/wc-square.svg": "./playgrounds/assets/wc-square.svg",

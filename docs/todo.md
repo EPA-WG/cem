@@ -1,3 +1,16 @@
+## Shared contenteditable source editor (2026-10-18)
+
+- [x] Add a reusable plaintext-editor capability in cem-elements for safe text values, browser-owned editing/undo/IME state, declarative selection and scalar host-command bindings.
+- [x] Create declarative cem-source-editor with canonical CEM typography, surfaces, spacing and focus paint; publish property playground, gallery, contracts and catalog entry.
+- [x] Use the shared editor for selected Studio files, including sample resources, while retaining project drafts, saving, URL selection and source navigation.
+- [x] Fixture: cover escaped source, native multiline edits/undo, retained caret and composition, readonly/disabled state, selection requests, all-theme overrides, forced-color focus and Studio file editing/persistence; run package/runtime/Studio checks.
+
+Evidence: the existing cem-demo-element playground supplied the plaintext-only/innerText precedent. New browser plays first exposed caret loss when authored text reconciliation crossed the native editable subtree; the shared behavior now owns live text while CEM owns its markup and attributes. Fifteen source-editor/form-control/host-view browser plays, 19 declaration contract unit cases and all 91 Studio workbench browser cases pass. Source and isolated-package property/gallery checks cover editing bindings, all five themes, readonly and forced-color keyboard focus. Runtime and Studio typechecks, three-package lint (warnings only), the nine style-verifier tests and 56-component/479-token audit pass. Studio output verification admits 182 assets and 276 files; Studio and Site module maps include the shared capability. Temporary CLI typecheck schema preparation is removed afterward.
+
+Existing-profile verification opens the Login README through its file URL in the shared editor, retains its 14,297 characters as plain source, uses script typography and readonly sample semantics, and preserves existing storage values. Saved project editing, Save/Reload, diagnostics/source selection, draft recovery and navigation guards are covered by the Studio suite. Generated screenshots and Vitest attachments are ignored repository-wide and excluded from commits.
+
+CEM audit: the source editor is XHTML/CEM-ML with scoped canonical script typography, input/palette/stroke/inset/coupling geometry and system-color fallbacks. Browser value, selection, IME and editing ownership belong to cem-elements, with no Studio-local editing JavaScript or public token defaults. Samples remain readonly until cloned; form/command textareas retain their existing roles. Syntax highlighting and language services remain future work.
+
 ## Studio navigation polish and existing-session verification (2026-10-18)
 
 - [x] Fixture: verify folder icons on the opened project root and nested directories, leaving file labels and sample/saved-project catalog labels unchanged. The recursive declarative projection prefixes only project/directory names in the files tree; existing names, resource identities and catalog projections remain intact. The navigation/CRUD browser case verifies the rendered root, nested directories and file labels; Studio output verification passes (181 declared assets, 275 files). No UI JavaScript or theme overrides were added.

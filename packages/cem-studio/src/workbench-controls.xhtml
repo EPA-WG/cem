@@ -36,8 +36,8 @@
 {cem-action @data-cem-studio-save="" @disabled={if busy || !state.dirty { true } else { null }} @host-command=save
                         @host-command-event=click @loading={if busy { true } else { null }} @variant=primary | Save and validate}
    }
-{cem-textarea @fit=fill @data-cem-studio-editor="" @host-command=edit
-                    @host-command-event=input @label="CEM source" @name=feature-tour-source @rows=24
+{cem-source-editor @fit=fill @data-cem-studio-editor="" @host-command=edit
+                    @host-command-event=input @label="CEM source"
                     @selection-end={state.selection.end ?? null} @selection-focus={if state.selection { true } else { null }} @selection-request={datadom.slices.selectionRequest} @selection-start={state.selection.start ?? null} @value={state.draft}}
    {cem-expansion @label="Editor details" |
     {cem-stack @gap=sm |

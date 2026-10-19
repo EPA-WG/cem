@@ -430,6 +430,24 @@ keyboard or popup behavior. Use the component's documented capability rather
 than assigning `form-control` to every input component. Explicit overrides can
 disable the source's behavior; the tag name does not supply a default.
 
+## Plaintext document editors
+
+`capability="plaintext-editor"` admits one `part="control"` editable element
+inside a direct `part="root"`. `cem-source-editor` supplies the production
+CEM-ML declaration and styles. The capability owns only text values, native
+composition/caret retention and explicit source selection. It exposes a string
+`.value` to declarative input bindings and host commands, reading native
+`innerText` to retain Enter/paste line breaks. Programmatic source is assigned
+as text, never HTML. Readonly and disabled declarations retain native semantics.
+
+A behavior's `preserveRenderedChildren` hook protects that browser-owned editing
+subtree while authored attributes remain reconciled. Unrelated rendering does
+not replace it or clear native undo. Accepted external text replacements are
+applied by the capability, deferred during composition. The canonical value
+slice remains serializable; DOM nodes, browser Selection and undo state are
+transient. This capability does not add a form-associated host or language
+services. See the [source editor contract](../cem-components/docs/source-editor-contract.md).
+
 ## Native string form controls
 
 Declarations may opt into `capability="form-control"` for one string-valued

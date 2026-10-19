@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>cem-source-editor: Property playground</title>
+<script type="importmap">{
+    "imports": {
+        "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
+        "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
+        "@epa-wg/cem-components/styles.css": "../dist/styles.css",
+        "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
+        "@epa-wg/cem-components/action-playground": "./cem-action.html",
+        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
+        "@epa-wg/cem-components/components/": "../src/components/",
+        "@epa-wg/cem-components/playgrounds/": "./"
+    }
+}</script>
+    <link rel="stylesheet" href="../../cem-theme/dist/lib/css/cem-combined.css">
+    <link rel="stylesheet" href="../dist/styles.css">
+    <script type="module">
+import { installCemElementRuntime } from '@epa-wg/cem-elements';
+import '@epa-wg/cem-demo-element';
+const runtime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
+window.cemPlaygroundRuntime = runtime;
+</script>
+<link rel="stylesheet" href="../demo.css">
+<style>body { margin: 0; font-family: var(--cem-typography-ui-font-family); } main, .properties { min-inline-size: 0; grid-template-columns: minmax(0, 1fr); display: grid; gap: var(--cem-gap-group); } [data-gallery-theme] { padding: var(--cem-inset-container); background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } cem-demo-element { display: block; margin-block: var(--cem-gap-group); }</style>
+</head><body><cem-element hidden><template type="text/cem-ml">
+{cem-element @tag=cem-source-editor @src="@epa-wg/cem-components/components/cem-source-editor/cem-source-editor.xhtml#cem-source-editor"}
+{cem-element @tag=cem-gallery-page @src="@epa-wg/cem-components/playgrounds/cem-gallery-page.xhtml#cem-gallery-page"}
+{cem-element @tag=cem-field @src="@epa-wg/cem-components/components/cem-field/cem-field.xhtml#cem-field"}
+{cem-element @tag=cem-textarea @src="@epa-wg/cem-components/components/cem-textarea/cem-textarea.xhtml#cem-textarea"}
+{cem-element @tag=cem-checkbox @src="@epa-wg/cem-components/components/cem-checkbox/cem-checkbox.xhtml#cem-checkbox"}
+{cem-element @tag=cem-radio @src="@epa-wg/cem-components/components/cem-radio/cem-radio.xhtml#cem-radio"}
+</template></cem-element>
+<cem-gallery-page heading="cem-source-editor: Property playground"><template><p class="component-description">A plain-text source editor using the browser's contenteditable="plaintext-only" editing surface. It keeps text, caret, native undo and composition through updates. Use <a href="./cem-textarea-gallery.html">cem-textarea</a> for submitted form values and <a href="./cem-workspace-gallery.html">cem-workspace</a> for an IDE layout. Source text is never executed or inserted as HTML.</p><p><a href="./cem-source-editor-gallery.html">Full examples and variation matrix</a> · <a href="./cem-source-editor.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-source-editor/cem-source-editor.stories.ts">Automated stories</a></p><p id="editor-help">Type, paste multiline source, select text and undo. Change selection-request to apply a new UTF-16 source range; selection-focus explicitly requests focus.</p><main><cem-element class="properties"><template type="text/cem-ml">
+{slice @name=label | Source code}
+{slice @name=ariaLabel | Source document}
+{slice @name=value | Hello source}
+{slice @name=slotLabel | }
+{slice @name=class | }
+{slice @name=describedby | editor-help}
+{slice @name=selectionStart | 0}
+{slice @name=selectionEnd | 0}
+{slice @name=selectionRequest | }
+{slice @name=fit | content}{slice @name=dir | ltr}{slice @name=selectionDirection | none}
+{slice @name=readonly | false}{slice @name=disabled | false}{slice @name=hidden | false}{slice @name=selectionFocus | false}
+{cem-field @label="label" @value={datadom.slices.label} @slice=label @slice-event=input @slice-value="$target.value"}
+{cem-field @label="aria-label" @value={datadom.slices.ariaLabel} @slice=ariaLabel @slice-event=input @slice-value="$target.value"}
+{cem-textarea @label="value" @value={datadom.slices.value} @slice=value @slice-event=input @slice-value="$target.value"}
+{cem-field @label="label slot" @value={datadom.slices.slotLabel} @slice=slotLabel @slice-event=input @slice-value="$target.value"}
+{cem-field @label="class" @value={datadom.slices.class} @slice=class @slice-event=input @slice-value="$target.value"}
+{cem-field @label="describedby" @value={datadom.slices.describedby} @slice=describedby @slice-event=input @slice-value="$target.value"}
+{cem-field @label="selection-start" @value={datadom.slices.selectionStart} @slice=selectionStart @slice-event=input @slice-value="$target.value"}
+{cem-field @label="selection-end" @value={datadom.slices.selectionEnd} @slice=selectionEnd @slice-event=input @slice-value="$target.value"}
+{cem-field @label="selection-request" @value={datadom.slices.selectionRequest} @slice=selectionRequest @slice-event=input @slice-value="$target.value"}
+{cem-checkbox @label="readonly" @checked={if datadom.slices.readonly { true } else { null }} @slice=readonly @slice-event=change @slice-value="$target.checked"}
+{cem-checkbox @label="disabled" @checked={if datadom.slices.disabled { true } else { null }} @slice=disabled @slice-event=change @slice-value="$target.checked"}
+{cem-checkbox @label="hidden" @checked={if datadom.slices.hidden { true } else { null }} @slice=hidden @slice-event=change @slice-value="$target.checked"}
+{cem-checkbox @label="selection-focus" @checked={if datadom.slices.selectionFocus { true } else { null }} @slice=selectionFocus @slice-event=change @slice-value="$target.checked"}
+{fieldset | {legend | fit}
+{cem-radio @label=content @name=fit @value=content @checked={if datadom.slices.fit == "content" { true } else { null }} @slice=fit @slice-event=change @slice-value="$target.value"}
+{cem-radio @label=fill @name=fit @value=fill @checked={if datadom.slices.fit == "fill" { true } else { null }} @slice=fit @slice-event=change @slice-value="$target.value"}
+}
+{fieldset | {legend | dir}
+{cem-radio @label=ltr @name=dir @value=ltr @checked={if datadom.slices.dir == "ltr" { true } else { null }} @slice=dir @slice-event=change @slice-value="$target.value"}
+{cem-radio @label=rtl @name=dir @value=rtl @checked={if datadom.slices.dir == "rtl" { true } else { null }} @slice=dir @slice-event=change @slice-value="$target.value"}
+}
+{fieldset | {legend | selection-direction}
+{cem-radio @label=none @name=selectionDirection @value=none @checked={if datadom.slices.selectionDirection == "none" { true } else { null }} @slice=selectionDirection @slice-event=change @slice-value="$target.value"}
+{cem-radio @label=forward @name=selectionDirection @value=forward @checked={if datadom.slices.selectionDirection == "forward" { true } else { null }} @slice=selectionDirection @slice-event=change @slice-value="$target.value"}
+{cem-radio @label=backward @name=selectionDirection @value=backward @checked={if datadom.slices.selectionDirection == "backward" { true } else { null }} @slice=selectionDirection @slice-event=change @slice-value="$target.value"}
+}
+{div @style="block-size:55vb" |
+ {cem-source-editor @label={datadom.slices.label} @aria-label={datadom.slices.ariaLabel} @value={datadom.slices.value} @slice=value @slice-event=input @slice-value="$target.value" @fit={datadom.slices.fit} @dir={datadom.slices.dir} @class={datadom.slices.class} @describedby={datadom.slices.describedby}
+ @readonly={if datadom.slices.readonly { true } else { null }} @disabled={if datadom.slices.disabled { true } else { null }} @hidden={if datadom.slices.hidden { true } else { null }}
+ @selection-start={datadom.slices.selectionStart} @selection-end={datadom.slices.selectionEnd} @selection-direction={datadom.slices.selectionDirection} @selection-request={datadom.slices.selectionRequest} @selection-focus={if datadom.slices.selectionFocus { true } else { null }} |
+  {cem:if @test=datadom.slices.slotLabel | {strong @slot=label | {$datadom.slices.slotLabel}}}
+ }
+}
+</template></cem-element><cem-element><template type="text/cem-ml">{cem-module-url @slice=source @src="@epa-wg/cem-components/components/cem-source-editor/cem-source-editor.xhtml"}{cem:if @test=datadom.slices.source | {cem-demo-element @legend="Canonical source" @src={datadom.slices.source} @type=xml @demo=false}}</template></cem-element></main></template></cem-gallery-page></body></html>

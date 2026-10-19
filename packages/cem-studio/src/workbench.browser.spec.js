@@ -64,7 +64,7 @@ describe('CEM Studio Feature Tour workbench', () => {
         const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
         await shell.whenSettled(); await view.whenSettled();
         const workspace = root.querySelector('cem-workspace');
-        const editor = root.querySelector('[data-cem-studio-editor] textarea');
+        const editor = root.querySelector('[data-cem-studio-editor] [role="textbox"]');
         workbench.updateDraft('retained unsaved source'); await view.whenSettled();
         editor.focus(); editor.setSelectionRange(2, 8);
         for (const mode of ['cem-theme-dark', 'cem-theme-contrast-light']) {
@@ -73,7 +73,7 @@ describe('CEM Studio Feature Tour workbench', () => {
             expect(view.root.isConnected).toBe(true);
             expect(root.querySelector('cem-workspace')).toBe(workspace);
             expect(root.querySelector('[data-cem-studio-workspace-mount]').contains(workspace)).toBe(true);
-            expect(root.querySelector('[data-cem-studio-editor] textarea')).toBe(editor);
+            expect(root.querySelector('[data-cem-studio-editor] [role="textbox"]')).toBe(editor);
             expect(editor.value).toBe('retained unsaved source');
             expect([editor.selectionStart, editor.selectionEnd]).toEqual([2, 8]);
             expect(document.activeElement).toBe(editor);
@@ -519,7 +519,7 @@ describe('CEM Studio Feature Tour workbench', () => {
         const view = await mountCemStudioFeatureTourWorkbench({ root, workbench });
         views.push(view);
 
-        const editor = root.querySelector('cem-textarea[data-cem-studio-editor] textarea');
+        const editor = root.querySelector('cem-source-editor[data-cem-studio-editor] [role="textbox"]');
         expect(root.querySelector('cem-studio-workbench-controls')).not.toBeNull();
         expect(editor.value).toBe('original');
         editor.focus();
@@ -528,7 +528,7 @@ describe('CEM Studio Feature Tour workbench', () => {
         editor.dispatchEvent(new InputEvent('input', { bubbles: true }));
         expect(workbench.snapshot()).toMatchObject({ status: 'dirty', dirty: true });
         await view.whenSettled();
-        expect(root.querySelector('cem-textarea[data-cem-studio-editor] textarea')).toBe(editor);
+        expect(root.querySelector('cem-source-editor[data-cem-studio-editor] [role="textbox"]')).toBe(editor);
         expect(document.activeElement).toBe(editor);
         expect([editor.selectionStart, editor.selectionEnd]).toEqual([2, 5]);
 
@@ -764,7 +764,7 @@ describe('CEM Studio Feature Tour workbench', () => {
         const workbench = await createWorkbench(repository, validator);
         const root = document.createElement('main'); document.body.append(root);
         const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
-        const editor = root.querySelector('[data-cem-studio-editor] textarea');
+        const editor = root.querySelector('[data-cem-studio-editor] [role="textbox"]');
         editor.value = 'saved draft'; editor.dispatchEvent(new InputEvent('input', { bubbles: true }));
         await view.whenSettled();
         const save = root.querySelector('[data-cem-studio-save] button');
@@ -779,7 +779,7 @@ describe('CEM Studio Feature Tour workbench', () => {
         await view.whenSettled();
         root.querySelector('[data-cem-studio-reload] button').click();
         await view.whenSettled();
-        expect(root.querySelector('[data-cem-studio-editor] textarea')).toBe(editor);
+        expect(root.querySelector('[data-cem-studio-editor] [role="textbox"]')).toBe(editor);
         expect(editor.value).toBe('saved draft');
         expect(root.querySelector('[data-cem-studio-workbench-status]').getAttribute('label')).toBe('Persisted revision loaded');
         expect(root.querySelector('[data-cem-studio-reload]').getAttribute('variant')).toBe('contextual');
@@ -1770,7 +1770,7 @@ describe('Project-owned workbench loading', () => {
         expect(workbench.snapshot().navigation).toMatchObject({ content: 'file', selected: { name: 'new.cem' } });
         const resourceId = session.snapshot().selection.resourceId;
         expect(workbench.snapshot().navigationError).toBeUndefined();
-        expect(root.querySelector('[data-cem-studio-editor] textarea')).not.toBeNull();
+        expect(root.querySelector('[data-cem-studio-editor] [role="textbox"]')).not.toBeNull();
         root.querySelector('[host-command="delete-selected"] button').click(); await view.whenSettled();
         expect(root.querySelector('dialog[open] h2').textContent).toBe('delete · new.cem');
         await submit();
@@ -1953,7 +1953,7 @@ describe('Project-owned workbench loading', () => {
         expect(document.activeElement).not.toBe(project);
         expect(tree.getAttribute('selected-values')).toBe(current);
         workbench.updateDraft('draft with retained selection'); await view.whenSettled();
-        const editor = root.querySelector('[data-cem-studio-editor] textarea');
+        const editor = root.querySelector('[data-cem-studio-editor] [role="textbox"]');
         editor.focus(); editor.setSelectionRange(2, 7);
         const tabs = root.querySelector('cem-tabs[label="Workbench panes"]');
         const buttons = [...tabs.querySelectorAll(':scope > [role="tablist"] [role="tab"], :scope > div > [role="tablist"] [role="tab"]')];
@@ -1962,7 +1962,7 @@ describe('Project-owned workbench loading', () => {
         expect(editor.closest('[role="tabpanel"]')).toBeNull();
         expect(editor.checkVisibility()).toBe(true);
         paneButtons.find(item => item.textContent === 'Source and command').click(); await view.whenSettled();
-        expect(root.querySelector('[data-cem-studio-editor] textarea')).toBe(editor);
+        expect(root.querySelector('[data-cem-studio-editor] [role="textbox"]')).toBe(editor);
         expect([editor.selectionStart, editor.selectionEnd]).toEqual([2, 7]);
         const launcher = node(target); launcher.focus(); launcher.click(); await view.whenSettled();
         expect(session.snapshot().transition.stage).toBe('source');
@@ -2203,7 +2203,7 @@ describe('Project-owned workbench loading', () => {
         expect(root.querySelector('dialog[open]')).not.toBeNull();
         dialogAction(root, 'Cancel navigation').click(); await view.whenSettled();
         expect(session.snapshot().workbench.draft).toBe('retain me');
-        const selector = root.querySelector('[data-cem-studio-editor] textarea');
+        const selector = root.querySelector('[data-cem-studio-editor] [role="textbox"]');
         selector.focus();
         await vi.waitFor(() => expect(document.activeElement).toBe(selector));
         await workbench.selectWorkbench(target.id); await view.whenSettled();

@@ -121,7 +121,7 @@ try {
     assert.deepEqual(shell.errors, []);
     assert.ok(['unbound', 'unsupported'].includes(shell.fileSystemState));
     console.log('[cem-studio:static-worker] shell verified');
-    const retainedEditor = await page.locator('[data-cem-studio-editor] textarea').elementHandle();
+    const retainedEditor = await page.locator('[data-cem-studio-editor] [role="textbox"]').elementHandle();
     const retainedCommand = await page.locator('[data-cem-studio-command-editor] textarea').elementHandle();
     for (const width of [390, 1280]) {
         await page.setViewportSize({ width, height: 900 });
@@ -131,7 +131,7 @@ try {
         assert.equal(await retainedEditor.evaluate(element => element.isConnected && element.checkVisibility() && element.closest('[role="tabpanel"]') === null), true);
         await page.getByRole('tab', { name: 'Source and command', exact: true }).click();
         await page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
-        assert.deepEqual(await retainedEditor.evaluate(element => [element === document.querySelector('[data-cem-studio-editor] textarea'), element.selectionStart, element.selectionEnd]), [true, 1, 4]);
+        assert.deepEqual(await retainedEditor.evaluate(element => [element === document.querySelector('[data-cem-studio-editor] [role="textbox"]'), element.selectionStart, element.selectionEnd]), [true, 1, 4]);
         assert.equal(await retainedCommand.evaluate(element => element === document.querySelector('[data-cem-studio-command-editor] textarea')), true);
     }
     await verifyWorkspaceGeometry(page);
@@ -451,7 +451,7 @@ async function verifyWorkspaceGeometry(page) {
         return { width: host.clientWidth, height: root.getBoundingClientRect().height, viewportHeight: innerHeight,
             columns: getComputedStyle(root).gridTemplateColumns.split(' ').length,
             navigation: rect('navigation'), editor: rect('editor'), preview: rect('preview'), tools: rect('tools'),
-            source: host.querySelector('[data-cem-studio-editor] textarea')?.getBoundingClientRect().toJSON() };
+            source: host.querySelector('[data-cem-studio-editor] [role="textbox"]')?.getBoundingClientRect().toJSON() };
     });
     const columns = geometry.width >= 1200 ? 3 : geometry.width >= 840 ? 2 : 1;
     assert.equal(geometry.columns, columns, JSON.stringify(geometry));
@@ -598,7 +598,7 @@ async function exerciseProjectLifecycle(page, context) {
     assert.equal(await source.evaluate(element => { element.focus(); return document.activeElement === element; }), false, 'modal background must be inert');
     await page.keyboard.press('Escape'); await settle();
     assert.equal(await dialog.count(), 0);
-    assert.equal(await editor.evaluate(element => element === document.querySelector('[data-cem-studio-editor] textarea')), true);
+    assert.equal(await editor.evaluate(element => element === document.querySelector('[data-cem-studio-editor] [role="textbox"]')), true);
     assert.deepEqual(await editor.evaluate(element => [element.selectionStart, element.selectionEnd]), [2, 7]);
     assert.equal((await snapshot()).draft, `${texts[0]}unsaved`);
     assert.equal(await page.locator('[data-cem-studio-workbench-select] [role="combobox"]').evaluate(element => document.activeElement === element), true);
@@ -642,7 +642,7 @@ async function exerciseProjectLifecycle(page, context) {
     await page.reload({ waitUntil: 'load' }); await waitForApplication(page, browserErrors, httpFailures); await settle();
     assert.equal((await snapshot()).draft, recoveryText);
     assert.equal((await snapshot()).persistedText, texts[0]);
-    assert.equal(await source.inputValue(), recoveryText);
+    assert.equal(await source.evaluate(element => element.value), recoveryText);
     assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.session.snapshot().draftRecovery.status), 'recovered');
     // Corrupt only the explicit local recovery boundary; persisted data is untouched.
     await page.evaluate(() => {
@@ -1630,9 +1630,9 @@ async function inspectHardening(page, initialResponse) {
                 frame.getAttribute('sandbox') === '';
             const header = getComputedStyle(document.querySelector('cem-app-bar header'));
             const action = getComputedStyle(document.querySelector('[data-cem-studio-install] button'));
-            const editor = getComputedStyle(document.querySelector('[data-cem-studio-editor] textarea'));
+            const editor = getComputedStyle(document.querySelector('[data-cem-studio-editor] [role="textbox"]'));
             const workbenchAction = getComputedStyle(document.querySelector('[data-cem-studio-reload] button'));
-            const workbenchForcedColors = editor.outlineStyle === 'solid' && parseFloat(editor.outlineWidth) > 0 &&
+            const workbenchForcedColors = editor.borderTopStyle === 'solid' && parseFloat(editor.borderTopWidth) > 0 &&
                 editor.forcedColorAdjust === 'auto' && workbenchAction.borderTopStyle === 'solid' &&
                 workbenchAction.forcedColorAdjust === 'auto';
             const commandEditor = getComputedStyle(document.querySelector('[data-cem-studio-command-editor] textarea'));
@@ -2222,12 +2222,12 @@ async function inspectShell(page) {
             const treeStyle = getComputedStyle(document.querySelector('cem-tree [role="treeitem"]'));
             const paneStyle = getComputedStyle(document.querySelector('cem-tabs[label="Workbench panes"] [role="tab"]'));
             explorerStyled &&= treeStyle.backgroundColor === 'rgba(0, 0, 0, 0)' && treeStyle.color !== treeStyle.backgroundColor && parseFloat(treeStyle.minBlockSize) > 0 && paneStyle.color !== paneStyle.backgroundColor;
-            const editor = getComputedStyle(document.querySelector('[data-cem-studio-editor] textarea'));
+            const editor = getComputedStyle(document.querySelector('[data-cem-studio-editor] [role="textbox"]'));
             const action = getComputedStyle(document.querySelector('[data-cem-studio-reload] button'));
             workbenchStyles.push({ mode, background: editor.backgroundColor, color: editor.color,
-                indicator: editor.boxShadow, actionBorder: action.borderTopWidth });
+                boundary: editor.borderTopWidth, actionBorder: action.borderTopWidth });
             workbenchStyled &&= editor.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
-                editor.color !== editor.backgroundColor && editor.boxShadow !== 'none' && parseFloat(action.borderTopWidth) > 0;
+                editor.color !== editor.backgroundColor && editor.borderTopStyle === 'solid' && parseFloat(editor.borderTopWidth) > 0 && parseFloat(action.borderTopWidth) > 0;
             const commandEditor = getComputedStyle(document.querySelector('[data-cem-studio-command-editor] textarea'));
             const commandAction = getComputedStyle(document.querySelector('[data-cem-studio-command-copy] button'));
             commandStyles.push({ mode, background: commandEditor.backgroundColor, color: commandEditor.color,
@@ -2254,7 +2254,7 @@ async function inspectShell(page) {
         const actionStyle = getComputedStyle(document.querySelector('[data-cem-studio-install] button'));
         const overrideStyles = { treeBackground: getComputedStyle(document.querySelector('cem-tree [role="treeitem"]')).backgroundColor, padding: getComputedStyle(header).paddingInlineStart,
             radius: actionStyle.borderTopLeftRadius, couplingBorder: actionStyle.borderTopWidth,
-            editorBackground: getComputedStyle(document.querySelector('[data-cem-studio-editor] textarea')).backgroundColor,
+            editorBackground: getComputedStyle(document.querySelector('[data-cem-studio-editor] [role="textbox"]')).backgroundColor,
             workbenchRadius: getComputedStyle(document.querySelector('[data-cem-studio-reload] button')).borderTopLeftRadius,
             workbenchBorder: getComputedStyle(document.querySelector('[data-cem-studio-reload] button')).borderTopWidth,
             commandBackground: getComputedStyle(document.querySelector('[data-cem-studio-command-editor] textarea')).backgroundColor,

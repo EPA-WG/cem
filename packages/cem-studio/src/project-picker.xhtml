@@ -24,7 +24,7 @@
    {cem:if @test='seq:count(nav.children.key) == 0' | {p | This folder is empty.}}
   }
   {cem:if @test='nav.content == "sample-file"' |
-   {cem-textarea @label={nav.path ?? nav.selected.name} @value={nav.sampleText} @readonly=true @rows=24}
+   {cem-source-editor @label={nav.path ?? nav.selected.name} @value={nav.sampleText} @readonly=true}
   }
   {cem:if @test=nav.action |
    {cem-dialog @label={str:concat((nav.action.kind, " · ", nav.action.targetName), "")} @mode=modal @default-open=true @closedby=closerequest @host-command=cancel-action @host-command-event=cem-close |

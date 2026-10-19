@@ -1316,9 +1316,16 @@ the typed run plan remains execution authority.
 
 | Editor                          | Advantages                                                                                     | Disadvantages                                                                                                           | Recommendation                                                            |
 | ------------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Native `<textarea>`             | Small, accessible baseline; dependable text value and selection offsets; no editor dependency. | No syntax highlighting, folding, inline widgets, or rich completion UI.                                                 | MVP source editor behind a reusable adapter.                              |
-| `contenteditable` source editor | Can style syntax spans directly.                                                               | Complex selection/IME/clipboard/undo behavior and easy source-offset drift; unsafe if authored text is treated as HTML. | Do not use as the canonical source editor.                                |
+| Native `<textarea>`             | Small, accessible baseline; dependable text value and selection offsets; no editor dependency. | No syntax highlighting, folding, inline widgets, or rich completion UI.                                                 | Remains the shared form-value editor and command text editor.                              |
+| `contenteditable` source editor | Native plaintext editing with retained caret, undo and IME; reusable source editor.                                                               | Language services and syntax highlighting are not included; external text replacements reset editing history. | Current source editor through shared `cem-source-editor` / `plaintext-editor`.                                |
 | CodeMirror/Monaco-class editor  | Mature language UI, diagnostics, completion, and large-document ergonomics.                    | Bundle size, theming/accessibility integration, worker complexity, and another adapter contract.                        | Evaluate after the textarea workflow and language-service API are stable. |
+
+Selected text resources use the shared declarative `cem-source-editor`.
+Its `plaintext-editor` capability belongs to `cem-elements`; Studio binds source
+and selection through its existing document model and host commands. Saved
+project resources remain editable with the existing draft/save/validation guards.
+Predefined sample resources use the same editor readonly until the sample is
+cloned. Authored source is always text; syntax highlighting is not yet applied.
 
 Editable HTML means editing HTML **source text**. Rendered HTML is a separate,
 read-only-by-default preview. Editor adapters must use the same versioned
@@ -1357,7 +1364,7 @@ Plain source views must use text nodes or equivalent escaped rendering.
 For the first public release, declared UTF-8 text uses this bounded raw-text
 projection; HTML, XHTML, and SVG may additionally use only the isolated preview
 above; binary, unknown, invalid-text, and oversize active results are
-download-only. The current textarea editor is sufficient for that release.
+download-only. The shared plaintext source editor provides that document editing surface.
 Richer schema-aware editing remains an adapter upgrade only after profiling and
 user evidence justify its bundle, memory, and accessibility cost.
 
@@ -2613,7 +2620,7 @@ the native authoring and repository services.
 Each submission carries the workbench instance and source-draft revision it was
 rendered from. Stale, foreign, unexpected, repeated and pending submissions are
 rejected. **Undo graph edit** and **Redo graph edit** restore source-draft snapshots,
-including edits made directly in the source textarea, bounded to 20 snapshots and
+including edits made directly in the source editor, bounded to 20 snapshots and
 8 MiB of UTF-8 text. This is graph transaction history; it does not intercept native
 text-editor undo or keyboard events. New edits clear redo. Save retains local history,
 so undo after Save stages a new dirty revision; reload/navigation resets history.

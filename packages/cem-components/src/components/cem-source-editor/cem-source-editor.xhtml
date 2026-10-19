@@ -1,0 +1,28 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-source-editor" capability="plaintext-editor">
+ <template id="cem-source-editor" type="text/cem-ml">
+  {attribute @name=label | Source code}
+  {attribute @name=fit | content}
+  {style @type=text/css |```
+:scope { display: block; min-inline-size: 0; min-block-size: 0; }
+:scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
+[part~='root'] { display: grid; gap: var(--cem-gap-related); min-inline-size: 0; min-block-size: 0; }
+[part~='label'] { font-family: var(--cem-typography-ui-font-family); font-size: var(--cem-typography-ui-font-size); line-height: var(--cem-typography-ui-line-height); }
+[part~='control'] { box-sizing: border-box; margin: 0; min-inline-size: 0; min-block-size: var(--cem-control-height-xx-large); padding: var(--cem-inset-container); overflow: auto; white-space: pre; font-family: var(--cem-typography-script-font-family); font-size: var(--cem-typography-script-font-size); line-height: var(--cem-typography-script-line-height); font-weight: var(--cem-typography-script-font-weight); letter-spacing: var(--cem-typography-script-letter-spacing); font-variant-ligatures: var(--cem-typography-script-font-variant-ligatures); background: var(--cem-input-background-color); color: var(--cem-palette-comfort-text); border: var(--cem-stroke-boundary) solid var(--cem-input-indicator-anchor-color); border-radius: var(--cem-bend-container); }
+[part~='control']:where(:hover:not([aria-disabled='true'])) { border-color: var(--cem-input-indicator-anchor-hover-color); }
+[part~='control']:where(:focus-visible) { outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1); outline-offset: var(--cem-stroke-indicator-offset); }
+[part~='control']:where([aria-readonly='true']) { border-color: var(--cem-input-indicator-anchor-readonly-color); }
+[part~='control']:where([aria-disabled='true']) { color: var(--cem-action-contextual-disabled-text); border-color: var(--cem-input-indicator-anchor-disabled-color); }
+:scope:where([fit='fill']) { block-size: 100%; }
+:scope:where([fit='fill']) [part~='root'] { block-size: 100%; grid-template-rows: auto minmax(0, 1fr); }
+@media (forced-colors: active) {
+ [part~='control'] { background: Canvas; color: CanvasText; border-color: CanvasText; }
+ [part~='control']:where([aria-disabled='true']) { color: GrayText; border-color: GrayText; }
+ [part~='control']:where(:focus-visible) { outline-color: Highlight; }
+}
+```}
+  {div @part=root |
+   {span @part=label | {slot @name=label | {$label}}}
+   {pre @part=control @role=textbox @aria-label={datadom.attributes.aria-label ?? label} @aria-multiline=true @aria-readonly={if seq:count(datadom.attributes.readonly) > 0 { true } else { false }} @aria-disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { false }} @aria-describedby={datadom.attributes.describedby} @contenteditable={if seq:count(datadom.attributes.disabled) > 0 || seq:count(datadom.attributes.readonly) > 0 { "false" } else { "plaintext-only" }} @tabindex={if seq:count(datadom.attributes.disabled) > 0 { -1 } else { 0 }} @spellcheck=false @autocapitalize=off @autocorrect=off}
+  }
+ </template>
+</cem-element>

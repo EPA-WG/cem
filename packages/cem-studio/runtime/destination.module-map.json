@@ -756,6 +756,10 @@
         "@epa-wg/cem-studio/navigation": {
             "path": "./assets/@epa-wg/cem-studio/navigation.js",
             "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/plaintext-editor-capability.js": {
+            "path": "./assets/@epa-wg/cem-elements/dist/lib/plaintext-editor-capability.js",
+            "contentType": "text/javascript"
         }
     }
 }

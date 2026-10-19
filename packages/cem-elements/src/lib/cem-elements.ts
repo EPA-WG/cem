@@ -133,6 +133,7 @@ import {
     type CemRepositoryStatus,
 } from './repository.js';
 import { CEM_FORM_CONTROL_CAPABILITY } from './form-control-capability.js';
+import { CEM_PLAINTEXT_EDITOR_CAPABILITY, cemPlaintextEditorEventValue } from './plaintext-editor-capability.js';
 import { CEM_NAVIGATION_LANDMARK_CAPABILITY } from './navigation-landmark-capability.js';
 import { CEM_DISCLOSURE_PANEL_CAPABILITY } from './disclosure-panel-capability.js';
 import { CEM_SORT_ACTION_CAPABILITY } from './sort-action-capability.js';
@@ -742,6 +743,8 @@ export interface CemProducedElementBehavior {
     preserveRenderedAttribute?(instance: HTMLElement, current: Element, desired: Element, attribute: Attr): boolean;
     /** Browser-owned derived nodes excluded from authored reconciliation, never serialized. */
     preserveRenderedNode?(instance: HTMLElement, current: Node): boolean;
+    /** Browser-owned children (for example live editable text); attributes remain authored. */
+    preserveRenderedChildren?(instance: HTMLElement, current: Element): boolean;
     rendered?(instance: HTMLElement, context: CemProducedElementBehaviorContext): void;
     disconnected?(instance: HTMLElement, context: CemProducedElementBehaviorContext): void;
     formDisabled?(instance: HTMLElement, disabled: boolean, context: CemProducedElementBehaviorContext): void;
@@ -780,6 +783,7 @@ export const CEM_DECLARATIVE_CAPABILITIES = Object.freeze({
     'tab-panels': { behavior: CEM_TAB_PANELS_CAPABILITY, behaviorIdentity: 'cem-elements-tab-panels-v1' },
     'workflow-panels': { behavior: CEM_WORKFLOW_PANELS_CAPABILITY, behaviorIdentity: 'cem-elements-workflow-panels-v1' },
     'tree-view': { behavior: CEM_TREE_VIEW_CAPABILITY, behaviorIdentity: 'cem-elements-tree-view-v1' },
+    'plaintext-editor': { behavior: CEM_PLAINTEXT_EDITOR_CAPABILITY, behaviorIdentity: 'cem-elements-plaintext-editor-v1' },
 
     'time-input': { behavior: CEM_TIME_INPUT_CAPABILITY, behaviorIdentity: 'cem-elements-time-input-v1' },
     'range-input': { behavior: CEM_RANGE_INPUT_CAPABILITY, behaviorIdentity: 'cem-elements-range-input-v1' },
@@ -4032,6 +4036,7 @@ export class CemElementRuntime {
                 ? (current, desired, attribute) => preserveRenderedAttribute(instance, current, desired, attribute)
                 : undefined,
             preserveElementChildren: (current) =>
+                (behavior?.preserveRenderedChildren?.(instance, current) ?? false) ||
                 (this.declarationsByDocument.get(current.ownerDocument)?.has(current.localName) ?? false) &&
                 directDataIsland(current) !== undefined,
             authoredChildContainer: (current) => this.authoredPayloadContainer(current),
@@ -6824,6 +6829,7 @@ export class CemElementRuntime {
             preserveNode: (node: Node) => behavior?.preserveRenderedNode?.(instance, node) ?? false,
             preserveElementAttribute,
             preserveElementChildren: (current: Element) =>
+                (behavior?.preserveRenderedChildren?.(instance, current) ?? false) ||
                 (this.declarationsByDocument.get(current.ownerDocument)?.has(current.localName) ?? false) &&
                 directDataIsland(current) !== undefined,
             authoredChildContainer: (current: Element) => this.authoredPayloadContainer(current),
@@ -9934,8 +9940,10 @@ function isWordBoundary(value: string | undefined): boolean {
     return value === undefined || !/[A-Za-z0-9_-]/.test(value);
 }
 
-/** Event values come from live native or form-associated custom controls. */
+/** Event values come from native, form-associated or admitted plaintext controls. */
 function formControlEventValue(target: EventTarget | null): string | null {
+    const plaintext = cemPlaintextEditorEventValue(target);
+    if (plaintext !== undefined) return plaintext;
     if (isDomInstance(target, 'HTMLButtonElement') || isDomInstance(target, 'HTMLInputElement') || isDomInstance(target, 'HTMLTextAreaElement') || isDomInstance(target, 'HTMLSelectElement')) {
         return target.value;
     }

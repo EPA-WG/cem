@@ -1,9 +1,10 @@
 import type { CemElementRuntime } from './cem-elements.js';
+import { cemPlaintextEditorEventValue } from './plaintext-editor-capability.js';
 
 export interface CemHostCommandRequest {
     readonly command: string;
     readonly eventType: string;
-    /** Native control value or validated tree/tab activation identity; never arbitrary event detail. */
+    /** Native/admitted plaintext control value or validated tree/tab identity; never arbitrary event detail. */
     readonly value: string | null;
     readonly isTrusted: boolean;
     /** Native successful string controls, captured only for a form submit command. */
@@ -168,6 +169,8 @@ function formFields(event: Event, control: Element, view: Element): Readonly<Rec
 }
 
 function controlValue(target: EventTarget | null): string | null {
+    const plaintext = cemPlaintextEditorEventValue(target);
+    if (plaintext !== undefined) return plaintext;
     if (target instanceof HTMLButtonElement || target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return target.value;
     if (target instanceof HTMLElement && (target.constructor as typeof HTMLElement & { formAssociated?: boolean }).formAssociated) {
         const value = (target as HTMLElement & { value?: unknown }).value;

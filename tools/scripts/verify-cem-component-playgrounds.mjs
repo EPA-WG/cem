@@ -31,6 +31,7 @@ const passiveTags = ['cem-option', 'cem-option-group', 'cem-badge', 'cem-avatar'
 const feedbackOnly = process.argv.includes('--feedback-only');
 const disclosureDataOnly = process.argv.includes('--disclosure-data-only');
 const layoutOnly = process.argv.includes('--layout-only');
+const sourceEditorOnly = process.argv.includes('--source-editor-only');
 const timeRangeOnly = process.argv.includes('--time-range-only');
 const datepickerOnly = process.argv.includes('--datepicker-only');
 const autocompleteOnly = process.argv.includes('--autocomplete-only');
@@ -54,7 +55,8 @@ try {
     if (nativeDatalistOnly && historyOnly) throw new Error('Choose one evidence mode');
     if (!evidenceOnly && (headed || nativeBrowser !== 'chromium' || evidenceOutput)) throw new Error('Browser evidence flags require --native-datalist-only or --history-only');
     browser = await ({ chromium, firefox, webkit })[nativeBrowser].launch({ headless: !headed });
-    if (!installedOnly && fieldsetOnly) await verifyFieldset(`${origin}/packages/cem-components/playgrounds/`);
+    if (!installedOnly && sourceEditorOnly) await verifyGalleries(`${origin}/packages/cem-components/playgrounds/`, ['cem-source-editor']);
+    else if (!installedOnly && fieldsetOnly) await verifyFieldset(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && passiveOnly) await verifyPassive(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && feedbackOnly) await verifyFeedback(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && disclosureDataOnly) await verifyDisclosureData(`${origin}/packages/cem-components/playgrounds/`);
@@ -103,7 +105,8 @@ try {
         await mkdir(target, { recursive: true });
         execFileSync('tar', ['-xzf', join(temporary, output[0].filename), '--strip-components=1', '-C', target]);
     }
-    if (fieldsetOnly) await verifyFieldset(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    if (sourceEditorOnly) await verifyGalleries(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`, ['cem-source-editor']);
+    else if (fieldsetOnly) await verifyFieldset(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     else if (passiveOnly) await verifyPassive(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     else if (feedbackOnly) await verifyFeedback(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     else if (disclosureDataOnly) await verifyDisclosureData(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
@@ -170,6 +173,7 @@ try {
     else if (suggestionsOnly && !evidenceOnly) console.log(`Suggestions playground and gallery verified from ${verifiedLocations}.`);
     else if (actionOnly) console.log(`Action playground and gallery verified from ${verifiedLocations}.`);
     else if (navigationOnly) console.log(`Gallery navigation verified from ${verifiedLocations}.`);
+    else if (sourceEditorOnly) console.log(`Source editor property playground and gallery verified from ${verifiedLocations}.`);
     else if (!evidenceOnly) console.log(`Action, field, text-field, textarea, icon, icon-button, menu-item, select, suggestions, theme-switch and bundle playgrounds verified from ${verifiedLocations}.`);
 } finally {
     await browser?.close();
@@ -1058,6 +1062,33 @@ async function verifyGalleries(baseUrl, tags) {
             if (await back.count()) await back.click();
             else await page.getByRole('link', { name: 'Action property playground and source' }).click();
             assert.equal(new URL(page.url()).pathname, new URL(`${tag}.html`, baseUrl).pathname);
+            if (tag === 'cem-source-editor') {
+                await page.waitForFunction(() => window.cemPlaygroundRuntime && document.querySelector('main > cem-element.properties'));
+                await page.evaluate(async () => {
+                    const runtime = window.cemPlaygroundRuntime;
+                    await runtime.whenDeclarationSettled(document.querySelector('main > cem-element.properties'));
+                    for (const host of document.querySelectorAll('main cem-source-editor, main cem-textarea, main cem-field, main cem-checkbox, main cem-radio')) await runtime.whenRenderSettled(host);
+                });
+                const source = page.getByRole('textbox', { name: 'Source document', exact: true });
+                await source.fill('<p>Plain source</p>\n{h1 | Edited}');
+                await page.waitForFunction(() => document.querySelector('cem-textarea[label="value"]')?.value === '<p>Plain source</p>\n{h1 | Edited}').catch(async error => {
+                    console.error(await page.evaluate(() => [...document.querySelectorAll('cem-source-editor, cem-textarea')].map(host => ({ tag: host.localName, value: host.value, text: host.querySelector('[part="control"]')?.innerText, diagnostics: window.cemPlaygroundRuntime.diagnosticsFor(host) }))));
+                    throw error;
+                });
+                assert.equal(await source.locator('p').count(), 0);
+                await page.getByRole('textbox', { name: 'label', exact: true }).fill('Edited filename');
+                await page.waitForFunction(() => document.querySelector('main cem-source-editor')?.getAttribute('label') === 'Edited filename');
+                assert.equal(await source.evaluate(node => node.value), '<p>Plain source</p>\n{h1 | Edited}');
+                await page.locator('cem-checkbox[label="readonly"] input').check();
+                await page.waitForFunction(() => document.querySelector('main cem-source-editor [part="control"]')?.contentEditable === 'false');
+                await page.emulateMedia({ forcedColors: 'active' });
+                await source.focus(); await page.keyboard.press('ArrowRight');
+                assert.deepEqual(await source.evaluate(node => {
+                    const style = getComputedStyle(node);
+                    return [style.forcedColorAdjust, style.borderTopStyle, parseFloat(style.borderTopWidth) > 0,
+                        node.matches(':focus-visible'), style.outlineStyle, parseFloat(style.outlineWidth) > 0];
+                }), ['auto', 'solid', true, true, 'solid', true], 'Source boundary and keyboard focus survive forced colors');
+            }
         } finally { await context.close(); }
     }
     console.log(`${tags ? tags.join(', ') : 'All canonical component'} galleries verified: ${baseUrl}`);

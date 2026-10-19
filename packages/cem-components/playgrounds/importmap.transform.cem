@@ -443,4 +443,14 @@
       {export @id=cem-fieldset-gallery-html @out="../dist/{file}" @content-type="text/html"}
     }
   }
+  {import @id=cem-source-editor @src="cem-source-editor.html" @content-type="text/html" |
+    {rewrite-importmap @id=cem-source-editor-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
+      {export @id=cem-source-editor-html @out="../dist/{file}" @content-type="text/html"}
+    }
+  }
+  {import @id=cem-source-editor-gallery @src="cem-source-editor-gallery.html" @content-type="text/html" |
+    {rewrite-importmap @id=cem-source-editor-gallery-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
+      {export @id=cem-source-editor-gallery-html @out="../dist/{file}" @content-type="text/html"}
+    }
+  }
 }
