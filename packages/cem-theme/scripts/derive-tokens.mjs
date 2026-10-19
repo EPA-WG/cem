@@ -85,6 +85,8 @@ function deriveColorTokens(xhtml) {
         const hn = stateResult.headers.map((h) => h.toLowerCase());
         const bgCol = hn.findIndex((h) => h.includes("background"));
         const textCol = hn.findIndex((h) => h.includes("text"));
+        const contextualBgCol = hn.indexOf("contextual background");
+        const contextualTextCol = hn.indexOf("contextual text");
         const tierCol = hn.findIndex((h) => h === "tier");
         const effectiveBgCol = bgCol >= 0 ? bgCol : 1;
         const effectiveTextCol = textCol >= 0 ? textCol : 2;
@@ -95,8 +97,8 @@ function deriveColorTokens(xhtml) {
                 const state = stateRow[0];
                 if (!state) continue;
                 const tier = (stateRow[tierCol >= 0 ? tierCol : stateRow.length - 1] || "").toLowerCase().trim();
-                const formulaBackground = stateRow[effectiveBgCol] ?? "";
-                const formulaText = stateRow[effectiveTextCol] ?? "";
+                const formulaBackground = (intent === "contextual" && stateRow[contextualBgCol]) || stateRow[effectiveBgCol] || "";
+                const formulaText = (intent === "contextual" && stateRow[contextualTextCol]) || stateRow[effectiveTextCol] || "";
                 tokens.push({
                     name: `--cem-action-${intent}-${state}-background`,
                     valueRaw: formulaBackground,

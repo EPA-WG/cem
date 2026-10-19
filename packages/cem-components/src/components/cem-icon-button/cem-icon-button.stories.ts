@@ -555,6 +555,49 @@ export const NativeActivation = meta.story({
     },
 });
 
+export const ContextualSurfaces = meta.story({
+    parameters: { docs: { description: { story: 'Contextual commands and links have unfilled resting and disabled states in all five themes. Disabled ink is muted; enabled hover retains theme feedback. Trusted hover checks run in the browser runner.' } } },
+    render: () => '<section class="cem-theme-light"><cem-icon-button variant="contextual" image="+" aria-label="Create"></cem-icon-button><cem-icon-button variant="contextual" href="#destination" image="★" aria-label="Navigate"></cem-icon-button></section>',
+    play: async ({ canvasElement }) => {
+        const section = canvasElement.querySelector('section')!;
+        const native = import.meta.env.MODE === 'test' ? (await import('vitest/browser')).userEvent : null;
+        for (const mode of ['light', 'dark', 'contrast-light', 'contrast-dark', 'native']) {
+            section.className = `cem-theme-${mode}`;
+            for (const host of section.querySelectorAll<HTMLElement>('cem-icon-button')) {
+                await whenIconButtonRendered(host);
+                const control = host.querySelector<HTMLElement>('[part="control"]')!;
+                if (native) await native.unhover(control);
+                expect(paintedColor(getComputedStyle(control).backgroundColor)).toBe('0,0,0,0');
+                const enabledInk = paintedColor(getComputedStyle(control).color);
+                expect(enabledInk.split(',')[3]).toBe('255');
+                const rect = control.getBoundingClientRect();
+                expect(rect.width).toBeGreaterThanOrEqual(48);
+                expect(rect.height).toBeGreaterThanOrEqual(48);
+                host.setAttribute('disabled', '');
+                await whenIconButtonRendered(host);
+                if (native) await native.hover(control);
+                expect(paintedColor(getComputedStyle(control).backgroundColor)).toBe('0,0,0,0');
+                const disabledInk = paintedColor(getComputedStyle(control).color);
+                expect(disabledInk).not.toBe(enabledInk);
+                expect(Number(disabledInk.split(',')[3])).toBeGreaterThan(0);
+                expect(Number(disabledInk.split(',')[3])).toBeLessThan(255);
+                expect(control.getBoundingClientRect().width).toBe(rect.width);
+                expect(control.getBoundingClientRect().height).toBe(rect.height);
+                if (control instanceof HTMLAnchorElement) expect(control.hasAttribute('href')).toBe(false);
+                else expect((control as HTMLButtonElement).disabled).toBe(true);
+                host.removeAttribute('disabled');
+                await whenIconButtonRendered(host);
+                if (native) {
+                    await native.hover(control);
+                    expect(paintedColor(getComputedStyle(control).backgroundColor).split(',')[3]).toBe('255');
+                    await native.unhover(control);
+                }
+                expect(paintedColor(getComputedStyle(control).backgroundColor)).toBe('0,0,0,0');
+            }
+        }
+    },
+});
+
 export const ActionVariants = meta.story({
     render: () => '<section class="cem-theme-light"><cem-icon-button image="★" label="Command"></cem-icon-button><cem-icon-button href="#destination" image="★" label="Navigate"></cem-icon-button></section>',
     play: async ({ canvasElement }) => {

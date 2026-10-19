@@ -44,7 +44,7 @@
     font: inherit;
     font-weight: var(--cem-typography-ui-font-weight);
     gap: var(--cem-gap-related);
-    grid-template-areas: 'marker label selection' 'marker status selection';
+    grid-template-areas: 'marker label selection';
     grid-template-columns: auto minmax(0, 1fr) auto;
     inline-size: 100%;
     letter-spacing: var(--cem-typography-ui-letter-spacing);
@@ -101,13 +101,17 @@
 }
 
 :scope :where([part~="label"]) {
-    align-self: end;
+    align-self: center;
     grid-area: label;
 }
 
 :scope :where([part~="selection"]) {
     align-self: center;
     grid-area: selection;
+}
+
+:scope :where([part~="node"]):has(:where([part~="status"]:not([hidden]))) {
+    grid-template-areas: 'marker label selection' 'marker status selection';
 }
 
 :scope :where([part~="status"]) {

@@ -226,7 +226,7 @@ export const CompactHitArea = meta.story({
 
 export const ContrastContours = meta.story({
     globals: { cemTheme: 'light' },
-    parameters: { docs: { description: { story: 'Contrast modes keep flat surfaces and animate the pending zebra contour. Trusted pointer checks run in the browser runner.' } } },
+    parameters: { docs: { description: { story: 'Contrast modes keep flat surfaces, with unfilled contextual resting/disabled states, and animate the pending zebra contour. Trusted pointer checks run in the browser runner.' } } },
     render: () => ['contrast-light', 'contrast-dark'].map(mode => `<section class="cem-theme-${mode}" style="display:flex;flex-wrap:wrap;gap:1rem">${
         ['primary', 'explicit', 'contextual', 'alternate', 'destructive'].map(intent => `<cem-action variant="${intent}">${intent}</cem-action>`).join('')
     }</section>`).join(''),
@@ -243,7 +243,8 @@ export const ContrastContours = meta.story({
             probe.remove();
             const contour = () => getComputedStyle(button, '::before');
             const rect = button.getBoundingClientRect();
-            await expect(getComputedStyle(button).backgroundColor).toBe(surface);
+            const restingSurface = host.getAttribute('variant') === 'contextual' ? 'rgba(0, 0, 0, 0)' : surface;
+            await expect(getComputedStyle(button).backgroundColor).toBe(restingSurface);
             await expect(colorContrast(surface, getComputedStyle(button).color)).toBeGreaterThanOrEqual(4.5);
             await expect(contour().display).toBe('block');
             await expect(contour().maskComposite.split(', ').every(value => value === 'exclude')).toBe(true);
@@ -298,6 +299,7 @@ export const ContrastContours = meta.story({
             await expect(contour().display).toBe('block');
             host.setAttribute('pending', 'false');
             await whenCemRendered(host);
+            await expect(getComputedStyle(button).backgroundColor).toBe(restingSurface);
             await expect(button.getAnimations()).toHaveLength(0);
             await expect(contour().backgroundColor).toBe(getComputedStyle(button).color);
             button.blur();

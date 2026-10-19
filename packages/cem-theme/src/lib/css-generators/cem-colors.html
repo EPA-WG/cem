@@ -130,7 +130,7 @@
                             {td @class={if state.state == "pending" { "cem-pending" } else { "" }}
                                 @style='{str:concat(("--_cem-pending-image: var(--cem-action-", intent.action_intent, "-pending-image); --cem-pending-color-1: var(--cem-action-", intent.action_intent, "-pending-background); --cem-pending-color-2: var(--cem-action-", intent.action_intent, "-pending-stripe", "-background); background-color: var(--cem-action-", intent.action_intent, "-", state.state, "-background); color: var(--cem-action-", intent.action_intent, "-", state.state, "-text); min-width: 4rem;"))}'
                                 @title='{str:concat(("--cem-action-", intent.action_intent, "-", state.state, "-background \n --cem-action-", intent.action_intent, "-", state.state, "-text"))}'
-                                @data-cem-value='{str:concat(("--cem-action-", intent.action_intent, "-", state.state, "-background: ", if str:starts_with(mode.mode, "contrast-") { state.contrast_background } else { str:replace(state.background_formula_palette_level, "[emotion]", intent.emotional_palette) }, "; --cem-action-", intent.action_intent, "-", state.state, "-text: ", if str:starts_with(mode.mode, "contrast-") { state.contrast_text } else { str:replace(state.text_token, "[emotion]", intent.emotional_palette) }))}' | Aa}
+                                @data-cem-value='{str:concat(("--cem-action-", intent.action_intent, "-", state.state, "-background: ", if intent.action_intent == "contextual" &amp;&amp; state.contextual_background { state.contextual_background } else { if str:starts_with(mode.mode, "contrast-") { state.contrast_background } else { str:replace(state.background_formula_palette_level, "[emotion]", intent.emotional_palette) } }, "; --cem-action-", intent.action_intent, "-", state.state, "-text: ", if intent.action_intent == "contextual" &amp;&amp; state.contextual_text { state.contextual_text } else { if str:starts_with(mode.mode, "contrast-") { state.contrast_text } else { str:replace(state.text_token, "[emotion]", intent.emotional_palette) } }))}' | Aa}
                         }
                     }
                 }}
@@ -315,8 +315,8 @@
   ```{$emo.token}: {cem:choose |{cem:when @test='emo.dark != ""' |light-dark({cem:choose |{cem:when @test='datadom.slices.hue.token & (str:concat(("--cem-color-", emo.light)))' |var(--cem-color-{$emo.light})}{cem:otherwise |var(--cem-palette-{$emo.light})}}, {cem:choose |{cem:when @test='datadom.slices.hue.token & (str:concat(("--cem-color-", emo.dark)))' |var(--cem-color-{$emo.dark})}{cem:otherwise |var(--cem-palette-{$emo.dark})}})}{cem:otherwise |{cem:choose |{cem:when @test='datadom.slices.hue.token & (str:concat(("--cem-color-", emo.light)))' |var(--cem-color-{$emo.light})}{cem:otherwise |var(--cem-palette-{$emo.light})}}}};}```
 
     /* action intent tokens: cem-action-[intent]-[state]-[background|text] */```{cem:for-each @select="$datadom.slices.intent" @as="intent" |{cem:for-each @select="$datadom.slices.state" @as="state" |```
-    ```--cem-action-{$intent.action_intent}-{$state.state}-background: {$str:replace(state.background_formula_palette_level, "[emotion]", intent.emotional_palette)};
-    --cem-action-{$intent.action_intent}-{$state.state}-text: {$str:replace(state.text_token, "[emotion]", intent.emotional_palette)};}}```
+    ```--cem-action-{$intent.action_intent}-{$state.state}-background: {$ | if intent.action_intent == "contextual" &amp;&amp; state.contextual_background { state.contextual_background } else { str:replace(state.background_formula_palette_level, "[emotion]", intent.emotional_palette) }};
+    --cem-action-{$intent.action_intent}-{$state.state}-text: {$ | if intent.action_intent == "contextual" &amp;&amp; state.contextual_text { state.contextual_text } else { str:replace(state.text_token, "[emotion]", intent.emotional_palette) }};}}```
     /* action contour colors resolve in the active theme */```{cem:for-each @select="$datadom.slices.outline" @as="row" |```
     ```{$row.token}: {$row.value};}```
     /* pending gradient color inputs */```{cem:for-each @select="$datadom.slices.pending" @as="row" |```
@@ -376,8 +376,8 @@
 
   /* Contrast action surfaces and ink come from the canonical state columns. */
   [data-theme="cem-theme-contrast-light"], [data-theme="cem-theme-contrast-dark"], .cem-theme-contrast-light, .cem-theme-contrast-dark {```{cem:for-each @select="$datadom.slices.intent" @as="intent" |{cem:for-each @select="$datadom.slices.state" @as="state" |```
-    --cem-action-```{$intent.action_intent}-{$state.state}-background: {$state.contrast_background};```
-    --cem-action-```{$intent.action_intent}-{$state.state}-text: {$state.contrast_text};}}{cem:for-each @select="$datadom.slices.contrast" @as="row" |```
+    --cem-action-```{$intent.action_intent}-{$state.state}-background: {$ | if intent.action_intent == "contextual" &amp;&amp; state.contextual_background { state.contextual_background } else { state.contrast_background }};```
+    --cem-action-```{$intent.action_intent}-{$state.state}-text: {$ | if intent.action_intent == "contextual" &amp;&amp; state.contextual_text { state.contextual_text } else { state.contrast_text }};}}{cem:for-each @select="$datadom.slices.contrast" @as="row" |```
     ```{$row.token}: {$row.value};}```
   }
 

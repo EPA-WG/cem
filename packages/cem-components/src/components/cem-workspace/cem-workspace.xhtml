@@ -13,7 +13,8 @@
 :scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
 [part~='root'] { display: grid; grid-template-areas: 'navigation' 'editor' 'preview' 'tools'; grid-template-columns: minmax(0, 1fr); gap: var(--cem-gap-related); min-inline-size: 0; min-block-size: 0; font-family: var(--cem-typography-ui-font-family); font-size: var(--cem-typography-ui-font-size); line-height: var(--cem-typography-ui-line-height); }
 [part~='region'] { display: grid; grid-template-rows: auto minmax(0, 1fr); min-inline-size: 0; min-block-size: 0; background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); border: var(--cem-stroke-boundary) solid currentColor; border-radius: var(--cem-bend-container); }
-[part~='heading'] { margin: 0; padding: var(--cem-inset-container); font: inherit; font-weight: var(--cem-typography-ui-font-weight); }
+[part~='heading'] { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: max(var(--cem-gap-related), var(--cem-coupling-guard-min)); padding: var(--cem-inset-container); }
+[part~='title'] { margin: 0; font: inherit; font-weight: var(--cem-typography-ui-font-weight); }
 [part~='content'] { display: grid; min-inline-size: 0; min-block-size: 0; padding: var(--cem-inset-container); padding-block-start: 0; overflow: auto; }
 [part~='content'] > [slot] { display: grid; min-inline-size: 0; min-block-size: 0; }
 [part~='navigation'] { grid-area: navigation; }
@@ -38,19 +39,19 @@
 ```}
 {section @part=root @data-fit={fit} @data-layout={layout} @aria-label={datadom.attributes.aria-label ?? label} |
  {section @part="region navigation" @aria-label="{$navigation-label}" |
-  {h2 @part=heading | {slot @name=navigation-heading | {$navigation-label}}}
+  {header @part=heading | {h2 @part=title | {slot @name=navigation-heading | {$navigation-label}}} {slot @name=navigation-actions}}
   {div @part=content | {slot @name=navigation}}
  }
  {section @part="region editor" @aria-label="{$editor-label}" |
-  {h2 @part=heading | {slot @name=editor-heading | {$editor-label}}}
+  {header @part=heading | {h2 @part=title | {slot @name=editor-heading | {$editor-label}}}}
   {div @part=content | {slot @name=editor}}
  }
  {section @part="region preview" @aria-label="{$preview-label}" |
-  {h2 @part=heading | {slot @name=preview-heading | {$preview-label}}}
+  {header @part=heading | {h2 @part=title | {slot @name=preview-heading | {$preview-label}}}}
   {div @part=content | {slot @name=preview}}
  }
  {section @part="region tools" @aria-label="{$tools-label}" |
-  {h2 @part=heading | {slot @name=tools-heading | {$tools-label}}}
+  {header @part=heading | {h2 @part=title | {slot @name=tools-heading | {$tools-label}}}}
   {div @part=content | {slot @name=tools}}
  }
 }

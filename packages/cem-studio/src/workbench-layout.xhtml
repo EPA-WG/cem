@@ -11,6 +11,7 @@
 ```}
  {section @part=root @aria-label="Project workbench" @data-cem-studio-workbench="" |
   {cem-workspace @label="Studio workspace" @layout=browser @fit=fill @navigation-label=Navigation @editor-label=Contents |
+   {span @slot=navigation-actions @data-cem-studio-workbench-navigation-actions-mount="" | {cem-studio-workbench-navigation @section=actions}}
    {div @slot=navigation @data-cem-studio-workbench-navigation-mount="" | {cem-studio-workbench-navigation}}
    {span @slot=editor-heading | {$ | datadom.slices.navigation.selected.name ?? "Samples"}}
    {div @slot=editor @part=content |

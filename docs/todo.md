@@ -1,3 +1,34 @@
+## Studio navigation polish and existing-session verification (2026-10-18)
+
+- [x] Fixture: verify folder icons on the opened project root and nested directories, leaving file labels and sample/saved-project catalog labels unchanged. The recursive declarative projection prefixes only project/directory names in the files tree; existing names, resource identities and catalog projections remain intact. The navigation/CRUD browser case verifies the rendered root, nested directories and file labels; Studio output verification passes (181 declared assets, 275 files). No UI JavaScript or theme overrides were added.
+
+- [x] Separate the project trees from the opened project's files with a conditional semantic horizontal rule; use canonical separator/stroke tokens and existing navigation gaps. The existing navigation/CRUD browser case and Studio output verification pass.
+
+- [x] Put the selection count before the contextual navigation actions, retaining the CEM coupling guard between controls.
+- [x] Define unfilled contextual resting/disabled states in the canonical theme, preserving interaction feedback and inherited overrides.
+- [x] Fixture: verify contextual button/link transparency and disabled ink in all five themes, contrast feedback and Studio action ordering/spacing; inspect the existing browser session without clearing storage.
+
+Contextual toolbar evidence: the new surface fixture first reproduced the opaque resting fill. Canonical state-table contextual columns now own transparent resting/disabled backgrounds and 38% disabled surface ink; CSS generation, the selectable reference matrix and exported formula metadata honor the same columns. Other interaction endpoints remain unchanged. All 39 action/icon-button browser plays, the focused Studio navigation/CRUD case, theme Phase 13 checks, the style verifier's nine tests and 55-component/479-token audit, three-package lint and Studio emitted-output verification (181 declared assets, 275 files) pass. Existing Chrome inspection confirms `2 folders` before Create/Clone/Delete, transparent enabled and disabled controls, muted disabled ink, targets above the minimum and an 8px gap. Existing local storage values are unchanged.
+
+CEM audit: contextual paint remains theme-owned and uses existing public endpoints, including their current aliases and inherited overrides. No new component defaults, token family or UI JavaScript was added. The toolbar keeps `max(--cem-gap-related, --cem-coupling-guard-min)` because D2 forbids zero-distance adjacent controls; hover/active/pending, contrast contours, focus/selection indicators and forced-color behavior retain their contracts.
+
+- [x] Move selection actions and count into the Navigation heading using a shared declarative workspace header slot.
+- [x] Compact tree rows without reducing operable targets or guard spacing; space project action forms with shared layout tokens.
+- [x] Fixture: verify heading ownership, compact row geometry and action-dialog spacing alongside navigation and CRUD behavior.
+- [x] Verify layout, trees, folder listings, URL selection and temporary Create/Clone/Delete in the existing browser profile; preserve saved projects and drafts.
+
+Evidence: Chrome DevTools MCP connected to the existing Windows Chrome profile. A separate tab in that profile verified the default Samples root, Amsterdam/Supplier tree activation, child names/descriptions, folder and file URL updates, direct file-URL reload, matching window/page titles, toolbar count, and project/file Create/Clone/Delete. Two uniquely named verification projects were moved to Trash; no pre-existing projects existed at baseline. The original Supplier tab kept its URL, open empty Create dialog and all existing storage values; no draft keys existed before or after. No browser storage, caches or user tabs were cleared. Visual inspection confirmed the toolbar beside the Navigation heading, single-row tree geometry at the 48px target floor, and Create dialog padding/field/action gaps of 16px/16px/8px.
+
+Validation: the full 91-case workbench suite passed during implementation; final focused workbench action/retention checks (2) and shared tree/workspace plays (17) pass. Lint for both packages, Studio typecheck, the 55-component/479-token style contract and emitted Studio output verification (181 declared assets, 275 files) pass.
+
+CEM audit: navigation actions project through the shared workspace navigation-actions slot beside a separate semantic h2. Ordinary tree rows omit the hidden status track while loading rows retain it; minimum target, guard spacing, theme paint and forced-color rules remain intact. Dialog spacing belongs to shared stack/grid owners across projection boundaries. Existing inherited tokens own geometry; no app-local UI behavior, runtime capability, component token default or gallery-only fixture hook was added. The local Windows Node REPL adapter translates mounted-drive workspace URIs in MCP metadata without rewriting code, permissions or arguments.
+
+- [x] Fixture: reproduce stale notices after file create/delete and dialog target loss, retaining external-change and draft guards.
+- [x] Follow-up from existing-session verification: clear stale selection/revision notices after admitted structural operations; file deletion currently leaves a missing-selection notice while the parent folder and remaining files work.
+- [x] Follow-up from existing-session verification: retain the selected target in project action-dialog titles (currently rendered as “create ·”, “clone ·” or “delete ·”).
+
+Retry repairs: action display data uses `targetName`, respecting the documented CEM-QL `.target` reference-resolution helper. Selection availability/revision notices are derived from the current admitted session and repository records, so local structural refreshes do not leave an obsolete warning. Actual external Trash/Restore and divergent revisions still warn without replacing drafts. New dialog-title and post-create/delete assertions first reproduced the failures; all 91 workbench browser cases, Studio lint/typecheck and emitted-output verification pass after repair. Existing-profile recheck confirms named Create/Clone/Delete dialogs and no missing-selection notice after file deletion. The two recheck projects were moved to Trash; the original tab/dialog and all prior storage values, including the remembered selection, were preserved.
+
 ## Studio and engine commit verification (2026-10-16)
 
 - [x] Complete shared icon-control installation and verify native theme selection, focus and storage.

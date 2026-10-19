@@ -1645,6 +1645,7 @@ describe('Project-owned workbench loading', () => {
         expect(fallback.snapshot().selection.projectId).toBe('feature-tour');
         expect(fallback.snapshot().recoveryError.message).toContain('Trash');
         await workbench.setProjectTrashed('alpha', false);
+        expect(workbench.snapshot().navigationError.code).toBe('cem.studio.selection.changed');
         expect(workbench.snapshot().draft).toBe('uncommitted');
         expect(workbench.snapshot().explorer.search.results.length).toBeGreaterThan(0);
         await expect(workbench.saveSource()).rejects.toMatchObject({ code: 'cem.studio.repository.revision_conflict' });
@@ -1716,15 +1717,45 @@ describe('Project-owned workbench loading', () => {
 
     it('renders model-owned trees and folder listings, clones samples and creates/deletes files through the action bar', async () => {
         const { repository, workbench, session } = await navigatorFixture();
-        const root = document.createElement('main'); document.body.append(root);
+        const root = document.createElement('main');
+        root.style.cssText = '--cem-gap-related: 8px; --cem-gap-group: 16px; --cem-layout-stack-gap: 16px; --cem-coupling-guard-min: 8px';
+        document.body.append(root);
         const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
         const treeNode = label => [...root.querySelectorAll('[role=treeitem]')].find(item => item.getAttribute('aria-label') === label);
+        const actions = root.querySelector('[aria-label="Selection actions"]');
+        expect(actions.closest('[part~=heading]').querySelector('h2').textContent).toBe('Navigation');
+        const count = actions.querySelector('[aria-live="polite"]');
+        const buttons = [...actions.querySelectorAll('cem-icon-button')];
+        expect(actions.firstElementChild).toBe(count);
+        expect(count.textContent.trim()).toBe('1 folder');
+        expect(buttons.every(button => button.getAttribute('variant') === 'contextual')).toBe(true);
+        expect(getComputedStyle(actions).columnGap).toBe('8px');
+        for (let index = 1; index < buttons.length; index++) {
+            expect(buttons[index].getBoundingClientRect().left - buttons[index - 1].getBoundingClientRect().right).toBeGreaterThanOrEqual(8);
+        }
+        expect(root.querySelectorAll('[host-command="create-selected"]')).toHaveLength(1);
         const { userEvent } = await import('vitest/browser');
         await userEvent.click(treeNode('Amsterdam')); await view.whenSettled();
         expect(root.querySelector('[aria-label="Folder contents"]').textContent).toContain('Login');
         await userEvent.click(treeNode('Login')); await view.whenSettled();
         expect(workbench.snapshot().navigation.selection.sample).toBe('login');
+        const filesTree = root.querySelector('cem-tree:last-of-type');
+        const assertFileTreeLabels = item => {
+            const label = item.kind === 'folder' || item.kind === 'project' ? `📁 ${item.name}` : item.name;
+            const rendered = [...filesTree.querySelectorAll('[role=treeitem]')].find(element => element.getAttribute('data-tree-value') === item.key);
+            expect(rendered.getAttribute('aria-label')).toBe(label);
+            expect(rendered.querySelector('[part~=label]').textContent).toBe(label);
+            item.children.forEach(assertFileTreeLabels);
+        };
+        assertFileTreeLabels(workbench.snapshot().navigation.files);
+        expect(treeNode('Login')).toBeDefined();
         root.querySelector('[host-command="clone-selected"] button').click(); await view.whenSettled();
+        expect(root.querySelector('dialog[open] h2').textContent).toBe('clone · alpha');
+        const form = root.querySelector('form[host-command="submit-action"]');
+        const field = form.querySelector('cem-text-field');
+        const formActions = form.querySelector('[part~="form-actions"]');
+        expect(formActions.getBoundingClientRect().top - field.getBoundingClientRect().bottom).toBeGreaterThanOrEqual(15);
+        expect(getComputedStyle(formActions.querySelector('[part~=root]')).columnGap).toBe('8px');
         const submit = async name => {
             const input = root.querySelector('cem-dialog cem-text-field input');
             if (input) { input.value = name; input.dispatchEvent(new InputEvent('input', { bubbles: true })); }
@@ -1733,12 +1764,18 @@ describe('Project-owned workbench loading', () => {
         await submit('My Login');
         const id = workbench.snapshot().navigation.selection.project;
         expect(id).toMatch(/^project-/); expect(workbench.snapshot().navigation.title).toBe('My Login - CEM Studio');
-        root.querySelector('[host-command="create-selected"] button').click(); await view.whenSettled(); await submit('new.cem');
+        root.querySelector('[host-command="create-selected"] button').click(); await view.whenSettled();
+        expect(root.querySelector('dialog[open] h2').textContent).toBe('create · My Login');
+        await submit('new.cem');
         expect(workbench.snapshot().navigation).toMatchObject({ content: 'file', selected: { name: 'new.cem' } });
         const resourceId = session.snapshot().selection.resourceId;
+        expect(workbench.snapshot().navigationError).toBeUndefined();
         expect(root.querySelector('[data-cem-studio-editor] textarea')).not.toBeNull();
-        root.querySelector('[host-command="delete-selected"] button').click(); await view.whenSettled(); await submit();
+        root.querySelector('[host-command="delete-selected"] button').click(); await view.whenSettled();
+        expect(root.querySelector('dialog[open] h2').textContent).toBe('delete · new.cem');
+        await submit();
         expect(workbench.snapshot().navigation.content).toBe('folder');
+        expect(workbench.snapshot().navigationError).toBeUndefined();
         expect((await repository.query(request('get-project', { projectId: id }))).value.resources.some(item => item.id === resourceId)).toBe(false);
         expect((await repository.query(request('get-project', { projectId: 'alpha' }))).value.resources).toHaveLength(3);
     });

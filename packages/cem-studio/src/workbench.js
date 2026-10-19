@@ -104,6 +104,13 @@ export async function createCemStudioSessionWorkbench({ repository, session, hom
     function snapshot() {
         const current = session.snapshot();
         const record = projectRecords.get(current.selection?.projectId);
+        // Repository refresh can precede guarded admission of its new revision.
+        // Derive notices from the current session rather than retaining that gap.
+        const available = !current.selection || choices.some(item => item.id === identity(current.selection));
+        const selectionError = !available ? { code: 'cem.studio.selection.unavailable', message: 'The active selection is missing or in Trash. Your drafts are retained; restore the project or choose another workbench.' }
+            : current.workbench && record?.revision > current.workbench.projectRevision
+                ? { code: 'cem.studio.selection.changed', message: 'The project changed in another operation or tab. Your drafts are retained; saving checks the original revision. Reload explicitly to use persisted bytes.' }
+                : current.recoveryError;
         const history = histories.get(current.selection?.projectId);
         const structure = record && { projectId: record.id, name: record.name, revision: record.revision,
             entries: record.entries, resources: record.resources,
@@ -111,7 +118,7 @@ export async function createCemStudioSessionWorkbench({ repository, session, hom
             busy: structurePending, message: structureMessage, error: structureError,
             canUndo: Boolean(history?.undo.length && history.revision === record.revision),
             canRedo: Boolean(history?.redo.length && history.revision === record.revision) };
-        return Object.freeze({ status: 'empty', editable: false, runnable: false, ...current.workbench, transition: current.transition, sessionStatus: current.status, draftRecovery: current.draftRecovery, structure, navigationError, home: homeState, explorer: { nodes: records, selected: current.selection ? encodeURIComponent(identity(current.selection)) : '', search: searchState },
+        return Object.freeze({ status: 'empty', editable: false, runnable: false, ...current.workbench, transition: current.transition, sessionStatus: current.status, draftRecovery: current.draftRecovery, structure, navigationError: navigationError ?? selectionError, home: homeState, explorer: { nodes: records, selected: current.selection ? encodeURIComponent(identity(current.selection)) : '', search: searchState },
             workbenchId: current.selection ? identity(current.selection) : '', workbenches: choices });
     }
     function publish() { for (const notify of subscribers) notify(snapshot()); }
@@ -171,12 +178,7 @@ export async function createCemStudioSessionWorkbench({ repository, session, hom
             records = trees;
             projectRecords = loadedProjects;
             choices = Object.freeze(next);
-            const current = session.snapshot();
-            const available = !current.selection || choices.some(item => item.id === identity(current.selection));
-            navigationError = !available ? { code: 'cem.studio.selection.unavailable', message: 'The active selection is missing or in Trash. Your drafts are retained; restore the project or choose another workbench.' }
-                : current.workbench && projects.find(project => project.id === current.selection?.projectId)?.revision > current.workbench.projectRevision
-                    ? { code: 'cem.studio.selection.changed', message: 'The project changed in another operation or tab. Your drafts are retained; saving checks the original revision. Reload explicitly to use persisted bytes.' }
-                    : current.recoveryError;
+            navigationError = undefined;
             if (homeState && storage) {
                 homeState = { ...homeState, trash: all.filter(project => project.trashedAt).map(project => ({ id: project.id, name: project.name, revision: project.revision })), projects: projects.map(project => ({ id: identity({ projectId: project.id }), key: encodeURIComponent(identity({ projectId: project.id })), name: project.name })),
                     storage: storage.persisted ? 'Persistent browser storage' : 'Browser storage may be cleared; export projects to keep a backup.',
@@ -1730,6 +1732,7 @@ export async function mountCemStudioWorkbench({
         if (pending || !active || workbenchBusy(workbench.snapshot())) return;
         pending = true;
         navigation.update({ pending });
+        navigationActions.update({ pending });
         controls.update({ pending });
         tools.update({ pending });
         projectPicker.update({ pending });
@@ -1742,6 +1745,7 @@ export async function mountCemStudioWorkbench({
             finally {
                 pending = false;
                 navigation.update({ pending });
+                navigationActions.update({ pending });
                 controls.update({ pending });
                 tools.update({ pending });
                 projectPicker.update({ pending });
@@ -1753,7 +1757,7 @@ export async function mountCemStudioWorkbench({
     };
     const navigation = mountCemView(components.runtime, {
         root: host.querySelector('[data-cem-studio-workbench-navigation-mount]'),
-        element: host.querySelector('cem-studio-workbench-navigation'),
+        element: host.querySelector('[data-cem-studio-workbench-navigation-mount] > cem-studio-workbench-navigation'),
         tag: 'cem-studio-workbench-navigation',
         state: { state: workbenchNavigationState(workbench.snapshot()), pending },
         commands: {
@@ -1778,6 +1782,17 @@ export async function mountCemStudioWorkbench({
             'open-entity': ({ value }) => perform(() => workbench.openEntity(value)),
             'search-projects': ({ fields }) => perform(() => workbench.searchProjects(fields.query?.[0])),
             'open-search': ({ fields }) => perform(() => workbench.openEntity(fields.result?.[0])),
+        },
+    });
+    const navigationActions = mountCemView(components.runtime, {
+        root: host.querySelector('[data-cem-studio-workbench-navigation-actions-mount]'),
+        element: host.querySelector('[data-cem-studio-workbench-navigation-actions-mount] > cem-studio-workbench-navigation'),
+        tag: 'cem-studio-workbench-navigation',
+        state: { state: workbenchNavigationState(workbench.snapshot()), pending },
+        commands: {
+            'create-selected': () => workbench.requestAction?.('create'),
+            'clone-selected': () => workbench.requestAction?.('clone'),
+            'delete-selected': () => workbench.requestAction?.('delete'),
         },
     });
     const projectPicker = mountCemView(components.runtime, {
@@ -1896,6 +1911,7 @@ export async function mountCemStudioWorkbench({
             if (current.selection && current.selection !== selection) selectionRequest++;
             selection = current.selection;
             navigation.update({ state: workbenchNavigationState(current), pending });
+            navigationActions.update({ state: workbenchNavigationState(current), pending });
             controls.update({ state: workbenchControlState(current), selectionRequest: selection ? String(selectionRequest) : '', pending });
             commandView.update({ command: workbenchCommandState(current.command, current.transition), pending, busy: workbenchBusy(current) });
             results.update({ state: workbenchResultState(current), pending });
@@ -1903,7 +1919,7 @@ export async function mountCemStudioWorkbench({
             tools.update({ state: workbenchToolsState(current), pending });
             projectPicker.update({ navigation: workbenchListingNavigation(current.navigation), pending });
             layout.update({ navigation: workbenchLayoutNavigation(current.navigation) });
-            await Promise.all([layout.whenSettled(), navigation.whenSettled(), controls.whenSettled(), commandView.whenSettled(), results.whenSettled(), tools.whenSettled(), previewView.whenSettled(), projectPicker.whenSettled()]);
+            await Promise.all([layout.whenSettled(), navigation.whenSettled(), navigationActions.whenSettled(), controls.whenSettled(), commandView.whenSettled(), results.whenSettled(), tools.whenSettled(), previewView.whenSettled(), projectPicker.whenSettled()]);
         });
     };
     const unsubscribe = workbench.subscribe(render);
@@ -1920,7 +1936,7 @@ export async function mountCemStudioWorkbench({
                 await edits;
                 const renders = renderPromise;
                 await renders;
-                await Promise.all([layout.whenSettled(), navigation.whenSettled(), controls.whenSettled(), commandView.whenSettled(), results.whenSettled(), tools.whenSettled(), previewView.whenSettled(), projectPicker.whenSettled()]);
+                await Promise.all([layout.whenSettled(), navigation.whenSettled(), navigationActions.whenSettled(), controls.whenSettled(), commandView.whenSettled(), results.whenSettled(), tools.whenSettled(), previewView.whenSettled(), projectPicker.whenSettled()]);
                 if (controlAction === controlPromise && edits === editPromise && renders === renderPromise) return;
             }
         },
@@ -1928,6 +1944,7 @@ export async function mountCemStudioWorkbench({
             active = false;
             unsubscribe();
             navigation.dispose();
+            navigationActions.dispose();
             controls.dispose();
             tools.dispose();
             projectPicker.dispose();

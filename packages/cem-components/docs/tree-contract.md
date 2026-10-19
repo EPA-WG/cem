@@ -111,6 +111,11 @@ same facts. Button content supplies each treeitem's accessible name. Generic sit
 navigation remains a disclosure/nav concern; this composite is reserved for
 interfaces that require full tree keyboard behavior.
 
+Ordinary items use one content row; only a visible loading status adds a second
+row. This keeps dense project hierarchies compact while retaining the theme's
+minimum operable target, related-item gap and control padding. Loading text,
+wrapped labels and inherited geometry can still grow the row naturally.
+
 ## Theme-token audit
 
 The pre-CSS audit selected generic interactive-content semantics rather than

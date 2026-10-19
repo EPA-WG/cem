@@ -1109,6 +1109,20 @@ from display/export paths, including Unicode directory names.
 
 ### Navigation URLs
 
+The Navigation heading contains the current selection count before Create, Clone
+and Delete. These contextual actions have unfilled resting and disabled backgrounds
+and retain the theme's coupling guard between controls. The shared workspace
+navigation-actions slot keeps these actions beside their tree
+context. A horizontal rule separates the project catalog from the opened project's
+files tree. That tree prefixes the project root and directories with 📁, while
+file names and catalog labels remain unchanged. Ordinary tree rows reserve no
+hidden loading row. Project action dialogs
+separate the name/path field from a two-column action row using shared stack and
+related spacing tokens. Dialog titles identify the selected project or resource.
+Selection notices track the admitted session and clear after a successful local
+structure change; actual external changes still retain drafts and require explicit
+reload or navigation.
+
 The URL is the selection authority at startup and on Back/Forward. Opening Studio
 without selection parameters selects the Samples root, even when a previous
 project was open. Existing local drafts are recovered when their project/resource

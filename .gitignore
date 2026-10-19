@@ -52,6 +52,6 @@ Thumbs.db
 
 vitest.config.*.timestamp*
 
-# Executable expected-failure browser fixtures emit diagnostic screenshots.
-packages/cem-components/.vitest-attachments/
-packages/cem-components/src/lib/__screenshots__/feedback-expanded.browser.spec.ts/
+# Generated browser-test screenshots and diagnostic attachments.
+**/.vitest-attachments/
+**/__screenshots__/

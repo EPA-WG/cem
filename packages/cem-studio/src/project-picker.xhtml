@@ -7,7 +7,6 @@
 :scope { display: block; min-inline-size: 0; }
 [part~='listing'] { display: grid; gap: var(--cem-gap-related); margin: 0; padding: 0; list-style: none; }
 [part~='entry'] { display: grid; gap: var(--cem-gap-related); padding: var(--cem-inset-container); border-block-end: var(--cem-stroke-boundary) solid currentColor; overflow-wrap: anywhere; }
-[part~='form'] { display: grid; gap: max(var(--cem-gap-related), var(--cem-coupling-guard-min)); }
 ```}
  {cem:if @test=datadom.slices.navigation |
   {cem:variable @name=nav @select=datadom.slices.navigation}
@@ -28,15 +27,19 @@
    {cem-textarea @label={nav.path ?? nav.selected.name} @value={nav.sampleText} @readonly=true @rows=24}
   }
   {cem:if @test=nav.action |
-   {cem-dialog @label={str:concat((nav.action.kind, " · ", nav.action.target), "")} @mode=modal @default-open=true @closedby=closerequest @host-command=cancel-action @host-command-event=cem-close |
+   {cem-dialog @label={str:concat((nav.action.kind, " · ", nav.action.targetName), "")} @mode=modal @default-open=true @closedby=closerequest @host-command=cancel-action @host-command-event=cem-close |
     {cem:if @test=nav.error | {cem-alert @tone=danger @label={nav.error.message}}}
     {form @part=form @host-command=submit-action @host-command-event=submit |
+     {cem-stack |
      {cem:choose |
       {cem:when @test='nav.action.kind == "delete"' | {p | Delete the selected item? Projects move to Trash. Referenced files cannot be deleted.}}
       {cem:otherwise | {cem-text-field @name=name @label={if nav.action.createKind == "file" { "File path" } else { "Project name" }} @required=true @maxlength=120}}
      }
+     {cem-grid @part=form-actions @columns=2 @gap=sm |
      {cem-action @type=submit @variant=primary @disabled={if datadom.slices.pending { true } else { null }} | {$ | if nav.action.kind == "delete" { "Delete" } else { if nav.action.kind == "clone" { "Clone" } else { "Create" } }}}
      {cem-action @type=button @host-command=cancel-action @variant=contextual | Cancel}
+     }
+     }
     }
    }
   }

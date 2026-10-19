@@ -49,6 +49,12 @@ defaulting to `primary`, to select action tokens in all five themes.
 Inherited token overrides remain effective. Selection uses the theme's zebra
 outline independently of fill and focus; contrast modes use action contours.
 
+Use `variant="contextual"` for commands on an existing surface, such as a
+toolbar. The canonical theme leaves resting and disabled backgrounds transparent
+and mutes disabled ink; hover, press and pending retain interaction paint.
+Keep adjacent controls separated by at least `--cem-coupling-guard-min` (8px
+by default), even when their backgrounds are unfilled.
+
 - `selected` uses presence, including `selected="false"`. It exposes
   `aria-pressed="true"` on buttons and `aria-current="true"` on links. The
   containing application owns selection; clicks do not toggle it.

@@ -176,6 +176,9 @@ The canonical `cem-action` declaration embeds its scoped styles for all five
 intents. `cem-icon-button` uses the same five variants in both button and link
 state styles, including persistent selection and pending feedback. Its additional
 `navigation` variant uses navigation colors for links and disclosure buttons.
+The contextual variant has unfilled resting and disabled states in every theme;
+disabled ink is muted. Hover, active, pending, focus and selection retain their
+theme feedback. Adjacent controls still require the theme's coupling guard.
 The action variants use paired CEM action tokens for default, enabled native-button hover
 and held native-button active states. Hover and active change only background/text color; they add
 no ARIA or active runtime state and exclude disabled buttons through `:enabled`.
@@ -371,6 +374,10 @@ This first delivery implements action-side wiring and native targets. Shared pop
 | `cem-grid` | Generic responsive grid layout container. | Default slot projects children; `columns="auto|1|2|3|4"` and `gap="sm|md|lg"` select placement; auto uses responsive tracks at the layout minimum. The component does not infer or inherit loading or empty state. | gap, responsive | Adds no landmark or interaction semantics. |
 | `cem-workspace` | Persistent authoring workspace. | Named `navigation`, `editor`, `preview`, `tools` slots; matching `-heading` slots override visible labels. `label`/`aria-label`, four `*-label` attributes, optional `fit="fill"`. `layout="browser"` shows navigation and editor/content in two regions, stacking below 840px; the default `workbench` retains four regions. Container queries at 840/1200px arrange one/two/three columns. | palette, stroke, bend, gap, inset, typography, responsive | Named regions retain their authored DOM, selection and focus; layout adds no selection or resizing behavior. |
 | `cem-divider` | Visible sibling-separation track. | `orientation="horizontal|vertical"`; `spacing="related|group|block|section"`; presence-only `inset` and `decorative`. It owns no content, state, focus, or events. | separator, stroke, gap, inset, coupling | Semantic form exposes a non-focusable separator with exact orientation. Decorative form removes the role/orientation and sets `aria-hidden="true"`. |
+
+`cem-workspace` accepts `slot="navigation-actions"` for controls beside its
+navigation heading. The wrapping header owns spacing; the heading remains a
+separate `h2`, so interactive controls do not become part of its accessible name.
 
 These six layout/content owners use canonical XHTML, declaration-scoped token CSS
 and stable public parts. See the [layout/content contract](layout-content-contract.md)

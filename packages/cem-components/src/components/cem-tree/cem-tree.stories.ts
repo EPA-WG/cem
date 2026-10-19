@@ -441,6 +441,16 @@ export const StatePaintAndGeometry = meta.story({
         node.addEventListener('pointerleave', (event) => pointerEvents.push(`pointerleave:${event.isTrusted}`));
         parts.host.addEventListener('cem-tree-toggle', () => componentEvents.push('toggle'));
         parts.host.addEventListener('cem-tree-activate', () => componentEvents.push('activate'));
+        // A hidden loading status must not reserve a second row and row gap.
+        const style = getComputedStyle(node);
+        const line = Math.max(parseFloat(style.lineHeight), resolveTokenLength(node, '--cem-icon-button-icon-size'));
+        const singleRowHeight = Math.max(resolveTokenLength(node, '--cem-coupling-zone-min'),
+            line + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth));
+        expect(node.getBoundingClientRect().height).toBeLessThanOrEqual(singleRowHeight + 1);
+        expect(node.getBoundingClientRect().height).toBeGreaterThanOrEqual(resolveTokenLength(node, '--cem-coupling-zone-min'));
+        const loading = treeNode(parts, 'async');
+        expect(loading.querySelector('[part~="status"]')?.hasAttribute('hidden')).toBe(false);
+        expect(loading.getBoundingClientRect().height).toBeGreaterThan(node.getBoundingClientRect().height);
         const baseline = transientSnapshot(parts.host, node, wrapper);
         const wrapperBackground = getComputedStyle(wrapper).backgroundColor;
 

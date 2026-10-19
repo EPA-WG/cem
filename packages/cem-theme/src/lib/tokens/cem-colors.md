@@ -390,7 +390,7 @@ Notes (interpretation):
 |---------------|-------------------|--------------------|--------------------|-----------------------------------------------|
 | `explicit`    | `trust`           | blue-l (#d7e3ff)   | blue-d (#002f65)   | `--cem-action-explicit-default-background`    |
 | `primary`     | `creativity`      | purple-l (#e1bee7) | purple-d (#6a1b9a) | `--cem-action-primary-default-background`     |
-| `contextual`  | `comfort`         | cyan-xl (#f1fefe)  | cyan-xd (#001010)  | `--cem-action-contextual-default-background`  |
+| `contextual`  | `comfort`         | unfilled; cyan-xl feedback | unfilled; cyan-xd feedback | `--cem-action-contextual-default-background`  |
 | `alternate`   | `enthusiasm`      | orange-l (#ffe082) | orange-d (#723600) | `--cem-action-alternate-default-background`   |
 | `destructive` | `danger`          | red-l (#ba1a1a)    | red-d (#690005)    | `--cem-action-destructive-default-background` |
 
@@ -427,19 +427,25 @@ disabled → readonly → editable → default → indeterminate → hover → a
 
 #### 7.2.2 State formulas (normative)
 ###### cem-action-state-color
-| State | Background formula (palette-level) | Text token | Contrast background | Contrast text | tier |
-| --------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------ | --- | --- | ------ |
-| disabled | `color-mix(in srgb, var(--cem-palette-[emotion]) 30%, var(--cem-palette-conservative-x))` | `var(--cem-palette-conservative-text-x)` | `var(--cem-palette-comfort)` | `color-mix(in srgb, var(--cem-palette-comfort-text) 38%, var(--cem-palette-comfort))` | required |
-| readonly | `color-mix(in srgb, var(--cem-palette-[emotion]) 80%, var(--cem-palette-[emotion]-x))` | `var(--cem-palette-[emotion]-text)` | `var(--cem-palette-comfort)` | `var(--cem-palette-comfort-text)` | recommended |
-| editable | `color-mix(in srgb, var(--cem-palette-[emotion]) 90%, var(--cem-palette-[emotion]-x))` | `var(--cem-palette-[emotion]-text)` | `var(--cem-palette-comfort)` | `var(--cem-palette-comfort-text)` | recommended |
-| default | `var(--cem-palette-[emotion])` | `var(--cem-palette-[emotion]-text)` | `var(--cem-palette-comfort)` | `var(--cem-palette-comfort-text)` | required |
-| indeterminate | `color-mix(in srgb, var(--cem-palette-[emotion]) 90%, var(--cem-palette-[emotion]-x))` | `var(--cem-palette-[emotion]-text)` | `var(--cem-palette-comfort)` | `var(--cem-palette-comfort-text)` | recommended |
-| hover | `color-mix(in srgb, var(--cem-palette-[emotion]) 70%, var(--cem-palette-[emotion]-x))` | `var(--cem-palette-[emotion]-text)` | `var(--cem-palette-comfort)` | `var(--cem-palette-comfort-text)` | required |
-| active | `color-mix(in srgb, var(--cem-palette-[emotion]) 25%, var(--cem-palette-[emotion]-x))` | `var(--cem-palette-[emotion]-text-x)` | `var(--cem-palette-comfort)` | `var(--cem-palette-comfort-text)` | required |
-| pending | `color-mix(in srgb, var(--cem-palette-[emotion])  5%, var(--cem-palette-[emotion]-x))` | `var(--cem-palette-[emotion]-text-x)` | `var(--cem-palette-comfort)` | `var(--cem-palette-comfort-text)` | recommended |
+| State | Background formula (palette-level) | Text token | Contrast background | Contrast text | Contextual background | Contextual text | tier |
+| --------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------ | --- | --- | --- | --- | ------ |
+| disabled | `color-mix(in srgb, var(--cem-palette-[emotion]) 30%, var(--cem-palette-conservative-x))` | `var(--cem-palette-conservative-text-x)` | `var(--cem-palette-comfort)` | `color-mix(in srgb, var(--cem-palette-comfort-text) 38%, var(--cem-palette-comfort))` | `transparent` | `color-mix(in srgb, var(--cem-palette-comfort-text) 38%, transparent)` | required |
+| readonly | `color-mix(in srgb, var(--cem-palette-[emotion]) 80%, var(--cem-palette-[emotion]-x))` | `var(--cem-palette-[emotion]-text)` | `var(--cem-palette-comfort)` | `var(--cem-palette-comfort-text)` | | | recommended |
+| editable | `color-mix(in srgb, var(--cem-palette-[emotion]) 90%, var(--cem-palette-[emotion]-x))` | `var(--cem-palette-[emotion]-text)` | `var(--cem-palette-comfort)` | `var(--cem-palette-comfort-text)` | | | recommended |
+| default | `var(--cem-palette-[emotion])` | `var(--cem-palette-[emotion]-text)` | `var(--cem-palette-comfort)` | `var(--cem-palette-comfort-text)` | `transparent` | `var(--cem-palette-comfort-text)` | required |
+| indeterminate | `color-mix(in srgb, var(--cem-palette-[emotion]) 90%, var(--cem-palette-[emotion]-x))` | `var(--cem-palette-[emotion]-text)` | `var(--cem-palette-comfort)` | `var(--cem-palette-comfort-text)` | | | recommended |
+| hover | `color-mix(in srgb, var(--cem-palette-[emotion]) 70%, var(--cem-palette-[emotion]-x))` | `var(--cem-palette-[emotion]-text)` | `var(--cem-palette-comfort)` | `var(--cem-palette-comfort-text)` | | | required |
+| active | `color-mix(in srgb, var(--cem-palette-[emotion]) 25%, var(--cem-palette-[emotion]-x))` | `var(--cem-palette-[emotion]-text-x)` | `var(--cem-palette-comfort)` | `var(--cem-palette-comfort-text)` | | | required |
+| pending | `color-mix(in srgb, var(--cem-palette-[emotion])  5%, var(--cem-palette-[emotion]-x))` | `var(--cem-palette-[emotion]-text-x)` | `var(--cem-palette-comfort)` | `var(--cem-palette-comfort-text)` | | | recommended |
 
 **Applying this to action intents:** substitute `[emotion]` with the emotional palette mapped by the intent (see §7.1).
 The resulting values populate `--cem-action-{intent}-{state}-background` and `--cem-action-{intent}-{state}-text`.
+Nonempty contextual columns take precedence for the contextual intent in every
+mode. Resting and disabled contextual actions are unfilled; disabled ink uses
+38% opacity over the containing surface. Hover, active and pending retain the
+comfort palette's interaction feedback. Focus and selection keep their
+independent indicators. These are canonical values of existing endpoints,
+not component-local appearance overrides.
 
 #### Pending gradient and continuous motion
 
@@ -549,9 +555,10 @@ may be implemented through zebra/markers rather than fill.
 
 ### 7.5 Contrast themes: collapse fills, keep semantics
 
-In `contrast-light` and `contrast-dark`, all action background tokens MUST resolve
-to the base surface (`--cem-palette-comfort`). Text uses surface ink, including
-for destructive actions; disabled ink is subdued. The contrast columns in the
+In `contrast-light` and `contrast-dark`, action background tokens MUST resolve
+to the base surface (`--cem-palette-comfort`), except the unfilled contextual
+resting and disabled states. Text uses surface ink, including for destructive
+actions; disabled ink is subdued. The contrast and contextual columns in the
 state table are canonical. There is no intent or state fill progression.
 
 Intent moves to a contour, colored by the intent's extreme palette endpoint.
@@ -1212,7 +1219,7 @@ from these tables using the same logic as `cem-colors.html`.
 | `cem-separator-colors`                                  | `--cem-separator-*` (1 token) | one token per row                     |
 | `cem-workflow-step-colors`                              | `--cem-workflow-*` (4 tokens) | one token per row                     |
 | `cem-action-intent-emotion` × `cem-action-state-color` | `--cem-action-*` (80 tokens)  | intent × state × {background, text} |
-The contrast columns in `cem-action-state-color` generate mode overrides of
+The contrast and contextual columns in `cem-action-state-color` generate overrides of
 existing intent × state background/text tokens; they declare no additional tokens.
 
 ## 15. References

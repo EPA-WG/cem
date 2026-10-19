@@ -642,7 +642,9 @@ async function runColorGeneratorProtocolChecks(page) {
                     const cell = row.children[intentIndex + 1];
                     const prefix = `--cem-action-${intent[0]}-${state[0]}`;
                     const contrast = mode[0].startsWith("contrast-");
-                    const expectedValue = `${prefix}-background: ${state[contrast ? 3 : 1].replaceAll("[emotion]", intent[1])}; ${prefix}-text: ${state[contrast ? 4 : 2].replaceAll("[emotion]", intent[1])}`;
+                    const background = (intent[0] === "contextual" && state[5]) || state[contrast ? 3 : 1];
+                    const text = (intent[0] === "contextual" && state[6]) || state[contrast ? 4 : 2];
+                    const expectedValue = `${prefix}-background: ${background.replaceAll("[emotion]", intent[1])}; ${prefix}-text: ${text.replaceAll("[emotion]", intent[1])}`;
                     expect(cell?.style.backgroundColor === `var(${prefix}-background)`, `${mode[0]} ${state[0]} ${intent[0]} background preview`);
                     expect(cell?.style.color === `var(${prefix}-text)`, `${mode[0]} ${state[0]} ${intent[0]} text preview`);
                     expect(cell?.getAttribute("data-cem-value") === expectedValue, `${mode[0]} ${state[0]} ${intent[0]} selectable formulas`);

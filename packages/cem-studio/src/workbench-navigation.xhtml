@@ -1,12 +1,14 @@
 <cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-studio-workbench-navigation">
  <template id="cem-studio-workbench-navigation" type="text/cem-ml">
 {module |
+ {attribute @name=section | tree}
  {slice @name=state}{slice @name=pending | false}
  {template @name=tree-node |
   {param @name=item}
+  {param @name=folderIcons}
   {body |
-   {cem-tree-item @value={item.key} @label={item.name} |
-    {cem:for-each @as=child @select=item.children | {call @template=tree-node @with:item={child}}}
+   {cem-tree-item @value={item.key} @label={if folderIcons &amp;&amp; (item.kind == "folder" || item.kind == "project") { str:concat(("📁 ", item.name), "") } else { item.name }} |
+    {cem:for-each @as=child @select=item.children | {call @template=tree-node @with:item={child} @with:folderIcons={folderIcons}}}
    }
   }
  }
@@ -14,24 +16,29 @@
  {style @type=text/css |```
 :scope { display: block; min-inline-size: 0; }
 [part~='navigation'] { display: grid; gap: var(--cem-gap-related); }
-[part~='actions'] { display: flex; flex-wrap: wrap; align-items: center; gap: max(var(--cem-gap-related), var(--cem-coupling-guard-min)); }
+[part~='navigation'] > hr { inline-size: 100%; margin: var(--cem-stroke-none); border: var(--cem-stroke-none); border-block-start: var(--cem-stroke-divider) solid var(--cem-separator-color); }
+[part~='actions'] { display: inline-flex; flex-wrap: wrap; align-items: center; gap: max(var(--cem-gap-related), var(--cem-coupling-guard-min)); }
 ```}
  {cem:if @test=datadom.slices.state |
   {cem:variable @name=state @select=datadom.slices.state}
   {cem:variable @name=nav @select=state.navigation}
   {cem:variable @name=busy @select='datadom.slices.pending || nav.busy'}
-  {nav @part=navigation @aria-label="Studio navigation" |
-   {cem:if @test=nav |
-   {div @part=actions @role=group @aria-label="Selection actions" |
+  {cem:if @test='section == "actions" &amp;&amp; nav' |
+   {span @part=actions @role=group @aria-label="Selection actions" |
+    {span @aria-live=polite | {$ | str:concat((nav.count, " ", nav.countKind, if nav.count == 1 { "" } else { "s" }), "")}}
     {cem-icon-button @image="+" @aria-label="Create" @variant=contextual @host-command=create-selected @disabled={if busy { true } else { null }}}
     {cem-icon-button @image="▣" @aria-label="Clone selected" @variant=contextual @host-command=clone-selected @disabled={if busy || !nav.canClone { true } else { null }}}
     {cem-icon-button @image="×" @aria-label="Delete selected" @variant=contextual @host-command=delete-selected @disabled={if busy || !nav.canDelete { true } else { null }}}
-    {span @aria-live=polite | {$ | str:concat((nav.count, " ", nav.countKind, if nav.count == 1 { "" } else { "s" }), "")}}
    }
+  }
+  {cem:if @test='section != "actions"' |
+  {nav @part=navigation @aria-label="Studio navigation" |
+   {cem:if @test=nav |
    {cem:for-each @as=root @select='(nav.samples, nav.saved, nav.files)' |
     {cem:if @test=root |
+     {cem:if @test='nav.files &amp;&amp; root.key == nav.files.key' | {hr}}
      {cem-tree @label={root.name} @selection=single @activate-branches=true @selected-values={nav.selection.key} @expanded-values={str:concat((root.key, nav.expanded), " ")} @host-command=open-entity @host-command-event=cem-tree-activate |
-      {call @template=tree-node @with:item={root}}
+      {call @template=tree-node @with:item={root} @with:folderIcons={nav.files &amp;&amp; root.key == nav.files.key}}
      }
     }
    }
@@ -64,6 +71,7 @@
         }
 
   }
+ }
  }
  }
 }

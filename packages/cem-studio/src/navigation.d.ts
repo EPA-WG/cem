@@ -26,6 +26,11 @@ export interface CemStudioNavigationState {
     readonly count: number;
     readonly countKind: string;
     readonly error?: { readonly message: string };
+    readonly action?: {
+        readonly kind: 'create' | 'clone' | 'delete';
+        readonly targetName: string;
+        readonly createKind: 'project' | 'file';
+    };
 }
 export interface CemStudioNavigation extends CemStudioFeatureTourWorkbench {
     snapshot(): CemStudioWorkbenchState & { readonly navigation: CemStudioNavigationState };

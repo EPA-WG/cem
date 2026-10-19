@@ -85,13 +85,19 @@ export const ResponsiveRegions = meta.story({
 });
 
 export const PublicRegions = meta.story({
-    render: () => '<cem-workspace label="Authoring" aria-label="Supplier workspace"><nav slot="navigation">Files</nav><span slot="editor-heading">Source <strong>view.cemt</strong></span><p slot="editor">Current file</p><p slot="preview">Output</p><p slot="tools">Diagnostics</p></cem-workspace>',
+    render: () => '<cem-workspace label="Authoring" aria-label="Supplier workspace"><span slot="navigation-actions"><button type="button">Create</button></span><nav slot="navigation">Files</nav><span slot="editor-heading">Source <strong>view.cemt</strong></span><p slot="editor">Current file</p><p slot="preview">Output</p><p slot="tools">Diagnostics</p></cem-workspace>',
     play: async ({ canvasElement }) => {
         const host = canvasElement.querySelector<HTMLElement>('cem-workspace')!;
         await whenCemRendered(host);
         expect(host.querySelector('[part=root]')?.getAttribute('aria-label')).toBe('Supplier workspace');
         expect(host.querySelector('[part~=editor] [part=heading] strong')?.textContent).toBe('view.cemt');
         expect(host.querySelectorAll('[part~=region]')).toHaveLength(4);
+        const heading = host.querySelector<HTMLElement>('[part~=navigation] [part=heading]')!;
+        host.style.setProperty('--cem-gap-related', '17px');
+        expect(getComputedStyle(heading).display).toBe('flex');
+        expect(getComputedStyle(heading).columnGap).toBe('17px');
+        expect(heading.querySelector('h2')?.textContent).toBe('Project explorer');
+        expect(heading.querySelector('button')?.closest('h2')).toBeNull();
     },
 });
 

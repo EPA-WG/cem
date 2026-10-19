@@ -193,7 +193,7 @@ export async function createCemStudioNavigation({ workbench, repository, example
             }
             publish();
         },
-        requestAction(kind) { if (kind === 'clone' && !model.canClone || kind === 'delete' && !model.canDelete) return; action = { kind, target: selected.name, createKind: kind === 'clone' && selected.kind === 'project' ? 'project' : model.createKind }; publish(); },
+        requestAction(kind) { if (kind === 'clone' && !model.canClone || kind === 'delete' && !model.canDelete) return; action = { kind, targetName: selected.name, createKind: kind === 'clone' && selected.kind === 'project' ? 'project' : model.createKind }; publish(); },
         cancelAction() { if (!busy) action = undefined; publish(); },
         async submitAction(fields) {
             const kind = action?.kind;
