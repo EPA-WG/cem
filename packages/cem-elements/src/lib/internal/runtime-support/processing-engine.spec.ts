@@ -365,6 +365,16 @@ describe('Phase 3A retained processing engine', () => {
         expect(second.frames.flatMap((frame) => frame.type === 'ops' ? frame.ops : [])).toContainEqual(
             expect.objectContaining({ op: 'setText', value: 'After' })
         );
+        // A revision string is not an input cache key: fresh data still evaluates.
+        const sameRevision = await engine.renderDiff({ artifact: compiled.artifact, revision: revision(secondSnapshot),
+            snapshot: secondSnapshot, data: { label: 'Fresh input' }, scopeUid: 'worker-label-scope', previousRenderPlan: second.nextRenderPlan });
+        expect(sameRevision.frames.flatMap(frame => frame.type === 'ops' ? frame.ops : [])).toContainEqual(
+            expect.objectContaining({ op: 'setText', value: 'Fresh input' }));
+        await expect(engine.renderDiff({ artifact: compiled.artifact, revision: revision(secondSnapshot), snapshot: secondSnapshot,
+            data: { label: 'After' }, scopeUid: 'worker-label-scope', previousRenderPlan: {
+                ...first.nextRenderPlan, revision: { ...first.nextRenderPlan.revision, instanceId: 'foreign-instance' },
+            } })).rejects.toThrow('previous render plan identity');
+
     });
 
     it('returns declaration-derived host attribute updates outside the render plan', async () => {

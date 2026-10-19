@@ -5,6 +5,7 @@ import {
     diffRenderPlansToPatchFrames,
     edgeContentAddress,
     renderPlanIdentity,
+    renderRevisionKey,
     scopeRenderPlan,
     validateRenderPlanGeneratedIds,
     type RenderPlan,
@@ -931,6 +932,12 @@ function retainedPreviousPlan(
     const plan = renderPlans.get(handle.renderPlanId);
     if (!plan) {
         return null;
+    }
+    if (plan.templateArtifactId !== artifact.artifactId
+        || handle.renderEngineVersion !== RENDER_ENGINE_VERSION || handle.sourceMapMode !== artifact.sourceMapMode
+        || plan.scopePolicyStamp !== artifact.scopePolicyStamp
+        || renderRevisionKey(handle.revision) !== renderRevisionKey(renderPlanIdentity(plan))) {
+        throw new Error('the retained previous render plan identity does not match its current owner');
     }
     return plan;
 }

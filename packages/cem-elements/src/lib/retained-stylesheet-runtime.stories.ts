@@ -603,3 +603,45 @@ export const DataUpdatesKeepStylesheetInstallations: Story = {
         }
     },
 };
+
+export const DataUpdatesKeepEditedDom: Story = {
+    render: () => '<section aria-label="Edited DOM reuse"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section')!;
+        for (const fallback of [false, true]) for (const mode of ['dom', 'cem-ml'] as const) {
+            const f = fixture(root, fallback);
+            try {
+                const declaration = f.declare('edited-dom', mode === 'dom'
+                    ? '<attribute name=label>Before</attribute><input value="Original"><textarea>Original</textarea><input type="checkbox"><select><option>a</option><option>b</option></select><div contenteditable="true">Original</div><p>${$label}</p>'
+                    : '{attribute @name=label | Before}{input @value=Original}{textarea | Original}{input @type=checkbox}{select | {option | a}{option | b}}{div @contenteditable=true | Original}{p | {$label}}', mode);
+                await declaration.ready;
+                const instance = document.createElement(declaration.tag); root.append(instance);
+                await f.runtime.whenRenderSettled(instance);
+                const input = instance.querySelector('input')!, area = instance.querySelector('textarea')!;
+                const check = instance.querySelector<HTMLInputElement>('input[type=checkbox]')!;
+                const select = instance.querySelector('select')!, editor = instance.querySelector<HTMLElement>('[contenteditable]')!;
+                const text = editor.firstChild;
+                input.value = 'User input'; area.value = 'User area'; check.checked = true; select.value = 'b';
+                editor.textContent = 'User editor';
+                area.focus(); area.setSelectionRange(1, 4, 'backward');
+                instance.style.setProperty('--inherited-theme', 'light');
+                for (let i = 0; i < 3; i++) {
+                    instance.setAttribute('label', `Update ${i}`);
+                    await f.runtime.whenRenderSettled(instance);
+                    expect(instance.querySelector('p')?.textContent).toBe(`Update ${i}`);
+                    expect(instance.querySelector('input')).toBe(input);
+                    expect(instance.querySelector('textarea')).toBe(area);
+                    expect(instance.querySelector('[contenteditable]')).toBe(editor);
+                    expect([input.value, area.value, check.checked, select.value, editor.textContent])
+                        .toEqual(['User input', 'User area', true, 'b', 'User editor']);
+                    expect(document.activeElement).toBe(area);
+                    expect([area.selectionStart, area.selectionEnd, area.selectionDirection]).toEqual([1, 4, 'backward']);
+                }
+                // Ownership stays with this instance, including user-created editable text.
+                expect(editor.firstChild).not.toBe(text);
+                expect(getComputedStyle(instance).getPropertyValue('--inherited-theme')).toBe('light');
+                expect(f.runtime.diagnosticsFor(instance).filter(d => d.severity === 'error' || d.severity === 'fatal')).toEqual([]);
+            } finally { f.dispose(); }
+        }
+    },
+};

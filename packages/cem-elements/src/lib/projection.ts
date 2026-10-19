@@ -123,13 +123,14 @@ function authoredPlanChildren(container: Node, children: readonly RenderPlanNode
 }
 
 // Authored light-DOM inputs and a custom element's rendered output have different owners.
-const renderedChildren = new WeakMap<Element, { plan?: readonly RenderPlanNode[]; nodes: ChildNode[] }>();
+const renderedChildren = new WeakMap<Element, { plan?: readonly RenderPlanNode[]; nodes: ChildNode[]; owner?: string }>();
+const renderedRangeOwners = new WeakMap<Comment, { end: Comment; parent: Node; owner: string }>();
 function isRegisteredCustomElement(element: Element): boolean {
     return element.namespaceURI === XHTML_NAMESPACE
         && !!element.ownerDocument.defaultView?.customElements.get(element.localName);
 }
-function rememberRenderedChildren(element: Element, plan: readonly RenderPlanNode[]): void {
-    renderedChildren.set(element, { plan, nodes: Array.from(renderPlanElementChildContainer(element).childNodes) });
+function rememberRenderedChildren(element: Element, plan: readonly RenderPlanNode[], owner: RenderPlan): void {
+    renderedChildren.set(element, { plan, nodes: Array.from(renderPlanElementChildContainer(element).childNodes), owner: renderPlanOwnerKey(owner) });
 }
 
 type NativeAttributeStore = WeakMap<Element, Map<string, { value: NativeCemValue; projection: string }>>;
@@ -2019,6 +2020,7 @@ export function materializeRenderedTemplate(template: HTMLTemplateElement): Docu
 }
 
 export function materializeRenderPlan(plan: RenderPlan, document: Document): DocumentFragment {
+    plan = structuredClone(plan);
     const fragment = document.createDocumentFragment();
     for (const node of plan.nodes) {
         fragment.appendChild(materializeNode(node, plan, document));
@@ -2065,11 +2067,19 @@ export function applyRenderPlanToRange(
         throw new Error('cem-element render bounds are not attached to the same parent');
     }
 
-    const focus = captureRenderRangeFocus(bounds);
+    plan = structuredClone(plan);
+    const owner = renderPlanOwnerKey(plan);
+    const previousOwner = renderedRangeOwners.get(bounds.start);
+    const ownershipChanged = previousOwner && (previousOwner.owner !== owner
+        || previousOwner.end !== bounds.end || previousOwner.parent !== parent);
+    const focus = ownershipChanged ? null : captureRenderRangeFocus(bounds);
     const finishSelectRefresh = beginSelectRefresh();
     const finishCheckedRefresh = beginNativeCheckedRefresh(options);
     try {
-        const recovery = renderScopeRecoveryReason(bounds, plan, options);
+        const recovery: RenderScopeRecoveryReason | undefined = ownershipChanged
+            ? { reason: 'recovery', message: 'render scope ownership changed; replaced the scope' }
+            : renderScopeRecoveryReason(bounds, plan, options);
+        renderedRangeOwners.set(bounds.start, { end: bounds.end, parent, owner });
         if (recovery) {
             replaceRangeWithRenderPlan(bounds, plan, document, options);
             return {
@@ -2233,7 +2243,7 @@ function validatePatchFrames(bounds: RenderPlanDomRange, frames: readonly PatchF
 }
 
 export interface PreparedPatchFrames {
-    /** Original parent of the owned render range, for binding publication to its host. */
+    /** Pending range parent for host admission; null after consumption or cancellation. */
     readonly container: Node | null;
     /** A check does not reserve the range or mutate DOM. */
     check(currentRevision: RenderRevision): { status: 'ready' | 'stale' | 'aborted'; diagnostics: PatchFramesApplyDiagnostic[] };
@@ -2241,21 +2251,33 @@ export interface PreparedPatchFrames {
     cancel(): void;
 }
 
-/** Snapshot a complete transaction for admission alongside asynchronously prepared CSS. */
-export function preparePatchFramesForRange(bounds: RenderPlanDomRange, frames: readonly PatchFrame[],
-    expectedRevision: RenderRevision, document: Document, options: RenderPlanApplyOptions = {}): PreparedPatchFrames {
-    const range = { start: bounds.start, end: bounds.end };
-    const snapshot = structuredClone({ frames, expectedRevision });
-    const applyOptions = { ...options };
-    const initial = validatePatchFrames(range, snapshot.frames, snapshot.expectedRevision, document, applyOptions);
-    const parent = range.start.parentNode;
-    const children: Node[] = [];
-    if (initial.ok) for (let node = range.start.nextSibling; node && node !== range.end; node = node.nextSibling) children.push(node);
-    let available = true;
-    const check: PreparedPatchFrames['check'] = currentRevision => {
-        if (!available) return abortedPatch('prepared patch transaction was already consumed or cancelled');
+/** A consumed handle retains neither frames, callbacks, targets nor its former range. */
+class PreparedDomPatch implements PreparedPatchFrames {
+    private state: {
+        range: RenderPlanDomRange; frames: readonly PatchFrame[]; document: Document;
+        options: RenderPlanApplyOptions; initial: ValidatedPatch; parent: Node | null; children: Node[];
+    } | undefined;
+
+    constructor(bounds: RenderPlanDomRange, frames: readonly PatchFrame[], expectedRevision: RenderRevision,
+        document: Document, options: RenderPlanApplyOptions) {
+        const range = { start: bounds.start, end: bounds.end };
+        const snapshot = structuredClone({ frames, expectedRevision });
+        const applyOptions = { ...options };
+        const initial = validatePatchFrames(range, snapshot.frames, snapshot.expectedRevision, document, applyOptions);
+        const children: Node[] = [];
+        if (initial.ok) for (let node = range.start.nextSibling; node && node !== range.end; node = node.nextSibling) children.push(node);
+        this.state = { range, frames: snapshot.frames, document, options: applyOptions, initial,
+            parent: range.start.parentNode, children };
+    }
+
+    get container(): Node | null { return this.state?.parent ?? null; }
+
+    check(currentRevision: RenderRevision): ReturnType<PreparedPatchFrames['check']> {
+        const state = this.state;
+        if (!state) return abortedPatch('prepared patch transaction was already consumed or cancelled');
+        const { range, frames, document, options, initial, parent, children } = state;
         if (!initial.ok) return initial.result;
-        const current = validatePatchFrames(range, snapshot.frames, currentRevision, document, applyOptions);
+        const current = validatePatchFrames(range, frames, currentRevision, document, options);
         if (!current.ok) return current.result;
         let node = range.start.nextSibling;
         const sameChildren = children.every(child => { const equal = child === node; node = node?.nextSibling ?? null; return equal; }) && node === range.end;
@@ -2263,13 +2285,23 @@ export function preparePatchFramesForRange(bounds: RenderPlanDomRange, frames: r
             return abortedPatch('prepared patch render range or target identity changed before commit');
         }
         return { status: 'ready', diagnostics: [] };
-    };
-    return { container: parent, check, cancel: () => { available = false; }, commit(currentRevision) {
-        const result = check(currentRevision);
-        available = false;
-        if (result.status !== 'ready') return { status: result.status, diagnostics: result.diagnostics };
-        return applyPatchFramesToRange(range, snapshot.frames, currentRevision, document, applyOptions);
-    } };
+    }
+
+    cancel(): void { this.state = undefined; }
+
+    commit(currentRevision: RenderRevision): PatchFramesApplyResult {
+        const result = this.check(currentRevision);
+        const state = this.state;
+        this.state = undefined;
+        if (result.status !== 'ready' || !state) return { status: result.status === 'ready' ? 'aborted' : result.status, diagnostics: result.diagnostics };
+        return applyPatchFramesToRange(state.range, state.frames, currentRevision, state.document, state.options);
+    }
+}
+
+/** Snapshot a complete transaction for admission alongside asynchronously prepared CSS. */
+export function preparePatchFramesForRange(bounds: RenderPlanDomRange, frames: readonly PatchFrame[],
+    expectedRevision: RenderRevision, document: Document, options: RenderPlanApplyOptions = {}): PreparedPatchFrames {
+    return new PreparedDomPatch(bounds, frames, expectedRevision, document, options);
 }
 
 function parseCommittedPatchFrames(frames: readonly PatchFrame[]):
@@ -2479,7 +2511,7 @@ function materializeNode(node: RenderPlanNode, plan: RenderPlan, document: Docum
     for (const child of node.children) {
         childContainer.appendChild(materializeNode(child, plan, document));
     }
-    rememberRenderedChildren(element, node.children);
+    rememberRenderedChildren(element, node.children, plan);
     syncControlledSelect(element);
     return element;
 }
@@ -2619,17 +2651,36 @@ function mergeRenderPlanChildNodes(
         if (!context.options.preserveNode?.(current)) parent.removeChild(current);
         current = next;
     }
-    if (parent.nodeType === 1 && end === null) rememberRenderedChildren(parent as Element, desiredNodes);
+    if (parent.nodeType === 1 && end === null) rememberRenderedChildren(parent as Element, desiredNodes, context.plan);
 }
 
 /** Patch authored inputs without deleting nodes created by the custom element. */
+function unchangedPlanChildren(previous: readonly RenderPlanNode[] | undefined, next: readonly RenderPlanNode[]): boolean {
+    if (!previous || previous.length !== next.length) return false;
+    // Compare complete freshly evaluated output, including native capsules and provenance.
+    // This is a DOM publication check, never an expression/provider evaluation cache.
+    return sameProjectionValue(previous, next);
+}
+
+/** Exact boundary-value equality; native buffers compare bytes, never a browser digest. */
+function sameProjectionValue(a: unknown, b: unknown): boolean {
+    if (a === b) return true;
+    if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
+    if (a instanceof ArrayBuffer || b instanceof ArrayBuffer) {
+        if (!(a instanceof ArrayBuffer) || !(b instanceof ArrayBuffer) || a.byteLength !== b.byteLength) return false;
+        const right = new Uint8Array(b);
+        return new Uint8Array(a).every((byte, index) => byte === right[index]);
+    }
+    if (Array.isArray(a) !== Array.isArray(b)) return false;
+    const left = Object.keys(a), right = Object.keys(b);
+    return left.length === right.length && left.every(key => Object.prototype.hasOwnProperty.call(b, key)
+        && sameProjectionValue((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]));
+}
+
 function mergeCustomElementInputs(element: Element, desired: readonly RenderPlanNode[], context: RenderPlanApplyContext): void {
     const previous = renderedChildren.get(element);
-    if (previous?.plan && previous.plan.length === desired.length) {
-        const changes: DomPatchOp[] = [];
-        for (let index = 0; index < desired.length; index++) diffRenderNode(previous.plan[index], desired[index], changes, true);
-        if (changes.length === 0) return;
-    }
+    if (previous?.owner === renderPlanOwnerKey(context.plan)
+        && unchangedPlanChildren(previous.plan, desired)) return;
     const remaining = new Set(previous?.nodes ?? []);
     const next: ChildNode[] = [];
     for (const node of desired) {
@@ -2655,7 +2706,7 @@ function mergeCustomElementInputs(element: Element, desired: readonly RenderPlan
             element.insertBefore(next[index], next[index + 1]);
         }
     }
-    renderedChildren.set(element, { plan: desired, nodes: next });
+    renderedChildren.set(element, { plan: desired, nodes: next, owner: renderPlanOwnerKey(context.plan) });
 }
 
 function moveRenderPlanMatchBefore(parent: Node, match: RenderPlanNodeMatch, reference: Node | null): void {
@@ -2769,6 +2820,9 @@ function mergeRenderPlanNode(
         ? context.options.authoredChildContainer?.(element)
         : renderPlanElementChildContainer(element);
     if (!childContainer) return;
+    const previousChildren = renderedChildren.get(element);
+    if (previousChildren?.owner === renderPlanOwnerKey(context.plan)
+        && unchangedPlanChildren(previousChildren.plan, desired.children)) return;
     mergeRenderPlanChildNodes(
         childContainer,
         childContainer.firstChild as ChildNode | null,
@@ -2822,7 +2876,7 @@ function createRenderPlanDomNodes(node: RenderPlanNode, context: RenderPlanApply
             childContainer.appendChild(childNode);
         }
     }
-    rememberRenderedChildren(element, node.children);
+    rememberRenderedChildren(element, node.children, context.plan);
     return [element];
 }
 
@@ -3455,9 +3509,7 @@ function diffRenderPlans(previous: RenderPlan | null, next: RenderPlan, textNode
     }
 
     if (
-        previous.producedTag !== next.producedTag ||
-        previous.templateArtifactId !== next.templateArtifactId ||
-        previous.outputTarget !== next.outputTarget ||
+        renderPlanOwnerKey(previous) !== renderPlanOwnerKey(next) ||
         previous.nodes.length !== next.nodes.length ||
         (!textNodeIdsAvailable && previous.nodes.some((node, index) => changedTextTarget(node, next.nodes[index])))
     ) {
@@ -3650,8 +3702,15 @@ function edgeRenderStateKey(revision: RenderRevision): string {
     return ['edge-state', revision.scopePolicyStamp, revision.instanceId, ...ariaReferenceProfileKey(revision.ariaReferenceProfile)].join(':');
 }
 
+/** DOM belongs to one instance/template/policy/profile, independently of data revisions. */
+export function renderPlanOwnerKey(plan: RenderPlanIdentity): string {
+    return JSON.stringify([RENDER_ENGINE_VERSION, plan.producedTag, plan.instanceId,
+        plan.templateArtifactId, plan.scopePolicyStamp, plan.outputTarget,
+        ...ariaReferenceProfileKey(plan.ariaReferenceProfile)]);
+}
+
 export function renderRevisionKey(revision: RenderRevision): string {
-    return [
+    return JSON.stringify([
         revision.instanceId,
         revision.dataRevision,
         revision.templateArtifactId,
@@ -3659,7 +3718,7 @@ export function renderRevisionKey(revision: RenderRevision): string {
         revision.outputTarget,
         revision.renderAttempt ?? 0,
         ...ariaReferenceProfileKey(revision.ariaReferenceProfile),
-    ].join(':');
+    ]);
 }
 
 function patchTransactionId(plan: RenderPlan): string {

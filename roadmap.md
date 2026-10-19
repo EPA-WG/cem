@@ -538,7 +538,7 @@ closures remain uncached, and capacity refusal preserves successful compilation.
 See [checked compilation](packages/cem_ql/README.md#checked-template-compilation-cache).
 Render/provider evaluation and CSS/resource loading retain their normal lifecycle.
 Native-validated unchanged stylesheet installations now preserve CSSOM and animations;
-complete DOM reuse remains subsequent work.
+freshly evaluated unchanged DOM is retained with complete ownership checks.
 
 Extend the existing native template/artifact caches,
 bounded processing LRU and render-plan diff machinery; do not introduce a parallel
@@ -553,7 +553,12 @@ Fresh native emissions now reuse matching stylesheet installations with minimal
 DOM placement, per-node native identity receipts and current host/policy admission.
 Import reads and validation continue; changed identities or damaged DOM trigger
 repair/reinstallation. Data edits and inherited theme changes preserve matching
-CSSOM and animations. Complete unchanged-DOM reuse remains the next step.
+CSSOM and animations. Direct projection now retains unchanged child input snapshots,
+including native bytes, and leaves their live DOM untouched. Patch publication checks
+complete owner/revision identities and releases consumed/cancelled snapshots.
+Browser fixtures cover native controls, editable content, focus/selection, changed
+bindings and worker/fallback integration. Evaluation and resource work still run;
+selective dependency/read tracking and pure evaluation memoization remain future work.
 
 Organize reuse into distinct ownership layers:
 

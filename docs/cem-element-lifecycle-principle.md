@@ -110,8 +110,34 @@ output. Added/removed siblings do not reinstall unchanged sheets. Pending, faile
 or cancelled candidates preserve committed styles. Disposing an owning generation
 deletes its installation receipts; no predecessor history is added.
 
-This does not skip imports, provider/event evaluation or DOM rendering. Full
-unchanged-DOM reuse and focus/form-state acceptance remain subsequent work.
+DOM reuse also follows fresh evaluation, not source text or a data-revision string
+alone. Native data, attributes, payload, slices, resources, form/validation, events,
+refresh and provider state continue through ordinary processing. A prior-plan handle
+must match its retained artifact, policy, engine, source-map mode and exact revision.
+Revision tuples use structured encoding so delimiter-containing IDs cannot alias.
+DOM ownership includes produced tag, instance, template artifact, scope policy,
+output target and effective ARIA reference profile. Changed ownership replaces the
+scope and does not transfer focus or edited state to another owner.
+
+Direct projection retains the current immutable child-input snapshot per element.
+Complete freshly evaluated child output, including native capsule bytes and source
+metadata, must match before leaving those live children untouched. The snapshots
+share one input tree and are weakly owned by DOM nodes; no predecessor chain or
+application cache is added. Changed output reconciles normally, including explicit
+input/textarea values and editable content. Unchanged children preserve edited
+contenteditable text, native control state, focus and browser selection. Patch mode
+continues to use the retained output diff. An identical direct or patch publication
+performs no DOM mutations in the covered form fixture.
+
+Uncontrolled selects retain edits. Explicit `select[value]` continues to own live
+selection on every admitted commit, including empty patches; this existing controlled
+binding is intentional. Cancellation/stale admission cannot publish a candidate.
+Consumed or cancelled prepared patches release their frame snapshots, targets,
+range and option callbacks even while the consumed handle remains reachable.
+
+This does not skip imports or provider/event/command evaluation. Selective native
+read tracking, pure evaluation memoization and whole-process OOM recovery are separate
+work; DOM identity does not authorize any of them.
 
 ## First connection and payload capture
 

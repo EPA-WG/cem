@@ -3226,4 +3226,9 @@ memory bound. Studio remains declarative, with no new shared JavaScript capabili
 Remaining presentation work is tracked in [the active todo](todo.md). Planned shared
 [unchanged render reuse](../roadmap.md#312-reuse-unchanged-render-content-and-stylesheets)
 and [WASM memory recovery](../roadmap.md#311-wasm-memory-recovery-between-renders)
-remain separate optimization and resilience work; neither is implemented by this repair.
+remain separate from this repair. Shared `cem-elements` now also retains freshly
+evaluated unchanged DOM, preserving edited controls and contenteditable content,
+focus and selection across ordinary data updates in DOM and CEM-ML modes. Complete
+ownership/revision checks fence reuse; Studio adds no JavaScript UI behavior.
+Native evaluation and resource freshness still run. WASM restart/recovery remains
+future resilience work.

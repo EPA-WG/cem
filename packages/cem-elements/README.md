@@ -228,6 +228,18 @@ on every attempt; pending/failed/cancelled loads preserve committed styles. This
 retains CSSOM and running animations without skipping rendering or adding an app
 cache. See [the lifecycle contract](../../docs/cem-element-lifecycle-principle.md).
 
+Fresh render output also reuses unchanged DOM. Ownership checks include the
+instance, template, policy, output target and ARIA profile; retained prior-plan
+handles must match their stored revision and engine metadata. Revision tuples are
+encoded without delimiter ambiguity. Direct projections compare complete immutable
+child inputs, including native bytes, before retaining live children. This preserves
+contenteditable edits, native form state, focus and selection while changed bindings
+still reconcile. Identical direct/patch publications avoid DOM mutations. Explicit
+`select[value]` remains controlled on every commit; ordinary selects retain edits.
+Prepared patch handles drop snapshots, DOM targets and callbacks on consumption or
+cancellation. Fresh native evaluation and resource loading still run; no
+source-only render cache or Studio JavaScript is introduced.
+
 The asynchronous `executeNativeSsrInitialRenderFixture` evidence host now loads
 native payload CSS and returns `instanceStylesheetHtml` for direct host children
 outside the render range. Worker/fallback hydration preserves its DOM and animation
