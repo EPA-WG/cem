@@ -15,6 +15,10 @@
     {export @id="project-login-output" @out="../../dist/static/samples/examples/login.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
   }
 
+  {import @id="project-markdown-site" @src="examples/markdown-site.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
+    {export @id="project-markdown-site-output" @out="../../dist/static/samples/examples/markdown-site.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
+  }
+
   {import @id="project-supplier-pipeline" @src="examples/supplier-pipeline.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json" @opaque=true |
     {export @id="project-supplier-pipeline-output" @out="../../dist/static/samples/examples/supplier-pipeline.cem-studio.json" @content-type="application/vnd.cem.studio-project-bundle+json"}
   }

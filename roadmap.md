@@ -939,22 +939,28 @@ close through `cem-site:verify`.
 
 ### Studio Example: Markdown + CEM-ML Site Project
 
-Status: planned. The current Studio catalog has a Markdown schema-package
-example, but no complete Markdown/CEM-ML site project with a Hugo-inspired
-folder structure. The standalone Markdown/CEM-ML playground does not fill this
-project-level demonstration gap.
+Status: implemented 2026-10-18 as the ordinary
+[`markdown-site` project](examples/projects/markdown-site/README.md). Open
+**Samples → Amsterdam 2026 → Markdown site** and clone it through the normal
+navigator. Four Markdown resources, shared CEM-ML layouts/partials, explicit site
+data, assets/static, three configurations and HTML expectations use the same
+workspace as user projects. Native and Studio checks cover deterministic outputs,
+article/shared-layout edits, failure/repair, provenance, portable independent
+copies and offline reopen/build. No dedicated example screen or app-local
+renderer was added. Explicit entry-artifact configuration and pinned historical
+build comparisons remain separate Studio work; Hugo compatibility remains Phase 7.
 
 Native foundations also support opt-in YAML front matter, retained common
 metadata in HTML DOM projections, explicit site/navigation inputs and named
 content/layout/partial provenance. The bounded contract is documented in the
 [Markdown package](packages/cem_ml/schema-packages/markdown/v1/README.md#native-site-metadata-and-layout-inputs).
-The full ordinary example and its portable/offline editing acceptance remain
-planned below.
+The ordinary example uses that contract; the original scope below records its
+implemented boundaries.
 
 Native foundations now include rooted recursive imports with retained source
 identities, folder-relative output bindings and mixed byte-preserving static
 asset publication. Studio's existing captured build and shared artifact-tree
-preview consume those outputs; the complete ordinary site example remains next.
+preview consume those outputs in the ordinary site example.
 
 Use the [project build/artifact preview model](docs/cem-studio.md#project-builds-and-artifact-previews):
 the generated site is one immutable artifact tree from a build configuration,
@@ -988,8 +994,8 @@ relative-asset navigation when this example proves the complete site flow.
 - Keep Studio orchestration declarative. Reusable declarative controls belong in
   `cem-components`; any required JavaScript behavior belongs in `cem-elements`
   and must be raised before implementation. Native parsing/build semantics remain
-  in the shared engine. Schedule this project after the active Login repair and
-  agreed presentation functionality, using the Phase 6 native site contracts.
+  in the shared engine. The implemented project uses the Phase 6 native site
+  contracts; verification and subsequent Studio work are tracked in `docs/todo.md`.
 
 ## Phase 6.5 - CEM Studio PWA And Browser Workbench
 

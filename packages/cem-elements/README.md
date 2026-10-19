@@ -1256,7 +1256,11 @@ Missing assets and denied references report bounded status without ambient fetch
 No CEM runtime or authored scripts run inside this HTML output frame. The parent
 can manage its document through the same-origin sandbox permission; forms, frames,
 script execution and network sources remain denied. Authored URLs are admitted
-before publication and rewritten to the mount's object URLs. The full supported
+before publication and rewritten to the mount's object URLs. The containing
+application's CSP must also admit `blob:` in `img-src` and `style-src-elem`; a
+child frame cannot relax a stricter inherited response policy. This does not
+require blob script or worker execution. Parent inline-style-attribute policy
+continues to apply (Studio keeps those attributes denied). The full supported
 asset/content policy and small literal-envelope examples are documented in the
 [component preview contract](../cem-components/docs/passive-payload-contract.md#explicit-output-preview-modes).
 

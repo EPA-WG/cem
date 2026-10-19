@@ -3,6 +3,7 @@
   "commonVersion": "0.1.0",
   "cacheUrls": [
     "./examples/login.cem-studio.json",
+    "./examples/markdown-site.cem-studio.json",
     "./examples/schema-examples.cem-studio.json",
     "./examples/starter.cem-studio.json",
     "./examples/supplier-pipeline.cem-studio.json",
@@ -120,6 +121,16 @@
       ],
       "archive": "./examples/login.cem-studio.json",
       "sha256": "2bc105da6baf8a1a2952cd9d888ab55249dd4fcc3c9cc0c3f211e371a76d3ce3"
+    },
+    {
+      "id": "markdown-site",
+      "name": "Markdown site",
+      "version": "1.0.0",
+      "collections": [
+        "amsterdam-2026"
+      ],
+      "archive": "./examples/markdown-site.cem-studio.json",
+      "sha256": "5074a0e0e4102657cb71a3ad2755138a13a0a509ffa2e0cab4049b7f630a5f9d"
     },
     {
       "id": "supplier-pipeline",

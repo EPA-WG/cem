@@ -1,0 +1,11 @@
+/* Styles for the exported static documents, independent of the Studio theme. */
+:root { color-scheme: light dark; font-family: system-ui, sans-serif; line-height: 1.6; }
+body { margin: 0; color: CanvasText; background: Canvas; }
+header, main, footer { max-inline-size: 70ch; margin-inline: auto; padding: 1rem; }
+nav { display: flex; flex-wrap: wrap; gap: 1rem; }
+main { min-block-size: 50vh; }
+img { display: block; max-inline-size: 100%; block-size: auto; }
+a { color: LinkText; text-underline-offset: .2em; }
+a:visited { color: VisitedText; }
+:focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }
+footer { border-block-start: 1px solid CanvasText; }

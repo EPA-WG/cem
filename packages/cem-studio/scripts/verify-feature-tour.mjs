@@ -41,8 +41,8 @@ assert.equal(
     catalog.projectResourceCount,
     catalog.exampleCount * 2 + catalog.dependencyCount + catalog.workbenchResourceCount,
 );
-assert.deepEqual(sampleIndex.projects.map(project => project.id), ['schema-examples', 'login', 'supplier-pipeline']);
-assert.equal(sampleIndex.cacheUrls.length, catalog.cacheUrlCount + 4);
+assert.deepEqual(sampleIndex.projects.map(project => project.id), ['schema-examples', 'login', 'markdown-site', 'supplier-pipeline']);
+assert.equal(sampleIndex.cacheUrls.length, catalog.cacheUrlCount + sampleIndex.projects.length + 1);
 assert.deepEqual(sampleIndex.collections, [{ id: 'amsterdam-2026', name: 'Amsterdam 2026' }]);
 const definition = await readJson(resolve(workspaceRoot, 'examples/projects/login/example.json'));
 for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
@@ -156,6 +156,41 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
                 const expected = new TextDecoder().decode(bundle.contents[expectedId]);
                 if (path.endsWith('.json')) assert.deepEqual(JSON.parse(actual), JSON.parse(expected));
                 else assert.equal(actual.trim(), expected.trim());
+            }
+        } finally { await rm(directory, { recursive: true, force: true }); }
+    } else if (record.id === 'markdown-site') {
+        const site = await readJson(resolve(workspaceRoot, 'examples/projects/markdown-site/example.json'));
+        assert.deepEqual(record.collections, ['amsterdam-2026']);
+        assert.equal(bundle.project.entries.length, 3);
+        for (const source of site.sources) assert.deepEqual(bundle.contents[source.id], new Uint8Array(await readFile(resolve(workspaceRoot, source.source))));
+        const build = site.configurations.find(configuration => configuration.id === 'build-site');
+        const entry = bundle.project.entries.find(entry => entry.id === build.id);
+        assert.equal(entry.kind, 'transformation-graph');
+        const directory = await mkdtemp(resolve(tmpdir(), 'cem-studio-markdown-site-'));
+        try {
+            for (const resource of bundle.project.resources) {
+                const path = resolve(directory, resource.path);
+                await mkdir(dirname(path), { recursive: true });
+                await writeFile(path, bundle.contents[resource.id]);
+            }
+            for (const entry of bundle.project.entries) {
+                const command = JSON.parse(new TextDecoder().decode(bundle.contents[entry.runConfigResourceId]));
+                run(cli, command.argv ?? ['validate', '--config', bundle.project.resources.find(resource => resource.id === entry.runConfigResourceId).path], directory);
+            }
+            const outputs = async () => Promise.all(Object.keys(build.expectedGraphOutputs).map(async path => [path, sha256(await readFile(resolve(directory, path)))]));
+            const baseline = await outputs();
+            for (const [path, expectedId] of Object.entries(build.expectedGraphOutputs)) {
+                assert.deepEqual(new Uint8Array(await readFile(resolve(directory, path))), bundle.contents[expectedId]);
+            }
+            const command = JSON.parse(new TextDecoder().decode(bundle.contents[entry.runConfigResourceId]));
+            run(cli, command.argv, directory);
+            assert.deepEqual(await outputs(), baseline);
+            for (const path of ['index', 'articles/index', 'articles/first-build', 'articles/shared-layouts']) {
+                const map = await readJson(resolve(directory, `generated/${path}.html.map`));
+                const serialized = JSON.stringify(map);
+                assert.ok(serialized.includes(`content/${path}.md`), `content origin missing for ${path}`);
+                assert.ok(serialized.includes('partials/chrome.cemt'));
+                assert.ok(serialized.includes('partials/content.cemt'));
             }
         } finally { await rm(directory, { recursive: true, force: true }); }
     } else if (record.id === 'schema-examples') {

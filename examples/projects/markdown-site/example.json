@@ -1,0 +1,217 @@
+{
+  "id": "markdown-site",
+  "name": "Markdown site",
+  "version": "1.0.0",
+  "description": "A portable folder-based site: Markdown metadata, shared CEM-ML layouts, navigation data and exact static assets, with editing, repair and provenance.",
+  "collections": [
+    "amsterdam-2026"
+  ],
+  "sources": [
+    {
+      "id": "content-index-md",
+      "source": "examples/projects/markdown-site/content/index.md",
+      "path": "content/index.md",
+      "contentType": "text/markdown; charset=utf-8; variant=CommonMark; front-matter=yaml",
+      "role": "data",
+      "schema": "https://cem.dev/ns/data/markdown/1"
+    },
+    {
+      "id": "content-articles-index-md",
+      "source": "examples/projects/markdown-site/content/articles/index.md",
+      "path": "content/articles/index.md",
+      "contentType": "text/markdown; charset=utf-8; variant=CommonMark; front-matter=yaml",
+      "role": "data",
+      "schema": "https://cem.dev/ns/data/markdown/1"
+    },
+    {
+      "id": "content-articles-first-build-md",
+      "source": "examples/projects/markdown-site/content/articles/first-build.md",
+      "path": "content/articles/first-build.md",
+      "contentType": "text/markdown; charset=utf-8; variant=CommonMark; front-matter=yaml",
+      "role": "data",
+      "schema": "https://cem.dev/ns/data/markdown/1"
+    },
+    {
+      "id": "content-articles-shared-layouts-md",
+      "source": "examples/projects/markdown-site/content/articles/shared-layouts.md",
+      "path": "content/articles/shared-layouts.md",
+      "contentType": "text/markdown; charset=utf-8; variant=CommonMark; front-matter=yaml",
+      "role": "data",
+      "schema": "https://cem.dev/ns/data/markdown/1"
+    },
+    {
+      "id": "data-site-json",
+      "source": "examples/projects/markdown-site/data/site.json",
+      "path": "data/site.json",
+      "contentType": "application/json",
+      "role": "data",
+      "schema": "https://cem.dev/ns/data/json/1"
+    },
+    {
+      "id": "graphs-build-cem",
+      "source": "examples/projects/markdown-site/graphs/build.cem",
+      "path": "graphs/build.cem",
+      "contentType": "application/cem",
+      "role": "transform-config",
+      "schema": "https://cem.dev/ns/cli/transform-config/1"
+    },
+    {
+      "id": "layouts-page-cemt",
+      "source": "examples/projects/markdown-site/layouts/page.cemt",
+      "path": "layouts/page.cemt",
+      "contentType": "application/vnd.cem.transform+cem",
+      "role": "template",
+      "schema": "https://cem.dev/ns/transform/cem/1"
+    },
+    {
+      "id": "layouts-partials-chrome-cemt",
+      "source": "examples/projects/markdown-site/layouts/partials/chrome.cemt",
+      "path": "layouts/partials/chrome.cemt",
+      "contentType": "application/vnd.cem.transform+cem",
+      "role": "template",
+      "schema": "https://cem.dev/ns/transform/cem/1"
+    },
+    {
+      "id": "assets-site-css",
+      "source": "examples/projects/markdown-site/assets/site.css",
+      "path": "assets/site.css",
+      "contentType": "text/css",
+      "role": "data"
+    },
+    {
+      "id": "static-images-harbor-svg",
+      "source": "examples/projects/markdown-site/static/images/harbor.svg",
+      "path": "static/images/harbor.svg",
+      "contentType": "image/svg+xml",
+      "role": "data"
+    },
+    {
+      "id": "static-downloads-notes-txt",
+      "source": "examples/projects/markdown-site/static/downloads/notes.txt",
+      "path": "static/downloads/notes.txt",
+      "contentType": "text/plain; charset=utf-8",
+      "role": "data"
+    },
+    {
+      "id": "layouts-partials-content-cemt",
+      "source": "examples/projects/markdown-site/layouts/partials/content.cemt",
+      "path": "layouts/partials/content.cemt",
+      "contentType": "application/vnd.cem.transform+cem",
+      "role": "template",
+      "schema": "https://cem.dev/ns/transform/cem/1"
+    },
+    {
+      "id": "expected-index-html",
+      "source": "examples/projects/markdown-site/expected/index.html",
+      "path": "expected/index.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-articles-index-html",
+      "source": "examples/projects/markdown-site/expected/articles/index.html",
+      "path": "expected/articles/index.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-articles-first-build-html",
+      "source": "examples/projects/markdown-site/expected/articles/first-build.html",
+      "path": "expected/articles/first-build.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "expected-articles-shared-layouts-html",
+      "source": "examples/projects/markdown-site/expected/articles/shared-layouts.html",
+      "path": "expected/articles/shared-layouts.html",
+      "contentType": "text/html",
+      "schema": "https://cem.dev/ns/data/html/1",
+      "role": "data"
+    },
+    {
+      "id": "readme",
+      "source": "examples/projects/markdown-site/README.md",
+      "path": "README.md",
+      "contentType": "text/markdown; charset=utf-8",
+      "schema": "https://cem.dev/ns/data/markdown/1",
+      "role": "data"
+    }
+  ],
+  "configurations": [
+    {
+      "id": "build-site",
+      "name": "Build and preview site",
+      "kind": "transformation-graph",
+      "source": "graphs-build-cem",
+      "dependencies": [
+        "content-index-md",
+        "content-articles-index-md",
+        "content-articles-first-build-md",
+        "content-articles-shared-layouts-md",
+        "data-site-json",
+        "layouts-page-cemt",
+        "layouts-partials-chrome-cemt",
+        "assets-site-css",
+        "static-images-harbor-svg",
+        "static-downloads-notes-txt",
+        "layouts-partials-content-cemt",
+        "expected-index-html",
+        "expected-articles-index-html",
+        "expected-articles-first-build-html",
+        "expected-articles-shared-layouts-html"
+      ],
+      "description": "Build four Markdown documents with shared CEM-ML layouts and publish CSS, an image and a download. Choose generated/index.html in Preview artifact.",
+      "argv": [
+        "transform",
+        "--config",
+        "$source",
+        "--config-content-type",
+        "application/cem",
+        "--config-schema",
+        "https://cem.dev/ns/cli/transform-config/1"
+      ],
+      "expectedGraphOutputs": {
+        "generated/index.html": "expected-index-html",
+        "generated/articles/index.html": "expected-articles-index-html",
+        "generated/articles/first-build.html": "expected-articles-first-build-html",
+        "generated/articles/shared-layouts.html": "expected-articles-shared-layouts-html",
+        "generated/assets/site.css": "assets-site-css",
+        "generated/images/harbor.svg": "static-images-harbor-svg",
+        "generated/downloads/notes.txt": "static-downloads-notes-txt"
+      }
+    },
+    {
+      "id": "validate-article",
+      "name": "Validate article metadata",
+      "kind": "validation",
+      "source": "content-articles-first-build-md",
+      "argv": [
+        "validate",
+        "$source"
+      ]
+    },
+    {
+      "id": "preview-article",
+      "name": "Preview Markdown article",
+      "kind": "conversion",
+      "source": "content-articles-first-build-md",
+      "description": "Preview the saved Markdown body on its own. Use Build and preview site for the complete shared layout and assets.",
+      "argv": [
+        "convert",
+        "$source",
+        "--content-type",
+        "text/markdown; charset=utf-8; variant=CommonMark; front-matter=yaml",
+        "--schema",
+        "https://cem.dev/ns/data/markdown/1",
+        "--to-content-type",
+        "text/html",
+        "--to-schema",
+        "https://cem.dev/ns/data/html/1"
+      ]
+    }
+  ]
+}

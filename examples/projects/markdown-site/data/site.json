@@ -1,0 +1,13 @@
+{
+  "title": "CEM field notes",
+  "navigation": [
+    {
+      "label": "Home",
+      "href": "index.html"
+    },
+    {
+      "label": "Articles",
+      "href": "articles/index.html"
+    }
+  ]
+}

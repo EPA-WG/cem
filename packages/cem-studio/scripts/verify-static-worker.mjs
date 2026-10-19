@@ -280,9 +280,10 @@ try {
     assert.equal(featureTour.projectId, 'feature-tour');
     assert.equal(featureTour.exampleCount, 32);
     assert.equal(featureTour.validatedCount, featureTour.exampleCount);
-    assert.equal(featureTour.cachedSampleResponses, featureTour.cacheUrlCount + 4);
+    assert.equal(featureTour.cachedSampleResponses, featureTour.cacheUrlCount + 5);
     assert.equal(featureTour.exampleProjectCached, true);
     assert.equal(featureTour.supplierProjectCached, true);
+    assert.equal(featureTour.markdownSiteCached, true);
 
     const workbench = await exerciseWorkbench(page);
     assert.equal(workbench.status, 'invalid');
@@ -1776,6 +1777,7 @@ async function validateFeatureTour(page, initialStatus) {
             cachedSampleResponses: (await sampleCache.keys()).length,
             exampleProjectCached: Boolean(await sampleCache.match(new URL('./samples/examples/login.cem-studio.json', document.baseURI))),
             supplierProjectCached: Boolean(await sampleCache.match(new URL('./samples/examples/supplier-pipeline.cem-studio.json', document.baseURI))),
+            markdownSiteCached: Boolean(await sampleCache.match(new URL('./samples/examples/markdown-site.cem-studio.json', document.baseURI))),
         };
     }, initialStatus);
 }

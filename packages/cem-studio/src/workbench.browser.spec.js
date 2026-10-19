@@ -41,6 +41,92 @@ afterEach(async () => {
 });
 
 describe('CEM Studio Feature Tour workbench', () => {
+    it('opens the ordinary Markdown site sample, edits and repairs builds, and runs a portable independent copy', async () => {
+        const response = await fetch(new URL('../generated/feature-tour/examples/markdown-site.cem-studio.json', import.meta.url));
+        expect(response.ok).toBe(true);
+        const bundle = parseCemStudioProjectBundle(new Uint8Array(await response.arrayBuffer()));
+        const repository = await repositoryWithSource('unrelated saved resource');
+        const validator = await createCemStudioBrowserValidator();
+        try {
+            const session = createCemStudioProjectSession({ openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator, selection }) }); workbenches.push(session);
+            const base = await createCemStudioSessionWorkbench({ repository, session });
+            const browser = new EventTarget(); browser.location = new URL('https://studio.test/?sample=markdown-site&build=build-site&artifact=generated/index.html');
+            browser.history = { pushState: vi.fn((_, __, url) => { browser.location = new URL(url); }), replaceState: vi.fn((_, __, url) => { browser.location = new URL(url); }) };
+            const workbench = await createCemStudioNavigation({ repository, validator, workbench: base,
+                examples: [{ id: 'markdown-site', name: 'Markdown site', collections: ['amsterdam-2026'], load: async () => bundle }], browser }); workbenches.push(workbench);
+            const root = document.createElement('main'); document.body.append(root);
+            const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
+            const preview = () => workbench.snapshot().projectPreview;
+            const build = async () => { await workbench.buildProjectPreview(); await view.whenSettled();
+                expect(preview().attempt, JSON.stringify(preview().attempt)).toMatchObject({ status: 'succeeded' }); };
+            await build();
+            expect((await repository.query(request('list-projects', {}))).value).toHaveLength(1);
+            expect(preview().projection.buildRun.artifacts.map(item => item.path).sort()).toEqual([
+                'generated/articles/first-build.html', 'generated/articles/index.html', 'generated/articles/shared-layouts.html',
+                'generated/assets/site.css', 'generated/downloads/notes.txt', 'generated/images/harbor.svg', 'generated/index.html',
+            ]);
+            for (const output of preview().projection.outputs) {
+                const path = output.uri.split('/generated/')[1];
+                const expected = bundle.project.resources.find(resource => resource.path === (path.endsWith('.html') ? `expected/${path}` : path.startsWith('assets/') ? path : `static/${path}`));
+                expect(output.bytes, path).toEqual(bundle.contents[expected.id]);
+            }
+            const frame = () => root.querySelector('cem-media-preview[mode="artifact-tree"] iframe');
+            await vi.waitFor(() => expect(frame()?.contentDocument?.querySelector('h1')?.textContent).toBe('CEM field notes'));
+            expect(getComputedStyle(frame().contentDocument.querySelector('nav')).display).toBe('flex');
+            await vi.waitFor(() => expect(frame().contentDocument.querySelector('img').naturalWidth).toBe(480));
+            [...frame().contentDocument.querySelectorAll('a')].find(link => link.textContent === 'a small build').click();
+            await vi.waitFor(() => expect(preview().artifactPath).toBe('generated/articles/first-build.html')); await view.whenSettled();
+            expect(new URL(browser.location).searchParams.get('artifact')).toBe('generated/articles/first-build.html');
+            expect(workbench.snapshot().navigation.selection.sample).toBe('markdown-site');
+            workbench.requestAction('clone'); await workbench.submitAction({ name: ['Site copy'] }); await view.whenSettled();
+            const projectId = workbench.snapshot().navigation.selection.project;
+            expect(projectId).toBeTruthy();
+            const articleId = 'content-articles-first-build-md';
+            await workbench.openEntity(`project=${projectId}&file=${articleId}`); await view.whenSettled();
+            const original = workbench.snapshot().draft;
+            const editor = root.querySelector('[data-cem-studio-editor] [role="textbox"]');
+            workbench.updateDraft(original.replaceAll('Build a small site', 'Build an edited site'));
+            await workbench.saveSource(); await view.whenSettled(); await build();
+            workbench.selectPreviewArtifact('generated/articles/first-build.html'); await view.whenSettled();
+            expect(preview().projection.output.text).toContain('<title>Build an edited site</title>');
+            expect(workbench.snapshot().resourceId).toBe(articleId);
+            expect(root.querySelector('[data-cem-studio-editor] [role="textbox"]')).toBe(editor);
+            const successful = preview().projection.buildRun, resourceSet = preview().preview.resourceSet;
+            workbench.updateDraft(original.replace('title: Build a small site', 'title: [broken'));
+            await workbench.saveSource(); await view.whenSettled(); await workbench.buildProjectPreview(); await view.whenSettled();
+            expect(preview().attempt.status).toBe('failed');
+            expect(preview().attempt.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'cem.markdown.front_matter_invalid' })]));
+            expect(preview().projection.buildRun).toBe(successful); expect(preview().preview.resourceSet).toBe(resourceSet);
+            workbench.updateDraft(original); await workbench.saveSource(); await view.whenSettled(); await build();
+            await workbench.openEntity(`project=${projectId}&file=layouts-partials-chrome-cemt`); await view.whenSettled();
+            workbench.updateDraft(workbench.snapshot().draft.replace('Built from saved project resources.', 'Shared layout edited.'));
+            await workbench.saveSource(); await view.whenSettled(); await build();
+            const htmlOutputs = preview().projection.outputs.filter(output => output.contentType.startsWith('text/html'));
+            expect(htmlOutputs).toHaveLength(4); expect(htmlOutputs.every(output => output.text.includes('Shared layout edited.'))).toBe(true);
+            const article = preview().projection.buildRun.artifacts.find(item => item.path === 'generated/articles/first-build.html');
+            expect(article.provenance).toEqual(expect.arrayContaining([
+                expect.objectContaining({ uri: `studio://${projectId}/content/articles/first-build.md` }),
+                expect.objectContaining({ uri: `studio://${projectId}/layouts/partials/chrome.cemt` }),
+            ]));
+            const exported = (await repository.query(request('export-project', { projectId }))).value;
+            const portable = parseCemStudioProjectBundle(serializeCemStudioProjectBundle(exported));
+            const copyId = 'markdown-portable';
+            portable.project = { ...portable.project, id: copyId, name: 'Portable site', rootUri: `studio://${copyId}/` };
+            await repository.execute(request('import-project', { bundle: portable, mode: 'create' }));
+            await vi.waitFor(() => expect(workbench.snapshot().navigation.saved.children.some(item => item.route.project === copyId)).toBe(true));
+            await workbench.openEntity(`project=${copyId}&file=${articleId}`); await view.whenSettled(); await build();
+            expect(preview().projection.outputs.filter(output => output.contentType.startsWith('text/html')).every(output => output.text.includes('Shared layout edited.'))).toBe(true);
+            expect(preview().projection.buildRun.artifacts.every(item => item.uri.startsWith(`studio://${copyId}/`))).toBe(true);
+            workbench.updateDraft(original.replaceAll('Build a small site', 'Only this copy'));
+            await workbench.saveSource(); await view.whenSettled(); await build();
+            const unchanged = (await repository.query(request('export-project', { projectId }))).value;
+            expect(new TextDecoder().decode(unchanged.contents[articleId])).toBe(original);
+            expect(bundle.contents[articleId]).toEqual(new Uint8Array(unchanged.contents[articleId]));
+            const references = project => project.resources.map(resource => [resource.id, resource.referencePath]).sort(([left], [right]) => left.localeCompare(right));
+            expect(references(portable.project)).toEqual(references(bundle.project));
+        } finally { await validator.close(); }
+    }, 90_000);
+
     it('builds native site metadata and source provenance and retains the last success on invalid front matter', async () => {
         // Literal asset URLs let Vite serve the shared native fixture verbatim.
         const [graph, layout, partial, site] = await Promise.all([

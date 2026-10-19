@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { chromium } from 'playwright';
+import { verifyMarkdownSite } from './verify-markdown-site.mjs';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const server = await startStaticServer(resolve(projectRoot, 'dist/static'));
@@ -146,10 +147,11 @@ try {
     await click('Run configuration');
     assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().status), 'projected');
     await context.setOffline(false);
+    const markdownSite = await verifyMarkdownSite({ page, context, url: server.url });
     assert.deepEqual(errors, []);
     await mkdir(resolve(projectRoot, '../../dist/reports/cem-studio'), { recursive: true });
-    await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/navigation.json'), `${JSON.stringify({ schemaVersion: 1, urlSelection: true, history: true, modelTrees: true, sampleBrowsing: true, createCloneDelete: true, guardedDraft: true, themeRetention: true, bookmarkReload: true, supplierNativeRun: true, offline: true, layouts, forcedColors: paint }, null, 2)}\n`);
-    console.log('Studio navigation: URL/history, model trees, CRUD, drafts, themes, responsive layout and offline Supplier Run passed.');
+    await writeFile(resolve(projectRoot, '../../dist/reports/cem-studio/navigation.json'), `${JSON.stringify({ schemaVersion: 1, urlSelection: true, history: true, modelTrees: true, sampleBrowsing: true, createCloneDelete: true, guardedDraft: true, themeRetention: true, bookmarkReload: true, supplierNativeRun: true, markdownSite, offline: true, layouts, forcedColors: paint }, null, 2)}\n`);
+    console.log('Studio navigation: URL/history, model trees, CRUD, drafts, themes, responsive layout and offline Supplier/Markdown site builds passed.');
 } catch (error) {
     const failure = await state().catch(() => ({}));
     console.error('Navigation failure:', JSON.stringify({ selection: failure.selection, title: failure.title, error: failure.error, status: failure.status }));

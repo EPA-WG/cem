@@ -1,0 +1,18 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@ns cem = "https://cem.dev/ns/core/1"
+@default transform
+{module |
+  {template @name=main @visibility=public @cem:whitespace=layout | {param @name=input @type=any @required=true} {body |
+    {cem:for-each @select="$input.children" @as=node | {call @template=emit @with:node="{$node}"}}
+  }}
+  {template @name=emit @cem:whitespace=layout | {param @name=node @type=any @required=true} {body |
+    {cem:choose |
+      {cem:when @test='node.kind == "element"' | {element @name="{$node.name}" @namespace="{$node.namespace}" |
+        {cem:for-each @select="$node.attributes" @as=attr | {attribute @name="{$attr.name}" @value="{$attr.value}"}}
+        {cem:for-each @select="$node.children" @as=child | {call @template=emit @with:node="{$child}"}}
+      }}
+      {cem:when @test='node.kind == "text" || node.kind == "whitespace"' | {$node.data}}
+    }
+  }}
+}

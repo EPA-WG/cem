@@ -1,0 +1,27 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@ns cem = "https://cem.dev/ns/core/1"
+@default transform
+{module |
+  {param @name=input @type=any @required=true}
+  {param @name=site @type=any @required=true}
+  {import @as=chrome @src="partials/chrome.cemt"}
+  {import @as=content @src="partials/content.cemt"}
+  {template @name=page @visibility=public @cem:whitespace=layout | {body |
+    {html @lang=en |
+      {head |
+        {meta @charset=utf-8}
+        {meta @name=viewport @content="width=device-width, initial-scale=1"}
+        {title | {$seq:where(input.metadata.children.children, fn(p) => p.attributes.value == "title").children.children}}
+        {meta @name=description @content='{$seq:where(input.metadata.children.children, fn(p) => p.attributes.value == "description").children.children.value}'}
+        {link @rel=stylesheet @href='{$seq:where(input.metadata.children.children, fn(p) => p.attributes.value == "base").children.children.value}/assets/site.css'}
+      }
+      {element @name=body @namespace=http://www.w3.org/1999/xhtml |
+        {call @from=chrome @template=header @with:site="{$site}"
+            @with:base='{$seq:where(input.metadata.children.children, fn(p) => p.attributes.value == "base").children.children.value}'}
+        {main | {call @from=content @template=main @with:input="{$input}"}}
+        {call @from=chrome @template=footer}
+      }
+    }
+  }}
+}

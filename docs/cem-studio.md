@@ -1032,9 +1032,9 @@ Project preview belongs to a saved build and its artifact set, independently of
 the resource open in the editor. Its workspace region selects a Build
 configuration, runs or cancels Build project, and selects a Preview artifact for
 viewing and exact copy/download. Source commands and their Results remain in the
-editor’s Commands and results expansion. The next steps in
-[the active todo](todo.md#project-builds-and-artifact-previews) add the Markdown
-site example using the shared artifact tree and native rooted folder builds.
+editor’s Commands and results expansion. The ordinary
+[Markdown site project](../examples/projects/markdown-site/README.md) demonstrates
+the shared artifact tree and native rooted folder builds in this workspace.
 
 A project owns resources and named build configurations. A configuration usually
 references a native transformation graph, but a single CEM-ML document can use a
@@ -1083,9 +1083,18 @@ defines reserved field types, bounds and original source coordinates. Page
 metadata is `input.metadata`; site-wide data/navigation uses an explicit
 `@with:site` graph input. Template modules and output destinations remain
 explicit, independently of `layout`/`slug` metadata. Studio consumes native
-artifact provenance without reconstructing source locations. The complete
-ordinary Markdown site example, editing and portable/offline acceptance remain
-subsequent work.
+artifact provenance without reconstructing source locations. **Samples →
+Amsterdam 2026 → Markdown site** contains home, an article index and two articles,
+shared layout/content/chrome modules, explicit navigation data, CSS, an image and
+a downloadable asset. Clone it to edit, validate and build saved resources. The
+three configurations build the complete seven-artifact site, validate article
+metadata, or preview the article body alone. Choose `generated/index.html` as
+the complete site preview; navigation within the build leaves source selection
+unchanged. Relative links work when publishing `generated/` as a static root.
+HTML expectations, failure/repair, content/partial provenance and portable
+independent copies are verified natively and in Studio, including offline
+reopen/build. The project-owned `base` metadata supplies relative links explicitly;
+there is no implicit metadata routing, Hugo configuration or Go-template engine.
 
 Each build attempt captures a configuration identity/revision, input resource
 identities/revisions/hashes, relevant tree snapshot, engine versions and resolver
@@ -1191,7 +1200,9 @@ Missing outputs produce the explicit missing selection; missing assets never
 resolve from input files, earlier runs or the network.
 
 The artifact frame is parent-managed and script-free, with a CSP limited to
-run-owned image/stylesheet object URLs and inline CSS. Inert HTML admission removes
+run-owned image/stylesheet object URLs and inline CSS. The parent response policy
+also admits `blob:` for images and stylesheet elements, while keeping blob
+scripts/workers and inline style attributes denied. Inert HTML admission removes
 scripts, refresh/base, nested contexts and active URL/event attributes; forms
 cannot navigate. Native retained CSS import identifies/remaps URLs and rejects
 unsupported resource grammar; no JavaScript CSS parser or replacement data AST

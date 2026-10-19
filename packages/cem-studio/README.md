@@ -129,9 +129,12 @@ allows only same-origin application assets and the narrow `wasm-unsafe-eval`
 capability, and denies framing, forms, objects, ambient network origins, and
 powerful permissions. Script policy excludes `unsafe-inline` and general
 `unsafe-eval`. Native CEM declarations publish their retained CSS in generated
-style elements, so `style-src-elem` permits those inline elements. Style
-attributes remain blocked by `style-src-attr 'none'`; preview documents retain
-their separate restrictive policy. Declaration owners stay connected in the
+style elements, so `style-src-elem` permits those inline elements. The shared
+artifact-tree preview creates owned image and stylesheet object URLs; `img-src`
+and `style-src-elem` explicitly admit `blob:` for them. Script and worker
+directives do not admit blob execution. Style attributes remain blocked by
+`style-src-attr 'none'`; preview documents retain their separate restrictive
+policy. Declaration owners stay connected in the
 document head so their styles have a live runtime owner.
 
 ## Build and verification

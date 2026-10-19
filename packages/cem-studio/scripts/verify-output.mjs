@@ -234,12 +234,14 @@ assert.deepEqual(
 assert.equal(runtimeMetadata.commonVersion, packageMetadata.version);
 assert.equal(themeMetadata.version, packageMetadata.dependencies['@epa-wg/cem-theme']);
 assert.equal(sampleIndex.commonVersion, packageMetadata.version);
-assert.equal(sampleIndex.projects.length, 3);
+assert.equal(sampleIndex.projects.length, 4);
 assert.equal(sampleIndex.projects[0].id, 'schema-examples');
 assert.equal(sampleIndex.projects[1].id, 'login');
 assert.equal(sampleIndex.projects[1].archive, './examples/login.cem-studio.json');
 assert.ok(sampleIndex.cacheUrls.includes(sampleIndex.projects[1].archive));
-assert.equal(sampleIndex.projects[2].id, 'supplier-pipeline');
+assert.equal(sampleIndex.projects[2].id, 'markdown-site');
+assert.equal(sampleIndex.projects[3].id, 'supplier-pipeline');
+assert.ok(sampleIndex.cacheUrls.includes(sampleIndex.projects[3].archive));
 assert.ok(sampleIndex.cacheUrls.includes(sampleIndex.projects[2].archive));
 assert.equal(featureTourCatalog.commonVersion, packageMetadata.version);
 // The tour includes one passing example per canonical runtime schema package.
@@ -257,7 +259,7 @@ assert.equal(
         featureTourCatalog.dependencyCount +
         featureTourCatalog.workbenchResourceCount,
 );
-assert.equal(sampleIndex.cacheUrls.length, featureTourCatalog.cacheUrlCount + 4);
+assert.equal(sampleIndex.cacheUrls.length, featureTourCatalog.cacheUrlCount + sampleIndex.projects.length + 1);
 assert.match(serviceWorker, /event\.data\?\.type === 'cem-studio-activate-update'/);
 assert.match(serviceWorker, /event\.waitUntil\(self\.skipWaiting\(\)\)/);
 const contentSecurityPolicy = securityHeaders.headers['Content-Security-Policy'];
@@ -265,7 +267,10 @@ const scriptPolicy = contentSecurityPolicy.split(';').map(part => part.trim()).f
 assert.ok(scriptPolicy);
 assert.doesNotMatch(scriptPolicy, /'unsafe-inline'|'unsafe-eval'/);
 assert.match(contentSecurityPolicy, /(?:^|;)\s*style-src 'self';/);
-assert.match(contentSecurityPolicy, /(?:^|;)\s*style-src-elem 'self' 'unsafe-inline';/);
+assert.match(contentSecurityPolicy, /(?:^|;)\s*style-src-elem 'self' 'unsafe-inline' blob:;/);
+assert.match(contentSecurityPolicy, /(?:^|;)\s*img-src 'self' data: blob:;/);
+assert.doesNotMatch(scriptPolicy, /blob:|data:/);
+assert.match(contentSecurityPolicy, /(?:^|;)\s*worker-src 'self';/);
 assert.match(contentSecurityPolicy, /(?:^|;)\s*style-src-attr 'none';/);
 assert.match(contentSecurityPolicy, /'wasm-unsafe-eval'/);
 assert.match(contentSecurityPolicy, /default-src 'none'/);

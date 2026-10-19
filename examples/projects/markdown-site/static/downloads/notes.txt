@@ -1,0 +1,2 @@
+CEM field notes
+Build uses saved resources; drafts stay independent.

@@ -23,3 +23,8 @@ The schema-package example project is generated from package manifests using
 the same archive/catalog contract. Run the known Studio build and verification
 Nx targets after changing a definition, source or expected result; maintain
 `docs/todo.md` fixture actions before adding tests.
+
+The [Markdown site](markdown-site/README.md) demonstrates a folder-based build
+with four Markdown documents, shared CEM-ML layouts/partials, explicit site data
+and static assets. Its validation, body-preview and complete-site configurations
+use the same portable project format and Studio workspace as Login and Supplier.
