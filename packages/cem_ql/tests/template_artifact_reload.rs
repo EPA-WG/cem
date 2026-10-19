@@ -236,6 +236,83 @@ fn fixture_source() -> String {
         .expect("component template artifact fixture exists")
 }
 
+#[test]
+fn bounded_native_cache_lease_preserves_compiled_render_and_provenance_in_both_modes() {
+    use cem_ml::content_cache::{
+        ArtifactContentType, CacheArtifact, CacheMode, ContentCache, ContentCacheLimits,
+        PolicyStamps,
+    };
+    use cem_ql::render::render_plan_to_html_with_source_map;
+    let source = fixture_source();
+    let options = CompileTemplateOptions {
+        source_uri: Some("studio://project/component.cemt".into()),
+        ..compile_options()
+    };
+    for (mode, wire_mode) in [
+        (CacheMode::Dev, TemplateArtifactSourceMapMode::Dev),
+        (CacheMode::Prod, TemplateArtifactSourceMapMode::Prod),
+    ] {
+        let compiled = compile_template_artifact(&source, &options, wire_mode);
+        let context = TemplateArtifactLoadContext {
+            source_map_mode: wire_mode,
+            ..load_context(&source)
+        };
+        let ordinary = compiled.reload(&context).unwrap();
+        let policy = PolicyStamps::new("native-template-fixture:studio://project/component.cemt");
+        let (artifact, sidecar) = CacheArtifact::new(
+            ArtifactContentType::Other(CEM_TEMPLATE_ARTIFACT_CONTENT_TYPE.into()),
+            mode,
+            compiled.bytes.clone(),
+            policy.clone(),
+            None,
+        );
+        let mut cache = ContentCache::with_limits(ContentCacheLimits {
+            max_entries: 1,
+            max_bytes: compiled.bytes.len() + 4096,
+        })
+        .unwrap();
+        cache.insert(artifact.clone(), sidecar).unwrap();
+        let lease = cache.lease(&artifact.key, &policy).unwrap();
+        let from_cache =
+            CompiledTemplateArtifact::from_bytes(lease.artifact(&policy).unwrap().bytes.clone())
+                .unwrap();
+        let restored = from_cache.reload(&context).unwrap();
+        let actual = render_compiled_template(&restored, &template_data());
+        let expected = render_compiled_template(&ordinary, &template_data());
+        assert_eq!(actual.nodes, expected.nodes);
+        assert_eq!(actual.diagnostics, expected.diagnostics);
+        assert_eq!(restored.diagnostics, ordinary.diagnostics);
+        let actual = render_plan_to_html_with_source_map(&actual);
+        let expected = render_plan_to_html_with_source_map(&expected);
+        assert_eq!(actual.rendered, expected.rendered);
+        assert_eq!(actual.source_map, expected.source_map);
+        assert_eq!(actual.output_spans, expected.output_spans);
+        if mode == CacheMode::Dev {
+            assert!(actual.output_spans.iter().any(|span| span.origin.frames.iter().any(|frame| matches!(&frame.transform, cem_ml::source_map::TransformKind::SourceBoundary { uri } if uri == "studio://project/component.cemt"))));
+        }
+        let wrong_context = TemplateArtifactLoadContext {
+            expected_source_hash: Some(ContentHash::from_blake3(b"new source")),
+            ..context
+        };
+        assert!(from_cache.reload(&wrong_context).is_err());
+        assert_eq!(
+            lease
+                .artifact(&PolicyStamps::new("changed-policy"))
+                .unwrap_err()
+                .code,
+            "cem.cc.policy_mismatch"
+        );
+        assert_eq!(cache.stats().hits, 1);
+        cache.reset_runtime().unwrap();
+        assert_eq!(
+            lease.artifact(&policy).unwrap_err().code,
+            "cem.cc.runtime_replaced"
+        );
+        drop(lease);
+        assert_eq!(cache.stats().retained_bytes, 0);
+    }
+}
+
 fn compile_options() -> CompileTemplateOptions {
     CompileTemplateOptions {
         host_bindings: vec![

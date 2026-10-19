@@ -262,3 +262,59 @@ handle after runtime replacement or authorize an old asynchronous result. Resour
 authorization/freshness and event/command lifecycles remain mandatory even with an
 equal key. Cache leases, eviction, browser transport and DOM/style reuse are
 subsequent work; no cache hit path is enabled by these APIs.
+
+## Bounded native artifact storage and leases
+
+The existing `content_cache::ContentCache` now bounds its serialized native
+artifacts by entry count and charged bytes. Defaults are 64 owners and 32 MiB;
+`with_limits(ContentCacheLimits)` supplies positive explicit limits. `insert`
+returns `Result` and verifies format, body hash, dev/prod sidecar compatibility
+and the sidecar's hash before admission. Existing callers must handle rejection.
+Metadata encoding is independently capped at 1 MiB with a bounded writer.
+Payload vectors and deserialized metadata are compacted, so small values do not
+keep former oversized source-buffer capacity alive.
+
+Charges include exact compact payload length, encoded metadata/sidecars, duplicate
+lookup/recency key metadata and entry/key structural overhead. This is the store's
+logical ownership budget, not a process RSS or compilation-scratch limit. Processing
+admission still owns in-flight compilation, decoded trees, host allocations and
+allocator overhead. Unrelated native handle registries are not charged by this store.
+
+Successful `get` and `lease` requests promote LRU order. Admission plans all victims
+before removing any, evicts only unleased owners and rejects oversize or pinned
+pressure with `cem.cc.capacity`. Rejected admission leaves entries and recency
+intact; diagnostics change only bounded counters. Identical records deduplicate
+without adding charge. A different record/policy at a leased key is rejected with
+`cem.cc.cache_pinned` until all its leases release. Byte/count limits apply to all
+retained owners, including old generations still held by leases.
+
+`ContentCacheLease` shares one immutable owner and its optional sidecar. Cloning
+adds a pin, not another payload charge; the last release allows normal eviction.
+Every `artifact(current_policy)` / `sidecar(current_policy)` access checks live
+runtime generation and current policy. Sidecars are owned by their artifact,
+not an unbounded global table, and disappear when that owner is retired/released.
+The borrowed compatibility APIs cannot survive a mutable store operation; use a
+lease when ownership crosses that boundary. Lease values are immutable borrowed
+bytes; explicitly copied/reloaded values belong to the consumer's separate budget.
+
+`reset_runtime` advances the generation and clears resident lookup/recency state.
+Old leases immediately reject reads with `cem.cc.runtime_replaced`, but their
+bytes remain charged until release, including release from another native thread.
+Dropping the cache also invalidates outstanding leases. Async producers capture the opaque
+`runtime()` owner ticket **before** work and use `insert_for_runtime` and
+`lease_for_runtime`; late old-generation requests are rejected before admission
+or lookup, even if identical bytes are resident again. Tickets bind a weak native
+owner identity and generation; another cache at the same counter value cannot
+accept them, and tickets keep no store/payload owner alive. Numeric generations
+in stats are diagnostics, not admission credentials. Call reset when replacing
+the runtime; it is not inferred from portable content hashes. Publication still
+requires current source/resource freshness and the owner's revision admission.
+
+`stats()` exposes resident/retained owner counts, bytes, lease count, generation
+and saturating hit/miss/eviction/rejection/invalidation counters. Concurrent lease
+release can make separate counter samples nontransactional; there is no payload or
+history log. Real dev/prod compiled-template reload fixtures verify exact rendering,
+diagnostics and native source/output frames through this store. These native
+storage APIs do not yet enable dependency-to-artifact lookup in CLI/WASM/browser
+compilation consumers or bypass evaluation/resource/event lifecycles. That wiring
+must use the shared dependency identities and fresh context before enabling hits.

@@ -52,7 +52,7 @@ fn ac_cc_2_serialization_round_trips_and_cache_skips_parser() {
     assert_eq!(decoded, artifact);
 
     let mut cache = ContentCache::new();
-    cache.insert(decoded.clone(), sidecar);
+    cache.insert(decoded.clone(), sidecar).unwrap();
     let mut parser_enters = 0;
     let hit = cache
         .get(&decoded.key, &policy("root"))
@@ -74,7 +74,7 @@ fn ac_cc_3_policy_stamp_mismatch_rejects_cached_binary() {
         None,
     );
     let mut cache = ContentCache::new();
-    cache.insert(artifact.clone(), sidecar);
+    cache.insert(artifact.clone(), sidecar).unwrap();
     let err = cache.get(&artifact.key, &policy("strict")).unwrap_err();
     assert_eq!(err.code, "cem.cc.policy_mismatch");
 }

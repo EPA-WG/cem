@@ -182,41 +182,8 @@ impl CacheArtifact {
     }
 }
 
-#[derive(Debug, Default)]
-pub struct ContentCache {
-    artifacts: BTreeMap<CacheKey, CacheArtifact>,
-    sidecars: BTreeMap<ContentHash, SourceMapSidecar>,
-}
-
-impl ContentCache {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn insert(&mut self, artifact: CacheArtifact, sidecar: Option<SourceMapSidecar>) {
-        if let Some(sidecar) = sidecar {
-            self.sidecars.insert(sidecar.hash.clone(), sidecar);
-        }
-        self.artifacts.insert(artifact.key.clone(), artifact);
-    }
-
-    pub fn get(
-        &self,
-        key: &CacheKey,
-        active_policy: &PolicyStamps,
-    ) -> Result<&CacheArtifact, CacheError> {
-        let artifact = self.artifacts.get(key).ok_or(CacheError {
-            code: "cem.cc.cache_evicted",
-            message: "cache artifact is not present".into(),
-        })?;
-        artifact.validate_policy(active_policy)?;
-        Ok(artifact)
-    }
-
-    pub fn sidecar(&self, hash: &ContentHash) -> Option<&SourceMapSidecar> {
-        self.sidecars.get(hash)
-    }
-}
+mod retention;
+pub use retention::{ContentCache, ContentCacheLease, ContentCacheLimits, ContentCacheRuntime, ContentCacheStats};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CacheError {

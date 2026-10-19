@@ -1534,3 +1534,14 @@ identity. The API is currently opt-in and native-only: existing CLI/WASM/browser
 entrypoints still execute normally, with no new host protocol, cache hits, app-local
 JavaScript or Studio-specific cache. Bounded native cache consumers and browser
 admission wiring follow only after ownership/eviction and parity fixtures pass.
+
+The existing native `ContentCache` now supplies bounded, immutable leases for the
+serialized compiled artifacts (see [ownership and limits](../cem_ml/README.md#bounded-native-artifact-storage-and-leases)).
+Dev/prod fixtures reload genuine compiled-template bytes through leases and compare
+render plans, diagnostics and source/output frames with direct native reloads.
+Policy/source-context checks still apply, and runtime replacement rejects stale
+lease reads. The cache charges its serialized buffers; a consumer's separately
+reloaded native IR/stylesheet owners require processing admission. Production
+compilation still follows existing paths: dependency lookup, freshness and
+publication admission must be wired in the shared native/processing boundary
+before browser compile shortcuts are enabled.

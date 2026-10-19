@@ -1239,8 +1239,12 @@ and the opt-in [template compilation receipt](../packages/cem_ql/README.md#templ
 It includes complete source/import and context identities, explicit render/provider
 freshness axes and separate owner/runtime publication guards. Existing Studio and
 browser entrypoints still evaluate normally; no cache hits or retained DOM/style
-reuse are enabled. Bounded native cache consumers, admission wiring and DOM/style
-lifetime repair remain subsequent work.
+reuse are enabled. The shared native content-artifact store now provides count/byte
+limits, immutable leases, LRU eviction, sidecar ownership and opaque owner/runtime
+fences; retired live leases remain charged. Its [storage contract](../packages/cem_ml/README.md#bounded-native-artifact-storage-and-leases)
+covers serialized artifacts, with decoded/native processing allocations admitted
+separately. Checked dependency lookup in compilation consumers, WASM admission
+wiring and DOM/style lifetime repair remain subsequent work.
 
 Build choices include native graph, template, conversion and query configurations,
 plus live-view configurations. An ordinary CEM-ML document also gets a derived

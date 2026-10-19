@@ -525,6 +525,13 @@ portable keys from owner/runtime generations. See the
 [native identity contract](packages/cem_ml/README.md#native-dependency-identities)
 and [template receipt API](packages/cem_ql/README.md#template-compilation-dependency-receipts).
 
+The native content-artifact store now has count/byte limits, immutable leases,
+LRU eviction, sidecar ownership, atomic pinned-pressure rejection and generation-
+fenced lookup/admission. Live retired leases remain charged until release.
+Compiled-template dev/prod parity is verified through the store. Native/browser
+compilation consumers still need fresh dependency lookup and publication wiring;
+no browser shortcut or DOM/style reuse is enabled by the storage API alone.
+
 Extend the existing native template/artifact caches,
 bounded processing LRU and render-plan diff machinery; do not introduce a parallel
 JavaScript AST or a Studio-specific cache. Shared engine/`cem-elements` owns the
