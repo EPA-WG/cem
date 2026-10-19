@@ -1192,6 +1192,36 @@ deletion to free storage after an output-verification or version failure. Anothe
 project's key cannot read/delete a pin. Browser storage availability/eviction still follows the existing repository
 contract. Pins are local derived data, not portable source-project contents.
 
+With a current successful build retained, selecting a verified pin also exposes
+**Compare pin with current build**. The direction is pin → current. The sorted
+artifact inventory matches by output path and reports added, removed, changed or
+unchanged outputs, with separate exact SHA-256, media/length and native-provenance
+change flags. **Compare artifact** selects the detail independently of the preview
+artifact and source editor. Both sides show their complete digests and captured
+native source URI/range and output-range frames, including unchanged artifacts.
+An empty native frame list is reported without inferred lineage.
+
+**Compare input versions** matches captured inputs by stable resource ID and shows
+both paths, URIs, revisions and digests; rename remains a change to the same
+resource. Captured configuration (including its entry artifact) and engine
+identity are available separately. Portable object-key order and process-local
+source/handle/source-map IDs do not create false provenance changes. Frame order
+and multiplicity remain significant. Comparison describes captured runs, not
+causality, a text diff or a cache/reproducibility guarantee. It does not load
+another artifact byte tree, recreate native handles, navigate sources or save
+projects/drafts. Details render one artifact's bounded source frames at a time.
+
+Without a current run, a pin can still open offline; build the current saved
+project and reselect the pin to compare. Failed/cancelled/stale attempts do not
+replace the retained successful current run. Loading or failing to verify another
+pin suppresses comparison until a valid baseline is admitted. Returning to
+Current build, deleting the selected pin or leaving the project clears the
+comparison. Pins from another configuration in the same project may be compared;
+configuration differences are explicit. Historical input bytes are not pinned,
+so source frames remain descriptive and do not imply that the editor still holds
+the captured source version. Comparisons are ephemeral, with no archive/schema
+migration or persisted selection.
+
 Restored bytes use the same shared artifact-tree registry, passive preview policy
 and exact copy/download services. Relative links/CSS/images resolve within the
 pinned set; no source, network or newer build supplies missing assets. Switching,
@@ -1201,8 +1231,8 @@ transactions; closing during an asynchronous repository open cannot leave a new
 connection behind. Current and pinned artifact selections remain
 independent, including when unsaved drafts are present. Expanded pin/entry
 controls scroll within their own bounded toolbar, without covering the output
-region or intercepting preview links. Comparisons and native
-build/render cache reuse remain subsequent work.
+region or intercepting preview links. Conservative native build/render cache
+reuse remains subsequent work.
 
 Build choices include native graph, template, conversion and query configurations,
 plus live-view configurations. An ordinary CEM-ML document also gets a derived

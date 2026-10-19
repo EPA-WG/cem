@@ -8,6 +8,8 @@ import {
     normalizeRepositoryError,
 } from './repository.js';
 
+import { compareCemStudioBuildRuns } from './build-snapshots.js';
+
 const repositories = [];
 
 afterEach(async () => {
@@ -17,6 +19,58 @@ afterEach(async () => {
 });
 
 describe('CemStudioIndexedDbRepository', () => {
+    it('compares admitted manifests by path and stable input identity without reading artifact bytes', async () => {
+        const { run: before } = await pinnedBuild();
+        const model = before.artifacts[0];
+        before.artifacts = ['removed', 'binary', 'metadata', 'origin', 'stable'].map(path => ({ ...structuredClone(model), path,
+            contentType: path === 'binary' ? 'application/octet-stream' : 'text/plain' }));
+        const after = structuredClone(before); after.id = 'next-run'; after.projectRevision++;
+        after.artifacts = after.artifacts.filter(item => item.path !== 'removed').reverse();
+        after.artifacts.push({ ...model, path: 'added' });
+        after.artifacts.find(item => item.path === 'binary').sha256 = 'c'.repeat(64);
+        after.artifacts.find(item => item.path === 'metadata').contentType = 'text/markdown';
+        after.artifacts.find(item => item.path === 'origin').provenance[0].range.end++;
+        // Runtime identities do not describe a source location or byte change.
+        after.artifacts.find(item => item.path === 'stable').provenance[0].sourceId = 999;
+        after.artifacts.find(item => item.path === 'stable').sourceMaps = [{ sourceMapId: 'new-process-map' }];
+        after.inputs[0] = { ...after.inputs[0], path: 'renamed.cem', revision: 2, sha256: 'd'.repeat(64) };
+        before.inputs.push({ ...before.inputs[0], resourceId: 'removed-input' });
+        after.inputs.push({ ...after.inputs[0], resourceId: 'added-input' });
+        after.configuration.revision++; after.configuration.sha256 = 'e'.repeat(64);
+        after.configuration.entryArtifact = 'added'; after.executionIdentity.engineVersion = 'test-native-2';
+        const original = structuredClone(before), result = compareCemStudioBuildRuns(before, after);
+        expect(result.counts).toEqual({ added: 1, removed: 1, changed: 3, unchanged: 1 });
+        expect(result.artifacts.map(item => [item.path, item.status])).toEqual([
+            ['added', 'added'], ['binary', 'changed'], ['metadata', 'changed'], ['origin', 'changed'], ['removed', 'removed'], ['stable', 'unchanged']]);
+        expect(result.artifacts.find(item => item.path === 'binary')).toMatchObject({ bytesChanged: true, metadataChanged: false, provenanceChanged: false });
+        expect(result.artifacts.find(item => item.path === 'metadata')).toMatchObject({ bytesChanged: false, metadataChanged: true, provenanceChanged: false });
+        expect(result.artifacts.find(item => item.path === 'origin')).toMatchObject({ bytesChanged: false, metadataChanged: false, provenanceChanged: true });
+        expect(result.inputs.map(item => [item.resourceId, item.status])).toEqual([['added-input', 'added'], ['removed-input', 'removed'], ['tour-source', 'changed']]);
+        expect(result.inputs[2].before.path).toBe('data/tour.cem'); expect(result.inputs[2].after.path).toBe('renamed.cem');
+        expect(result.configurationChanged).toBe(true); expect(result.executionIdentityChanged).toBe(true);
+        expect(before).toEqual(original); expect(result.artifacts[0].before).toBeUndefined();
+        expect(result.artifacts[4].after).toBeUndefined();
+        expect(JSON.stringify(result)).not.toContain('sourceMapId');
+        expect(JSON.stringify(result)).not.toContain('handleId');
+    });
+
+    it('ignores portable object key order and rejects cross-project, failed and ambiguous comparison manifests', async () => {
+        const { run } = await pinnedBuild();
+        const reorder = value => Array.isArray(value) ? value.map(reorder) : value && typeof value === 'object'
+            ? Object.fromEntries(Object.keys(value).reverse().map(key => [key, reorder(value[key])])) : value;
+        const other = reorder(run); other.id = 'another-request';
+        const same = compareCemStudioBuildRuns(run, other);
+        expect(same.counts).toEqual({ added: 0, removed: 0, changed: 0, unchanged: 2 });
+        expect(same.configurationChanged).toBe(false); expect(same.executionIdentityChanged).toBe(false);
+        expect(same.inputs.every(input => input.status === 'unchanged')).toBe(true);
+        for (const patch of [{ projectId: 'other' }, { projectRootUri: 'studio://other/' }, { status: 'failed' },
+            { artifacts: [run.artifacts[0], run.artifacts[0]] },
+            { artifacts: Array.from({ length: 129 }, (_, i) => ({ ...run.artifacts[0], path: String(i) })) }, { inputs: [run.inputs[0], run.inputs[0]] },
+            { inputs: Array.from({ length: 130 }, (_, i) => ({ ...run.inputs[0], resourceId: String(i) })) }]) {
+            expect(() => compareCemStudioBuildRuns(run, { ...run, ...patch })).toThrow();
+        }
+    });
+
     it('persists exact pinned builds across reopen without changing sources, and scopes reads and deletion', async () => {
         const repository = createRepository();
         const bundle = await projectBundle('saved draft-independent source');

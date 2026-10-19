@@ -39,6 +39,59 @@
        {cem:if @test=project.pinBusy | {p @role=status | Opening or saving pinned build…}}
        {cem:if @test=project.pinError | {cem-alert @label={project.pinError.message} @tone=danger}}
        {cem:if @test=project.pinMessage | {cem-alert @label={project.pinMessage} @tone=info}}
+       {cem:if @test=project.comparison |
+        {cem:variable @name=comparison @select=project.comparison}
+        {cem-expansion @label="Compare pin with current build" |
+         {cem-stack @gap=sm |
+          {p | Pin → current build. Compares captured successful runs; unsaved edits and failed attempts are excluded. Source locations describe native provenance, not a claim about what caused a change.}
+          {p | {$ | str:concat(("Pinned run ", comparison.baselineRunId, " · project revision ", comparison.baselineProjectRevision, " → current run ", comparison.currentRunId, " · project revision ", comparison.currentProjectRevision), "")}}
+          {p @role=status | {$ | str:concat((comparison.counts.added, " added · ", comparison.counts.removed, " removed · ", comparison.counts.changed, " changed · ", comparison.counts.unchanged, " unchanged artifacts"), "")}}
+          {cem-expansion @label="Captured configuration and engine versions" |
+           {p | {$ | str:concat(("Configuration changed: ", comparison.configurationChanged, " · engine identity changed: ", comparison.executionIdentityChanged), "")}}
+           {p | Pinned configuration: {code | {$ | comparison.baselineConfiguration}}}
+           {p | Current configuration: {code | {$ | comparison.currentConfiguration}}}
+           {p | Pinned engine: {code | {$ | comparison.baselineExecutionIdentity}}}
+           {p | Current engine: {code | {$ | comparison.currentExecutionIdentity}}}
+          }
+          {cem-expansion @label="Compare input versions" |
+           {ul @aria-label="Input version comparison" |
+            {cem:for-each @as=input @select=comparison.inputs |
+             {li | {$ | str:concat((input.status, " · ", input.resourceId), "")}
+              {p | Pinned: {code | {$ | input.before}}}
+              {p | Current: {code | {$ | input.after}}}
+             }
+            }
+           }
+          }
+          {ul @aria-label="Artifact comparison" |
+           {cem:for-each @as=artifact @select=comparison.artifacts | {li | {$ | str:concat((artifact.status, " · ", artifact.path), "")}}}
+          }
+          {cem-select @label="Compare artifact" @value={comparison.selectedArtifact.path} @host-command=select-comparison-artifact @host-command-event=change |
+           {cem:for-each @as=artifact @select=comparison.artifacts | {option @value={artifact.path} | {$ | artifact.path}}}
+          }
+          {cem:variable @name=artifact @select=comparison.selectedArtifact}
+          {p | {$ | str:concat((artifact.status, " · ", artifact.path, " · bytes changed: ", artifact.bytesChanged, " · media/length changed: ", artifact.metadataChanged, " · native provenance changed: ", artifact.provenanceChanged), "")}}
+          {cem:choose |
+           {cem:when @test=artifact.before | {p | Pinned: {$ | str:concat((artifact.before.contentType, " · ", artifact.before.byteLength, " bytes · SHA-256 ", artifact.before.sha256), "")}}}
+           {cem:otherwise | {p | Pinned: absent}}
+          }
+          {cem:choose |
+           {cem:when @test=artifact.after | {p | Current: {$ | str:concat((artifact.after.contentType, " · ", artifact.after.byteLength, " bytes · SHA-256 ", artifact.after.sha256), "")}}}
+           {cem:otherwise | {p | Current: absent}}
+          }
+          {p | Pinned native source locations}
+          {ul @aria-label="Pinned native provenance" |
+           {cem:for-each @as=frame @select=artifact.before.provenance | {li | {$ | str:concat((frame.uri, " · ", frame.transform, " · source bytes ", frame.range, " · output bytes ", frame.outputRange), "")}}}
+          }
+          {p | Current native source locations}
+          {ul @aria-label="Current native provenance" |
+           {cem:for-each @as=frame @select=artifact.after.provenance | {li | {$ | str:concat((frame.uri, " · ", frame.transform, " · source bytes ", frame.range, " · output bytes ", frame.outputRange), "")}}}
+          }
+          {p | Empty source-location lists mean no native source frames were captured. Historical source bytes are not stored in pins.}
+         }
+        }
+       }
+       {cem:if @test='project.pinId &amp;&amp; !project.comparison' | {p | Build a current run of this project, then select the pin again to compare captured artifacts and provenance.}}
        {cem:if @test=project.pinId |
         {cem-expansion @label="Pinned build metadata" |
          {cem-stack @gap=sm |

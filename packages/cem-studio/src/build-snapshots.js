@@ -116,3 +116,41 @@ export function openCemStudioBuildSnapshot(record) {
         dispose() { disposed = true; },
     };
 }
+
+// Canonicalize portable controls, never artifact bodies or native runtime objects.
+const controlKey = value => JSON.stringify(value, (_key, item) => item && typeof item === 'object' && !Array.isArray(item)
+    ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]])) : item);
+const differs = (before, after) => controlKey(before) !== controlKey(after);
+const artifactOrigin = artifact => artifact?.provenance.map(({ uri, transform, range, outputRange }) => ({ uri, transform, range, outputRange }));
+
+/** Compare already admitted manifests. Pin verification remains the repository boundary. */
+export function compareCemStudioBuildRuns(baseline, current) {
+    if (baseline.projectId !== current.projectId || baseline.projectRootUri !== current.projectRootUri
+        || baseline.status !== 'succeeded' || current.status !== 'succeeded') invalid('Comparison requires successful builds of the same project.');
+    const pairs = (before, after, key, limit) => {
+        if (before.length > limit || after.length > limit || new Set(before.map(key)).size !== before.length || new Set(after.map(key)).size !== after.length)
+            invalid('Comparison manifests exceed bounds or contain ambiguous identities.');
+        const left = new Map(before.map(item => [key(item), item])), right = new Map(after.map(item => [key(item), item]));
+        return [...new Set([...left.keys(), ...right.keys()])].sort().map(id => ({ id, before: left.get(id), after: right.get(id) }));
+    };
+    const artifacts = pairs(baseline.artifacts, current.artifacts, item => item.path, CEM_STUDIO_PIN_LIMITS.artifactCount).map(({ id: path, before, after }) => {
+        const bytesChanged = Boolean(before && after && before.sha256 !== after.sha256);
+        const metadataChanged = Boolean(before && after && (before.contentType !== after.contentType || before.byteLength !== after.byteLength));
+        // Request/source-map/handle IDs are process-local. Compare native source locations,
+        // transforms and output ranges, preserving their native order and multiplicity.
+        const provenanceChanged = Boolean(before && after && differs(artifactOrigin(before), artifactOrigin(after)));
+        const status = !before ? 'added' : !after ? 'removed' : bytesChanged || metadataChanged || provenanceChanged ? 'changed' : 'unchanged';
+        const side = item => item && ({ sha256: item.sha256, byteLength: item.byteLength, contentType: item.contentType,
+            provenance: artifactOrigin(item) });
+        return { path, status, bytesChanged, metadataChanged, provenanceChanged, before: side(before), after: side(after) };
+    });
+    const inputs = pairs(baseline.inputs, current.inputs, item => item.resourceId, 129).map(({ id: resourceId, before, after }) => ({ resourceId,
+        status: !before ? 'added' : !after ? 'removed' : differs(before, after) ? 'changed' : 'unchanged', before, after }));
+    return { baselineRunId: baseline.id, currentRunId: current.id,
+        baselineProjectRevision: baseline.projectRevision, currentProjectRevision: current.projectRevision,
+        configurationChanged: differs(baseline.configuration, current.configuration),
+        baselineConfiguration: baseline.configuration, currentConfiguration: current.configuration,
+        executionIdentityChanged: differs(baseline.executionIdentity, current.executionIdentity),
+        baselineExecutionIdentity: baseline.executionIdentity, currentExecutionIdentity: current.executionIdentity,
+        artifacts, inputs, counts: Object.fromEntries(['added', 'removed', 'changed', 'unchanged'].map(status => [status, artifacts.filter(item => item.status === status).length])) };
+}

@@ -211,6 +211,27 @@ describe('CEM Studio Feature Tour workbench', () => {
             pinSelect.value = pinId; pinSelect.dispatchEvent(new Event('change', { bubbles: true })); await view.whenSettled();
             expect(preview().pinError).toBeUndefined(); expect(preview().pinId).toBe(pinId);
             expect(preview().currentRunId).toBe(current.buildRun.id);
+            const comparison = preview().comparison;
+            expect(comparison.baselineRunId).toBe(pinnedRun.id); expect(comparison.currentRunId).toBe(current.buildRun.id);
+            expect(comparison.counts).toEqual({ added: 0, removed: 0, changed: 1, unchanged: 6 });
+            const comparedArticle = comparison.artifacts.find(item => item.path === 'generated/articles/first-build.html');
+            expect(comparedArticle.bytesChanged).toBe(true);
+            expect(comparedArticle.before.sha256).toBe(pinnedRun.artifacts.find(item => item.path === comparedArticle.path).sha256);
+            expect(comparedArticle.after.sha256).toBe(current.buildRun.artifacts.find(item => item.path === comparedArticle.path).sha256);
+            expect(comparedArticle.before.provenance.some(frame => frame.uri.endsWith('/content/articles/first-build.md'))).toBe(true);
+            expect(comparedArticle.after.provenance.some(frame => frame.uri.endsWith('/layouts/partials/chrome.cemt'))).toBe(true);
+            expect(comparison.inputs.find(item => item.resourceId === articleId).status).toBe('changed');
+            root.querySelector('cem-expansion[label="Compare pin with current build"] [part="header"]').click(); await view.whenSettled();
+            expect(root.querySelector('[aria-label="Artifact comparison"]').textContent).toContain('changed · generated/articles/first-build.html');
+            expect(root.querySelector('[aria-label="Pinned native provenance"]').textContent).toContain('/content/articles/first-build.md');
+            expect(root.querySelector('[aria-label="Current native provenance"]').textContent).toContain('/layouts/partials/chrome.cemt');
+            expect(root.querySelector('cem-expansion[label="Compare pin with current build"]').textContent).toContain(comparedArticle.before.sha256);
+            expect(root.querySelector('cem-expansion[label="Compare pin with current build"]').textContent).toContain(comparedArticle.after.sha256);
+            selectValue(root, '[label="Compare artifact"]', 'generated/images/harbor.svg'); await view.whenSettled();
+            expect(root.querySelector('cem-select[label="Compare artifact"]').value).toBe('generated/images/harbor.svg');
+            expect(preview().comparison).toBe(comparison); expect(preview().artifactPath).toBe('generated/index.html');
+            selectValue(root, '[label="Compare artifact"]', comparedArticle.path); await view.whenSettled();
+
             expect(preview().projection.outputs.map(item => new Uint8Array(item.bytes))).toEqual(pinnedBytes);
             expect(preview().projection.buildRun.inputs).toEqual(pinnedRun.inputs);
             expect(preview().projection.buildRun.artifacts.map(item => item.provenance)).toEqual(pinnedRun.artifacts.map(item => item.provenance));
@@ -231,6 +252,7 @@ describe('CEM Studio Feature Tour workbench', () => {
             reopen.setContext({ key: `project=${copyId}`, project: storedProject });
             await vi.waitFor(() => expect(reopen.snapshot().pins).toHaveLength(1));
             await reopen.selectPin(pinId);
+            expect(reopen.snapshot().comparison).toBeUndefined();
             expect(reopen.snapshot().pinId).toBe(pinId); expect(reopen.snapshot().attempt).toBeUndefined();
             expect(reopen.snapshot().projection.outputs.map(item => new Uint8Array(item.bytes))).toEqual(pinnedBytes);
             reopen.dispose();
@@ -245,7 +267,7 @@ describe('CEM Studio Feature Tour workbench', () => {
             expect(delayed.snapshot().pinId).toBeUndefined(); expect(delayed.snapshot().projection).toBeUndefined();
             const lateCopy = deferred(), copying = workbench.copyPreview(() => lateCopy.promise);
             await workbench.selectPinnedBuild(''); lateCopy.resolve(); await copying; await view.whenSettled();
-            expect(preview().projection).toBe(current); expect(workbench.snapshot().draft).toBe(draft);
+            expect(preview().projection).toBe(current); expect(preview().comparison).toBeUndefined(); expect(workbench.snapshot().draft).toBe(draft);
             await workbench.selectPinnedBuild(pinId); await view.whenSettled();
             const deleteButton = [...root.querySelectorAll('cem-action')].find(action => action.textContent.trim() === 'Delete pinned build');
             deleteButton.querySelector('button').click(); await view.whenSettled();
@@ -260,6 +282,7 @@ describe('CEM Studio Feature Tour workbench', () => {
                 transaction.oncomplete = resolve; transaction.onabort = () => reject(transaction.error);
             });
             await workbench.selectPinnedBuild(damagedId); await view.whenSettled();
+            expect(preview().comparison).toBeUndefined();
             expect(preview().pinError.message).toContain('SHA-256'); expect(preview().pinSelection).toBe(damagedId);
             expect(preview().pinId).toBeUndefined(); expect(preview().projection).toBe(current);
             const damagedDelete = [...root.querySelectorAll('cem-action')].find(action => action.textContent.trim() === 'Delete pinned build');

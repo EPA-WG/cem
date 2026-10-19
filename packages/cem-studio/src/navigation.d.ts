@@ -1,4 +1,4 @@
-import type { CemStudioBuildSnapshotSummary, CemStudioPinnedBuildProjection } from './build-snapshots.js';
+import type { CemStudioBuildComparison, CemStudioBuildSnapshotSummary, CemStudioPinnedBuildProjection } from './build-snapshots.js';
 import type { CemStudioFeatureTourWorkbench, CemStudioWorkbenchState } from './workbench.js';
 import type { CemStudioIndexedDbRepository } from './repository.js';
 import type { CemStudioExampleProject } from './file-system-provider.js';
@@ -13,6 +13,8 @@ export interface CemStudioProjectPreviewState {
     readonly pinError?: { readonly message: string };
     readonly pinMessage?: string;
     readonly canPin: boolean;
+    readonly comparison?: CemStudioBuildComparison;
+    readonly comparisonArtifactPath?: string;
     readonly currentRunId?: string;
     readonly currentArtifactPath?: string;
     readonly projectId?: string;
@@ -78,6 +80,7 @@ export interface CemStudioNavigation extends CemStudioFeatureTourWorkbench {
     pinProjectBuild(): Promise<void>;
     selectPinnedBuild(key: string): Promise<void>;
     deletePinnedBuild(): Promise<void>;
+    selectComparisonArtifact(path: string): void;
     saveBuildEntryArtifact(path: string): Promise<void>;
     buildProjectPreview(): Promise<void>;
     cancelProjectPreview(): void;
@@ -108,6 +111,7 @@ export function createCemStudioProjectPreview(options: {
     pin(): Promise<void>;
     selectPin(key: string): Promise<void>;
     deletePin(): Promise<void>;
+    selectComparisonArtifact(path: string): void;
     refreshPins(): Promise<void>;
     build(): Promise<void>;
     cancel(): void;

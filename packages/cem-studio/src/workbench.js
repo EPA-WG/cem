@@ -1892,6 +1892,7 @@ export async function mountCemStudioWorkbench({
             'select-pinned-build': ({ value }) => perform(() => workbench.selectPinnedBuild(value)),
             'delete-pinned-build': () => perform(() => workbench.deletePinnedBuild()),
             'select-build': ({ value }) => workbench.selectPreviewConfiguration(value),
+            'select-comparison-artifact': ({ value }) => workbench.selectComparisonArtifact(value),
             'select-preview-artifact': ({ value }) => workbench.selectPreviewArtifact(value),
             'save-build-entry': ({ fields }) => perform(() => workbench.saveBuildEntryArtifact(fields.entryArtifact?.[0] ?? '')),
             'build-project': () => { buildPromise = workbench.buildProjectPreview(); return buildPromise; },
@@ -2741,12 +2742,28 @@ function workbenchToolsState(state) {
         command: { status: state.command?.status, application: { status: state.command?.application?.status } } };
 }
 
+// Human-readable serialization of bounded control records; XHTML owns all layout.
+function buildComparisonState(comparison, path) {
+    if (!comparison) return undefined;
+    const text = value => value === undefined ? 'Absent' : JSON.stringify(value);
+    const side = value => value && { ...value, provenance: value.provenance.map(frame => ({
+        uri: frame.uri, transform: frame.transform, range: text(frame.range), outputRange: text(frame.outputRange) })) };
+    const selected = comparison.artifacts.find(item => item.path === path)
+        ?? comparison.artifacts.find(item => item.status !== 'unchanged') ?? comparison.artifacts[0];
+    return { ...comparison, selectedArtifact: selected && { ...selected, before: side(selected.before), after: side(selected.after) },
+        baselineConfiguration: text(comparison.baselineConfiguration), currentConfiguration: text(comparison.currentConfiguration),
+        baselineExecutionIdentity: text(comparison.baselineExecutionIdentity), currentExecutionIdentity: text(comparison.currentExecutionIdentity),
+        inputs: comparison.inputs.map(item => ({ ...item, before: text(item.before), after: text(item.after) })),
+        artifacts: comparison.artifacts.map(({ path, status }) => ({ path, status })) };
+}
+
 function workbenchPreviewState(state) {
     const project = state.projectPreview;
     const projection = project ? project.selectedArtifact ? project.projection : undefined : state.projection;
     return { projection: projection && { preview: project?.preview ?? projection.preview,
         output: projection.output && { available: projection.output.available } },
         projectPreview: project && { projectId: project.projectId, configurations: project.configurations, configurationId: project.configurationId,
+            comparison: buildComparisonState(project.comparison, project.comparisonArtifactPath),
             pins: project.pins, pinId: project.pinId, pinSelection: project.pinSelection, pinBusy: project.pinBusy, pinError: project.pinError, pinMessage: project.pinMessage, canPin: project.canPin,
             pinnedConfiguration: project.pinId ? project.projection?.buildRun.configuration : undefined,
             pinnedInputs: project.pinId ? project.projection?.buildRun.inputs : undefined,

@@ -9,7 +9,7 @@ export async function verifyMarkdownSite({ page, context, url }) {
         const snapshot = globalThis.__cemStudioApplication.workbench.snapshot();
         const preview = snapshot.projectPreview;
         return { projectId: snapshot.navigation.selection.project, file: snapshot.navigation.selection.file,
-            pinId: preview.pinId, pinError: preview.pinError, pins: preview.pins, status: preview.attempt?.status, entryArtifact: preview.entryArtifact, entryError: preview.entryError?.message, diagnostics: preview.attempt?.diagnostics?.map(item => item.code),
+            comparison: preview.comparison, pinId: preview.pinId, pinError: preview.pinError, pins: preview.pins, status: preview.attempt?.status, entryArtifact: preview.entryArtifact, entryError: preview.entryError?.message, diagnostics: preview.attempt?.diagnostics?.map(item => item.code),
             runId: preview.projection?.buildRun.id, artifact: preview.artifactPath,
             artifacts: preview.projection?.buildRun.artifacts.map(item => ({ path: item.path, sha256: item.sha256 })),
             html: preview.projection?.output.text };
@@ -151,10 +151,30 @@ export async function verifyMarkdownSite({ page, context, url }) {
         const current = await state();
         await choosePin(pinned.pins[0].name);
         assert.deepEqual((await state()).artifacts, pinned.artifacts);
+        const comparison = (await state()).comparison;
+        assert.equal(comparison.baselineRunId, pinned.runId); assert.equal(comparison.currentRunId, current.runId);
+        assert.deepEqual(comparison.counts, { added: 0, removed: 0, changed: 1, unchanged: 6 });
+        await click('Compare pin with current build');
+        assert.match(await page.getByRole('list', { name: 'Artifact comparison', exact: true }).innerText(), /changed · generated\/articles\/first-build.html/);
+        assert.match(await page.getByRole('list', { name: 'Pinned native provenance', exact: true }).innerText(), /content\/articles\/first-build.md/);
+        assert.match(await page.getByRole('list', { name: 'Current native provenance', exact: true }).innerText(), /layouts\/partials\/chrome.cemt/);
+        await page.emulateMedia({ forcedColors: 'active' });
+        await page.getByRole('combobox', { name: 'Compare artifact', exact: true }).click();
+        await page.getByRole('option', { name: 'generated/images/harbor.svg', exact: true }).click(); await settle();
+        assert.equal((await state()).artifact, 'generated/index.html');
+        assert.equal((await state()).file, article);
+        const comparisonLayout = await page.locator('cem-studio-workbench-preview').evaluate(element => {
+            const toolbar = element.querySelector('[part="build-controls"]'), preview = element.querySelector('[part="preview"]');
+            return { overflow: getComputedStyle(toolbar).overflowY, clear: preview.getBoundingClientRect().top >= toolbar.getBoundingClientRect().bottom };
+        });
+        assert.deepEqual(comparisonLayout, { overflow: 'auto', clear: true });
+        await page.emulateMedia({ forcedColors: 'none' });
+
         await click('Delete pinned build');
+        assert.equal((await state()).comparison, undefined);
         assert.equal((await state()).pinId, undefined); assert.equal((await state()).runId, current.runId);
         assert.deepEqual((await state()).artifacts, current.artifacts); assert.equal((await state()).pins.length, 0);
     } finally { await context.setOffline(false); }
     console.log('[cem-studio:markdown-site] portable independent copy and offline rebuild passed');
-    return { outputs: 7, relativeNavigation: true, staticAssets: true, editRepair: true, sharedLayout: true, provenance: true, portableCopies: true, entryArtifact: true, pinnedSnapshots: true, offline: true };
+    return { outputs: 7, relativeNavigation: true, staticAssets: true, editRepair: true, sharedLayout: true, provenance: true, portableCopies: true, entryArtifact: true, pinnedSnapshots: true, buildComparison: true, offline: true };
 }

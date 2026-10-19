@@ -43,3 +43,41 @@ export function openCemStudioBuildSnapshot(record: CemStudioStoredBuildSnapshot)
     downloadProjection(save?: (file: { filename: string; contentType: string; bytes: Uint8Array }) => Promise<void>): Promise<void>;
     dispose(): void;
 };
+
+export type CemStudioBuildComparisonStatus = 'added' | 'removed' | 'changed' | 'unchanged';
+export interface CemStudioBuildComparison {
+    readonly baselineRunId: string;
+    readonly currentRunId: string;
+    readonly baselineProjectRevision: number;
+    readonly currentProjectRevision: number;
+    readonly configurationChanged: boolean;
+    readonly baselineConfiguration: CemStudioBuildRun['configuration'];
+    readonly currentConfiguration: CemStudioBuildRun['configuration'];
+    readonly executionIdentityChanged: boolean;
+    readonly baselineExecutionIdentity: CemStudioBuildRun['executionIdentity'];
+    readonly currentExecutionIdentity: CemStudioBuildRun['executionIdentity'];
+    readonly counts: Readonly<Record<CemStudioBuildComparisonStatus, number>>;
+    readonly artifacts: readonly {
+        readonly path: string;
+        readonly status: CemStudioBuildComparisonStatus;
+        readonly bytesChanged: boolean;
+        readonly metadataChanged: boolean;
+        readonly provenanceChanged: boolean;
+        readonly before?: CemStudioComparedArtifact;
+        readonly after?: CemStudioComparedArtifact;
+    }[];
+    readonly inputs: readonly {
+        readonly resourceId: string;
+        readonly status: CemStudioBuildComparisonStatus;
+        readonly before?: CemStudioBuildRun['inputs'][number];
+        readonly after?: CemStudioBuildRun['inputs'][number];
+    }[];
+}
+export interface CemStudioComparedArtifact {
+    readonly sha256: string;
+    readonly byteLength: number;
+    readonly contentType: string;
+    readonly provenance: readonly Readonly<Record<string, unknown>>[];
+}
+/** Inputs must be admitted, byte-verified successful manifests. Does not load outputs. */
+export function compareCemStudioBuildRuns(baseline: CemStudioBuildRun, current: CemStudioBuildRun): CemStudioBuildComparison;

@@ -1,4 +1,4 @@
-import { captureCemStudioBuildSnapshot, openCemStudioBuildSnapshot } from './build-snapshots.js';
+import { captureCemStudioBuildSnapshot, openCemStudioBuildSnapshot, compareCemStudioBuildRuns } from './build-snapshots.js';
 import { CEM_STUDIO_REPOSITORY_ID } from './repository.js';
 import { createCemStudioProjectWorkbench, createCemStudioWorkbench } from './workbench.js';
 import { projectResourceUri } from './resource-reference.js';
@@ -202,6 +202,7 @@ export async function createCemStudioNavigation({ workbench, repository, example
         pinProjectBuild() { return preview.pin(); },
         selectPinnedBuild(key) { return preview.selectPin(key); },
         deletePinnedBuild() { return preview.deletePin(); },
+        selectComparisonArtifact(path) { preview.selectComparisonArtifact(path); },
         async saveBuildEntryArtifact(path) {
             if (!snapshot().projectPreview?.canEditEntry) return;
             await workbench.editStructure({ kind: 'set-entry-artifact', id: preview.snapshot().configurationId, entryArtifact: path });
@@ -282,7 +283,15 @@ export function createCemStudioProjectPreview({ repository, validator, openBuild
     const subscribers = new Set();
     let context, configurationId, artifactPath, explicitArtifact = false, success, successStamp, artifactTree, attempt, active, source, disposed = false, generation = 0;
     let pins = [], pinId, pinSelection, pinned, pinnedTree, pinnedPath, pinBusy = false, pinError, pinMessage, pinVersion = 0, pinListVersion = 0, pinListController, pinReadController;
+    let comparisonCache, comparisonArtifactPath;
     const viewed = () => pinned ?? success;
+    const comparison = () => {
+        const baseline = pinned?.snapshot().projection.buildRun, current = success?.snapshot().projection.buildRun;
+        if (!baseline || !current || pinSelection !== pinId || pinBusy || pinError) { comparisonCache = undefined; return undefined; }
+        if (comparisonCache?.baseline !== baseline || comparisonCache?.current !== current)
+            comparisonCache = { baseline, current, value: compareCemStudioBuildRuns(baseline, current) };
+        return comparisonCache.value;
+    };
     const selectedPath = () => artifactPath?.split(/[?#]/)[0];
     const treeFor = projection => {
         const artifacts = projection.buildRun.artifacts.filter(item => !/^[a-z][\w+.-]*:/i.test(item.path)).map(item => ({
@@ -290,6 +299,7 @@ export function createCemStudioProjectPreview({ repository, validator, openBuild
         return artifacts.length ? registerCemArtifactTree(artifacts) : undefined;
     };
     function closePin() {
+        comparisonCache = undefined; comparisonArtifactPath = undefined;
         ++pinVersion; pinReadController?.abort(); pinned?.dispose(); pinnedTree?.dispose(); pinned = undefined; pinnedTree = undefined;
         pinId = undefined; pinSelection = undefined; pinnedPath = undefined; pinBusy = false;
     }
@@ -394,7 +404,7 @@ export function createCemStudioProjectPreview({ repository, validator, openBuild
             || !context.bundle && source?.projectId === context.project.id && (source.dirty && inputs.some(input => input.resourceId === source.resourceId)
             || source.entryId === configurationId && source.command?.draftText !== source.command?.current?.text)));
         return Object.freeze({ projectId: context?.project.id, contextKey: context?.key, configurations, configurationId, artifactPath: path, currentArtifactPath: artifactPath,
-            pins, pinId, pinSelection, pinBusy, pinError, pinMessage, canPin: Boolean(success && !pinSelection && !active && !pinBusy), currentRunId: success?.snapshot().projection?.buildRun.id,
+            comparison: comparison(), comparisonArtifactPath, pins, pinId, pinSelection, pinBusy, pinError, pinMessage, canPin: Boolean(success && !pinSelection && !active && !pinBusy), currentRunId: success?.snapshot().projection?.buildRun.id,
             entryArtifact: configurations.find(item => item.id === configurationId)?.entryArtifact,
             available, busy: Boolean(active), attempt, projection, stale,
             preview: artifact && tree && !/^[a-z][\w+.-]*:/i.test(artifact.path) && ['text/html', 'application/xhtml+xml'].includes(artifact.contentType.split(';')[0]) && projection.preview?.kind === 'sandboxed-html'
@@ -506,6 +516,9 @@ export function createCemStudioProjectPreview({ repository, validator, openBuild
             const artifact = viewed()?.snapshot().projection?.buildRun.artifacts.find(item => item.path === path || item.path === path?.split(/[?#]/)[0]);
             if (artifact) viewed().selectArtifact(artifact.id);
             publish();
+        },
+        selectComparisonArtifact(path) {
+            if (comparison()?.artifacts.some(item => item.path === path)) { comparisonArtifactPath = path; publish(); }
         },
         async copy(writeText) { if (snapshot().selectedArtifact) { await viewed().copyProjection(writeText); publish(); } },
         async download(save) { if (snapshot().selectedArtifact) { await viewed().downloadProjection(save); publish(); } },
