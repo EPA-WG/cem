@@ -61,6 +61,47 @@ export const NativeEditing = meta.story({
     },
 });
 
+export const TrailingNewlines = meta.story({
+    parameters: { docs: { description: { story: 'Browser-runner-only: terminal caret placeholders must not enter source values after Enter, paste or rendering updates.' } } },
+    render: () => '<cem-source-editor value="one"></cem-source-editor>',
+    play: async ({ canvasElement }) => {
+        if (import.meta.env.MODE !== 'test') return;
+        const { userEvent } = await import('vitest/browser');
+        const host = canvasElement.querySelector('cem-source-editor') as Editor;
+        await whenCemRendered(host);
+        const control = editor(host);
+        control.focus(); control.setSelectionRange(3, 3);
+        await userEvent.keyboard('{Enter}');
+        expect(host.value, control.innerHTML).toBe('one\n');
+        await userEvent.keyboard('{Enter}');
+        expect(host.value, control.innerHTML).toBe('one\n\n');
+        expect(control.selectionStart).toBe(host.value.length);
+        host.setAttribute('label', 'Build status changed'); await whenCemRendered(host);
+        expect(host.value).toBe('one\n\n');
+        expect(editor(host)).toBe(control);
+        expect(control.selectionStart).toBe(host.value.length);
+        await userEvent.keyboard('{Control>}z{/Control}');
+        expect(host.value).not.toBe('one\n\n');
+        await userEvent.keyboard('{Control>}y{/Control}');
+        expect(host.value).toBe('one\n\n');
+        const clipboard = document.createElement('textarea'); canvasElement.append(clipboard);
+        for (const suffix of ['tail\n', 'tail\n\n', '\n', '\n\n']) {
+            host.value = 'prefix'; clipboard.value = suffix;
+            clipboard.focus(); clipboard.select(); await userEvent.copy();
+            control.focus(); control.setSelectionRange(6, 6); await userEvent.paste();
+            expect(host.value, control.innerHTML).toBe(`prefix${suffix}`);
+            host.setAttribute('label', `Updated ${suffix.length}`); await whenCemRendered(host);
+            expect(host.value).toBe(`prefix${suffix}`);
+        }
+        clipboard.remove();
+        host.value = ''; control.focus(); control.setSelectionRange(0, 0);
+        await userEvent.keyboard('{Enter}'); expect(host.value).toBe('\n');
+        await userEvent.keyboard('{Backspace}'); expect(host.value).toBe('');
+        host.value = 'literal\n\n'; host.setAttribute('label', 'Literal newlines'); await whenCemRendered(host);
+        expect(host.value).toBe('literal\n\n');
+    },
+});
+
 export const CompositionAndSelection = meta.story({
     render: () => '<cem-source-editor value="one&#10;🚲two"></cem-source-editor>',
     play: async ({ canvasElement }) => {

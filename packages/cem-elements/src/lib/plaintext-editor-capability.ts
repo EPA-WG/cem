@@ -38,7 +38,7 @@ export const CEM_PLAINTEXT_EDITOR_CAPABILITY: CemProducedElementBehavior = {
         host.addEventListener('input', event => {
             if (!owns(event)) return;
             if (!editable()) { event.stopImmediatePropagation(); writeControl(state); return; }
-            state.value = state.control!.innerText;
+            state.value = readControl(state.control!);
             state.context.setSlices({ value: state.value }, { render: false });
         }, options);
         host.addEventListener('compositionstart', event => { if (owns(event)) state.composing = true; }, options);
@@ -111,16 +111,28 @@ function replaceValue(state: EditorState, value: string): void {
 }
 function writeControl(state: EditorState): void {
     const control = state.control;
-    if (control && control.innerText !== state.value) {
+    if (control && readControl(control) !== state.value) {
         // Source always enters as text, never authored HTML.
         control.textContent = state.value;
         state.selection = [0, 0, 'none'];
     }
 }
 
+function readControl(control: HTMLElement): string {
+    const text = control.innerText;
+    let last: ChildNode | null = control.lastChild;
+    while (last?.lastChild) last = last.lastChild;
+    // Enter uses a terminal BR; native paste can use a lone LF after a BR.
+    // Both keep the caret on its final editable line. Preceding breaks and
+    // literal text newlines written through value remain source data.
+    const placeholder = last?.nodeName === 'BR'
+        || last?.nodeType === 3 && last.nodeValue === '\n' && last.previousSibling?.nodeName === 'BR';
+    return placeholder && text.endsWith('\n') ? text.slice(0, -1) : text;
+}
+
 interface TextSegment { node: Text; start: number; end: number }
 interface Boundary { node: Node; offset: number; index: number }
-/** Align native text/block/BR boundaries with innerText's UTF-16 source offsets. */
+/** Align native text/block/BR boundaries with admitted UTF-16 source offsets. */
 function positions(state: EditorState): { segments: TextSegment[]; breaks: Boundary[] } {
     const control = state.control!, source = state.value;
     const segments: TextSegment[] = [], breaks: Boundary[] = [];

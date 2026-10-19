@@ -1766,6 +1766,7 @@ export async function mountCemStudioWorkbench({
 
     let renderPromise = Promise.resolve();
     let controlPromise = Promise.resolve();
+    let buildPromise = Promise.resolve();
     let editPromise = Promise.resolve();
     let pending = false;
     let active = true;
@@ -1885,6 +1886,14 @@ export async function mountCemStudioWorkbench({
         root: host.querySelector('[data-cem-studio-workbench-preview-mount]'),
         element: host.querySelector('cem-studio-workbench-preview'), tag: 'cem-studio-workbench-preview',
         state: { state: workbenchPreviewState(workbench.snapshot()) },
+        commands: {
+            'select-build': ({ value }) => workbench.selectPreviewConfiguration(value),
+            'select-preview-artifact': ({ value }) => workbench.selectPreviewArtifact(value),
+            'build-project': () => { buildPromise = workbench.buildProjectPreview(); return buildPromise; },
+            'cancel-build': () => workbench.cancelProjectPreview(),
+            'copy-preview': () => perform(() => workbench.copyPreview(typeof clipboard?.writeText === 'function' ? text => clipboard.writeText(text) : undefined)),
+            'download-preview': () => perform(() => workbench.downloadPreview(download)),
+        },
     });
 
     const newTarget = (values = {}) => {
@@ -1976,12 +1985,14 @@ export async function mountCemStudioWorkbench({
             while (true) {
                 const controlAction = controlPromise;
                 const edits = editPromise;
+                const build = buildPromise;
                 await controlAction;
                 await edits;
+                await build;
                 const renders = renderPromise;
                 await renders;
                 await Promise.all([layout.whenSettled(), navigation.whenSettled(), navigationActions.whenSettled(), controls.whenSettled(), commandView.whenSettled(), results.whenSettled(), tools.whenSettled(), previewView.whenSettled(), projectPicker.whenSettled()]);
-                if (controlAction === controlPromise && edits === editPromise && renders === renderPromise) return;
+                if (controlAction === controlPromise && edits === editPromise && build === buildPromise && renders === renderPromise) return;
             }
         },
         dispose() {
@@ -2720,9 +2731,16 @@ function workbenchToolsState(state) {
 }
 
 function workbenchPreviewState(state) {
-    const projection = state.projection;
+    const project = state.projectPreview;
+    const projection = project ? project.selectedArtifact ? project.projection : undefined : state.projection;
     return { projection: projection && { preview: projection.preview,
-        output: projection.output && { available: projection.output.available } } };
+        output: projection.output && { available: projection.output.available } },
+        projectPreview: project && { projectId: project.projectId, configurations: project.configurations, configurationId: project.configurationId,
+            artifactPath: project.artifactPath, available: project.available, busy: project.busy, attempt: project.attempt,
+            stale: project.stale, hasRun: Boolean(project.projection), missingArtifact: project.missingArtifact,
+            selected: Boolean(project.selectedArtifact), artifacts: project.artifacts.map(({ path }) => ({ path })),
+            runId: project.projection?.buildRun.id, projectRevision: project.projection?.buildRun.projectRevision,
+            transfer: project.projection?.transfer } };
 }
 
 function workbenchResultState(state) {

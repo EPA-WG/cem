@@ -175,3 +175,51 @@ export const BrowserLayout = meta.story({
         host.remove();
     },
 });
+
+export const ProjectLayout = meta.story({
+    parameters: { docs: { description: { story: 'Responsive regions and retained content run in Storybook. Forced-color emulation is browser-runner-only.' } } },
+    render: () => '<div></div>',
+    play: async ({ canvasElement }) => {
+        const { runtime, declare } = createCemStoryRuntime(canvasElement, false);
+        const tag = `cem-workspace-${crypto.randomUUID()}`;
+        await declare(declarationSource, tag);
+        const host = document.createElement(tag);
+        host.setAttribute('layout', 'project'); host.setAttribute('fit', 'fill');
+        host.style.cssText = '--cem-inset-container: 19px; --cem-gap-related: 11px; block-size: 650px';
+        host.innerHTML = '<nav slot="navigation">Files</nav><label slot="editor">Source <textarea>Unsaved source</textarea></label><article slot="preview"><iframe title="Retained preview"></iframe></article><p slot="tools">Hidden supporting region</p>';
+        canvasElement.append(host); await runtime.whenRenderSettled(host);
+        expect(runtime.diagnosticsFor(host).filter(d => d.severity === 'error' || d.severity === 'fatal')).toEqual([]);
+        expect(host.querySelector('[part=root]')?.getAttribute('data-layout')).toBe('project');
+        const editor = host.querySelector('textarea')!, frame = host.querySelector('iframe');
+        const area = (name: string) => host.querySelector<HTMLElement>(`[part~="${name}"]`)!;
+        editor.focus(); editor.setSelectionRange(2, 6);
+        for (const width of [1280, 900, 390, 320]) {
+            host.style.width = `${width}px`; await runtime.whenRenderSettled(host);
+            const nav = area('navigation').getBoundingClientRect(), source = area('editor').getBoundingClientRect(), preview = area('preview').getBoundingClientRect();
+            expect(getComputedStyle(area('tools')).display).toBe('none');
+            expect(preview.width).toBeGreaterThan(0);
+            if (width >= 1200) { expect(source.left).toBeGreaterThan(nav.right); expect(preview.left).toBeGreaterThan(source.right); }
+            else if (width >= 840) { expect(source.left).toBeGreaterThan(nav.right); expect(preview.top).toBeGreaterThan(source.bottom); }
+            else { expect(source.top).toBeGreaterThan(nav.bottom); expect(preview.top).toBeGreaterThan(source.bottom); }
+            expect(host.querySelector('textarea')).toBe(editor); expect(host.querySelector('iframe')).toBe(frame);
+            expect([editor.selectionStart, editor.selectionEnd]).toEqual([2, 6]);
+            expect(document.activeElement).toBe(editor);
+            expect(getComputedStyle(area('editor').querySelector('[part~=heading]')!).paddingInlineStart).toBe('19px');
+        }
+        for (const mode of ['cem-theme-light', 'cem-theme-dark', 'cem-theme-contrast-light', 'cem-theme-contrast-dark', 'cem-theme-native']) {
+            host.className = mode; await runtime.whenRenderSettled(host);
+            expect(getComputedStyle(area('preview')).color).not.toBe(getComputedStyle(area('preview')).backgroundColor);
+            expect(host.querySelector('iframe')).toBe(frame);
+        }
+        async function forcedColors() {
+            if (import.meta.env.MODE !== 'test') return;
+            const { cdp } = await import('vitest/browser');
+            await cdp().send('Emulation.setEmulatedMedia', { features: [{ name: 'forced-colors', value: 'active' }] });
+            try { expect(getComputedStyle(area('preview')).forcedColorAdjust).toBe('auto'); expect(getComputedStyle(area('preview')).borderTopStyle).toBe('solid'); }
+            finally { await cdp().send('Emulation.setEmulatedMedia', { features: [] }); }
+        }
+        await forcedColors();
+        expect(runtime.diagnosticsFor(host).filter(d => d.severity === 'error' || d.severity === 'fatal')).toEqual([]);
+        host.remove();
+    },
+});

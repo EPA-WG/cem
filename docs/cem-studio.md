@@ -1028,12 +1028,13 @@ config provenance required to decide whether it is stale.
 
 ### Project builds and artifact previews
 
-Design target following the source-editor work: preview belongs to a project
-build and its artifact set, independently of the resource open in the editor.
-The current workbench captures saved build runs and supports selecting one of
-their published artifacts in Results → Operation output. The steps in
-[the active todo](todo.md#project-builds-and-artifact-previews) extend this into an
-independent project preview and a navigable site artifact tree.
+Project preview belongs to a saved build and its artifact set, independently of
+the resource open in the editor. Its workspace region selects a Build
+configuration, runs or cancels Build project, and selects a Preview artifact for
+viewing and exact copy/download. Source commands and their Results remain in the
+editor’s Commands and results expansion. The next steps in
+[the active todo](todo.md#project-builds-and-artifact-previews) add a navigable
+site artifact tree and the Markdown site example.
 
 A project owns resources and named build configurations. A configuration usually
 references a native transformation graph, but a single CEM-ML document can use a
@@ -1071,13 +1072,22 @@ remain download-only. A late transfer cannot label a different selected artifact
 HTML source spans and native source-map references are retained per artifact;
 JSON/YAML constructed-data exports do not fabricate character-level provenance.
 Failed runs retain diagnostics and publish an empty manifest when no output exists.
-Runs remain in memory; pinning runs and project-wide last-successful ownership
-are subsequent work, along with independent build/artifact URL parameters.
+The preview service retains one successful run for its current project and build
+configuration. Failed, stale or cancelled attempts retain that output alongside
+the new attempt’s diagnostics and status. Generation guards reject late results;
+changing project/configuration cancels the former attempt and releases its run.
+Saved command/input changes and related unsaved editor drafts mark the preview
+stale. Build reads a captured saved bundle and never saves or discards a draft.
+Sample builds use the same read-only snapshot adapter without importing a saved
+project. Runs remain in memory; pinning runs is subsequent work.
 
-The project chooses a default build configuration and preview entry. A named
-artifact or configured entry document takes precedence; an actual unambiguous
-`index.html` can supply the site default. Multiple unrelated HTML outputs need
-an explicit choice. Supplier's existing HTML/JSON/YAML outputs are the first
+Build choices include native graph, template, conversion and query configurations,
+plus live-view configurations. An ordinary CEM-ML document also gets a derived
+`html-v1:<resource-id>` conversion, so a one-document project needs no authored
+graph. The initial choice prefers graph/template configurations, then document
+HTML builds. An explicit artifact path takes precedence; otherwise a sole output,
+an unambiguous `index.html`, or a sole HTML document supplies the preview.
+Multiple unrelated HTML outputs need an explicit choice. Supplier's existing HTML/JSON/YAML outputs are the first
 fixture for artifact selection, source viewing and copy/download of exact bytes.
 
 The workspace keeps source navigation on the left, the selected file or folder
@@ -1090,7 +1100,7 @@ opening its source as a file does not. Reveal source uses artifact provenance to
 open an input resource intentionally. Samples remain ordinary projects in this
 workspace, with no separate example screens.
 
-URL selection extends the existing contract without overloading it:
+URL selection extends the existing source-selection contract:
 
 - `project` or `sample` identifies the active project.
 - Existing `file`, `folder` and `configuration` parameters drive source/tree selection.
@@ -1191,8 +1201,10 @@ Studio does not rewrite saved command resources during startup.
 
 ### Responsive Layout
 
-Studio uses `cem-workspace layout="browser"` for a navigation column and one
-content panel. The top heading and window title match: `<project name> · <file
+Studio uses `cem-workspace layout="project"` for navigation, editor and an
+independent project preview. Wide containers place the three regions side by
+side; medium containers keep navigation beside the stacked editor/preview;
+narrow containers stack all three. The top heading and window title match: `<project name> · <file
 path> - CEM Studio` for a file, and the selected project/folder name when browsing.
 The theme switch is beside the heading. A bottom status bar reports the current work status. Storage/install/update
 controls are omitted from this layout. The former overlapping project forms, storage cards
@@ -1203,7 +1215,10 @@ count, followed by Samples, Saved projects and the opened project's Files tree.
 Folder selection lists children with an icon, name and description in the main
 panel. File selection shows its source. Configurations appear in the project
 hierarchy and use the same editor and command workbench. **Commands and results**
-contains the command, source/graph tools, output preview and diagnostics.
+contains the source command, source/graph tools, operation results and diagnostics.
+The project preview stays available while browsing folders or opening files.
+Its Build configuration and Preview artifact selectors do not change editor
+selection; choosing a configuration in the tree may explicitly change the build.
 
 All tree nodes, resource metadata, folder children, action availability and the
 selection record reside in `navigation.js` application data. Studio declarations
@@ -1243,6 +1258,8 @@ is explicitly reopened; startup does not silently restore the previous selection
 | File | project or sample plus `file=<stable-resource-id>` |
 | Directory | project or sample plus `folder=<project-relative-directory/>` |
 | Configuration | project or sample plus `configuration=<configuration-id>` |
+| Preview build | project or sample plus independent `build=<configuration-id>` |
+| Preview artifact | project or sample plus `artifact=<output-path>`; may accompany file/folder/configuration |
 
 Paths and IDs are URL encoded. Only admitted saved-project/file selections update
 the trees and heading; unsaved source/command drafts use the existing Save, Apply,
@@ -1250,7 +1267,12 @@ Discard and Cancel guard. Cancelling history navigation restores the accepted UR
 Missing projects/files and conflicting roots show an error while retaining the
 previous selection (Samples on initial load). Unrelated URL parameters survive.
 
-Samples load lazily for browsing without creating saved projects. Clone selected
+Build/artifact parameters are independent of the source tree selection and survive
+file/folder navigation. History restores both selections; missing artifact paths
+show an explicit missing state without falling back to another output. Reopening
+a bookmark restores the choices and asks for Build when no in-memory run exists.
+
+Samples load lazily for browsing and builds without creating saved projects. Clone selected
 creates an independent editable project with its own identity and storage. Create
 adds a project at catalog roots or a resource in a saved project; Clone selected
 also copies a saved resource. Delete moves a saved project to Trash or deletes an

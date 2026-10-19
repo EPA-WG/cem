@@ -3,7 +3,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { describeCemStudioOperationFields, describeCemStudioOperationGroups, editCemStudioOperationField, editCemStudioOperationFields, createCemStudioBrowserValidator } from './feature-tour.js';
 import { createCemStudioFileSystemProvider, serializeCemStudioProjectBundle, parseCemStudioProjectBundle } from './file-system-provider.js';
-import { createCemStudioNavigation } from './navigation.js';
+import { createCemStudioNavigation, createCemStudioProjectPreview } from './navigation.js';
 import { createCemStudioProjectRepository } from './repository.js';
 import { createCemStudioProjectSession } from './project-session.js';
 import { mountCemStudioApplicationShell } from './shell.js';
@@ -41,6 +41,163 @@ afterEach(async () => {
 });
 
 describe('CEM Studio Feature Tour workbench', () => {
+    it('builds an ordinary single-document sample without a graph and reopens its independent preview URL', async () => {
+        const repository = await repositoryWithSource('{main | Saved document}');
+        const exported = (await repository.query(request('export-project', { projectId: 'feature-tour' }))).value;
+        const bundle = { ...exported, project: { ...exported.project, entries: [], resources: exported.project.resources.filter(item => item.id === 'source') } };
+        const validator = await createCemStudioBrowserValidator();
+        try {
+            const examples = [{ id: 'document', name: 'Document', load: async () => bundle }];
+            const browser = new EventTarget(); browser.location = new URL('https://studio.test/?sample=document&file=source');
+            browser.history = { pushState: vi.fn((_, __, url) => { browser.location = new URL(url); }), replaceState: vi.fn((_, __, url) => { browser.location = new URL(url); }) };
+            const open = async () => {
+                const session = createCemStudioProjectSession({ openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator, selection }) }); workbenches.push(session);
+                const base = await createCemStudioSessionWorkbench({ repository, session });
+                const workbench = await createCemStudioNavigation({ repository, validator, workbench: base, examples, browser }); workbenches.push(workbench);
+                return workbench;
+            };
+            const workbench = await open();
+            const root = document.createElement('main'); document.body.append(root);
+            let copied;
+            const view = await mountCemStudioFeatureTourWorkbench({ root, workbench, clipboard: { writeText: async text => { copied = text; } } }); views.push(view);
+            expect(workbench.snapshot().projectPreview.configurationId).toBe('html-v1:source');
+            root.querySelector('[host-command="build-project"] button').click(); await view.whenSettled();
+            expect(workbench.snapshot().projectPreview.projection.output.text).toContain('<main>Saved document</main>');
+            expect(root.querySelector('[part~=region][part~=preview] iframe').srcdoc).toContain('Saved document');
+            root.querySelector('[host-command="copy-preview"] button').click(); await view.whenSettled();
+            expect(copied).toBe(workbench.snapshot().projectPreview.projection.output.text);
+            const url = new URL(browser.location);
+            expect(url.searchParams.get('file')).toBe('source');
+            expect(url.searchParams.get('build')).toBe('html-v1:source');
+            expect(url.searchParams.get('artifact')).toBe('cem-stdio://stdout');
+            view.dispose(); workbench.dispose();
+            const reopened = await open();
+            expect(reopened.snapshot().projectPreview).toMatchObject({ configurationId: 'html-v1:source', artifactPath: 'cem-stdio://stdout', projection: undefined });
+            expect(reopened.snapshot().navigation.selection.file).toBe('source');
+            expect((await repository.query(request('list-projects', {}))).value).toHaveLength(1);
+        } finally { await validator.close(); }
+    }, 30_000);
+
+    it('owns the project preview across source navigation, saved builds, URL selection and failed repair', async () => {
+        const response = await fetch(new URL('../generated/feature-tour/examples/supplier-pipeline.cem-studio.json', import.meta.url));
+        const bundle = parseCemStudioProjectBundle(new Uint8Array(await response.arrayBuffer()));
+        const repository = await repositoryWithSource('unrelated');
+        await repository.execute(request('import-project', { bundle }));
+        const validator = await createCemStudioBrowserValidator();
+        try {
+            const examples = [{ id: 'supplier', name: 'Supplier', load: async () => bundle }];
+            const session = createCemStudioProjectSession({ openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator, selection }) }); workbenches.push(session);
+            const base = await createCemStudioSessionWorkbench({ repository, session });
+            const browser = new EventTarget(); browser.location = new URL('https://studio.test/?sample=supplier&folder=templates%2F&build=availability&artifact=generated%2Favailability.json');
+            browser.history = { pushState: vi.fn((_, __, url) => { browser.location = new URL(url); }), replaceState: vi.fn((_, __, url) => { browser.location = new URL(url); }) };
+            const workbench = await createCemStudioNavigation({ repository, validator, workbench: base, examples, browser }); workbenches.push(workbench);
+            const root = document.createElement('main'); document.body.append(root);
+            const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
+            const pane = root.querySelector('[part~="preview"][part~="region"]');
+            const build = async () => { pane.querySelector('[host-command="build-project"] button').click(); await view.whenSettled(); };
+            const preview = () => workbench.snapshot().projectPreview;
+            expect(preview()).toMatchObject({ configurationId: 'availability', artifactPath: 'generated/availability.json' });
+            expect(pane.textContent).toContain('Build a project configuration to preview its output.');
+            expect(root.querySelector('[aria-label="Folder contents"]').textContent).toContain('view.cemt');
+            const projectCount = (await repository.query(request('list-projects', {}))).value.length;
+            await build();
+            expect(preview().projection.output.contentType).toBe('application/json');
+            expect(JSON.parse(preview().projection.output.text)[0].quantity).toBe(7);
+            const first = preview().projection, output = pane.querySelector('cem-media-preview pre');
+            await workbench.openEntity('sample=supplier&file=supplier-view'); await view.whenSettled();
+            expect(preview().projection).toBe(first); expect(pane.querySelector('cem-media-preview pre')).toBe(output);
+            expect(new URL(browser.location).searchParams.get('artifact')).toBe('generated/availability.json');
+            expect((await repository.query(request('list-projects', {}))).value).toHaveLength(projectCount);
+            await workbench.openEntity(`project=${bundle.project.id}&file=supplier-stock`); await view.whenSettled();
+            selectValue(root, '[label="Build configuration"]', 'availability'); await view.whenSettled();
+            const editor = root.querySelector('[data-cem-studio-editor] [role="textbox"]');
+            const original = workbench.snapshot().draft;
+            workbench.updateDraft(original.replace('SKU-A,7', 'SKU-A,0')); await view.whenSettled();
+            editor.focus(); editor.setSelectionRange(2, 4);
+            await build();
+            expect(workbench.snapshot()).toMatchObject({ dirty: true, resourceId: 'supplier-stock' });
+            expect(root.querySelector('[data-cem-studio-editor] [role="textbox"]')).toBe(editor);
+            expect([editor.selectionStart, editor.selectionEnd]).toEqual([2, 4]);
+            expect(preview().stale).toBe(true);
+            expect(preview().projection.output.text).toContain('Supplier availability');
+            await workbench.saveSource(); await view.whenSettled(); await build();
+            const successful = preview().projection;
+            expect(preview().stale).toBe(false);
+            workbench.selectPreviewArtifact('generated/availability.json'); await view.whenSettled();
+            expect(JSON.parse(preview().projection.output.text)[0].quantity).toBe(0);
+            workbench.updateDraft(original.replace('SKU-A,7', 'SKU-A,many')); await workbench.saveSource(); await view.whenSettled(); await build();
+            expect(preview().attempt.status).toBe('failed');
+            expect(preview().projection.buildRun).toBe(successful.buildRun);
+            expect(JSON.parse(preview().projection.output.text)[0].quantity).toBe(0);
+            expect(pane.textContent).toContain('Showing the last successful run');
+            expect(pane.querySelector('[aria-label="Build diagnostics"]').textContent).toContain('invalid data number');
+            workbench.updateDraft(original); await workbench.saveSource(); await view.whenSettled(); await build();
+            expect(JSON.parse(preview().projection.output.text)[0].quantity).toBe(7);
+            await workbench.openEntity(`project=${bundle.project.id}&folder=templates%2F`); await view.whenSettled();
+            expect(root.querySelector('[aria-label="Folder contents"]').textContent).toContain('view.cemt');
+            expect(preview().projection.output.contentType).toBe('application/json');
+            browser.location = new URL(`https://studio.test/?project=${bundle.project.id}&folder=templates%2F&build=availability&artifact=missing.html`);
+            browser.dispatchEvent(new Event('popstate'));
+            await vi.waitFor(() => expect(preview().missingArtifact).toBe(true)); await view.whenSettled();
+            expect(pane.querySelector('cem-media-preview')).toBeNull();
+            expect(pane.textContent).toContain('requested artifact is unavailable');
+            expect(workbench.snapshot().navigation.selection.folder).toBe('templates/');
+        } finally { await validator.close(); }
+    }, 60_000);
+
+    it('cancels and supersedes build attempts without replacing the last admitted success', async () => {
+        const repository = await repositoryWithSource('{main | saved}');
+        const bundle = (await repository.query(request('export-project', { projectId: 'feature-tour' }))).value;
+        const wait = [], candidates = [];
+        const service = createCemStudioProjectPreview({ repository, openBuildWorkbench: async () => {
+            const pending = deferred(); wait.push(pending);
+            const id = `run-${wait.length}`, artifact = { id, path: 'index.html', uri: 'studio://feature-tour/index.html', contentType: 'text/html' };
+            const candidate = { snapshot: () => ({ projection: { exitCode: 0, stale: false,
+                buildRun: { id, inputs: [{ resourceId: 'source', revision: 1, sha256: bundle.project.resources.find(item => item.id === 'source').sha256 }], artifacts: [artifact] },
+                output: { uri: artifact.uri } } }), runPersistedOperation: () => pending.promise, selectArtifact: vi.fn(), dispose: vi.fn() };
+            candidates.push(candidate); return candidate;
+        } }); workbenches.push(service);
+        const context = { key: 'project=feature-tour', project: bundle.project };
+        service.setContext(context);
+        const first = service.build(); await vi.waitFor(() => expect(wait).toHaveLength(1)); wait[0].resolve(); await first;
+        expect(service.snapshot().projection.buildRun.id).toBe('run-1');
+        const late = service.build(); await vi.waitFor(() => expect(wait).toHaveLength(2)); service.cancel(); await late;
+        expect(service.snapshot()).toMatchObject({ busy: false, attempt: { status: 'cancelled' } });
+        const latest = service.build(); await vi.waitFor(() => expect(wait).toHaveLength(3)); wait[2].resolve(); await latest;
+        wait[1].resolve(); await vi.waitFor(() => expect(candidates[1].dispose).toHaveBeenCalled());
+        expect(service.snapshot().projection.buildRun.id).toBe('run-3');
+        const stale = service.build(); await vi.waitFor(() => expect(wait).toHaveLength(4));
+        await repository.execute(request('save-resource', { projectId: 'feature-tour', resourceId: 'source', expectedProjectRevision: 1, expectedResourceRevision: 1, content: '{main | newer}' }));
+        wait[3].resolve(); await stale;
+        expect(service.snapshot()).toMatchObject({ stale: true, attempt: { status: 'stale' }, projection: { buildRun: { id: 'run-3' } } });
+        service.setContext({ ...context, key: 'sample=other' });
+        expect(service.snapshot().projection).toBeUndefined();
+        expect(candidates[2].dispose).toHaveBeenCalled();
+    });
+
+    it('cancels a pending build from the declarative toolbar while source navigation remains available', async () => {
+        const repository = await repositoryWithSource('{main | saved}');
+        const validator = validatorFor(validResult());
+        const session = createCemStudioProjectSession({ openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator, selection }) }); workbenches.push(session);
+        const base = await createCemStudioSessionWorkbench({ repository, session });
+        const browser = new EventTarget(); browser.location = new URL('https://studio.test/?project=feature-tour&file=source');
+        browser.history = { pushState: vi.fn((_, __, url) => { browser.location = new URL(url); }), replaceState: vi.fn((_, __, url) => { browser.location = new URL(url); }) };
+        const pending = deferred(), dispose = vi.fn(), run = vi.fn(() => pending.promise);
+        const workbench = await createCemStudioNavigation({ repository, workbench: base, browser,
+            openBuildWorkbench: async () => ({ snapshot: () => ({}), runPersistedOperation: run, dispose }) }); workbenches.push(workbench);
+        const root = document.createElement('main'); document.body.append(root);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
+        root.querySelector('[host-command="build-project"] button').click();
+        await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(1));
+        await vi.waitFor(() => expect(root.querySelector('[host-command="cancel-build"] button').disabled).toBe(false));
+        expect(root.querySelector('[data-cem-studio-editor] [role="textbox"]')).not.toBeNull();
+        root.querySelector('[host-command="cancel-build"] button').click(); await view.whenSettled();
+        expect(workbench.snapshot().projectPreview).toMatchObject({ busy: false, attempt: { status: 'cancelled' }, projection: undefined });
+        expect(root.querySelector('[host-command="build-project"] button').disabled).toBe(false);
+        pending.resolve(); await vi.waitFor(() => expect(dispose).toHaveBeenCalled());
+        expect(workbench.snapshot().projectPreview.attempt.status).toBe('cancelled');
+    });
+
     it('captures saved build inputs and selects exact native Supplier artifacts through declarative controls', async () => {
         const response = await fetch(new URL('../generated/feature-tour/examples/supplier-pipeline.cem-studio.json', import.meta.url));
         const bundle = parseCemStudioProjectBundle(new Uint8Array(await response.arrayBuffer()));

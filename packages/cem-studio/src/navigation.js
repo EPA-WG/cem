@@ -1,4 +1,6 @@
 import { CEM_STUDIO_REPOSITORY_ID } from './repository.js';
+import { createCemStudioProjectWorkbench, createCemStudioWorkbench } from './workbench.js';
+import { projectResourceUri } from './resource-reference.js';
 
 const request = (operation, parameters) => ({ protocolVersion: 1, repository: CEM_STUDIO_REPOSITORY_ID, requestRevision: 1, operation, parameters });
 const routeKey = route => new URLSearchParams(route).toString() || 'samples';
@@ -6,7 +8,7 @@ const node = (route, name, kind, description = '', children = []) => ({ key: rou
     icon: kind });
 
 /** Navigation is domain data. Views render this model; browser history is only a transport. */
-export async function createCemStudioNavigation({ workbench, repository, examples = [], collections = [], browser }) {
+export async function createCemStudioNavigation({ workbench, repository, examples = [], collections = [], browser, validator, openBuildWorkbench }) {
     const subscribers = new Set();
     const bundles = new Map();
     let projects = [], selected = node({}, 'Samples', 'folder', 'Predefined example projects. Clone a sample to save your own version.');
@@ -86,7 +88,7 @@ export async function createCemStudioNavigation({ workbench, repository, example
         };
         for (const notify of subscribers) notify(snapshot());
     }
-    function snapshot() { return { ...base, navigation: model }; }
+    function snapshot() { return { ...base, navigation: model, projectPreview: preview?.snapshot() }; }
     async function refresh() {
         const currentVersion = ++refreshVersion;
         const projectId = selection.project, previousOpened = opened;
@@ -96,20 +98,31 @@ export async function createCemStudioNavigation({ workbench, repository, example
         if (projectId && previousOpened) {
             const record = (await repository.query(request('get-project', { projectId }))).value;
             if (disposed || currentVersion !== refreshVersion) return;
-            if (record && opened === previousOpened && selection.project === projectId) opened = { ...opened, project: record };
+            if (record && opened === previousOpened && selection.project === projectId) {
+                opened = { ...opened, project: record };
+                preview?.setContext({ ...opened, key: routeKey(opened.route) });
+            }
+            if (!record || record.trashedAt) preview?.setContext(undefined);
         }
         publish();
     }
     function writeUrl(route, mode) {
         if (!browser) return;
         const url = new URL(browser.location.href);
-        for (const name of ['view', 'collection', 'project', 'sample', 'folder', 'file', 'configuration']) url.searchParams.delete(name);
-        for (const [name, value] of Object.entries(route)) url.searchParams.set(name, value);
+        for (const name of ['view', 'collection', 'project', 'sample', 'folder', 'file', 'configuration', 'build', 'artifact']) url.searchParams.delete(name);
+        const output = preview?.snapshot();
+        const combined = { ...route, ...(output?.configurationId ? { build: output.configurationId } : {}), ...(output?.artifactPath ? { artifact: output.artifactPath } : {}) };
+        for (const [name, value] of Object.entries(combined)) url.searchParams.set(name, value);
         if (mode === 'push' && url.href !== acceptedUrl.href) browser.history.pushState(null, '', url);
         else if (mode !== 'push' || url.href !== browser.location.href) browser.history.replaceState(null, '', url);
         acceptedUrl = url;
     }
-    async function navigate(route, mode = 'push') {
+    function admitPreview(nextOpened, settings) {
+        preview.setContext(nextOpened && { ...nextOpened, key: routeKey(nextOpened.route) }, settings);
+    }
+    async function navigate(requestedRoute, mode = 'push', preservePreview = false) {
+        const { build, artifact, ...route } = requestedRoute;
+        const settings = { build, artifact, configuration: route.configuration, reset: !preservePreview };
         const currentVersion = ++version;
         if (pendingRoute) { pendingRoute = undefined; await workbench.resolveNavigation('cancel'); }
         busy = true; error = undefined; action = undefined; publish();
@@ -123,7 +136,7 @@ export async function createCemStudioNavigation({ workbench, repository, example
                 if (!example) throw new Error('The requested sample is unavailable.');
                 let bundle = bundles.get(example.id);
                 if (!bundle) { bundle = await example.load(); bundles.set(example.id, bundle); }
-                nextOpened = { project: bundle.project, route: { sample: example.id }, text: '' };
+                nextOpened = { project: bundle.project, bundle, route: { sample: example.id }, text: '' };
                 if (route.file) {
                     const resource = bundle.project.resources.find(item => item.id === route.file);
                     if (!resource) throw new Error('The requested sample file is unavailable.');
@@ -148,7 +161,7 @@ export async function createCemStudioNavigation({ workbench, repository, example
             if (nextOpened && !find(fileTree(nextOpened.project, nextOpened.route), routeKey(route))) throw new Error('The requested file or directory is unavailable.');
             if (route.project) {
                 const target = { projectId: route.project, ...(route.file ? { resourceId: route.file } : {}), ...(route.configuration ? { entryId: route.configuration } : {}) };
-                pendingRoute = { route, mode, opened: nextOpened, target: JSON.stringify(target) };
+                pendingRoute = { route, mode, opened: nextOpened, settings, target: JSON.stringify(target) };
                 const current = workbench.snapshot();
                 if (current.workbenchId !== JSON.stringify(target) && JSON.stringify(current.transition?.target) !== JSON.stringify(target)) await workbench.selectWorkbench(JSON.stringify(target));
                 if (currentVersion !== version) return;
@@ -156,15 +169,17 @@ export async function createCemStudioNavigation({ workbench, repository, example
                 if (workbench.snapshot().workbenchId !== JSON.stringify(target)) throw new Error('Finish the pending operation before changing files.');
                 pendingRoute = undefined;
             }
-            selection = route; opened = nextOpened; writeUrl(route, mode);
+            selection = route; opened = nextOpened; admitPreview(opened, settings); writeUrl(route, mode);
         } catch (cause) { if (currentVersion !== version) return; pendingRoute = undefined; error = { message: cause.message }; if (mode === 'pop' && browser) browser.history.replaceState(null, '', acceptedUrl); }
         finally { if (currentVersion === version) { busy = false; publish(); } }
     }
-    const unsubscribe = workbench.subscribe(state => { base = state; publish(); });
+    const preview = createCemStudioProjectPreview({ repository, validator, openBuildWorkbench });
+    const unsubscribePreview = preview.subscribe(publish);
+    const unsubscribe = workbench.subscribe(state => { base = state; preview.updateSource(state); publish(); });
     const unsubscribeRepository = repository.subscribe?.(0, () => { void refresh().catch(cause => { error = { message: cause.message }; publish(); }); });
     const readUrl = () => {
         const params = new URL(browser.location.href).searchParams;
-        return Object.fromEntries(['view', 'collection', 'project', 'sample', 'folder', 'file', 'configuration'].filter(key => params.has(key)).map(key => [key, params.get(key)]));
+        return Object.fromEntries(['view', 'collection', 'project', 'sample', 'folder', 'file', 'configuration', 'build', 'artifact'].filter(key => params.has(key)).map(key => [key, params.get(key)]));
     };
     const onPop = () => { void navigate(readUrl(), 'pop'); };
     await refresh();
@@ -172,16 +187,26 @@ export async function createCemStudioNavigation({ workbench, repository, example
     const api = {
         ...workbench, snapshot,
         subscribe(notify) { subscribers.add(notify); notify(snapshot()); return () => subscribers.delete(notify); },
-        async openEntity(key) { await navigate(key === 'samples' ? {} : Object.fromEntries(new URLSearchParams(key))); },
+        async openEntity(key) { await navigate(key === 'samples' ? {} : Object.fromEntries(new URLSearchParams(key)), 'push', true); },
+        selectPreviewConfiguration(id) { preview.selectConfiguration(id); writeUrl(selection, 'push'); },
+        selectPreviewArtifact(path) { preview.selectArtifact(path); writeUrl(selection, 'push'); },
+        async buildProjectPreview() {
+            const key = preview.snapshot().contextKey;
+            await preview.build();
+            if (key === preview.snapshot().contextKey) writeUrl(selection, 'replace');
+        },
+        cancelProjectPreview() { preview.cancel(); },
+        copyPreview(writeText) { return preview.copy(writeText); },
+        downloadPreview(save) { return preview.download(save); },
         async selectWorkbench(id) {
             const target = JSON.parse(id);
-            await navigate({ project: target.projectId, ...(target.resourceId ? { file: target.resourceId } : {}), ...(target.entryId ? { configuration: target.entryId } : {}) });
+            await navigate({ project: target.projectId, ...(target.resourceId ? { file: target.resourceId } : {}), ...(target.entryId ? { configuration: target.entryId } : {}) }, 'push', true);
         },
         async navigateProvenance(index) {
             const result = await workbench.navigateProvenance(index);
             const current = workbench.snapshot();
             const target = current.transition?.target ?? JSON.parse(current.workbenchId);
-            await navigate({ project: target.projectId, ...(target.resourceId ? { file: target.resourceId } : {}), ...(target.entryId ? { configuration: target.entryId } : {}) });
+            await navigate({ project: target.projectId, ...(target.resourceId ? { file: target.resourceId } : {}), ...(target.entryId ? { configuration: target.entryId } : {}) }, 'push', true);
             return result;
         },
         async resolveNavigation(decision) {
@@ -189,7 +214,7 @@ export async function createCemStudioNavigation({ workbench, repository, example
             if (decision === 'cancel') { pendingRoute = undefined; if (browser) browser.history.replaceState(null, '', acceptedUrl); }
             else if (pendingRoute && !workbench.snapshot().transition && workbench.snapshot().workbenchId === pendingRoute.target) {
                 const pending = pendingRoute; pendingRoute = undefined;
-                selection = pending.route; opened = pending.opened; writeUrl(selection, pending.mode);
+                selection = pending.route; opened = pending.opened; admitPreview(opened, pending.settings); writeUrl(selection, pending.mode);
             }
             publish();
         },
@@ -230,7 +255,157 @@ export async function createCemStudioNavigation({ workbench, repository, example
             finally { busy = false; }
             publish();
         },
-        dispose() { disposed = true; ++version; ++refreshVersion; unsubscribe(); unsubscribeRepository?.(); browser?.removeEventListener('popstate', onPop); subscribers.clear(); workbench.dispose(); },
+        dispose() { disposed = true; ++version; ++refreshVersion; unsubscribe(); unsubscribePreview(); preview.dispose(); unsubscribeRepository?.(); browser?.removeEventListener('popstate', onPop); subscribers.clear(); workbench.dispose(); },
     };
     return Object.freeze(api);
+}
+
+/** Project build orchestration. Owns one bounded successful run, never an editor. */
+export function createCemStudioProjectPreview({ repository, validator, openBuildWorkbench }) {
+    const subscribers = new Set();
+    let context, configurationId, artifactPath, success, successStamp, attempt, active, source, disposed = false, generation = 0;
+    const stamp = project => {
+        const entry = project.entries.find(item => item.id === configurationId);
+        return JSON.stringify(entry && [entry.kind, entry.runConfigResourceId, entry.resourceIds, entry.tags]);
+    };
+    const changed = projection => projection.buildRun.inputs.some(input => {
+        const resource = context.project.resources.find(resource => resource.id === input.resourceId);
+        return !resource || resource.revision !== input.revision || resource.sha256 !== input.sha256;
+    });
+    const defaultArtifact = artifacts => {
+        const index = artifacts.filter(item => item.path === 'index.html' || item.path.endsWith('/index.html'));
+        const html = artifacts.filter(item => ['text/html', 'application/xhtml+xml'].includes(item.contentType.split(';')[0]));
+        return artifacts.length === 1 ? artifacts[0] : index.length === 1 ? index[0] : html.length === 1 ? html[0] : undefined;
+    };
+    const choices = () => {
+        if (!context) return [];
+        const project = context.project;
+        const configurations = project.entries.filter(entry => ['transformation-graph', 'transformation', 'conversion', 'query'].includes(entry.kind)
+            || entry.tags?.includes('live-preview')).filter(entry => project.resources.some(resource => resource.id === entry.runConfigResourceId && resource.schema === 'https://cem.dev/ns/cli/command/1'))
+            .map(entry => ({ id: entry.id, name: entry.name, kind: entry.kind }));
+        const documents = project.resources.filter(resource => resource.contentType === 'application/cem' && resource.schema === 'https://cem.dev/ns/cem-ml/1')
+            .map(resource => ({ id: `html-v1:${resource.id}`, name: resource.path, kind: 'document-html', resourceId: resource.id }));
+        return [...configurations.filter(entry => entry.kind === 'transformation-graph'),
+            ...configurations.filter(entry => entry.kind === 'transformation'), ...documents,
+            ...configurations.filter(entry => !['transformation-graph', 'transformation'].includes(entry.kind))];
+    };
+    function snapshot() {
+        const configurations = choices();
+        const available = configurations.some(item => item.id === configurationId);
+        const projection = success?.snapshot().projection;
+        const artifact = projection?.buildRun.artifacts.find(item => item.path === artifactPath);
+        const inputs = projection?.buildRun.inputs ?? [];
+        const stale = Boolean(projection && (projection.stale || changed(projection) || successStamp !== stamp(context.project)
+            || !context.bundle && source?.projectId === context.project.id && (source.dirty && inputs.some(input => input.resourceId === source.resourceId)
+            || source.entryId === configurationId && source.command?.draftText !== source.command?.current?.text)));
+        return Object.freeze({ projectId: context?.project.id, contextKey: context?.key, configurations, configurationId, artifactPath,
+            available, busy: Boolean(active), attempt, projection, stale,
+            missingArtifact: Boolean(projection && artifactPath && !artifact),
+            selectedArtifact: artifact, artifacts: projection?.buildRun.artifacts ?? [] });
+    }
+    const publish = () => { if (!disposed) for (const notify of subscribers) notify(snapshot()); };
+    function cancel() {
+        if (!active) return;
+        const job = active; active = undefined; ++generation;
+        job.controller.abort();
+        attempt = { id: job.id, status: 'cancelled' }; publish();
+    }
+    function clear() { cancel(); success?.dispose(); success = undefined; attempt = undefined; artifactPath = undefined; }
+    function setContext(next, settings = {}) {
+        if (context?.key !== next?.key) { clear(); context = next; configurationId = undefined; }
+        else context = next;
+        if (!context) { configurationId = undefined; publish(); return; }
+        const configurations = choices();
+        const selected = settings.build ?? (settings.configuration && configurations.some(item => item.id === settings.configuration) ? settings.configuration : undefined);
+        const nextId = selected ?? (settings.reset ? configurations[0]?.id : configurationId ?? configurations[0]?.id);
+        if (nextId !== configurationId) { clear(); configurationId = nextId; }
+        if (settings.artifact !== undefined || settings.reset) artifactPath = settings.artifact;
+        const artifacts = success?.snapshot().projection?.buildRun.artifacts;
+        if (artifacts && !artifactPath) artifactPath = defaultArtifact(artifacts)?.path;
+        const artifact = artifacts?.find(item => item.path === artifactPath);
+        if (artifact) success.selectArtifact(artifact.id);
+        publish();
+    }
+    async function open(bundle, configuration, signal) {
+        // A read-only captured repository makes every native read use the same
+        // saved revision, including sample builds. It never imports a sample.
+        const captured = { query: async ({ operation }) => {
+            if (operation === 'list-projects') return { value: [bundle.project] };
+            if (operation === 'export-project') return { value: bundle, repositoryRevision: bundle.project.revision };
+            throw new Error(`Build snapshot does not support ${operation}`);
+        }, execute: async () => { throw new Error('Build inputs are read-only'); } };
+        if (openBuildWorkbench) return openBuildWorkbench({ bundle, configuration, repository: captured, signal });
+        if (!validator) throw new Error('The native project builder is unavailable');
+        if (!configuration.resourceId) return createCemStudioProjectWorkbench({ repository: captured, validator,
+            selection: { projectId: bundle.project.id, entryId: configuration.id }, signal });
+        const resource = bundle.project.resources.find(item => item.id === configuration.resourceId);
+        signal.throwIfAborted();
+        return createCemStudioWorkbench({ repository: captured, validator, projectId: bundle.project.id, example: {
+            id: configuration.id, name: resource.path, kind: 'conversion', operation: 'convert', resourceId: resource.id,
+            runConfigResourceId: configuration.id, path: resource.path, referenceUri: projectResourceUri(bundle.project, resource),
+            projectRootUri: bundle.project.rootUri, contentType: resource.contentType, schema: resource.schema,
+            dependencies: bundle.project.resources.filter(item => item.id !== resource.id && item.role !== 'run-config').map(item => ({ resourceId: item.id, path: projectResourceUri(bundle.project, item) })),
+            commandArguments: ['convert', '$input', '--content-type', resource.contentType, '--schema', resource.schema,
+                '--to-content-type', 'text/html', '--to-schema', 'https://cem.dev/ns/data/html/1', '--output-color-type', 'none'],
+        } });
+    }
+    async function build() {
+        if (disposed || !context || !choices().some(item => item.id === configurationId) || active) return;
+        const capturedContext = context, configuration = choices().find(item => item.id === configurationId);
+        const job = { id: ++generation, controller: new AbortController() };
+        active = job; attempt = { id: job.id, status: 'building' }; publish();
+        const current = () => !disposed && active === job && generation === job.id;
+        const aborted = new Promise(resolve => job.controller.signal.addEventListener('abort', resolve, { once: true }));
+        const execution = (async () => {
+            let candidate;
+            try {
+                const bundle = capturedContext.bundle ?? (await repository.query(request('export-project', { projectId: capturedContext.project.id }))).value;
+                job.controller.signal.throwIfAborted();
+                candidate = await open(bundle, configuration, job.controller.signal);
+                job.controller.signal.throwIfAborted();
+                await candidate.runPersistedOperation({ signal: job.controller.signal });
+                if (!current()) return;
+                if (!capturedContext.bundle) {
+                    const latest = (await repository.query(request('get-project', { projectId: capturedContext.project.id }))).value;
+                    if (!current()) return;
+                    if (!latest || latest.trashedAt) throw new Error('The build project is missing or in Trash');
+                    context = { ...context, project: latest };
+                }
+                const projection = candidate.snapshot().projection;
+                const stale = projection && (projection.stale || changed(projection) || stamp(bundle.project) !== stamp(context.project));
+                if (!projection || projection.exitCode !== 0 || stale) {
+                    attempt = { id: job.id, status: stale ? 'stale' : 'failed', diagnostics: projection?.diagnostics ?? [] }; return;
+                }
+                const artifacts = projection.buildRun.artifacts;
+                let selected = artifacts.find(item => item.path === artifactPath);
+                if (!artifactPath) {
+                    selected = defaultArtifact(artifacts);
+                    artifactPath = selected?.path;
+                }
+                if (selected) candidate.selectArtifact(selected.id);
+                success?.dispose(); success = candidate; successStamp = stamp(bundle.project); candidate = undefined;
+                attempt = { id: job.id, status: 'succeeded' };
+            } catch (error) {
+                if (current()) attempt = { id: job.id, status: 'failed', error: { message: error.message } };
+            } finally {
+                candidate?.dispose();
+                if (current()) { active = undefined; publish(); }
+            }
+        })();
+        await Promise.race([execution, aborted]);
+    }
+    return Object.freeze({ snapshot, setContext, build, cancel,
+        subscribe(notify) { subscribers.add(notify); notify(snapshot()); return () => subscribers.delete(notify); },
+        updateSource(value) { source = value; publish(); },
+        selectConfiguration(id) { setContext(context, { build: id, reset: true }); },
+        selectArtifact(path) {
+            artifactPath = path;
+            const artifact = success?.snapshot().projection?.buildRun.artifacts.find(item => item.path === path);
+            if (artifact) success.selectArtifact(artifact.id);
+            publish();
+        },
+        async copy(writeText) { if (snapshot().selectedArtifact) { await success.copyProjection(writeText); publish(); } },
+        async download(save) { if (snapshot().selectedArtifact) { await success.downloadProjection(save); publish(); } },
+        dispose() { disposed = true; clear(); subscribers.clear(); },
+    });
 }

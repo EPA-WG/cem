@@ -10,11 +10,11 @@
 [part~='file'][hidden] { display: none; }
 ```}
  {section @part=root @aria-label="Project workbench" @data-cem-studio-workbench="" |
-  {cem-workspace @label="Studio workspace" @layout=browser @fit=fill @navigation-label=Navigation @editor-label=Contents |
+  {cem-workspace @label="Studio workspace" @layout=project @fit=fill @navigation-label=Navigation @editor-label=Contents @preview-label="Project preview" |
    {span @slot=navigation-actions @data-cem-studio-workbench-navigation-actions-mount="" | {cem-studio-workbench-navigation @section=actions}}
    {div @slot=navigation @data-cem-studio-workbench-navigation-mount="" | {cem-studio-workbench-navigation}}
    {span @slot=editor-heading | {$ | datadom.slices.navigation.selected.name ?? "Samples"}}
-   {div @slot=editor @part=content |
+   {cem-stack @slot=editor @part=content @gap=sm |
     {div @data-cem-studio-project-picker-mount="" | {cem-studio-project-picker}}
     {section @part=file @aria-label="Selected file" @hidden={if datadom.slices.navigation &amp;&amp; datadom.slices.navigation.content != "file" { true } else { null }} |
      {div @data-cem-studio-workbench-controls-mount="" | {cem-studio-workbench-controls}}
@@ -25,13 +25,13 @@
         {div @data-cem-studio-workbench-tools-mount="" | {cem-studio-workbench-tools}}
        }
        {cem-tab @value=results @label=Results |
-        {div @data-cem-studio-workbench-preview-mount="" | {cem-studio-workbench-preview}}
         {div @data-cem-studio-workbench-results-mount="" | {cem-studio-workbench-results}}
        }
       }
      }
     }
    }
+   {div @slot=preview @data-cem-studio-workbench-preview-mount="" | {cem-studio-workbench-preview}}
   }
  }
  }

@@ -15,6 +15,12 @@ page.on('pageerror', error => errors.push(error.message));
 const settle = () => page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
 const ready = async () => { await page.waitForFunction(() => globalThis.__cemStudioApplication); await settle(); };
 const state = () => page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().navigation);
+const preview = () => page.evaluate(() => {
+    const current = globalThis.__cemStudioApplication.workbench.snapshot().projectPreview;
+    return { configurationId: current.configurationId, artifactPath: current.artifactPath, runId: current.projection?.buildRun.id,
+        stale: current.stale, attempt: current.attempt?.status, text: current.projection?.output.text };
+});
+const choose = async (name, option) => { await page.getByRole('combobox', { name, exact: true }).click(); await page.getByRole('option', { name: option, exact: true }).click(); await settle(); };
 const click = async name => { await page.getByRole('button', { name, exact: true }).click(); await settle(); };
 const tree = async (name, owner = 'Samples') => { await page.getByRole('tree', { name: owner, exact: true }).getByRole('treeitem', { name, exact: true }).click(); await settle(); };
 const submit = async (name, action) => { if (name) await page.getByRole('dialog').getByRole('textbox').fill(name); await page.getByRole('dialog').getByRole('button', { name: action, exact: true }).click(); await settle(); };
@@ -28,6 +34,10 @@ try {
     assert.ok(await page.getByRole('list', { name: 'Folder contents' }).getByRole('button', { name: 'Supplier pipeline', exact: true }).isVisible());
     await tree('Supplier pipeline');
     assert.equal((await state()).content, 'folder');
+    await click('Build project');
+    await choose('Preview artifact', 'generated/availability.json');
+    assert.equal(JSON.parse((await preview()).text)[0].quantity, 7);
+    assert.equal(new URL(page.url()).searchParams.get('artifact'), 'generated/availability.json');
     assert.equal(await page.evaluate(async () => (await globalThis.__cemStudioApplication.repository.query({ protocolVersion: 1, repository: 'studio-projects', requestRevision: 1, operation: 'list-projects', parameters: {} })).value.length), 0);
     await click('Clone selected'); await submit('Navigator Supplier', 'Clone');
     const projectId = (await state()).selection.project;
@@ -41,8 +51,13 @@ try {
     assert.equal(new URL(page.url()).searchParams.get('file'), file.resourceId); await heading();
     const editor = page.getByRole('textbox', { name: 'CEM source', exact: true });
     await page.screenshot({ path: '/tmp/cem-studio-navigator.png', fullPage: true });
-    const original = await editor.inputValue();
+    const original = await editor.evaluate(element => element.value);
     await editor.fill(`${original}\n`); await settle();
+    await click('Build project');
+    await choose('Preview artifact', 'generated/availability.json');
+    assert.equal((await preview()).stale, true);
+    assert.equal(await editor.evaluate(element => element.value), `${original}\n`);
+    const runId = (await preview()).runId;
     const editorIdentity = await editor.elementHandle();
     for (const mode of ['cem-theme-dark', 'cem-theme-contrast-light', 'cem-theme-contrast-dark', 'cem-theme-native', 'cem-theme-light']) {
         await page.evaluate(mode => globalThis.__cemStudioApplication.shell.theme.setMode(mode), mode); await settle();
@@ -51,15 +66,18 @@ try {
         assert.notEqual(palette[0], palette[1]);
     }
     // A folder change is guarded by the same source admission as a file change.
-    await page.getByRole('tree', { name: 'Navigator Supplier', exact: true }).getByRole('treeitem', { name: 'data', exact: true }).click(); await settle();
+    await page.getByRole('tree', { name: 'Navigator Supplier', exact: true }).getByRole('treeitem', { name: '📁 data', exact: true }).click(); await settle();
     assert.ok(await page.getByRole('dialog', { name: 'Resolve drafts before navigation' }).isVisible());
     await click('Cancel navigation');
     assert.equal((await state()).selection.file, file.resourceId);
-    assert.equal(await editor.inputValue(), `${original}\n`);
+    assert.equal(await editor.evaluate(element => element.value), `${original}\n`);
+    assert.equal((await preview()).runId, runId);
     await click('Save and validate');
     await page.reload(); await ready();
     assert.equal((await state()).selection.file, file.resourceId); await heading();
-    assert.equal(await page.getByRole('textbox', { name: 'CEM source', exact: true }).inputValue(), `${original}\n`);
+    assert.equal(await page.getByRole('textbox', { name: 'CEM source', exact: true }).evaluate(element => element.value), `${original}\n`);
+    assert.equal((await preview()).artifactPath, 'generated/availability.json');
+    assert.equal((await preview()).runId, undefined);
     const bookmarked = page.url();
     await page.goto(projectUrl); await ready();
     await click('Create'); await submit('notes.cem', 'Create');
@@ -92,12 +110,12 @@ try {
             const rect = part => host.querySelector(`[part~="${part}"]`).getBoundingClientRect().toJSON();
             return { width: innerWidth, pageWidth: document.documentElement.scrollWidth, navigation: rect('navigation'), editor: rect('editor'), columns: getComputedStyle(root).gridTemplateColumns.split(' ').length };
         });
-        assert.equal(geometry.width, geometry.pageWidth); assert.equal(geometry.columns, width >= 900 ? 2 : 1); layouts.push(geometry);
+        assert.equal(geometry.width, geometry.pageWidth); assert.equal(geometry.columns, width >= 1200 ? 3 : width >= 900 ? 2 : 1); layouts.push(geometry);
     }
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.emulateMedia({ forcedColors: 'active' });
     const paint = await page.locator('cem-workspace').evaluate(host => [...host.querySelectorAll('[part~=region]')].filter(element => element.checkVisibility()).map(element => { const style = getComputedStyle(element); return { color: style.color, background: style.backgroundColor, border: style.borderTopWidth }; }));
-    assert.equal(paint.length, 2); for (const region of paint) { assert.notEqual(region.color, region.background); assert.notEqual(region.border, '0px'); }
+    assert.equal(paint.length, 3); for (const region of paint) { assert.notEqual(region.color, region.background); assert.notEqual(region.border, '0px'); }
     await page.emulateMedia({ forcedColors: 'none' });
     // Run the ordinary Supplier configuration through the new file/configuration route.
     await page.goto(`${projectUrl}&configuration=availability`); await ready();
@@ -118,6 +136,8 @@ try {
     await page.evaluate(async () => { await navigator.serviceWorker.ready; });
     await context.setOffline(true); await page.reload(); await ready();
     assert.equal((await state()).content, 'file');
+    await click('Build project');
+    assert.equal((await preview()).attempt, 'succeeded');
     await click('Run configuration');
     assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().status), 'projected');
     await context.setOffline(false);

@@ -15,6 +15,11 @@ composition during unrelated renders. An accepted replacement changes the
 source; a replacement received during composition waits until composition ends.
 A retained value slice survives reconnection and serialized resumption.
 
+Trailing source newlines remain exact. The browser's final caret placeholder
+(a terminal BR, or a sentinel LF after a BR during paste) is excluded from the
+admitted value. Unrelated renders compare that normalized value and leave the
+native editing subtree intact, preserving caret and undo history.
+
 `label` supplies visible fallback text and the default accessible name. The
 `label` slot replaces visible fallback markup; `aria-label` names the textbox
 separately. `describedby` links external help. `readonly` and `disabled` use

@@ -54,6 +54,7 @@ export interface CemStudioHomeState {
 }
 
 export interface CemStudioWorkbenchState {
+    readonly projectPreview?: import('./navigation.js').CemStudioProjectPreviewState;
     readonly graphConfiguration?: {
         nodes: import('./feature-tour.js').CemStudioGraphConfiguration['nodes'];
         parents: import('./feature-tour.js').CemStudioGraphConfiguration['parents'];

@@ -172,8 +172,8 @@ for (const command of ['copy-output', 'download-output', 'diagnostic', 'provenan
 const previewView = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/workbench-preview.xhtml'), 'utf8');
 assert.match(previewView, /cem-media-preview/);
 assert.match(layoutView, /cem-workspace/);
-assert.match(layoutView, /@layout=browser/);
-for (const region of ['navigation', 'editor']) assert.match(layoutView, new RegExp(`@slot=${region}(?:\\s|$)`));
+assert.match(layoutView, /@layout=project/);
+for (const region of ['navigation', 'editor', 'preview']) assert.match(layoutView, new RegExp(`@slot=${region}(?:\\s|$)`));
 assert.doesNotMatch(resultsView, /@variant=(?:quiet|secondary)|<script|\son[a-z]+=|javascript:/i);
 assert.doesNotMatch(workbenchModule, /innerHTML|textContent|addEventListener|removeEventListener|workbenchMarkup|renderWorkbench|Markup\(/);
 

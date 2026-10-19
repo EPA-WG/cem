@@ -6,10 +6,49 @@
  {body |
 {style @type=text/css |```
 :scope { display: block; block-size: 100%; min-block-size: 0; }
+[part~='root'] { display: grid; grid-template-rows: minmax(0, 1fr); gap: var(--cem-gap-related); block-size: 100%; min-block-size: 0; }
+[part~='root'][data-project] { grid-template-rows: auto minmax(20vb, 1fr); }
 [part~='preview'] { block-size: 100%; min-block-size: 0; }
 ```}
   {cem:variable @name=projection @select=datadom.slices.state.projection}
   {cem:variable @name=preview @select=projection.preview}
+  {cem:variable @name=project @select=datadom.slices.state.projectPreview}
+  {div @part=root @data-project={if project { "" } else { null }} |
+  {cem:if @test=project |
+   {cem-stack @gap=md |
+    {cem:if @test=project.projectId |
+     {cem-select @label="Build configuration" @value={project.configurationId ?? ""} @disabled={if project.busy { true } else { null }} @host-command=select-build @host-command-event=change |
+      {option @value="" | Choose build configuration}
+      {cem:for-each @as=configuration @select=project.configurations |
+       {option @value={configuration.id} | {$ | if configuration.kind == "document-html" { str:concat(("HTML · ", configuration.name), "") } else { configuration.name }}}
+     }}
+     {cem-grid @columns=2 @gap=sm |
+      {cem-action @host-command=build-project @host-command-event=click @variant=primary @disabled={if !project.available || project.busy { true } else { null }} | Build project}
+      {cem-action @host-command=cancel-build @host-command-event=click @variant=contextual @disabled={if !project.busy { true } else { null }} | Cancel build}
+     }
+     {cem:if @test='!project.available' | {cem-alert @tone=warning @label="Choose an available build configuration, or add a CEM-ML document or native command configuration."}}
+    }
+    {cem:variable @name=status @select='project.attempt.status ?? "idle"'}
+    {cem:variable @name=message @select='if project.busy { "Building saved project revisions…" } else { if status == "failed" { if project.hasRun { "Build failed. Showing the last successful run." } else { "Build failed. No successful preview is available." } } else { if status == "cancelled" { if project.hasRun { "Build cancelled. Showing the last successful run." } else { "Build cancelled." } } else { if status == "stale" { "Build completed with stale inputs; the previous successful run is retained." } else { if project.stale { "Preview is stale. Build again to use the latest saved revisions; unsaved edits are not built." } else { if project.hasRun { "Preview uses the captured saved revisions." } else { "Build a project configuration to preview its output." } } } } } }'}
+    {cem:if @test=project.projectId | {cem-alert @label={message} @tone={if status == "failed" { "danger" } else { if project.stale || status == "cancelled" || status == "stale" { "warning" } else { "info" } }}}}
+    {cem:if @test=project.runId | {p | {$ | str:concat(("Run ", project.runId, " · saved project revision ", project.projectRevision), "")}}}
+    {cem:if @test=project.attempt.error | {cem-alert @label={project.attempt.error.message} @tone=danger}}
+    {cem:if @test='seq:count(project.attempt.diagnostics.code) &gt; 0' |
+     {ul @aria-label="Build diagnostics" | {cem:for-each @as=diagnostic @select=project.attempt.diagnostics | {li | {$ | str:concat((diagnostic.code, ": ", diagnostic.message), "")}}}}
+    }
+    {cem:if @test=project.hasRun |
+     {cem-select @label="Preview artifact" @value={project.artifactPath ?? ""} @disabled={if project.busy { true } else { null }} @host-command=select-preview-artifact @host-command-event=change |
+      {option @value="" | Choose output artifact}
+      {cem:for-each @as=artifact @select=project.artifacts | {option @value={artifact.path} | {$ | artifact.path}}}
+     }
+     {cem-grid @columns=2 @gap=sm |
+      {cem-action @host-command=copy-preview @host-command-event=click @variant=alternate @disabled={if project.busy || !project.selected || preview.kind == "download" { true } else { null }} | Copy preview output}
+      {cem-action @host-command=download-preview @host-command-event=click @variant=contextual @disabled={if project.busy || !project.selected { true } else { null }} | Download preview output}
+     }
+     {cem:if @test=project.transfer.message | {cem-alert @label={project.transfer.message} @tone={if project.transfer.status == "failed" { "danger" } else { "info" }}}}
+    }
+   }
+  }
   {section @part=preview @aria-label={preview.label ?? "Result preview"} @data-cem-studio-preview="" @data-cem-studio-preview-kind={preview.kind ?? null} |
    {cem:choose |
     {cem:when @test='projection.output.available == false' |
@@ -21,9 +60,10 @@
      {cem-media-preview @fit=fill @source-uri={preview.sourceUri} @resource-set={preview.resourceSet} @label={preview.label} @mode={mode} @truncated={if preview.truncated { true } else { null }} @value={value}}
     }
     {cem:otherwise |
-     {cem-alert @label="Run an operation to preview its bounded result" @tone=info}
+     {cem-alert @label={if project { if !project.projectId { "Select a project to build its preview." } else { if project.missingArtifact { "The requested artifact is unavailable in this run. Choose another artifact." } else { if project.hasRun { "Choose an output artifact to preview." } else { "Build saved revisions to preview project output." } } } } else { "Run an operation to preview its bounded result" }} @tone={if project.missingArtifact { "warning" } else { "info" }}}
     }
    }
+  }
   }
  }
 }

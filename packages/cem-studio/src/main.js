@@ -36,7 +36,7 @@ const session = createCemStudioProjectSession({
 const starter = await exampleProjects.starter.load();
 const sessionWorkbench = await createCemStudioSessionWorkbench({ repository, session,
     home: { starter, examples: exampleProjects.examples, collections: Array.isArray(exampleProjects.catalog.collections) ? exampleProjects.catalog.collections : [], provider: fileSystemProvider, selectImport: selectProjectArchive } });
-const workbench = await createCemStudioNavigation({ workbench: sessionWorkbench, repository, examples: exampleProjects.examples, collections: Array.isArray(exampleProjects.catalog.collections) ? exampleProjects.catalog.collections : [], browser: globalThis });
+const workbench = await createCemStudioNavigation({ workbench: sessionWorkbench, repository, validator, examples: exampleProjects.examples, collections: Array.isArray(exampleProjects.catalog.collections) ? exampleProjects.catalog.collections : [], browser: globalThis });
 const shell = await mountCemStudioApplicationShell({
     root: mounted.root,
     registration,
@@ -62,7 +62,7 @@ const unsubscribeUpdateState = workbench.subscribe((snapshot) => {
     }
     shell.update.setDirty(snapshot.dirty || Boolean(snapshot.command && snapshot.command.draftText !== snapshot.command.current.text));
     const active =
-        snapshot.structure?.busy || snapshot.home?.status === 'working' || Boolean(snapshot.transition) || ['opening', 'settling'].includes(snapshot.sessionStatus ?? '') ||
+        snapshot.projectPreview?.busy || snapshot.structure?.busy || snapshot.home?.status === 'working' || Boolean(snapshot.transition) || ['opening', 'settling'].includes(snapshot.sessionStatus ?? '') ||
         Boolean(shell.fileSystem.status().operation) ||
         ['loading', 'saving', 'validating', 'projecting'].includes(snapshot.status) ||
         snapshot.command?.application?.status === 'applying' ||
@@ -73,7 +73,7 @@ const unsubscribeProvider = shell.fileSystem.subscribe(status => {
     if (status.operation) shell.update.setActiveRequestCount(1);
     else {
         const state = workbench.snapshot();
-        shell.update.setActiveRequestCount(state.structure?.busy || state.home?.status === 'working' || state.transition || ['opening', 'settling'].includes(state.sessionStatus ?? '') || ['loading', 'saving', 'validating', 'projecting'].includes(state.status) || ['applying', 'running'].includes(state.command?.application?.status ?? '') ? 1 : 0);
+        shell.update.setActiveRequestCount(state.projectPreview?.busy || state.structure?.busy || state.home?.status === 'working' || state.transition || ['opening', 'settling'].includes(state.sessionStatus ?? '') || ['loading', 'saving', 'validating', 'projecting'].includes(state.status) || ['applying', 'running'].includes(state.command?.application?.status ?? '') ? 1 : 0);
     }
 });
 const workbenchView = await mountCemStudioWorkbench({

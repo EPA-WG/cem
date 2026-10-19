@@ -33,6 +33,15 @@
 @container (min-width: 840px) {
  [part~='root'][data-layout='browser'] { block-size: 100%; grid-template-areas: 'navigation editor'; grid-template-columns: minmax(0, 1fr) minmax(0, 3fr); grid-template-rows: minmax(0, 1fr); }
 }
+[part~='root'][data-layout='project'] { grid-template-areas: 'navigation' 'editor' 'preview'; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); }
+[part~='root'][data-layout='project'] > :where([part~='tools']) { display: none; }
+@container (min-width: 840px) {
+ [part~='root'][data-layout='project'] { grid-template-areas: 'navigation editor' 'navigation preview'; grid-template-columns: minmax(0, 1fr) minmax(0, 3fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); }
+ [part~='root'][data-layout='project'][data-fit='fill'] { block-size: 100%; }
+}
+@container (min-width: 1200px) {
+ [part~='root'][data-layout='project'] { grid-template-areas: 'navigation editor preview'; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1.5fr); grid-template-rows: minmax(0, 1fr); }
+}
 @media (forced-colors: active) {
  [part~='region'] { background-color: Canvas; color: CanvasText; border-color: CanvasText; forced-color-adjust: auto; }
 }

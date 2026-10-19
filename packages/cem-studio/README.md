@@ -226,7 +226,7 @@ rejects stale validation results and excludes duplicate pending operations.
 The adapter forwards bounded command metadata and serialized change values;
 labels, truncation, action intents and availability stay in the declaration.
 
-`src/workbench-layout.xhtml` composes `cem-workspace layout="browser"`: a left
+`src/workbench-layout.xhtml` composes `cem-workspace layout="project"`: a left
 column of selection actions, Samples, Saved projects and opened files; one content
 panel shows folder children or the selected file. The heading matches the window
 title, with the theme control above and a work status bar below. Storage/install/update
@@ -235,10 +235,17 @@ owns tree/resource/selection data, URL startup/history and project/file actions.
 See [navigation URLs](../../docs/cem-studio.md#navigation-urls). Samples are browsable
 without creating saved projects; Clone creates an editable independent copy.
 
-Command/configuration tools, preview and diagnostics remain available under
+Command/configuration tools, operation results and diagnostics remain available under
 **Commands and results** when a saved file/configuration is selected. The shell
 authors its workspace in the slot fallback; the host adapter binds that existing
 layout, retaining its editor across theme/status updates. Views remain CEM-ML.
+The independent Project preview selects build configuration and artifact through
+`build` / `artifact` URL parameters, while `file` / `folder` continue to select
+the editor. Build project uses saved revisions; failed, stale and cancelled
+attempts retain the last successful output and expose their status/diagnostics.
+Single CEM-ML documents get a derived HTML conversion. Sample builds never
+import or mutate saved projects. Native output reading remains shared in
+cem-elements; Studio owns run admission and routing without UI JavaScript.
 Navigation and exact output transfers use the same host-service boundary.
 `cem-media-preview` supplies literal text, isolated documents and download
 messages. Unrelated updates retain native previews and focus; pending transfers
