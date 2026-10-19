@@ -1,3 +1,4 @@
+import { CEM_STUDIO_PIN_LIMITS, verifyCemStudioBuildSnapshot, cemStudioBuildSnapshotSummary } from './build-snapshots.js';
 import { projectResourceUri } from './resource-reference.js';
 import { CEM_REPOSITORY_PROTOCOL_VERSION } from '@epa-wg/cem-elements';
 import {
@@ -74,6 +75,7 @@ export class CemStudioIndexedDbRepository {
         this.lifecycleState = this.indexedDB ? 'idle' : 'unavailable';
         this.repositoryRevision = 0;
         this.openPromise = undefined;
+        this.openVersion = 0;
         this.database = undefined;
         this.channel = undefined;
         this.subscribers = new Set();
@@ -90,6 +92,7 @@ export class CemStudioIndexedDbRepository {
         if (this.database) return this.database;
         if (this.openPromise) return this.openPromise;
         this.lifecycleState = 'opening';
+        const version = this.openVersion;
         this.openPromise = new Promise((resolve, reject) => {
             const request = this.indexedDB.open(this.databaseName, CEM_STUDIO_DATABASE_VERSION);
             request.onupgradeneeded = (event) => {
@@ -97,6 +100,7 @@ export class CemStudioIndexedDbRepository {
                 migrateDatabase(request.result, request.transaction, event.oldVersion);
             };
             request.onblocked = () => {
+                if (version !== this.openVersion) return;
                 this.lifecycleState = 'blocked';
                 this.diagnostics = [
                     diagnostic(
@@ -107,6 +111,7 @@ export class CemStudioIndexedDbRepository {
                 ];
             };
             request.onerror = () => {
+                if (version !== this.openVersion) { reject(new DOMException('Repository closed during opening', 'AbortError')); return; }
                 const error = normalizeRepositoryError(request.error, 'open');
                 this.lifecycleState = error.code.endsWith('unavailable') ? 'unavailable' : 'failed';
                 this.diagnostics = [diagnostic(error.code, error.message, 'error')];
@@ -115,6 +120,9 @@ export class CemStudioIndexedDbRepository {
             };
             request.onsuccess = async () => {
                 const database = request.result;
+                if (version !== this.openVersion) {
+                    database.close(); reject(new DOMException('Repository closed during opening', 'AbortError')); return;
+                }
                 database.onversionchange = () => {
                     database.close();
                     if (this.database === database) this.database = undefined;
@@ -133,14 +141,15 @@ export class CemStudioIndexedDbRepository {
                 this.database = database;
                 this.ensureBroadcastChannel();
                 try {
-                    this.repositoryRevision = await readRepositoryRevision(database);
+                    const revision = await readRepositoryRevision(database);
+                    if (version !== this.openVersion) { database.close(); reject(new DOMException('Repository closed during opening', 'AbortError')); return; }
+                    this.repositoryRevision = revision;
                     this.lifecycleState = 'ready';
                     this.diagnostics = [];
                     resolve(database);
                 } catch (error) {
                     database.close();
-                    this.database = undefined;
-                    this.lifecycleState = 'failed';
+                    if (version === this.openVersion) { this.database = undefined; this.lifecycleState = 'failed'; }
                     reject(normalizeRepositoryError(error, 'open'));
                 }
             };
@@ -156,6 +165,12 @@ export class CemStudioIndexedDbRepository {
         assertNotAborted(signal);
         let value;
         switch (request.operation) {
+            case 'list-build-snapshots':
+                value = await this.listBuildSnapshots(database, stringParameter(request, 'projectId'), signal);
+                break;
+            case 'get-build-snapshot':
+                value = await this.getBuildSnapshot(database, parameters(request), signal);
+                break;
             case 'get-project':
                 value = await this.getProject(database, parameters(request).projectId, false);
                 break;
@@ -181,7 +196,8 @@ export class CemStudioIndexedDbRepository {
             default:
                 throw unsupportedOperation(request.operation, 'query');
         }
-        this.repositoryRevision = await readRepositoryRevision(database);
+        assertNotAborted(signal);
+        this.repositoryRevision = await readRepositoryRevision(database, signal);
         return response(request, this.repositoryRevision, value);
     }
 
@@ -194,6 +210,12 @@ export class CemStudioIndexedDbRepository {
         /** @type {RepositoryMutation} */
         let mutation;
         switch (request.operation) {
+            case 'pin-build-snapshot':
+                mutation = await this.pinBuildSnapshot(database, parameters(request), signal);
+                break;
+            case 'delete-build-snapshot':
+                mutation = await this.deleteBuildSnapshot(database, parameters(request), signal);
+                break;
             case 'import-project':
                 mutation = await this.importProject(database, request, signal);
                 break;
@@ -227,6 +249,67 @@ export class CemStudioIndexedDbRepository {
             ...response(request, mutation.repositoryRevision, mutation.value),
             changeCursor: mutation.changeCursor,
         };
+    }
+
+    async listBuildSnapshots(database, projectId, signal) {
+        assertIdentity(projectId, 'project id');
+        return withTransaction(database, ['runs'], 'readonly', async transaction =>
+            (await requestValue(transaction.objectStore('runs').index('byProject').getAll(projectId)))
+                .map(({ storageBytes: _storageBytes, ...summary }) => summary).sort((a, b) => b.createdAt.localeCompare(a.createdAt) || a.key.localeCompare(b.key)), undefined, signal);
+    }
+
+    async getBuildSnapshot(database, input, signal) {
+        assertIdentity(input.projectId, 'project id');
+        assertIdentity(input.key, 'snapshot key');
+        const record = await withTransaction(database, ['resultSnapshots'], 'readonly', transaction =>
+            requestValue(transaction.objectStore('resultSnapshots').get(input.key)), undefined, signal);
+        if (!record || record.projectId !== input.projectId) throw new CemStudioRepositoryError('cem.studio.snapshot.not_found', 'The pinned build was not found in this project.');
+        const verified = await verifyCemStudioBuildSnapshot(record, this.crypto);
+        assertNotAborted(signal);
+        if (verified.run.projectId !== record.projectId) throw new CemStudioRepositoryError('cem.studio.snapshot.invalid', 'Pinned project identity does not match its manifest.');
+        return { ...verified, key: record.key, projectId: record.projectId, createdAt: record.createdAt };
+    }
+
+    async pinBuildSnapshot(database, input, signal) {
+        const verified = await verifyCemStudioBuildSnapshot(input.snapshot, this.crypto);
+        assertNotAborted(signal);
+        const record = { ...verified, key: `build-${this.crypto.randomUUID()}`, projectId: verified.run.projectId, createdAt: this.now() };
+        const summary = cemStudioBuildSnapshotSummary(record);
+        const headerBytes = new TextEncoder().encode(JSON.stringify({ key: record.key, projectId: record.projectId, createdAt: record.createdAt }) + JSON.stringify(summary)).byteLength;
+        record.storageBytes += headerBytes;
+        if (record.storageBytes - record.run.byteLength > CEM_STUDIO_PIN_LIMITS.metadataBytes) {
+            throw new CemStudioRepositoryError('cem.studio.snapshot.invalid', 'Pinned build metadata exceeds the 1 MiB limit.');
+        }
+        return withTransaction(database, ['meta', 'runs', 'resultSnapshots', 'changes'], 'readwrite', async transaction => {
+            assertNotAborted(signal);
+            const store = transaction.objectStore('resultSnapshots');
+            const inventory = transaction.objectStore('runs');
+            const records = await requestValue(inventory.getAll());
+            if (records.length >= CEM_STUDIO_PIN_LIMITS.count || records.reduce((sum, item) => sum + item.storageBytes, record.storageBytes) > CEM_STUDIO_PIN_LIMITS.totalBytes) {
+                throw new CemStudioRepositoryError('cem.studio.snapshot.capacity', 'Pinned builds are limited to 8 snapshots and 64 MiB per browser. Delete a pin before adding another.');
+            }
+            store.add(record); inventory.add({ ...summary, storageBytes: record.storageBytes });
+            const repositoryRevision = await advanceRepositoryRevision(transaction);
+            const changeCursor = await appendChange(transaction, { repositoryRevision, projectId: record.projectId,
+                operation: 'pin-build-snapshot', committedAt: record.createdAt });
+            return { value: summary, repositoryRevision, changeCursor };
+        }, 'strict');
+    }
+
+    async deleteBuildSnapshot(database, input, signal) {
+        assertIdentity(input.projectId, 'project id');
+        assertIdentity(input.key, 'snapshot key');
+        return withTransaction(database, ['meta', 'runs', 'resultSnapshots', 'changes'], 'readwrite', async transaction => {
+            assertNotAborted(signal);
+            const store = transaction.objectStore('resultSnapshots');
+            const record = await requestValue(store.get(input.key));
+            if (!record || record.projectId !== input.projectId) throw new CemStudioRepositoryError('cem.studio.snapshot.not_found', 'The pinned build was not found in this project.');
+            store.delete(input.key); transaction.objectStore('runs').delete(input.key);
+            const repositoryRevision = await advanceRepositoryRevision(transaction);
+            const changeCursor = await appendChange(transaction, { repositoryRevision, projectId: record.projectId,
+                operation: 'delete-build-snapshot', committedAt: this.now() });
+            return { value: { key: input.key }, repositoryRevision, changeCursor };
+        }, 'strict');
     }
 
     async status() {
@@ -276,6 +359,7 @@ export class CemStudioIndexedDbRepository {
     }
 
     close() {
+        ++this.openVersion;
         this.channel?.close();
         this.channel = undefined;
         this.database?.close();
@@ -1096,12 +1180,12 @@ function migrateDatabase(database, transaction, oldVersion) {
     }
 }
 
-/** @param {IDBDatabase} database */
-async function readRepositoryRevision(database) {
+/** @param {IDBDatabase} database @param {AbortSignal} [signal] */
+async function readRepositoryRevision(database, signal) {
     return withTransaction(database, ['meta'], 'readonly', async (transaction) => {
         const record = await requestValue(transaction.objectStore('meta').get('repositoryRevision'));
         return Number.isSafeInteger(record?.value) ? record.value : 0;
-    });
+    }, undefined, signal);
 }
 
 /** @param {IDBTransaction} transaction */
@@ -1953,11 +2037,14 @@ function cursorMutation(request, mutate) {
     });
 }
 
-/** @param {IDBDatabase} database @param {string[]} storeNames @param {IDBTransactionMode} mode @param {(transaction: IDBTransaction) => Promise<any>} callback @param {IDBTransactionDurability} [durability] */
-async function withTransaction(database, storeNames, mode, callback, durability) {
+/** @param {IDBDatabase} database @param {string[]} storeNames @param {IDBTransactionMode} mode @param {(transaction: IDBTransaction) => Promise<any>} callback @param {IDBTransactionDurability} [durability] @param {AbortSignal} [signal] */
+async function withTransaction(database, storeNames, mode, callback, durability, signal) {
     const transaction = database.transaction(storeNames, mode, durability ? { durability } : undefined);
     const completion = transactionCompletion(transaction);
+    const abort = () => { try { transaction.abort(); } catch { /* Already completed. */ } };
+    signal?.addEventListener('abort', abort, { once: true });
     try {
+        assertNotAborted(signal);
         const value = await callback(transaction);
         await completion;
         return value;
@@ -1969,7 +2056,7 @@ async function withTransaction(database, storeNames, mode, callback, durability)
         }
         await completion.catch(() => undefined);
         throw normalizeRepositoryError(error, 'transaction');
-    }
+    } finally { signal?.removeEventListener('abort', abort); }
 }
 
 /** @param {IDBTransaction} transaction */

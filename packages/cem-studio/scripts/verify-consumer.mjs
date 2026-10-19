@@ -60,6 +60,7 @@ try {
         'dist/static/security-headers.json',
         'dist/static/assets/@epa-wg/cem-studio/bootstrap.js',
         'dist/static/assets/@epa-wg/cem-studio/repository.js',
+        'dist/static/assets/@epa-wg/cem-studio/build-snapshots.js',
         'dist/static/assets/@epa-wg/cem-studio/file-system-provider.js',
         'dist/static/assets/@epa-wg/cem-studio/feature-tour.js',
         'dist/static/assets/@epa-wg/cem-studio/workbench.js',

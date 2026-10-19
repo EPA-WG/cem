@@ -9,12 +9,13 @@ export async function verifyMarkdownSite({ page, context, url }) {
         const snapshot = globalThis.__cemStudioApplication.workbench.snapshot();
         const preview = snapshot.projectPreview;
         return { projectId: snapshot.navigation.selection.project, file: snapshot.navigation.selection.file,
-            status: preview.attempt?.status, entryArtifact: preview.entryArtifact, entryError: preview.entryError?.message, diagnostics: preview.attempt?.diagnostics?.map(item => item.code),
+            pinId: preview.pinId, pinError: preview.pinError, pins: preview.pins, status: preview.attempt?.status, entryArtifact: preview.entryArtifact, entryError: preview.entryError?.message, diagnostics: preview.attempt?.diagnostics?.map(item => item.code),
             runId: preview.projection?.buildRun.id, artifact: preview.artifactPath,
             artifacts: preview.projection?.buildRun.artifacts.map(item => ({ path: item.path, sha256: item.sha256 })),
             html: preview.projection?.output.text };
     });
     const build = async () => { await click('Build project'); const current = await state(); assert.equal(current.status, 'succeeded', JSON.stringify(current)); return current; };
+    const choosePin = async name => { await page.getByRole('combobox', { name: 'Preview build', exact: true }).click(); await page.getByRole('option', { name, exact: true }).click(); await settle(); };
     const frame = page.locator('cem-media-preview[mode="artifact-tree"] iframe');
     const viewReady = async title => {
         await page.waitForFunction(title => document.querySelector('cem-media-preview[mode="artifact-tree"] iframe')?.contentDocument?.querySelector('h1')?.textContent === title, title);
@@ -98,6 +99,11 @@ export async function verifyMarkdownSite({ page, context, url }) {
     await page.goto(`${url}/?project=${portableId}&file=${article}&build=build-site`); await ready();
     assert.deepEqual((await build()).artifacts, shared.artifacts);
     assert.equal((await state()).artifact, 'generated/index.html');
+    await click('Pinned builds'); await click('Pin successful build');
+    const pinned = await state();
+    assert.equal(pinned.pinError, undefined); assert.equal(pinned.pins.length, 1);
+    const pinId = pinned.pins[0].key;
+    const pinnedProvenance = await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().projectPreview.projection.buildRun.artifacts.map(item => item.provenance));
     await page.evaluate(async () => {
         await navigator.serviceWorker.ready;
         const url = new URL(location.href); url.searchParams.delete('artifact');
@@ -106,10 +112,28 @@ export async function verifyMarkdownSite({ page, context, url }) {
     await context.setOffline(true);
     try {
         await page.reload(); await ready();
+        await page.waitForFunction(() => globalThis.__cemStudioApplication.workbench.snapshot().projectPreview.pins.length === 1);
+        assert.equal((await state()).runId, undefined); // no native build has run after reload
+        await click('Pinned builds');
+        await choosePin(pinned.pins[0].name);
+        const reopened = await state();
+        assert.equal(reopened.pinError, undefined); assert.equal(reopened.pinId, pinId); assert.equal(reopened.status, undefined);
+        assert.equal(reopened.runId, pinned.runId); assert.deepEqual(reopened.artifacts, pinned.artifacts);
+        assert.equal(reopened.file, article); await viewReady('CEM field notes');
+        await page.waitForFunction(() => document.querySelector('cem-media-preview[mode="artifact-tree"] iframe')?.contentDocument?.querySelector('img')?.naturalWidth === 480);
+        assert.equal(await frame.evaluate(frame => frame.contentWindow.getComputedStyle(frame.contentDocument.querySelector('nav')).display), 'flex');
+        assert.deepEqual(await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().projectPreview.projection.buildRun.artifacts.map(item => item.provenance)), pinnedProvenance);
+        await choosePin('Current build');
+        assert.equal((await state()).runId, undefined); // reopening a pin does not create a current build
         const offline = await build();
         assert.deepEqual(offline.artifacts, shared.artifacts); assert.equal(offline.file, article);
         await viewReady('CEM field notes');
         assert.equal(offline.entryArtifact, 'generated/index.html');
+        const layout = await page.locator('cem-studio-workbench-preview').evaluate(host => {
+            const toolbar = host.querySelector('[part="build-controls"]'), preview = host.querySelector('[part="preview"]');
+            return { overflow: getComputedStyle(toolbar).overflowY, bottom: toolbar.getBoundingClientRect().bottom, top: preview.getBoundingClientRect().top };
+        });
+        assert.equal(layout.overflow, 'auto'); assert.ok(layout.top >= layout.bottom, 'Expanded build controls must not cover the preview');
         await frame.contentFrame().getByRole('navigation', { name: 'Site navigation' }).getByRole('link', { name: 'Articles', exact: true }).click();
         await settle(); await viewReady('Articles');
         await frame.contentFrame().getByRole('navigation', { name: 'Site navigation' }).getByRole('link', { name: 'Home', exact: true }).click();
@@ -124,7 +148,13 @@ export async function verifyMarkdownSite({ page, context, url }) {
                 edited: workbench.snapshot().projectPreview.projection.outputs.some(output => output.text?.includes('<title>Only the portable copy</title>')) };
         }, projectId);
         assert.equal(independence.original, original); assert.equal(independence.edited, true);
+        const current = await state();
+        await choosePin(pinned.pins[0].name);
+        assert.deepEqual((await state()).artifacts, pinned.artifacts);
+        await click('Delete pinned build');
+        assert.equal((await state()).pinId, undefined); assert.equal((await state()).runId, current.runId);
+        assert.deepEqual((await state()).artifacts, current.artifacts); assert.equal((await state()).pins.length, 0);
     } finally { await context.setOffline(false); }
     console.log('[cem-studio:markdown-site] portable independent copy and offline rebuild passed');
-    return { outputs: 7, relativeNavigation: true, staticAssets: true, editRepair: true, sharedLayout: true, provenance: true, portableCopies: true, entryArtifact: true, offline: true };
+    return { outputs: 7, relativeNavigation: true, staticAssets: true, editRepair: true, sharedLayout: true, provenance: true, portableCopies: true, entryArtifact: true, pinnedSnapshots: true, offline: true };
 }

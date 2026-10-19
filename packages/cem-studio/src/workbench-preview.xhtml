@@ -6,8 +6,9 @@
  {body |
 {style @type=text/css |```
 :scope { display: block; block-size: 100%; min-block-size: 0; }
-[part~='root'] { display: grid; grid-template-rows: minmax(0, 1fr); gap: var(--cem-gap-related); block-size: 100%; min-block-size: 0; }
-[part~='root'][data-project] { grid-template-rows: auto minmax(20vb, 1fr); }
+[part~='root'] { display: grid; grid-template-rows: minmax(0, 1fr); gap: var(--cem-gap-related); block-size: 100%; min-block-size: 0; overflow-wrap: anywhere; }
+[part~='root'][data-project] { grid-template-rows: minmax(0, auto) minmax(20vb, 1fr); }
+[part~='build-controls'] { min-block-size: 0; overflow: auto; }
 [part~='preview'] { block-size: 100%; min-block-size: 0; }
 ```}
   {cem:variable @name=projection @select=datadom.slices.state.projection}
@@ -15,6 +16,7 @@
   {cem:variable @name=project @select=datadom.slices.state.projectPreview}
   {div @part=root @data-project={if project { "" } else { null }} |
   {cem:if @test=project |
+   {div @part=build-controls |
    {cem-stack @gap=md |
     {cem:if @test=project.projectId |
      {cem-select @label="Build configuration" @value={project.configurationId ?? ""} @disabled={if project.busy { true } else { null }} @host-command=select-build @host-command-event=change |
@@ -22,6 +24,32 @@
       {cem:for-each @as=configuration @select=project.configurations |
        {option @value={configuration.id} | {$ | if configuration.kind == "document-html" { str:concat(("HTML · ", configuration.name), "") } else { configuration.name }}}
      }}
+     {cem-expansion @label="Pinned builds" |
+      {cem-stack @gap=sm |
+       {p | Save successful artifact bytes and build metadata for offline reopening. Pins are separate from editable project sources.}
+       {cem-select @label="Preview build" @value={project.pinSelection ?? ""} @disabled={if project.pinBusy || project.busy { true } else { null }} @host-command=select-pinned-build @host-command-event=change |
+        {option @value="" | Current build}
+        {cem:for-each @as=pin @select=project.pins | {option @value={pin.key} | {$ | pin.name}}}
+       }
+       {cem-grid @columns=2 @gap=sm |
+        {cem-action @variant=contextual @host-command=pin-build @host-command-event=click @disabled={if !project.canPin { true } else { null }} | Pin successful build}
+        {cem-action @variant=contextual @host-command=delete-pinned-build @host-command-event=click @disabled={if !project.pinSelection || project.pinBusy { true } else { null }} | Delete pinned build}
+       }
+       {p | Up to 8 pins and 64 MiB in this browser. Delete pins to free space. Pins are not included in portable source project exports.}
+       {cem:if @test=project.pinBusy | {p @role=status | Opening or saving pinned build…}}
+       {cem:if @test=project.pinError | {cem-alert @label={project.pinError.message} @tone=danger}}
+       {cem:if @test=project.pinMessage | {cem-alert @label={project.pinMessage} @tone=info}}
+       {cem:if @test=project.pinId |
+        {cem-expansion @label="Pinned build metadata" |
+         {cem-stack @gap=sm |
+          {p | {$ | str:concat((project.pinnedConfiguration.name, " · configuration revision ", project.pinnedConfiguration.revision, " · SHA-256 ", project.pinnedConfiguration.sha256), "")}}
+          {ul @aria-label="Pinned input versions" | {cem:for-each @as=input @select=project.pinnedInputs | {li | {$ | str:concat((input.path, " · revision ", input.revision, " · ", input.sha256), "")}}}}
+          {ul @aria-label="Pinned artifact digests" | {cem:for-each @as=artifact @select=project.pinnedArtifacts | {li | {$ | str:concat((artifact.path, " · ", artifact.byteLength, " bytes · ", artifact.sha256), "")}}}}
+         }
+        }
+       }
+      }
+     }
      {cem:if @test=project.entryEditable |
       {cem-expansion @label="Build entry settings" |
       {form @host-command=save-build-entry @host-command-event=submit |
@@ -42,7 +70,7 @@
     }
     {cem:variable @name=status @select='project.attempt.status ?? "idle"'}
     {cem:variable @name=message @select='if project.busy { "Building saved project revisions…" } else { if status == "failed" { if project.hasRun { "Build failed. Showing the last successful run." } else { "Build failed. No successful preview is available." } } else { if status == "cancelled" { if project.hasRun { "Build cancelled. Showing the last successful run." } else { "Build cancelled." } } else { if status == "stale" { "Build completed with stale inputs; the previous successful run is retained." } else { if project.stale { "Preview is stale. Build again to use the latest saved revisions; unsaved edits are not built." } else { if project.hasRun { "Preview uses the captured saved revisions." } else { "Build a project configuration to preview its output." } } } } } }'}
-    {cem:if @test=project.projectId | {cem-alert @label={message} @tone={if status == "failed" { "danger" } else { if project.stale || status == "cancelled" || status == "stale" { "warning" } else { "info" } }}}}
+    {cem:if @test=project.projectId | {cem-alert @label={if project.pinId { "Viewing an immutable pinned build. Current build and source selection are retained. Build project returns to the current build." } else { message }} @tone={if project.pinId { "info" } else { if status == "failed" { "danger" } else { if project.stale || status == "cancelled" || status == "stale" { "warning" } else { "info" } } }}}}
     {cem:if @test=project.runId | {p | {$ | str:concat(("Run ", project.runId, " · saved project revision ", project.projectRevision), "")}}}
     {cem:if @test=project.attempt.error | {cem-alert @label={project.attempt.error.message} @tone=danger}}
     {cem:if @test='seq:count(project.attempt.diagnostics.code) &gt; 0' |
@@ -59,6 +87,7 @@
      }
      {cem:if @test=project.transfer.message | {cem-alert @label={project.transfer.message} @tone={if project.transfer.status == "failed" { "danger" } else { "info" }}}}
     }
+   }
    }
   }
   {section @part=preview @aria-label={preview.label ?? "Result preview"} @data-cem-studio-preview="" @data-cem-studio-preview-kind={preview.kind ?? null} |

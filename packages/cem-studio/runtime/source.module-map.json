@@ -85,6 +85,10 @@
         "@epa-wg/cem-elements/command-result": {
             "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/command-result.js",
             "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-studio/build-snapshots": {
+            "path": "../src/build-snapshots.js",
+            "contentType": "text/javascript"
         }
     },
     "resources": {

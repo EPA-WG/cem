@@ -1153,7 +1153,56 @@ changing project/configuration cancels the former attempt and releases its run.
 Saved command/input changes and related unsaved editor drafts mark the preview
 stale. Build reads a captured saved bundle and never saves or discards a draft.
 Sample builds use the same read-only snapshot adapter without importing a saved
-project. Runs remain in memory; pinning runs is subsequent work.
+project. Current builds remain in memory. **Pinned builds** explicitly persist
+successful complete results in the repository's separate `resultSnapshots` store,
+with a small inventory in `runs`. Listing/capacity checks never load artifact
+bodies. Using these existing stores needs no database migration and does not change source
+project/resource revisions, drafts, configurations or portable project exports.
+Samples can be pinned without importing them as saved source projects.
+
+Expand **Pinned builds**, choose **Pin successful build**, then choose a saved pin
+in **Preview build**. **Current build** restores the retained current run and its
+artifact selection. Opening a pin does not execute a command or change the source
+file/draft. **Build project** returns to the current build; failure/cancellation
+still retains its former success. **Delete pinned build** releases that stored
+record and returns to the current view. Pins are immutable; subsequent source
+edits/builds never update them. Preview build selection is session state: after
+reloading, select the saved pin again to reopen it offline without building.
+Source/configuration/artifact URL parameters continue to select the current build;
+artifact navigation inside a pin stays local to that pin.
+
+Each version-1 pin keeps exact artifact bytes, SHA-256/length/content type/path,
+captured project/configuration/input revisions and hashes, execution identity,
+admission metadata, native provenance and historical source-map references.
+Pinned metadata exposes configuration/input versions and artifact digests.
+Historical native request/source-map identifiers remain descriptive metadata;
+no retained native handles, runtime result/tree, DOM, registry lease or callbacks
+are rehydrated. Original input bytes are not copied into pins, so reopening output
+does not imply that an old source revision remains available or reproducible.
+
+Admission and reopening verify every artifact length and digest before publishing
+any result. One pin allows 128 artifacts / 16 MiB exact output and 1 MiB portable
+metadata; the browser repository admits at most eight pins and 64 MiB combined
+output/metadata across all projects (logical serialized controls plus exact output bytes,
+independent of browser storage overhead). Atomic transactions serialize concurrent
+pins and reject capacity/quota failures without eviction or partial publication.
+Delete pins explicitly to free space. Missing/corrupt records report an error
+while preserving the current view. An unreadable pin stays selected for explicit
+deletion to free storage after an output-verification or version failure. Another
+project's key cannot read/delete a pin. Browser storage availability/eviction still follows the existing repository
+contract. Pins are local derived data, not portable source-project contents.
+
+Restored bytes use the same shared artifact-tree registry, passive preview policy
+and exact copy/download services. Relative links/CSS/images resolve within the
+pinned set; no source, network or newer build supplies missing assets. Switching,
+project/configuration changes and disposal release view leases. Generation guards
+reject late reads/transfers. Disposing/changing views aborts pin-list/read
+transactions; closing during an asynchronous repository open cannot leave a new
+connection behind. Current and pinned artifact selections remain
+independent, including when unsaved drafts are present. Expanded pin/entry
+controls scroll within their own bounded toolbar, without covering the output
+region or intercepting preview links. Comparisons and native
+build/render cache reuse remain subsequent work.
 
 Build choices include native graph, template, conversion and query configurations,
 plus live-view configurations. An ordinary CEM-ML document also gets a derived

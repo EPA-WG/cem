@@ -1,3 +1,4 @@
+import { captureCemStudioBuildSnapshot, openCemStudioBuildSnapshot } from './build-snapshots.js';
 import { CEM_STUDIO_REPOSITORY_ID } from './repository.js';
 import { createCemStudioProjectWorkbench, createCemStudioWorkbench } from './workbench.js';
 import { projectResourceUri } from './resource-reference.js';
@@ -119,7 +120,7 @@ export async function createCemStudioNavigation({ workbench, repository, example
         const url = new URL(browser.location.href);
         for (const name of ['view', 'collection', 'project', 'sample', 'folder', 'file', 'configuration', 'build', 'artifact']) url.searchParams.delete(name);
         const output = preview?.snapshot();
-        const combined = { ...route, ...(output?.configurationId ? { build: output.configurationId } : {}), ...(output?.artifactPath ? { artifact: output.artifactPath } : {}) };
+        const combined = { ...route, ...(output?.configurationId ? { build: output.configurationId } : {}), ...(output?.currentArtifactPath ? { artifact: output.currentArtifactPath } : {}) };
         for (const [name, value] of Object.entries(combined)) url.searchParams.set(name, value);
         if (mode === 'push' && url.href !== acceptedUrl.href) browser.history.pushState(null, '', url);
         else if (mode !== 'push' || url.href !== browser.location.href) browser.history.replaceState(null, '', url);
@@ -184,7 +185,7 @@ export async function createCemStudioNavigation({ workbench, repository, example
     const preview = createCemStudioProjectPreview({ repository, validator, openBuildWorkbench });
     const unsubscribePreview = preview.subscribe(publish);
     const unsubscribe = workbench.subscribe(state => { base = state; preview.updateSource(state); publish(); });
-    const unsubscribeRepository = repository.subscribe?.(0, () => { void refresh().catch(cause => { error = { message: cause.message }; publish(); }); });
+    const unsubscribeRepository = repository.subscribe?.(0, () => { void preview.refreshPins(); void refresh().catch(cause => { error = { message: cause.message }; publish(); }); });
     const readUrl = () => {
         const params = new URL(browser.location.href).searchParams;
         return Object.fromEntries(['view', 'collection', 'project', 'sample', 'folder', 'file', 'configuration', 'build', 'artifact'].filter(key => params.has(key)).map(key => [key, params.get(key)]));
@@ -197,7 +198,10 @@ export async function createCemStudioNavigation({ workbench, repository, example
         subscribe(notify) { subscribers.add(notify); notify(snapshot()); return () => subscribers.delete(notify); },
         async openEntity(key) { await navigate(key === 'samples' ? {} : Object.fromEntries(new URLSearchParams(key)), 'push', true); },
         selectPreviewConfiguration(id) { preview.selectConfiguration(id); writeUrl(selection, 'push'); },
-        selectPreviewArtifact(path) { preview.selectArtifact(path); writeUrl(selection, 'push'); },
+        selectPreviewArtifact(path) { preview.selectArtifact(path); if (!preview.snapshot().pinId) writeUrl(selection, 'push'); },
+        pinProjectBuild() { return preview.pin(); },
+        selectPinnedBuild(key) { return preview.selectPin(key); },
+        deletePinnedBuild() { return preview.deletePin(); },
         async saveBuildEntryArtifact(path) {
             if (!snapshot().projectPreview?.canEditEntry) return;
             await workbench.editStructure({ kind: 'set-entry-artifact', id: preview.snapshot().configurationId, entryArtifact: path });
@@ -277,7 +281,79 @@ export async function createCemStudioNavigation({ workbench, repository, example
 export function createCemStudioProjectPreview({ repository, validator, openBuildWorkbench }) {
     const subscribers = new Set();
     let context, configurationId, artifactPath, explicitArtifact = false, success, successStamp, artifactTree, attempt, active, source, disposed = false, generation = 0;
+    let pins = [], pinId, pinSelection, pinned, pinnedTree, pinnedPath, pinBusy = false, pinError, pinMessage, pinVersion = 0, pinListVersion = 0, pinListController, pinReadController;
+    const viewed = () => pinned ?? success;
     const selectedPath = () => artifactPath?.split(/[?#]/)[0];
+    const treeFor = projection => {
+        const artifacts = projection.buildRun.artifacts.filter(item => !/^[a-z][\w+.-]*:/i.test(item.path)).map(item => ({
+            path: item.path, contentType: item.contentType, bytes: projection.outputs.find(output => output.uri === item.uri).bytes }));
+        return artifacts.length ? registerCemArtifactTree(artifacts) : undefined;
+    };
+    function closePin() {
+        ++pinVersion; pinReadController?.abort(); pinned?.dispose(); pinnedTree?.dispose(); pinned = undefined; pinnedTree = undefined;
+        pinId = undefined; pinSelection = undefined; pinnedPath = undefined; pinBusy = false;
+    }
+    async function refreshPins() {
+        const key = context?.key, projectId = context?.project.id, version = ++pinListVersion;
+        pinListController?.abort();
+        if (!projectId || disposed) return;
+        const controller = new AbortController(); pinListController = controller;
+        try {
+            const result = await repository.query(request('list-build-snapshots', { projectId }), controller.signal);
+            if (disposed || context?.key !== key || pinListVersion !== version) return;
+            pins = result.value;
+            if (pinId && !pins.some(item => item.key === pinId) || pinSelection && !pins.some(item => item.key === pinSelection)) closePin();
+        } catch (error) { if (!controller.signal.aborted && !disposed && context?.key === key && pinListVersion === version) pinError = { message: error.message }; }
+        publish();
+    }
+    async function pin() {
+        if (!success || pinSelection || pinBusy || active || disposed) return;
+        const key = context.key, version = ++pinVersion;
+        pinBusy = true; pinError = undefined; pinMessage = undefined; publish();
+        try {
+            await repository.execute(request('pin-build-snapshot', { snapshot: captureCemStudioBuildSnapshot(success.snapshot().projection) }));
+            if (disposed || context?.key !== key || version !== pinVersion) return;
+            pinMessage = 'Successful build pinned for offline reopening.';
+            await refreshPins();
+        } catch (error) { if (!disposed && version === pinVersion) pinError = { message: error.message }; }
+        finally { if (!disposed && version === pinVersion) { pinBusy = false; publish(); } }
+    }
+    async function selectPin(id) {
+        if (disposed || active) return;
+        if (!id) { closePin(); pinError = undefined; publish(); return; }
+        const projectId = context?.project.id, key = context?.key, version = ++pinVersion;
+        if (!projectId) return;
+        pinReadController?.abort(); pinSelection = id;
+        const controller = new AbortController(); pinReadController = controller;
+        pinBusy = true; pinError = undefined; pinMessage = undefined; publish();
+        let candidate, tree;
+        try {
+            const { value } = await repository.query(request('get-build-snapshot', { projectId, key: id }), controller.signal);
+            if (disposed || context?.key !== key || version !== pinVersion) return;
+            candidate = openCemStudioBuildSnapshot(value);
+            const path = value.run.configuration.entryArtifact ?? defaultArtifact(value.run.artifacts)?.path;
+            const selected = value.run.artifacts.find(item => item.path === path);
+            if (selected) candidate.selectArtifact(selected.id);
+            tree = treeFor(candidate.snapshot().projection);
+            pinned?.dispose(); pinnedTree?.dispose();
+            pinned = candidate; pinnedTree = tree; pinId = id; pinnedPath = path; candidate = undefined; tree = undefined;
+        } catch (error) { if (!disposed && version === pinVersion) pinError = { message: error.message }; }
+        finally {
+            candidate?.dispose(); tree?.dispose();
+            if (!disposed && version === pinVersion) { pinBusy = false; publish(); }
+        }
+    }
+    async function deletePin() {
+        if (!pinSelection || pinBusy || disposed) return;
+        const key = context.key, id = pinSelection, version = ++pinVersion;
+        pinBusy = true; pinError = undefined; pinMessage = undefined; publish();
+        try {
+            await repository.execute(request('delete-build-snapshot', { projectId: context.project.id, key: id }));
+            if (disposed || context?.key !== key || version !== pinVersion) return;
+            closePin(); pinMessage = 'Pinned build deleted. Current build retained.'; await refreshPins();
+        } catch (error) { if (!disposed && version === pinVersion) pinError = { message: error.message }; }
+        finally { if (!disposed && version === pinVersion) { pinBusy = false; publish(); } }
+    }
     const stamp = project => {
         const entry = project.entries.find(item => item.id === configurationId);
         return JSON.stringify(entry && [entry.kind, entry.runConfigResourceId, entry.resourceIds, entry.tags, entry.entryArtifact]);
@@ -306,18 +382,24 @@ export function createCemStudioProjectPreview({ repository, validator, openBuild
     function snapshot() {
         const configurations = choices();
         const available = configurations.some(item => item.id === configurationId);
-        const projection = success?.snapshot().projection;
-        const artifact = projection?.buildRun.artifacts.find(item => item.path === artifactPath || item.path === selectedPath());
+        const projection = viewed()?.snapshot().projection;
+        const path = pinned ? pinnedPath : artifactPath, tree = pinned ? pinnedTree : artifactTree;
+        const artifact = projection?.buildRun.artifacts.find(item => item.path === path || item.path === path?.split(/[?#]/)[0]);
         const inputs = projection?.buildRun.inputs ?? [];
-        const stale = Boolean(projection && (projection.stale || changed(projection) || successStamp !== stamp(context.project)
+        const pinnedConfiguration = projection?.buildRun.configuration;
+        const pinConfigurationStale = Boolean(pinned && !configurations.some(item => item.id === pinnedConfiguration.id
+            && item.entryArtifact === pinnedConfiguration.entryArtifact
+            && (item.kind === 'document-html' || item.kind === pinnedConfiguration.kind)));
+        const stale = Boolean(projection && (projection.stale || changed(projection) || (pinned ? pinConfigurationStale : successStamp !== stamp(context.project))
             || !context.bundle && source?.projectId === context.project.id && (source.dirty && inputs.some(input => input.resourceId === source.resourceId)
             || source.entryId === configurationId && source.command?.draftText !== source.command?.current?.text)));
-        return Object.freeze({ projectId: context?.project.id, contextKey: context?.key, configurations, configurationId, artifactPath,
+        return Object.freeze({ projectId: context?.project.id, contextKey: context?.key, configurations, configurationId, artifactPath: path, currentArtifactPath: artifactPath,
+            pins, pinId, pinSelection, pinBusy, pinError, pinMessage, canPin: Boolean(success && !pinSelection && !active && !pinBusy), currentRunId: success?.snapshot().projection?.buildRun.id,
             entryArtifact: configurations.find(item => item.id === configurationId)?.entryArtifact,
             available, busy: Boolean(active), attempt, projection, stale,
-            preview: artifact && artifactTree && !/^[a-z][\w+.-]*:/i.test(artifact.path) && ['text/html', 'application/xhtml+xml'].includes(artifact.contentType.split(';')[0]) && projection.preview?.kind === 'sandboxed-html'
-                ? { kind: 'artifact-tree', label: projection.preview.label, resourceSet: artifactTree.resourceSet, artifactPath } : artifact ? projection?.preview : undefined,
-            missingArtifact: Boolean(projection && artifactPath !== undefined && !artifact),
+            preview: artifact && tree && !/^[a-z][\w+.-]*:/i.test(artifact.path) && ['text/html', 'application/xhtml+xml'].includes(artifact.contentType.split(';')[0]) && projection.preview?.kind === 'sandboxed-html'
+                ? { kind: 'artifact-tree', label: projection.preview.label, resourceSet: tree.resourceSet, artifactPath: path } : artifact ? projection?.preview : undefined,
+            missingArtifact: Boolean(projection && path !== undefined && !artifact),
             selectedArtifact: artifact, artifacts: projection?.buildRun.artifacts ?? [] });
     }
     const publish = () => { if (!disposed) for (const notify of subscribers) notify(snapshot()); };
@@ -327,9 +409,10 @@ export function createCemStudioProjectPreview({ repository, validator, openBuild
         job.controller.abort();
         attempt = { id: job.id, status: 'cancelled' }; publish();
     }
-    function clear() { cancel(); success?.dispose(); artifactTree?.dispose(); artifactTree = undefined; success = undefined; attempt = undefined; artifactPath = undefined; explicitArtifact = false; }
+    function clear() { closePin(); pinError = undefined; pinMessage = undefined; cancel(); success?.dispose(); artifactTree?.dispose(); artifactTree = undefined; success = undefined; attempt = undefined; artifactPath = undefined; explicitArtifact = false; }
     function setContext(next, settings = {}) {
-        if (context?.key !== next?.key) { clear(); context = next; configurationId = undefined; }
+        const changedContext = context?.key !== next?.key;
+        if (changedContext) { pinListController?.abort(); clear(); pins = []; context = next; configurationId = undefined; }
         else context = next;
         if (!context) { configurationId = undefined; publish(); return; }
         const configurations = choices();
@@ -342,6 +425,7 @@ export function createCemStudioProjectPreview({ repository, validator, openBuild
         const artifact = artifacts?.find(item => item.path === artifactPath || item.path === selectedPath());
         if (artifact) success.selectArtifact(artifact.id);
         publish();
+        if (changedContext) void refreshPins();
     }
     async function open(bundle, configuration, signal) {
         // A read-only captured repository makes every native read use the same
@@ -368,6 +452,7 @@ export function createCemStudioProjectPreview({ repository, validator, openBuild
     }
     async function build() {
         if (disposed || !context || !choices().some(item => item.id === configurationId) || active) return;
+        closePin();
         const capturedContext = context, configuration = choices().find(item => item.id === configurationId);
         const job = { id: ++generation, controller: new AbortController() };
         active = job; attempt = { id: job.id, status: 'building' }; publish();
@@ -398,9 +483,7 @@ export function createCemStudioProjectPreview({ repository, validator, openBuild
                 const nextPath = explicitArtifact ? artifactPath : declaredEntry ?? defaultArtifact(artifacts)?.path;
                 const selected = artifacts.find(item => item.path === nextPath || item.path === nextPath?.split(/[?#]/)[0]);
                 if (selected) candidate.selectArtifact(selected.id);
-                const treeArtifacts = artifacts.filter(item => !/^[a-z][\w+.-]*:/i.test(item.path)).map(item => ({ path: item.path, contentType: item.contentType,
-                    bytes: projection.outputs.find(output => output.uri === item.uri).bytes }));
-                const nextTree = treeArtifacts.length ? registerCemArtifactTree(treeArtifacts) : undefined;
+                const nextTree = treeFor(projection);
                 artifactPath = nextPath;
                 artifactTree?.dispose(); artifactTree = nextTree;
                 success?.dispose(); success = candidate; successStamp = stamp(bundle.project); candidate = undefined;
@@ -414,18 +497,18 @@ export function createCemStudioProjectPreview({ repository, validator, openBuild
         })();
         await Promise.race([execution, aborted]);
     }
-    return Object.freeze({ snapshot, setContext, build, cancel,
+    return Object.freeze({ snapshot, setContext, build, cancel, pin, selectPin, deletePin, refreshPins,
         subscribe(notify) { subscribers.add(notify); notify(snapshot()); return () => subscribers.delete(notify); },
         updateSource(value) { source = value; publish(); },
         selectConfiguration(id) { setContext(context, { build: id, reset: true }); },
         selectArtifact(path) {
-            artifactPath = path; explicitArtifact = true;
-            const artifact = success?.snapshot().projection?.buildRun.artifacts.find(item => item.path === path || item.path === selectedPath());
-            if (artifact) success.selectArtifact(artifact.id);
+            if (pinned) pinnedPath = path; else { artifactPath = path; explicitArtifact = true; }
+            const artifact = viewed()?.snapshot().projection?.buildRun.artifacts.find(item => item.path === path || item.path === path?.split(/[?#]/)[0]);
+            if (artifact) viewed().selectArtifact(artifact.id);
             publish();
         },
-        async copy(writeText) { if (snapshot().selectedArtifact) { await success.copyProjection(writeText); publish(); } },
-        async download(save) { if (snapshot().selectedArtifact) { await success.downloadProjection(save); publish(); } },
-        dispose() { disposed = true; clear(); subscribers.clear(); },
+        async copy(writeText) { if (snapshot().selectedArtifact) { await viewed().copyProjection(writeText); publish(); } },
+        async download(save) { if (snapshot().selectedArtifact) { await viewed().downloadProjection(save); publish(); } },
+        dispose() { disposed = true; pinListController?.abort(); clear(); subscribers.clear(); },
     });
 }

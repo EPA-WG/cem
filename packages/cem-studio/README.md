@@ -377,3 +377,12 @@ yarn nx run @epa-wg/cem-studio:verify:navigation
 It checks model-backed sample/project/folder/file selection, matching titles,
 Back/Forward, bookmark reload, action dialogs, draft guards, theme retention,
 responsive/forced-color paint, and native Supplier Run after an offline reload.
+
+Pinned successful builds are available in the preview toolbar's **Pinned builds**
+expansion. Pin exact outputs and captured versions/provenance, then choose a pin
+in **Preview build** to reopen it offline without running a command. **Current
+build** restores the current run; **Delete pinned build** frees space. Sources,
+drafts and portable source exports remain independent. Pins allow up to eight
+records / 64 MiB per browser, with 128 artifacts / 16 MiB output and 1 MiB metadata
+per record; capacity failures do not evict existing pins. See the [build design](../../docs/cem-studio.md#project-builds-and-artifact-previews)
+for integrity checks, ownership and offline limits.

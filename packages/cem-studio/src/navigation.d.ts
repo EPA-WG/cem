@@ -1,3 +1,4 @@
+import type { CemStudioBuildSnapshotSummary, CemStudioPinnedBuildProjection } from './build-snapshots.js';
 import type { CemStudioFeatureTourWorkbench, CemStudioWorkbenchState } from './workbench.js';
 import type { CemStudioIndexedDbRepository } from './repository.js';
 import type { CemStudioExampleProject } from './file-system-provider.js';
@@ -5,6 +6,15 @@ import type { CemStudioBrowserValidator } from './feature-tour.js';
 import type { CemStudioWorkbenchProjection, CemStudioBuildArtifact } from './workbench.js';
 
 export interface CemStudioProjectPreviewState {
+    readonly pins: readonly CemStudioBuildSnapshotSummary[];
+    readonly pinId?: string;
+    readonly pinSelection?: string;
+    readonly pinBusy: boolean;
+    readonly pinError?: { readonly message: string };
+    readonly pinMessage?: string;
+    readonly canPin: boolean;
+    readonly currentRunId?: string;
+    readonly currentArtifactPath?: string;
     readonly projectId?: string;
     readonly contextKey?: string;
     readonly configurations: readonly { id: string; name: string; kind: string; resourceId?: string; entryArtifact?: string }[];
@@ -22,7 +32,7 @@ export interface CemStudioProjectPreviewState {
     readonly missingArtifact: boolean;
     readonly selectedArtifact?: CemStudioBuildArtifact;
     readonly artifacts: readonly CemStudioBuildArtifact[];
-    readonly projection?: CemStudioWorkbenchProjection;
+    readonly projection?: CemStudioWorkbenchProjection | CemStudioPinnedBuildProjection;
     readonly preview?: import('./preview.js').CemStudioPreview;
     readonly attempt?: { id: number; status: 'building' | 'succeeded' | 'failed' | 'cancelled' | 'stale'; diagnostics?: readonly Readonly<Record<string, unknown>>[]; error?: { message: string } };
 }
@@ -65,6 +75,9 @@ export interface CemStudioNavigation extends CemStudioFeatureTourWorkbench {
     submitAction(fields: Readonly<Record<string, readonly string[]>>): Promise<void>;
     selectPreviewConfiguration(id: string): void;
     selectPreviewArtifact(path: string): void;
+    pinProjectBuild(): Promise<void>;
+    selectPinnedBuild(key: string): Promise<void>;
+    deletePinnedBuild(): Promise<void>;
     saveBuildEntryArtifact(path: string): Promise<void>;
     buildProjectPreview(): Promise<void>;
     cancelProjectPreview(): void;
@@ -92,6 +105,10 @@ export function createCemStudioProjectPreview(options: {
     updateSource(state: CemStudioWorkbenchState): void;
     selectConfiguration(id: string): void;
     selectArtifact(path: string): void;
+    pin(): Promise<void>;
+    selectPin(key: string): Promise<void>;
+    deletePin(): Promise<void>;
+    refreshPins(): Promise<void>;
     build(): Promise<void>;
     cancel(): void;
     copy(writeText?: (text: string) => Promise<void>): Promise<void>;

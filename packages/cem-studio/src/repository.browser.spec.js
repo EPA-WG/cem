@@ -17,6 +17,97 @@ afterEach(async () => {
 });
 
 describe('CemStudioIndexedDbRepository', () => {
+    it('persists exact pinned builds across reopen without changing sources, and scopes reads and deletion', async () => {
+        const repository = createRepository();
+        const bundle = await projectBundle('saved draft-independent source');
+        await repository.execute(command('import-project', { bundle }));
+        const before = (await repository.query(query('export-project', { projectId: 'feature-tour' }))).value;
+        const snapshot = await pinnedBuild();
+        const { value: pin } = await repository.execute(command('pin-build-snapshot', { snapshot }));
+        snapshot.outputs[0].bytes.fill(0); // caller does not retain ownership of stored bytes
+        repository.close();
+        const reopened = createRepository({ databaseName: repository.databaseName });
+        const { value } = await reopened.query(query('get-build-snapshot', { projectId: 'feature-tour', key: pin.key }));
+        expect(new TextDecoder().decode(value.outputs[0].bytes)).toBe('Pinned café 🙂\r\n');
+        expect(new Uint8Array(value.outputs[1].bytes)).toEqual(new Uint8Array([0, 255, 128, 1]));
+        expect(value.run.artifacts[0].provenance).toEqual([{ uri: 'studio://feature-tour/data/tour.cem', range: { start: 0, end: 4 } }]);
+        expect(value.run.executionIdentity).toEqual({ engineVersion: 'test-native-1' });
+        expect(value.run.configuration).toEqual((await pinnedBuild()).run.configuration);
+        expect(value.run.artifacts[0]).not.toHaveProperty('handleId');
+        expect((await reopened.query(query('export-project', { projectId: 'feature-tour' }))).value).toEqual(before);
+        await expect(reopened.query(query('get-build-snapshot', { projectId: 'another', key: pin.key }))).rejects.toMatchObject({ code: 'cem.studio.snapshot.not_found' });
+        await expect(reopened.execute(command('delete-build-snapshot', { projectId: 'another', key: pin.key }))).rejects.toMatchObject({ code: 'cem.studio.snapshot.not_found' });
+        const aborted = new AbortController(); aborted.abort();
+        await expect(reopened.execute(command('delete-build-snapshot', { projectId: 'feature-tour', key: pin.key }), aborted.signal)).rejects.toMatchObject({ name: 'AbortError' });
+        await reopened.execute(command('delete-build-snapshot', { projectId: 'feature-tour', key: pin.key }));
+        expect((await reopened.query(query('list-build-snapshots', { projectId: 'feature-tour' }))).value).toEqual([]);
+        expect((await reopened.query(query('export-project', { projectId: 'feature-tour' }))).value).toEqual(before);
+    });
+
+    it('rejects corrupt, incomplete, oversized and excess pins atomically without eviction', async () => {
+        const repository = createRepository();
+        const source = await pinnedBuild();
+        const invalid = [
+            value => { value.run.status = 'failed'; },
+            value => { value.outputs.pop(); },
+            value => { value.outputs[0].bytes[0] ^= 1; },
+            value => { value.run.artifacts[1].path = value.run.artifacts[0].path; },
+            value => { value.run.byteLength++; },
+            value => { value.run.artifacts[0].provenance = [{ uri: 'x'.repeat(1024 * 1024) }]; },
+            value => { value.outputs[0].bytes = new Uint8Array(16 * 1024 * 1024 + 1); value.run.artifacts[0].byteLength = value.outputs[0].bytes.byteLength; },
+        ];
+        for (const corrupt of invalid) {
+            const value = structuredClone(source); corrupt(value);
+            await expect(repository.execute(command('pin-build-snapshot', { snapshot: value }))).rejects.toMatchObject({ code: 'cem.studio.snapshot.invalid' });
+        }
+        expect((await repository.query(query('list-build-snapshots', { projectId: 'feature-tour' }))).value).toEqual([]);
+        const results = await Promise.allSettled(Array.from({ length: 9 }, () => repository.execute(command('pin-build-snapshot', { snapshot: source }))));
+        expect(results.filter(item => item.status === 'fulfilled')).toHaveLength(8);
+        expect(results.find(item => item.status === 'rejected').reason.code).toBe('cem.studio.snapshot.capacity');
+        const pins = (await repository.query(query('list-build-snapshots', { projectId: 'feature-tour' }))).value;
+        expect(pins).toHaveLength(8);
+        const database = await repository.open();
+        await new Promise((resolve, reject) => {
+            const transaction = database.transaction('resultSnapshots', 'readwrite'), store = transaction.objectStore('resultSnapshots');
+            const read = store.get(pins[0].key);
+            read.onsuccess = () => { const record = read.result; new Uint8Array(record.outputs[1].bytes)[0] = 42; store.put(record); };
+            transaction.oncomplete = resolve; transaction.onabort = () => reject(transaction.error);
+        });
+        await expect(repository.query(query('get-build-snapshot', { projectId: 'feature-tour', key: pins[0].key }))).rejects.toMatchObject({ code: 'cem.studio.snapshot.invalid' });
+        await repository.execute(command('delete-build-snapshot', { projectId: 'feature-tour', key: pins[0].key }));
+        await repository.execute(command('pin-build-snapshot', { snapshot: source }));
+        expect((await repository.query(query('list-build-snapshots', { projectId: 'feature-tour' }))).value).toHaveLength(8);
+    });
+
+    it('enforces aggregate pin bytes across complete builds and releases space on explicit deletion', async () => {
+        const repository = createRepository();
+        const snapshot = await pinnedBuild(), bytes = new Uint8Array(16 * 1024 * 1024);
+        snapshot.run.artifacts = [{ ...snapshot.run.artifacts[0], byteLength: bytes.byteLength, sha256: await digest(bytes) }];
+        snapshot.run.byteLength = bytes.byteLength;
+        snapshot.outputs = [{ uri: snapshot.run.artifacts[0].uri, bytes }];
+        const pins = [];
+        for (let i = 0; i < 3; i++) pins.push((await repository.execute(command('pin-build-snapshot', { snapshot }))).value);
+        await expect(repository.execute(command('pin-build-snapshot', { snapshot }))).rejects.toMatchObject({ code: 'cem.studio.snapshot.capacity' });
+        expect((await repository.query(query('list-build-snapshots', { projectId: 'feature-tour' }))).value).toHaveLength(3);
+        await repository.execute(command('delete-build-snapshot', { projectId: 'feature-tour', key: pins[0].key }));
+        await repository.execute(command('pin-build-snapshot', { snapshot }));
+        expect((await repository.query(query('list-build-snapshots', { projectId: 'feature-tour' }))).value).toHaveLength(3);
+    }, 30_000);
+
+    it('closes an in-flight open and cancels pin reads without reopening a disposed repository', async () => {
+        const repository = createRepository();
+        const opening = repository.open(); repository.close();
+        await expect(opening).rejects.toMatchObject({ name: 'AbortError' });
+        expect(repository.database).toBeUndefined();
+        await repository.open();
+        const controller = new AbortController();
+        const reading = repository.query(query('list-build-snapshots', { projectId: 'feature-tour' }), controller.signal);
+        controller.abort(); repository.close();
+        await expect(reading).rejects.toMatchObject({ name: 'AbortError' });
+        expect(repository.database).toBeUndefined();
+        await repository.deleteDatabase();
+    });
+
     it('commits structure, preserves portable order, copies exact bytes and restores with increasing revisions', async () => {
         const repository = createRepository();
         const bundle = await projectBundle('exact café 🙂\r\n');
@@ -921,4 +1012,16 @@ function deleteDatabase(name) {
         request.onerror = () => reject(request.error);
         request.onblocked = () => reject(new Error(`database ${name} remained open`));
     });
+}
+
+async function pinnedBuild() {
+    const contents = [new TextEncoder().encode('Pinned café 🙂\r\n'), new Uint8Array([0, 255, 128, 1])];
+    const artifacts = await Promise.all(contents.map(async (bytes, i) => ({ id: `native-result#${i}`, uri: `studio://feature-tour/generated/${i}.txt`,
+        path: `generated/${i}.txt`, contentType: i ? 'application/octet-stream' : 'text/plain', byteLength: bytes.byteLength, sha256: await digest(bytes), available: true,
+        provenance: [{ uri: 'studio://feature-tour/data/tour.cem', range: { start: 0, end: 4 } }], sourceMaps: [] })));
+    return { version: 1, run: { id: 'native-result', projectId: 'feature-tour', projectRootUri: 'studio://feature-tour/', projectRevision: 1,
+        configuration: { id: 'build', name: 'Build', kind: 'transformation', revision: 1, sha256: 'a'.repeat(64), entryArtifact: 'generated/0.txt' },
+        inputs: [{ resourceId: 'tour-source', uri: 'studio://feature-tour/data/tour.cem', path: 'data/tour.cem', revision: 1, sha256: 'b'.repeat(64) }],
+        status: 'succeeded', executionIdentity: { engineVersion: 'test-native-1' }, artifacts, byteLength: contents.reduce((sum, bytes) => sum + bytes.byteLength, 0) },
+        outputs: artifacts.map((artifact, i) => ({ uri: artifact.uri, bytes: contents[i] })) };
 }
