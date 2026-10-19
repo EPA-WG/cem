@@ -9,6 +9,7 @@ export interface CemStudioLimits {
 }
 
 export type CemStudioPreview =
+    | Readonly<{ kind: 'artifact-tree'; label: string; artifactPath: string; resourceSet: string }>
     | Readonly<{ kind: 'live-cem'; label: string; source: string; sourceUri: string; resourceSet: string }>
     | Readonly<{
           kind: 'sandboxed-html';

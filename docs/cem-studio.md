@@ -1132,6 +1132,33 @@ missing within that run. Extend the shared preview/resource-loader boundary for
 this behavior, preserving its explicit active-content policy and resource limits;
 do not add a Studio-local renderer or treat output as Studio DOM.
 
+Implemented artifact loading uses shared `cem-media-preview mode=artifact-tree`.
+The preview service registers the complete verified relative-path output set in
+cem-elements, then passes an opaque resource handle and selected artifact path.
+Exact bytes stay outside declarative state. Run replacement/release revokes the
+previous registration and all its object URLs; failed/stale/cancelled attempts
+retain the last success. Non-tree outputs such as `cem-stdio://stdout` keep the
+existing isolated single-document policy. Text/binary/download policies and
+copy/download of original bytes are unchanged.
+
+Relative HTML links, directory `index.html` links, stylesheet links/imports,
+inline CSS and images resolve against their owning artifact, including nested
+stylesheet bases and URL-encoded filenames. Query/fragment suffixes are retained
+in the `artifact` parameter; the artifact selector uses the underlying file path.
+`cem-preview-navigate` passes only a scalar path through the shared host-command
+boundary. Source selection, drafts and project resources remain independent.
+Missing outputs produce the explicit missing selection; missing assets never
+resolve from input files, earlier runs or the network.
+
+The artifact frame is parent-managed and script-free, with a CSP limited to
+run-owned image/stylesheet object URLs and inline CSS. Inert HTML admission removes
+scripts, refresh/base, nested contexts and active URL/event attributes; forms
+cannot navigate. Native retained CSS import identifies/remaps URLs and rejects
+unsupported resource grammar; no JavaScript CSS parser or replacement data AST
+is introduced. External/data/blob references, fonts/media and responsive `srcset`
+are outside the current policy and remain unavailable. See the shared
+[artifact preview contract](../packages/cem-components/docs/passive-payload-contract.md#explicit-output-preview-modes).
+
 Native packages own folder-tree traversal, Markdown/front-matter import,
 transformation, static-asset copying, export paths and provenance. Reusable
 browser loading/navigation/lifecycle behavior belongs to `cem-elements` and is

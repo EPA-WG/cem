@@ -41,6 +41,17 @@
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 
+/// Explicit source/control boundary; resource bodies are imported once per call
+/// into typed native CSS trees, never projected as JavaScript parser records.
+#[wasm_bindgen(js_name = "remapArtifactCss")]
+pub fn remap_artifact_css_json(source: &str, inline: bool, replacements_json: &str) -> Result<String, JsValue> {
+    let replacements: Option<BTreeMap<String, String>> = serde_json::from_str(replacements_json)
+        .map_err(|error| JsValue::from_str(&error.to_string()))?;
+    let result = crate::artifact_css::remap_artifact_css(source, inline, replacements.as_ref())
+        .map_err(|error| JsValue::from_str(&error))?;
+    serde_json::to_string(&result).map_err(|error| JsValue::from_str(&error.to_string()))
+}
+
 use js_sys::{Array, ArrayBuffer, Function, Reflect, Uint8Array};
 use wasm_bindgen::{prelude::*, JsCast};
 

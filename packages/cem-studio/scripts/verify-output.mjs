@@ -290,6 +290,13 @@ const livePreviewRuntime = await readFile(resolve(outputRoot, 'assets/@epa-wg/ce
 assert.match(livePreviewRuntime, /script-src 'none'/);
 assert.match(livePreviewRuntime, /form-action 'none'/);
 assert.doesNotMatch(livePreviewRuntime, /allow-scripts/);
+const artifactPreviewRuntime = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-elements/dist/lib/artifact-preview.js'), 'utf8');
+assert.match(mediaPreview, /mode == "artifact-tree"/);
+assert.match(previewView, /host-command-event=cem-preview-navigate/);
+assert.match(artifactPreviewRuntime, /script-src 'none'/);
+assert.match(artifactPreviewRuntime, /URL\.revokeObjectURL/);
+assert.match(artifactPreviewRuntime, /remapCemArtifactCss/);
+assert.doesNotMatch(artifactPreviewRuntime, /allow-scripts/);
 assert.equal(packageMetadata.exports['.'].import, './dist/static/assets/@epa-wg/cem-studio/bootstrap.js');
 assert.equal(packageMetadata.exports['./shell'].import, './dist/static/assets/@epa-wg/cem-studio/shell.js');
 assert.equal(

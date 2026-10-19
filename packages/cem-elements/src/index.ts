@@ -43,3 +43,4 @@ export type { CemSortDirection, CemSortDetail } from './lib/sort-action-capabili
 export type { CemPageDetail } from './lib/pagination-capability.js';
 
 export { mountCemLivePreview, type CemLivePreview, type CemLivePreviewOptions, type CemLivePreviewResource, type CemLivePreviewResources } from './lib/live-preview.js';
+export { registerCemArtifactTree, mountCemArtifactPreview, type CemPreviewArtifact, type CemArtifactTree, type CemArtifactPreview, type CemArtifactPreviewOptions } from './lib/artifact-preview.js';

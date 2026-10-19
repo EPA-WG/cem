@@ -55,9 +55,9 @@
      {cem-alert @label="No output was published. See the command diagnostics below." @tone=warning}
     }
     {cem:when @test=preview |
-     {cem:variable @name=mode @select='if preview.kind == "text" { "text" } else { if preview.kind == "sandboxed-html" { "document" } else { if preview.kind == "live-cem" { "live" } else { "message" } } }'}
+     {cem:variable @name=mode @select='if preview.kind == "artifact-tree" { "artifact-tree" } else { if preview.kind == "text" { "text" } else { if preview.kind == "sandboxed-html" { "document" } else { if preview.kind == "live-cem" { "live" } else { "message" } } } }'}
      {cem:variable @name=value @select='if preview.kind == "text" { preview.text } else { if preview.kind == "sandboxed-html" || preview.kind == "live-cem" { preview.source } else { preview.reason } }'}
-     {cem-media-preview @fit=fill @source-uri={preview.sourceUri} @resource-set={preview.resourceSet} @label={preview.label} @mode={mode} @truncated={if preview.truncated { true } else { null }} @value={value}}
+     {cem-media-preview @fit=fill @source-uri={preview.sourceUri} @artifact-path={preview.artifactPath} @resource-set={preview.resourceSet} @label={preview.label} @mode={mode} @truncated={if preview.truncated { true } else { null }} @value={value} @host-command=select-preview-artifact @host-command-event=cem-preview-navigate}
     }
     {cem:otherwise |
      {cem-alert @label={if project { if !project.projectId { "Select a project to build its preview." } else { if project.missingArtifact { "The requested artifact is unavailable in this run. Choose another artifact." } else { if project.hasRun { "Choose an output artifact to preview." } else { "Build saved revisions to preview project output." } } } } else { "Run an operation to preview its bounded result" }} @tone={if project.missingArtifact { "warning" } else { "info" }}}

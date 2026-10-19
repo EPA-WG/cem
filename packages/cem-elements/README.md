@@ -1143,7 +1143,7 @@ ancestors before descendants so nested payload updates are included. Native
 surface preparation is separate: `cem-open` reports admitted visibility.
 
 Declare `host-command="save"` on a control, with optional
-`host-command-event="input|change|submit|cem-close|cem-tree-activate"`
+`host-command-event="input|change|submit|cem-close|cem-tree-activate|cem-tab|cem-preview-navigate"`
 (one event, default `click`). Only
 commands supplied by this mounted host are callable. The shared runtime invokes
 the service synchronously on the event stack, preserving browser user-gesture
@@ -1234,3 +1234,34 @@ produced instances, disposes their scope and clears resource ownership. Form sta
 is temporary; theme CSS must be supplied explicitly. Realm-aware input bindings use
 the control's owning window. The shared tests cover UTF-8 resources, denied output,
 interaction, replacement, independent frames and storage/location isolation.
+
+### Immutable artifact-tree previews
+
+`registerCemArtifactTree([{ path, contentType, bytes }])` returns a realm-local
+`{ resourceSet, dispose }` registration. Pass its small `resourceSet` string and an
+`artifact-path` to declarative `cem-media-preview mode="artifact-tree"`. Exact
+bytes are cloned once into a bounded complete set (128 files / 16 MiB); they never
+need to cross the UI's data projection. Release the registration when its run is
+replaced. Every mount and generated object URL associated with it is revoked.
+
+The shared `live-preview` capability also owns this mode's lifecycle, while
+`mountCemArtifactPreview(frame, { resourceSet, path, onNavigate?, onStatus? })` is
+the underlying browser API. Its controller exposes `ready`, `dispose` and
+`setLocation(path)` for query/fragment updates within the mounted file. Relative
+HTML links, directory index links, stylesheets/imports, inline CSS and images use
+only this immutable set. Native retained CSS import owns resource decoding and
+rewriting; the browser host owns inert HTML admission, object URLs and navigation.
+Missing assets and denied references report bounded status without ambient fetch.
+
+No CEM runtime or authored scripts run inside this HTML output frame. The parent
+can manage its document through the same-origin sandbox permission; forms, frames,
+script execution and network sources remain denied. Authored URLs are admitted
+before publication and rewritten to the mount's object URLs. The full supported
+asset/content policy and small literal-envelope examples are documented in the
+[component preview contract](../cem-components/docs/passive-payload-contract.md#explicit-output-preview-modes).
+
+Links emit `cem-preview-navigate` with an own scalar `detail.value` containing the
+path and optional query/fragment. Bind `host-command-event="cem-preview-navigate"`
+on the preview host to let a routing service choose the next artifact. The shared
+host-view bridge accepts only that owner's event, reads no accessors or inherited
+detail, and forwards no other payload. It does not change editor/project selection.

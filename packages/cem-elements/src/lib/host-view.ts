@@ -4,7 +4,7 @@ import { cemPlaintextEditorEventValue } from './plaintext-editor-capability.js';
 export interface CemHostCommandRequest {
     readonly command: string;
     readonly eventType: string;
-    /** Native/admitted plaintext control value or validated tree/tab identity; never arbitrary event detail. */
+    /** Native/admitted plaintext value or validated tree/tab/artifact identity; never arbitrary event detail. */
     readonly value: string | null;
     readonly isTrusted: boolean;
     /** Native successful string controls, captured only for a form submit command. */
@@ -30,7 +30,7 @@ export interface CemHostView {
 
 const boundaries = new WeakSet<Element>();
 const mounts = new WeakMap<Element, CemHostView>();
-const events = ['click', 'input', 'change', 'submit', 'cem-close', 'cem-tree-activate', 'cem-tab'] as const;
+const events = ['click', 'input', 'change', 'submit', 'cem-close', 'cem-tree-activate', 'cem-tab', 'cem-preview-navigate'] as const;
 
 /** Mount declarative UI with an explicit, revocable set of non-UI host services. */
 export function mountCemView(runtime: CemElementRuntime, options: CemHostViewOptions): CemHostView {
@@ -65,7 +65,7 @@ export function mountCemView(runtime: CemElementRuntime, options: CemHostViewOpt
         if (!control || !element.contains(control)) return;
         // Component events report their bound owner's state. A nested owner
         // must never invoke an ancestor's command through a bubbling event.
-        if ((event.type === 'cem-close' || event.type === 'cem-tree-activate' || event.type === 'cem-tab') && event.target !== control) return;
+        if ((event.type === 'cem-close' || event.type === 'cem-tree-activate' || event.type === 'cem-tab' || event.type === 'cem-preview-navigate') && event.target !== control) return;
         const command = control.getAttribute('host-command') ?? '';
         if ((control.getAttribute('host-command-event') ?? 'click') !== event.type) return;
         const handler = commands.get(command);
@@ -73,7 +73,7 @@ export function mountCemView(runtime: CemElementRuntime, options: CemHostViewOpt
         if (event.type === 'submit') event.preventDefault();
         try {
             const fields = event.type === 'submit' ? formFields(event, control, element) : undefined;
-            const value = event.type === 'cem-tree-activate' || event.type === 'cem-tab' ? activationValue(event) : controlValue(event.target);
+            const value = event.type === 'cem-tree-activate' || event.type === 'cem-tab' || event.type === 'cem-preview-navigate' ? activationValue(event) : controlValue(event.target);
             // Input capture (FormData listeners, custom control getters or
             // payload proxy traps) can revoke authority before delivery.
             if (!active || !element.isConnected || !runtime.hasDeclarationFor(element) || !element.contains(control)

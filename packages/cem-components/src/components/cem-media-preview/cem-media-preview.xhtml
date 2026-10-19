@@ -39,6 +39,10 @@
    {iframe @allow="" @part="document live-document" @referrerpolicy=no-referrer @sandbox=allow-same-origin @title="{$label}"}
    {p @part=message @role=status @aria-live=polite | {$ | datadom.slices.previewStatus}}
   }
+  {cem:when @test='mode == "artifact-tree"' |
+   {iframe @allow="" @part="document artifact-document" @referrerpolicy=no-referrer @sandbox=allow-same-origin @title="{$label}"}
+   {p @part=message @role=status @aria-live=polite | {$ | datadom.slices.previewStatus}}
+  }
   {cem:when @test='mode == "message"' |
    {p @part=message |
     {$ | value}

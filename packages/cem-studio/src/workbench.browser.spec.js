@@ -41,6 +41,57 @@ afterEach(async () => {
 });
 
 describe('CEM Studio Feature Tour workbench', () => {
+    it('navigates one immutable output tree without changing the source file and atomically replaces complete runs', async () => {
+        const repository = await repositoryWithSource('{main | Saved source}');
+        const bundle = (await repository.query(request('export-project', { projectId: 'feature-tour' }))).value;
+        const validator = validatorFor(validResult());
+        const session = createCemStudioProjectSession({ openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator, selection }) }); workbenches.push(session);
+        const base = await createCemStudioSessionWorkbench({ repository, session });
+        const browser = new EventTarget(); browser.location = new URL('https://studio.test/?project=feature-tour&file=source');
+        browser.history = { pushState: vi.fn((_, __, url) => { browser.location = new URL(url); }), replaceState: vi.fn((_, __, url) => { browser.location = new URL(url); }) };
+        let runs = 0, fail = false;
+        const workbench = await createCemStudioNavigation({ repository, workbench: base, browser, openBuildWorkbench: async () => {
+            const run = ++runs, encode = text => new TextEncoder().encode(text);
+            const pages = [ ['index.html', 'text/html', `<link rel="stylesheet" href="assets/site.css"><h1>Run ${run}</h1><a href="posts/intro.html?mode=read#intro">Intro</a><a href="gone.html">Missing</a>`],
+                ['posts/intro.html', 'text/html', `<h2 id="intro">Intro ${run}</h2><a href="../index.html">Home</a>`],
+                ...(run === 1 ? [['assets/site.css', 'text/css', 'h1 { color:rgb(13,26,39); }']] : []) ];
+            const outputs = pages.map(([path, contentType, text]) => ({ uri: `studio://feature-tour/${path}`, contentType, text, bytes: encode(text), available: true }));
+            const artifacts = pages.map(([path, contentType]) => ({ id: `${run}:${path}`, path, contentType, uri: `studio://feature-tour/${path}` }));
+            let projection = { exitCode: fail ? 1 : 0, outputs, output: outputs[0], preview: { kind: 'sandboxed-html', label: 'Built site', source: outputs[0].text },
+                buildRun: { id: `run-${run}`, projectRevision: 1, inputs: [{ resourceId: 'source', revision: 1, sha256: bundle.project.resources.find(item => item.id === 'source').sha256 }], artifacts } };
+            return { snapshot: () => ({ projection }), runPersistedOperation: async () => undefined, dispose: vi.fn(), selectArtifact(id) {
+                const index = artifacts.findIndex(item => item.id === id); projection = { ...projection, output: outputs[index], preview: { ...projection.preview, source: outputs[index].text } };
+            } };
+        } }); workbenches.push(workbench);
+        const root = document.createElement('main'); document.body.append(root);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
+        const build = async () => { await workbench.buildProjectPreview(); await view.whenSettled(); };
+        const frame = () => root.querySelector('[part~="preview"][part~="region"] iframe');
+        const ready = async selector => { await vi.waitFor(() => expect(frame()?.contentDocument?.querySelector(selector)).toBeTruthy()); };
+        await build(); await ready('h1');
+        const firstSet = workbench.snapshot().projectPreview.preview.resourceSet;
+        const source = root.querySelector('[data-cem-studio-editor] [role=textbox]');
+        await vi.waitFor(() => expect(frame().contentWindow.getComputedStyle(frame().contentDocument.querySelector('h1')).color).toBe('rgb(13, 26, 39)'));
+        frame().contentDocument.querySelector('a').click(); await view.whenSettled(); await ready('h2');
+        expect(workbench.snapshot().projectPreview.artifactPath).toBe('posts/intro.html?mode=read#intro');
+        expect(new URL(browser.location).searchParams.get('artifact')).toBe('posts/intro.html?mode=read#intro');
+        expect(new URL(browser.location).searchParams.get('file')).toBe('source');
+        expect(root.querySelector('[data-cem-studio-editor] [role=textbox]')).toBe(source);
+        expect(root.querySelector('[label="Preview artifact"]').getAttribute('value')).toBe('posts/intro.html');
+        frame().contentDocument.querySelector('a').click(); await view.whenSettled(); await ready('h1');
+        fail = true; await build(); await ready('h1');
+        expect(workbench.snapshot().projectPreview.preview.resourceSet).toBe(firstSet);
+        expect(frame().contentDocument.querySelector('h1').textContent).toBe('Run 1');
+        fail = false; await build(); await ready('h1');
+        expect(frame().contentDocument.querySelector('h1').textContent).toBe('Run 3');
+        expect(workbench.snapshot().projectPreview.preview.resourceSet).not.toBe(firstSet);
+        expect(root.querySelector('cem-media-preview [role=status]').textContent).toContain('Missing artifact: assets/site.css');
+        frame().contentDocument.querySelectorAll('a')[1].click(); await view.whenSettled();
+        expect(workbench.snapshot().projectPreview).toMatchObject({ artifactPath: 'gone.html', missingArtifact: true });
+        expect(root.querySelector('[part~="preview"][part~="region"]').textContent).toContain('requested artifact is unavailable');
+        expect(new URL(browser.location).searchParams.get('file')).toBe('source');
+    });
+
     it('builds an ordinary single-document sample without a graph and reopens its independent preview URL', async () => {
         const repository = await repositoryWithSource('{main | Saved document}');
         const exported = (await repository.query(request('export-project', { projectId: 'feature-tour' }))).value;
@@ -154,7 +205,7 @@ describe('CEM Studio Feature Tour workbench', () => {
             const id = `run-${wait.length}`, artifact = { id, path: 'index.html', uri: 'studio://feature-tour/index.html', contentType: 'text/html' };
             const candidate = { snapshot: () => ({ projection: { exitCode: 0, stale: false,
                 buildRun: { id, inputs: [{ resourceId: 'source', revision: 1, sha256: bundle.project.resources.find(item => item.id === 'source').sha256 }], artifacts: [artifact] },
-                output: { uri: artifact.uri } } }), runPersistedOperation: () => pending.promise, selectArtifact: vi.fn(), dispose: vi.fn() };
+                output: { uri: artifact.uri }, outputs: [{ uri: artifact.uri, bytes: new TextEncoder().encode('<p>Run</p>') }] } }), runPersistedOperation: () => pending.promise, selectArtifact: vi.fn(), dispose: vi.fn() };
             candidates.push(candidate); return candidate;
         } }); workbenches.push(service);
         const context = { key: 'project=feature-tour', project: bundle.project };

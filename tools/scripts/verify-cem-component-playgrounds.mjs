@@ -27,7 +27,9 @@ const sheetOnly = process.argv.includes('--sheet-only');
 const fieldsetOnly = process.argv.includes('--fieldset-only');
 const navigationContentOnly = process.argv.includes('--navigation-content-only');
 const passiveOnly = process.argv.includes('--passive-only');
-const passiveTags = ['cem-option', 'cem-option-group', 'cem-badge', 'cem-avatar', 'cem-media-preview', 'cem-tree-item', 'cem-app-bar', 'cem-tab', 'cem-step'];
+const passiveComponent = process.argv.find(value => value.startsWith('--passive-component='))?.slice('--passive-component='.length);
+const passiveTags = ['cem-option', 'cem-option-group', 'cem-badge', 'cem-avatar', 'cem-media-preview', 'cem-tree-item', 'cem-app-bar', 'cem-tab', 'cem-step'].filter(tag => !passiveComponent || tag === passiveComponent);
+if (!passiveTags.length) throw new Error(`Unknown passive component: ${passiveComponent}`);
 const feedbackOnly = process.argv.includes('--feedback-only');
 const disclosureDataOnly = process.argv.includes('--disclosure-data-only');
 const layoutOnly = process.argv.includes('--layout-only');
@@ -174,6 +176,7 @@ try {
     else if (actionOnly) console.log(`Action playground and gallery verified from ${verifiedLocations}.`);
     else if (navigationOnly) console.log(`Gallery navigation verified from ${verifiedLocations}.`);
     else if (sourceEditorOnly) console.log(`Source editor property playground and gallery verified from ${verifiedLocations}.`);
+    else if (passiveOnly) console.log(`${passiveTags.join(', ')} playgrounds verified from ${verifiedLocations}.`);
     else if (!evidenceOnly) console.log(`Action, field, text-field, textarea, icon, icon-button, menu-item, select, suggestions, theme-switch and bundle playgrounds verified from ${verifiedLocations}.`);
 } finally {
     await browser?.close();
@@ -1009,6 +1012,10 @@ async function verifyGalleries(baseUrl, tags) {
             await page.waitForFunction(() => {
                 const demos = [...document.querySelectorAll('cem-demo-element')];
                 return demos.length > 0 && demos.every(node => node.getAttribute('data-state') === 'ready');
+            }).catch(async error => {
+                const failed = await page.locator('cem-demo-element').evaluateAll(nodes => nodes.filter(node => node.getAttribute('data-state') !== 'ready')
+                    .map(node => ({ legend: node.getAttribute('legend'), state: node.getAttribute('data-state'), text: node.innerText.slice(-1500) })));
+                throw new Error(`${tag} gallery examples failed at ${page.url()}: ${JSON.stringify(failed)}`, { cause: error });
             });
             const declaration = await readFile(join(root, 'packages/cem-components/src/components', tag, tag + '.xhtml'), 'utf8');
             // Public parameter defaults have bodies; @value instructions emit owned DOM attributes.
@@ -1020,6 +1027,20 @@ async function verifyGalleries(baseUrl, tags) {
             const documented = await page.locator('[data-gallery-attribute], [data-action-attribute]').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-gallery-attribute') ?? node.getAttribute('data-action-attribute')));
             for (const attribute of implemented) assert(documented.includes(attribute), `${tag}: missing ${attribute} in gallery inventory`);
             await page.getByRole('link', { name: 'Automated stories', exact: true }).waitFor();
+            if (tag === 'cem-media-preview') {
+                const demo = page.locator('cem-demo-element[legend="Immutable artifact tree"]');
+                const output = page.frameLocator('cem-demo-element[legend="Immutable artifact tree"] cem-media-preview iframe');
+                await output.getByRole('heading', { name: 'Built site', exact: true }).waitFor();
+                await page.waitForFunction(() => {
+                    const frame = document.querySelector('cem-demo-element[legend="Immutable artifact tree"] cem-media-preview iframe');
+                    const heading = frame?.contentDocument?.querySelector('h2'), image = frame?.contentDocument?.querySelector('img');
+                    return heading && frame.contentWindow.getComputedStyle(heading).color === 'rgb(23, 90, 140)' && image?.naturalWidth === 32;
+                });
+                await demo.getByRole('combobox', { name: 'Output path', exact: true }).click();
+                await page.getByRole('option', { name: 'posts/intro.html', exact: true }).click();
+                await output.getByRole('heading', { name: 'Intro article', exact: true }).waitFor();
+                await page.waitForFunction(() => document.querySelector('cem-demo-element[legend="Immutable artifact tree"] cem-media-preview iframe')?.contentDocument?.querySelector('img')?.naturalWidth === 32);
+            }
             const first = page.locator(sampleSelector).first();
             const control = first.locator(['cem-nav', 'cem-tabs', 'cem-stepper', 'cem-tree', 'cem-chip', 'cem-expansion', 'cem-sort-header', 'cem-paginator'].includes(tag) ? 'button' : tag === 'cem-list' ? 'select' : tag === 'cem-menu' ? 'button, a[href]' : ['cem-dialog', 'cem-dialog-shell', 'cem-tooltip'].includes(tag) ? '[part=trigger], [slot=trigger]' : '[part="control"], input').first();
             if (!['cem-icon', 'cem-surface', 'cem-text', 'cem-stack', 'cem-grid', 'cem-divider', 'cem-card', 'cem-table', 'cem-toast', 'cem-progress', 'cem-progress-spinner', 'cem-skeleton', 'cem-alert', ...passiveTags].includes(tag)) {
@@ -2631,7 +2652,12 @@ async function verifyPassive(baseUrl) {
             assert(await host.evaluate(node => node.querySelector(':scope > [part=root]') === window.passiveOwner), `${tag}: retained owner`);
             assert.equal(await owner.evaluate(node => node.tabIndex), -1, `${tag}: no added tab stop`);
             const source = await page.getByRole('link', { name: 'Open canonical XHTML', exact: true }).getAttribute('href');
-            assert((await (await page.request.get(source)).text()).includes(`<template id="${tag}" type="text/cem-ml">`));
+            const declarationSource = await (await page.request.get(source)).text();
+            assert.equal(await page.evaluate(({ declarationSource, tag }) => {
+                const declaration = new DOMParser().parseFromString(declarationSource, 'application/xhtml+xml');
+                const template = declaration.querySelector(`cem-element[tag="${tag}"] > template[id="${tag}"]`);
+                return !declaration.querySelector('parsererror') && template?.getAttribute('type') === 'text/cem-ml';
+            }, { declarationSource, tag }), true);
             await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
             const forced = await owner.evaluate(node => {
                 const probe = document.createElement('span'); probe.style.cssText = 'color:CanvasText;background:Canvas'; document.body.append(probe);

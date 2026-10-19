@@ -181,7 +181,10 @@ export const OutputPropertyControls = meta.story({
         const owner = within(canvasElement).getByRole('textbox', { name: 'source-uri', exact: true }) as HTMLInputElement;
         owner.value = 'preview://changed/edited.cem'; owner.dispatchEvent(new Event('input', { bubbles: true })); await settle();
         expect(required(canvasElement, 'cem-media-preview').getAttribute('source-uri')).toBe(owner.value);
-        expect(required(canvasElement, 'cem-media-preview').getAttribute('resource-set')).toBe('{"resources":[]}');
+        expect(JSON.parse(required(canvasElement, 'cem-media-preview').getAttribute('resource-set')!).resources).toEqual([]);
+        within(modes).getByRole('radio', { name: 'artifact-tree', exact: true }).click(); await settle();
+        await waitFor(() => expect(required<HTMLIFrameElement>(canvasElement, 'cem-media-preview iframe').contentDocument?.querySelector('h2')?.textContent).toBe('Built site'));
+        expect(required(canvasElement, 'cem-media-preview').getAttribute('artifact-path')).toBe('index.html');
         expect(storybookCemRuntime().diagnosticsFor(declaration).filter(d => d.severity === 'error' || d.severity === 'fatal')).toEqual([]);
     },
 });
@@ -216,3 +219,33 @@ export const FilledTextPreview = meta.story({
         expect(text.scrollHeight).toBeGreaterThan(text.clientHeight);
     },
 });
+
+async function artifactMode(canvasElement: HTMLElement, fallback: boolean) {
+    const { runtime, scope, declare } = createCemStoryRuntime(canvasElement, fallback);
+    const tag = `cem-artifact-output-${crypto.randomUUID()}`, declaration = await declare(declarationSource, tag);
+    const host = document.createElement(tag); host.setAttribute('mode', 'artifact-tree'); host.setAttribute('label', 'Built site');
+    host.setAttribute('artifact-path', 'index.html');
+    host.setAttribute('resource-set', JSON.stringify({ artifacts: [
+        { path: 'index.html', contentType: 'text/html', text: '<h1>Built output</h1><a href="posts/intro.html#title">Intro</a>' },
+        { path: 'posts/intro.html', contentType: 'text/html', text: '<h2 id="title">Intro</h2>' },
+    ] }));
+    const paths: string[] = []; host.addEventListener('cem-preview-navigate', event => paths.push((event as CustomEvent).detail.value));
+    canvasElement.append(host);
+    try {
+        await runtime.whenRenderSettled(host);
+        const frame = required<HTMLIFrameElement>(host, 'iframe');
+        await waitFor(() => expect(frame.contentDocument?.querySelector('h1')?.textContent).toBe('Built output'));
+        frame.contentDocument!.querySelector('a')!.click(); expect(paths).toEqual(['posts/intro.html#title']);
+        host.setAttribute('label', 'Retained output'); await runtime.whenRenderSettled(host);
+        expect(required(host, 'iframe')).toBe(frame); expect(frame.contentDocument!.querySelector('h1')!.textContent).toBe('Built output');
+        host.setAttribute('artifact-path', paths[0]);
+        await waitFor(() => expect(frame.contentDocument?.querySelector('h2')?.textContent).toBe('Intro'));
+        const article = frame.contentDocument;
+        host.setAttribute('artifact-path', 'posts/intro.html?view=wide#title'); await runtime.whenRenderSettled(host);
+        expect(frame.contentDocument).toBe(article);
+        host.setAttribute('mode', 'text'); await runtime.whenRenderSettled(host); expect(host.querySelector('iframe')).toBeNull();
+        expect(runtime.diagnosticsFor(host).filter(d => d.severity === 'error' || d.severity === 'fatal')).toEqual([]);
+    } finally { host.remove(); declaration.remove(); scope.dispose(); }
+}
+export const ArtifactTreeWorker = meta.story({ render: () => '<div></div>', play: async ({ canvasElement }) => artifactMode(canvasElement, false) });
+export const ArtifactTreeFallback = meta.story({ render: () => '<div></div>', play: async ({ canvasElement }) => artifactMode(canvasElement, true) });

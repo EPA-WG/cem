@@ -2126,6 +2126,12 @@ function projectValidation(result, presentation, source, revision) {
     };
 }
 
+function outputArtifactPath(uri, root) {
+    if (!uri.startsWith(root)) return uri;
+    const path = uri.slice(root.length);
+    try { return decodeURI(path); } catch { return path; }
+}
+
 function projectCommandProjection(kind, mode, outcome, source, revision, expected, capturedBuild) {
     const result = outcome.result;
     const diagnostics = (result?.diagnostics?.items ?? [])
@@ -2176,7 +2182,7 @@ function projectCommandProjection(kind, mode, outcome, source, revision, expecte
         const sourceMaps = (result?.sourceMaps?.items ?? []).filter(reference =>
             (output.sourceMapId != null && reference.sourceMapId === output.sourceMapId) || (output.handleId !== undefined && reference.owner?.handleId === output.handleId));
         return Object.freeze({ id: `${result.requestId}#${output.handleId ?? output.uri}`, uri: output.uri,
-            path: output.uri.startsWith(capturedBuild.projectRootUri) ? output.uri.slice(capturedBuild.projectRootUri.length) : output.uri,
+            path: outputArtifactPath(output.uri, capturedBuild.projectRootUri),
             handleId: output.handleId, sourceMapId: output.sourceMapId, contentType: output.contentType,
             byteLength: output.byteLength, sha256: output.sha256, available: output.available !== false,
             provenance: freezeWorkbenchValue(frames), sourceMaps: freezeWorkbenchValue(sourceMaps) });
@@ -2733,10 +2739,10 @@ function workbenchToolsState(state) {
 function workbenchPreviewState(state) {
     const project = state.projectPreview;
     const projection = project ? project.selectedArtifact ? project.projection : undefined : state.projection;
-    return { projection: projection && { preview: projection.preview,
+    return { projection: projection && { preview: project?.preview ?? projection.preview,
         output: projection.output && { available: projection.output.available } },
         projectPreview: project && { projectId: project.projectId, configurations: project.configurations, configurationId: project.configurationId,
-            artifactPath: project.artifactPath, available: project.available, busy: project.busy, attempt: project.attempt,
+            artifactPath: project.selectedArtifact?.path ?? project.artifactPath, available: project.available, busy: project.busy, attempt: project.attempt,
             stale: project.stale, hasRun: Boolean(project.projection), missingArtifact: project.missingArtifact,
             selected: Boolean(project.selectedArtifact), artifacts: project.artifacts.map(({ path }) => ({ path })),
             runId: project.projection?.buildRun.id, projectRevision: project.projection?.buildRun.projectRevision,

@@ -65,6 +65,7 @@ import initCemQlWasm, {
     resolveModuleUrl as resolveModuleUrlWasm,
     resolveNavigationLinks as resolveNavigationLinksWasm,
     resolveResourceBase as resolveResourceBaseWasm,
+    remapArtifactCss as remapArtifactCssWasm,
     templateArtifactPayloadKey,
     templateModuleImports,
     retainXsltComponent,
@@ -455,6 +456,14 @@ export function isRuntimeReady(): boolean {
 /** The `cem_ql` engine version; only meaningful after {@link ensureRuntimeReady}. */
 export function runtimeVersion(): string {
     return cemQlVersion();
+}
+
+/** Original CSS source and scalar URL replacements cross this explicit boundary. */
+export async function remapCemArtifactCss(source: string, inline: boolean, replacements?: Record<string, string>): Promise<{
+    resources: { specifier: string; import: boolean }[]; css: string;
+}> {
+    await ensureRuntimeReady();
+    return JSON.parse(remapArtifactCssWasm(source, inline, JSON.stringify(replacements ?? null)));
 }
 
 /**

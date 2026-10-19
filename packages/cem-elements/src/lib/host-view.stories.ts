@@ -5,6 +5,28 @@ import { connectCemNativeSurface } from './native-surface.js';
 
 const meta = preview.meta({ title: 'Runtime/Declarative host-service views' });
 
+export const ArtifactNavigation = meta.story({
+    render: () => '<section></section>',
+    play: async ({ canvasElement }) => {
+        const { runtime, scope, declare } = createCemStoryRuntime(canvasElement, false);
+        const tag = `artifact-host-${crypto.randomUUID()}`;
+        const declaration = await declare('<cem-element tag="artifact-host"><template id="artifact-host" type="text/cem-ml">{div @host-command=open @host-command-event=cem-preview-navigate | {span | Nested}}</template></cem-element>', tag);
+        const calls: CemHostCommandRequest[] = [];
+        const view = mountCemView(runtime, { root: canvasElement.querySelector('section')!, tag, commands: { open: request => { calls.push(request); } } });
+        try {
+            await view.whenSettled();
+            const owner = view.element.querySelector('div')!;
+            const emit = (target: Element, detail: unknown) => target.dispatchEvent(new CustomEvent('cem-preview-navigate', { bubbles: true, detail }));
+            emit(owner, { value: 'posts/with spaces.html?read=1#intro' });
+            expect(calls).toHaveLength(1); expect(calls[0].value).toBe('posts/with spaces.html?read=1#intro');
+            emit(owner.querySelector('span')!, { value: 'nested.html' }); expect(calls).toHaveLength(1);
+            for (const detail of [null, {}, { value: '' }, { value: 1 }, Object.create({ value: 'inherited' }), Object.defineProperty({}, 'value', { get() { throw new Error('Accessor was evaluated'); } })]) emit(owner, detail);
+            expect(calls).toHaveLength(1); expect(view.errors).toHaveLength(6);
+            view.dispose(); emit(owner, { value: 'late.html' }); expect(calls).toHaveLength(1);
+        } finally { view.dispose(); declaration.remove(); scope.dispose(); }
+    },
+});
+
 async function contract(canvasElement: HTMLElement, fallback: boolean) {
     const { runtime, scope } = createCemStoryRuntime(canvasElement, fallback);
     const tag = `host-view-${fallback ? 'fallback' : 'worker'}`;

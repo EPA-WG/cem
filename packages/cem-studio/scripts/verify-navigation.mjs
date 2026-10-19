@@ -35,6 +35,11 @@ try {
     await tree('Supplier pipeline');
     assert.equal((await state()).content, 'folder');
     await click('Build project');
+    const artifactFrame = page.locator('cem-media-preview[mode="artifact-tree"] iframe');
+    await artifactFrame.waitFor();
+    await page.waitForFunction(() => document.querySelector('cem-media-preview[mode="artifact-tree"] [role=status]')?.textContent === 'Artifact view ready');
+    assert.equal(await artifactFrame.getAttribute('sandbox'), 'allow-same-origin');
+    assert.equal(await artifactFrame.evaluate(frame => frame.contentDocument.body.textContent.includes('Supplier availability')), true);
     await choose('Preview artifact', 'generated/availability.json');
     assert.equal(JSON.parse((await preview()).text)[0].quantity, 7);
     assert.equal(new URL(page.url()).searchParams.get('artifact'), 'generated/availability.json');

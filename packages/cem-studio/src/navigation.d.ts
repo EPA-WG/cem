@@ -17,6 +17,7 @@ export interface CemStudioProjectPreviewState {
     readonly selectedArtifact?: CemStudioBuildArtifact;
     readonly artifacts: readonly CemStudioBuildArtifact[];
     readonly projection?: CemStudioWorkbenchProjection;
+    readonly preview?: import('./preview.js').CemStudioPreview;
     readonly attempt?: { id: number; status: 'building' | 'succeeded' | 'failed' | 'cancelled' | 'stale'; diagnostics?: readonly Readonly<Record<string, unknown>>[]; error?: { message: string } };
 }
 

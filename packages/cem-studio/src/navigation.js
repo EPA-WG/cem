@@ -1,6 +1,7 @@
 import { CEM_STUDIO_REPOSITORY_ID } from './repository.js';
 import { createCemStudioProjectWorkbench, createCemStudioWorkbench } from './workbench.js';
 import { projectResourceUri } from './resource-reference.js';
+import { registerCemArtifactTree } from '@epa-wg/cem-elements';
 
 const request = (operation, parameters) => ({ protocolVersion: 1, repository: CEM_STUDIO_REPOSITORY_ID, requestRevision: 1, operation, parameters });
 const routeKey = route => new URLSearchParams(route).toString() || 'samples';
@@ -263,7 +264,8 @@ export async function createCemStudioNavigation({ workbench, repository, example
 /** Project build orchestration. Owns one bounded successful run, never an editor. */
 export function createCemStudioProjectPreview({ repository, validator, openBuildWorkbench }) {
     const subscribers = new Set();
-    let context, configurationId, artifactPath, success, successStamp, attempt, active, source, disposed = false, generation = 0;
+    let context, configurationId, artifactPath, success, successStamp, artifactTree, attempt, active, source, disposed = false, generation = 0;
+    const selectedPath = () => artifactPath?.split(/[?#]/)[0];
     const stamp = project => {
         const entry = project.entries.find(item => item.id === configurationId);
         return JSON.stringify(entry && [entry.kind, entry.runConfigResourceId, entry.resourceIds, entry.tags]);
@@ -293,13 +295,15 @@ export function createCemStudioProjectPreview({ repository, validator, openBuild
         const configurations = choices();
         const available = configurations.some(item => item.id === configurationId);
         const projection = success?.snapshot().projection;
-        const artifact = projection?.buildRun.artifacts.find(item => item.path === artifactPath);
+        const artifact = projection?.buildRun.artifacts.find(item => item.path === artifactPath || item.path === selectedPath());
         const inputs = projection?.buildRun.inputs ?? [];
         const stale = Boolean(projection && (projection.stale || changed(projection) || successStamp !== stamp(context.project)
             || !context.bundle && source?.projectId === context.project.id && (source.dirty && inputs.some(input => input.resourceId === source.resourceId)
             || source.entryId === configurationId && source.command?.draftText !== source.command?.current?.text)));
         return Object.freeze({ projectId: context?.project.id, contextKey: context?.key, configurations, configurationId, artifactPath,
             available, busy: Boolean(active), attempt, projection, stale,
+            preview: artifact && artifactTree && !/^[a-z][\w+.-]*:/i.test(artifact.path) && ['text/html', 'application/xhtml+xml'].includes(artifact.contentType.split(';')[0]) && projection.preview?.kind === 'sandboxed-html'
+                ? { kind: 'artifact-tree', label: projection.preview.label, resourceSet: artifactTree.resourceSet, artifactPath } : projection?.preview,
             missingArtifact: Boolean(projection && artifactPath && !artifact),
             selectedArtifact: artifact, artifacts: projection?.buildRun.artifacts ?? [] });
     }
@@ -310,7 +314,7 @@ export function createCemStudioProjectPreview({ repository, validator, openBuild
         job.controller.abort();
         attempt = { id: job.id, status: 'cancelled' }; publish();
     }
-    function clear() { cancel(); success?.dispose(); success = undefined; attempt = undefined; artifactPath = undefined; }
+    function clear() { cancel(); success?.dispose(); artifactTree?.dispose(); artifactTree = undefined; success = undefined; attempt = undefined; artifactPath = undefined; }
     function setContext(next, settings = {}) {
         if (context?.key !== next?.key) { clear(); context = next; configurationId = undefined; }
         else context = next;
@@ -322,7 +326,7 @@ export function createCemStudioProjectPreview({ repository, validator, openBuild
         if (settings.artifact !== undefined || settings.reset) artifactPath = settings.artifact;
         const artifacts = success?.snapshot().projection?.buildRun.artifacts;
         if (artifacts && !artifactPath) artifactPath = defaultArtifact(artifacts)?.path;
-        const artifact = artifacts?.find(item => item.path === artifactPath);
+        const artifact = artifacts?.find(item => item.path === artifactPath || item.path === selectedPath());
         if (artifact) success.selectArtifact(artifact.id);
         publish();
     }
@@ -377,12 +381,14 @@ export function createCemStudioProjectPreview({ repository, validator, openBuild
                     attempt = { id: job.id, status: stale ? 'stale' : 'failed', diagnostics: projection?.diagnostics ?? [] }; return;
                 }
                 const artifacts = projection.buildRun.artifacts;
-                let selected = artifacts.find(item => item.path === artifactPath);
-                if (!artifactPath) {
-                    selected = defaultArtifact(artifacts);
-                    artifactPath = selected?.path;
-                }
+                const nextPath = artifactPath || defaultArtifact(artifacts)?.path;
+                const selected = artifacts.find(item => item.path === nextPath || item.path === nextPath?.split(/[?#]/)[0]);
                 if (selected) candidate.selectArtifact(selected.id);
+                const treeArtifacts = artifacts.filter(item => !/^[a-z][\w+.-]*:/i.test(item.path)).map(item => ({ path: item.path, contentType: item.contentType,
+                    bytes: projection.outputs.find(output => output.uri === item.uri).bytes }));
+                const nextTree = treeArtifacts.length ? registerCemArtifactTree(treeArtifacts) : undefined;
+                artifactPath = nextPath;
+                artifactTree?.dispose(); artifactTree = nextTree;
                 success?.dispose(); success = candidate; successStamp = stamp(bundle.project); candidate = undefined;
                 attempt = { id: job.id, status: 'succeeded' };
             } catch (error) {
@@ -400,7 +406,7 @@ export function createCemStudioProjectPreview({ repository, validator, openBuild
         selectConfiguration(id) { setContext(context, { build: id, reset: true }); },
         selectArtifact(path) {
             artifactPath = path;
-            const artifact = success?.snapshot().projection?.buildRun.artifacts.find(item => item.path === path);
+            const artifact = success?.snapshot().projection?.buildRun.artifacts.find(item => item.path === path || item.path === selectedPath());
             if (artifact) success.selectArtifact(artifact.id);
             publish();
         },

@@ -117,6 +117,47 @@ mode default/caption slots and label fallbacks. Explicit modes read `value`:
 - `message` renders literal explanatory text, for example why bytes require a
   download. Slots remain owned by media mode; unknown modes fall back to media.
 
+- `artifact-tree` previews a complete immutable build output set. `artifact-path`
+  selects an HTML file, optionally followed by a query and fragment. `resource-set`
+  carries the realm-local opaque handle returned by `registerCemArtifactTree(artifacts)` from
+  `@epa-wg/cem-elements`; each artifact has a relative `path`, declared
+  `contentType` and exact `Uint8Array bytes`. Registration clones and admits the
+  entire set before publishing its handle (128 files / 16 MiB aggregate).
+  Dispose the registration when its run is replaced or released; this revokes all
+  associated mounts and object URLs. Independent registrations never share assets.
+  Small declarative examples can instead supply `{ "artifacts": [{ "path":
+  "index.html", "contentType": "text/html", "text": "<h1>Example</h1>" }] }`.
+  Each literal entry supplies exactly one of `text` or `base64` (for image bytes).
+  `value` and live CEM's `source-uri` are unused in this mode.
+
+  The shared capability manages a script-free frame with `allow-same-origin` for
+  parent access, fixed CSP, no referrer and no CEM runtime or component registry.
+  HTML is parsed in an inert template before admission. Scripts, refresh/base,
+  nested browsing contexts, foreign markup and active URL/event attributes are
+  removed; forms cannot submit. Relative stylesheet links, inline/style-block
+  CSS, CSS imports and images resolve only against this run. The native retained
+  CSS importer owns URL decoding and remapping, including escaped/static
+  `image-set` references and import conditions; unsupported CSS grammar is
+  reported and omitted. CSS retains the shared 64-level / 4096-event native import
+  bounds. Allowed image MIME types are PNG, JPEG, GIF, WebP, AVIF,
+  BMP, icon and SVG-as-image. The loader replaces references with run-owned object
+  URLs; CSP permits blob styles/images and inline CSS while denying all network
+  sources. [CSP source syntax](https://www.w3.org/TR/CSP/#framework-directive-source-list)
+  admits the blob scheme, rather than individual blob URL expressions. Fonts,
+  media, `srcset`, authored data/blob URLs and
+  ambient network requests are outside this preview policy.
+
+  Clicking a link never navigates the browser. It emits bubbling
+  `cem-preview-navigate` with an own scalar `detail.value`: the artifact's path
+  plus query/fragment. A trailing-slash link resolves to that directory's
+  `index.html`. The parent chooses `artifact-path`, allowing URL/history ownership;
+  query/fragment changes retain the current document and a same-document fragment
+  also scrolls locally. Missing links still emit their
+  requested path so the parent can display a missing selection. Missing assets,
+  blocked external references and cyclic imports report polite status and never
+  fall back to source resources or another run. Selected HTML retains the 256 KiB
+  inline limit. Exact downloads remain the caller's original verified bytes.
+
 Transport services own decoding, content-type selection and byte budgets; the
 component never guesses content types or fetches external source. Studio retains
 its 256 KiB inline limit and exact-byte download service. The native declarative
@@ -132,5 +173,5 @@ native default block size and fit the container inline axis. Forced colors use
 Canvas/CanvasText/Highlight and reduced motion requires no animated behavior.
 
 `cem-media-preview[fit="fill"]` fills a bounded parent for Studio/workspace previews.
-Text remains scrollable and document/live frames retain their existing sandbox and
+Text remains scrollable and document/live/artifact-tree frames retain their existing sandbox and
 CSP. Omitted or unsupported `fit` values retain natural sizing.
