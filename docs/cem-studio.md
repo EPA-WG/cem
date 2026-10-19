@@ -1231,8 +1231,16 @@ transactions; closing during an asynchronous repository open cannot leave a new
 connection behind. Current and pinned artifact selections remain
 independent, including when unsaved drafts are present. Expanded pin/entry
 controls scroll within their own bounded toolbar, without covering the output
-region or intercepting preview links. Conservative native build/render cache
-reuse remains subsequent work.
+region or intercepting preview links.
+
+The native dependency identity/invalidation foundation is implemented in the
+[shared engine contract](../packages/cem_ml/README.md#native-dependency-identities)
+and the opt-in [template compilation receipt](../packages/cem_ql/README.md#template-compilation-dependency-receipts).
+It includes complete source/import and context identities, explicit render/provider
+freshness axes and separate owner/runtime publication guards. Existing Studio and
+browser entrypoints still evaluate normally; no cache hits or retained DOM/style
+reuse are enabled. Bounded native cache consumers, admission wiring and DOM/style
+lifetime repair remain subsequent work.
 
 Build choices include native graph, template, conversion and query configurations,
 plus live-view configurations. An ordinary CEM-ML document also gets a derived

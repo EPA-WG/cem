@@ -31,6 +31,7 @@ pub mod api;
 pub mod ast;
 pub mod artifact_css;
 pub mod content_cache;
+pub mod dependency_identity;
 pub mod css_emission;
 pub mod css_imports;
 pub mod css_resources;

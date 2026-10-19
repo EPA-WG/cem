@@ -1508,3 +1508,29 @@ URI and ranges instead of inheriting the template identity.
 Portable Dev artifacts retain URI boundaries and include them in content hashes;
 Prod artifacts strip source maps as before. Preparation budgets count URI bytes.
 No source syntax reparsing or serialized document/AST bridge is involved.
+
+## Template compilation dependency receipts
+
+`render::compile_template_module_closure_with_dependencies` runs the existing
+native module-closure compiler once and returns its ordinary artifact plus a
+`Result<DependencyIdentity, DependencyIdentityError>`. Render output, diagnostics,
+source/output byte frames and existing artifact binary transport remain unchanged.
+The receipt uses the shared native [dependency identity contract](../cem_ml/README.md#native-dependency-identities).
+
+A receipt requires a successful compiler result, matching preflight source hashes,
+complete source/parent identities and a nonempty resolver policy/freshness stamp.
+A missing stamp is opaque. Root/import URIs and verified content hashes, the native
+CEMT schema/type, engine/IR versions, host binding set, entrypoint and function-body
+compile option participate in identity. Root provenance uses the closure's effective
+URI; an overridden `options.source_uri` is not a second effective input. Imported
+module order is recorded explicitly because the current compiler appends declarations
+and stylesheets in that order. The same URI with conflicting content is ineligible.
+
+Compilation identity covers immutable compiled work only. Its explicit scope is
+“no consumer DOM scope”; it cannot stand in for imported CSS/resource freshness,
+a stylesheet scope or a render/data/form/provider identity. Missing/invalid identity
+metadata leaves the ordinary artifact and its diagnostics available without an
+identity. The API is currently opt-in and native-only: existing CLI/WASM/browser
+entrypoints still execute normally, with no new host protocol, cache hits, app-local
+JavaScript or Studio-specific cache. Bounded native cache consumers and browser
+admission wiring follow only after ownership/eviction and parity fixtures pass.

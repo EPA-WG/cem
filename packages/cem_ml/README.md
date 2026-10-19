@@ -225,3 +225,40 @@ URI payload; older tags retain their encoding. New readers accept existing
 streams. Older readers that do not support this kind reject such new metadata.
 The explicit source-map JSON protocol exposes the same frame. Runtime ASTs remain
 retained native trees; these public source maps are not an AST transport.
+
+## Native dependency identities
+
+`dependency_identity::DependencySnapshot::identity()` derives a versioned,
+BLAKE3-domain-separated identity for template compilation, derived stylesheets or
+render projections. This is the identity/invalidation foundation; it does not
+lookup/store artifacts or enable reuse. The producer supplies an already
+validated, complete transitive closure with original source URIs, content
+identity/type/schema, resolved parent/specifier edges, compiler/IR versions,
+effective options and explicit policy/resolution/scope versions. Dependency graph
+edges are canonicalized; semantically ordered inputs must be represented in
+options as well. Unknown completeness is not `Ready`.
+
+Versions are either native content fingerprints, explicit provider-owned
+`{ owner, generation, revision }` stamps, or `Opaque`. All supplied dependencies
+must be versioned. Render projections additionally require separate data,
+attributes, payload, slices, resources, form, validation, accepted events,
+explicit refresh and evaluation-provider revisions. Providers include clock,
+random and plugin/native-function state. Unknown freshness remains opaque;
+unchanged ordinary inputs alone cannot authorize skipping evaluation. A provider
+must establish a valid revision/freshness contract before using a revision stamp.
+Canonical maps and validated fingerprints avoid hashing source/data payloads on
+each attempted reuse; compute identities at canonical mutation/import boundaries.
+
+Admission fails closed for pending, failed or released closures, opaque versions,
+missing render axes/contexts, malformed hashes, absent/conflicting graph identities
+and excess metadata. Limits are 1,024 source identities, 4,096 import edges, 128
+option entries and 1 MiB encoded identity metadata (including JSON escaping).
+The preflight string budget bounds serialization allocations. Sources, trees,
+DOM, callbacks, handles and history are never retained by an identity or error.
+
+`DependencyAdmission` is a separate nonportable owner/runtime-generation/revision
+guard for publication. An equal portable dependency key does not revive a native
+handle after runtime replacement or authorize an old asynchronous result. Resource
+authorization/freshness and event/command lifecycles remain mandatory even with an
+equal key. Cache leases, eviction, browser transport and DOM/style reuse are
+subsequent work; no cache hit path is enabled by these APIs.

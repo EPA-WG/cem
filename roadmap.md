@@ -515,7 +515,17 @@ Goal: reuse previously rendered content when its source, template and effective
 inputs are unchanged. Avoid recompiling/reinstalling unchanged CSS on every render,
 while preserving DOM identity, edited controls and the normal component lifecycle.
 
-Status: planned 2026-10-18. Extend the existing native template/artifact caches,
+Status: native identity/invalidation foundation implemented 2026-10-19; cache
+hits and DOM/style reuse remain planned. Shared native dependency snapshots now
+cover complete source/import closures, effective options, engine/format,
+policy/resolution/scope and explicit render/provider freshness revisions. The
+opt-in native template compilation receipt preserves ordinary render/provenance
+and rejects missing/invalid identity context. Publication guards distinguish
+portable keys from owner/runtime generations. See the
+[native identity contract](packages/cem_ml/README.md#native-dependency-identities)
+and [template receipt API](packages/cem_ql/README.md#template-compilation-dependency-receipts).
+
+Extend the existing native template/artifact caches,
 bounded processing LRU and render-plan diff machinery; do not introduce a parallel
 JavaScript AST or a Studio-specific cache. Shared engine/`cem-elements` owns the
 implementation; components and Studio continue to declare their inputs normally.

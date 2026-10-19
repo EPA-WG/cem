@@ -314,6 +314,7 @@ fn compile_template_can_skip_cemt_function_body_expressions() {
         &CompileTemplateOptions {
             host_bindings: vec!["marker".to_owned()],
             skip_cemt_function_bodies: true,
+            source_uri: None,
         },
     );
     assert!(checked.diagnostics.is_empty(), "{:?}", checked.diagnostics);

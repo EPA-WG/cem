@@ -24,6 +24,9 @@ use crate::api::{CompileContext, EvaluationContext, PreparedTypeChecking};
 use crate::eval::{effective_boolean, AtomValue, EvalError, Item, ItemStream, QueryContextScope};
 use crate::ir::CompiledQuery;
 
+mod dependencies;
+pub use dependencies::{compile_template_module_closure_with_dependencies, TemplateDependencyCompilation};
+
 mod construction;
 mod interpolation;
 mod references;
