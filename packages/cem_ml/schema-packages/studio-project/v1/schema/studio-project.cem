@@ -24,7 +24,7 @@
 
     {elements |
         {element @name="project" @required-attributes="schema-version id name root-uri revision created-at updated-at" @optional-attributes="description" @children="entry* resource*"}
-        {element @name="entry" @required-attributes="id kind name" @optional-attributes="parent-id description run-config-resource-id resource-ids tags"}
+        {element @name="entry" @required-attributes="id kind name" @optional-attributes="parent-id description run-config-resource-id entry-artifact resource-ids tags"}
         {element @name="resource" @required-attributes="id role source-kind path content-type revision sha256" @optional-attributes="url schema reference-path"}
     }
 
@@ -40,6 +40,7 @@
         {attribute @name="parent-id" @type="schema:identifier"}
         {attribute @name="kind" @type="schema:identifier" @values="subproject data-set validation inspection conversion query transformation transformation-graph trace"}
         {attribute @name="run-config-resource-id" @type="schema:identifier"}
+        {attribute @name="entry-artifact" @type="cemml:path"}
         {attribute @name="resource-ids" @type="cemml:name-list"}
         {attribute @name="tags" @type="cemml:name-list"}
         {attribute @name="role" @type="schema:identifier" @values="data schema query template transform-config graph run-config expected"}
@@ -58,6 +59,7 @@
         {constraint @kind="global-stable-identifiers" @target="project" @policy="project, entry, and resource ids use the lowercase stable-id grammar and are globally unique"}
         {constraint @kind="acyclic-subproject-hierarchy" @target="entry" @policy="parent-id resolves to a subproject entry and parent chains are acyclic"}
         {constraint @kind="entry-run-config" @target="entry" @policy="operation entries require a run-config resource; subproject and data-set entries forbid one"}
+        {constraint @kind="build-entry-artifact" @target="entry" @policy="optional entry-artifact on conversion, query, transformation and transformation-graph configurations is a normalized project-relative output path without empty/dot segments, backslashes, schemes, controls, query or fragment; existence is checked against a successful build, never against input resources"}
         {constraint @kind="entry-resource-references" @target="entry" @policy="resource-ids and run-config-resource-id resolve within the same manifest; a run config has role run-config"}
         {constraint @kind="contained-resource-path" @target="resource" @policy="path is project-relative, normalized, and cannot escape root-uri"}
         {constraint @kind="resource-source" @target="resource" @policy="project-file forbids url; url requires an absolute HTTP or HTTPS URL"}
@@ -102,6 +104,8 @@
         {diagnostic @code="cem.studio_project.run_config_required" @severity="error"}
         {diagnostic @code="cem.studio_project.run_config_forbidden" @severity="error"}
         {diagnostic @code="cem.studio_project.run_config_role_invalid" @severity="error"}
+        {diagnostic @code="cem.studio_project.entry_artifact_invalid" @severity="error"}
+        {diagnostic @code="cem.studio_project.entry_artifact_forbidden" @severity="error"}
         {diagnostic @code="cem.studio_project.data_set_empty" @severity="error"}
         {diagnostic @code="cem.studio_project.list_value_duplicate" @severity="error"}
     }

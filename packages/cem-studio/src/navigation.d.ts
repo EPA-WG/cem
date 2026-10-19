@@ -7,8 +7,14 @@ import type { CemStudioWorkbenchProjection, CemStudioBuildArtifact } from './wor
 export interface CemStudioProjectPreviewState {
     readonly projectId?: string;
     readonly contextKey?: string;
-    readonly configurations: readonly { id: string; name: string; kind: string; resourceId?: string }[];
+    readonly configurations: readonly { id: string; name: string; kind: string; resourceId?: string; entryArtifact?: string }[];
     readonly configurationId?: string;
+    readonly entryArtifact?: string;
+    readonly entryEditable?: boolean;
+    readonly canEditEntry?: boolean;
+    readonly entryBusy?: boolean;
+    readonly entryError?: { readonly message: string };
+    readonly entryMessage?: string;
     readonly artifactPath?: string;
     readonly available: boolean;
     readonly busy: boolean;
@@ -59,6 +65,7 @@ export interface CemStudioNavigation extends CemStudioFeatureTourWorkbench {
     submitAction(fields: Readonly<Record<string, readonly string[]>>): Promise<void>;
     selectPreviewConfiguration(id: string): void;
     selectPreviewArtifact(path: string): void;
+    saveBuildEntryArtifact(path: string): Promise<void>;
     buildProjectPreview(): Promise<void>;
     cancelProjectPreview(): void;
     copyPreview(writeText?: (text: string) => Promise<void>): Promise<void>;

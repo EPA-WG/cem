@@ -26,13 +26,20 @@ Studio's own theme. No JavaScript assembles or renders the site.
 - **Build and preview site** executes `graphs/build.cem`: native Markdown → HTML
   → retained DOM → CEM-ML layout → HTML export, plus opaque asset publication.
   The seven output artifacts are four HTML documents, CSS, an SVG and a download.
-  Choose `generated/index.html` in **Preview artifact**. Follow article links,
+  The configuration declares `entryArtifact: "generated/index.html"`; Build
+  opens home without an artifact URL or manual selection. Follow article links,
   images and nested navigation inside the same immutable output tree. Selecting
   an artifact does not change the source file open in the editor.
 - **Validate article metadata** validates the saved first article using its
   declared Markdown identity, including the opt-in YAML metadata contract.
 - **Preview Markdown article** converts that saved article body on its own.
   The full build supplies the shared layout and assets.
+
+In an editable saved copy, expand **Build entry settings** to save another
+project-relative output path or clear the default. URL/selector choices take
+precedence. A missing entry reports unavailable instead of opening another
+index document. Entry changes use native validation and project revision/undo
+guards, and travel with portable copies.
 
 `expected/` contains the baseline HTML for all four documents. The graph's
 expected asset results are their original source bytes. Command configurations

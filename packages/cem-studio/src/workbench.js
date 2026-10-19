@@ -560,6 +560,7 @@ export async function createCemStudioWorkbench(options) {
             projectRevision: persisted.projectRevision,
             configuration: { id: entry?.id ?? example.id, name: entry?.name ?? example.name,
                 kind: entry?.kind ?? example.kind, resourceId: configuration?.id,
+                ...(entry?.entryArtifact === undefined ? {} : { entryArtifact: entry.entryArtifact }),
                 revision: configuration?.revision ?? persisted.resourceRevision, sha256: configuration?.sha256 ?? persisted.sha256 },
             inputs: persisted.project.resources.filter(resource => ids.has(resource.id)).map(resource => ({
                 resourceId: resource.id, uri: projectResourceUri(persisted.project, resource), path: resource.path,
@@ -1889,6 +1890,7 @@ export async function mountCemStudioWorkbench({
         commands: {
             'select-build': ({ value }) => workbench.selectPreviewConfiguration(value),
             'select-preview-artifact': ({ value }) => workbench.selectPreviewArtifact(value),
+            'save-build-entry': ({ fields }) => perform(() => workbench.saveBuildEntryArtifact(fields.entryArtifact?.[0] ?? '')),
             'build-project': () => { buildPromise = workbench.buildProjectPreview(); return buildPromise; },
             'cancel-build': () => workbench.cancelProjectPreview(),
             'copy-preview': () => perform(() => workbench.copyPreview(typeof clipboard?.writeText === 'function' ? text => clipboard.writeText(text) : undefined)),
@@ -2742,6 +2744,7 @@ function workbenchPreviewState(state) {
     return { projection: projection && { preview: project?.preview ?? projection.preview,
         output: projection.output && { available: projection.output.available } },
         projectPreview: project && { projectId: project.projectId, configurations: project.configurations, configurationId: project.configurationId,
+            entryArtifact: project.entryArtifact, entryEditable: project.entryEditable, canEditEntry: project.canEditEntry, entryBusy: project.entryBusy, entryError: project.entryError, entryMessage: project.entryMessage,
             artifactPath: project.selectedArtifact?.path ?? project.artifactPath, available: project.available, busy: project.busy, attempt: project.attempt,
             stale: project.stale, hasRun: Boolean(project.projection), missingArtifact: project.missingArtifact,
             selected: Boolean(project.selectedArtifact), artifacts: project.artifacts.map(({ path }) => ({ path })),

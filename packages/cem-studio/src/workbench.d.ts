@@ -180,6 +180,7 @@ export interface CemStudioWorkbenchCommandApplication {
 }
 
 export interface CemStudioBuildConfiguration {
+    readonly entryArtifact?: string;
     readonly id: string;
     readonly name: string;
     readonly kind: string;

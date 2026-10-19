@@ -166,6 +166,7 @@ for (const record of [...sampleIndex.projects, sampleIndex.starter]) {
         const build = site.configurations.find(configuration => configuration.id === 'build-site');
         const entry = bundle.project.entries.find(entry => entry.id === build.id);
         assert.equal(entry.kind, 'transformation-graph');
+        assert.equal(entry.entryArtifact, 'generated/index.html');
         const directory = await mkdtemp(resolve(tmpdir(), 'cem-studio-markdown-site-'));
         try {
             for (const resource of bundle.project.resources) {

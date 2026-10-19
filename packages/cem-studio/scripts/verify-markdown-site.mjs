@@ -9,7 +9,7 @@ export async function verifyMarkdownSite({ page, context, url }) {
         const snapshot = globalThis.__cemStudioApplication.workbench.snapshot();
         const preview = snapshot.projectPreview;
         return { projectId: snapshot.navigation.selection.project, file: snapshot.navigation.selection.file,
-            status: preview.attempt?.status, diagnostics: preview.attempt?.diagnostics?.map(item => item.code),
+            status: preview.attempt?.status, entryArtifact: preview.entryArtifact, entryError: preview.entryError?.message, diagnostics: preview.attempt?.diagnostics?.map(item => item.code),
             runId: preview.projection?.buildRun.id, artifact: preview.artifactPath,
             artifacts: preview.projection?.buildRun.artifacts.map(item => ({ path: item.path, sha256: item.sha256 })),
             html: preview.projection?.output.text };
@@ -25,7 +25,7 @@ export async function verifyMarkdownSite({ page, context, url }) {
             await globalThis.__cemStudioApplication.workbench.openEntity(`project=${project}&file=${file}`);
         }, { project, file }); await settle();
     };
-    await page.goto(`${url}/?sample=markdown-site&build=build-site&artifact=generated%2Findex.html`); await ready();
+    await page.goto(`${url}/?sample=markdown-site&build=build-site`); await ready();
     const sample = await build();
     console.log('[cem-studio:markdown-site] catalog build ready');
     assert.equal(sample.artifacts.length, 7); await viewReady('CEM field notes');
@@ -49,6 +49,13 @@ export async function verifyMarkdownSite({ page, context, url }) {
     await page.getByRole('dialog').getByRole('button', { name: 'Clone', exact: true }).click(); await settle();
     const projectId = (await state()).projectId;
     assert.ok(projectId);
+    await click('Build entry settings');
+    const setEntry = async value => { await page.getByRole('textbox', { name: 'Build entry artifact', exact: true }).fill(value); await click('Save build entry'); };
+    await setEntry('../outside.html');
+    assert.ok((await state()).entryError.includes('entryArtifact'));
+    assert.equal((await state()).entryArtifact, 'generated/index.html');
+    await setEntry('generated/articles/first-build.html'); await build(); await viewReady('Build a small site');
+    await setEntry('generated/index.html');
     const article = 'content-articles-first-build-md';
     await open(projectId, article);
     const editor = page.getByRole('textbox', { name: 'CEM source', exact: true });
@@ -88,15 +95,23 @@ export async function verifyMarkdownSite({ page, context, url }) {
         await application.fileSystemProvider.importFallback({ archive: serializeCemStudioProjectBundle(bundle) });
         return id;
     }, projectId);
-    await page.goto(`${url}/?project=${portableId}&file=${article}&build=build-site&artifact=generated%2Farticles%2Ffirst-build.html`); await ready();
+    await page.goto(`${url}/?project=${portableId}&file=${article}&build=build-site`); await ready();
     assert.deepEqual((await build()).artifacts, shared.artifacts);
-    await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+    assert.equal((await state()).artifact, 'generated/index.html');
+    await page.evaluate(async () => {
+        await navigator.serviceWorker.ready;
+        const url = new URL(location.href); url.searchParams.delete('artifact');
+        history.replaceState(null, '', url);
+    });
     await context.setOffline(true);
     try {
         await page.reload(); await ready();
         const offline = await build();
         assert.deepEqual(offline.artifacts, shared.artifacts); assert.equal(offline.file, article);
-        await viewReady('Build a small site');
+        await viewReady('CEM field notes');
+        assert.equal(offline.entryArtifact, 'generated/index.html');
+        await frame.contentFrame().getByRole('navigation', { name: 'Site navigation' }).getByRole('link', { name: 'Articles', exact: true }).click();
+        await settle(); await viewReady('Articles');
         await frame.contentFrame().getByRole('navigation', { name: 'Site navigation' }).getByRole('link', { name: 'Home', exact: true }).click();
         await settle(); await viewReady('CEM field notes');
         assert.equal((await state()).file, article);
@@ -111,5 +126,5 @@ export async function verifyMarkdownSite({ page, context, url }) {
         assert.equal(independence.original, original); assert.equal(independence.edited, true);
     } finally { await context.setOffline(false); }
     console.log('[cem-studio:markdown-site] portable independent copy and offline rebuild passed');
-    return { outputs: 7, relativeNavigation: true, staticAssets: true, editRepair: true, sharedLayout: true, provenance: true, portableCopies: true, offline: true };
+    return { outputs: 7, relativeNavigation: true, staticAssets: true, editRepair: true, sharedLayout: true, provenance: true, portableCopies: true, entryArtifact: true, offline: true };
 }

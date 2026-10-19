@@ -19,6 +19,105 @@ const STUDIO_PROJECT_CEM_SCHEMA_SOURCE: &str =
     include_str!("../schema-packages/studio-project/v1/schema/studio-project.cem");
 
 #[test]
+fn studio_project_entry_artifact_round_trips_in_both_projections() {
+    for path in [
+        "generated/index.html",
+        "généré/été notes.html",
+        "generated/.hidden/index.html",
+    ] {
+        let mut value: serde_json::Value = serde_json::from_slice(VALID_JSON).unwrap();
+        value["entries"][1]["kind"] = "transformation-graph".into();
+        value["entries"][1]["entryArtifact"] = path.into();
+        let project = parse_studio_project(
+            &serde_json::to_vec(&value).unwrap(),
+            STUDIO_PROJECT_JSON_CONTENT_TYPE,
+            STUDIO_PROJECT_SCHEMA_URI,
+        )
+        .unwrap();
+        for projection in [StudioProjectProjection::Cem, StudioProjectProjection::Json] {
+            let bytes = project.serialize(projection).unwrap();
+            let restored = parse_studio_project(
+                bytes.as_bytes(),
+                projection.content_type(),
+                STUDIO_PROJECT_SCHEMA_URI,
+            )
+            .unwrap();
+            assert_eq!(restored, project);
+            assert_eq!(restored.serialize(projection).unwrap(), bytes);
+            let json: serde_json::Value =
+                serde_json::from_str(&restored.serialize(StudioProjectProjection::Json).unwrap())
+                    .unwrap();
+            assert_eq!(json["entries"][1]["entryArtifact"], path);
+        }
+    }
+}
+
+#[test]
+fn studio_project_entry_artifact_rejects_noncanonical_paths_and_non_build_kinds() {
+    for path in [
+        "",
+        "/index.html",
+        "../index.html",
+        "generated/../index.html",
+        "./index.html",
+        "generated//index.html",
+        "generated/",
+        "C:/site.html",
+        "https://site.test/index.html",
+        "generated\\index.html",
+        "index.html?x=1",
+        "index.html#top",
+        "index\n.html",
+        "index\0.html",
+    ] {
+        let mut value: serde_json::Value = serde_json::from_slice(VALID_JSON).unwrap();
+        value["entries"][1]["kind"] = "transformation-graph".into();
+        value["entries"][1]["entryArtifact"] = path.into();
+        let error = parse_studio_project(
+            &serde_json::to_vec(&value).unwrap(),
+            STUDIO_PROJECT_JSON_CONTENT_TYPE,
+            STUDIO_PROJECT_SCHEMA_URI,
+        )
+        .unwrap_err();
+        assert_eq!(
+            error.code, "cem.studio_project.entry_artifact_invalid",
+            "{path:?}: {error}"
+        );
+        assert_eq!(
+            error.field_path.as_deref(),
+            Some("entries[1].entryArtifact")
+        );
+    }
+    for kind in [
+        "validation",
+        "inspection",
+        "trace",
+        "subproject",
+        "data-set",
+    ] {
+        let mut value: serde_json::Value = serde_json::from_slice(VALID_JSON).unwrap();
+        value["entries"][1]["kind"] = kind.into();
+        value["entries"][1]["entryArtifact"] = "generated/index.html".into();
+        if ["subproject", "data-set"].contains(&kind) {
+            value["entries"][1]
+                .as_object_mut()
+                .unwrap()
+                .remove("runConfigResourceId");
+        }
+        let error = parse_studio_project(
+            &serde_json::to_vec(&value).unwrap(),
+            STUDIO_PROJECT_JSON_CONTENT_TYPE,
+            STUDIO_PROJECT_SCHEMA_URI,
+        )
+        .unwrap_err();
+        assert_eq!(
+            error.code, "cem.studio_project.entry_artifact_forbidden",
+            "{kind}: {error}"
+        );
+    }
+}
+
+#[test]
 fn studio_project_v1_identities_are_fixed() {
     assert_eq!(
         STUDIO_PROJECT_CEM_CONTENT_TYPE,

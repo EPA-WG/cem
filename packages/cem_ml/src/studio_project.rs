@@ -68,6 +68,9 @@ pub struct StudioProjectEntry {
     pub description: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub run_config_resource_id: Option<String>,
+    /// Default preview output path, relative to the project root. Not a source resource ID.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entry_artifact: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub resource_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -385,6 +388,28 @@ pub fn validate_studio_project(project: &StudioProject) -> Result<(), StudioProj
         validate_optional_text(entry.description.as_deref(), &format!("{path}.description"))?;
         validate_unique_identifiers(&entry.resource_ids, &format!("{path}.resourceIds"))?;
         validate_unique_text(&entry.tags, &format!("{path}.tags"))?;
+        if let Some(artifact) = entry.entry_artifact.as_deref() {
+            if !matches!(entry.kind, StudioProjectEntryKind::Conversion
+                | StudioProjectEntryKind::Query | StudioProjectEntryKind::Transformation
+                | StudioProjectEntryKind::TransformationGraph)
+            {
+                return Err(studio_error(
+                    "cem.studio_project.entry_artifact_forbidden",
+                    "only conversion, query, transformation and transformation-graph configurations can declare an entry artifact",
+                    Some(&format!("{path}.entryArtifact")),
+                ));
+            }
+            let valid = !artifact.is_empty() && !artifact.starts_with('/')
+                && !artifact.chars().any(|c| c.is_control() || matches!(c, '\\' | ':' | '?' | '#'))
+                && artifact.split('/').all(|part| !part.is_empty() && part != "." && part != "..");
+            if !valid {
+                return Err(studio_error(
+                    "cem.studio_project.entry_artifact_invalid",
+                    "entryArtifact must be a normalized relative output path without URI schemes, query or fragment",
+                    Some(&format!("{path}.entryArtifact")),
+                ));
+            }
+        }
         if entry.kind.requires_run_config() && entry.run_config_resource_id.is_none() {
             return Err(studio_error(
                 "cem.studio_project.run_config_required",
@@ -695,6 +720,7 @@ fn parse_cem_entry(
             "name",
             "description",
             "run-config-resource-id",
+            "entry-artifact",
             "resource-ids",
             "tags",
         ],
@@ -715,6 +741,7 @@ fn parse_cem_entry(
         name: required_attr(&attrs, "name", &format!("{path}.name"))?,
         description: attrs.get("description").cloned(),
         run_config_resource_id: attrs.get("run-config-resource-id").cloned(),
+        entry_artifact: attrs.get("entry-artifact").cloned(),
         resource_ids: split_list(attrs.get("resource-ids")),
         tags: split_list(attrs.get("tags")),
     })
@@ -809,6 +836,9 @@ fn serialize_studio_project_cem(project: &StudioProject) -> Result<String, Studi
                 "run-config-resource-id",
                 run_config_resource_id,
             )?;
+        }
+        if let Some(artifact) = &entry.entry_artifact {
+            push_cem_attr(&mut output, "entry-artifact", artifact)?;
         }
         if !entry.resource_ids.is_empty() {
             push_cem_attr(&mut output, "resource-ids", &entry.resource_ids.join(" "))?;

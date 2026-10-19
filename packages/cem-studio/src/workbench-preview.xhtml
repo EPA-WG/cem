@@ -22,6 +22,18 @@
       {cem:for-each @as=configuration @select=project.configurations |
        {option @value={configuration.id} | {$ | if configuration.kind == "document-html" { str:concat(("HTML · ", configuration.name), "") } else { configuration.name }}}
      }}
+     {cem:if @test=project.entryEditable |
+      {cem-expansion @label="Build entry settings" |
+      {form @host-command=save-build-entry @host-command-event=submit |
+       {cem-stack @gap=sm |
+        {cem-text-field @label="Build entry artifact" @name=entryArtifact @value={project.entryArtifact ?? ""} @placeholder="generated/index.html" @disabled={if !project.canEditEntry { true } else { null }} | {span @slot=help | Project-relative output path. Leave empty for automatic selection. Explicit URL and artifact selections take precedence.}}
+        {cem-action @type=submit @variant=contextual @disabled={if !project.canEditEntry { true } else { null }} | Save build entry}
+       }
+      }
+      }
+     }
+     {cem:if @test=project.entryError | {cem-alert @label={project.entryError.message} @tone=danger}}
+     {cem:if @test=project.entryMessage | {cem-alert @label={project.entryMessage} @tone=info}}
      {cem-grid @columns=2 @gap=sm |
       {cem-action @host-command=build-project @host-command-event=click @variant=primary @disabled={if !project.available || project.busy { true } else { null }} | Build project}
       {cem-action @host-command=cancel-build @host-command-event=click @variant=contextual @disabled={if !project.busy { true } else { null }} | Cancel build}
@@ -60,7 +72,7 @@
      {cem-media-preview @fit=fill @source-uri={preview.sourceUri} @artifact-path={preview.artifactPath} @resource-set={preview.resourceSet} @label={preview.label} @mode={mode} @truncated={if preview.truncated { true } else { null }} @value={value} @host-command=select-preview-artifact @host-command-event=cem-preview-navigate}
     }
     {cem:otherwise |
-     {cem-alert @label={if project { if !project.projectId { "Select a project to build its preview." } else { if project.missingArtifact { "The requested artifact is unavailable in this run. Choose another artifact." } else { if project.hasRun { "Choose an output artifact to preview." } else { "Build saved revisions to preview project output." } } } } else { "Run an operation to preview its bounded result" }} @tone={if project.missingArtifact { "warning" } else { "info" }}}
+     {cem-alert @label={if project { if !project.projectId { "Select a project to build its preview." } else { if project.missingArtifact { str:concat(("The requested artifact is unavailable in this run: ", project.artifactPath, ". Choose another artifact."), "") } else { if project.hasRun { "Choose an output artifact to preview." } else { "Build saved revisions to preview project output." } } } } else { "Run an operation to preview its bounded result" }} @tone={if project.missingArtifact { "warning" } else { "info" }}}
     }
    }
   }

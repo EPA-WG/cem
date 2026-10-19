@@ -89,7 +89,14 @@ export async function createCemStudioNavigation({ workbench, repository, example
         };
         for (const notify of subscribers) notify(snapshot());
     }
-    function snapshot() { return { ...base, navigation: model, projectPreview: preview?.snapshot() }; }
+    function snapshot() {
+        const projectPreview = preview?.snapshot();
+        const entryEditable = Boolean(selection.project && projectPreview?.available && projectPreview.configurations.some(item => item.id === projectPreview.configurationId && ['conversion', 'query', 'transformation', 'transformation-graph'].includes(item.kind)));
+        return { ...base, navigation: model, projectPreview: projectPreview && { ...projectPreview,
+            entryEditable, canEditEntry: Boolean(entryEditable && !projectPreview.busy && !base.structure?.busy && !base.dirty && !base.transition
+                && !(base.command && base.command.draftText !== base.command.current?.text)),
+            entryBusy: Boolean(base.structure?.busy), entryError: base.structure?.error, entryMessage: base.structure?.message } };
+    }
     async function refresh() {
         const currentVersion = ++refreshVersion;
         const projectId = selection.project, previousOpened = opened;
@@ -191,6 +198,11 @@ export async function createCemStudioNavigation({ workbench, repository, example
         async openEntity(key) { await navigate(key === 'samples' ? {} : Object.fromEntries(new URLSearchParams(key)), 'push', true); },
         selectPreviewConfiguration(id) { preview.selectConfiguration(id); writeUrl(selection, 'push'); },
         selectPreviewArtifact(path) { preview.selectArtifact(path); writeUrl(selection, 'push'); },
+        async saveBuildEntryArtifact(path) {
+            if (!snapshot().projectPreview?.canEditEntry) return;
+            await workbench.editStructure({ kind: 'set-entry-artifact', id: preview.snapshot().configurationId, entryArtifact: path });
+            await refresh(); writeUrl(selection, 'replace');
+        },
         async buildProjectPreview() {
             const key = preview.snapshot().contextKey;
             await preview.build();
@@ -264,11 +276,11 @@ export async function createCemStudioNavigation({ workbench, repository, example
 /** Project build orchestration. Owns one bounded successful run, never an editor. */
 export function createCemStudioProjectPreview({ repository, validator, openBuildWorkbench }) {
     const subscribers = new Set();
-    let context, configurationId, artifactPath, success, successStamp, artifactTree, attempt, active, source, disposed = false, generation = 0;
+    let context, configurationId, artifactPath, explicitArtifact = false, success, successStamp, artifactTree, attempt, active, source, disposed = false, generation = 0;
     const selectedPath = () => artifactPath?.split(/[?#]/)[0];
     const stamp = project => {
         const entry = project.entries.find(item => item.id === configurationId);
-        return JSON.stringify(entry && [entry.kind, entry.runConfigResourceId, entry.resourceIds, entry.tags]);
+        return JSON.stringify(entry && [entry.kind, entry.runConfigResourceId, entry.resourceIds, entry.tags, entry.entryArtifact]);
     };
     const changed = projection => projection.buildRun.inputs.some(input => {
         const resource = context.project.resources.find(resource => resource.id === input.resourceId);
@@ -284,7 +296,7 @@ export function createCemStudioProjectPreview({ repository, validator, openBuild
         const project = context.project;
         const configurations = project.entries.filter(entry => ['transformation-graph', 'transformation', 'conversion', 'query'].includes(entry.kind)
             || entry.tags?.includes('live-preview')).filter(entry => project.resources.some(resource => resource.id === entry.runConfigResourceId && resource.schema === 'https://cem.dev/ns/cli/command/1'))
-            .map(entry => ({ id: entry.id, name: entry.name, kind: entry.kind }));
+            .map(entry => ({ id: entry.id, name: entry.name, kind: entry.kind, entryArtifact: entry.entryArtifact }));
         const documents = project.resources.filter(resource => resource.contentType === 'application/cem' && resource.schema === 'https://cem.dev/ns/cem-ml/1')
             .map(resource => ({ id: `html-v1:${resource.id}`, name: resource.path, kind: 'document-html', resourceId: resource.id }));
         return [...configurations.filter(entry => entry.kind === 'transformation-graph'),
@@ -301,10 +313,11 @@ export function createCemStudioProjectPreview({ repository, validator, openBuild
             || !context.bundle && source?.projectId === context.project.id && (source.dirty && inputs.some(input => input.resourceId === source.resourceId)
             || source.entryId === configurationId && source.command?.draftText !== source.command?.current?.text)));
         return Object.freeze({ projectId: context?.project.id, contextKey: context?.key, configurations, configurationId, artifactPath,
+            entryArtifact: configurations.find(item => item.id === configurationId)?.entryArtifact,
             available, busy: Boolean(active), attempt, projection, stale,
             preview: artifact && artifactTree && !/^[a-z][\w+.-]*:/i.test(artifact.path) && ['text/html', 'application/xhtml+xml'].includes(artifact.contentType.split(';')[0]) && projection.preview?.kind === 'sandboxed-html'
-                ? { kind: 'artifact-tree', label: projection.preview.label, resourceSet: artifactTree.resourceSet, artifactPath } : projection?.preview,
-            missingArtifact: Boolean(projection && artifactPath && !artifact),
+                ? { kind: 'artifact-tree', label: projection.preview.label, resourceSet: artifactTree.resourceSet, artifactPath } : artifact ? projection?.preview : undefined,
+            missingArtifact: Boolean(projection && artifactPath !== undefined && !artifact),
             selectedArtifact: artifact, artifacts: projection?.buildRun.artifacts ?? [] });
     }
     const publish = () => { if (!disposed) for (const notify of subscribers) notify(snapshot()); };
@@ -314,7 +327,7 @@ export function createCemStudioProjectPreview({ repository, validator, openBuild
         job.controller.abort();
         attempt = { id: job.id, status: 'cancelled' }; publish();
     }
-    function clear() { cancel(); success?.dispose(); artifactTree?.dispose(); artifactTree = undefined; success = undefined; attempt = undefined; artifactPath = undefined; }
+    function clear() { cancel(); success?.dispose(); artifactTree?.dispose(); artifactTree = undefined; success = undefined; attempt = undefined; artifactPath = undefined; explicitArtifact = false; }
     function setContext(next, settings = {}) {
         if (context?.key !== next?.key) { clear(); context = next; configurationId = undefined; }
         else context = next;
@@ -323,9 +336,9 @@ export function createCemStudioProjectPreview({ repository, validator, openBuild
         const selected = settings.build ?? (settings.configuration && configurations.some(item => item.id === settings.configuration) ? settings.configuration : undefined);
         const nextId = selected ?? (settings.reset ? configurations[0]?.id : configurationId ?? configurations[0]?.id);
         if (nextId !== configurationId) { clear(); configurationId = nextId; }
-        if (settings.artifact !== undefined || settings.reset) artifactPath = settings.artifact;
+        if (settings.artifact !== undefined || settings.reset) { artifactPath = settings.artifact; explicitArtifact = settings.artifact !== undefined; }
         const artifacts = success?.snapshot().projection?.buildRun.artifacts;
-        if (artifacts && !artifactPath) artifactPath = defaultArtifact(artifacts)?.path;
+        if (!explicitArtifact) artifactPath = configurations.find(item => item.id === configurationId)?.entryArtifact ?? (artifacts && defaultArtifact(artifacts)?.path);
         const artifact = artifacts?.find(item => item.path === artifactPath || item.path === selectedPath());
         if (artifact) success.selectArtifact(artifact.id);
         publish();
@@ -381,7 +394,8 @@ export function createCemStudioProjectPreview({ repository, validator, openBuild
                     attempt = { id: job.id, status: stale ? 'stale' : 'failed', diagnostics: projection?.diagnostics ?? [] }; return;
                 }
                 const artifacts = projection.buildRun.artifacts;
-                const nextPath = artifactPath || defaultArtifact(artifacts)?.path;
+                const declaredEntry = bundle.project.entries.find(entry => entry.id === configuration.id)?.entryArtifact;
+                const nextPath = explicitArtifact ? artifactPath : declaredEntry ?? defaultArtifact(artifacts)?.path;
                 const selected = artifacts.find(item => item.path === nextPath || item.path === nextPath?.split(/[?#]/)[0]);
                 if (selected) candidate.selectArtifact(selected.id);
                 const treeArtifacts = artifacts.filter(item => !/^[a-z][\w+.-]*:/i.test(item.path)).map(item => ({ path: item.path, contentType: item.contentType,
@@ -405,7 +419,7 @@ export function createCemStudioProjectPreview({ repository, validator, openBuild
         updateSource(value) { source = value; publish(); },
         selectConfiguration(id) { setContext(context, { build: id, reset: true }); },
         selectArtifact(path) {
-            artifactPath = path;
+            artifactPath = path; explicitArtifact = true;
             const artifact = success?.snapshot().projection?.buildRun.artifacts.find(item => item.path === path || item.path === selectedPath());
             if (artifact) success.selectArtifact(artifact.id);
             publish();

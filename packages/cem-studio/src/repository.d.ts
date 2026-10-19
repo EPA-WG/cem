@@ -134,6 +134,7 @@ export type CemStudioStructureEdit =
     | { kind: 'rename-project'; name: string }
     | { kind: 'create-subproject'; name: string; parentId?: string }
     | { kind: 'rename-entry' | 'copy-entry'; id: string; name: string }
+    | { kind: 'set-entry-artifact'; id: string; entryArtifact?: string }
     | { kind: 'move-entry'; id: string; parentId?: string }
     | { kind: 'reorder-entry'; id: string; direction: 'up' | 'down' }
     | { kind: 'create-resource'; path: string; content?: string }

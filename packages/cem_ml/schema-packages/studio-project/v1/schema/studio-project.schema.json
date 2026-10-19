@@ -80,6 +80,12 @@
                 "name": { "$ref": "#/$defs/nonEmptyString" },
                 "description": { "$ref": "#/$defs/nonEmptyString" },
                 "runConfigResourceId": { "$ref": "#/$defs/id" },
+                "entryArtifact": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^(?!/)(?!.*[:?#\\\\\\u0000-\\u001f\\u007f-\\u009f])(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*//)(?!.*/$)[\\s\\S]+$",
+                    "description": "Default preview output path relative to the project root, independent of source resource IDs."
+                },
                 "resourceIds": {
                     "type": "array",
                     "uniqueItems": true,
@@ -92,6 +98,10 @@
                 }
             },
             "allOf": [
+                {
+                    "if": { "required": ["entryArtifact"] },
+                    "then": { "properties": { "kind": { "enum": ["conversion", "query", "transformation", "transformation-graph"] } } }
+                },
                 {
                     "if": {
                         "properties": {

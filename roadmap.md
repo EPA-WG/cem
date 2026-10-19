@@ -947,8 +947,10 @@ data, assets/static, three configurations and HTML expectations use the same
 workspace as user projects. Native and Studio checks cover deterministic outputs,
 article/shared-layout edits, failure/repair, provenance, portable independent
 copies and offline reopen/build. No dedicated example screen or app-local
-renderer was added. Explicit entry-artifact configuration and pinned historical
-build comparisons remain separate Studio work; Hugo compatibility remains Phase 7.
+renderer was added. Explicit portable `entryArtifact` configuration, declarative
+saved-project editing, URL precedence and missing-output reporting are implemented
+2026-10-19. Pinned historical build comparisons remain subsequent Studio work;
+Hugo compatibility remains Phase 7.
 
 Native foundations also support opt-in YAML front matter, retained common
 metadata in HTML DOM projections, explicit site/navigation inputs and named

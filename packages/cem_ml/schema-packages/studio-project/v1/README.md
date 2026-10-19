@@ -20,6 +20,25 @@ paths, credentials, browser file handles, open tabs, selections, and other
 transient UI state. Those belong to host/provider storage, keyed by stable
 project and resource identities.
 
+## Build entry artifacts
+
+A runnable `conversion`, `query`, `transformation` or `transformation-graph`
+entry may declare optional `entryArtifact` in JSON or `@entry-artifact` in CEM.
+It is the configuration's default preview output, for example
+`generated/index.html`, relative to the project root. It is separate from
+`resourceIds` and may name an output that does not exist until a successful build.
+Other entry kinds forbid it. Omission preserves existing projects.
+
+Paths must be nonempty and normalized: no leading slash, empty/dot segments,
+backslashes, schemes, control characters, query or fragment. Unicode and literal
+spaces are preserved. Invalid values report
+`cem.studio_project.entry_artifact_invalid`; incompatible entry kinds report
+`cem.studio_project.entry_artifact_forbidden`. Both projections retain the value
+through deterministic native serialization. It is a portable configuration
+default; an explicit URL or artifact choice remains transient host state and
+wins over that default. A missing built output is a preview availability issue,
+not permission to substitute a different index document.
+
 ## Verification
 
 Run:

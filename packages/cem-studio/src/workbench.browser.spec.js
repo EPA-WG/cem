@@ -41,16 +41,67 @@ afterEach(async () => {
 });
 
 describe('CEM Studio Feature Tour workbench', () => {
+    it('selects explicit build entries with URL precedence, missing-output reporting and stale admission guards', async () => {
+        const repository = await repositoryWithSource('{main | saved}');
+        const bundle = (await repository.query(request('export-project', { projectId: 'feature-tour' }))).value;
+        const entry = { id: 'site', name: 'Site build', kind: 'transformation-graph', entryArtifact: 'generated/index.html' };
+        bundle.project.entries = [entry];
+        // The test transport exposes one native command resource as a named build.
+        bundle.project.resources.push({ id: 'build-command', schema: 'https://cem.dev/ns/cli/command/1' }); entry.runConfigResourceId = 'build-command';
+        let release;
+        const candidates = [];
+        const service = createCemStudioProjectPreview({ repository, openBuildWorkbench: async () => {
+            const pending = deferred(); release = pending.resolve;
+            const artifacts = ['generated/articles/index.html', 'generated/index.html', 'generated/other.html'].map(path => ({ id: path, path,
+                uri: `studio://feature-tour/${path}`, contentType: 'text/html' }));
+            const projection = { exitCode: 0, buildRun: { id: `run-${candidates.length}`, inputs: [], artifacts },
+                outputs: artifacts.map(item => ({ uri: item.uri, bytes: new TextEncoder().encode('<h1>Built</h1>') })) };
+            const candidate = { snapshot: () => ({ projection }), runPersistedOperation: () => pending.promise,
+                selectArtifact: vi.fn(), dispose: vi.fn() };
+            candidates.push(candidate); return candidate;
+        } }); workbenches.push(service);
+        const context = () => { const project = structuredClone(bundle.project); return { key: 'sample=site', project, bundle: { ...bundle, project } }; };
+        const build = async () => { const pending = service.build(); await vi.waitFor(() => expect(release).toBeTypeOf('function')); release(); release = undefined; await pending; };
+        service.setContext(context());
+        expect(service.snapshot()).toMatchObject({ artifactPath: 'generated/index.html', entryArtifact: 'generated/index.html' });
+        await build(); expect(service.snapshot().selectedArtifact.path).toBe('generated/index.html');
+        service.setContext(context(), { artifact: 'generated/other.html?view=wide#part', reset: true }); await build();
+        expect(service.snapshot().artifactPath).toBe('generated/other.html?view=wide#part');
+        expect(service.snapshot().selectedArtifact.path).toBe('generated/other.html');
+        entry.entryArtifact = 'generated/missing.html'; service.setContext(context());
+        expect(service.snapshot().artifactPath).toBe('generated/other.html?view=wide#part');
+        expect(service.snapshot().stale).toBe(true);
+        service.selectConfiguration('site'); await build();
+        expect(service.snapshot()).toMatchObject({ artifactPath: 'generated/missing.html', missingArtifact: true });
+        expect(service.snapshot().selectedArtifact).toBeUndefined();
+        service.selectArtifact('generated/articles/index.html'); await build();
+        expect(service.snapshot().selectedArtifact.path).toBe('generated/articles/index.html');
+        entry.entryArtifact = 'generated/index.html'; service.setContext(context(), { reset: true }); await build();
+        const successful = service.snapshot().projection;
+        const late = service.build(); await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+        entry.entryArtifact = 'generated/other.html'; service.setContext(context()); release(); release = undefined; await late;
+        expect(service.snapshot()).toMatchObject({ stale: true, attempt: { status: 'stale' } });
+        expect(service.snapshot().projection).toBe(successful); expect(candidates.at(-1).dispose).toHaveBeenCalled();
+        delete entry.entryArtifact; service.setContext(context(), { reset: true }); await build();
+        expect(service.snapshot().artifactPath).toBeUndefined(); // Two index documents remain ambiguous.
+        entry.entryArtifact = 'generated/index.html'; service.setContext(context(), { artifact: 'gone.html', reset: true }); await build();
+        expect(service.snapshot()).toMatchObject({ artifactPath: 'gone.html', missingArtifact: true });
+        bundle.project.entries.push({ ...entry, id: 'other', entryArtifact: 'generated/other.html' });
+        service.setContext(context(), { build: 'other', reset: true }); await build();
+        expect(service.snapshot()).toMatchObject({ configurationId: 'other', artifactPath: 'generated/other.html' });
+    });
+
     it('opens the ordinary Markdown site sample, edits and repairs builds, and runs a portable independent copy', async () => {
         const response = await fetch(new URL('../generated/feature-tour/examples/markdown-site.cem-studio.json', import.meta.url));
         expect(response.ok).toBe(true);
         const bundle = parseCemStudioProjectBundle(new Uint8Array(await response.arrayBuffer()));
         const repository = await repositoryWithSource('unrelated saved resource');
         const validator = await createCemStudioBrowserValidator();
+        repository.validateProject = validator.validateProject;
         try {
             const session = createCemStudioProjectSession({ openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator, selection }) }); workbenches.push(session);
             const base = await createCemStudioSessionWorkbench({ repository, session });
-            const browser = new EventTarget(); browser.location = new URL('https://studio.test/?sample=markdown-site&build=build-site&artifact=generated/index.html');
+            const browser = new EventTarget(); browser.location = new URL('https://studio.test/?sample=markdown-site&build=build-site');
             browser.history = { pushState: vi.fn((_, __, url) => { browser.location = new URL(url); }), replaceState: vi.fn((_, __, url) => { browser.location = new URL(url); }) };
             const workbench = await createCemStudioNavigation({ repository, validator, workbench: base,
                 examples: [{ id: 'markdown-site', name: 'Markdown site', collections: ['amsterdam-2026'], load: async () => bundle }], browser }); workbenches.push(workbench);
@@ -81,6 +132,30 @@ describe('CEM Studio Feature Tour workbench', () => {
             workbench.requestAction('clone'); await workbench.submitAction({ name: ['Site copy'] }); await view.whenSettled();
             const projectId = workbench.snapshot().navigation.selection.project;
             expect(projectId).toBeTruthy();
+            expect(preview().entryArtifact).toBe('generated/index.html');
+            root.querySelector('cem-expansion[label="Build entry settings"] [part=header]').click(); await view.whenSettled();
+            const saveEntry = async path => {
+                const input = root.querySelector('cem-text-field[label="Build entry artifact"] input');
+                input.value = path; input.dispatchEvent(new Event('input', { bubbles: true })); await view.whenSettled();
+                root.querySelector('form[host-command="save-build-entry"] button').click(); await view.whenSettled();
+            };
+            await saveEntry('../outside.html');
+            expect(preview().entryError.message).toContain('entryArtifact');
+            expect(preview().entryArtifact).toBe('generated/index.html');
+            await saveEntry('generated/missing.html'); await build();
+            expect(preview()).toMatchObject({ entryArtifact: 'generated/missing.html', missingArtifact: true });
+            expect(root.querySelector('[data-cem-studio-preview]').textContent).toContain('requested artifact is unavailable');
+            await saveEntry('generated/index.html');
+            await workbench.editStructure({ kind: 'undo' });
+            await vi.waitFor(() => expect(preview().entryArtifact).toBe('generated/missing.html'));
+            await workbench.editStructure({ kind: 'redo' });
+            await vi.waitFor(() => expect(preview().entryArtifact).toBe('generated/index.html')); await view.whenSettled();
+            await saveEntry('');
+            expect(preview().entryArtifact).toBeUndefined();
+            expect((await repository.query(request('export-project', { projectId }))).value.project.entries.find(item => item.id === 'build-site').entryArtifact).toBeUndefined();
+            await saveEntry('generated/index.html');
+            await build();
+            expect(preview().projection.buildRun.configuration.entryArtifact).toBe('generated/index.html');
             const articleId = 'content-articles-first-build-md';
             await workbench.openEntity(`project=${projectId}&file=${articleId}`); await view.whenSettled();
             const original = workbench.snapshot().draft;

@@ -12,6 +12,8 @@ does not require a Studio route or renderer.
   authored command arguments. `$source` and `$<dependency-id>` are replaced with
   project-relative resource addresses during generation. Expected results and
   repair metadata support native fixtures; they do not drive a tutorial UI.
+  Optional `entryArtifact` sets a named build's project-relative preview output;
+  it is copied into the portable configuration, independently of input resources.
 
 Generated bundles use the native version-1 project contract (`entries` and
 `runConfigResourceId` are compatibility wire fields). Studio verifies archive

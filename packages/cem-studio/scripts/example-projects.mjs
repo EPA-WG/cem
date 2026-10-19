@@ -51,7 +51,8 @@ async function createExampleProject(workspaceRoot, commonVersion, definition) {
             validation ? 'application/json' : 'application/vnd.cem.cli-command+json',
             `https://cem.dev/ns/cli/${validation ? 'run-config' : 'command'}/1`, 'run-config');
         entries.push({ id: configuration.id, kind: configuration.kind, name: configuration.name, ...(configuration.description ? { description: configuration.description } : {}),
-            resourceIds: [source.id, id, ...dependencies.map(resource => resource.id)], runConfigResourceId: id, tags: [...new Set([configuration.argv[0], ...(configuration.tags ?? [])])] });
+            resourceIds: [source.id, id, ...dependencies.map(resource => resource.id)], runConfigResourceId: id,
+            ...(configuration.entryArtifact === undefined ? {} : { entryArtifact: configuration.entryArtifact }), tags: [...new Set([configuration.argv[0], ...(configuration.tags ?? [])])] });
     }
     const timestamp = '2026-10-17T00:00:00Z';
     const project = { $schema: 'https://cem.dev/ns/studio/project/1', schemaVersion: 1,

@@ -473,6 +473,12 @@ export class CemStudioIndexedDbRepository {
         switch (edit.kind) {
             case 'rename-project': project.name = named(); break;
             case 'rename-entry': entry().name = named(); break;
+            case 'set-entry-artifact': {
+                const item = entry();
+                if (edit.entryArtifact === undefined || edit.entryArtifact === '') delete item.entryArtifact;
+                else item.entryArtifact = edit.entryArtifact;
+                break;
+            }
             case 'create-subproject':
                 project.entries.push({ id: `page-${this.crypto.randomUUID()}`, kind: 'subproject', name: named(), ...(parent() ? { parentId: parent() } : {}) });
                 break;

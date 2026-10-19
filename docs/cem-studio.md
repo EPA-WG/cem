@@ -1088,13 +1088,38 @@ Amsterdam 2026 → Markdown site** contains home, an article index and two artic
 shared layout/content/chrome modules, explicit navigation data, CSS, an image and
 a downloadable asset. Clone it to edit, validate and build saved resources. The
 three configurations build the complete seven-artifact site, validate article
-metadata, or preview the article body alone. Choose `generated/index.html` as
-the complete site preview; navigation within the build leaves source selection
+metadata, or preview the article body alone. Its build configuration declares
+`entryArtifact: "generated/index.html"` as the default complete-site preview; navigation within the build leaves source selection
 unchanged. Relative links work when publishing `generated/` as a static root.
 HTML expectations, failure/repair, content/partial provenance and portable
 independent copies are verified natively and in Studio, including offline
 reopen/build. The project-owned `base` metadata supplies relative links explicitly;
 there is no implicit metadata routing, Hugo configuration or Go-template engine.
+
+Named conversion, query, transformation and transformation-graph configurations
+may declare `entryArtifact` (`@entry-artifact` in `project.cem`). This optional
+portable field names a normalized output path relative to the project root, for
+example `generated/index.html`. It is not an input resource ID and need not exist
+before a build. Native project validation rejects absolute/escaping paths, empty
+or dot segments, backslashes, schemes, control characters and query/fragment
+suffixes. Literal Unicode and spaces are preserved.
+
+In a saved project's **Build entry settings** expansion, **Build entry artifact**
+and **Save build entry** update the named configuration through ordinary guarded
+project edits, with native validation, revision checks and undo/redo. Empty clears
+the setting. Samples remain read-only; clone one to edit it. Source/command drafts
+and active builds must finish before saving an entry setting. The controls use
+shared declarative field, expansion, stack and action components.
+
+An explicit `artifact` URL parameter or artifact-selector choice takes precedence
+and survives rebuilds. Otherwise the configured entry selects the output; changing
+that default invalidates prior/in-flight build metadata. A declared path missing
+from a successful build stays selected and reports unavailable, with no fallback
+to another index document. Configurations without a setting retain the existing
+single-output/unambiguous-index selection; several index documents require an
+explicit choice. Entry paths are captured on build-run configurations and survive
+portable export/import, independent copies and offline reopening. Current URL
+selection remains session state rather than portable configuration data.
 
 Each build attempt captures a configuration identity/revision, input resource
 identities/revisions/hashes, relevant tree snapshot, engine versions and resolver

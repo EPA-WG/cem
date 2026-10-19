@@ -144,6 +144,7 @@
   "configurations": [
     {
       "id": "build-site",
+      "entryArtifact": "generated/index.html",
       "name": "Build and preview site",
       "kind": "transformation-graph",
       "source": "graphs-build-cem",
