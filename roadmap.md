@@ -515,8 +515,8 @@ Goal: reuse previously rendered content when its source, template and effective
 inputs are unchanged. Avoid recompiling/reinstalling unchanged CSS on every render,
 while preserving DOM identity, edited controls and the normal component lifecycle.
 
-Status: native identity/invalidation foundation implemented 2026-10-19; cache
-hits and DOM/style reuse remain planned. Shared native dependency snapshots now
+Status: native identity/invalidation, bounded storage and checked native/WASM
+compilation hits implemented 2026-10-19. DOM/style reuse remains planned. Shared native dependency snapshots now
 cover complete source/import closures, effective options, engine/format,
 policy/resolution/scope and explicit render/provider freshness revisions. The
 opt-in native template compilation receipt preserves ordinary render/provenance
@@ -528,9 +528,15 @@ and [template receipt API](packages/cem_ql/README.md#template-compilation-depend
 The native content-artifact store now has count/byte limits, immutable leases,
 LRU eviction, sidecar ownership, atomic pinned-pressure rejection and generation-
 fenced lookup/admission. Live retired leases remain charged until release.
-Compiled-template dev/prod parity is verified through the store. Native/browser
-compilation consumers still need fresh dependency lookup and publication wiring;
-no browser shortcut or DOM/style reuse is enabled by the storage API alone.
+Compiled-template dev/prod parity is verified through the store. Checked native
+source/closure compilation rehashes actual bytes and validates fresh resolver
+metadata, contracts, versions and options before lookup. WASM compilation reloads
+independent owners from leased binary IR; shared processing rejects superseded or
+disposed results and sends new CEM owners through native checks. Opaque/invalid
+closures remain uncached, and capacity refusal preserves successful compilation.
+See [checked compilation](packages/cem_ql/README.md#checked-template-compilation-cache).
+Render/provider evaluation and CSS/resource loading retain their normal lifecycle;
+DOM/style reuse remains subsequent work.
 
 Extend the existing native template/artifact caches,
 bounded processing LRU and render-plan diff machinery; do not introduce a parallel

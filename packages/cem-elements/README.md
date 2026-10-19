@@ -827,8 +827,11 @@ changing their scheduling semantics. The current `cem-processing-host-v4` contra
 carries explicit native XSLT compilation options and retained host/scope limits;
 its `document` retention/release remains alongside `compile`, `renderDiff`, `cancel` and `dispose`. The default
 pool uses browser hardware concurrency capped at eight workers, a 64-operation queue per
-slot, FIFO ordering per root, and round-robin cross-root dispatch. Compiled artifacts and
-render plans use bounded content-addressed LRU retention; an evicted previous plan safely
+slot, FIFO ordering per root, and round-robin cross-root dispatch. New CEM compilation
+owners pass through the [checked bounded native cache](../cem_ql/README.md#checked-template-compilation-cache)
+and receive independent WASM handles; processing rejects superseded or disposed
+async results before publication. CSS/XSLT compiled owners and render plans retain
+their bounded content-addressed LRU behavior; an evicted previous plan safely
 falls back to a full scope replacement. `processingPoolPolicy` can lower the worker and
 queue limits, while `onProcessingTrace` observes sequence-only scheduling decisions.
 

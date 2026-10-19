@@ -254,6 +254,34 @@ impl ContentCache {
         self.read(key, policy)
             .map(|entry| ContentCacheLease::new(entry.clone()))
     }
+    /// Bounded resident scan for a dependency-qualified artifact type. This
+    /// avoids a second unbounded dependency-to-payload index. Callers must use
+    /// a unique type domain and still validate current policy and runtime.
+    pub fn lease_by_content_type_for_runtime(
+        &self,
+        ticket: &ContentCacheRuntime,
+        content_type: &super::ArtifactContentType,
+        mode: CacheMode,
+        policy: &PolicyStamps,
+    ) -> Result<Option<ContentCacheLease>, CacheError> {
+        if !self.accepts_runtime(ticket) {
+            return Err(error(
+                "cem.cc.runtime_replaced",
+                "compilation request belongs to another runtime",
+            ));
+        }
+        let key = self
+            .artifacts
+            .keys()
+            .find(|key| &key.content_type == content_type && key.mode == mode);
+        match key {
+            Some(key) => self.lease_for_runtime(ticket, key, policy).map(Some),
+            None => {
+                increment(&self.misses);
+                Ok(None)
+            }
+        }
+    }
     /// Sidecars exist only while their owning resident artifact exists. Prefer a
     /// policy-checked lease for an owner that must survive a mutable operation.
     pub fn sidecar(&self, hash: &ContentHash) -> Option<&SourceMapSidecar> {

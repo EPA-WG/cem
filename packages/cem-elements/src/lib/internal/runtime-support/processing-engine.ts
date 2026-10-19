@@ -94,6 +94,7 @@ export class CemProcessingEngine {
     private readonly compiledArtifacts: CemProcessingLruCache<string, CachedTemplateCompilation>;
     private readonly renderPlans: CemProcessingLruCache<string, RenderPlan>;
     private readonly compilations = new Map<CachedTemplateCompilation, number>();
+    private readonly compilationOperations = new Map<string, object>();
     private readonly xpathLibraries = new CemXPathFunctionLibraries();
     private readonly documents = new Map<string, { input: Extract<CemProcessingDocumentInput, { action: 'retain' }>; id: number }>();
     private readonly documentOperations = new Map<string, object>();
@@ -244,6 +245,19 @@ export class CemProcessingEngine {
 
     async compile(input: CemProcessingCompileInput): Promise<CemProcessingCompileResult> {
         this.assertActive();
+        const key = retainedArtifactKey(input.scopePolicyStamp, input.templateArtifactId);
+        if (input.language !== 'cem-ml') return this.compileCurrent(input, key);
+        const operation = {};
+        this.compilationOperations.set(key, operation);
+        try {
+            return await this.compileCurrent(input, key, operation);
+        } finally {
+            if (this.compilationOperations.get(key) === operation) this.compilationOperations.delete(key);
+        }
+    }
+
+    private async compileCurrent(input: CemProcessingCompileInput, artifactKey: string, operation?: object): Promise<CemProcessingCompileResult> {
+        this.assertActive();
         if (input.instanceStylesheetIdentity !== undefined && (input.language !== 'css'
             || typeof input.instanceStylesheetIdentity !== 'string' || !input.instanceStylesheetIdentity.trim())) {
             throw new Error('a nonempty instance stylesheet identity is valid only for CSS adoption');
@@ -259,7 +273,6 @@ export class CemProcessingEngine {
         } else if (input.language !== 'cem-ml' || input.xslt) {
             throw new Error('invalid processing language or XSLT options');
         }
-        const artifactKey = retainedArtifactKey(input.scopePolicyStamp, input.templateArtifactId);
         const retained = this.artifacts.get(artifactKey);
         if (retained) {
             if (!sameCompileIdentity(retained.input, input)) {
@@ -290,26 +303,31 @@ export class CemProcessingEngine {
             scopePolicyStamp: input.scopePolicyStamp,
             sourceMapMode: input.sourceMapMode,
         };
-        let compilation = this.compiledArtifacts.get(handle.cacheKey);
+        // CEM dependency verification and bounded binary reuse belong to native
+        // code. Never revive another consumer's retained mutable WASM owner.
+        const nativeChecked = input.language === 'cem-ml';
+        let compilation = nativeChecked ? undefined : this.compiledArtifacts.get(handle.cacheKey);
         if (!compilation) {
             const xpathLibrary = input.xpathFunctionLibrary
                 ? await this.xpathLibraries.acquire(input.xpathFunctionLibrary) : undefined;
             let loaded: CachedTemplateCompilation | undefined;
             try {
-                this.assertActive();
+                this.assertCompilationCurrent(artifactKey, operation);
                 loaded = await this.compileOrImportTemplate(input, source);
-                this.assertActive();
+                this.assertCompilationCurrent(artifactKey, operation);
                 // A concurrent compile may have retained the same identity while
                 // this request awaited WASM. Reuse it and release the extra lease.
-                compilation = this.compiledArtifacts.get(handle.cacheKey);
+                compilation = nativeChecked ? undefined : this.compiledArtifacts.get(handle.cacheKey);
                 if (compilation) {
                     disposeCompilation(loaded);
                     xpathLibrary?.release();
                 } else {
                     compilation = { ...loaded, xpathLibrary };
-                    this.compilations.set(compilation, 1);
-                    const evicted = this.compiledArtifacts.set(handle.cacheKey, compilation);
-                    if (evicted) this.releaseCompilation(evicted.value);
+                    this.compilations.set(compilation, nativeChecked ? 0 : 1);
+                    if (!nativeChecked) {
+                        const evicted = this.compiledArtifacts.set(handle.cacheKey, compilation);
+                        if (evicted) this.releaseCompilation(evicted.value);
+                    }
                 }
             } catch (error) {
                 if (loaded) disposeCompilation(loaded);
@@ -501,6 +519,7 @@ export class CemProcessingEngine {
             compilation.xpathLibrary?.release();
         }
         this.compilations.clear();
+        this.compilationOperations.clear();
         this.xpathLibraries.dispose();
         this.artifacts.clear();
         this.compiledArtifacts.clear();
@@ -518,6 +537,11 @@ export class CemProcessingEngine {
             disposeCompilation(compilation);
             compilation.xpathLibrary?.release();
         }
+    }
+
+    private assertCompilationCurrent(key: string, operation?: object): void {
+        this.assertActive();
+        if (operation && this.compilationOperations.get(key) !== operation) throw new Error('Template compilation was superseded');
     }
 
     private assertActive(): void {

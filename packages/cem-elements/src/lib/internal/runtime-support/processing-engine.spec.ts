@@ -173,6 +173,7 @@ import {
     disposeLoadedCemDocument,
     compileCemMlTemplateArtifact,
     retainCemMlTemplateArtifact,
+    retainCemMlTemplateModuleClosure,
     retainCemMlTemplateSource,
     disposeRetainedCemMlTemplate,
     processRetainedCemMlTemplate,
@@ -233,7 +234,12 @@ describe('Phase 3A retained processing engine', () => {
                 modules: [{ alias: 'base', uri: 'https://example.test/base.cemt', contentHash: 'one', source: '{p | one}' }],
             },
         };
+        const compile = vi.mocked(retainCemMlTemplateModuleClosure);
+        compile.mockClear();
         const first = await engine.compile(input);
+        const same = await engine.compile({ ...input, templateArtifactId: 'imported-same' });
+        expect(same.artifact.cacheKey).toBe(first.artifact.cacheKey);
+        expect(compile).toHaveBeenCalledTimes(2);
         expect(first.stylesheets).toEqual([{ css: 'p { color: blue; }', scope: null }]);
         expect(first.compiledArtifact).toBeUndefined();
         const changed = { ...input, moduleClosure: { ...input.moduleClosure,
@@ -241,6 +247,25 @@ describe('Phase 3A retained processing engine', () => {
         await expect(engine.compile(changed)).rejects.toThrow('another identity');
         const second = await engine.compile({ ...changed, templateArtifactId: 'imported-2' });
         expect(second.artifact.cacheKey).not.toBe(first.artifact.cacheKey);
+    });
+    it('rejects superseded compilation and releases its native result before publication', async () => {
+        const engine = new CemProcessingEngine();
+        const input = { language: 'cem-ml' as const, producedTag: 'cem-pending', templateArtifactId: 'pending',
+            registrationIdentity: 'pending', source: createCemProcessingTextSource('{p | old}'),
+            sourceRef: { kind: 'inline' as const, value: 'pending' }, resolverIdentity: 'test',
+            scopePolicyStamp: 'test', sourceMapMode: 'dev' as const };
+        let resume!: (value: Awaited<ReturnType<typeof retainCemMlTemplateSource>>) => void;
+        vi.mocked(retainCemMlTemplateSource).mockImplementationOnce(() => new Promise(resolve => { resume = resolve; }));
+        const pending = engine.compile(input);
+        const rejected = expect(pending).rejects.toThrow('superseded');
+        await vi.waitFor(() => expect(resume).toBeTypeOf('function'));
+        const current = { ...input, source: createCemProcessingTextSource('{p | current}') };
+        const result = await engine.compile(current);
+        resume({ artifactId: 9002, diagnostics: [], stylesheets: [], moduleMap: null });
+        await rejected;
+        expect(disposeRetainedCemMlTemplate).toHaveBeenCalledWith(9002);
+        expect((await engine.compile(current)).artifact).toEqual(result.artifact);
+        engine.dispose({});
     });
     it('compiles and diffs the same canonical CEM-ML semantics for worker and fallback hosts', async () => {
         const workerEngine = new CemProcessingEngine();
@@ -406,7 +431,7 @@ describe('Phase 3A retained processing engine', () => {
         expect(anotherResolver.artifact.cacheKey).not.toBe(first.artifact.cacheKey);
     });
 
-    it('reuses compiled content by address and evicts the least-recently-used entry at the bound', async () => {
+    it('delegates CEM compilation reuse to checked native lookup for every new owner', async () => {
         const compile = vi.mocked(retainCemMlTemplateSource);
         compile.mockClear();
         const engine = new CemProcessingEngine({ maxArtifactEntries: 2 });
@@ -428,7 +453,7 @@ describe('Phase 3A retained processing engine', () => {
         await engine.compile(input('artifact-c-1', '{span | C}'));
         await engine.compile(input('artifact-b-2', '{span | B}'));
 
-        expect(compile).toHaveBeenCalledTimes(4);
+        expect(compile).toHaveBeenCalledTimes(5);
     });
 
     it('imports matching precompiled template bytes without source compilation', async () => {
@@ -812,12 +837,14 @@ describe('XPath companion processing lifecycle', () => {
         expect(release).toHaveBeenCalledTimes(2);
         expect(libraryMocks.dispose).toHaveBeenCalled();
     });
-    it('releases duplicate work from concurrent compiles of one template', async () => {
+    it('rejects superseded concurrent compiles and releases their companions', async () => {
         const release = vi.fn();
         libraryMocks.acquire.mockResolvedValue({ companionId: 44, release });
         const engine = new CemProcessingEngine({ maxArtifactEntries: 1 });
-        const [first, second] = await Promise.all([engine.compile(input()), engine.compile(input())]);
-        expect(second).toEqual(first);
+        const [first, second] = await Promise.allSettled([engine.compile(input()), engine.compile(input())]);
+        expect(first.status).toBe('rejected');
+        if (first.status === 'rejected') expect(first.reason.message).toContain('superseded');
+        expect(second.status).toBe('fulfilled');
         expect(release).toHaveBeenCalledTimes(1);
         await engine.compile({ ...input(), templateArtifactId: 'replacement', source: createCemProcessingTextSource('{p | changed}') });
         expect(release).toHaveBeenCalledTimes(2);

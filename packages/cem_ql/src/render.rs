@@ -25,6 +25,7 @@ use crate::eval::{effective_boolean, AtomValue, EvalError, Item, ItemStream, Que
 use crate::ir::CompiledQuery;
 
 mod dependencies;
+pub(crate) use dependencies::compilation_identity;
 pub use dependencies::{compile_template_module_closure_with_dependencies, TemplateDependencyCompilation};
 
 mod construction;

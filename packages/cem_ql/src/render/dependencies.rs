@@ -40,7 +40,7 @@ pub fn compile_template_module_closure_with_dependencies(
     TemplateDependencyCompilation { artifact, identity }
 }
 
-fn compilation_identity(
+pub(crate) fn compilation_identity(
     closure: &TemplateModuleClosure,
     options: &CompileTemplateOptions,
 ) -> Result<DependencyIdentity, DependencyIdentityError> {

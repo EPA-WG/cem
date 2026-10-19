@@ -11,12 +11,12 @@ use wasm_bindgen::prelude::*;
 
 use super::json_boundary::{diagnostics_json, evaluate_query_source_json, json_value_to_stream};
 use crate::render::{
-    compile_template, compile_template_module_closure, render_compiled_template,
+    compile_template, render_compiled_template,
     CompileTemplateOptions, RenderPlan, RenderPlanNode, TemplateArtifact, TemplateData,
     TemplateModuleClosure,
 };
 use crate::template_artifact::{
-    compile_template_artifact, CompiledTemplateArtifact, TemplateArtifactLoadContext,
+    encode_template_artifact, CompiledTemplateArtifact, TemplateArtifactLoadContext,
     TemplateArtifactSourceMapMode, CEM_TEMPLATE_ARTIFACT_VERSION,
 };
 
@@ -27,8 +27,52 @@ mod xslt_bundle;
 
 use crate::retained_template::RetainedTemplate;
 
+use crate::template_cache::TemplateCompilationCache;
+use cem_ml::dependency_identity::DependencyAdmission;
+
 thread_local! {
+    static COMPILATION_CACHE: RefCell<TemplateCompilationCache> = RefCell::new(TemplateCompilationCache::default());
     static ARTIFACTS: RefCell<Vec<Option<RetainedTemplate>>> = const { RefCell::new(Vec::new()) };
+}
+
+// Calls are synchronous within a WASM instance. Host async publication still
+// checks its current processing owner after returning through this boundary.
+fn checked_compile(
+    source: &str,
+    closure: Option<&TemplateModuleClosure>,
+    options: &CompileTemplateOptions,
+    mode: TemplateArtifactSourceMapMode,
+) -> Result<crate::template_cache::CheckedTemplateCompilation, cem_ml::content_cache::CacheError> {
+    COMPILATION_CACHE.with(|cell| {
+        let mut cache = cell.borrow_mut();
+        let admission = DependencyAdmission {
+            owner: "wasm-compilation".into(),
+            runtime_generation: cache.stats().runtime_generation,
+            revision: 1,
+        };
+        let request = cache.begin(admission.clone());
+        cache.compile(source, closure, options, mode, &request, Some(&admission))
+    })
+}
+
+/// Counter-only diagnostics; reset invalidates cached binaries, never live handles.
+#[wasm_bindgen(js_name = "templateCompilationCacheStats")]
+pub fn wasm_template_compilation_cache_stats() -> String {
+    COMPILATION_CACHE.with(|cell| {
+        let cache = cell.borrow();
+        let stats = cache.stats();
+        json!({"compilations":cache.compilations(), "hits":stats.hits,"misses":stats.misses,
+            "residentEntries":stats.resident_entries,"retainedBytes":stats.retained_bytes,
+            "evictions":stats.evictions,"runtimeGeneration":stats.runtime_generation})
+        .to_string()
+    })
+}
+#[wasm_bindgen(js_name = "resetTemplateCompilationCache")]
+pub fn wasm_reset_template_compilation_cache() -> String {
+    COMPILATION_CACHE.with(|cell| match cell.borrow_mut().reset() {
+        Ok(()) => "{}".into(),
+        Err(error) => error_json(error.code, error.message),
+    })
 }
 
 /// Returns the `cem_ql` Cargo version embedded in this combined WASM module.
@@ -52,19 +96,18 @@ pub fn wasm_compile_template(source: &str, host_bindings_json: &str) -> String {
         Ok(bindings) => bindings,
         Err(message) => return error_json("cem.ql.wasm.invalid_host_bindings", message),
     };
-    let artifact = compile_template(
-        source,
-        &CompileTemplateOptions {
-            host_bindings,
-            ..CompileTemplateOptions::default()
-        },
-    );
+    let checked = match checked_compile(source, None, &CompileTemplateOptions {
+        host_bindings, ..CompileTemplateOptions::default()
+    }, TemplateArtifactSourceMapMode::Dev) { Ok(checked) => checked, Err(error) => return error_json(error.code, error.message) };
+    let cache_hit = checked.hit;
+    let artifact = checked.artifact;
     let diagnostics = diagnostics_json(&artifact.diagnostics);
     let stylesheets = stylesheets_json(&artifact);
     let module_map = module_map_json(&artifact);
     let artifact_id = retain_artifact(artifact);
     json!({
         "artifactId": artifact_id,
+        "cacheHit": cache_hit,
         "stylesheets": stylesheets,
         "moduleMap": module_map,
         "diagnostics": diagnostics
@@ -171,20 +214,18 @@ pub fn wasm_compile_template_module_closure(
             )
         }
     };
-    let artifact = compile_template_module_closure(
-        source,
-        &closure,
-        &CompileTemplateOptions {
-            host_bindings,
-            ..CompileTemplateOptions::default()
-        },
-    );
+    let checked = match checked_compile(source, Some(&closure), &CompileTemplateOptions {
+        host_bindings, ..CompileTemplateOptions::default()
+    }, TemplateArtifactSourceMapMode::Dev) { Ok(checked) => checked, Err(error) => return error_json(error.code, error.message) };
+    let cache_hit = checked.hit;
+    let artifact = checked.artifact;
     let diagnostics = diagnostics_json(&artifact.diagnostics);
     let stylesheets = stylesheets_json(&artifact);
     let module_map = module_map_json(&artifact);
     let artifact_id = retain_artifact(artifact);
     json!({
         "artifactId": artifact_id,
+        "cacheHit": cache_hit,
         "rootUri": &closure.root_uri,
         "rootContentHash": &closure.root_content_hash,
         "resolverPolicyStamp": &closure.resolver_policy_stamp,
@@ -217,15 +258,10 @@ pub fn wasm_compile_template_artifact(
         parse_host_bindings(host_bindings_json).map_err(|message| JsValue::from_str(&message))?;
     let source_map_mode =
         parse_source_map_mode(source_map_mode).map_err(|message| JsValue::from_str(&message))?;
-    Ok(compile_template_artifact(
-        source,
-        &CompileTemplateOptions {
-            host_bindings,
-            ..CompileTemplateOptions::default()
-        },
-        source_map_mode,
-    )
-    .bytes)
+    let options = CompileTemplateOptions { host_bindings, ..CompileTemplateOptions::default() };
+    let mut checked = checked_compile(source, None, &options, source_map_mode)
+        .map_err(|error| JsValue::from_str(&error.message))?;
+    Ok(encode_template_artifact(source, &options, source_map_mode, &mut checked.artifact).bytes)
 }
 
 /// Return the portable registry lookup key without compiling the template.

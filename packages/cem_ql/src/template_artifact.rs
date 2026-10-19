@@ -131,8 +131,20 @@ pub fn compile_template_artifact(
     let mut artifact = compile_template(source, &canonical_options);
     #[cfg(test)]
     profile.next("template-artifact/encode");
+    encode_template_artifact(source, &canonical_options, source_map_mode, &mut artifact)
+}
+
+/// Encode an already compiled closure without parsing or lowering it again.
+/// The caller owns dependency verification; this preserves the existing wire envelope.
+pub(crate) fn encode_template_artifact(
+    source: &str,
+    options: &CompileTemplateOptions,
+    source_map_mode: TemplateArtifactSourceMapMode,
+    artifact: &mut TemplateArtifact,
+) -> CompiledTemplateArtifact {
+    let host_bindings = canonical_host_bindings(&options.host_bindings);
     if source_map_mode == TemplateArtifactSourceMapMode::Prod {
-        strip_template_source_maps(&mut artifact);
+        strip_template_source_maps(artifact);
     }
     let identity = CompiledTemplateArtifactIdentity {
         content_type: CEM_TEMPLATE_ARTIFACT_CONTENT_TYPE.to_owned(),
@@ -145,10 +157,17 @@ pub fn compile_template_artifact(
         host_bindings,
         skip_cemt_function_bodies: options.skip_cemt_function_bodies,
     };
-    let payload = TemplateArtifactPayload {
-        nodes: artifact.nodes,
-        stylesheets: artifact.stylesheets,
-        module_map: artifact.module_map,
+    #[derive(Serialize)]
+    struct PayloadRef<'a> {
+        nodes: &'a [TemplateNode],
+        stylesheets: &'a [TemplateStylesheetArtifact],
+        module_map: &'a Option<TemplateModuleMapArtifact>,
+        diagnostics_json: Vec<u8>,
+    }
+    let payload = PayloadRef {
+        nodes: &artifact.nodes,
+        stylesheets: &artifact.stylesheets,
+        module_map: &artifact.module_map,
         diagnostics_json: serde_json::to_vec(&artifact.diagnostics)
             .expect("CEM diagnostics serialize as JSON"),
     };
@@ -433,7 +452,7 @@ impl<'a> ArtifactReader<'a> {
     }
 }
 
-fn strip_template_source_maps(artifact: &mut TemplateArtifact) {
+pub(crate) fn strip_template_source_maps(artifact: &mut TemplateArtifact) {
     for diagnostic in &mut artifact.diagnostics {
         diagnostic.source_map = None;
     }

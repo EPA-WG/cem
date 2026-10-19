@@ -1237,14 +1237,22 @@ The native dependency identity/invalidation foundation is implemented in the
 [shared engine contract](../packages/cem_ml/README.md#native-dependency-identities)
 and the opt-in [template compilation receipt](../packages/cem_ql/README.md#template-compilation-dependency-receipts).
 It includes complete source/import and context identities, explicit render/provider
-freshness axes and separate owner/runtime publication guards. Existing Studio and
-browser entrypoints still evaluate normally; no cache hits or retained DOM/style
-reuse are enabled. The shared native content-artifact store now provides count/byte
-limits, immutable leases, LRU eviction, sidecar ownership and opaque owner/runtime
-fences; retired live leases remain charged. Its [storage contract](../packages/cem_ml/README.md#bounded-native-artifact-storage-and-leases)
+freshness axes and separate owner/runtime publication guards. The shared native
+content-artifact store provides count/byte limits, immutable leases, LRU eviction,
+sidecar ownership and opaque runtime fences; retired live leases remain charged.
+Its [storage contract](../packages/cem_ml/README.md#bounded-native-artifact-storage-and-leases)
 covers serialized artifacts, with decoded/native processing allocations admitted
-separately. Checked dependency lookup in compilation consumers, WASM admission
-wiring and DOM/style lifetime repair remain subsequent work.
+separately.
+
+[Checked native compilation](../packages/cem_ql/README.md#checked-template-compilation-cache)
+now backs WASM source, module-closure and binary compilation. Actual root/import
+bytes, fresh resolver metadata, contracts, versions, options, source URIs and mode
+are checked before reuse. Opaque/invalid closures compile normally without caching;
+capacity refusal does not fail compilation. Hits reload independent native owners.
+Shared processing checks supersession/disposal after awaits and releases rejected
+handles. Studio adds no cache, JavaScript UI or persistence changes. Render/provider
+evaluation, imported resources and CSS loading still run normally. Retaining unchanged
+DOM/styles and repairing previous-connection stylesheet retention remain next.
 
 Build choices include native graph, template, conversion and query configurations,
 plus live-view configurations. An ordinary CEM-ML document also gets a derived

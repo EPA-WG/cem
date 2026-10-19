@@ -1530,10 +1530,8 @@ Compilation identity covers immutable compiled work only. Its explicit scope is
 “no consumer DOM scope”; it cannot stand in for imported CSS/resource freshness,
 a stylesheet scope or a render/data/form/provider identity. Missing/invalid identity
 metadata leaves the ordinary artifact and its diagnostics available without an
-identity. The API is currently opt-in and native-only: existing CLI/WASM/browser
-entrypoints still execute normally, with no new host protocol, cache hits, app-local
-JavaScript or Studio-specific cache. Bounded native cache consumers and browser
-admission wiring follow only after ownership/eviction and parity fixtures pass.
+identity. The receipt remains available for callers that need an uncached result.
+Checked compilation consumers use the separate API below.
 
 The existing native `ContentCache` now supplies bounded, immutable leases for the
 serialized compiled artifacts (see [ownership and limits](../cem_ml/README.md#bounded-native-artifact-storage-and-leases)).
@@ -1542,6 +1540,47 @@ render plans, diagnostics and source/output frames with direct native reloads.
 Policy/source-context checks still apply, and runtime replacement rejects stale
 lease reads. The cache charges its serialized buffers; a consumer's separately
 reloaded native IR/stylesheet owners require processing admission. Production
-compilation still follows existing paths: dependency lookup, freshness and
-publication admission must be wired in the shared native/processing boundary
-before browser compile shortcuts are enabled.
+compilation now uses checked native lookups in the WASM source, module-closure
+and binary compilation entrypoints.
+
+## Checked template compilation cache
+
+`template_cache::TemplateCompilationCache` wraps the existing bounded native
+`ContentCache`, with its default 64-entry / 32 MiB serialized-artifact budget.
+`begin` captures an opaque cache-runtime ticket and an owner/generation/revision
+admission. `compile` requires the current admission; cancellation (`None`), a newer
+revision, a replaced runtime or another cache owner rejects before compilation.
+Calls are synchronous. Hosts must still check async publication after awaiting work.
+`reset` clears cached binaries and invalidates pending tickets; it does not dispose
+already published independent template owners.
+
+Before lookup, the consumer checks bounded dependency metadata, rehashes actual
+root/import bytes, and validates engine versions, entrypoint and parameter contract.
+Resolver freshness must be attested anew by the caller on every closure request.
+Missing stamps, invalid or incomplete closures follow ordinary compilation and
+retain their diagnostics without caching. Source-only compilation uses a separate
+identity domain; absent/explicit source URIs, binding sets, options, compiler/IR and
+dev/prod mode remain distinct. Imported declaration order and effective provenance
+URIs are preserved. Cache identity grants no resource access or permission to skip
+render evaluation, provider freshness, events, commands or CSS loading.
+
+A bounded resident scan finds dependency-qualified artifact types without another
+unbounded index. Hits acquire a checked lease, validate/reload the ordinary binary
+IR, and release the lease after creating an independent native template. Misses
+compile once and serialize by borrowing the compiled IR. Capacity refusal leaves a
+successful result usable. Decoded per-consumer IR, CSS adoption, compilation scratch
+and process RSS are outside the serialized cache budget. The artifact wire version
+is unchanged; closure binaries remain internal to this checked store, rather than
+source-only browser registry exports.
+
+WASM `compileTemplate`, `compileTemplateModuleClosure` and `compileTemplateArtifact`
+use this cache. The first two return an additive `cacheHit` control field and a
+fresh retained handle. `templateCompilationCacheStats` exposes counters, resident
+entries, charged bytes and runtime generation; `resetTemplateCompilationCache`
+resets only the cache. Shared `cem-elements` processing sends every new CEM handle
+through native checks instead of sharing a live compiled owner. Superseded/disposed
+async requests release their result before publication; unchanged requests for an
+already retained handle remain compile-once. No Studio cache or JavaScript UI is added.
+
+Run `yarn nx run cem_ql:test:checked-template-cache` for native invalidation,
+ownership, bounds and parity fixtures followed by the real compiled WASM fixture.

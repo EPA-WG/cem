@@ -300,6 +300,27 @@
             ],
             "outputs": []
         },
+        "test:checked-template-cache": {
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "build:wasm"
+            ],
+            "options": {
+                "commands": [
+                    "cargo test --package cem-ql --test checked_template_cache",
+                    "node packages/cem_ql/tests/checked-template-cache-wasm.mjs"
+                ],
+                "parallel": false,
+                "cwd": ""
+            },
+            "inputs": [
+                "default",
+                "^default",
+                "{workspaceRoot}/tools/scripts/build-cem-ql-wasm.mjs"
+            ],
+            "outputs": [],
+            "cache": true
+        },
         "test:template-artifact-reload": {
             "cache": true,
             "executor": "nx:run-commands",
