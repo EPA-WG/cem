@@ -23,6 +23,7 @@ use crate::parser::{BinaryOp, QuantifierKind, SetOp, UnaryOp};
 use crate::resolve::BindingId;
 use crate::types::Type;
 
+pub mod dependencies;
 mod source;
 pub use source::sourced_atom;
 mod data;
@@ -644,22 +645,13 @@ impl Evaluator {
         let mut ctx = EvalCtx::new(query, context, control, scope);
         ctx.template_host = template_host;
         ctx.recovery_depth = usize::from(protected);
-        let mut stream = match ctx.force_safe_point(query.tree.root) {
-            Ok(()) => ctx.eval_id(query.tree.root),
-            Err(controlled) => controlled,
-        };
-        if let Err(controlled) = ctx.force_safe_point(query.tree.root) {
-            // Evaluation values remain internal until the operation-control
-            // acceptance boundary succeeds. A terminal control cause must
-            // never expose the prefix accumulated before its safe point.
-            stream = controlled;
-        }
-        stream.with_context(&ctx)
+        ctx.evaluate_root()
     }
 }
 
 pub(crate) struct EvalCtx<'a> {
     query: &'a CompiledQuery,
+    reads: Option<dependencies::ReadTracker>,
     template_host: Option<&'a mut dyn crate::native::TemplateQueryHost>,
     safe_points: SafePointPoller,
     scopes: Vec<HashMap<BindingId, ItemStream>>,
@@ -689,6 +681,20 @@ pub(crate) struct EvalCtx<'a> {
 }
 
 impl<'a> EvalCtx<'a> {
+    fn evaluate_root(&mut self) -> ItemStream {
+        let mut stream = match self.force_safe_point(self.query.tree.root) {
+            Ok(()) => self.eval_id(self.query.tree.root),
+            Err(controlled) => controlled,
+        };
+        if let Err(controlled) = self.force_safe_point(self.query.tree.root) {
+            // Evaluation values remain internal until the operation-control
+            // acceptance boundary succeeds. A terminal control cause must
+            // never expose the prefix accumulated before its safe point.
+            stream = controlled;
+        }
+        stream.with_context(self)
+    }
+
     fn new(
         query: &'a CompiledQuery,
         context: &'a EvaluationContext,
@@ -705,6 +711,7 @@ impl<'a> EvalCtx<'a> {
         }
         let mut ctx = Self {
             query,
+            reads: None,
             template_host: None,
             safe_points: SafePointPoller::new(control.clone(), scope),
             scopes: vec![HashMap::new()],
@@ -900,12 +907,16 @@ impl<'a> EvalCtx<'a> {
                 let source = self.eval_id(source);
                 pipeline::apply_pipeline(source, &steps, self)
             }
-            IrNode::LeadingDot => self
-                .current_items
-                .last()
-                .cloned()
-                .map(ItemStream::once)
-                .unwrap_or_else(|| self.unsupported(id, "`.` has no current item")),
+            IrNode::LeadingDot => {
+                if let Some(reads) = &mut self.reads {
+                    reads.current_item = true;
+                }
+                self.current_items
+                    .last()
+                    .cloned()
+                    .map(ItemStream::once)
+                    .unwrap_or_else(|| self.unsupported(id, "`.` has no current item"))
+            }
             IrNode::Call { callee, args } => self.eval_call(id, callee, &args),
             IrNode::StdlibCall { module, name, args } => {
                 if module.0 == crate::stdlib::native::MODULE_URI && name.local == "call" {
@@ -1684,6 +1695,7 @@ impl<'a> EvalCtx<'a> {
     }
 
     fn lookup_var(&mut self, binding: BindingId) -> ItemStream {
+        self.track_binding_read(binding);
         for scope in self.scopes.iter().rev() {
             if let Some(value) = scope.get(&binding) {
                 #[cfg(test)]

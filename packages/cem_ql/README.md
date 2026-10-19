@@ -1509,6 +1509,50 @@ Portable Dev artifacts retain URI boundaries and include them in content hashes;
 Prod artifacts strip source maps as before. Preparation budgets count URI bytes.
 No source syntax reparsing or serialized document/AST bridge is involved.
 
+## Native evaluation read receipts
+
+`eval::dependencies::evaluate_tracked` runs the ordinary native evaluator and
+returns its `ItemStream` plus a separate receipt result. The control variant
+joins an existing operation and execution scope using the same safe points and
+budgets. Ordinary callers pay no read-set allocation and keep evaluating normally.
+
+The optional receipt records bindings actually read on the taken execution path,
+including optimized record-field projection. A field or missing-field read records
+the whole binding: this API does not claim per-field invalidation. Focus reads
+conservatively require a current-item stamp, including locally established focus.
+The receipt hashes the actual native query IR, original source, source maps,
+types, resolutions and binding identities with a versioned domain. Source text
+alone, output equality and object/DOM identity cannot establish equivalence.
+
+`EvaluationFreshness` uses shared `DependencyVersion` values. A non-opaque stamp
+is a provider contract for complete freshness **and side-effect-free reads**:
+include value, absence, provenance, access policy and hidden provider state.
+Revision stamps require a provider owner and generation as well as a revision;
+content stamps must use the native hash scheme. The environment stamp covers
+resolver/reader configuration and other policy/provider freshness outside explicit
+bindings. Providers unable to attest these properties must remain opaque.
+
+`EvaluationDependencies::matches` checks observed stamps, scope, effective policy
+and native query identity. Unread binding changes do not invalidate the receipt.
+Missing/opaque/invalid stamps, failed/cancelled/diagnostic-bearing evaluations and
+metadata overflow produce no receipt but preserve ordinary evaluation results.
+Closed sequence/string/number/record operations can qualify; native extensions,
+template dispatch, dynamic calls, DOM/data/resolver/report modules and target
+resolution remain conservatively ineligible, even with supplied stamps. Native
+callbacks and resource work still run on every attempt.
+
+Tracking retains at most 1,024 binding IDs. Receipt strings/stamps have a 1 MiB
+budget; temporary native-query encoding has a separate 1 MiB cap checked while
+writing. Receipts retain no input/output values, native views, provider callbacks,
+DOM nodes or previous receipt chain. There is no new WASM transport or Studio JS.
+
+This is an opt-in native query dependency contract, not an enabled render-result
+cache. CEM-ML render-wide receipt aggregation and host provider contracts are still
+required before selective render evaluation can be skipped. A match never replaces
+current operation/cancellation admission, runtime-generation ownership, accepted
+events, commands, resource freshness or publication checks. Opaque render inputs
+continue through the existing evaluation path.
+
 ## Template compilation dependency receipts
 
 `render::compile_template_module_closure_with_dependencies` runs the existing

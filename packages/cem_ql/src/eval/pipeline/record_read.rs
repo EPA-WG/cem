@@ -61,6 +61,7 @@ pub(crate) fn try_project(
     if let Err(error) = ctx.poll_work(step_source) {
         return Some(error);
     }
+    ctx.track_binding_read(id);
     let projected = {
         #[cfg(test)]
         let _profile = crate::compile_profile::Span::new("eval/direct-record-read");

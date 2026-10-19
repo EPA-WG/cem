@@ -558,7 +558,12 @@ including native bytes, and leaves their live DOM untouched. Patch publication c
 complete owner/revision identities and releases consumed/cancelled snapshots.
 Browser fixtures cover native controls, editable content, focus/selection, changed
 bindings and worker/fallback integration. Evaluation and resource work still run;
-selective dependency/read tracking and pure evaluation memoization remain future work.
+native query read tracking is now available through an opt-in bounded receipt.
+Taken branches and optimized field reads record whole binding dependencies;
+provider-owned pure/freshness stamps, native IR/provenance and scope/policy must
+match. Opaque calls, failed/cancelled work and oversized metadata remain ineligible.
+Render-wide aggregation, host provider contracts and pure evaluation memoization
+remain future work. See [native read receipts](packages/cem_ql/README.md#native-evaluation-read-receipts).
 Incremental root publication is now implemented through an atomic owned-range
 operation, including empty output. Matching native-derived root identities preserve
 controls, edits and focus/selection; corruption and ownership changes still recover.
