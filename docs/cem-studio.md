@@ -1026,6 +1026,89 @@ timestamps. Every run result needs the exact project revision, resource hashes,
 engine/package versions, effective identities, resolver-policy stamp, and run
 config provenance required to decide whether it is stale.
 
+### Project builds and artifact previews
+
+Design target following the source-editor work: preview belongs to a project
+build and its artifact set, independently of the resource open in the editor.
+The current workbench still previews the primary operation output; the steps in
+[the active todo](todo.md#project-builds-and-artifact-previews) implement this target.
+
+A project owns resources and named build configurations. A configuration usually
+references a native transformation graph, but a single CEM-ML document can use a
+derived one-step HTML rendering configuration without requiring an authored graph
+file. Both paths use the same native execution and result contracts.
+
+| Project shape | Build inputs | Published artifacts |
+| --- | --- | --- |
+| Single document | CEM-ML source and its declared dependencies | One HTML document, plus any explicitly exported assets |
+| Transformation pipeline | Graph configuration, data and templates | One or more HTML, data, report or binary artifacts |
+| Folder-based site | Project resource-tree dataset, Markdown content, CEM-ML layouts/partials, data and static assets | An HTML/asset tree with nested output paths and a configured entry document |
+
+Each build attempt captures a configuration identity/revision, input resource
+identities/revisions/hashes, relevant tree snapshot, engine versions and resolver
+policy. Its result owns a bounded artifact manifest: artifact identity, output
+path/URI, content type, size, digest, availability and source provenance, with
+exact bytes retrieved through the existing native artifact boundary. Output
+artifacts are derived, readonly data; they do not silently become editable
+project resources. An explicit copy/import can promote an artifact into a resource.
+
+The project chooses a default build configuration and preview entry. A named
+artifact or configured entry document takes precedence; an actual unambiguous
+`index.html` can supply the site default. Multiple unrelated HTML outputs need
+an explicit choice. Supplier's existing HTML/JSON/YAML outputs are the first
+fixture for artifact selection, source viewing and copy/download of exact bytes.
+
+The workspace keeps source navigation on the left, the selected file or folder
+listing in the main editor region, and an independent project preview region.
+Its declarative toolbar selects the build configuration, runs/cancels a build,
+selects an output artifact and reports freshness. Opening another source file
+changes the editor, while preview retains its selected project/build/artifact.
+Selecting a configuration explicitly can change the build context; merely
+opening its source as a file does not. Reveal source uses artifact provenance to
+open an input resource intentionally. Samples remain ordinary projects in this
+workspace, with no separate example screens.
+
+URL selection extends the existing contract without overloading it:
+
+- `project` or `sample` identifies the active project.
+- Existing `file`, `folder` and `configuration` parameters drive source/tree selection.
+- `build` identifies the preview's build configuration independently of the editor.
+- `artifact` identifies its output path, including site navigation within that tree.
+
+Input resource parameters continue to use stable IDs, rather than display paths.
+An illustrative URL is
+`?project=my-project&file=post-intro&build=site-build&artifact=posts/intro/index.html`.
+A durable link need not contain an ephemeral run ID: reopening uses an available
+matching result or shows that a build is required. Exact historical runs require
+an explicitly retained snapshot. If a requested artifact disappears, show its
+missing state instead of silently replacing the selection with another artifact.
+
+Build initially runs saved revisions explicitly. Save/validate and project Build
+remain separate actions; editing marks affected results stale rather than
+executing on every keystroke. Freshness includes configuration and all recorded
+dependencies; directory-sensitive site builds also depend on the tree snapshot.
+An optional later build-on-save mode must use the same captured input contract.
+Keep the last successful preview visible after edits or a failed attempt, with
+its run identity/freshness and the new diagnostics clearly identified. Late or
+cancelled attempts cannot replace a newer admitted run. Publish complete site
+artifact sets atomically; partial failed outputs remain explicitly inspectable.
+
+Site preview mounts one immutable run's output tree. Relative HTML links,
+stylesheets, images and other assets resolve within that tree, so navigation
+changes `artifact` while retaining source selection. Missing assets remain
+missing within that run. Extend the shared preview/resource-loader boundary for
+this behavior, preserving its explicit active-content policy and resource limits;
+do not add a Studio-local renderer or treat output as Studio DOM.
+
+Native packages own folder-tree traversal, Markdown/front-matter import,
+transformation, static-asset copying, export paths and provenance. Reusable
+browser loading/navigation/lifecycle behavior belongs to `cem-elements` and is
+raised before implementation. Declarative selectors, trees and preview composition
+belong to `cem-components`. Studio owns project/configuration/run state and its
+URL/persistence transport. The planned
+[Markdown + CEM-ML site project](../roadmap.md#studio-example-markdown--cem-ml-site-project)
+exercises these contracts after single-output and Supplier multi-output previews.
+
 ### Source Modes
 
 A resource supports these source modes:

@@ -1,3 +1,13 @@
+## Project builds and artifact previews
+
+- [x] Record the project-level build/preview design for single CEM-ML documents, transformation graphs and folder-based sites; keep editor selection independent of the preview configuration/run/artifact.
+- [ ] Model project build configurations, admitted run snapshots and bounded artifact manifests using native output identities and provenance. Fixture: cover a one-document HTML build and Supplier HTML/JSON/YAML outputs, including exact selected-artifact copy/download.
+- [ ] Compose an independent project preview region with build configuration and artifact selection, preserving existing file/folder listings and source editor selection. Fixture: verify URL selection, saved-revision Build, stale/failed/cancelled attempts and last-successful preview ownership.
+- [ ] Extend shared artifact-tree preview loading for relative HTML navigation, CSS/images and nested paths within one immutable run; raise required cem-elements JavaScript before implementation. Fixture: verify run isolation, missing assets, disposal and atomic output-set replacement.
+- [ ] Add the ordinary Markdown + CEM-ML site example already planned in [the roadmap](../roadmap.md#studio-example-markdown--cem-ml-site-project), using native folder-tree/metadata/render/export semantics and the same project workspace. Fixture: verify article/layout edits, static assets, multiple outputs, provenance, independent copies and offline runs.
+
+Design: [Project builds and artifact previews](cem-studio.md#project-builds-and-artifact-previews). These are planned implementation items; the existing preview still uses the primary operation output. Source-editor/navigation changes are committed separately. No runtime changes or new fixtures are introduced by this design update.
+
 ## Shared contenteditable source editor (2026-10-18)
 
 - [x] Add a reusable plaintext-editor capability in cem-elements for safe text values, browser-owned editing/undo/IME state, declarative selection and scalar host-command bindings.

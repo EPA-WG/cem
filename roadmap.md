@@ -944,6 +944,12 @@ example, but no complete Markdown/CEM-ML site project with a Hugo-inspired
 folder structure. The standalone Markdown/CEM-ML playground does not fill this
 project-level demonstration gap.
 
+Use the [project build/artifact preview model](docs/cem-studio.md#project-builds-and-artifact-previews):
+the generated site is one immutable artifact tree from a build configuration,
+and preview navigation is independent of the source file open in the editor.
+Implement single-document and Supplier multi-artifact selection, then shared
+relative-asset/site navigation before using this example to prove the full flow.
+
 - Add an ordinary portable example under `examples/projects/`, discovered through
   `example.json` and opened in the existing Studio workspace. Use projects,
   resources and configurations throughout, with independently editable copies;
