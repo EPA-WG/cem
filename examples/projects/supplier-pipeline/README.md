@@ -22,7 +22,11 @@ copy owns its resources, configurations and saved revisions independently.
   saved graph and all saved dependencies.
 
 Run **Supplier availability pipeline**. The operation output previews the HTML
-view; the **Transformation graph** result includes all three named outputs.
+view. In **Results → Operation output**, choose **Output artifact** to inspect
+the HTML, JSON or YAML publication. **Copy exact output** and **Download exact
+output** use that selected artifact's verified bytes, while source selection
+stays on the graph. The execution details report the saved run and total output
+count/size; the **Transformation graph** result also includes all three outputs.
 The service/partner outputs contain typed numeric quantities and booleans.
 No template text or JavaScript implements a JSON/YAML serializer: publication
 uses the shared engine and the schema packages' formatters.

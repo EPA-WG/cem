@@ -225,6 +225,8 @@
                 "{projectRoot}/src/workbench.js",
                 "{projectRoot}/src/workbench.browser.spec.js",
                 "{projectRoot}/src/feature-tour.js",
+                "{projectRoot}/src/preview.js",
+                "{projectRoot}/generated/feature-tour/examples/*.cem-studio.json",
                 "{projectRoot}/src/repository.js",
                 "{projectRoot}/src/resource-reference.js",
                 "{projectRoot}/src/shell.js",

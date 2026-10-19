@@ -51,6 +51,13 @@
       {call @template=result-row @with:label=Operation @with:value="{$projection.kind}"}
       {call @template=result-row @with:label=Projection @with:value="{$projection.mode}"}
       {call @template=result-row @with:label=Runtime @with:value="{$runtime}"}
+      {call @template=result-row @with:label="Build run" @with:value="{$projection.build.id}"}
+      {call @template=result-row @with:label="Build configuration" @with:value="{$projection.build.configuration}"}
+      {call @template=result-row @with:label="Published artifacts" @with:value="{$projection.build.count}"}
+      {call @template=result-row @with:label="Total output bytes" @with:value="{$projection.build.byteLength}"}
+      {call @template=result-row @with:label="Selected artifact" @with:value="{$projection.selectedArtifactId}"}
+      {call @template=result-row @with:label="Output URI" @with:value="{$projection.output.uri}"}
+      {call @template=result-row @with:label="Output SHA-256" @with:value="{$projection.output.sha256}"}
       {call @template=result-row @with:label="Project revision"
        @with:value="{$projection.revision.projectRevision}"}
       {call @template=result-row @with:label="Resource revision"
@@ -203,6 +210,12 @@
   {cem-tabs @label="Projection results" @value=output |
    {cem-tab @label="Operation output" @value=output |
  {cem-stack @gap=md |
+    {cem:if @test='seq:count(projection.artifacts.id) > 0' |
+     {cem-select @label="Output artifact" @value={projection.selectedArtifactId}
+      @disabled={if busy { true } else { null }} @host-command=select-artifact @host-command-event=change |
+      {cem:for-each @as=artifact @select=projection.artifacts |
+       {option @value={artifact.id} | {$ | artifact.path}}
+    }}}
     {cem-grid |
      {cem-action @data-cem-studio-projection-copy="" @disabled={if busy || !projection.output || (projection.output.available == false) || (projection.preview.kind == "download") { true } else { null }} @host-command=copy-output
       @host-command-event=click @variant=alternate | Copy exact output}

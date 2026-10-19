@@ -1030,8 +1030,10 @@ config provenance required to decide whether it is stale.
 
 Design target following the source-editor work: preview belongs to a project
 build and its artifact set, independently of the resource open in the editor.
-The current workbench still previews the primary operation output; the steps in
-[the active todo](todo.md#project-builds-and-artifact-previews) implement this target.
+The current workbench captures saved build runs and supports selecting one of
+their published artifacts in Results → Operation output. The steps in
+[the active todo](todo.md#project-builds-and-artifact-previews) extend this into an
+independent project preview and a navigable site artifact tree.
 
 A project owns resources and named build configurations. A configuration usually
 references a native transformation graph, but a single CEM-ML document can use a
@@ -1051,6 +1053,26 @@ path/URI, content type, size, digest, availability and source provenance, with
 exact bytes retrieved through the existing native artifact boundary. Output
 artifacts are derived, readonly data; they do not silently become editable
 project resources. An explicit copy/import can promote an artifact into a resource.
+
+Implemented run snapshots record the named configuration and command resource's
+revision/hash, declared resource IDs/URIs/revisions/hashes, native admission
+ledger/policy and execution identity. Artifact identities combine the native
+request with its retained handle (or publication URI on a transport without
+handles). The shared reader admits up to 128 output artifacts and 16 MiB in
+aggregate, checks exact lengths and SHA-256 digests, and rejects truncated or
+ambiguous sets before exposing any result. Studio keeps exact output bytes out
+of the declarative UI's data projection.
+
+The Output artifact selector changes preview, output metadata, provenance and
+exact copy/download together while keeping source selection unchanged. Downloads
+use the artifact's filename; copying uses its complete verified text even when
+the text preview is truncated. Binary, invalid UTF-8 and oversized active markup
+remain download-only. A late transfer cannot label a different selected artifact.
+HTML source spans and native source-map references are retained per artifact;
+JSON/YAML constructed-data exports do not fabricate character-level provenance.
+Failed runs retain diagnostics and publish an empty manifest when no output exists.
+Runs remain in memory; pinning runs and project-wide last-successful ownership
+are subsequent work, along with independent build/artifact URL parameters.
 
 The project chooses a default build configuration and preview entry. A named
 artifact or configured entry document takes precedence; an actual unambiguous
@@ -2927,8 +2949,8 @@ project alongside Login and the schema examples. Its three configurations inspec
 the XML catalog, inspect CSV stock and run the availability graph. It explicitly
 matches product IDs, checks integer conversion and handles missing/duplicate stock,
 then publishes an HTML view, JSON service payload and YAML partner feed from one
-retained domain result. The operation preview shows HTML; all three artifacts are
-available in the graph result. Copy/download currently transfers the primary output.
+retained domain result. The operation preview initially shows HTML; the Output
+artifact selector also exposes JSON and YAML with exact selected-output copy/download.
 The [project guide](../examples/projects/supplier-pipeline/README.md) explains saved
 versus unsaved edits, intentional failure/repair, offline reopening and independent
 copies. HTML provenance navigates to authored view-template ranges. Computed results

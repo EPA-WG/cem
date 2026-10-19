@@ -2,7 +2,7 @@ import { parseCemMlCommandText } from '@epa-wg/cem-ml-cli/browser-commands';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { describeCemStudioOperationFields, describeCemStudioOperationGroups, editCemStudioOperationField, editCemStudioOperationFields, createCemStudioBrowserValidator } from './feature-tour.js';
-import { createCemStudioFileSystemProvider, serializeCemStudioProjectBundle } from './file-system-provider.js';
+import { createCemStudioFileSystemProvider, serializeCemStudioProjectBundle, parseCemStudioProjectBundle } from './file-system-provider.js';
 import { createCemStudioNavigation } from './navigation.js';
 import { createCemStudioProjectRepository } from './repository.js';
 import { createCemStudioProjectSession } from './project-session.js';
@@ -41,6 +41,126 @@ afterEach(async () => {
 });
 
 describe('CEM Studio Feature Tour workbench', () => {
+    it('captures saved build inputs and selects exact native Supplier artifacts through declarative controls', async () => {
+        const response = await fetch(new URL('../generated/feature-tour/examples/supplier-pipeline.cem-studio.json', import.meta.url));
+        const bundle = parseCemStudioProjectBundle(new Uint8Array(await response.arrayBuffer()));
+        const repository = await repositoryWithSource('unrelated');
+        await repository.execute(request('import-project', { bundle }));
+        const validator = await createCemStudioBrowserValidator();
+        try {
+            const workbench = await createCemStudioProjectWorkbench({ repository, validator,
+                selection: { projectId: bundle.project.id, entryId: 'availability' } });
+            workbenches.push(workbench);
+            let copied, downloaded;
+            const root = document.createElement('main'); document.body.append(root);
+            const view = await mountCemStudioFeatureTourWorkbench({ root, workbench,
+                clipboard: { writeText: async text => { copied = text; } }, download: async file => { downloaded = file; } }); views.push(view);
+            await workbench.runPersistedOperation(); await view.whenSettled();
+            const projection = workbench.snapshot().projection;
+            const run = projection.buildRun;
+            expect(run).toMatchObject({ id: projection.requestId, projectId: bundle.project.id, projectRevision: 1,
+                configuration: { id: 'availability', kind: 'transformation-graph', resourceId: 'command-availability', revision: 1 },
+                executionIdentity: { resolverPolicyStamp: 'browser-explicit-v1' }, status: 'succeeded' });
+            expect(run.inputs).toEqual(expect.arrayContaining([expect.objectContaining({ resourceId: 'supplier-stock', revision: 1,
+                sha256: bundle.project.resources.find(resource => resource.id === 'supplier-stock').sha256 })]));
+            expect(run.artifacts.map(artifact => artifact.path).sort()).toEqual([
+                'generated/availability.html', 'generated/availability.json', 'generated/availability.yaml',
+            ]);
+            const sourceId = workbench.snapshot().resourceId;
+            for (const artifact of run.artifacts) {
+                selectValue(root, '[label="Output artifact"]', artifact.id); await view.whenSettled();
+                const selected = workbench.snapshot().projection;
+                expect(selected.selectedArtifactId).toBe(artifact.id);
+                expect(selected.output.uri).toBe(artifact.uri);
+                expect(selected.output.sha256).toBe(artifact.sha256);
+                const metadata = root.querySelector('[data-cem-studio-projection-metadata]');
+                expect(metadata.textContent).toContain(artifact.uri);
+                expect(metadata.textContent).toContain(artifact.sha256);
+                expect(artifact.available).toBe(true);
+                expect(artifact.handleId).toBeDefined();
+                if (artifact.path.endsWith('.html')) {
+                    expect(artifact.provenance).toEqual(expect.arrayContaining([expect.objectContaining({
+                        uri: `${bundle.project.rootUri}templates/view.cemt`, outputUri: artifact.uri,
+                    })]));
+                }
+                // Native data formatters currently publish no character-level
+                // lineage for these constructed records; never invent it here.
+                if (artifact.path.endsWith('.json')) expect(JSON.parse(selected.output.text))
+                    .toEqual(JSON.parse(new TextDecoder().decode(bundle.contents['supplier-expected-json'])));
+                root.querySelector('[data-cem-studio-projection-copy] button').click(); await view.whenSettled();
+                root.querySelector('[data-cem-studio-projection-download] button').click(); await view.whenSettled();
+                expect(copied).toBe(selected.output.text);
+                expect(downloaded.bytes).toEqual(new Uint8Array(selected.output.bytes));
+                expect(downloaded.filename).toBe(artifact.path.split('/').pop());
+                const digest = await crypto.subtle.digest('SHA-256', downloaded.bytes);
+                expect([...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('')).toBe(artifact.sha256);
+                expect(workbench.snapshot().resourceId).toBe(sourceId);
+                expect(workbench.snapshot().projection.buildRun).toBe(run);
+            }
+            expect(() => workbench.selectArtifact('missing')).toThrow(/unavailable/);
+            workbench.updateDraft('unsaved graph');
+            expect(workbench.snapshot().projection.stale).toBe(true);
+            expect(workbench.snapshot().projection.buildRun).toBe(run);
+            await repository.execute(request('save-resource', { projectId: bundle.project.id, resourceId: 'supplier-stock',
+                expectedProjectRevision: 1, expectedResourceRevision: 1,
+                content: new TextDecoder().decode(bundle.contents['supplier-stock']).replace('SKU-A,7', 'SKU-A,many') }));
+            await workbench.runPersistedOperation(); await view.whenSettled();
+            const failure = workbench.snapshot().projection;
+            expect(failure).toMatchObject({ exitCode: 1, output: { available: false }, buildRun: { status: 'failed', artifacts: [] } });
+            expect(failure.diagnostics.length).toBeGreaterThan(0);
+            expect(root.querySelector('[data-cem-studio-projection-copy]').hasAttribute('disabled')).toBe(true);
+        } finally { await validator.close(); }
+    }, 60_000);
+
+    it('downloads binary artifacts exactly and does not attach a late transfer to a different selection', async () => {
+        const repository = await repositoryWithSource('source');
+        const validator = validatorFor(validResult());
+        const outcome = portableOperationOutcome(['convert']);
+        const binary = { uri: 'studio://feature-tour/generated/asset.bin', available: true, contentType: 'application/octet-stream',
+            bytes: new Uint8Array([0, 255, 128, 1]), byteLength: 4, sha256: 'binary-fixture', text: '\u0000��\u0001' };
+        outcome.outputs = [outcome.output, binary];
+        validator.runResourceCommand.mockResolvedValueOnce(outcome);
+        const workbench = await createWorkbench(repository, validator);
+        await workbench.selectWorkbench('conversion'); await workbench.runPersistedOperation();
+        const run = workbench.snapshot().projection.buildRun;
+        const pending = deferred();
+        const copying = workbench.copyProjection(() => pending.promise);
+        workbench.selectArtifact(run.artifacts[1].id);
+        pending.resolve(); await copying;
+        expect(workbench.snapshot().projection.transfer).toBeUndefined();
+        await expect(workbench.copyProjection(vi.fn())).rejects.toThrow(/downloaded as exact bytes/);
+        const save = vi.fn(async () => undefined);
+        await workbench.downloadProjection(save);
+        expect(save).toHaveBeenCalledWith(expect.objectContaining({ filename: 'asset.bin', bytes: binary.bytes }));
+        expect(workbench.snapshot().projection.preview.kind).toBe('download');
+        expect(workbench.snapshot().projection.buildRun).toBe(run);
+    });
+
+    it('admits a one-document HTML build without an authored transformation graph', async () => {
+        const repository = await repositoryWithSource('{main | One document}');
+        const validator = await createCemStudioBrowserValidator();
+        try {
+            const seed = featureTourSeed();
+            seed.catalog.workbenches = [{ ...seed.catalog.workbenches[0], id: 'html', name: 'HTML build', kind: 'conversion', operation: 'convert',
+                commandArguments: ['convert', '$input', '--content-type', 'application/cem', '--schema', 'https://cem.dev/ns/cem-ml/1', '--to-content-type', 'text/html', '--to-schema', 'https://cem.dev/ns/data/html/1'], expectedSummary: undefined }];
+            const workbench = await createCemStudioFeatureTourWorkbench({ repository, validator, seed, projectId: 'feature-tour' }); workbenches.push(workbench);
+            await workbench.selectWorkbench('html');
+            await workbench.runPersistedOperation();
+            const { projection } = workbench.snapshot();
+            expect(projection.buildRun).toMatchObject({ configuration: { id: 'html' }, status: 'succeeded',
+                artifacts: [expect.objectContaining({ contentType: 'text/html', available: true })] });
+            expect(projection.output.text).toContain('<main>One document</main>');
+            expect(projection.preview.kind).toBe('sandboxed-html');
+            expect(projection.selectedArtifactId).toBe(projection.buildRun.artifacts[0].id);
+            let copied, downloaded;
+            await workbench.copyProjection(async text => { copied = text; });
+            await workbench.downloadProjection(async file => { downloaded = file; });
+            expect(copied).toBe(projection.output.text);
+            expect(downloaded.filename).toMatch(/\.html$/);
+            expect(downloaded.bytes).toEqual(new Uint8Array(projection.output.bytes));
+        } finally { await validator.close(); }
+    }, 60_000);
+
     it('selects the innermost retained diagnostic span instead of the document frame', async () => {
         const source = '{main | {form @action=session}}';
         const outcome = invalidResult(0, source.length);

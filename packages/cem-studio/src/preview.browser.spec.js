@@ -43,6 +43,17 @@ afterEach(() => {
 });
 
 describe('CEM Studio bounded preview boundary', () => {
+    it('previews declared YAML as literal text and preserves its UTF-8 bytes', async () => {
+        const text = 'name: Café cups\nmarkup: <img src=x onerror=attack()>\n';
+        const bytes = new TextEncoder().encode(text);
+        const preview = createCemStudioPreview({ bytes, contentType: 'application/yaml; charset=utf-8' });
+        expect(preview).toMatchObject({ kind: 'text', text, byteLength: bytes.byteLength, truncated: false });
+        const root = document.createElement('section'); document.body.append(root);
+        const output = await renderPreview(root, preview);
+        expect(output.textContent).toBe(text);
+        expect(root.querySelector('img')).toBeNull();
+    });
+
     it('rejects oversized sources, resource sets, dependency fan-out, and results with stable diagnostics', () => {
         expect(assertCemStudioSourceSet(new Uint8Array(CEM_STUDIO_LIMITS.sourceBytes), [])).toEqual({
             sourceBytes: CEM_STUDIO_LIMITS.sourceBytes,

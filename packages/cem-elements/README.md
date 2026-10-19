@@ -13,6 +13,15 @@ files return `available: true`. Missing successful outputs and corrupt publicati
 remain errors. Declarative consumers can retain diagnostics and disable output
 transfers when `available` is false.
 
+`readCommandOutputs` admits the complete output manifest with an explicit
+`maxArtifacts` count and aggregate `maxBytes` budget. It verifies every native
+publication before returning the set, preserving URI, retained handle and
+source-map identity. Truncated/ambiguous manifests and invalid digests fail as a
+set. Retained handles take precedence over committed transport copies; a failed
+command with no publications returns an empty set. Use
+`fallbackToFirstOutput: false` with the single-output reader when a specific URI
+must exist instead of using its compatibility primary-output fallback.
+
 Native CEM-ML node/reference values in relationship attributes use the shared
 [reference-to-ID consumer](../../docs/cem-element-reference-ids-design.md): preserve
 an explicit target ID or generate one from persisted instance identity and output

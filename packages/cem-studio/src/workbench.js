@@ -382,7 +382,7 @@ export async function createCemStudioSessionWorkbench({ repository, session, hom
         refreshNavigation, dispose() { unsubscribeRepository?.(); disposed = true; ++searchVersion; ++navigationVersion; unsubscribe(); subscribers.clear(); } };
     for (const method of ['updateDraft', 'updateGraphAttribute', 'createGraphNode', 'updateGraphEdge', 'undoGraphDraft', 'redoGraphDraft', 'reload', 'saveSource', 'saveAndValidate', 'validatePersisted', 'parsePersisted',
         'inspectPersisted', 'runPersistedOperation', 'updateCommandDraft', 'updateCommandField', 'updateCommandFields', 'updateCommandGroup', 'resetCommandDraft', 'copyCommand',
-        'copyProjection', 'downloadProjection', 'downloadSource', 'setCommandTarget', 'applyCommand', 'applyAndRun',
+        'copyProjection', 'downloadProjection', 'selectArtifact', 'downloadSource', 'setCommandTarget', 'applyCommand', 'applyAndRun',
         'confirmCommandReplacement', 'useNewCommandTarget', 'cancelCommandReplacement', 'navigateDiagnostic', 'selectSourceRange']) {
         adapter[method] = (...args) => {
             const active = session.activeWorkbench();
@@ -549,6 +549,22 @@ export async function createCemStudioWorkbench(options) {
                 ...dependencyDescriptors.map(({ resourceId }) => resourceId),
             ]),
         };
+    }
+
+    function captureBuild(persisted) {
+        const entry = example.projectOwned ? persisted.currentEntry : undefined;
+        const resourceId = entry?.runConfigResourceId ?? example.runConfigResourceId;
+        const configuration = persisted.project.resources.find(resource => resource.id === resourceId);
+        const ids = new Set([...persisted.referencedResourceIds, ...(resourceId ? [resourceId] : [])]);
+        return freezeWorkbenchValue({ projectId, projectRootUri: persisted.project.rootUri,
+            projectRevision: persisted.projectRevision,
+            configuration: { id: entry?.id ?? example.id, name: entry?.name ?? example.name,
+                kind: entry?.kind ?? example.kind, resourceId: configuration?.id,
+                revision: configuration?.revision ?? persisted.resourceRevision, sha256: configuration?.sha256 ?? persisted.sha256 },
+            inputs: persisted.project.resources.filter(resource => ids.has(resource.id)).map(resource => ({
+                resourceId: resource.id, uri: projectResourceUri(persisted.project, resource), path: resource.path,
+                revision: resource.revision, sha256: resource.sha256,
+            })) });
     }
 
     async function reload() {
@@ -888,7 +904,7 @@ export async function createCemStudioWorkbench(options) {
                         outcome = await validator.executeAuthoredResourceCommand({ ...commandResourceOptions(persisted), commandResource: persisted.commandBytes, signal: options.signal });
                     } catch (error) {
                         if (!error?.result || !error?.output || !error?.parsed) throw error;
-                        outcome = { result: error.result, presentation: error.presentation, output: error.output, parsed: error.parsed };
+                        outcome = { result: error.result, presentation: error.presentation, output: error.output, outputs: error.outputs, admission: error.admission, parsed: error.parsed };
                     }
                     const live = persisted.currentEntry?.tags?.includes('live-preview')
                         && persisted.project.resources.find(resource => resource.id === example.resourceId)?.role === 'template'
@@ -900,7 +916,7 @@ export async function createCemStudioWorkbench(options) {
                     const stale = version !== editVersion || commandVersion !== commandEditVersion || state.dirty
                         || latest.projectRevision !== persisted.projectRevision || latest.resourceRevision !== persisted.resourceRevision || Boolean(outcome.result.stale);
                     const projection = freezeProjection({ ...projectCommandProjection(operation, commandProjectionMode(outcome.parsed, operation), outcome,
-                        persisted.text, { projectRevision: persisted.projectRevision, resourceRevision: persisted.resourceRevision, sha256: persisted.sha256 }, persisted.expected), ...(live ? { preview: live } : {}), stale });
+                        persisted.text, { projectRevision: persisted.projectRevision, resourceRevision: persisted.resourceRevision, sha256: persisted.sha256 }, persisted.expected, captureBuild(persisted)), ...(live ? { preview: live } : {}), stale });
                     return publish({ ...state, status: stale ? 'projection-stale' : projection.exitCode === 0 ? 'projected' : 'projection-invalid', projection, operation });
                 } catch (error) { publish({ ...state, status: 'failed', error: normalizedError(error) }); throw error; }
             }
@@ -935,7 +951,7 @@ export async function createCemStudioWorkbench(options) {
                 publish({ ...state, status: 'failed', error: normalizedError(error) });
                 throw error;
             }
-            outcome = { result: error.result, presentation: error.presentation, output: error.output };
+            outcome = { result: error.result, presentation: error.presentation, output: error.output, outputs: error.outputs, admission: error.admission };
         }
         const mode = commandProjectionMode(undefined, operation, example.kind);
         const projected = projectCommandProjection(
@@ -949,6 +965,7 @@ export async function createCemStudioWorkbench(options) {
                 sha256: persisted.sha256,
             },
             persisted.expected,
+            captureBuild(persisted),
         );
         const command = await commandForUneditedProjection(persisted, operation, mode, capturedCommandVersion);
         const stale =
@@ -1003,7 +1020,7 @@ export async function createCemStudioWorkbench(options) {
                 publish({ ...state, status: 'failed', error: normalizedError(error) });
                 throw error;
             }
-            outcome = { result: error.result, presentation: error.presentation, output: error.output };
+            outcome = { result: error.result, presentation: error.presentation, output: error.output, outputs: error.outputs, admission: error.admission };
         }
         const projected = projectCommandProjection(
             kind,
@@ -1016,6 +1033,7 @@ export async function createCemStudioWorkbench(options) {
                 sha256: persisted.sha256,
             },
             persisted.expected,
+            captureBuild(persisted),
         );
         const command = await commandForUneditedProjection(persisted, kind, mode, capturedCommandVersion);
         const stale =
@@ -1197,8 +1215,20 @@ export async function createCemStudioWorkbench(options) {
         return state;
     }
 
+    function selectArtifact(id) {
+        const projection = state.projection;
+        const artifact = projection?.buildRun.artifacts.find(artifact => artifact.id === id);
+        const output = projection?.outputs.find(output => output.uri === artifact?.uri);
+        if (!artifact || !output) throw new Error(`Output artifact ${id} is unavailable`);
+        if (projection.selectedArtifactId === id) return state;
+        return publish({ ...state, projection: freezeProjection({ ...projection, selectedArtifactId: id, output,
+            preview: createCemStudioPreview({ bytes: output.bytes, contentType: output.contentType, label: artifact.path }),
+            provenance: artifact.provenance, transfer: undefined }) });
+    }
+
     async function copyProjection(writeText) {
-        if (!state.projection?.output) throw new Error('CEM Studio has no operation output to copy');
+        const projection = state.projection;
+        if (!projection?.output || projection.output.available === false) throw new Error('CEM Studio has no operation output to copy');
         if (state.projection.preview?.kind === 'download') {
             throw new Error('Binary, invalid-text, and oversized active results must be downloaded as exact bytes.');
         }
@@ -1208,7 +1238,8 @@ export async function createCemStudioWorkbench(options) {
                 error.code = 'cem.studio.projection.clipboard_unavailable';
                 throw error;
             }
-            await writeText(state.projection.output.text);
+            await writeText(projection.output.text);
+            if (state.projection !== projection) return state;
             publish({
                 ...state,
                 projection: freezeProjection({
@@ -1217,6 +1248,7 @@ export async function createCemStudioWorkbench(options) {
                 }),
             });
         } catch (error) {
+            if (state.projection !== projection) return state;
             publish({
                 ...state,
                 projection: freezeProjection({
@@ -1229,16 +1261,22 @@ export async function createCemStudioWorkbench(options) {
     }
 
     async function downloadProjection(save) {
-        if (!state.projection?.output) throw new Error('CEM Studio has no operation output to download');
-        const extension = state.projection.output.contentType?.includes('json') ? 'json' : 'cem';
-        const filename = `${state.projection.kind}-${String(state.projection.mode).replace(/[^a-z0-9-]+/gi, '-')}.${extension}`;
+        const projection = state.projection;
+        if (!projection?.output || projection.output.available === false) throw new Error('CEM Studio has no operation output to download');
+        const extension = ({ 'text/html': 'html', 'application/xhtml+xml': 'xhtml', 'image/svg+xml': 'svg',
+            'application/json': 'json', 'application/yaml': 'yaml', 'text/plain': 'txt', 'text/css': 'css',
+            'application/octet-stream': 'bin' })[projection.output.contentType?.split(';')[0].trim()] ?? 'cem';
+        const artifact = projection.buildRun.artifacts.find(artifact => artifact.id === projection.selectedArtifactId);
+        const filename = artifact?.path && !artifact.uri.startsWith('cem-stdio:') ? artifact.path.split('/').pop()
+            : `${projection.kind}-${String(projection.mode).replace(/[^a-z0-9-]+/gi, '-')}.${extension}`;
         try {
             if (typeof save !== 'function') throw new Error('Result download is unavailable in this browser.');
             await save({
                 filename,
-                contentType: state.projection.output.contentType,
-                bytes: new Uint8Array(state.projection.output.bytes),
+                contentType: projection.output.contentType,
+                bytes: new Uint8Array(projection.output.bytes),
             });
+            if (state.projection !== projection) return state;
             publish({
                 ...state,
                 projection: freezeProjection({
@@ -1247,6 +1285,7 @@ export async function createCemStudioWorkbench(options) {
                 }),
             });
         } catch (error) {
+            if (state.projection !== projection) return state;
             publish({
                 ...state,
                 projection: freezeProjection({
@@ -1456,6 +1495,8 @@ export async function createCemStudioWorkbench(options) {
                 result: error.result,
                 presentation: error.presentation,
                 output: error.output,
+                outputs: error.outputs,
+                admission: error.admission,
                 parsed: error.parsed ?? state.command.preview?.parsed,
             };
         }
@@ -1478,6 +1519,7 @@ export async function createCemStudioWorkbench(options) {
                     sha256: applied.sha256,
                 },
                 persisted.expected,
+                captureBuild(persisted),
             ),
             stale,
         });
@@ -1683,6 +1725,7 @@ export async function createCemStudioWorkbench(options) {
         copyCommand,
         copyProjection,
         downloadProjection,
+        selectArtifact,
         async downloadSource(download = browserDownload) {
             const persisted = await readPersisted();
             await download({ filename: example.path.split('/').pop(), contentType: example.contentType, bytes: persisted.bytes.slice() });
@@ -1898,6 +1941,7 @@ export async function mountCemStudioWorkbench({
             'copy-output': () => perform(() => workbench.copyProjection(typeof clipboard?.writeText === 'function'
                 ? text => clipboard.writeText(text) : undefined)),
             'download-output': () => perform(() => workbench.downloadProjection(download)),
+            'select-artifact': ({ value }) => workbench.selectArtifact(value),
             diagnostic: ({ value }) => perform(async () => { layout.update({ pane: 'source' }); await layout.whenSettled(); workbench.navigateDiagnostic(Number(value)); }),
             provenance: ({ value }) => perform(async () => { layout.update({ pane: 'source' }); await layout.whenSettled(); await workbench.navigateProvenance(Number(value)); }),
         },
@@ -2071,7 +2115,7 @@ function projectValidation(result, presentation, source, revision) {
     };
 }
 
-function projectCommandProjection(kind, mode, outcome, source, revision, expected) {
+function projectCommandProjection(kind, mode, outcome, source, revision, expected, capturedBuild) {
     const result = outcome.result;
     const diagnostics = (result?.diagnostics?.items ?? [])
         .slice(0, CEM_STUDIO_LIMITS.structuredRows)
@@ -2095,21 +2139,6 @@ function projectCommandProjection(kind, mode, outcome, source, revision, expecte
     const summary = summarizePortableOperation(kind, mode, result);
     const expectedMatches = expected === undefined ? undefined : matchesExpectedSummary(summary, expected);
     const operation = result?.result?.storage === 'inline' ? result.result.value : undefined;
-    const generatedProvenance = [];
-    if (kind === 'transform') {
-        const outputs = mode === 'graph' ? operation?.value?.value?.artifacts ?? []
-            : (operation?.value?.value?.outputs?.items ?? []).map(output => ({ ...output.response, destination: output.destination }));
-        for (const output of outputs) for (const span of output.outputSpans ?? []) {
-            for (const frame of span.origin?.frames ?? []) {
-                if (frame.transform?.kind !== 'SourceBoundary' || !frame.transform.uri) continue;
-                const ranges = frame.span?.kind === 'Multi' ? frame.span.ranges : frame.span?.kind === 'Single' ? [frame.span.ranges] : [];
-                for (const range of ranges) {
-                    if (generatedProvenance.length >= CEM_STUDIO_LIMITS.structuredRows) break;
-                    generatedProvenance.push(Object.freeze({ ...normalizeFrame(frame, {}), range: Object.freeze({ ...range }), outputRange: span.outputRange, outputUri: output.destination }));
-                }
-            }
-        }
-    }
     const trace =
         kind === 'trace' && Array.isArray(operation?.value?.body?.events)
             ? operation.value.body.events.slice(0, CEM_STUDIO_LIMITS.structuredRows)
@@ -2119,6 +2148,33 @@ function projectCommandProjection(kind, mode, outcome, source, revision, expecte
         kind === 'transform' && mode === 'graph'
             ? collectOperationRecords(operation, ['artifacts', 'stages', 'nodes', 'edges'])
             : [];
+    const outputs = Object.freeze([...(outcome.outputs ?? (outcome.output.available === false ? [] : [outcome.output]))]);
+    const nativeOutputs = mode === 'graph' ? operation?.value?.value?.artifacts ?? []
+        : ((kind === 'convert' ? operation?.value?.outputs?.items : operation?.value?.value?.outputs?.items) ?? [])
+            .map(output => ({ ...output.response, destination: output.destination }));
+    const artifacts = outputs.map(output => {
+        const native = nativeOutputs.find(candidate => candidate.destination === output.uri);
+        const frames = [];
+        for (const span of native?.outputSpans ?? []) for (const frame of span.origin?.frames ?? []) {
+            if (frame.transform?.kind !== 'SourceBoundary' || !frame.transform.uri) continue;
+            const ranges = frame.span?.kind === 'Multi' ? frame.span.ranges : frame.span?.kind === 'Single' ? [frame.span.ranges] : [];
+            for (const range of ranges) if (frames.length < CEM_STUDIO_LIMITS.structuredRows) {
+                frames.push(Object.freeze({ ...normalizeFrame(frame, {}), range: Object.freeze({ ...range }), outputRange: span.outputRange, outputUri: output.uri }));
+            }
+        }
+        const sourceMaps = (result?.sourceMaps?.items ?? []).filter(reference =>
+            (output.sourceMapId != null && reference.sourceMapId === output.sourceMapId) || (output.handleId !== undefined && reference.owner?.handleId === output.handleId));
+        return Object.freeze({ id: `${result.requestId}#${output.handleId ?? output.uri}`, uri: output.uri,
+            path: output.uri.startsWith(capturedBuild.projectRootUri) ? output.uri.slice(capturedBuild.projectRootUri.length) : output.uri,
+            handleId: output.handleId, sourceMapId: output.sourceMapId, contentType: output.contentType,
+            byteLength: output.byteLength, sha256: output.sha256, available: output.available !== false,
+            provenance: freezeWorkbenchValue(frames), sourceMaps: freezeWorkbenchValue(sourceMaps) });
+    });
+    const buildRun = Object.freeze({ ...capturedBuild, id: result.requestId,
+        status: result.status ?? (result.exitCode === 0 ? 'succeeded' : 'failed'),
+        executionIdentity: freezeWorkbenchValue(result.identity), admission: outcome.admission,
+        artifacts: Object.freeze(artifacts), byteLength: outputs.reduce((sum, output) => sum + output.byteLength, 0) });
+    const selectedArtifactId = artifacts.find(artifact => artifact.uri === outcome.output.uri)?.id;
     return {
         kind,
         mode,
@@ -2127,6 +2183,9 @@ function projectCommandProjection(kind, mode, outcome, source, revision, expecte
         executionIdentity: result?.identity,
         revision,
         output: outcome.output,
+        outputs,
+        buildRun,
+        selectedArtifactId,
         preview: createCemStudioPreview({
             bytes: outcome.output.bytes,
             contentType: outcome.output.contentType,
@@ -2134,7 +2193,7 @@ function projectCommandProjection(kind, mode, outcome, source, revision, expecte
         }),
         nativeResult: result,
         diagnostics: Object.freeze(diagnostics),
-        provenance: Object.freeze(generatedProvenance.length ? generatedProvenance : provenance),
+        provenance: nativeOutputs.length ? artifacts.find(artifact => artifact.id === selectedArtifactId)?.provenance ?? Object.freeze([]) : Object.freeze(provenance),
         presentation: outcome.presentation,
         sourceByteLength: textEncoder.encode(source).byteLength,
         summary: Object.freeze(summary),
@@ -2679,11 +2738,16 @@ function workbenchResultState(state) {
             provenance: validation.provenance },
         command: { current: { argv: command?.current?.argv }, application: { status: command?.application?.status } },
         projection: projection && { kind: projection.kind, mode: projection.mode, stale: projection.stale,
+            selectedArtifactId: projection.selectedArtifactId,
+            artifacts: projection.buildRun.artifacts.map(({ id, path, contentType, byteLength }) => ({ id, path, contentType, byteLength })),
+            build: { id: projection.buildRun.id, configuration: projection.buildRun.configuration.name,
+                byteLength: projection.buildRun.byteLength, count: projection.buildRun.artifacts.length },
             expectedMatches: projection.expectedMatches, executionIdentity: projection.executionIdentity,
             revision: projection.revision, diagnostics: projection.diagnostics, provenance: projection.provenance,
             preview: projection.preview, expected: projection.expected, summary: projection.summary,
             transfer: projection.transfer, output: projection.output && {
-                available: projection.output.available, contentType: projection.output.contentType, byteLength: projection.output.byteLength },
+                available: projection.output.available, uri: projection.output.uri, sha256: projection.output.sha256,
+                contentType: projection.output.contentType, byteLength: projection.output.byteLength },
             trace: records(projection.trace), graph: records(projection.graph) } };
 }
 

@@ -1,5 +1,7 @@
 /** A published command artifact; this module has no DOM or CLI runtime dependency. */
 export interface CommandOutputMetadata {
+    readonly handleId?: number;
+    readonly sourceMapId?: string;
     readonly uri: string;
     readonly kind: string;
     readonly contentType: string;
@@ -8,6 +10,8 @@ export interface CommandOutputMetadata {
 }
 
 export interface CommandOutput {
+    readonly handleId?: number;
+    readonly sourceMapId?: string;
     /** False means a failed command published no output, including no empty artifact. */
     readonly available: boolean;
     readonly uri: string;
@@ -22,6 +26,8 @@ export interface CommandOutputReadOptions {
     readonly requestedUri?: string;
     readonly maxBytes: number;
     readonly chunkBytes?: number;
+    /** Disable compatibility fallback when reading a particular publication. */
+    readonly fallbackToFirstOutput?: boolean;
     readonly committedPublications?: readonly {
         readonly request: CommandOutputMetadata;
         readonly bytes: Uint8Array;
@@ -45,9 +51,10 @@ export async function readCommandOutput(
         throw new Error('Command output limits must be safe nonnegative byte counts with a positive chunk size');
     }
     const artifacts = result.artifacts?.items ?? [];
-    const artifact = artifacts.find(({ uri }) => uri === requestedUri) ?? artifacts.find(({ kind }) => kind === 'output');
+    const artifact = artifacts.find(({ uri }) => uri === requestedUri)
+        ?? (options.fallbackToFirstOutput !== false ? artifacts.find(({ kind }) => kind === 'output') : undefined);
     const publication = artifact ? undefined : committedPublications.find(({ request }) => request.uri === requestedUri)
-        ?? committedPublications.find(({ request }) => request.kind === 'output');
+        ?? (options.fallbackToFirstOutput !== false ? committedPublications.find(({ request }) => request.kind === 'output') : undefined);
     const metadata = artifact ?? publication?.request;
     if (!metadata) {
         if (!Number.isInteger(result.exitCode) || result.exitCode === 0) {
@@ -83,7 +90,50 @@ export async function readCommandOutput(
     if (verified.sha256 !== metadata.sha256) {
         throw new Error(`CEM-ML command output hash ${verified.sha256} does not match ${metadata.sha256}`);
     }
-    return verified;
+    return Object.freeze({ ...verified, handleId: metadata.handleId, sourceMapId: metadata.sourceMapId });
+}
+
+/** Verify the complete output set before returning any of it to the consumer. */
+export async function readCommandOutputs(
+    handle: Parameters<typeof readCommandOutput>[0],
+    result: Parameters<typeof readCommandOutput>[1] & { artifacts?: { items?: readonly CommandOutputMetadata[]; originalCount?: number } },
+    options: CommandOutputReadOptions & { readonly maxArtifacts: number },
+): Promise<readonly CommandOutput[]> {
+    if (!Number.isSafeInteger(options.maxArtifacts) || options.maxArtifacts < 0
+        || !Number.isSafeInteger(options.maxBytes) || options.maxBytes < 0) {
+        throw new Error('Command output set limits must be safe nonnegative counts');
+    }
+    const retained = result.artifacts?.items ?? [];
+    if ((result.artifacts?.originalCount ?? retained.length) > retained.length) {
+        throw new Error('Command artifact manifest is truncated');
+    }
+    const artifacts = retained.filter(({ kind }) => kind === 'output');
+    const uris = new Set<string>();
+    const publications = options.committedPublications ?? [];
+    for (const artifact of artifacts) {
+        if (!artifact.uri || uris.has(artifact.uri)) throw new Error('Command output manifest has a missing or duplicate URI');
+        uris.add(artifact.uri);
+    }
+    // Retained manifests are authoritative; committed bytes are a fallback for
+    // transports without retained handles, not a second set of publications.
+    const committed = artifacts.length ? [] : publications.filter(({ request }) => request.kind === 'output');
+    const metadata = [...artifacts, ...committed.map(({ request }) => request)];
+    uris.clear();
+    let total = 0;
+    if (metadata.length > options.maxArtifacts) throw new Error('Command output count exceeds its artifact limit');
+    for (const artifact of metadata) {
+        if (!artifact.uri || uris.has(artifact.uri)) throw new Error('Command output manifest has a missing or duplicate URI');
+        uris.add(artifact.uri);
+        if (!Number.isSafeInteger(artifact.byteLength) || artifact.byteLength < 0) throw new Error('Command output length is invalid');
+        total += artifact.byteLength;
+        if (!Number.isSafeInteger(total) || total > options.maxBytes) throw new Error('Command output set exceeds its total byte limit');
+    }
+    const outputs: CommandOutput[] = [];
+    for (const artifact of metadata) {
+        outputs.push(await readCommandOutput(handle, result, { ...options, requestedUri: artifact.uri, fallbackToFirstOutput: false }));
+    }
+    if (!outputs.length && result.exitCode === 0) throw new Error('CEM-ML command omitted its output publications');
+    return Object.freeze(outputs);
 }
 
 async function output(available: boolean, uri: string, contentType: string, source: Uint8Array): Promise<CommandOutput> {

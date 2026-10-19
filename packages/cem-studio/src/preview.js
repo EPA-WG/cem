@@ -165,6 +165,8 @@ function isTextContentType(contentType) {
     return (
         contentType.startsWith('text/') ||
         contentType === 'application/json' ||
+        contentType === 'application/yaml' ||
+        contentType === 'application/x-yaml' ||
         contentType.endsWith('+json') ||
         contentType === 'application/xml' ||
         contentType.endsWith('+xml') ||

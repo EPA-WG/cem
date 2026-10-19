@@ -178,6 +178,44 @@ export interface CemStudioWorkbenchCommandApplication {
     readonly error?: Readonly<{ code: string; message: string }>;
 }
 
+export interface CemStudioBuildConfiguration {
+    readonly id: string;
+    readonly name: string;
+    readonly kind: string;
+    readonly resourceId?: string;
+    readonly revision: number;
+    readonly sha256: string;
+}
+
+export interface CemStudioBuildArtifact {
+    /** Native request plus retained handle (or publication URI), scoped to this run. */
+    readonly id: string;
+    readonly uri: string;
+    readonly path: string;
+    readonly handleId?: number;
+    readonly sourceMapId?: string;
+    readonly contentType: string;
+    readonly byteLength: number;
+    readonly sha256: string;
+    readonly available: boolean;
+    readonly provenance: readonly Readonly<Record<string, unknown>>[];
+    readonly sourceMaps: readonly Readonly<Record<string, unknown>>[];
+}
+
+export interface CemStudioBuildRun {
+    readonly id: string;
+    readonly projectId: string;
+    readonly projectRootUri: string;
+    readonly projectRevision: number;
+    readonly configuration: CemStudioBuildConfiguration;
+    readonly inputs: readonly Readonly<{ resourceId: string; uri: string; path: string; revision: number; sha256: string }>[];
+    readonly status: string;
+    readonly executionIdentity: Readonly<Record<string, unknown>>;
+    readonly admission?: Readonly<Record<string, unknown>>;
+    readonly artifacts: readonly CemStudioBuildArtifact[];
+    readonly byteLength: number;
+}
+
 export interface CemStudioWorkbenchProjection {
     readonly kind: 'parse' | 'inspect' | 'convert' | 'query' | 'transform' | 'trace';
     readonly mode: string;
@@ -190,6 +228,9 @@ export interface CemStudioWorkbenchProjection {
         sha256: string;
     }>;
     readonly output: CemStudioCommandOutput;
+    readonly outputs: readonly CemStudioCommandOutput[];
+    readonly buildRun: CemStudioBuildRun;
+    readonly selectedArtifactId?: string;
     readonly preview: CemStudioPreview;
     readonly nativeResult: unknown;
     readonly diagnostics: readonly Readonly<Record<string, unknown>>[];
@@ -233,6 +274,7 @@ export interface CemStudioFeatureTourWorkbench {
     resetCommandDraft(): Promise<CemStudioWorkbenchState>;
     copyCommand(writeText?: (text: string) => Promise<void>): Promise<CemStudioWorkbenchState>;
     copyProjection(writeText?: (text: string) => Promise<void>): Promise<CemStudioWorkbenchState>;
+    selectArtifact(id: string): CemStudioWorkbenchState;
     downloadProjection(
         save?: (file: { filename: string; contentType: string; bytes: Uint8Array }) => Promise<void>,
     ): Promise<CemStudioWorkbenchState>;

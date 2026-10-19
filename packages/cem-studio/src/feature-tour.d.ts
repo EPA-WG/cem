@@ -40,6 +40,8 @@ export interface CemStudioResourceCommandOptions {
 }
 
 export interface CemStudioCommandOutput {
+    readonly handleId?: number;
+    readonly sourceMapId?: string;
     readonly available?: boolean;
     readonly uri: string;
     readonly contentType: string;
@@ -53,6 +55,8 @@ export interface CemStudioBrowserCommandOutcome {
     readonly result: unknown;
     readonly presentation: unknown;
     readonly output?: CemStudioCommandOutput;
+    readonly outputs?: readonly CemStudioCommandOutput[];
+    readonly admission?: Readonly<Record<string, unknown>>;
 }
 
 export interface CemStudioAuthoredResourceCommandOptions extends CemStudioResourceCommandOptions {

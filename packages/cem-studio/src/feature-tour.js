@@ -1,4 +1,4 @@
-import { readCommandOutput } from '@epa-wg/cem-elements/command-result';
+import { readCommandOutput, readCommandOutputs } from '@epa-wg/cem-elements/command-result';
 import { commandSchema, parseCemMlCommandText, serializeCemMlCommandText } from '@epa-wg/cem-ml-cli/browser-commands';
 import {
     CEM_STUDIO_LIMITS,
@@ -65,7 +65,7 @@ export async function createCemStudioBrowserValidator() {
                 const writes = committedWrites.get(staged.request.requestId) ?? [];
                 writes.push(staged);
                 committedWrites.set(staged.request.requestId, writes);
-                return { uri: `memory:${token}` };
+                return { uri: staged.request.uri };
             },
             rollbackWrite: async (token) => {
                 pendingWrites.delete(token);
@@ -114,15 +114,19 @@ export async function createCemStudioBrowserValidator() {
         try {
             const result = await handle.result();
             const presentation = projectBrowserCommandPresentation(invocation.presentation, result);
-            let output;
+            let output, outputs;
             if (readOutput) {
-                output = await readCommandOutput(handle, result, {
+                const readOptions = {
                     requestedUri: invocation.presentation.stdoutArtifactUri,
                     maxBytes: CEM_STUDIO_LIMITS.resultBytes,
                     chunkBytes: ARTIFACT_READ_BYTES,
                     committedPublications: committedWrites.get(requestId),
-                });
+                };
+                outputs = await readCommandOutputs(handle, result, { ...readOptions, maxArtifacts: CEM_STUDIO_LIMITS.resourceCount });
+                output = outputs.find(({ uri }) => uri === readOptions.requestedUri) ?? outputs[0]
+                    ?? await readCommandOutput(handle, result, readOptions);
             }
+            const admission = freezeCommandValue({ project: request.project, resourceVersions: request.resourceVersions, policyStamp: request.policyStamp });
             if (result.exitCode !== 0) {
                 const diagnostics = result.diagnostics?.items
                     ?.map(({ code, message }) => `${code}: ${message}`)
@@ -135,9 +139,11 @@ export async function createCemStudioBrowserValidator() {
                 error.result = result;
                 error.presentation = presentation;
                 error.output = output;
+                error.outputs = outputs;
+                error.admission = admission;
                 throw error;
             }
-            return Object.freeze({ result, presentation, output });
+            return Object.freeze({ result, presentation, output, outputs, admission });
         } finally {
             ledgers.delete(requestId);
             committedWrites.delete(requestId);

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
-import { readCommandOutput, type CommandOutputMetadata } from './command-result.js';
+import { readCommandOutput, readCommandOutputs, type CommandOutputMetadata } from './command-result.js';
 
 const bytes = new TextEncoder().encode('catalog café');
 const metadata = (data = bytes): CommandOutputMetadata => ({ uri: 'memory:output', kind: 'output',
@@ -47,5 +47,37 @@ describe('bounded command output', () => {
         expect(handle.readArtifact).not.toHaveBeenCalled();
         await expect(readCommandOutput(handle, { exitCode: 1 }, { ...options,
             committedPublications: [{ request: metadata(), bytes: bytes.slice(1) }] })).rejects.toThrow('length');
+    });
+
+    it('admits a bounded multi-output set with native identities and exact per-output bytes', async () => {
+        const first = { ...metadata(), uri: 'memory:one', handleId: 3, sourceMapId: 'map-3' };
+        const second = { ...metadata(new Uint8Array()), uri: 'memory:empty', handleId: 4 };
+        const handle = { readArtifact: vi.fn(async (_artifact, { offset, maxBytes }) => ({
+            metadata: { offset }, bytes: bytes.slice(offset, offset + maxBytes),
+        })) };
+        const result = { exitCode: 0, artifacts: { items: [first, second] } };
+        expect(await readCommandOutputs(handle, result, { ...options, maxArtifacts: 2 }))
+            .toMatchObject([{ uri: first.uri, handleId: 3, sourceMapId: 'map-3', bytes }, { uri: second.uri, byteLength: 0 }]);
+        expect(await readCommandOutputs(handle, result, { ...options, maxArtifacts: 2,
+            committedPublications: [{ request: { ...first, uri: 'memory:transport-alias' }, bytes }] })).toHaveLength(2);
+        await expect(readCommandOutput(handle, result, { ...options, requestedUri: 'memory:missing', fallbackToFirstOutput: false }))
+            .rejects.toThrow('omitted');
+        await expect(readCommandOutputs(handle, result, { ...options, maxArtifacts: 1 })).rejects.toThrow('count');
+        await expect(readCommandOutputs(handle, { ...result, artifacts: { items: [first, { ...first, uri: 'memory:two' }] } },
+            { ...options, maxArtifacts: 2, maxBytes: bytes.length })).rejects.toThrow('total byte limit');
+    });
+
+    it('rejects ambiguous, truncated and corrupt sets without returning a partial manifest', async () => {
+        const handle = { readArtifact: vi.fn() };
+        const entry = metadata();
+        const read = (items, extra = {}) => readCommandOutputs(handle, { exitCode: 0, artifacts: { items, ...extra } }, { ...options, maxArtifacts: 3 });
+        await expect(read([entry, entry])).rejects.toThrow('duplicate');
+        await expect(read([{ ...entry, uri: '' }])).rejects.toThrow('missing');
+        await expect(read([entry], { originalCount: 2 })).rejects.toThrow('truncated');
+        expect(handle.readArtifact).not.toHaveBeenCalled();
+        await expect(readCommandOutputs(handle, { exitCode: 1 }, { ...options, maxArtifacts: 3 })).resolves.toEqual([]);
+        await expect(readCommandOutputs(handle, { exitCode: 0 }, { ...options, maxArtifacts: 3,
+            committedPublications: [{ request: entry, bytes }, { request: { ...entry, uri: 'memory:two', sha256: 'wrong' }, bytes }] }))
+            .rejects.toThrow('hash');
     });
 });
