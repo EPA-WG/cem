@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -16,6 +16,33 @@ import {
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
+
+test('Node folder discovery includes root and nested files and bounds deep traversal', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'cem-node-folder-& [space]-'));
+    try {
+        await mkdir(join(directory, 'static/images'), { recursive: true });
+        await writeFile(join(directory, 'static/site.css'), 'h1 {color:red}');
+        await writeFile(join(directory, 'static/images/logo.svg'), '<svg/>');
+        const host = createNodeCommandHost({ cwd: directory });
+        assert.deepEqual(await host.expandGlob('static/**/*'), [join(directory, 'static/images/logo.svg'), join(directory, 'static/site.css')].map(path => path.replaceAll('\\', '/')));
+        assert.deepEqual(await host.expandGlob(`${pathToFileURL(join(directory, 'static')).href}/**/*`),
+            [join(directory, 'static/images/logo.svg'), join(directory, 'static/site.css')].map(path => pathToFileURL(path).href));
+        await writeFile(join(directory, 'build.cem'), '{run | {import @id=assets @src="static/**/*" @root="static" @opaque=true | {export @id=publish @out="dist/{path}"}}}');
+        const service = await createNodeCommandService({ cwd: directory, stdout: new FixtureWritable(), stderr: new FixtureWritable() });
+        try {
+            const execution = await service.run(parseCemMlCommand(['transform', '--config', 'build.cem',
+                '--config-content-type', 'application/cem', '--config-schema', 'https://cem.dev/ns/cli/transform-config/1'], { runtime: 'wasm-node' }));
+            const result = await execution.handle;
+            assert.equal(result.exitCode, 0);
+            await service.publish(execution.invocation, result);
+            assert.equal(await readFile(join(directory, 'dist/site.css'), 'utf8'), 'h1 {color:red}');
+            assert.equal(await readFile(join(directory, 'dist/images/logo.svg'), 'utf8'), '<svg/>');
+            await execution.handle.dispose();
+        } finally { await service.close(); }
+        await mkdir(join(directory, 'static', ...Array(66).fill('d')), { recursive: true });
+        await assert.rejects(host.expandGlob('static/**/*'), { code: 'cem.node_host.glob_traversal_limit' });
+    } finally { await rm(directory, { recursive: true, force: true }); }
+});
 
 test('Node host resolves file, HTTPS, and application stream resources', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'cem-ml-node-host-'));

@@ -11,7 +11,6 @@ use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use crate::command_service::{
@@ -28,6 +27,10 @@ use crate::run_config::{infer_content_type_from_path, NormalizedRunPlan};
 use crate::schema::registry::XPATH_CONTENT_TYPE;
 use crate::transform_config::{
     parse_transform_graph_config, TransformGraphNodeKind, TransformGraphParseRequest,
+};
+use crate::transform_graph_request::{
+    resolve_transform_graph_reference as resolve_graph_reference,
+    transform_graph_reference_matcher as graph_reference_matcher,
 };
 
 /// A host callback future deliberately carries no `Send` requirement so the
@@ -610,97 +613,6 @@ fn add_graph_reference_needs(
     Ok(())
 }
 
-fn resolve_graph_reference(config_uri: &str, reference: &str) -> String {
-    if crate::resolver::uri_scheme(reference).is_some() || reference.starts_with('/') {
-        return reference.to_owned();
-    }
-    let base = config_uri
-        .rsplit_once('/')
-        .map(|(base, _)| base)
-        .unwrap_or(config_uri);
-    normalize_graph_uri(&format!("{base}/{reference}"))
-}
-
-fn normalize_graph_uri(uri: &str) -> String {
-    let (prefix, path) = if let Some(scheme) = uri.find("://") {
-        let authority_start = scheme + 3;
-        match uri[authority_start..].find('/') {
-            Some(path_start) => {
-                let path_start = authority_start + path_start;
-                (&uri[..path_start], &uri[path_start + 1..])
-            }
-            None => (uri, ""),
-        }
-    } else if let Some(path) = uri.strip_prefix('/') {
-        ("", path)
-    } else {
-        ("", uri)
-    };
-    let mut segments = Vec::new();
-    for segment in path.split('/') {
-        match segment {
-            "" | "." => {}
-            ".." => {
-                segments.pop();
-            }
-            _ => segments.push(segment),
-        }
-    }
-    if prefix.is_empty() {
-        segments.join("/")
-    } else {
-        format!("{prefix}/{}", segments.join("/"))
-    }
-}
-
-fn graph_reference_matcher(pattern: &str) -> Result<Regex, String> {
-    let mut expression = String::from("^");
-    let mut characters = pattern.chars().peekable();
-    while let Some(character) = characters.next() {
-        match character {
-            '*' if characters.peek() == Some(&'*') => {
-                characters.next();
-                expression.push_str(".*");
-            }
-            '*' => expression.push_str("[^/]*"),
-            '?' => expression.push_str("[^/]"),
-            '{' => {
-                let mut name = String::new();
-                loop {
-                    match characters.next() {
-                        Some('}') => break,
-                        Some(character) => name.push(character),
-                        None => {
-                            return Err(format!(
-                                "reference pattern `{pattern}` has an unclosed binding"
-                            ))
-                        }
-                    }
-                }
-                if name.trim().is_empty() {
-                    return Err(format!(
-                        "reference pattern `{pattern}` has an empty binding"
-                    ));
-                }
-                expression.push_str("[^/]+");
-            }
-            '}' => {
-                return Err(format!(
-                    "reference pattern `{pattern}` has an unmatched closing binding"
-                ))
-            }
-            '[' | ']' => {
-                return Err(format!(
-                    "reference pattern `{pattern}` uses unsupported character-class syntax"
-                ))
-            }
-            _ => expression.push_str(&regex::escape(&character.to_string())),
-        }
-    }
-    expression.push('$');
-    Regex::new(&expression).map_err(|error| error.to_string())
-}
-
 fn check_hydration_control(
     control: Option<&OperationControl>,
 ) -> Result<(), CommandResourceHydrationErrorV1> {
@@ -1189,10 +1101,16 @@ mod tests {
                 .resource_versions
                 .insert(uri.to_owned(), version(bytes));
         }
+        let recursive_graph = String::from_utf8_lossy(GRAPH_BYTES)
+            .replace("inputs/*.cem", "inputs/**/*.cem")
+            .into_bytes();
+        request
+            .resource_versions
+            .insert(GRAPH_URI.to_owned(), version(&recursive_graph));
         request.resources.insert(
             GRAPH_URI.to_owned(),
             VirtualResourceV1 {
-                bytes: GRAPH_BYTES.to_vec(),
+                bytes: recursive_graph,
                 identity: None,
             },
         );
@@ -1214,6 +1132,9 @@ mod tests {
         );
 
         request.resources.remove(GRAPH_URI);
+        request
+            .resource_versions
+            .insert(GRAPH_URI.to_owned(), version(GRAPH_BYTES));
         let reader = FixtureReader::default()
             .with_resource(GRAPH_URI, GRAPH_BYTES)
             .with_resource(GRAPH_INPUT_A_URI, b"{a}")

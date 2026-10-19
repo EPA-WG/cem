@@ -195,10 +195,15 @@ impl TransformGraphResourceProvider for ManifestTransformGraphResourceProvider<'
                 message,
             )
         })?;
-        let mut matches = self
+        let uris = self
             .resources
             .keys()
             .filter(|uri| matcher.is_match(uri))
+            .take(TRANSFORM_GRAPH_IMPORT_GLOB_MAX_ENTRIES + 1)
+            .collect::<Vec<_>>();
+        validate_import_match_count(reference, self.config_uri, uris.len())?;
+        let mut matches = uris
+            .into_iter()
             .map(|uri| self.resource(uri))
             .collect::<Result<Vec<_>, _>>()?;
         matches.sort_by(|left, right| left.uri.cmp(&right.uri));
@@ -216,7 +221,7 @@ impl TransformGraphResourceProvider for ManifestTransformGraphResourceProvider<'
     }
 
     fn output_uri(&self, reference: &str) -> Result<String, TransformGraphRequestError> {
-        Ok(self.resolved(reference))
+        Ok(canonical_output_address(self.resolved(reference)))
     }
 
     fn binding_uri(&self, uri: &str) -> String {
@@ -322,11 +327,13 @@ impl<'a> FilesystemTransformGraphResourceProvider<'a> {
         let (prefix, suffix) = file.split_once('*').unwrap_or(("", ""));
         let parent = transform_graph_glob_parent(pattern_path);
         self.context.ensure_active()?;
-        let matches = collect_transform_graph_import_glob_matches(&parent, prefix, suffix)
-            .map_err(|source| EngineError::Io {
-                path: parent.clone(),
-                source,
-            })?;
+        let matches = collect_transform_graph_import_glob_matches(
+            self.context,
+            &self.config_uri,
+            &parent,
+            prefix,
+            suffix,
+        )?;
         self.context.ensure_active()?;
         validate_import_match_count(pattern, &self.config_uri, matches.len())?;
         Ok(matches
@@ -415,7 +422,7 @@ impl TransformGraphResourceProvider for FilesystemTransformGraphResourceProvider
     }
 
     fn output_uri(&self, reference: &str) -> Result<String, TransformGraphRequestError> {
-        Ok(self.resolved(reference))
+        Ok(canonical_output_address(self.resolved(reference)))
     }
 
     fn binding_uri(&self, uri: &str) -> String {
@@ -451,8 +458,12 @@ pub fn resolve_transform_graph_reference(config_uri: &str, reference: &str) -> S
     let base = config_uri
         .rsplit_once('/')
         .map(|(base, _)| base)
-        .unwrap_or(config_uri);
-    normalize_transform_graph_uri(&format!("{base}/{reference}"))
+        .unwrap_or("");
+    normalize_transform_graph_uri(&if base.is_empty() {
+        reference.to_owned()
+    } else {
+        format!("{base}/{reference}")
+    })
 }
 
 fn normalize_transform_graph_uri(uri: &str) -> String {
@@ -475,7 +486,11 @@ fn normalize_transform_graph_uri(uri: &str) -> String {
         match segment {
             "" | "." => {}
             ".." => {
-                segments.pop();
+                if segments.last().is_some_and(|segment| *segment != "..") {
+                    segments.pop();
+                } else if prefix.is_empty() {
+                    segments.push("..");
+                }
             }
             _ => segments.push(segment),
         }
@@ -497,14 +512,19 @@ fn relative_transform_graph_reference(config_uri: &str, uri: &str) -> String {
         .unwrap_or_else(|| uri.to_owned())
 }
 
-fn transform_graph_reference_matcher(pattern: &str) -> Result<Regex, String> {
+pub(crate) fn transform_graph_reference_matcher(pattern: &str) -> Result<Regex, String> {
     let mut expression = String::from("^");
     let mut characters = pattern.chars().peekable();
     while let Some(character) = characters.next() {
         match character {
             '*' if characters.peek() == Some(&'*') => {
                 characters.next();
-                expression.push_str(".*");
+                if characters.peek() == Some(&'/') {
+                    characters.next();
+                    expression.push_str("(?:[^/]+/)*");
+                } else {
+                    expression.push_str(".*");
+                }
             }
             '*' => expression.push_str("[^/]*"),
             '?' => expression.push_str("[^/]"),
@@ -645,62 +665,152 @@ fn split_recursive_glob_parent(parent: &Path) -> Option<(PathBuf, PathBuf)> {
     })
 }
 
-fn collect_one_level_glob_matches(
-    parent: &Path,
-    prefix: &str,
-    suffix: &str,
-) -> io::Result<Vec<PathBuf>> {
-    let mut matches = Vec::new();
-    for entry in fs::read_dir(parent)? {
-        let entry = entry?;
-        if entry.file_type()?.is_file() {
-            let file = entry.file_name().to_string_lossy().into_owned();
-            if file.starts_with(prefix) && file.ends_with(suffix) {
-                matches.push(entry.path());
+// Filesystem traversal is bounded before reading source bytes, including trees
+// with few matches. Directory and file symlinks are never followed implicitly.
+const IMPORT_GLOB_MAX_DEPTH: usize = 64;
+const IMPORT_GLOB_MAX_VISITED_ENTRIES: usize = 16_384;
+struct GlobCollector<'a> {
+    context: &'a EngineContext,
+    config_uri: &'a str,
+    matches: Vec<PathBuf>,
+    visited: usize,
+}
+impl GlobCollector<'_> {
+    fn limit(&self) -> TransformGraphRequestError {
+        config_error(self.config_uri, "cem.transform_config.import_glob_traversal_limit",
+            format!("import traversal exceeds depth {IMPORT_GLOB_MAX_DEPTH} or {IMPORT_GLOB_MAX_VISITED_ENTRIES} entries"))
+    }
+    fn entries(
+        &mut self,
+        directory: &Path,
+    ) -> Result<Vec<fs::DirEntry>, TransformGraphRequestError> {
+        self.context.ensure_active()?;
+        let read = fs::read_dir(directory).map_err(|source| EngineError::Io {
+            path: directory.to_owned(),
+            source,
+        })?;
+        let mut entries = Vec::new();
+        for entry in read {
+            self.context.ensure_active()?;
+            self.visited += 1;
+            if self.visited > IMPORT_GLOB_MAX_VISITED_ENTRIES {
+                return Err(self.limit());
+            }
+            entries.push(entry.map_err(|source| EngineError::Io {
+                path: directory.to_owned(),
+                source,
+            })?);
+        }
+        entries.sort_by_key(|entry| entry.file_name());
+        Ok(entries)
+    }
+    fn collect_files(
+        &mut self,
+        entries: &[fs::DirEntry],
+        prefix: &str,
+        suffix: &str,
+    ) -> Result<(), TransformGraphRequestError> {
+        for entry in entries {
+            let file_type = entry.file_type().map_err(|source| EngineError::Io {
+                path: entry.path(),
+                source,
+            })?;
+            if file_type.is_file() {
+                let file = entry.file_name().to_string_lossy().into_owned();
+                if file.starts_with(prefix) && file.ends_with(suffix) {
+                    self.matches.push(entry.path());
+                    if self.matches.len() > TRANSFORM_GRAPH_IMPORT_GLOB_MAX_ENTRIES {
+                        validate_import_match_count(
+                            "filesystem glob",
+                            self.config_uri,
+                            self.matches.len(),
+                        )?;
+                    }
+                }
             }
         }
+        Ok(())
     }
-    Ok(matches)
-}
-
-fn collect_recursive_glob_matches(
-    current: &Path,
-    suffix_dir: &Path,
-    prefix: &str,
-    suffix: &str,
-    matches: &mut Vec<PathBuf>,
-) -> io::Result<()> {
-    let candidate = if suffix_dir.as_os_str().is_empty() {
-        current.to_path_buf()
-    } else {
-        current.join(suffix_dir)
-    };
-    if candidate.is_dir() {
-        matches.extend(collect_one_level_glob_matches(&candidate, prefix, suffix)?);
-    }
-    for entry in fs::read_dir(current)? {
-        let entry = entry?;
-        if entry.file_type()?.is_dir() {
-            collect_recursive_glob_matches(&entry.path(), suffix_dir, prefix, suffix, matches)?;
+    fn walk(
+        &mut self,
+        directory: &Path,
+        suffix_dir: &Path,
+        prefix: &str,
+        suffix: &str,
+        depth: usize,
+    ) -> Result<(), TransformGraphRequestError> {
+        self.context.ensure_active()?;
+        if depth > IMPORT_GLOB_MAX_DEPTH {
+            return Err(self.limit());
         }
+        let entries = self.entries(directory)?;
+        if suffix_dir.as_os_str().is_empty() {
+            self.collect_files(&entries, prefix, suffix)?;
+        } else {
+            let mut candidate = directory.to_owned();
+            let mut present = true;
+            for component in suffix_dir.components() {
+                candidate.push(component);
+                match fs::symlink_metadata(&candidate) {
+                    Ok(metadata) if metadata.file_type().is_dir() => {}
+                    Ok(_) => {
+                        present = false;
+                        break;
+                    }
+                    Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                        present = false;
+                        break;
+                    }
+                    Err(source) => {
+                        return Err(EngineError::Io {
+                            path: candidate,
+                            source,
+                        }
+                        .into())
+                    }
+                }
+            }
+            if present {
+                let candidates = self.entries(&candidate)?;
+                self.collect_files(&candidates, prefix, suffix)?;
+            }
+        }
+        for entry in entries {
+            if entry
+                .file_type()
+                .map_err(|source| EngineError::Io {
+                    path: entry.path(),
+                    source,
+                })?
+                .is_dir()
+            {
+                self.walk(&entry.path(), suffix_dir, prefix, suffix, depth + 1)?;
+            }
+        }
+        Ok(())
     }
-    Ok(())
 }
-
 fn collect_transform_graph_import_glob_matches(
+    context: &EngineContext,
+    config_uri: &str,
     parent: &Path,
     prefix: &str,
     suffix: &str,
-) -> io::Result<Vec<PathBuf>> {
-    let mut matches = if let Some((root, suffix_dir)) = split_recursive_glob_parent(parent) {
-        let mut matches = Vec::new();
-        collect_recursive_glob_matches(&root, &suffix_dir, prefix, suffix, &mut matches)?;
-        matches
-    } else {
-        collect_one_level_glob_matches(parent, prefix, suffix)?
+) -> Result<Vec<PathBuf>, TransformGraphRequestError> {
+    let mut collector = GlobCollector {
+        context,
+        config_uri,
+        matches: Vec::new(),
+        visited: 0,
     };
-    matches.sort();
-    Ok(matches)
+    if let Some((root, suffix_dir)) = split_recursive_glob_parent(parent) {
+        collector.walk(&root, &suffix_dir, prefix, suffix, 0)?;
+    } else {
+        let entries = collector.entries(parent)?;
+        collector.collect_files(&entries, prefix, suffix)?;
+    }
+    collector.matches.sort();
+    Ok(collector.matches)
 }
 
 #[derive(Debug, Clone)]
@@ -820,6 +930,7 @@ struct ModuleMapResource {
 
 impl TransformGraphRequestLowerer<'_> {
     fn lower(&mut self) -> Result<(), TransformGraphRequestError> {
+        self.context.ensure_active()?;
         for node in &self.graph.nodes {
             match node.kind {
                 TransformGraphNodeKind::Import => self.lower_import(node)?,
@@ -838,23 +949,55 @@ impl TransformGraphRequestLowerer<'_> {
         node: &TransformGraphNode,
     ) -> Result<(), TransformGraphRequestError> {
         let src = required_field(self.config_uri, node, node.src.as_deref(), "src", "import")?;
+        let root = node
+            .root
+            .as_deref()
+            .map(|root| {
+                if !transform_config::valid_import_root(root) {
+                    return Err(config_error(
+                        self.config_uri,
+                        "cem.transform_config.import_root_invalid",
+                        format!(
+                            "import node `{}` requires a concrete nonempty @root folder",
+                            node.id
+                        ),
+                    ));
+                }
+                Ok(normalize_folder_address(&self.provider.output_uri(root)?))
+            })
+            .transpose()?;
         let resources = self
             .provider
             .import_resources(src, node.content_type.as_deref())?;
         let count = resources.len();
         let mut variants = Vec::with_capacity(count);
         for (index, resource) in resources.into_iter().enumerate() {
+            self.context.ensure_active()?;
             let id = variant_id(&node.id, index, count);
-            let bindings = resource_bindings(
-                &resource.uri,
-                &self.provider.binding_uri(&resource.uri),
-                index,
-            );
-            let input = engine_input_from_resource(
+            let binding_path = if let Some(root) = &root {
+                rooted_resource_path(root, &resource.uri, self.config_uri)?
+            } else {
+                self.provider.binding_uri(&resource.uri)
+            };
+            let bindings = resource_bindings(&resource.uri, &binding_path, index);
+            let mut input = engine_input_from_resource(
                 resource,
                 node.content_type.clone(),
                 node.schema.clone(),
             );
+            if node.opaque {
+                // Opaque publication never claims the source's parsed schema or namespaces.
+                let content_type = input
+                    .root_scope
+                    .default_content_type
+                    .clone()
+                    .unwrap_or_else(|| static_asset_content_type(&input.uri).to_owned());
+                input.root_scope = ScopeConfig {
+                    default_content_type: Some(content_type),
+                    ..ScopeConfig::default()
+                };
+                input.identity = input.root_scope.format_identity_option();
+            }
             let scheduler_scope_id = self.take_scope();
             self.imports.push(TransformGraphImport {
                 id: id.clone(),
@@ -1780,10 +1923,36 @@ impl TransformGraphRequestLowerer<'_> {
                 "output_binding",
             )?;
             let destination = self.provider.output_uri(&expanded)?;
+            let opaque_source = self
+                .imports
+                .iter()
+                .find(|import| import.id == input_variant.id && import.opaque);
+            if let (Some(source), Some(target)) = (opaque_source, node.content_type.as_deref()) {
+                if source
+                    .input
+                    .identity
+                    .as_ref()
+                    .and_then(|id| id.content_type.as_deref())
+                    .map(content_type_essence)
+                    != Some(content_type_essence(target))
+                {
+                    return Err(config_error(
+                        self.config_uri,
+                        "cem.transform_config.import_opaque_export_identity_mismatch",
+                        format!(
+                            "export node `{}` must preserve its opaque source media type",
+                            node.id
+                        ),
+                    ));
+                }
+            }
             let target_scope = resource_scope(
                 &destination,
                 None,
-                node.content_type.clone(),
+                node.content_type.clone().or_else(|| {
+                    opaque_source
+                        .and_then(|source| source.input.identity.as_ref()?.content_type.clone())
+                }),
                 node.schema.clone(),
             );
             let target = target_scope.format_identity_option();
@@ -1929,6 +2098,112 @@ fn resource_scope(
             .unwrap_or_default(),
         base_uri: identity.and_then(|identity| identity.base_uri.clone()),
         ..ScopeConfig::default()
+    }
+}
+
+// Local destinations must compare canonically before duplicate admission: an
+// empty {dir} cannot hide a collision behind a doubled slash. Source addresses
+// and their legacy binding paths remain untouched; protocol destinations keep
+// their declared identities (including streams).
+fn canonical_output_address(address: String) -> String {
+    if uri_scheme(&address).is_some() && !is_windows_drive_path(&address) {
+        return address;
+    }
+    let mut path = PathBuf::new();
+    for component in Path::new(&address).components() {
+        match component {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                if matches!(
+                    path.components().next_back(),
+                    Some(std::path::Component::Normal(_))
+                ) {
+                    path.pop();
+                } else if !path.has_root() {
+                    path.push("..");
+                }
+            }
+            component => path.push(component.as_os_str()),
+        }
+    }
+    path_display_slash(&path)
+}
+
+/// Normalize only the folder-binding view of local Windows addresses. The
+/// resource URI itself stays unchanged, and URI backslashes remain invalid.
+fn normalize_folder_address(address: &str) -> String {
+    if is_windows_drive_path(address) || (cfg!(windows) && uri_scheme(address).is_none()) {
+        normalize_transform_graph_uri(&address.replace('\\', "/"))
+    } else {
+        normalize_transform_graph_uri(address)
+    }
+}
+
+fn rooted_resource_path(
+    root: &str,
+    uri: &str,
+    config_uri: &str,
+) -> Result<String, TransformGraphRequestError> {
+    let normalized = normalize_folder_address(uri);
+    let prefix = format!("{}/", root.trim_end_matches('/'));
+    let relative = (if root.is_empty()
+        && uri_scheme(&normalized).is_none()
+        && !Path::new(&normalized).is_absolute()
+    {
+        Some(normalized.as_str())
+    } else {
+        normalized.strip_prefix(&prefix)
+    })
+    .filter(|path| !path.is_empty())
+    .ok_or_else(|| {
+        config_error(
+            config_uri,
+            "cem.transform_config.import_root_outside",
+            format!("import resource `{uri}` is outside root `{root}`"),
+        )
+    })?;
+    if relative
+        .chars()
+        .any(|c| c.is_control() || "?#\\".contains(c))
+        || relative.split('/').any(|segment| {
+            let lower = segment.to_ascii_lowercase().replace("%2e", ".");
+            lower == "." || lower == ".." || lower.contains("%2f") || lower.contains("%5c")
+        })
+    {
+        return Err(config_error(
+            config_uri,
+            "cem.transform_config.import_root_invalid",
+            format!("import resource `{uri}` cannot provide safe folder path bindings"),
+        ));
+    }
+    Ok(relative.to_owned())
+}
+
+/// Only the explicit opaque publication boundary uses this binary fallback.
+/// Ordinary typed import dispatch continues to require its registered format identity.
+fn static_asset_content_type(uri: &str) -> &'static str {
+    match Path::new(uri)
+        .extension()
+        .and_then(OsStr::to_str)
+        .unwrap_or("")
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "avif" => "image/avif",
+        "bmp" => "image/bmp",
+        "ico" => "image/x-icon",
+        "woff" => "font/woff",
+        "woff2" => "font/woff2",
+        "ttf" => "font/ttf",
+        "otf" => "font/otf",
+        "wasm" => "application/wasm",
+        "pdf" => "application/pdf",
+        "txt" => "text/plain",
+        _ => "application/octet-stream",
     }
 }
 

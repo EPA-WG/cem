@@ -325,6 +325,11 @@ Initial graph semantics:
   `{stem}`, `{ext}`, and `{index}`. One-to-one transform stages preserve those
   bindings for all sibling export branches. Unknown output bindings fail as
   config errors; duplicate resolved destinations fail before writes.
+- Optional import `@root` makes `{path}` and `{dir}` folder-relative while
+  retaining the source URI. Recursive `**/` includes root files. Rooted opaque
+  imports can publish mixed static trees with per-resource media types and exact
+  bytes. The [transform-config contract](../packages/cem_ml/schema/cli/transform-config.md)
+  specifies containment, native traversal bounds and manifest-backed selection.
 
 CSV CLI options are a convenience for small invocations, not the primary source of
 truth. A future CLI should prefer repeatable records such as:

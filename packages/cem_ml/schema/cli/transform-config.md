@@ -18,7 +18,7 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 | Element | Required attributes | Optional attributes | Child elements |
 | --- | --- | --- | --- |
 | `run` | none | none | `import` |
-| `import` | `src` | `id`, `content-type`, `contentType`, `schema`, `opaque` | `join`, `convert`, `transform`, `rewrite-importmap`, `export` |
+| `import` | `src` | `id`, `content-type`, `contentType`, `schema`, `opaque`, `root` | `join`, `convert`, `transform`, `rewrite-importmap`, `export` |
 | `join` | `mode` | `id`, `input`, `by`, `with:*` | `convert`, `transform`, `rewrite-importmap`, `export` |
 | `convert` | none | `id`, `input`, `content-type`, `contentType`, `schema`, `converter` | `join`, `convert`, `transform`, `rewrite-importmap`, `export` |
 | `transform` | `src` | `id`, `input`, `with:*`, `content-type`, `contentType`, `schema`, `entrypoint`, `template-content-type`, `templateContentType`, `template-schema`, `templateSchema` | `param`, `join`, `convert`, `transform`, `rewrite-importmap`, `export` |
@@ -31,13 +31,38 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 - A document must contain exactly one top-level `run` element.
 - `run` contains one or more import branches.
 - `import` creates a source node from `@src`.
-- `import @opaque=true` creates an explicitly typed, byte-preserving source for
+- `import @root="../content"` declares a folder base for source-derived `{path}`
+  and `{dir}` bindings. `@src` still selects the files; `@root` does not perform
+  implicit discovery. Both resolve relative to the configuration. Every selected
+  file must be inside that folder at a segment boundary. `{src}` and the retained
+  input URI preserve the original resource identity; names and paths are metadata.
+  Without `@root`, the existing configuration-relative binding behavior applies.
+  `**/` matches zero or more directories, including files directly in the root.
+  Files sort by resolved URI. One-to-one operations retain their bindings;
+  `join @mode=collect` exposes each typed input and its folder metadata through
+  `items[*].bindings`, without serializing/reparsing the input AST. This is a
+  file-tree input: empty directories are not artifacts.
+- `import @opaque=true` creates a byte-preserving source for
   static publication without parsing or schema validation. `@opaque` is a
-  strict `true`/`false` boolean. Opaque imports require `@content-type`, forbid
+  strict `true`/`false` boolean. Unrooted opaque imports require `@content-type`;
+  rooted opaque imports can omit it for mixed static trees. Each file then uses
+  its declared resource/resolver content type, native extension inference, or
+  `application/octet-stream` for unknown extensions. An explicit import content
+  type overrides that choice for all selected files. Opaque imports forbid
   `@schema`, and must feed one or more direct `export` nodes only. Those exports
   cannot declare `@schema`; an explicit export content type must have the same
   media type as the import. Omitting the export content type preserves the
-  source identity.
+  source media type, including when the output filename has another extension.
+  Resource schema/namespace metadata is not carried as a validation claim for
+  opaque bytes. Static outputs retain whole-resource lineage, without invented
+  parsed character source maps.
+- Folder roots must be concrete and nonempty. Out-of-root resources, unsafe path
+  bindings (including encoded separators/dot segments), unmatched globs and
+  duplicate resolved destinations fail before publication. Imports allow at
+  most 1,024 files. Native filesystem glob traversal also stops at depth 64 or
+  16,384 visited entries, checks cancellation and skips symlink entries. Browser
+  builds match the admitted concrete resource manifest using the same native
+  selector; they never discover files from the network or local filesystem.
 - `join @mode="collect"` creates one collection artifact from all artifacts in
   its primary input.
 - `join @mode="group-by" @by="NAME"` creates one collection artifact for each

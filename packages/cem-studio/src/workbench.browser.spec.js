@@ -41,6 +41,86 @@ afterEach(async () => {
 });
 
 describe('CEM Studio Feature Tour workbench', () => {
+    it('builds rooted native content and mixed static assets in the ordinary project preview', async () => {
+        const repository = await repositoryWithSource('unrelated saved source');
+        const exported = (await repository.query(request('export-project', { projectId: 'feature-tour' }))).value;
+        const encode = text => new TextEncoder().encode(text);
+        const graph = `{run |
+            {import @id=content @src="../content/**/*.html" @root="../content" @content-type=text/html @opaque=true |
+                {export @id=pages @out="../generated/{path}" @content-type=text/html}}
+            {import @id=markdown @src="../content/**/*.md" @root="../content" @content-type="text/markdown; charset=utf-8; variant=CommonMark" @schema=https://cem.dev/ns/data/markdown/1 |
+                {convert @id=html @content-type=text/html @schema=https://cem.dev/ns/data/html/1 @converter=markdown-to-html-rust |
+                    {export @id=article @out="../generated/{dir}/{stem}.html" @content-type=text/html}}}
+            {import @id=assets @src="../static/**/*" @root="../static" @opaque=true |
+                {export @id=publish @out="../generated/{path}"}}
+        }`;
+        const command = { $schema: 'https://cem.dev/ns/cli/command/1', schemaVersion: 1, commandSchemaVersion: 1,
+            commonVersion: '0.1.0', binaryName: 'cem-ml', argv: ['transform', '--config', 'graphs/build.cem',
+                '--config-content-type', 'application/cem', '--config-schema', 'https://cem.dev/ns/cli/transform-config/1'] };
+        const definitions = [
+            ['home', 'content/index.html', 'text/html', '<main><link rel="stylesheet" href="assets/site.css"><h1>Native folder build</h1><a href="posts/intro.html">Intro</a><img src="assets/logo.svg" alt="Logo"></main>', 'https://cem.dev/ns/data/html/1'],
+            ['article', 'content/posts/intro.html', 'text/html', '<main><link rel="stylesheet" href="../assets/site.css"><h1>Nested article</h1><a href="../index.html">Home</a><img src="../assets/logo.svg" alt="Logo"></main>', 'https://cem.dev/ns/data/html/1'],
+            ['markdown', 'content/docs/guide.md', 'text/markdown; charset=utf-8; variant=CommonMark', '# Guide\n', 'https://cem.dev/ns/data/markdown/1'],
+            ['css', 'static/assets/site.css', 'text/css', 'h1 { color: rgb(19, 38, 57); }'],
+            ['logo', 'static/assets/logo.svg', 'image/svg+xml', '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="8"><rect width="12" height="8" fill="red"/></svg>'],
+            ['binary', 'static/downloads/raw.bin', 'application/octet-stream', new Uint8Array([0, 255, 128, 13, 10])],
+            ['graph', 'graphs/build.cem', 'application/cem', graph, 'https://cem.dev/ns/cli/transform-config/1'],
+            ['command', 'config/build.command.json', 'application/vnd.cem.cli-command+json', JSON.stringify(command), 'https://cem.dev/ns/cli/command/1'],
+        ];
+        const contents = {}, resources = [];
+        for (const [id, path, contentType, content, schema] of definitions) {
+            const bytes = typeof content === 'string' ? encode(content) : content;
+            contents[id] = bytes;
+            resources.push({ id, path, referencePath: path, contentType, schema, revision: 1, sourceKind: 'project-file',
+                role: id === 'graph' ? 'transform-config' : id === 'command' ? 'run-config' : 'data', sha256: await digest(bytes) });
+        }
+        const bundle = { project: { ...exported.project, id: 'folder-site', name: 'Folder site', rootUri: 'studio://folder-site/',
+            resources, entries: [{ id: 'build', name: 'Build site', kind: 'transformation-graph', runConfigResourceId: 'command', resourceIds: ['graph', 'command', ...resources.filter(item => !['graph', 'command'].includes(item.id)).map(item => item.id)] }] }, contents };
+        await repository.execute(request('import-project', { bundle }));
+        const validator = await createCemStudioBrowserValidator();
+        try {
+            const session = createCemStudioProjectSession({ openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator, selection }) }); workbenches.push(session);
+            const base = await createCemStudioSessionWorkbench({ repository, session });
+            const browser = new EventTarget(); browser.location = new URL('https://studio.test/?project=folder-site&file=home&build=build&artifact=generated/index.html');
+            browser.history = { pushState: vi.fn((_, __, url) => { browser.location = new URL(url); }), replaceState: vi.fn((_, __, url) => { browser.location = new URL(url); }) };
+            const workbench = await createCemStudioNavigation({ repository, validator, workbench: base, browser }); workbenches.push(workbench);
+            const root = document.createElement('main'); document.body.append(root);
+            const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
+            const build = async () => { await workbench.buildProjectPreview(); await view.whenSettled(); };
+            await build();
+            const preview = () => workbench.snapshot().projectPreview;
+            expect(preview().attempt).toMatchObject({ status: 'succeeded' });
+            const first = preview().projection.buildRun, resourceSet = preview().preview.resourceSet;
+            expect(first.artifacts.map(item => item.path).sort()).toEqual(['generated/assets/logo.svg', 'generated/assets/site.css',
+                'generated/docs/guide.html', 'generated/downloads/raw.bin', 'generated/index.html', 'generated/posts/intro.html']);
+            expect(new DOMParser().parseFromString(preview().projection.outputs.find(item => item.uri.endsWith('/docs/guide.html')).text, 'text/html').querySelector('h1').textContent).toBe('Guide');
+            const binary = preview().projection.outputs.find(item => item.uri.endsWith('/downloads/raw.bin'));
+            expect(binary.bytes).toEqual(contents.binary);
+            expect(binary.contentType).toBe('application/octet-stream');
+            expect(binary.sha256).toBe(await digest(contents.binary));
+            expect(preview().projection.outputs.find(item => item.uri.endsWith('/assets/logo.svg')).contentType).toBe('image/svg+xml');
+            expect(first.inputs).toEqual(expect.arrayContaining([expect.objectContaining({ resourceId: 'article', revision: 1, sha256: resources.find(item => item.id === 'article').sha256 })]));
+            const frame = () => root.querySelector('[part~=region][part~=preview] iframe');
+            const ready = async title => { await vi.waitFor(() => expect(frame()?.contentDocument?.querySelector('h1')?.textContent).toBe(title));
+                await vi.waitFor(() => expect(frame().contentWindow.getComputedStyle(frame().contentDocument.querySelector('h1')).color).toBe('rgb(19, 38, 57)'));
+                await vi.waitFor(() => expect(frame().contentDocument.querySelector('img').naturalWidth).toBe(12)); };
+            await ready('Native folder build');
+            const editor = root.querySelector('[data-cem-studio-editor] [role=textbox]');
+            frame().contentDocument.querySelector('a').click(); await view.whenSettled(); await ready('Nested article');
+            expect(new URL(browser.location).searchParams.get('artifact')).toBe('generated/posts/intro.html');
+            expect(new URL(browser.location).searchParams.get('file')).toBe('home');
+            expect(root.querySelector('[data-cem-studio-editor] [role=textbox]')).toBe(editor);
+            await repository.execute(request('save-resource', { projectId: 'folder-site', resourceId: 'graph', expectedProjectRevision: 1,
+                expectedResourceRevision: 1, content: graph.replace('@root="../static"', '@root="../missing"') }));
+            await build();
+            expect(preview().attempt.status).toBe('failed');
+            expect(preview().projection.buildRun).toBe(first);
+            expect(preview().preview.resourceSet).toBe(resourceSet);
+            await ready('Nested article');
+            expect(preview().attempt.error.message).toContain('import_root_outside');
+        } finally { await validator.close(); }
+    }, 60_000);
+
     it('navigates one immutable output tree without changing the source file and atomically replaces complete runs', async () => {
         const repository = await repositoryWithSource('{main | Saved source}');
         const bundle = (await repository.query(request('export-project', { projectId: 'feature-tour' }))).value;

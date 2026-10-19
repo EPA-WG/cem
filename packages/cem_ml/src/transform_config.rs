@@ -41,7 +41,14 @@ pub const TRANSFORM_CONFIG_SCHEMA_ELEMENTS: &[TransformConfigElementSchema] = &[
     TransformConfigElementSchema {
         local_name: "import",
         required_attributes: &["src"],
-        optional_attributes: &["id", "content-type", "contentType", "schema", "opaque"],
+        optional_attributes: &[
+            "id",
+            "content-type",
+            "contentType",
+            "schema",
+            "opaque",
+            "root",
+        ],
         child_elements: &[
             "join",
             "convert",
@@ -151,6 +158,9 @@ pub struct TransformGraphNode {
     pub kind: TransformGraphNodeKind,
     #[serde(default)]
     pub src: Option<String>,
+    /// Optional folder base for source-derived path bindings; never changes resource identity.
+    #[serde(default)]
+    pub root: Option<String>,
     #[serde(default)]
     pub out: Option<String>,
     #[serde(default)]
@@ -509,6 +519,7 @@ impl GraphLowerer<'_> {
             id: id.clone(),
             kind,
             src: attr_value(&attrs, "", "src"),
+            root: attr_value(&attrs, "", "root"),
             out: attr_value(&attrs, "", "out"),
             content_type: attr_value(&attrs, "", "content-type")
                 .or_else(|| attr_value(&attrs, "", "contentType")),
@@ -723,6 +734,19 @@ impl GraphLowerer<'_> {
     fn validate_required_attrs(&mut self, node: &TransformGraphNode) {
         match node.kind {
             TransformGraphNodeKind::Import => {
+                if node
+                    .root
+                    .as_deref()
+                    .is_some_and(|root| !valid_import_root(root))
+                {
+                    self.push_diag(
+                        "cem.transform_config.import_root_invalid",
+                        format!(
+                            "import node `{}` requires a concrete nonempty @root folder",
+                            node.id
+                        ),
+                    );
+                }
                 if node.src.as_deref().unwrap_or("").trim().is_empty() {
                     self.push_diag(
                         "cem.transform_config.import_src_missing",
@@ -869,7 +893,7 @@ impl GraphLowerer<'_> {
                 .as_deref()
                 .map(str::trim)
                 .filter(|value| !value.is_empty());
-            if source_content_type.is_none() {
+            if source_content_type.is_none() && import.root.is_none() {
                 self.push_diag(
                     "cem.transform_config.import_opaque_content_type_required",
                     format!(
@@ -1112,6 +1136,13 @@ fn parse_join_mode(
             ),
         )),
     }
+}
+
+pub(crate) fn valid_import_root(root: &str) -> bool {
+    !root.trim().is_empty()
+        && !root
+            .chars()
+            .any(|c| c.is_control() || "*?{}#\\".contains(c))
 }
 
 fn parse_import_opaque(value: Option<&str>, node_id: &str) -> Result<bool, (&'static str, String)> {

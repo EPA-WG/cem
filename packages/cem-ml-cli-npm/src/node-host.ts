@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, open, readFile, readdir, rename, rm } from 'node:fs/promises';
+import { mkdir, open, opendir, readFile, rename, rm } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import type {
     CommandPreparedWriteTokenV1,
@@ -268,7 +268,14 @@ export class NodeCommandHost implements CommandServiceHostCapabilitiesV1 {
         if (selected.length > 1024) {
             throw hostError('cem.node_host.glob_too_many', `resource glob ${uri} matched more than 1024 files`);
         }
-        if (mapping === undefined) return selected.map((candidate) => candidate.replaceAll(sep, '/'));
+        if (mapping === undefined) {
+            if (!uri.startsWith('file:')) return selected.map((candidate) => candidate.replaceAll(sep, '/'));
+            // Keep the requested URI root's encoding/identity. Native file URIs
+            // may encode more path characters than WHATWG's serializer does.
+            const uriRoot = globRoot(uri);
+            const fileRoot = pathToFileURL(root).href.replace(/\/$/, '');
+            return selected.map((candidate) => uriRoot + pathToFileURL(candidate).href.slice(fileRoot.length));
+        }
         return selected.map((candidate) => {
             const suffix = relative(resolve(mapping.localRoot), candidate).replaceAll(sep, '/');
             return `${mapping.uriPrefix.replace(/\/$/, '')}/${suffix}`;
@@ -428,8 +435,13 @@ function globMatcher(pattern: string): RegExp {
     for (let index = 0; index < pattern.length; index += 1) {
         const character = pattern[index] ?? '';
         if (character === '*' && pattern[index + 1] === '*') {
-            source += '.*';
-            index += 1;
+            if (pattern[index + 2] === '/' || pattern[index + 2] === '\\') {
+                source += '(?:[^/\\\\]+[/\\\\])*';
+                index += 2;
+            } else {
+                source += '.*';
+                index += 1;
+            }
         } else if (character === '*') {
             source += '[^/\\\\]*';
         } else if (character === '?') {
@@ -446,10 +458,12 @@ function globMatcher(pattern: string): RegExp {
     return new RegExp(`${source}$`);
 }
 
-async function collectFiles(directory: string, files: string[]): Promise<void> {
-    for (const entry of await readdir(directory, { withFileTypes: true })) {
+async function collectFiles(directory: string, files: string[], depth = 0, budget = { visited: 0 }): Promise<void> {
+    if (depth > 64) throw hostError('cem.node_host.glob_traversal_limit', 'resource glob exceeds traversal depth 64');
+    for await (const entry of await opendir(directory)) {
+        if (++budget.visited > 16_384) throw hostError('cem.node_host.glob_traversal_limit', 'resource glob exceeds 16384 visited entries');
         const path = resolve(directory, entry.name);
-        if (entry.isDirectory()) await collectFiles(path, files);
+        if (entry.isDirectory()) await collectFiles(path, files, depth + 1, budget);
         else if (entry.isFile()) files.push(path);
     }
 }

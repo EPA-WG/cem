@@ -1033,8 +1033,8 @@ the resource open in the editor. Its workspace region selects a Build
 configuration, runs or cancels Build project, and selects a Preview artifact for
 viewing and exact copy/download. Source commands and their Results remain in the
 editor’s Commands and results expansion. The next steps in
-[the active todo](todo.md#project-builds-and-artifact-previews) add a navigable
-site artifact tree and the Markdown site example.
+[the active todo](todo.md#project-builds-and-artifact-previews) add the Markdown
+site example using the shared artifact tree and native rooted folder builds.
 
 A project owns resources and named build configurations. A configuration usually
 references a native transformation graph, but a single CEM-ML document can use a
@@ -1046,6 +1046,38 @@ file. Both paths use the same native execution and result contracts.
 | Single document | CEM-ML source and its declared dependencies | One HTML document, plus any explicitly exported assets |
 | Transformation pipeline | Graph configuration, data and templates | One or more HTML, data, report or binary artifacts |
 | Folder-based site | Project resource-tree dataset, Markdown content, CEM-ML layouts/partials, data and static assets | An HTML/asset tree with nested output paths and a configured entry document |
+
+Native graph imports now accept `@root` to preserve folder structure in build
+outputs. For example, a graph in `graphs/build.cem` can convert each Markdown source
+and publish a mixed static tree with:
+
+```cem
+{run |
+  {import @id=content @src="../content/**/*.md" @root="../content"
+      @content-type="text/markdown; charset=utf-8; variant=CommonMark" @schema=https://cem.dev/ns/data/markdown/1 |
+    {convert @id=html @content-type=text/html @schema=https://cem.dev/ns/data/html/1
+        @converter=markdown-to-html-rust |
+      {export @id=pages @out="../generated/{dir}/{stem}.html" @content-type=text/html}
+    }
+  }
+  {import @id=assets @src="../static/**/*" @root="../static" @opaque=true |
+    {export @id=publish @out="../generated/{path}"}
+  }
+}
+```
+
+Root and nested files share the same native selection semantics in filesystem
+and manifest-backed builds. `{path}`/`{dir}` are relative to the declared root;
+the retained URI and `{src}` keep the stable resource reference. Existing joins
+can consume the typed content and each file's bindings for site navigation.
+Static publication preserves exact bytes, uses each resource's media type (or
+native extension inference/binary fallback), and never parses assets as data.
+The ordinary configuration still declares its resource IDs; Build uses the
+captured saved manifest and the shared command/output/preview services. No
+Studio folder walker, converter or UI behavior is involved. Native traversal
+and output-set bounds remain enforced; empty folders do not emit artifacts.
+The complete Markdown site project, supported content metadata and reusable
+layouts/partials are subsequent work, with their parsing in the native engine.
 
 Each build attempt captures a configuration identity/revision, input resource
 identities/revisions/hashes, relevant tree snapshot, engine versions and resolver
