@@ -306,21 +306,7 @@ impl ReadySuggestions {
     pub fn validate(&mut self, bytes: &mut usize) -> Result<(), &'static str> {
         self.source.validate(bytes)?;
         let count = self.source.row_count as i32;
-        if !matches!(
-            self.publication.filter.as_str(),
-            "contains" | "prefix" | "external" | "none"
-        ) || self
-            .publication
-            .filter_by
-            .as_ref()
-            .is_some_and(|s| s.len() > 4096)
-            || [self.publication.active, self.publication.committed]
-                .into_iter()
-                .flatten()
-                .any(|i| i < -1 || i >= count)
-        {
-            return Err("cem.checkpoint.runtime.suggestions");
-        }
+        self.publication.validate(count)?;
         if self.provider_revision > SAFE
             || self.query_revision > SAFE
             || self.provider_revision != self.prepared_revision
@@ -338,18 +324,7 @@ impl ReadySuggestions {
         {
             return Err("cem.checkpoint.runtime.suggestions");
         }
-        let mut indexes = BTreeSet::new();
-        let mut ids = BTreeSet::new();
-        for row in &self.rows {
-            if row.index >= self.source.row_count
-                || !indexes.insert(row.index)
-                || !identity(&row.node_id)
-                || !ids.insert(&row.node_id)
-                || row.eligible && !row.available
-            {
-                return Err("cem.checkpoint.runtime.suggestions");
-            }
-        }
+        validate_rows(&self.rows, self.source.row_count)?;
         if self.active_index >= 0
             && (!self.visible
                 || !self
@@ -525,5 +500,66 @@ impl Menu {
             return Err("cem.checkpoint.runtime.menu");
         }
         Ok(())
+    }
+}
+
+/// A committed native publication consumed declaratively without an editor controller.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct NativePublication {
+    profile: String,
+    source: Source,
+    query: String,
+    query_revision: u64,
+    publication: Publication,
+    rows: Vec<Row>,
+    disposition: String,
+}
+impl Publication {
+    fn validate(&self, count: i32) -> Result<(), &'static str> {
+        if !matches!(
+            self.filter.as_str(),
+            "contains" | "prefix" | "external" | "none"
+        ) || self.filter_by.as_ref().is_some_and(|s| s.len() > 4096)
+            || [self.active, self.committed]
+                .into_iter()
+                .flatten()
+                .any(|i| i < -1 || i >= count)
+        {
+            return Err("cem.checkpoint.runtime.suggestions");
+        }
+        Ok(())
+    }
+}
+fn validate_rows(rows: &[Row], count: u32) -> Result<(), &'static str> {
+    if rows.len() > 1024 {
+        return Err("cem.checkpoint.runtime.suggestions");
+    }
+    let mut indexes = BTreeSet::new();
+    let mut ids = BTreeSet::new();
+    for row in rows {
+        if row.index >= count
+            || !indexes.insert(row.index)
+            || !identity(&row.node_id)
+            || !ids.insert(&row.node_id)
+            || row.eligible && !row.available
+        {
+            return Err("cem.checkpoint.runtime.suggestions");
+        }
+    }
+    Ok(())
+}
+impl NativePublication {
+    pub fn validate(&mut self, bytes: &mut usize) -> Result<(), &'static str> {
+        self.source.validate(bytes)?;
+        if self.profile != "listbox"
+            || self.query.len() > 65536
+            || self.query_revision > SAFE
+            || self.disposition != "reacquire"
+        {
+            return Err("cem.checkpoint.runtime.publication");
+        }
+        self.publication.validate(self.source.row_count as i32)?;
+        validate_rows(&self.rows, self.source.row_count)
     }
 }

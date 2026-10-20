@@ -1,3 +1,8 @@
+import type { CemCheckpointSealer } from './committed-checkpoint.js';
+import type { CheckpointSource } from './checkpoint-interactions.js';
+import type { CemNativeSuggestionsPublication } from './native-suggestions-publication.js';
+import type { CemSuggestionsControllerOptions } from './suggestions-controller.js';
+import { CemSuggestionsPlacementCoordinator, type CemSuggestionsPlacementLease } from './suggestions-placements.js';
 import { cemCompositeMenuCheckpoint } from './composite-menu-capability.js';
 import { CemNativeCapabilitySession } from './native-capability-session.js';
 import { cemProcessingHostForScope } from './internal/runtime-support/processing-host-runtime.js';
@@ -45,11 +50,11 @@ export default { title: 'CEM Elements/Checkpoint Publication', tags: ['test'] } 
 type Story = StoryObj;
 type Reader = NonNullable<Exclude<NonNullable<CemElementRuntimeOptions['retainedStylesheets']>, false>['read']>;
 const decode = (c: CemCheckpointPublicationCoordinator) => JSON.parse(new TextDecoder().decode(c.current()!.bytes)) as { receipt: { owners: { acceptedEventSequence: number }[] }; owners: { instanceId: string; island: string }[] };
-function fixture(root: HTMLElement, fallback: boolean, automatic = false, read?: Reader, options: Partial<CemElementRuntimeOptions> = {}) {
+function fixture(root: HTMLElement, fallback: boolean, automatic = false, read?: Reader, options: Partial<CemElementRuntimeOptions> = {}, seal: CemCheckpointSealer = (candidate, receipt) => wasm.sealCommittedCheckpoint(candidate, receipt)) {
     const document = root.ownerDocument;
     const suffix = crypto.randomUUID();
     const coordinator = new CemCheckpointPublicationCoordinator({ runtimeId: `session-${suffix}`, generation: 1, policyStamp: 'whole-private-island:1',
-        allowOwner: () => true, seal: (candidate, receipt) => wasm.sealCommittedCheckpoint(candidate, receipt), automatic });
+        allowOwner: () => true, seal, automatic });
     const scope = createCemDeclarationScope({ document });
     const runtime = new CemElementRuntime({ ...options, declarationTag: `declaration-${suffix}`, declarationScope: scope, checkpointPublication: coordinator,
         moduleUrlRoot: { baseUrl: 'https://example.test/', importMap: {} }, retainedStylesheets: { read },
@@ -971,4 +976,164 @@ export const SubmenuAndCompletedTaskCheckpoint: Story = {
 export const SubmenuAndCompletedTaskCheckpointFallback: Story = {
     render: () => '<section aria-label="Submenu and task fallback checkpoint"></section>',
     play: ({ canvasElement }) => submenuTaskCheckpointContract(canvasElement, true),
+};
+
+async function externalCheckpointSource(fallback: boolean, portable = true, captured?: CheckpointSource) {
+    const scope = createCemDeclarationScope({ document });
+    const owner = cemProcessingHostForScope(scope, { workerScriptUrl: new URL('./internal/runtime-support/processing-worker.ts', import.meta.url),
+        ...(fallback ? { workerFactory: () => { throw new Error('external source fallback'); } } : {}) });
+    let source = captured;
+    if (!source) {
+        const id = wasm.parseReferenceSource(new TextEncoder().encode('{cem-option @value=same @label=Alpha}{cem-option @value=same @label=Another}'), 'text/cem-ml', 'memory:external-options.cem', '');
+        try { source = { version: 'cem-native-source/1', revision: crypto.randomUUID(), rowCount: 2, select: 'input.children', resolve: false, requesting: 0,
+            sources: [{ codec: 'cemb', base64: btoa(String.fromCharCode(...wasm.exportReferenceReloadBundle(id, ''))), sourceUri: null, primarySourceId: 1, context: true }],
+            bindings: [], crossings: [], labels: { option: null, group: null }, disposition: 'reacquire' }; }
+        finally { wasm.disposeReferenceSource(id); }
+    }
+    const session = await CemNativeCapabilitySession.prepare(owner, { action: 'prepare', adapter: 'suggestions-v1',
+        handle: { sessionKey: crypto.randomUUID(), instanceId: 'external-source', scopePolicyStamp: 'external-policy', sourceRevision: source.revision },
+        sources: { kind: 'cem-native-session-sources-v1', requesting: source.requesting,
+            sources: source.sources.map(input => ({ bundle: Uint8Array.from(atob(input.base64), c => c.charCodeAt(0)).buffer, primarySourceId: input.primarySourceId, context: input.context })),
+            bindings: source.bindings, grants: source.crossings.map(route => [route.from, route.to] as const) },
+        data: {}, select: source.select, resolve: source.resolve, limits: { maxBytes: 256 * 1024, maxValues: 1024, maxDepth: 64 } }, () => true, undefined, portable);
+    return { scope, session, async dispose() { await session.release(); scope.dispose(); } };
+}
+async function nativePublicationCheckpointContract(canvasElement: HTMLElement, fallback: boolean) {
+    await init(); const root = canvasElement.querySelector<HTMLElement>('section')!;
+    let admitted = true, publication: CemNativeSuggestionsPublication | undefined, sealFence: (() => void) | undefined;
+    const sources: Awaited<ReturnType<typeof externalCheckpointSource>>[] = [];
+    const f = fixture(root, fallback, false, undefined, { nativeSuggestionsInputs(instance, snapshot) {
+        const current = publication;
+        return current ? [current.bind({ instanceId: snapshot.instanceId, scopePolicyStamp: snapshot.scopePolicyStamp, revision: snapshot.dataRevision,
+            current: () => admitted && publication === current && instance.isConnected })] : [];
+    } }, async (candidate, receipt) => { const sealed = wasm.sealCommittedCheckpoint(candidate, receipt); sealFence?.(); sealFence = undefined; await Promise.resolve(); return sealed; });
+    try {
+        const source = await externalCheckpointSource(fallback); sources.push(source);
+        publication = await source.session.publishSuggestions({ query: 'same', queryRevision: 1, filter: 'none' }, () => admitted);
+        const frame = await f.create('{cem:for-each @select="datadom.slices.suggestions.children" @as=row | {span @role=option @suggestion-row={#row} | {$row.dom:attribute("label").value}}}');
+        await f.runtime.whenRenderSettled(frame);
+        const capture = () => waitFor(async () => { await f.coordinator.capture(); });
+        await capture(); const saved = decode(f.coordinator).owners[0].island;
+        expect(saved).toContain('nativePublication'); expect(saved).toContain('cemb'); expect(saved).not.toContain('sessionKey');
+        const mapped = f.runtime.renderedSuggestionsFor(frame)!; expect(mapped.rows).toHaveLength(2);
+        const copy = await externalCheckpointSource(fallback, true, source.session.checkpointSource()); sources.push(copy);
+        const copiedPublication = await copy.session.publishSuggestions({ query: 'same', queryRevision: 1, filter: 'none' }, () => true);
+        const binding = copiedPublication.bind({ instanceId: 'fresh', scopePolicyStamp: 'fresh', revision: '1', current: () => true });
+        try { const rows = await binding.rows(); expect(rows.map(row => row.value)).toEqual(['same', 'same']); expect(rows[1].source).not.toBe(mapped.rows[1].native.source); }
+        finally { binding.release(); await copiedPublication.release(); }
+        const row = mapped.rows[0].element, nodeId = row.getAttribute('data-cem-render-node-id')!;
+        row.setAttribute('data-cem-render-node-id', 'forged'); await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+        row.setAttribute('data-cem-render-node-id', nodeId); await capture();
+        const last = f.coordinator.lastCommitted()!.bytes;
+        sealFence = () => { admitted = false; };
+        await expect(f.coordinator.capture()).rejects.toThrow('cem.checkpoint.stale');
+        await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); expect(f.coordinator.lastCommitted()!.bytes).toEqual(last);
+        await source.session.release();
+        const replacement = await externalCheckpointSource(fallback); sources.push(replacement); admitted = true;
+        publication = await replacement.session.publishSuggestions({ query: '', queryRevision: 2, filter: 'none' }, () => admitted);
+        f.runtime.refreshElementReferences(frame); await f.runtime.whenRenderSettled(frame); await capture();
+        expect(frame.querySelectorAll('[role=option]')).toHaveLength(2);
+        const opaque = await externalCheckpointSource(fallback, false); sources.push(opaque);
+        publication = await opaque.session.publishSuggestions({ query: '', queryRevision: 3, filter: 'none' }, () => true);
+        f.runtime.refreshElementReferences(frame); await f.runtime.whenRenderSettled(frame);
+        await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+    } finally { f.dispose(); for (const source of sources) await source.dispose(); }
+}
+export const ExternalNativePublicationCheckpoint: Story = {
+    render: () => '<section aria-label="External native publication worker checkpoint"></section>',
+    play: ({ canvasElement }) => nativePublicationCheckpointContract(canvasElement, false),
+};
+export const ExternalNativePublicationCheckpointFallback: Story = {
+    render: () => '<section aria-label="External native publication fallback checkpoint"></section>',
+    play: ({ canvasElement }) => nativePublicationCheckpointContract(canvasElement, true),
+};
+
+async function externalProviderCheckpointContract(canvasElement: HTMLElement, fallback: boolean) {
+    await init(); const root = canvasElement.querySelector<HTMLElement>('section')!;
+    let host: HTMLElement | undefined, options: CemSuggestionsControllerOptions | undefined, publication: CemNativeSuggestionsPublication | undefined;
+    let admitted = true, latest = 0, failed = false, delay: Promise<void> | undefined;
+    const sources: Awaited<ReturnType<typeof externalCheckpointSource>>[] = [];
+    let source = await externalCheckpointSource(fallback); sources.push(source);
+    const placements = new CemSuggestionsPlacementCoordinator(document);
+    let leases: CemSuggestionsPlacementLease[] = [];
+    const errors: unknown[] = [];
+    const f = fixture(root, fallback, false, undefined, {
+        suggestionsControllerInputs: instance => instance === host ? options : undefined,
+        nativeSuggestionsInputs(instance, snapshot) {
+            const current = publication;
+            return instance === host && current ? [current.bind({ instanceId: snapshot.instanceId, scopePolicyStamp: snapshot.scopePolicyStamp,
+                revision: snapshot.dataRevision, current: () => admitted && instance.isConnected && current === publication })] : [];
+        },
+    });
+    try {
+        const field = await f.create(declarationTemplate(fieldDeclaration), 'cem-ml', root, undefined, 'form-control');
+        await f.runtime.whenRenderSettled(field); root.setAttribute('interaction-scope', ''); field.setAttribute('interaction-name', 'external-field');
+        const input = field.querySelector('input')!, provider = getCemEditorProvider(field)!;
+        host = await f.create(declarationTemplate(suggestionsDeclaration), 'cem-ml', root, undefined, 'suggestions', { 'editor-for': '@external-field', filter: 'none', 'require-selection': '' });
+        await f.runtime.whenRenderSettled(host); const listbox = host.querySelector<HTMLElement>('[part~=surface]')!;
+        options = { editorHost: field, listbox, current: () => admitted && source.session.valid,
+            checkpointSource: () => source.session.checkpointSourceIntent(), onError: error => errors.push(error),
+            async prepare(query, queryRevision) {
+                latest = queryRevision; if (delay) await delay;
+                if (failed) throw new Error('External source temporarily unavailable');
+                for (const lease of leases) lease.dispose(); leases = [];
+                const capturedSource = source.session, revision = provider.revision;
+                const current = () => admitted && source.session === capturedSource && capturedSource.valid && latest === queryRevision && provider.revision === revision;
+                publication = await capturedSource.publishSuggestions({ query, queryRevision, filter: 'none' }, current);
+                f.runtime.refreshElementReferences(host!); await f.runtime.whenRenderSettled(host!);
+                const mapped = f.runtime.renderedSuggestionsFor(host!); if (!mapped) throw new Error('External native row publication missing');
+                const editor = placements.register({ producer: f.runtime.readInstanceSnapshot(field).instanceId, revision: String(revision), current,
+                    element: field, kind: 'editor' }); leases.push(editor);
+                const panel = placements.register({ producer: f.runtime.readInstanceSnapshot(host!).instanceId, revision: String(queryRevision), current,
+                    element: listbox, kind: 'listbox' }); leases.push(panel);
+                placements.grant(f.runtime.readInstanceSnapshot(host!).instanceId, editor, ['editor-for']);
+                placements.grant(f.runtime.readInstanceSnapshot(field).instanceId, panel, ['aria-controls']);
+                const rows = mapped.rows.map(row => {
+                    const placed = placements.register({ producer: f.runtime.readInstanceSnapshot(host!).instanceId, revision: String(queryRevision),
+                        current: () => current() && mapped.current(), element: row.element, kind: 'row', row: row.native }); leases.push(placed);
+                    placements.grant(f.runtime.readInstanceSnapshot(field).instanceId, placed, ['aria-activedescendant']); return placed;
+                });
+                return placements.prepare(mapped.binding, editor, panel, rows);
+            },
+        };
+        f.runtime.setInstanceSlices(host, { externalReady: true }); await f.runtime.whenRenderSettled(host);
+        const ready = () => waitFor(() => { expect(errors.filter(error => !(error instanceof Error) || error.message !== 'External source temporarily unavailable')).toEqual([]); expect(readySuggestionsCheckpoint(host!)).toBeDefined(); });
+        const capture = () => waitFor(async () => { await f.coordinator.capture(); });
+        await ready(); await capture();
+        expect(f.coordinator.current()!.receipt.relationships?.some(edge => edge.kind === 'editor-provider')).toBe(true);
+        expect(field.parentElement).toBe(root); expect(host.contains(field)).toBe(false);
+        input.focus(); input.value = 'same'; input.dispatchEvent(new InputEvent('input', { bubbles: true })); await ready();
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true }));
+        input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true })); await ready(); await capture();
+        expect(readySuggestionsCheckpoint(host)?.committedIndex).toBe(1);
+        expect(source.session.checkpointSourceIntent()?.rowCount).toBe(0);
+        const foreign = provider.lease({}); await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); foreign.release();
+        await ready(); await capture();
+        failed = true; await cemSuggestionsControllerFor(host)!.refresh();
+        const inactive = () => { const state = cemSuggestionsCheckpoint(host!); return state && 'phase' in state && state.phase === 'inactive' ? state : undefined; };
+        await waitFor(() => expect(inactive()?.feedbackState).toBe('failed')); await capture();
+        expect(inactive()?.proof?.index).toBe(1); expect(inactive()?.proof?.source).toEqual(source.session.checkpointSource());
+        failed = false; await cemSuggestionsControllerFor(host)!.refresh(); await ready(); await capture();
+        let resume!: () => void; delay = new Promise<void>(resolve => { resume = resolve; });
+        const pending = cemSuggestionsControllerFor(host)!.refresh();
+        await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); delay = undefined; resume(); await pending; await ready(); await capture();
+        const last = f.coordinator.lastCommitted()!.bytes;
+        await source.session.release(); await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+        expect(f.coordinator.lastCommitted()!.bytes).toEqual(last);
+        source = await externalCheckpointSource(fallback); sources.push(source);
+        await cemSuggestionsControllerFor(host)!.refresh(); await ready(); await capture();
+        expect(readySuggestionsCheckpoint(host)?.committedIndex).toBe(-1); expect(input.value).toBe('same');
+        admitted = false; await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+        expect(errors.every(error => error instanceof Error && error.message === 'External source temporarily unavailable')).toBe(true);
+    } finally { f.dispose(); placements.dispose(); for (const source of sources) await source.dispose(); }
+}
+export const ExternalProviderCheckpoint: Story = {
+    render: () => '<section aria-label="External provider worker checkpoint"></section>',
+    play: ({ canvasElement }) => externalProviderCheckpointContract(canvasElement, false),
+};
+export const ExternalProviderCheckpointFallback: Story = {
+    render: () => '<section aria-label="External provider fallback checkpoint"></section>',
+    play: ({ canvasElement }) => externalProviderCheckpointContract(canvasElement, true),
 };

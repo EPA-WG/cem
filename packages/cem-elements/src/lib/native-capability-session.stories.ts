@@ -89,6 +89,10 @@ export const RetainedSourcesWorkerAndFallback: Story = {
                     const saved = capturedSession.checkpointSource();
                     expect(saved?.select).toBe('input.children'); expect(saved?.revision).toBe('source-6');
                     expect(atob(saved!.sources[0].base64)).toBe(originalText);
+                    const intent = capturedSession.checkpointSourceIntent();
+                    expect(intent?.rowCount).toBe(0); expect(intent?.select).toBe(saved?.select);
+                    intent!.sources[0].base64 = 'caller-mutated-intent';
+                    expect(capturedSession.checkpointSource()?.sources[0].base64).toBe(saved!.sources[0].base64);
                     const publication = await capturedSession.publishSuggestions({ query: '', queryRevision: 1, filter: 'none' }, () => true);
                     const binding = publication.bind({ instanceId: 'checkpoint-reader', scopePolicyStamp: 'test', revision: '1', current: () => true });
                     try { expect((await binding.rows())[0].value).toBe('original'); } finally { binding.release(); await publication.release(); }

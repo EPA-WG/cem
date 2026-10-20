@@ -417,3 +417,48 @@ fn settled_submenus_require_bounded_relationship_intent_without_live_authority()
     s["capability"]["state"]["panel"] = Value::Null;
     assert!(validate(&s.to_string()).is_ok());
 }
+
+#[test]
+fn native_publication_consumers_require_original_sources_and_exact_row_contracts() {
+    let mut s = state();
+    s["capability"] = Value::Null;
+    s["nativePublication"] = json!({"profile":"listbox","source":{"version":"cem-native-source/1","revision":"external:1","rowCount":2,"select":"input.children","resolve":false,"requesting":0,
+        "sources":[{"codec":"xml","base64":STANDARD.encode("<options><option value='same'/><option value='same'/></options>"),"sourceUri":"https://example.test/options.xml","primarySourceId":1,"context":true}],"bindings":[],"crossings":[],"labels":{"option":null,"group":null},"disposition":"reacquire"},
+        "query":"same","queryRevision":2,"publication":{"filter":"external","filterBy":null,"expanded":null,"active":null,"committed":null},
+        "rows":[{"index":0,"value":"same","eligible":true,"available":true,"nodeId":"row.0"},{"index":1,"value":"same","eligible":false,"available":true,"nodeId":"row.1"}],"disposition":"reacquire"});
+    let normalized = validate(&s.to_string()).unwrap();
+    assert_eq!(validate(&normalized).unwrap(), normalized);
+    for (key, value) in [
+        ("profile", json!("native-datalist")),
+        ("queryRevision", json!(9_007_199_254_740_992u64)),
+        ("disposition", json!("restore-binding")),
+        ("sessionKey", json!("old")),
+    ] {
+        let mut bad = s.clone();
+        bad["nativePublication"][key] = value;
+        assert!(validate(&bad.to_string()).is_err(), "{key}");
+    }
+    for (key, value) in [
+        ("index", json!(0)),
+        ("nodeId", json!("row.0")),
+        ("index", json!(2)),
+        ("available", json!(false)),
+    ] {
+        let mut bad = s.clone();
+        bad["nativePublication"]["rows"][1]["eligible"] = json!(true);
+        bad["nativePublication"]["rows"][1][key] = value;
+        assert!(validate(&bad.to_string()).is_err(), "{key}");
+    }
+    let mut bad = s.clone();
+    bad["nativePublication"]["publication"]["filter"] = json!("unknown");
+    assert!(validate(&bad.to_string()).is_err());
+    let mut bad = s.clone();
+    bad["nativePublication"]["source"]["sources"][0]["base64"] = json!(STANDARD.encode("<invalid"));
+    assert!(validate(&bad.to_string()).is_err());
+    let large = format!("<options>{}</options>", "x".repeat(140_000));
+    s["nativePublication"]["source"]["sources"][0]["base64"] = json!(STANDARD.encode(large));
+    let mut references = s["nativePublication"]["source"].clone();
+    references["rowCount"] = json!(0);
+    s["references"] = references;
+    assert!(validate(&s.to_string()).is_err());
+}

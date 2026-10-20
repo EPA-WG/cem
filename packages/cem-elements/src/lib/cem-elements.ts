@@ -1,4 +1,4 @@
-import { snapshotCheckpointReferences, checkpointReferenceSource, type CheckpointEndpoint } from './checkpoint-interactions.js';
+import { snapshotCheckpointReferences, checkpointReferenceSource, type CheckpointEndpoint, type CheckpointNativePublication } from './checkpoint-interactions.js';
 import type { CemCheckpointRelationship } from './committed-checkpoint.js';
 import { captureCheckpointControls, checkpointScalarPortable, type CemCheckpointControlState, type CemCheckpointRuntimeState } from './checkpoint-controls.js';
 import { type CemCheckpointPublicationCoordinator, type CemCheckpointPublicationOwner } from './checkpoint-publication.js';
@@ -6,7 +6,7 @@ import { isDomInstance } from './dom-realm.js';
 import { CEM_LIVE_PREVIEW_CAPABILITY } from './live-preview-capability.js';
 import { validateLivePreviewFrames, validateLivePreviewNodes } from './live-preview-policy.js';
 import { resolveAriaReferenceProfile, DEFAULT_ARIA_REFERENCE_PROFILE, withoutAriaReferenceProfileStamp, type CemAriaReferenceProfile } from './aria-reference-profile.js';
-import { isCemNativeSuggestionsBinding, type CemNativeSuggestionsBinding, type CemNativeSuggestionRow } from './native-suggestions-publication.js';
+import { checkpointSuggestionIndex, isCemNativeSuggestionsBinding, type CemNativeSuggestionsBinding, type CemNativeSuggestionRow } from './native-suggestions-publication.js';
 import type { CemElementReferenceInputs, CemElementPlacementUse } from './element-reference-inputs.js';
 import { CemElementPlacementCoordinator, clearCemPlacementRelationships, hasCemPlacementRelationships } from './element-placement-coordinator.js';
 import { placementRoutes } from './element-placement-plans.js';
@@ -2903,6 +2903,25 @@ export class CemElementRuntime {
             .filter(control => this.ownsRenderedElement(instance, control))) : undefined;
     }
 
+    private checkpointNativePublication(instance: HTMLElement): CheckpointNativePublication | undefined {
+        const mapped = this.renderedSuggestionsFor(instance), source = mapped?.binding.checkpointSource();
+        const config = mapped?.binding.config;
+        if (!mapped || !source || !config || config.profile === 'native-datalist' || mapped.rows.length > 1024) return undefined;
+        const rows: CheckpointNativePublication['rows'] = [];
+        let size = config.query.length;
+        for (const row of mapped.rows) {
+            const index = checkpointSuggestionIndex(row.native.source);
+            const nodeId = (row.element as HTMLElement & { cemRenderNodeId?: string }).cemRenderNodeId;
+            size += row.native.value.length + (nodeId?.length ?? 0);
+            if (size > 256 * 1024 || index === undefined || !nodeId || row.element.getAttribute('data-cem-render-node-id') !== nodeId
+                || !this.ownsRenderedElement(instance, row.element) || !row.native.valid) return undefined;
+            rows.push({ index, nodeId, value: row.native.value, eligible: row.native.eligible, available: row.native.available });
+        }
+        return { profile: 'listbox', source, query: config.query, queryRevision: config.queryRevision,
+            publication: { filter: config.filter ?? 'contains', filterBy: config.filterBy ?? null, expanded: config.expanded ?? null,
+                active: config.active ?? null, committed: config.committed ?? null }, rows, disposition: 'reacquire' };
+    }
+
     private checkpointRuntimeState(instance: HTMLElement, compiled: CompiledDeclaration, state: InstanceState, documents = false): CemCheckpointRuntimeState | undefined {
         let capability: CemCheckpointRuntimeState['capability'] = null;
         if (compiled.behavior === CEM_PLAINTEXT_EDITOR_CAPABILITY) capability = cemPlaintextEditorCheckpoint(instance) ?? null;
@@ -2922,6 +2941,12 @@ export class CemElementRuntime {
             const captured = cemSuggestionsCheckpoint(instance); if (captured) capability = { kind: 'suggestions', state: captured };
         }
         if (compiled.behavior && !capability) return undefined;
+        // Account for the admitted frame as well as any stateful consumer. Inactive and datalist
+        // adapters already own withdrawal/attachment intent for their non-interactive frame.
+        const binding = this.nativeSuggestionsBindings.get(instance);
+        const nativePublication = binding?.valid ? this.checkpointNativePublication(instance) : undefined;
+        const inactiveFrame = capability?.kind === 'suggestions' && 'phase' in capability.state;
+        if (binding && !nativePublication && !inactiveFrame) return undefined;
         const resources: CemCheckpointRuntimeState['resources'] = [];
         let documentBytes = 0;
         for (const [name, active] of Object.entries(state.httpResources)) {
@@ -2992,7 +3017,7 @@ export class CemElementRuntime {
         const prepared = this.placementInputs.get(instance);
         const references = prepared && checkpointReferenceSource(prepared.inputs, String(this.dataRevisions.get(instance)));
         if (prepared && (!references || prepared.token !== this.checkpointPublishedTokens.get(instance)) || this.referenceInputControllers.has(instance)) return undefined;
-        return { version: 'cem-checkpoint-runtime/1', capability, ...(references ? { references } : {}), ...(placements.length ? { placements } : {}), ...(focus ? { focus } : {}), resources, writers, writeDisposition: 'suppress-until-new-input' };
+        return { version: 'cem-checkpoint-runtime/1', capability, ...(nativePublication ? { nativePublication } : {}), ...(references ? { references } : {}), ...(placements.length ? { placements } : {}), ...(focus ? { focus } : {}), resources, writers, writeDisposition: 'suppress-until-new-input' };
     }
 
     private checkpointEndpoint(element: HTMLElement): CheckpointEndpoint | undefined {
@@ -3107,7 +3132,7 @@ export class CemElementRuntime {
                 resourceState: { ...snapshot.resourceState, ...Object.fromEntries(validated.resources.filter(resource => ['http', 'repository-query', 'storage-status'].includes(resource.kind)).map(resource => {
                     const key = `${resource.kind === 'repository-query' ? 'repository' : resource.kind}:${resource.name}`;
                     return [key, { ...(snapshot.resourceState?.[key] as Record<string, unknown>), status: resource.state }];
-                })), checkpointRuntime: { version: validated.version, resources: validated.resources, ...(validated.references ? { references: validated.references } : {}), ...(validated.placements ? { placements: validated.placements } : {}), writers: validated.writers, ...(validated.focus ? { focus: validated.focus } : {}), writeDisposition: validated.writeDisposition } } });
+                })), checkpointRuntime: { version: validated.version, resources: validated.resources, ...(validated.nativePublication ? { nativePublication: validated.nativePublication } : {}), ...(validated.references ? { references: validated.references } : {}), ...(validated.placements ? { placements: validated.placements } : {}), writers: validated.writers, ...(validated.focus ? { focus: validated.focus } : {}), writeDisposition: validated.writeDisposition } } });
             state.observer?.takeRecords();
             units = 0; length = 0; visit(island, 0);
             return island.outerHTML;

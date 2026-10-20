@@ -109,6 +109,11 @@ export class CemNativeCapabilitySession {
             crossings: imported ? [] : (original as CemNativeSessionSources).grants.map(([from, to]) => ({ from, to })),
             labels: { option: input.labelTemplates?.option ?? null, group: input.labelTemplates?.group ?? null }, disposition: 'reacquire' };
     }
+    /** Original source intent for an inactive host-admitted consumer, never old rows or leases. */
+    checkpointSourceIntent(): CheckpointSource | undefined {
+        const source = this.checkpointSource();
+        return source ? { ...source, rowCount: 0 } : undefined;
+    }
     get valid(): boolean { return !this.released && !this.host.ownerScope.disposed && this.host.mode === this.ownerMode && this.current(); }
     async view(expression: string, index?: number, suggestions?: CemNativeSuggestionsConfig): Promise<CemNativeSessionView> {
         const result = await this.run({ action: 'view', handle: this.handle, expression, index, suggestions });

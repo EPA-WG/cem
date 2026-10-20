@@ -96,6 +96,14 @@ const active = { ...runtimeState, resources: [], capability: { kind: 'suggestion
 const activeSaved = wasm.validateCheckpointRuntime(JSON.stringify(active));
 assert.equal(JSON.parse(activeSaved).capability.state.committedIndex, 1);
 assert.equal(wasm.validateCheckpointRuntime(activeSaved), activeSaved);
+const externalPublication = { ...runtimeState, resources: [], capability: null, nativePublication: { profile: 'listbox',
+    source: active.capability.state.source, query: 'same', queryRevision: 1, publication: active.capability.state.publication,
+    rows: active.capability.state.rows, disposition: 'reacquire' } };
+const externalSaved = wasm.validateCheckpointRuntime(JSON.stringify(externalPublication));
+assert.equal(wasm.validateCheckpointRuntime(externalSaved), externalSaved);
+assert.equal(JSON.parse(externalSaved).nativePublication.rows[1].index, 1);
+externalPublication.nativePublication.rows[1].nodeId = 'row.0';
+assert.throws(() => wasm.validateCheckpointRuntime(JSON.stringify(externalPublication)));
 for (const feedbackState of ['idle', 'failed', 'unavailable']) {
     const inactive = { ...active, capability: { kind: 'suggestions', state: { phase: 'inactive', profile: 'listbox',
         source: { ...active.capability.state.source, rowCount: 0 }, providerRevision: 2, queryRevision: 3, query: 'draft',

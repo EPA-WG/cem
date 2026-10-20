@@ -210,6 +210,33 @@ claims/subscriptions; capture does not retry unchanged invalid sources. Repair
 creates fresh native admission. One weakly owned current original-source snapshot
 is retained, without native connections or a history of sources.
 
+Externally admitted source-backed declarative views (without an editor controller)
+retain a strict `nativePublication` record: original source envelope, listbox data
+profile, query/revision, publication configuration, source-order scalar rows and
+committed render-node identities, with `reacquire` disposition. The shared runtime
+reads its actual committed native binding and verifies each row's runtime identity
+and ownership; authored attributes cannot manufacture provenance. Native validation
+shares the original-source byte ceiling and the existing publication/row rules.
+Missing capture opt-in, revoked bindings/policy, stale or forged row markers and
+unknown profiles refuse the whole domain, including after asynchronous sealing.
+This record is resource metadata, not a provider lease or widget controller.
+A live frame consumed by a stateful listbox also retains this provenance alongside
+its controller contract; source bodies share the same aggregate byte ceiling.
+The existing inactive-withdrawal and native-datalist attachment contracts account
+for their non-interactive frames.
+Unattached native-datalist frames still need an explicit attachment contract.
+
+External `suggestionsControllerInputs` use the same shared controller, provider
+lease, placement grants and complete editor-provider receipt as local listboxes.
+The editor may be another current owner in the domain, resolved through native
+projection or the scoped `@name` convention; an arbitrary ID supplies no authority.
+Hosts opt the original session into capture and supply its
+`checkpointSourceIntent()` getter for idle/failed/unavailable states. This getter
+copies source intent with zero rows and never publishes, retries a query, or
+modifies the retained source. Ready and retained-proof state come from the exact
+native publication/source identities. Pending work, foreign claims, source/query
+revocation and providers outside the admitted owner domain remain fenced.
+
 A form provider can admit exactly one accounted shared suggestions consumer.
 The shared adapter checks its exclusive lease, both attribute claim objects,
 subscriptions and all validity owners (including empty claims). Ready listboxes,
@@ -219,7 +246,11 @@ provider revision/consumer/validity state. A completed commit's exact revision/v
 and one-shot duplicate-native-change suppression are portable; a held key or
 mismatched suppression record still blocks capture. Unknown subscriptions, competing
 leases/claims or out-of-domain consumers block the complete checkpoint. Ordinary
-widget admission and behavior are unchanged. Other unaccounted provider consumers remain unsupported.
+widget admission and behavior are unchanged. The package-private manual-listbox
+delegate shares its owning suggestions controller’s lease and subscriptions;
+a standalone delegate or direct host datalist lease without a complete registered
+owner contract remains unaccounted and blocks capture. No public API accepts a
+caller-supplied portable provider record in place of live ownership.
 
 `CemNativeCapabilitySession.prepare(..., signal, true)` explicitly opts a trusted
 host source into capture; declarative local suggestions select this only when

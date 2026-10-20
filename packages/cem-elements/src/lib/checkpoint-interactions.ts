@@ -14,6 +14,11 @@ export interface CheckpointReadySuggestions {
     visible: boolean; scrollTop: number; scrollLeft: number;
     rows: { index: number; value: string; eligible: boolean; available: boolean; nodeId: string }[];
 }
+/** Source-backed declarative frame without a stateful editor controller. */
+export interface CheckpointNativePublication {
+    profile: 'listbox'; source: CheckpointSource; query: string; queryRevision: number;
+    publication: CheckpointReadySuggestions['publication']; rows: CheckpointReadySuggestions['rows']; disposition: 'reacquire';
+}
 export interface CheckpointInactiveSuggestions {
     phase: 'inactive'; profile: 'listbox' | 'native-datalist'; source: CheckpointSource;
     providerRevision: number; queryRevision: number; query: string;

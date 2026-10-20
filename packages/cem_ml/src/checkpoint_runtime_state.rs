@@ -18,6 +18,8 @@ struct State {
     placements: Option<Vec<crate::checkpoint_interactions::Placement>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     references: Option<crate::checkpoint_interactions::Source>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    native_publication: Option<crate::checkpoint_interactions::NativePublication>,
     resources: Vec<Resource>,
     writers: Vec<Writer>,
     write_disposition: String,
@@ -199,6 +201,9 @@ pub fn validate(input: &str) -> Result<String, &'static str> {
                 return Err("cem.checkpoint.runtime.placement");
             }
         }
+    }
+    if let Some(publication) = &mut state.native_publication {
+        publication.validate(&mut source_bytes)?;
     }
     if let Some(Capability::Suggestions { state }) = &mut state.capability {
         state.validate(&mut source_bytes)?;

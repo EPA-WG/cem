@@ -456,7 +456,11 @@ parent/launcher/open-panel endpoints and completed menu-to-dialog invocation
 handoffs join the complete receipt graph; queued activation and preparation remain
 nonportable. Native datalist captures its unfocused
 model, exact provider/placement claims and failed local source intent; browser
-picker restoration remains outside the contract. Original native-session inputs
+picker restoration remains outside the contract. Externally admitted listbox
+providers retain the same source/provider/placement contracts and original inactive
+source intent. Source-backed declarative native publication consumers retain
+original provenance, query/configuration and committed row identities, with fresh
+admission required; opaque or revoked bindings refuse capture. Original native-session inputs
 are snapshotted before async submission. Settled popup/dialog capture retains visibility, invocation/return-focus
 endpoints and return values. Gestures, pending work, unknown provider authority,
 retained bodies and unsupported source/widget states remain blocking. Complete
