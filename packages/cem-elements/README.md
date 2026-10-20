@@ -1,5 +1,11 @@
 # @epa-wg/cem-elements
 
+`CemCommittedCheckpointStore` holds bounded session-private checkpoint bytes
+outside WASM, with receipt freshness, cancellation and atomic replacement.
+Use the shared native `sealCommittedCheckpoint` export as its trusted sealer.
+Automatic owner capture and runtime replacement are not enabled yet. See
+[the checkpoint contract](../../docs/committed-checkpoints.md).
+
 Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
 
 `@epa-wg/cem-elements` provides the `<cem-element>` browser substrate for declarative light-DOM custom elements. It is

@@ -352,17 +352,25 @@ No automatic command/action retry or runtime replacement is performed.
 Compile/render, retained CSS/document/native input and command-service entrypoints
 perform native admission. Disposal/cancellation and status/configuration remain callable under pressure;
 taking an already-produced value artifact is also ungated. Export routines still
-obey their existing operation-control checks; explicit checkpoint/recovery
-admission is subsequent work. Host-to-WASM
+obey their existing operation-control checks. Bounded committed-checkpoint
+transport has exclusive recovery admission after ordinary work drains. Host-to-WASM
 ABI input copies happen before Rust entrypoint admission; initial instantiation,
 allocations between safe points and APIs without an admission wrapper can still
 exceed a forecast. This is proactive cooperative control, not an allocator hard
 cap, process-RSS bound, or a guarantee that fatal WASM OOM can be caught. Headroom
-is withheld from ordinary admission; durable checkpoint storage and runtime
-replacement are the next stages. Freeing data reduces live bytes, but does not
+is withheld from ordinary admission; host-owned checkpoint transport is available,
+with coordinated runtime replacement next. Freeing data reduces live bytes, but does not
 shrink WASM capacity or automatically clear capacity pressure.
 
 Native policy/allocation tests: `cargo test -p cem-ml --test runtime_memory` and
 `cargo test -p cem-ml --lib operation_control::`. After the CEM-QL WASM build, run
 `node packages/cem_ql/tests/runtime-memory-wasm.mjs` for actual allocator/capacity,
 pressure refusal, cleanup and subsequent admission checks.
+
+`committed_checkpoint::seal` / `sealCommittedCheckpoint` validate bounded portable
+transport against an independent trusted publication receipt. Shared
+`cem-elements` host storage keeps its bytes outside WASM. Island execution still
+requires lifecycle admission; no automatic restart or action replay is provided.
+See [portable checkpoints](../../docs/committed-checkpoints.md). Run
+`cargo test -p cem-ml --test committed_checkpoint` and, after building WASM,
+`node packages/cem_ql/tests/committed-checkpoint-wasm.mjs`.

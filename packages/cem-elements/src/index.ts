@@ -1,5 +1,6 @@
 export * from './lib/cem-elements.js';
 export * from './lib/repository.js';
+export { CemCommittedCheckpointStore, type CemCommitReceipt, type CemCheckpointOwnerReceipt, type CemCheckpointSealer, type CemStoredCheckpoint } from './lib/committed-checkpoint.js';
 export { mountCemView, type CemHostCommandRequest, type CemHostViewOptions, type CemHostView } from './lib/host-view.js';
 export {
     CemDeclarationScopeError,

@@ -775,6 +775,10 @@
         "@epa-wg/cem-elements/dist/lib/artifact-preview.js": {
             "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/artifact-preview.js",
             "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/committed-checkpoint.js": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/committed-checkpoint.js",
+            "contentType": "text/javascript"
         }
     }
 }

@@ -135,6 +135,7 @@ struct State {
     config: MemoryBudgetConfig,
     reserved: u64,
     active: u32,
+    recovering: bool,
 }
 #[derive(Clone)]
 pub struct RuntimeMemoryBudget {
@@ -153,6 +154,7 @@ pub struct MemoryBudgetStatus {
 pub struct RuntimeMemoryPermit {
     state: Weak<Mutex<State>>,
     bytes: u64,
+    recovery: bool,
 }
 impl Drop for RuntimeMemoryPermit {
     fn drop(&mut self) {
@@ -160,6 +162,9 @@ impl Drop for RuntimeMemoryPermit {
             let mut state = state.lock().expect("memory budget lock");
             state.reserved -= self.bytes;
             state.active -= 1;
+            if self.recovery {
+                state.recovering = false;
+            }
         }
     }
 }
@@ -170,6 +175,7 @@ impl RuntimeMemoryBudget {
                 config: config.validate()?,
                 reserved: 0,
                 active: 0,
+                recovering: false,
             })),
         })
     }
@@ -207,6 +213,7 @@ impl RuntimeMemoryBudget {
             .checked_add(bytes)
             .ok_or(MemoryBudgetError("cem.runtime.memory.admission"))?;
         if bytes == 0
+            || state.recovering
             || sample.observed_bytes() >= state.config.soft_limit_bytes
             || sample
                 .observed_bytes()
@@ -223,6 +230,34 @@ impl RuntimeMemoryBudget {
         Ok(RuntimeMemoryPermit {
             state: Arc::downgrade(&self.state),
             bytes,
+            recovery: false,
+        })
+    }
+    /// Exclusive bounded transport work after admissions have drained. This
+    /// permission does not disable normal operation-control safe points.
+    pub fn admit_recovery(
+        &self,
+        sample: MemorySample,
+        bytes: u64,
+    ) -> Result<RuntimeMemoryPermit, MemoryBudgetError> {
+        let mut state = self.state.lock().expect("memory budget lock");
+        if state.active != 0
+            || bytes == 0
+            || bytes > state.config.recovery_headroom_bytes
+            || sample
+                .observed_bytes()
+                .checked_add(bytes)
+                .is_none_or(|total| total > state.config.hard_limit_bytes)
+        {
+            return Err(MemoryBudgetError("cem.runtime.memory.recovery"));
+        }
+        state.reserved = bytes;
+        state.active = 1;
+        state.recovering = true;
+        Ok(RuntimeMemoryPermit {
+            state: Arc::downgrade(&self.state),
+            bytes,
+            recovery: true,
         })
     }
 }

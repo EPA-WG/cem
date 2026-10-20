@@ -435,8 +435,10 @@ Goal: when memory approaches a configured budget, checkpoint the committed
 and resume without losing edits or repeating actions.
 
 Status: native/WASM allocator and capacity accounting, admission budgets and
-recovery headroom implemented 2026-10-19. Portable committed checkpoints and
-runtime replacement remain next. Continue this in the shared native/WASM
+recovery headroom and bounded portable checkpoint transport with host-owned
+session storage implemented 2026-10-19. See the
+[checkpoint contract](docs/committed-checkpoints.md). All-owner publication/capture
+wiring and runtime replacement remain next. Continue this in the shared native/WASM
 engine and `cem-elements`; recovery status UI belongs in declarative
 `cem-components`. Studio consumes the same mechanism. This requires shared
 JavaScript lifecycle work; alert the user before implementation. The verified

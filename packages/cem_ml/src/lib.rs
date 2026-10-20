@@ -48,6 +48,7 @@ pub mod resource_base;
 pub mod observability;
 pub mod operation_control;
 pub mod runtime_memory;
+pub mod committed_checkpoint;
 pub mod operation_handle;
 pub mod parser;
 pub mod plugin;

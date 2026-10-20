@@ -17,3 +17,18 @@ pub fn configure(config_json: &str) -> Result<String, JsValue> {
         .map_err(|error| JsValue::from_str(error.0))?;
     Ok(status())
 }
+
+/// Export bounded owned text while ordinary input admission is stopped. No
+/// semantic parsing/rendering or operation-control bypass occurs on this path.
+#[wasm_bindgen(js_name = "sealCommittedCheckpoint")]
+pub fn seal_checkpoint(candidate: &str, receipt: &str) -> Result<String, JsValue> {
+    use crate::committed_checkpoint::{seal, MAX_CHECKPOINT_BYTES};
+    if candidate.len() > MAX_CHECKPOINT_BYTES || receipt.len() > MAX_CHECKPOINT_BYTES {
+        return Err(JsValue::from_str("cem.checkpoint.limit"));
+    }
+    let workspace = ((candidate.len() + receipt.len()) as u64) * 8 + 65536;
+    let _permit = runtime_budget()
+        .admit_recovery(runtime_sample(), workspace)
+        .map_err(|error| JsValue::from_str(error.0))?;
+    seal(candidate, receipt).map_err(JsValue::from_str)
+}

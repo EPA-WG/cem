@@ -298,6 +298,12 @@ island and are not a parallel browser hydration authority. Policy-controlled SSR
 serialization may omit or redact sensitive/transient sections; omitted data is not
 recoverable from rendered DOM.
 
+[Portable committed checkpoints](committed-checkpoints.md) wrap policy-filtered
+island markup with trusted all-owner publication receipts. Their host-owned
+bytes remain outside replaceable WASM memory. A transport seal does not admit
+island semantics; restoration still follows the resume rules above. Older
+checkpoints cannot authorize rollback of pending edits or replay external actions.
+
 ## State authority and portable capabilities
 
 `cem-attributes:attributes` is authoritative after serialized load. Attribute
