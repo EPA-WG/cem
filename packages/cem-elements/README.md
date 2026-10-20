@@ -3,7 +3,13 @@
 `CemCommittedCheckpointStore` holds bounded session-private checkpoint bytes
 outside WASM, with receipt freshness, cancellation and atomic replacement.
 Use the shared native `sealCommittedCheckpoint` export as its trusted sealer.
-Automatic owner capture and runtime replacement are not enabled yet. See
+`CemCheckpointPublicationCoordinator` adds opt-in all-owner capture through
+`CemElementRuntimeOptions.checkpointPublication`. Supply one trusted coordinator
+for the entire host domain, a native sealer and explicit whole-island privacy
+consent. `automatic: true` coalesces captures after successful DOM/CSS publication
+and admission drain. Unbound edits, live resources/capabilities and unjournaled
+host actions block capture for the whole domain. Ordinary rendering continues.
+This is host-session capture, not automatic WASM replacement or resume. See
 [the checkpoint contract](../../docs/committed-checkpoints.md).
 
 Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>

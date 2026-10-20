@@ -437,8 +437,10 @@ and resume without losing edits or repeating actions.
 Status: native/WASM allocator and capacity accounting, admission budgets and
 recovery headroom and bounded portable checkpoint transport with host-owned
 session storage implemented 2026-10-19. See the
-[checkpoint contract](docs/committed-checkpoints.md). All-owner publication/capture
-wiring and runtime replacement remain next. Continue this in the shared native/WASM
+[checkpoint contract](docs/committed-checkpoints.md). Opt-in host-domain
+publication/capture for complete portable declarative owners is implemented.
+Complete control/resource/capability portability, external-operation journaling,
+physical worker/fallback runtime coverage and runtime replacement remain next. Continue this in the shared native/WASM
 engine and `cem-elements`; recovery status UI belongs in declarative
 `cem-components`. Studio consumes the same mechanism. This requires shared
 JavaScript lifecycle work; alert the user before implementation. The verified
@@ -579,8 +581,11 @@ admission guard hits. Native/reference-valued output stays uncached; every hit
 reloads independent owned output with provenance. Shared retained WASM/worker
 processing now uses this cache for native-proven owned JSON inputs, with pinned
 requests, fresh value/reference projection and resource/host publication admission.
-Native capabilities and opaque computations keep fresh evaluation. Whole-runtime
-memory budgets, committed checkpoints and runtime replacement remain next. See
+Native capabilities and opaque computations keep fresh evaluation. Native runtime
+budgets/headroom and portable committed checkpoints are implemented, including
+opt-in host-domain publication capture for complete portable owners. Full
+resource/capability/control portability, physical runtime coverage and replacement
+remain next. See
 [guarded native reuse](packages/cem_ql/README.md#guarded-native-pure-render-cache).
 Incremental root publication is now implemented through an atomic owned-range
 operation, including empty output. Matching native-derived root identities preserve

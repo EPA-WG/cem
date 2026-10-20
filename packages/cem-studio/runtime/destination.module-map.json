@@ -779,6 +779,10 @@
         "@epa-wg/cem-elements/dist/lib/committed-checkpoint.js": {
             "path": "./assets/@epa-wg/cem-elements/dist/lib/committed-checkpoint.js",
             "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/checkpoint-publication.js": {
+            "path": "./assets/@epa-wg/cem-elements/dist/lib/checkpoint-publication.js",
+            "contentType": "text/javascript"
         }
     }
 }

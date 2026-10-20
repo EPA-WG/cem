@@ -1,3 +1,4 @@
+import { type CemCheckpointPublicationCoordinator, type CemCheckpointPublicationOwner } from './checkpoint-publication.js';
 import { isDomInstance } from './dom-realm.js';
 import { CEM_LIVE_PREVIEW_CAPABILITY } from './live-preview-capability.js';
 import { validateLivePreviewFrames, validateLivePreviewNodes } from './live-preview-policy.js';
@@ -587,6 +588,9 @@ export interface CemRenderedSuggestions {
 }
 
 export interface CemElementRuntimeOptions {
+    /** Trusted opt-in host domain. Every client sharing a replaceable runtime
+     * must use the same coordinator. Capture grants no restart authority. */
+    checkpointPublication?: CemCheckpointPublicationCoordinator;
     /** Host-only local source/placement authorization; default false, revocable through the runtime. */
     localSuggestions?: boolean;
     /** Transient host-admitted outbound publications, reacquired for each consumer frame. */
@@ -1792,6 +1796,10 @@ export class CemElementRuntime {
     private readonly formEventBindings = new WeakMap<Element, FormEventBinding>();
     private readonly customValidityExpressions = new WeakMap<Element, string>();
     private readonly customValidationMessages = new WeakMap<Element, string>();
+    private readonly checkpointOwners = new WeakMap<HTMLElement, { owner: CemCheckpointPublicationOwner; detach(): void }>();
+    private readonly checkpointEventSequences = new WeakMap<HTMLElement, number>();
+    private readonly checkpointPublishedTokens = new WeakMap<HTMLElement, number>();
+    private readonly checkpointPublication?: CemCheckpointPublicationCoordinator;
     private readonly renderTokens = new WeakMap<HTMLElement, number>();
     private readonly renderSettled = new WeakMap<HTMLElement, Promise<void>>();
     private readonly queuedRenders = new WeakMap<HTMLElement, {
@@ -1855,6 +1863,7 @@ export class CemElementRuntime {
     private moduleContextSequence = 0;
 
     constructor(options: CemElementRuntimeOptions = {}) {
+        this.checkpointPublication = options.checkpointPublication;
         this.ariaReferenceProfile = resolveAriaReferenceProfile(options.ariaReferenceProfile);
         this.declarationTag = options.declarationTag ?? DEFAULT_DECLARATION_TAG;
         this.declarationScopeOption = options.declarationScope;
@@ -2808,9 +2817,100 @@ export class CemElementRuntime {
         }
     }
 
+    private checkpointOwnerPortable(instance: HTMLElement, compiled: CompiledDeclaration, state?: InstanceState): boolean {
+        if (!state || compiled.behavior || hasCemPlacementRelationships(instance)
+            || Object.keys(state.httpResources).length || Object.keys(state.repositoryQueryResources).length
+            || Object.keys(state.storageStatusResources).length || Object.keys(state.localStorageResources).length
+            || Object.keys(state.locationResources).length || instance.querySelector('[host-command],input[type=password],input[type=file]')) return false;
+        // A form's successful-entry list alone cannot preserve disabled/unchecked
+        // or unbound edits. Until those domains have complete resume contracts,
+        // admit only direct scalar slice mirrors that equal the current control.
+        const bounds = this.renderBounds.get(instance);
+        if (!bounds) return false;
+        for (const control of renderedElementsBetween(bounds, 'input,textarea,select,[contenteditable]')) {
+            if (!this.ownsRenderedElement(instance, control)) continue;
+            const binding = this.sliceEventBindings.get(control);
+            if (!binding || binding.sliceNames.length !== 1 || binding.attributeNames.length || binding.nativeValue) return false;
+            const value = binding.expression === '$target.value' && control.matches('input:not([type=checkbox]):not([type=radio]),textarea,select:not([multiple])')
+                ? (control as HTMLInputElement).value
+                : binding.expression === '$target.checked' && control.matches('input[type=checkbox],input[type=radio]')
+                    ? (control as HTMLInputElement).checked : undefined;
+            const slice = state.slices[binding.sliceNames[0]];
+            if (value === undefined || (slice !== value && !(value === '' && slice == null))) return false;
+        }
+        return true;
+    }
+
+    private connectCheckpointOwner(instance: HTMLElement, compiled: CompiledDeclaration): void {
+        const coordinator = this.checkpointPublication;
+        if (!coordinator || this.checkpointOwners.has(instance)) return;
+        let publishedRevision: string | undefined;
+        const current = () => {
+            if (!instance.isConnected || compiled.declarationScope.disposed || this.declarationForInstance(instance) !== compiled
+                || this.frozenSerializedInstances.has(instance)) return false;
+            // Attribute/island mutations can precede delivery of MutationObserver.
+            // Never drain them into an export as if they had already rendered.
+            if (publishedRevision && publishedRevision !== String(this.dataRevisions.get(instance))) {
+                this.renderInstance(instance, compiled); return false;
+            }
+            const state = this.instanceStates.get(instance);
+            const records = state?.observer?.takeRecords() ?? [];
+            if (state && records.length) {
+                this.handleInstanceMutations(instance, compiled, this.ensureDataIsland(instance), state, records); return false;
+            }
+            return this.checkpointOwnerPortable(instance, compiled, state);
+        };
+        let owner: CemCheckpointPublicationOwner;
+        try { owner = coordinator.register(this.instanceId(instance), () => {
+            if (!current() || !publishedRevision) return undefined;
+            const state = this.instanceStates.get(instance);
+            // Live capabilities/resources and host actions need their own resume
+            // and outcome admission. Keep the entire domain unavailable rather
+            // than omit an owner or manufacture portable state from output.
+            if (!state) return undefined;
+            const island = this.ensureDataIsland(instance);
+            // Bound traversal before allocating serialized markup. Native value
+            // envelopes remain inert bytes in the canonical island, never handles.
+            let units = 0, length = 0;
+            const visit = (node: Node, depth: number): void => {
+                if (++units > 16384 || depth > 64) throw new Error('cem.checkpoint.limit');
+                length += node.nodeValue?.length ?? 0;
+                if (node.nodeType === 1) for (const attr of Array.from((node as Element).attributes)) length += attr.name.length + attr.value.length;
+                if (length > 1024 * 1024) throw new Error('cem.checkpoint.limit');
+                for (const child of Array.from(node.childNodes)) visit(child, depth + 1);
+                if (node.nodeType === 1 && (node as Element).localName === 'template' && 'content' in node) visit((node as HTMLTemplateElement).content, depth + 1);
+            };
+            visit(island, 0);
+            this.snapshotFromCapturedForms(instance, compiled, island, publishedRevision, state, this.captureRenderedForms(instance));
+            units = 0; length = 0; visit(island, 0);
+            return island.outerHTML;
+        }, current, this.checkpointEventSequences.get(instance) ?? 0); }
+        catch { return; /* Coordinator is blocked; ordinary owner lifecycle continues. */ }
+        const published = owner.published;
+        owner.published = receipt => { publishedRevision = receipt.dataRevision; published(receipt); };
+        const input = () => {
+            owner.input();
+            this.checkpointEventSequences.set(instance, (this.checkpointEventSequences.get(instance) ?? 0) + 1);
+            this.renderInstance(instance, compiled);
+        };
+        const events = ['beforeinput', 'input', 'change', 'click', 'submit', 'reset'];
+        for (const name of events) instance.addEventListener(name, input, true);
+        let removed = false;
+        let releaseScope = () => undefined as void;
+        const detach = () => {
+            if (removed) return;
+            removed = true; owner.remove(); releaseScope();
+            for (const name of events) instance.removeEventListener(name, input, true);
+            this.checkpointOwners.delete(instance);
+        };
+        releaseScope = onCemDeclarationScopeDispose(compiled.declarationScope, detach);
+        this.checkpointOwners.set(instance, { owner, detach });
+    }
+
     private connectProducedInstance(instance: HTMLElement, compiled: CompiledDeclaration): void {
         this.installDeclarationStylesheets(compiled);
         const island = this.ensureDataIsland(instance);
+        this.connectCheckpointOwner(instance, compiled);
         this.ensureModuleUrlContext(instance, compiled);
         if (this.frozenSerializedInstances.has(instance)) {
             this.renderSettled.set(instance, Promise.resolve());
@@ -2870,6 +2970,9 @@ export class CemElementRuntime {
     }
 
     private disconnectProducedInstance(instance: HTMLElement): void {
+        this.checkpointOwners.get(instance)?.detach();
+        this.checkpointOwners.delete(instance);
+        this.checkpointPublishedTokens.delete(instance);
         this.localSuggestionsInstances.delete(instance);
         this.nativeSuggestionsBindings.get(instance)?.release();
         this.nativeSuggestionsBindings.delete(instance);
@@ -2999,6 +3102,9 @@ export class CemElementRuntime {
         }
         const request = { compiled, formRefreshPass, pending: Promise.resolve() };
         this.queuedRenders.set(instance, request);
+        let releaseCheckpointAdmission: (() => void) | undefined;
+        try { releaseCheckpointAdmission = this.checkpointPublication?.admit(); }
+        catch { /* A refused recovery domain must not interrupt ordinary rendering. */ }
         const pending = new Promise<void>((resolve, reject) => {
             // A microtask can run between native event listeners. A task lets
             // bubbling, nested dispatch and their microtasks finish first.
@@ -3013,8 +3119,9 @@ export class CemElementRuntime {
                 }
             }, 0);
         });
-        request.pending = pending;
-        this.renderSettled.set(instance, pending);
+        const admitted = pending.finally(() => releaseCheckpointAdmission?.());
+        request.pending = admitted;
+        this.renderSettled.set(instance, admitted);
     }
 
     private performRender(instance: HTMLElement, compiled: CompiledDeclaration, formRefreshPass: number): void {
@@ -3133,7 +3240,13 @@ export class CemElementRuntime {
             ...snapshot, slices, formData: forms.formData, validationState: forms.validationState,
         })) forms = this.captureRenderedForms(instance);
         if (resourceValuesEqual(snapshot.formData ?? {}, forms.formData)
-            && resourceValuesEqual(snapshot.validationState, forms.validationState)) return;
+            && resourceValuesEqual(snapshot.validationState, forms.validationState)) {
+            if (this.checkpointPublishedTokens.get(instance) === token) {
+                this.checkpointOwners.get(instance)?.owner.published({ instanceId: snapshot.instanceId,
+                    declarationIdentity: compiled.artifactId, dataRevision: snapshot.dataRevision });
+            }
+            return;
+        }
 
         if (formRefreshPass >= MAX_FORM_REFRESH_PASSES) {
             this.recordDiagnostics(instance, [renderDiagnostic(
@@ -3923,6 +4036,7 @@ export class CemElementRuntime {
             this.bindRenderedFormEventsInRange(instance, compiled, bounds);
             if (processing) await this.bindProcessingResourceControls(instance, compiled, resources, token);
             else await this.bindRenderedResourceSlicesInRange(instance, compiled, bounds, token);
+            if (this.checkpointPublication && current()) this.checkpointPublishedTokens.set(instance, token);
             return current();
         } catch (error) {
             if (current()) this.recordDiagnostics(instance, [renderDiagnostic('cem-element.processing_host_render_failed',
@@ -4080,7 +4194,9 @@ export class CemElementRuntime {
                 : (op.op === 'reconcileChildren' || op.op === 'reconcileRoots') ? op.children.some(child => marker(child.node))
                     : 'node' in op && marker(op.node.node)));
         if (!uses.length && addsPlacement) throw new Error('Foreign placement patch needs fresh native admission');
-        return this.publishElementPlacements(instance, token, uses, () => this.commitProcessingFramesUnchecked(instance, compiled, island, frames, resourceControls, revision, token));
+        return this.publishElementPlacements(instance, token, uses, () => this.commitProcessingFramesUnchecked(instance, compiled, island, frames, resourceControls, revision, token)).then(() => {
+            if (this.checkpointPublication && this.renderTokens.get(instance) === token) this.checkpointPublishedTokens.set(instance, token);
+        });
     }
     private commitProcessingFramesUnchecked(
         instance: HTMLElement, compiled: CompiledDeclaration, island: HTMLTemplateElement,
@@ -4286,6 +4402,7 @@ export class CemElementRuntime {
     }
 
     private nextRenderToken(instance: HTMLElement): number {
+        this.checkpointOwners.get(instance)?.owner.invalidate();
         this.referenceInputControllers.get(instance)?.abort();
         this.publicationControllers.get(instance)?.abort();
         const token = (this.renderTokens.get(instance) ?? 0) + 1;
@@ -4657,34 +4774,39 @@ export class CemElementRuntime {
             // Observation targets are attached in `observeInstance` (on connect), so the
             // observer can be torn down on disconnect and re-attached on reconnect.
             state.observer = new observer((records) => {
-                if (this.retainedStylesheets && records.some(record => record.target === instance
-                    && record.type === 'attributes' && record.attributeName === STYLE_CONTEXT_ATTR)) {
-                    reconcileStylesheetContextMarker(instance);
-                }
-                const scopeMutated = records.some(
-                    (record) =>
-                        record.type === 'attributes'
-                        && record.target === instance
-                        && record.attributeName === PUBLIC_STYLE_SCOPE_ATTR,
-                );
-                if (scopeMutated) {
-                    this.restoreDeclarationScope(instance, compiled, true);
-                    state.observer?.takeRecords();
-                }
-                if (
-                    records.some(
-                        (record) =>
-                            !(scopeMutated && record.target === instance && record.attributeName === PUBLIC_STYLE_SCOPE_ATTR)
-                            && !(this.retainedStylesheets && record.target === instance && record.attributeName === STYLE_CONTEXT_ATTR)
-                            && mutationInvalidatesInstance(record, instance, island),
-                    )
-                ) {
-                    this.invalidateProducedInstance(instance, compiled);
-                }
+                this.handleInstanceMutations(instance, compiled, island, state, records);
             });
         }
         this.instanceStates.set(instance, state);
         return state;
+    }
+
+    private handleInstanceMutations(instance: HTMLElement, compiled: CompiledDeclaration, island: HTMLTemplateElement,
+        state: InstanceState, records: MutationRecord[]): void {
+        if (this.retainedStylesheets && records.some(record => record.target === instance
+            && record.type === 'attributes' && record.attributeName === STYLE_CONTEXT_ATTR)) {
+            reconcileStylesheetContextMarker(instance);
+        }
+        const scopeMutated = records.some(
+            (record) =>
+                record.type === 'attributes'
+                && record.target === instance
+                && record.attributeName === PUBLIC_STYLE_SCOPE_ATTR,
+        );
+        if (scopeMutated) {
+            this.restoreDeclarationScope(instance, compiled, true);
+            state.observer?.takeRecords();
+        }
+        if (
+            records.some(
+                (record) =>
+                    !(scopeMutated && record.target === instance && record.attributeName === PUBLIC_STYLE_SCOPE_ATTR)
+                    && !(this.retainedStylesheets && record.target === instance && record.attributeName === STYLE_CONTEXT_ATTR)
+                    && mutationInvalidatesInstance(record, instance, island),
+            )
+        ) {
+            this.invalidateProducedInstance(instance, compiled);
+        }
     }
 
     private bindRenderedSliceEvents(instance: HTMLElement, compiled: CompiledDeclaration, rendered: ParentNode): void {
@@ -6813,7 +6935,9 @@ export class CemElementRuntime {
     ): Promise<void> {
         if (this.restrictedPreview) validateLivePreviewNodes(renderPlan.nodes);
         if (!uses.length && placementRoutes(renderPlan).length) throw new Error('Foreign placement plan needs fresh native admission');
-        return this.publishElementPlacements(instance, token, uses, () => this.commitRenderPlanUnchecked(instance, compiled, island, renderPlan, token));
+        return this.publishElementPlacements(instance, token, uses, () => this.commitRenderPlanUnchecked(instance, compiled, island, renderPlan, token)).then(() => {
+            if (this.checkpointPublication && this.renderTokens.get(instance) === token) this.checkpointPublishedTokens.set(instance, token);
+        });
     }
     private commitRenderPlanUnchecked(
         instance: HTMLElement, compiled: CompiledDeclaration, island: HTMLTemplateElement, renderPlan: RenderPlan, token: number,
