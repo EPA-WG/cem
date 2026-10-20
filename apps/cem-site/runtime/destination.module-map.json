@@ -360,6 +360,10 @@
             "path": "./assets/cem-elements/lib/manual-listbox.js",
             "contentType": "text/javascript"
         },
+        "@epa-wg/cem-elements/dist/lib/standalone-datalist.js": {
+            "path": "./assets/cem-elements/lib/standalone-datalist.js",
+            "contentType": "text/javascript"
+        },
         "@epa-wg/cem-theme/styles": {
             "path": "./assets/theme/cem-combined.css",
             "contentType": "text/css"
@@ -402,6 +406,42 @@
         },
         "@epa-wg/cem-elements/dist/lib/artifact-preview.js": {
             "path": "./assets/cem-elements/lib/artifact-preview.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/internal/runtime-support/stylesheet-dom-order.js": {
+            "path": "./assets/cem-elements/lib/internal/runtime-support/stylesheet-dom-order.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/live-preview.js": {
+            "path": "./assets/cem-elements/lib/live-preview.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/live-preview-capability.js": {
+            "path": "./assets/cem-elements/lib/live-preview-capability.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/live-preview-policy.js": {
+            "path": "./assets/cem-elements/lib/live-preview-policy.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/dom-realm.js": {
+            "path": "./assets/cem-elements/lib/dom-realm.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/committed-checkpoint.js": {
+            "path": "./assets/cem-elements/lib/committed-checkpoint.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/checkpoint-publication.js": {
+            "path": "./assets/cem-elements/lib/checkpoint-publication.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/checkpoint-controls.js": {
+            "path": "./assets/cem-elements/lib/checkpoint-controls.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/checkpoint-interactions.js": {
+            "path": "./assets/cem-elements/lib/checkpoint-interactions.js",
             "contentType": "text/javascript"
         }
     }

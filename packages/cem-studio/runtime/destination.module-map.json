@@ -709,6 +709,10 @@
             "path": "./assets/@epa-wg/cem-elements/dist/lib/manual-listbox.js",
             "contentType": "text/javascript"
         },
+        "@epa-wg/cem-elements/dist/lib/standalone-datalist.js": {
+            "path": "./assets/@epa-wg/cem-elements/dist/lib/standalone-datalist.js",
+            "contentType": "text/javascript"
+        },
         "@epa-wg/cem-studio/workbench-navigation-view": {
             "path": "./assets/@epa-wg/cem-studio/workbench-navigation.xhtml",
             "contentType": "application/xhtml+xml"

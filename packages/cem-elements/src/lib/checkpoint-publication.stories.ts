@@ -1,5 +1,6 @@
+import { connectCemStandaloneDatalist } from './standalone-datalist.js';
 import { CemSurfaceBody } from './surface-body.js';
-import { applyRenderPlanToRange, type RenderPlan } from './projection.js';
+import { applyRenderPlanToRange, checkpointRenderedDatalistOrigin, renderedNativeAttributeBindings, type RenderPlan } from './projection.js';
 import { connectCemManualListbox } from './manual-listbox.js';
 import type { CemCheckpointSealer } from './committed-checkpoint.js';
 import type { CheckpointSource } from './checkpoint-interactions.js';
@@ -981,19 +982,19 @@ export const SubmenuAndCompletedTaskCheckpointFallback: Story = {
     play: ({ canvasElement }) => submenuTaskCheckpointContract(canvasElement, true),
 };
 
-async function externalCheckpointSource(fallback: boolean, portable = true, captured?: CheckpointSource) {
+async function externalCheckpointSource(fallback: boolean, portable = true, captured?: CheckpointSource, datalist = false) {
     const scope = createCemDeclarationScope({ document });
     const owner = cemProcessingHostForScope(scope, { workerScriptUrl: new URL('./internal/runtime-support/processing-worker.ts', import.meta.url),
         ...(fallback ? { workerFactory: () => { throw new Error('external source fallback'); } } : {}) });
     let source = captured;
     if (!source) {
-        const id = wasm.parseReferenceSource(new TextEncoder().encode('{cem-option @value=same @label=Alpha}{cem-option @value=same @label=Another}'), 'text/cem-ml', 'memory:external-options.cem', '');
+        const id = wasm.parseReferenceSource(new TextEncoder().encode(datalist ? '{option @value=same @label=Alpha}{option @value=same @label=Another}' : '{cem-option @value=same @label=Alpha}{cem-option @value=same @label=Another}'), 'text/cem-ml', 'memory:external-options.cem', '');
         try { source = { version: 'cem-native-source/1', revision: crypto.randomUUID(), rowCount: 2, select: 'input.children', resolve: false, requesting: 0,
             sources: [{ codec: 'cemb', base64: btoa(String.fromCharCode(...wasm.exportReferenceReloadBundle(id, ''))), sourceUri: null, primarySourceId: 1, context: true }],
             bindings: [], crossings: [], labels: { option: null, group: null }, disposition: 'reacquire' }; }
         finally { wasm.disposeReferenceSource(id); }
     }
-    const session = await CemNativeCapabilitySession.prepare(owner, { action: 'prepare', adapter: 'suggestions-v1',
+    const session = await CemNativeCapabilitySession.prepare(owner, { action: 'prepare', adapter: datalist ? 'native-datalist-v1' : 'suggestions-v1',
         handle: { sessionKey: crypto.randomUUID(), instanceId: 'external-source', scopePolicyStamp: 'external-policy', sourceRevision: source.revision },
         sources: { kind: 'cem-native-session-sources-v1', requesting: source.requesting,
             sources: source.sources.map(input => ({ bundle: Uint8Array.from(atob(input.base64), c => c.charCodeAt(0)).buffer, primarySourceId: input.primarySourceId, context: input.context })),
@@ -1381,4 +1382,107 @@ export const NativeDynamicBodyProjection: Story = {
             body.mount(); expect(body.checkpoint()).toBeUndefined();
         } finally { body.dispose(); root.replaceChildren(); }
     },
+};
+
+async function standaloneDatalistCheckpointContract(canvasElement: HTMLElement, fallback: boolean) {
+    await init(); const root = canvasElement.querySelector('section')!;
+    let ready = true, race = false, publication: CemNativeSuggestionsPublication | undefined;
+    const listeners = new Set<() => void>(), sources: Awaited<ReturnType<typeof externalCheckpointSource>>[] = [];
+    const f = fixture(root, fallback, false, undefined, { nativeSuggestionsInputs(instance, snapshot) {
+        const current = publication;
+        return current && instance.hasAttribute('native-options-frame') ? [current.bind({ instanceId: snapshot.instanceId,
+            scopePolicyStamp: snapshot.scopePolicyStamp, revision: snapshot.dataRevision,
+            current: () => ready && publication === current && instance.isConnected })] : [];
+    } }, async (candidate, receipt) => { const sealed = wasm.sealCommittedCheckpoint(candidate, receipt); if (race) ready = false; return sealed; });
+    let attachment: ReturnType<typeof connectCemStandaloneDatalist> | undefined;
+    try {
+        let source = await externalCheckpointSource(fallback, true, undefined, true); sources.push(source);
+        publication = await source.session.publishDatalist({}, () => true);
+        const field = await f.create(declarationTemplate(fieldDeclaration), 'cem-ml', root, undefined, 'form-control', { value: 'Unsaved draft' });
+        const host = await f.create('{datalist | {cem:for-each @select=datadom.slices.suggestions.children @as=row | {option @value={row.dom:attribute("value").value} @label={row.dom:attribute("label").value}}}}', 'cem-ml', root, undefined, undefined, { 'native-options-frame': '' });
+        await f.runtime.whenRenderSettled(field); await f.runtime.whenRenderSettled(host);
+        const input = field.querySelector('input')!, target = host.querySelector('datalist')!, provider = getCemEditorProvider(field)!;
+        const lifecycle = { current: () => ready, ready: () => ready, subscribe: (listener: () => void) => { listeners.add(listener); return () => listeners.delete(listener); } };
+        const connect = (checkpoint = true) => connectCemStandaloneDatalist({ runtime: f.runtime, host, editorHost: field, target, lifecycle: { ...lifecycle, checkpoint } });
+        expect(() => connectCemStandaloneDatalist({ runtime: f.runtime, host, editorHost: field,
+            target: document.createElement('datalist'), lifecycle })).toThrow('owned target');
+        expect(() => connectCemStandaloneDatalist({ runtime: f.runtime, host, editorHost: field, target,
+            lifecycle: { ...lifecycle, checkpoint: true, subscribe: () => { throw new Error('failed lifecycle'); } } })).toThrow('failed lifecycle');
+        attachment = connect(false); await waitFor(() => expect(input.list).toBe(target));
+        await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); attachment.disconnect();
+        attachment = connect();
+        expect(() => connect()).toThrow('Duplicate standalone');
+        const capture = () => waitFor(async () => { await f.coordinator.capture(); });
+        await capture(); const saved = decode(f.coordinator);
+        expect(saved.owners.some(owner => owner.island.includes('standaloneDatalist'))).toBe(true);
+        expect(saved.owners.some(owner => owner.island.includes('reset-on-resume'))).toBe(true);
+        expect(saved.owners.some(owner => owner.island.includes('sessionKey'))).toBe(false);
+        expect(f.coordinator.current()!.receipt.relationships?.filter(item => item.kind === 'editor-provider')).toHaveLength(1);
+        expect(f.coordinator.current()!.receipt.relationships?.some(item => item.kind === 'placement' && item.property === 'interaction')).toBe(true);
+        const capsuleHost = await f.create('{datalist @native-options={1} | {cem:for-each @select=datadom.slices.suggestions.children @as=row | {option @value={row.dom:attribute("value").value} @label={row.dom:attribute("label").value}}}}', 'cem-ml', root, undefined, undefined, { 'native-options-frame': '' });
+        try {
+            await f.runtime.whenRenderSettled(capsuleHost);
+            const capsuleTarget = capsuleHost.querySelector('datalist')!;
+            expect(renderedNativeAttributeBindings(capsuleTarget)).toHaveLength(1);
+            expect(checkpointRenderedDatalistOrigin(capsuleTarget)).toBeUndefined();
+            await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+        } finally { capsuleHost.remove(); }
+        await capture();
+        input.focus(); input.value = 'Edited draft'; input.dispatchEvent(new Event('input', { bubbles: true }));
+        await f.runtime.whenRenderSettled(field);
+        await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+        input.setSelectionRange(2, 8); input.blur(); await capture(); expect(input.value).toBe('Edited draft'); expect(input.list).toBe(target);
+        expect([input.selectionStart, input.selectionEnd]).toEqual([2, 8]);
+        field.setAttribute('disabled', ''); await f.runtime.whenRenderSettled(field); await capture();
+        expect(decode(f.coordinator).owners.some(owner => owner.island.includes('unavailable'))).toBe(true);
+        field.removeAttribute('disabled'); await f.runtime.whenRenderSettled(field); attachment.reconcile(); await capture();
+        const foreign = provider.lease({}); await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); foreign.release();
+        attachment.reconcile(); await capture();
+        const option = target.options[0], label = option.label;
+        option.label = 'Foreign label'; attachment.reconcile(); await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+        option.label = label; attachment.reconcile(); await capture();
+        const forged = document.createElement('option'); forged.value = 'foreign'; target.append(forged);
+        await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); forged.remove(); attachment.reconcile(); await capture();
+        input.setAttribute('list', 'authored'); await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+        expect(input.getAttribute('list')).toBe('authored'); input.removeAttribute('list'); attachment.reconcile(); await capture();
+        const copied = await externalCheckpointSource(fallback, true, source.session.checkpointSource(), true); sources.push(copied);
+        const copiedPublication = await copied.session.publishDatalist({}, () => true);
+        expect(copied.session.suggestions?.rows).toBe(2);
+        const copiedBinding = copiedPublication.bind({ instanceId: 'fresh-datalist', scopePolicyStamp: 'fresh-policy', revision: '1', current: () => true });
+        try {
+            const output = await copiedBinding.render('{datalist | {cem:for-each @select=suggestions.children @as=row | {option @value={row.dom:attribute("value").value} @label={row.dom:attribute("label").value}}}}', {});
+            expect(output.diagnostics).toEqual([]); expect(JSON.stringify(output.nodes)).toContain('Another');
+        } finally { copiedBinding.release(); await copiedPublication.release(); }
+        const last = f.coordinator.lastCommitted()!.bytes; race = true;
+        await expect(f.coordinator.capture()).rejects.toThrow('stale'); expect(f.coordinator.lastCommitted()!.bytes).toEqual(last);
+        race = false; await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+        ready = true; for (const listener of listeners) listener();
+        // A revoked native binding never revives: replace source/frame and reacquire its exact target owner.
+        attachment.disconnect(); attachment = undefined; await source.session.release();
+        source = await externalCheckpointSource(fallback, true, undefined, true); sources.push(source);
+        publication = await source.session.publishDatalist({}, () => true);
+        f.runtime.refreshElementReferences(host); await f.runtime.whenRenderSettled(host);
+        const replacementOrigin = checkpointRenderedDatalistOrigin(host.querySelector('datalist')!);
+        const replacementSnapshot = f.runtime.readInstanceSnapshot(host);
+        expect(replacementOrigin).toMatchObject({ instanceId: replacementSnapshot.instanceId, templateArtifactId: replacementSnapshot.templateArtifactId, scopePolicyStamp: replacementSnapshot.scopePolicyStamp });
+        expect(host.querySelector('datalist')).toBe(target);
+        expect(replacementOrigin?.dataRevision).not.toBe(replacementSnapshot.dataRevision);
+        attachment = connectCemStandaloneDatalist({ runtime: f.runtime, host, editorHost: field, target: host.querySelector('datalist')!, lifecycle: { ...lifecycle, checkpoint: true } });
+        await capture(); expect(input.value).toBe('Edited draft');
+        attachment.disconnect(); attachment = undefined; expect(input.hasAttribute('list')).toBe(false);
+        expect(listeners.size).toBe(0); await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+        const opaque = await externalCheckpointSource(fallback, false, undefined, true); sources.push(opaque);
+        publication = await opaque.session.publishDatalist({}, () => true); f.runtime.refreshElementReferences(host); await f.runtime.whenRenderSettled(host);
+        attachment = connectCemStandaloneDatalist({ runtime: f.runtime, host, editorHost: field, target: host.querySelector('datalist')!, lifecycle: { ...lifecycle, checkpoint: true } });
+        await waitFor(() => expect(input.list?.options.length).toBe(2)); await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+        attachment.disconnect(); attachment = undefined; host.remove(); await capture();
+    } finally { attachment?.disconnect(); f.dispose(); for (const source of sources) await source.dispose(); }
+}
+export const StandaloneDatalistOwnership: Story = {
+    render: () => '<section aria-label="Standalone datalist checkpoint ownership"></section>',
+    play: ({ canvasElement }) => standaloneDatalistCheckpointContract(canvasElement, false),
+};
+export const StandaloneDatalistOwnershipFallback: Story = {
+    render: () => '<section aria-label="Standalone datalist fallback checkpoint ownership"></section>',
+    play: ({ canvasElement }) => standaloneDatalistCheckpointContract(canvasElement, true),
 };

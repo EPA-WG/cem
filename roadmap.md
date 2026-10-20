@@ -463,7 +463,10 @@ original provenance, query/configuration and committed row identities, with fres
 admission required; opaque or revoked bindings refuse capture. Original native-session inputs
 are snapshotted before async submission. Settled popup/dialog capture retains visibility, invocation/return-focus
 endpoints and return values. Opted-in standalone manual-listbox delegates now
-retain exact provider/endpoint ownership and reset/reacquisition intent. Native deferred-body projections retain immutable original renderer output,
+retain exact provider/endpoint ownership and reset/reacquisition intent. Standalone
+native-datalist attachments retain original source provenance, private committed
+option witnesses, exact editor/target receipts and unfocused attached/unavailable
+intent; opaque sources and unknown direct leases still block capture. Native deferred-body projections retain immutable original renderer output,
 its native origin, materialization/root identities and edited controls across
 later template changes. Paired dynamic ranges and independently acknowledged
 nested produced/deferred owners are captured with complete dependency receipts.

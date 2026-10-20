@@ -105,3 +105,10 @@ export interface CheckpointRenderProjection {
         | { kind: 'range-start' | 'range-end'; nodeId: string; rangeId: string }
     )[];
 }
+
+/** Exact standalone attachment intent; contains no live lease, list ID or picker state. */
+export interface CheckpointStandaloneDatalist {
+    editor: CheckpointEndpoint; target: CheckpointEndpoint; providerRevision: number;
+    claim: 'attached' | 'unavailable'; source: CheckpointSource;
+    presentation: 'reset-on-resume'; disposition: 'reacquire';
+}

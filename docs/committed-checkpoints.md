@@ -267,7 +267,7 @@ A live frame consumed by a stateful listbox also retains this provenance alongsi
 its controller contract; source bodies share the same aggregate byte ceiling.
 The existing inactive-withdrawal and native-datalist attachment contracts account
 for their non-interactive frames.
-Unattached native-datalist frames still need an explicit attachment contract.
+Unattached native-datalist frames require the standalone attachment contract below; a bare publication remains nonportable.
 
 External `suggestionsControllerInputs` use the same shared controller, provider
 lease, placement grants and complete editor-provider receipt as local listboxes.
@@ -309,6 +309,30 @@ block capture. Disconnect removes accounting and releases the exact lease once.
 No opt-in or an unregistered direct datalist lease still blocks capture. These
 contracts record reset/reacquisition intent, not a platform popup restoration or
 callback/lease serialization.
+
+`connectCemStandaloneDatalist` is the shared host attachment for an independently
+owned field and committed native-datalist frame. Its trusted lifecycle explicitly
+opts into `checkpoint: true`. The `standaloneDatalist` resource record retains
+original bounded XML/CEMB source, exact editor-host and owned target endpoints,
+provider revision, attached/unavailable claim, and reset/reacquisition intent.
+It has no platform picker visibility, row-selection proof, DOM-generated source,
+callback, lease, generated list ID or native handle. Native validation checks the
+source and endpoints with the shared aggregate source budget. The complete
+receipt includes the exclusive editor-provider and target placement dependencies.
+
+The adapter reads the runtime's actual committed native binding, verifies target
+and option attributes/text/topology against private native renderer witnesses,
+and accounts for provider and placement subscriptions on its exact private lease.
+Unknown, mutated, disconnected or replaced targets, native attribute capsules on
+the target/options, pending/revoked source policy,
+opaque source inputs, foreign claims/listeners and focused/composing editors block
+the complete domain. Disabled/readonly fields can retain an unavailable attachment
+with no list claim. Edits remain in the ordinary field/control checkpoint. A source
+or target replacement needs fresh native admission and attachment ownership;
+old revocations cannot revive. Disconnect releases its exact lease and removes
+accounting once. Capture never renders, retries source input or opens a picker.
+These are portable capture contracts; semantic resume and automatic recovery remain
+separate work.
 
 `CemNativeCapabilitySession.prepare(..., signal, true)` explicitly opts a trusted
 host source into capture; declarative local suggestions select this only when

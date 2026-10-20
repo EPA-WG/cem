@@ -2011,7 +2011,7 @@ function checkpointProjectionOrigin(plan: RenderPlanIdentity): CheckpointRenderP
 }
 /** Copy only committed renderer records into the named checkpoint transport.
  * Live nodes are checked against private witnesses; their content is never imported as source. */
-export function checkpointRenderedTemplateProjection(template: HTMLTemplateElement): CheckpointRenderProjection | undefined {
+function checkpointRenderedChildProjection(template: Element): CheckpointRenderProjection | undefined {
     let count = 0, valid = true, bytes = 0;
     const entries: CheckpointRenderProjection['entries'] = [];
     const visit = (parent: Element, depth: number): void => {
@@ -2048,6 +2048,19 @@ export function checkpointRenderedTemplateProjection(template: HTMLTemplateEleme
     visit(template, 0);
     const origin = renderedChildren.get(template)?.origin;
     return valid && origin && entries.length <= 4096 && bytes <= 256 * 1024 ? { version: 'cem-render-projection/1', origin: { ...origin }, entries } : undefined;
+}
+export function checkpointRenderedTemplateProjection(template: HTMLTemplateElement): CheckpointRenderProjection | undefined {
+    return checkpointRenderedChildProjection(template);
+}
+/** Private native witnesses, never a recapture of authored or mutated option DOM. */
+export function checkpointRenderedDatalistOrigin(target: HTMLDataListElement): CheckpointRenderProjection['origin'] | undefined {
+    const attributes = renderedAttributeValues.get(target), projection = checkpointRenderedChildProjection(target);
+    const nodeId = (target as Element & { cemRenderNodeId?: string }).cemRenderNodeId;
+    if (!projection || !attributes || !nodeId || renderedNativeAttributeBindings(target).length || target.getAttribute(RENDER_NODE_ID_ATTR) !== nodeId
+        || [...attributes].some(([name, value]) => target.getAttribute(name) !== value)
+        || [...target.attributes].some(attribute => !attributes.has(attribute.name)
+            && !['id', RENDER_NODE_ID_ATTR, TEMPLATE_ARTIFACT_ID_ATTR, DATA_REVISION_ATTR, SOURCE_FIDELITY_ATTR, SOURCE_FRAME_ATTR].includes(attribute.name))) return undefined;
+    return projection.origin;
 }
 export function renderedTemplateCheckpointKey(template: HTMLTemplateElement): string | undefined {
     const projection = checkpointRenderedTemplateProjection(template);

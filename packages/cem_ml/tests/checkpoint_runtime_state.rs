@@ -609,3 +609,54 @@ fn original_retained_projections_preserve_ranges_and_nested_owner_intent() {
     assert!(aggregate.to_string().len() < 512 * 1024);
     assert!(validate(&aggregate.to_string()).is_err());
 }
+
+#[test]
+fn standalone_datalist_ownership_requires_portable_source_and_reset_intent() {
+    let mut s = state();
+    s["capability"] = Value::Null;
+    let delegate = json!({"editor":{"instanceId":"field","dataRevision":"2","nodeId":"host"},
+        "target":{"instanceId":"options","dataRevision":"3","nodeId":"datalist"},
+        "providerRevision":2,"claim":"attached","presentation":"reset-on-resume","disposition":"reacquire",
+        "source":{"version":"cem-native-source/1","revision":"options:1","rowCount":2,"select":"input.children","resolve":false,"requesting":0,
+            "sources":[{"codec":"xml","base64":STANDARD.encode("<options><option value='same'/><option value='same'/></options>"),"sourceUri":"https://example.test/options.xml","primarySourceId":1,"context":true}],
+            "bindings":[],"crossings":[],"labels":{"option":null,"group":null},"disposition":"reacquire"}});
+    s["standaloneDatalist"] = delegate.clone();
+    let normalized = validate(&s.to_string()).unwrap();
+    assert_eq!(validate(&normalized).unwrap(), normalized);
+    s["standaloneDatalist"]["claim"] = json!("unavailable");
+    assert!(validate(&s.to_string()).is_ok());
+    for (key, value) in [
+        ("editor", Value::Null),
+        (
+            "target",
+            json!({"instanceId":"options","dataRevision":"3","nodeId":""}),
+        ),
+        ("providerRevision", json!(9_007_199_254_740_992u64)),
+        ("claim", json!("author-list")),
+        ("presentation", json!("restore-picker")),
+        ("disposition", json!("restore-lease")),
+        ("lease", json!("authority")),
+    ] {
+        let mut bad = s.clone();
+        bad["standaloneDatalist"][key] = value;
+        assert!(validate(&bad.to_string()).is_err(), "{key}");
+    }
+    for (part, key, value) in [
+        ("editor", "nodeId", "input"),
+        ("target", "nodeId", "host"),
+        ("target", "instanceId", "field"),
+    ] {
+        let mut bad = s.clone();
+        bad["standaloneDatalist"][part][key] = json!(value);
+        assert!(validate(&bad.to_string()).is_err());
+    }
+    let mut bad = s.clone();
+    bad["standaloneDatalist"]["source"]["sources"][0]["base64"] =
+        json!(STANDARD.encode("<invalid"));
+    assert!(validate(&bad.to_string()).is_err());
+    s["standaloneDatalist"]["source"]["sources"][0]["base64"] =
+        json!(STANDARD.encode(format!("<options>{}</options>", "x".repeat(140_000))));
+    s["references"] = s["standaloneDatalist"]["source"].clone();
+    s["references"]["rowCount"] = json!(0);
+    assert!(validate(&s.to_string()).is_err());
+}

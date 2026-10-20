@@ -22,6 +22,8 @@ struct State {
     native_publication: Option<crate::checkpoint_interactions::NativePublication>,
     #[serde(skip_serializing_if = "Option::is_none")]
     manual_listbox: Option<crate::checkpoint_interactions::ManualListbox>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    standalone_datalist: Option<crate::checkpoint_interactions::StandaloneDatalist>,
     resources: Vec<Resource>,
     writers: Vec<Writer>,
     write_disposition: String,
@@ -192,6 +194,9 @@ pub fn validate(input: &str) -> Result<String, &'static str> {
         delegate.validate()?;
     }
     let mut source_bytes = 0;
+    if let Some(datalist) = &mut state.standalone_datalist {
+        datalist.validate(&mut source_bytes)?;
+    }
     if let Some(source) = &mut state.references {
         source.validate(&mut source_bytes)?;
     }

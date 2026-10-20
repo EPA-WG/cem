@@ -160,6 +160,15 @@ const datalistSaved = wasm.validateCheckpointRuntime(JSON.stringify(datalist));
 assert.equal(wasm.validateCheckpointRuntime(datalistSaved), datalistSaved);
 datalist.capability.state.presentation = 'restore-popup';
 assert.throws(() => wasm.validateCheckpointRuntime(JSON.stringify(datalist)));
+const standaloneDatalist = { ...runtimeState, resources: [], capability: null, standaloneDatalist: {
+    editor: { instanceId: 'field', dataRevision: '2', nodeId: 'host' }, target: { instanceId: 'frame', dataRevision: '3', nodeId: 'datalist.1' },
+    providerRevision: 2, claim: 'attached', source: active.capability.state.source, presentation: 'reset-on-resume', disposition: 'reacquire' } };
+const standaloneSaved = wasm.validateCheckpointRuntime(JSON.stringify(standaloneDatalist));
+assert.equal(wasm.validateCheckpointRuntime(standaloneSaved), standaloneSaved);
+const { wasm: standaloneGeneration } = await load('standalone-datalist');
+assert.equal(standaloneGeneration.validateCheckpointRuntime(standaloneSaved), standaloneSaved);
+standaloneDatalist.standaloneDatalist.lease = 'obsolete authority';
+assert.throws(() => wasm.validateCheckpointRuntime(JSON.stringify(standaloneDatalist)));
 const completedCommit = { ...runtimeState, resources: [], capability: { kind: 'form-control', authoredValue: null, formDisabled: false, customValidity: '', selectionRequest: null,
     provider: { revision: 4, consumer: 'suggestions', validity: '' }, changeSuppression: { revision: 4, value: 'same', disposition: 'suppress-once' } } };
 assert.equal(JSON.parse(wasm.validateCheckpointRuntime(JSON.stringify(completedCommit))).capability.changeSuppression.disposition, 'suppress-once');

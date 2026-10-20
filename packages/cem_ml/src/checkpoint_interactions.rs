@@ -662,3 +662,37 @@ impl ManualListbox {
         Ok(())
     }
 }
+
+/// Standalone ownership of a committed native options frame. Platform UI resets.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct StandaloneDatalist {
+    editor: Endpoint,
+    target: Endpoint,
+    provider_revision: u64,
+    claim: String,
+    source: Source,
+    presentation: String,
+    disposition: String,
+}
+impl StandaloneDatalist {
+    pub fn validate(&mut self, bytes: &mut usize) -> Result<(), &'static str> {
+        self.source.validate(bytes)?;
+        if self.provider_revision > SAFE
+            || self.editor.node_id != "host"
+            || self.target.node_id == "host"
+            || self.editor.instance_id == self.target.instance_id
+            || !matches!(self.claim.as_str(), "attached" | "unavailable")
+            || self.presentation != "reset-on-resume"
+            || self.disposition != "reacquire"
+            || [&self.editor, &self.target].iter().any(|e| {
+                ![&e.instance_id, &e.data_revision, &e.node_id]
+                    .iter()
+                    .all(|s| identity(s))
+            })
+        {
+            return Err("cem.checkpoint.runtime.datalist");
+        }
+        Ok(())
+    }
+}

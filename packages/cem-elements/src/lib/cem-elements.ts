@@ -1,3 +1,4 @@
+import { hasCemStandaloneDatalistCheckpoint, cemStandaloneDatalistCheckpoint } from './standalone-datalist.js';
 import { hasCemManualListboxCheckpoint, cemManualListboxCheckpoint } from './manual-listbox.js';
 import { snapshotCheckpointReferences, checkpointReferenceSource, type CheckpointEndpoint, type CheckpointNativePublication } from './checkpoint-interactions.js';
 import type { CemCheckpointRelationship } from './committed-checkpoint.js';
@@ -2926,7 +2927,7 @@ export class CemElementRuntime {
     private checkpointRuntimeState(instance: HTMLElement, compiled: CompiledDeclaration, state: InstanceState, documents = false): CemCheckpointRuntimeState | undefined {
         let capability: CemCheckpointRuntimeState['capability'] = null;
         if (compiled.behavior === CEM_PLAINTEXT_EDITOR_CAPABILITY) capability = cemPlaintextEditorCheckpoint(instance) ?? null;
-        else if (compiled.behavior === CEM_FORM_CONTROL_CAPABILITY) capability = cemFormControlCheckpoint(instance, consumer => this.instanceStates.has(consumer) && (this.declarationForInstance(consumer)?.behavior === CEM_SUGGESTIONS_CAPABILITY && cemSuggestionsCheckpoint(consumer) || cemManualListboxCheckpoint(consumer, node => this.checkpointEndpoint(node))) ? this.instanceId(consumer) : undefined) ?? null;
+        else if (compiled.behavior === CEM_FORM_CONTROL_CAPABILITY) capability = cemFormControlCheckpoint(instance, consumer => this.instanceStates.has(consumer) && (this.declarationForInstance(consumer)?.behavior === CEM_SUGGESTIONS_CAPABILITY && cemSuggestionsCheckpoint(consumer) || cemManualListboxCheckpoint(consumer, node => this.checkpointEndpoint(node)) || cemStandaloneDatalistCheckpoint(consumer, node => this.checkpointEndpoint(node))) ? this.instanceId(consumer) : undefined) ?? null;
         else if (compiled.behavior === CEM_CHECKABLE_CONTROL_CAPABILITY) capability = cemCheckableControlCheckpoint(instance) ?? null;
         else if (compiled.behavior === CEM_CHOICE_SELECT_CAPABILITY) capability = cemChoiceSelectCheckpoint(instance) ?? null;
         else if (compiled.behavior === CEM_EDITABLE_CHOICE_CAPABILITY) capability = cemEditableChoiceCheckpoint(instance) ?? null;
@@ -2944,12 +2945,14 @@ export class CemElementRuntime {
         if (compiled.behavior && !capability) return undefined;
         const manualListbox = cemManualListboxCheckpoint(instance, node => this.checkpointEndpoint(node));
         if (hasCemManualListboxCheckpoint(instance) && !manualListbox) return undefined;
+        const standaloneDatalist = cemStandaloneDatalistCheckpoint(instance, node => this.checkpointEndpoint(node));
+        if (hasCemStandaloneDatalistCheckpoint(instance) && !standaloneDatalist) return undefined;
         // Account for the admitted frame as well as any stateful consumer. Inactive and datalist
         // adapters already own withdrawal/attachment intent for their non-interactive frame.
         const binding = this.nativeSuggestionsBindings.get(instance);
         const nativePublication = binding?.valid ? this.checkpointNativePublication(instance) : undefined;
         const inactiveFrame = capability?.kind === 'suggestions' && 'phase' in capability.state;
-        if (binding && !nativePublication && !inactiveFrame) return undefined;
+        if (binding && !nativePublication && !inactiveFrame && !standaloneDatalist) return undefined;
         const resources: CemCheckpointRuntimeState['resources'] = [];
         let documentBytes = 0;
         for (const [name, active] of Object.entries(state.httpResources)) {
@@ -3020,7 +3023,7 @@ export class CemElementRuntime {
         const prepared = this.placementInputs.get(instance);
         const references = prepared && checkpointReferenceSource(prepared.inputs, String(this.dataRevisions.get(instance)));
         if (prepared && (!references || prepared.token !== this.checkpointPublishedTokens.get(instance)) || this.referenceInputControllers.has(instance)) return undefined;
-        return { version: 'cem-checkpoint-runtime/1', capability, ...(manualListbox ? { manualListbox } : {}), ...(nativePublication ? { nativePublication } : {}), ...(references ? { references } : {}), ...(placements.length ? { placements } : {}), ...(focus ? { focus } : {}), resources, writers, writeDisposition: 'suppress-until-new-input' };
+        return { version: 'cem-checkpoint-runtime/1', capability, ...(manualListbox ? { manualListbox } : {}), ...(standaloneDatalist ? { standaloneDatalist } : {}), ...(nativePublication ? { nativePublication } : {}), ...(references ? { references } : {}), ...(placements.length ? { placements } : {}), ...(focus ? { focus } : {}), resources, writers, writeDisposition: 'suppress-until-new-input' };
     }
 
     private checkpointEndpoint(element: HTMLElement): CheckpointEndpoint | undefined {
@@ -3053,6 +3056,12 @@ export class CemElementRuntime {
             if (!delegate) return undefined;
             result.push({ id: `${requester.instanceId}:delegate:editor`, kind: 'editor-provider', requester, provider: delegate.editor, property: 'suggestions', disposition: 'reacquire' });
             result.push({ id: `${requester.instanceId}:delegate:panel`, kind: 'placement', requester, provider: delegate.panel, property: 'interaction', disposition: 'reacquire' });
+        }
+        if (hasCemStandaloneDatalistCheckpoint(instance)) {
+            const delegate = cemStandaloneDatalistCheckpoint(instance, node => this.checkpointEndpoint(node));
+            if (!delegate) return undefined;
+            result.push({ id: `${requester.instanceId}:datalist:editor`, kind: 'editor-provider', requester, provider: delegate.editor, property: 'suggestions', disposition: 'reacquire' });
+            result.push({ id: `${requester.instanceId}:datalist:target`, kind: 'placement', requester, provider: delegate.target, property: 'interaction', disposition: 'reacquire' });
         }
         if (this.declarationForInstance(instance)?.behavior === CEM_COMPOSITE_MENU_CAPABILITY) {
             const menu = cemCompositeMenuCheckpoint(instance, element => this.checkpointEndpoint(element));
@@ -3106,7 +3115,7 @@ export class CemElementRuntime {
             const fingerprint = this.checkpointFingerprint(instance, compiled);
             if (!fingerprint) return false;
             if (publishedControls !== fingerprint) {
-                if (this.checkpointAdapterOwnsInteraction(compiled) || hasCemManualListboxCheckpoint(instance)) this.checkpointInteractionSettled(instance);
+                if (this.checkpointAdapterOwnsInteraction(compiled) || hasCemManualListboxCheckpoint(instance) || hasCemStandaloneDatalistCheckpoint(instance)) this.checkpointInteractionSettled(instance);
                 else this.renderInstance(instance, compiled);
                 return false;
             }
@@ -3146,7 +3155,7 @@ export class CemElementRuntime {
                 resourceState: { ...snapshot.resourceState, ...Object.fromEntries(validated.resources.filter(resource => ['http', 'repository-query', 'storage-status'].includes(resource.kind)).map(resource => {
                     const key = `${resource.kind === 'repository-query' ? 'repository' : resource.kind}:${resource.name}`;
                     return [key, { ...(snapshot.resourceState?.[key] as Record<string, unknown>), status: resource.state }];
-                })), checkpointRuntime: { version: validated.version, resources: validated.resources, ...(validated.manualListbox ? { manualListbox: validated.manualListbox } : {}), ...(validated.nativePublication ? { nativePublication: validated.nativePublication } : {}), ...(validated.references ? { references: validated.references } : {}), ...(validated.placements ? { placements: validated.placements } : {}), writers: validated.writers, ...(validated.focus ? { focus: validated.focus } : {}), writeDisposition: validated.writeDisposition } } });
+                })), checkpointRuntime: { version: validated.version, resources: validated.resources, ...(validated.manualListbox ? { manualListbox: validated.manualListbox } : {}), ...(validated.standaloneDatalist ? { standaloneDatalist: validated.standaloneDatalist } : {}), ...(validated.nativePublication ? { nativePublication: validated.nativePublication } : {}), ...(validated.references ? { references: validated.references } : {}), ...(validated.placements ? { placements: validated.placements } : {}), writers: validated.writers, ...(validated.focus ? { focus: validated.focus } : {}), writeDisposition: validated.writeDisposition } } });
             state.observer?.takeRecords();
             units = 0; length = 0; visit(island, 0);
             return island.outerHTML;
@@ -3161,7 +3170,7 @@ export class CemElementRuntime {
         const input = () => {
             owner.input();
             this.checkpointEventSequences.set(instance, (this.checkpointEventSequences.get(instance) ?? 0) + 1);
-            if (this.checkpointAdapterOwnsInteraction(compiled) || hasCemManualListboxCheckpoint(instance)) this.checkpointInteractionSettled(instance);
+            if (this.checkpointAdapterOwnsInteraction(compiled) || hasCemManualListboxCheckpoint(instance) || hasCemStandaloneDatalistCheckpoint(instance)) this.checkpointInteractionSettled(instance);
             else this.renderInstance(instance, compiled);
         };
         const pointers = new Set<number>(), keys = new Set<string>();
@@ -3204,7 +3213,7 @@ export class CemElementRuntime {
         };
         releaseScope = onCemDeclarationScopeDispose(compiled.declarationScope, detach);
         this.checkpointOwners.set(instance, { owner, detach, settled: () => {
-            if (!(this.checkpointAdapterOwnsInteraction(compiled) || hasCemManualListboxCheckpoint(instance)) || !instance.isConnected || compiled.declarationScope.disposed
+            if (!(this.checkpointAdapterOwnsInteraction(compiled) || hasCemManualListboxCheckpoint(instance) || hasCemStandaloneDatalistCheckpoint(instance)) || !instance.isConnected || compiled.declarationScope.disposed
                 || this.declarationForInstance(instance) !== compiled || !publishedRevision
                 || String(this.dataRevisions.get(instance)) !== publishedRevision
                 || this.checkpointPublishedTokens.get(instance) !== this.renderTokens.get(instance)) return;

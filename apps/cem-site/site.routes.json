@@ -293,14 +293,14 @@
             "summary": "Authoring contracts, production gates, actions, inputs, layout, navigation, content, and feedback.",
             "headings": [
                 { "id": "heading-1", "level": 1, "text": "CEM Component Reference" },
-                { "id": "heading-7", "level": 2, "text": "Authoring Contract" },
-                { "id": "heading-11", "level": 2, "text": "Production Gate" },
-                { "id": "heading-33", "level": 2, "text": "Actions" },
-                { "id": "heading-45", "level": 2, "text": "Inputs" },
-                { "id": "heading-95", "level": 2, "text": "Layout" },
-                { "id": "heading-103", "level": 2, "text": "Navigation" },
-                { "id": "heading-111", "level": 2, "text": "Content" },
-                { "id": "heading-125", "level": 2, "text": "Feedback" }
+                { "id": "heading-9", "level": 2, "text": "Authoring Contract" },
+                { "id": "heading-13", "level": 2, "text": "Production Gate" },
+                { "id": "heading-35", "level": 2, "text": "Actions" },
+                { "id": "heading-47", "level": 2, "text": "Inputs" },
+                { "id": "heading-99", "level": 2, "text": "Layout" },
+                { "id": "heading-109", "level": 2, "text": "Navigation" },
+                { "id": "heading-117", "level": 2, "text": "Content" },
+                { "id": "heading-131", "level": 2, "text": "Feedback" }
             ]
         },
         {
