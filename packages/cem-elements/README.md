@@ -7,8 +7,14 @@ Use the shared native `sealCommittedCheckpoint` export as its trusted sealer.
 `CemElementRuntimeOptions.checkpointPublication`. Supply one trusted coordinator
 for the entire host domain, a native sealer and explicit whole-island privacy
 consent. `automatic: true` coalesces captures after successful DOM/CSS publication
-and admission drain. Unbound edits, live resources/capabilities and unjournaled
-host actions block capture for the whole domain. Ordinary rendering continues.
+and admission drain. Native control edits and the shared plaintext editor use a
+bounded native-validated control envelope; composition, credential/file inputs
+and unsupported capabilities block the whole domain. Trusted `mountCemView`
+commands and shared storage/location effects record opaque outcomes before
+execution, without replay. Fixed non-live URL readers carry a read-again
+disposition; other resource portability and journal retirement remain pending.
+Checkpoint-only form envelopes require explicit semantic resume and are refused
+by ordinary hydration. Ordinary rendering continues.
 This is host-session capture, not automatic WASM replacement or resume. See
 [the checkpoint contract](../../docs/committed-checkpoints.md).
 

@@ -47,6 +47,7 @@ export function mountCemView(runtime: CemElementRuntime, options: CemHostViewOpt
     const commands = new Map(Object.entries(options.commands ?? {}));
     const errors: Error[] = [];
     let active = true;
+    const releaseCheckpointCommands = runtime.registerCheckpointCommands(element);
     const report = (error: unknown) => {
         if (active) errors.push(error instanceof Error ? error : new Error(String(error)));
     };
@@ -85,10 +86,11 @@ export function mountCemView(runtime: CemElementRuntime, options: CemHostViewOpt
                 ...(fields ? { fields } : {}) });
             // Do not queue this call: file pickers/install prompts need the
             // same trusted event stack as the native control activation.
+            const acknowledge = runtime.beginCheckpointOperation(element);
             const result = handler(request);
             if (result && typeof (result as PromiseLike<unknown>).then === 'function') {
-                void Promise.resolve(result).catch(report);
-            }
+                void Promise.resolve(result).then(() => { if (active) acknowledge?.(); }, report);
+            } else if (active) acknowledge?.();
         } catch (error) {
             report(error);
         }
@@ -118,6 +120,7 @@ export function mountCemView(runtime: CemElementRuntime, options: CemHostViewOpt
         dispose() {
             if (!active) return;
             active = false;
+            releaseCheckpointCommands();
             events.forEach(name => element.removeEventListener(name, invoke));
             commands.clear();
             // Preserve the boundary on a retained detached node so it cannot

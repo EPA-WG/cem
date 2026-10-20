@@ -9,7 +9,7 @@ island or treat rendered children as payload after an island exists.
 
 A produced DCE instance owns one stable, direct, inert WHATWG template marked
 `data-cem-island="instance"`. The template contains exactly one
-`cem-island:context-root`, currently at lifecycle version `0.1.2`. Its qualified
+`cem-island:context-root`, currently at lifecycle version `0.2.0`. Its qualified
 DOM is lowered into the canonical namespace-aware CEM AST instance state.
 Rendered light DOM is a derived projection outside that template; it is never
 the data source once the island exists.
@@ -272,7 +272,7 @@ available to the first client render and remains part of the island for later
 updates. Browser hydration must not require switching from the HTML/XML parser to
 a JSON parser or treating a sibling JSON script as a second state authority. The
 context-root and hydration-data versions must agree; the current pre-1.0 contract
-is `0.1.2`.
+is `0.2.0`.
 
 Hydration has two valid outcomes:
 
@@ -303,6 +303,15 @@ island markup with trusted all-owner publication receipts. Their host-owned
 bytes remain outside replaceable WASM memory. A transport seal does not admit
 island semantics; restoration still follows the resume rules above. Older
 checkpoints cannot authorize rollback of pending edits or replay external actions.
+
+The opt-in checkpoint control extension stores native-validated scalar control
+state in `cem-form:form-state`, not in the dataset or reconstructed rendered
+markup. Its checkpoint-only root/hydration version is
+`1.0.0-checkpoint.1`, with a hydration marker identifying the extension; ordinary
+live snapshots retain their existing version. Generic hydration must refuse this
+extension until explicit semantic resume admits controls and resource/capability
+state. Unsupported or private state blocks the complete runtime domain rather
+than producing a partially recoverable owner.
 
 ## State authority and portable capabilities
 

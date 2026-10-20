@@ -83,4 +83,43 @@ describe('all-owner publication checkpoint capture', () => {
         await expect(d.capture()).rejects.toThrow('unavailable'); d.dispose();
     });
 
+    it('records unknown external outcomes before delivery and fences stale completions without replay', async () => {
+        const c = new CemCheckpointPublicationCoordinator(options());
+        const a = c.register('a', () => '<template>state</template>'); a.published(metadata); await c.capture();
+        const operation = c.operation('a', 'opaque-operation');
+        expect(c.current()).toBeUndefined(); await c.capture();
+        expect(read(c).receipt.operations).toEqual([{ instanceId: 'a', operationId: 'opaque-operation', outcome: 'unknown' }]);
+        operation.acknowledge(); await c.capture();
+        expect(read(c).receipt.operations[0].outcome).toBe('acknowledged');
+        const late = c.operation('a', 'late'); a.remove(); late.acknowledge();
+        const replacement = c.register('a', () => '<template>fresh</template>'); replacement.published(metadata);
+        await c.capture(); expect(read(c).receipt.operations.find((o: { operationId: string }) => o.operationId === 'late').outcome).toBe('unknown');
+        const policyLate = c.operation('a', 'policy-late');
+        c.setPolicy('private:2', () => true); policyLate.acknowledge(); replacement.published(metadata);
+        await c.capture(); expect(read(c).receipt.operations.find((o: { operationId: string }) => o.operationId === 'policy-late').outcome).toBe('unknown');
+        expect(() => c.operation('a', 'late')).toThrow(); c.dispose();
+    });
+    it('keeps pending outcomes when an owner disappears and refuses journal overflow', async () => {
+        const c = new CemCheckpointPublicationCoordinator(options());
+        const a = c.register('a', () => '<template>state</template>'); a.published(metadata);
+        c.operation('a', 'unknown'); a.remove();
+        c.register('b', () => '<template>b</template>').published({ ...metadata, instanceId: 'b' });
+        await expect(c.capture()).rejects.toThrow('unavailable'); c.dispose();
+        const d = new CemCheckpointPublicationCoordinator(options());
+        d.register('a', () => '<template/>').published(metadata);
+        for (let i = 0; i < 256; i++) d.operation('a', `op:${i}`).acknowledge();
+        await d.capture(); expect(() => d.operation('a', 'overflow')).toThrow('limit');
+        expect(d.current()).toBeUndefined(); expect(d.lastCommitted()).toBeDefined(); d.dispose();
+    });
+
+    it('pins owner exports across an asynchronous native validation boundary', async () => {
+        let release!: (value: string) => void, held = false, newExports = 0;
+        const c = new CemCheckpointPublicationCoordinator(options());
+        c.register('a', () => held ? new Promise<string>(done => { release = done; }) : '<template>a</template>').published(metadata);
+        await c.capture(); held = true; const pending = c.capture();
+        c.register('new', () => { newExports++; return '<template>new</template>'; }).published({ ...metadata, instanceId: 'new' });
+        release('<template>old a</template>'); await expect(pending).rejects.toThrow('stale');
+        expect(newExports).toBe(0); expect(c.current()).toBeUndefined(); expect(c.lastCommitted()).toBeDefined(); c.dispose();
+    });
+
 });

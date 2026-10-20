@@ -1,3 +1,4 @@
+import { captureCheckpointControls, type CemCheckpointControlState } from './checkpoint-controls.js';
 import { type CemCheckpointPublicationCoordinator, type CemCheckpointPublicationOwner } from './checkpoint-publication.js';
 import { isDomInstance } from './dom-realm.js';
 import { CEM_LIVE_PREVIEW_CAPABILITY } from './live-preview-capability.js';
@@ -43,6 +44,7 @@ import {
 } from './projection.js';
 import {
     cemMlTemplateArtifactPayloadKey,
+    validatePortableCheckpointControls,
     compileCemMlTemplate,
     convertLegacyTemplate,
     processCemMlTemplate,
@@ -135,7 +137,7 @@ import {
     type CemRepositoryStatus,
 } from './repository.js';
 import { CEM_FORM_CONTROL_CAPABILITY } from './form-control-capability.js';
-import { CEM_PLAINTEXT_EDITOR_CAPABILITY, cemPlaintextEditorEventValue } from './plaintext-editor-capability.js';
+import { CEM_PLAINTEXT_EDITOR_CAPABILITY, cemPlaintextEditorEventValue, cemPlaintextEditorCheckpointReady } from './plaintext-editor-capability.js';
 import { CEM_NAVIGATION_LANDMARK_CAPABILITY } from './navigation-landmark-capability.js';
 import { CEM_DISCLOSURE_PANEL_CAPABILITY } from './disclosure-panel-capability.js';
 import { CEM_SORT_ACTION_CAPABILITY } from './sort-action-capability.js';
@@ -399,6 +401,9 @@ export interface DataIslandSnapshot {
     dataIsland?: SerializedPayload;
     slices: Record<string, unknown>;
     formData?: Record<string, unknown>;
+    /** Native-validated explicit browser control serialization; requires
+     * semantic checkpoint resume, never ordinary serialized-HTML adoption. */
+    checkpointControls?: CemCheckpointControlState;
     validationState: Record<string, unknown>;
     eventPayloads: Record<string, unknown>;
     /** Complete portable resource lifecycle state. Live host capability objects are never serialized. */
@@ -1797,6 +1802,8 @@ export class CemElementRuntime {
     private readonly customValidityExpressions = new WeakMap<Element, string>();
     private readonly customValidationMessages = new WeakMap<Element, string>();
     private readonly checkpointOwners = new WeakMap<HTMLElement, { owner: CemCheckpointPublicationOwner; detach(): void }>();
+    private readonly checkpointCommandRoots = new WeakSet<HTMLElement>();
+    private readonly checkpointComposing = new WeakSet<HTMLElement>();
     private readonly checkpointEventSequences = new WeakMap<HTMLElement, number>();
     private readonly checkpointPublishedTokens = new WeakMap<HTMLElement, number>();
     private readonly checkpointPublication?: CemCheckpointPublicationCoordinator;
@@ -2678,6 +2685,12 @@ export class CemElementRuntime {
                 changed = true;
             }
         }
+        if (changed) this.checkpointOwners.get(instance)?.owner.invalidate();
+        if (changed && options.render === false && this.checkpointPublication && compiled.behavior === CEM_PLAINTEXT_EDITOR_CAPABILITY) {
+            // Native text edits normally avoid template work. An opted-in
+            // checkpoint needs a fresh acknowledged revision of those slices.
+            queueMicrotask(() => { if (instance.isConnected && !compiled.declarationScope.disposed) this.renderInstance(instance, compiled); });
+        }
         if (changed && options.render !== false && instance.isConnected) {
             this.renderInstance(instance, compiled);
         }
@@ -2817,34 +2830,72 @@ export class CemElementRuntime {
         }
     }
 
+    /** Shared host-service authority only; authored attributes cannot opt in. */
+    registerCheckpointCommands(instance: HTMLElement): () => void {
+        if (!this.checkpointPublication) return () => undefined;
+        this.checkpointCommandRoots.add(instance);
+        const compiled = this.declarationForInstance(instance);
+        if (compiled && instance.isConnected) this.renderInstance(instance, compiled);
+        return () => {
+            this.checkpointCommandRoots.delete(instance);
+            if (compiled && instance.isConnected) this.renderInstance(instance, compiled);
+        };
+    }
+
+    beginCheckpointOperation(instance: HTMLElement): (() => void) | undefined {
+        if (!this.checkpointCommandRoots.has(instance)) return undefined;
+        return this.beginCheckpointEffect(instance);
+    }
+
+    private beginCheckpointEffect(instance: HTMLElement): (() => void) | undefined {
+        if (!this.checkpointPublication) return undefined;
+        try { return this.checkpointPublication.operation(this.instanceId(instance), crypto.randomUUID()).acknowledge; }
+        catch { return undefined; /* Refused recovery cannot suppress an ordinary action. */ }
+    }
+
+    private writeCheckpointStorage(instance: HTMLElement, storage: Storage, key: string, raw: string | null): void {
+        const acknowledge = this.beginCheckpointEffect(instance);
+        writeLocalStorageRaw(storage, key, raw);
+        acknowledge?.();
+    }
+
+    private checkpointCommandRoot(control: Element): HTMLElement | undefined {
+        for (let owner: Element | null = control; owner; owner = owner.parentElement) {
+            if (this.checkpointCommandRoots.has(owner as HTMLElement)) return owner as HTMLElement;
+        }
+        return undefined;
+    }
+
+    private checkpointControls(instance: HTMLElement): CemCheckpointControlState | undefined {
+        const bounds = this.renderBounds.get(instance);
+        return bounds ? captureCheckpointControls(renderedElementsBetween(bounds, 'input,textarea,select,button,[contenteditable]')
+            .filter(control => this.ownsRenderedElement(instance, control))) : undefined;
+    }
+
     private checkpointOwnerPortable(instance: HTMLElement, compiled: CompiledDeclaration, state?: InstanceState): boolean {
-        if (!state || compiled.behavior || hasCemPlacementRelationships(instance)
+        if (!state || (compiled.behavior && compiled.behavior !== CEM_PLAINTEXT_EDITOR_CAPABILITY)
+            || (compiled.behavior === CEM_PLAINTEXT_EDITOR_CAPABILITY && !cemPlaintextEditorCheckpointReady(instance))
+            || this.checkpointComposing.has(instance) || hasCemPlacementRelationships(instance)
             || Object.keys(state.httpResources).length || Object.keys(state.repositoryQueryResources).length
             || Object.keys(state.storageStatusResources).length || Object.keys(state.localStorageResources).length
-            || Object.keys(state.locationResources).length || instance.querySelector('[host-command],input[type=password],input[type=file]')) return false;
-        // A form's successful-entry list alone cannot preserve disabled/unchecked
-        // or unbound edits. Until those domains have complete resume contracts,
-        // admit only direct scalar slice mirrors that equal the current control.
-        const bounds = this.renderBounds.get(instance);
-        if (!bounds) return false;
-        for (const control of renderedElementsBetween(bounds, 'input,textarea,select,[contenteditable]')) {
-            if (!this.ownsRenderedElement(instance, control)) continue;
-            const binding = this.sliceEventBindings.get(control);
-            if (!binding || binding.sliceNames.length !== 1 || binding.attributeNames.length || binding.nativeValue) return false;
-            const value = binding.expression === '$target.value' && control.matches('input:not([type=checkbox]):not([type=radio]),textarea,select:not([multiple])')
-                ? (control as HTMLInputElement).value
-                : binding.expression === '$target.checked' && control.matches('input[type=checkbox],input[type=radio]')
-                    ? (control as HTMLInputElement).checked : undefined;
-            const slice = state.slices[binding.sliceNames[0]];
-            if (value === undefined || (slice !== value && !(value === '' && slice == null))) return false;
+            || this.locationWriteTriggers.has(instance)) return false;
+        for (const [name, resource] of Object.entries(state.locationResources)) {
+            const event = state.eventPayloads[name];
+            if (resource.live || !isPlainRecord(event) || typeof event.href !== 'string') return false;
+            try {
+                const url = new URL(event.href);
+                if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return false;
+            } catch { return false; }
         }
-        return true;
+        for (const control of instance.querySelectorAll('[host-command]')) if (!this.checkpointCommandRoot(control)) return false;
+        return this.checkpointControls(instance) !== undefined;
     }
 
     private connectCheckpointOwner(instance: HTMLElement, compiled: CompiledDeclaration): void {
         const coordinator = this.checkpointPublication;
         if (!coordinator || this.checkpointOwners.has(instance)) return;
         let publishedRevision: string | undefined;
+        let publishedControls: string | undefined;
         const current = () => {
             if (!instance.isConnected || compiled.declarationScope.disposed || this.declarationForInstance(instance) !== compiled
                 || this.frozenSerializedInstances.has(instance)) return false;
@@ -2858,10 +2909,14 @@ export class CemElementRuntime {
             if (state && records.length) {
                 this.handleInstanceMutations(instance, compiled, this.ensureDataIsland(instance), state, records); return false;
             }
-            return this.checkpointOwnerPortable(instance, compiled, state);
+            if (!this.checkpointOwnerPortable(instance, compiled, state)) return false;
+            if (publishedControls !== JSON.stringify(this.checkpointControls(instance))) {
+                this.renderInstance(instance, compiled); return false;
+            }
+            return true;
         };
         let owner: CemCheckpointPublicationOwner;
-        try { owner = coordinator.register(this.instanceId(instance), () => {
+        try { owner = coordinator.register(this.instanceId(instance), async () => {
             if (!current() || !publishedRevision) return undefined;
             const state = this.instanceStates.get(instance);
             // Live capabilities/resources and host actions need their own resume
@@ -2881,25 +2936,48 @@ export class CemElementRuntime {
                 if (node.nodeType === 1 && (node as Element).localName === 'template' && 'content' in node) visit((node as HTMLTemplateElement).content, depth + 1);
             };
             visit(island, 0);
-            this.snapshotFromCapturedForms(instance, compiled, island, publishedRevision, state, this.captureRenderedForms(instance));
+            const controls = this.checkpointControls(instance);
+            if (!controls) return undefined;
+            await validatePortableCheckpointControls(JSON.stringify(controls));
+            if (!current()) return undefined;
+            const snapshot = this.snapshotFromCapturedForms(instance, compiled, island, publishedRevision, state, this.captureRenderedForms(instance));
+            writeDataIslandHydrationData(island, { ...snapshot, version: '1.0.0-checkpoint.1', checkpointControls: controls,
+                resourceState: { ...snapshot.resourceState,
+                    ...(Object.keys(state.locationResources).length ? { checkpointResources: {
+                        version: 'cem-checkpoint-resource-dispositions/1',
+                        resources: Object.keys(state.locationResources).map(name => ({ name, kind: 'location', disposition: 'read-again' })),
+                    } } : {}),
+                } });
+            state.observer?.takeRecords();
             units = 0; length = 0; visit(island, 0);
             return island.outerHTML;
         }, current, this.checkpointEventSequences.get(instance) ?? 0); }
         catch { return; /* Coordinator is blocked; ordinary owner lifecycle continues. */ }
         const published = owner.published;
-        owner.published = receipt => { publishedRevision = receipt.dataRevision; published(receipt); };
+        owner.published = receipt => {
+            publishedRevision = receipt.dataRevision;
+            publishedControls = JSON.stringify(this.checkpointControls(instance));
+            published(receipt);
+        };
         const input = () => {
             owner.input();
             this.checkpointEventSequences.set(instance, (this.checkpointEventSequences.get(instance) ?? 0) + 1);
             this.renderInstance(instance, compiled);
         };
-        const events = ['beforeinput', 'input', 'change', 'click', 'submit', 'reset'];
+        const compositionStart = () => { this.checkpointComposing.add(instance); owner.invalidate(); };
+        const compositionEnd = () => { this.checkpointComposing.delete(instance); input(); };
+        instance.addEventListener('compositionstart', compositionStart, true);
+        instance.addEventListener('compositionend', compositionEnd, true);
+        const events = ['beforeinput', 'input', 'change', 'click', 'submit', 'reset', 'select', 'focusin', 'focusout'];
         for (const name of events) instance.addEventListener(name, input, true);
         let removed = false;
         let releaseScope = () => undefined as void;
         const detach = () => {
             if (removed) return;
             removed = true; owner.remove(); releaseScope();
+            instance.removeEventListener('compositionstart', compositionStart, true);
+            instance.removeEventListener('compositionend', compositionEnd, true);
+            this.checkpointComposing.delete(instance);
             for (const name of events) instance.removeEventListener(name, input, true);
             this.checkpointOwners.delete(instance);
         };
@@ -6013,7 +6091,7 @@ export class CemElementRuntime {
                 instance.ownerDocument,
             );
             nextRawValue = localStorageValueToString(declaration.storageType, nextValue);
-            writeLocalStorageRaw(storage, declaration.key, nextRawValue);
+            this.writeCheckpointStorage(instance, storage, declaration.key, nextRawValue);
             source = 'value-attribute';
             needsRerender = this.writeLocalStorageSlice(state, declaration, nextValue, nextRawValue, source, active);
         } else if (!active) {
@@ -6026,7 +6104,7 @@ export class CemElementRuntime {
             if (!resourceValuesEqual(sliceValue, active.lastValue)) {
                 nextValue = sliceValue;
                 nextRawValue = localStorageValueToString(declaration.storageType, nextValue);
-                writeLocalStorageRaw(storage, declaration.key, nextRawValue);
+                this.writeCheckpointStorage(instance, storage, declaration.key, nextRawValue);
                 source = 'slice-write';
                 this.writeLocalStorageSlice(state, declaration, nextValue, nextRawValue, source, active);
             } else {
@@ -6109,7 +6187,7 @@ export class CemElementRuntime {
                             this.renderInstance(instance, compiled);
                             return;
                         }
-                        writeLocalStorageRaw(storage, declaration.key, text);
+                        this.writeCheckpointStorage(instance, storage, declaration.key, text);
                         existing.lastRawValue = text;
                         native.acceptedValue = binding;
                         this.writeLocalStorageEventPayload(state, declaration, null, text, 'slice-write');
@@ -6166,7 +6244,7 @@ export class CemElementRuntime {
                         state.nativeSlices[name] = binding;
                     }
                     if (!isCurrent()) return;
-                    if (source === 'value-attribute') writeLocalStorageRaw(storage, declaration.key, raw);
+                    if (source === 'value-attribute') this.writeCheckpointStorage(instance, storage, declaration.key, raw);
                     this.writeLocalStorageEventPayload(state, declaration, null, raw, source);
                 } catch (error) {
                     if (!isCurrent()) return;
@@ -6332,7 +6410,9 @@ export class CemElementRuntime {
                 this.locationWriteTriggers.set(instance, consumed);
             }
             if (consumeLocationWriteTrigger(consumed, writer, declaration.trigger)) {
+                const acknowledge = this.beginCheckpointEffect(instance);
                 const writeDiagnostics = writeLocationTarget(window, instance.ownerDocument, declaration, compiled.producedTag);
+                if (!writeDiagnostics.length) acknowledge?.();
                 this.recordDiagnostics(instance, writeDiagnostics);
             }
         }
@@ -9027,6 +9107,9 @@ function readDataIslandHydrationData(island: HTMLTemplateElement): HydrationSnap
             message: 'the context-root and hydration-data contract versions did not match',
         };
     }
+    if (hydration.checkpointControls !== undefined) return { ok: false,
+        code: 'cem-element.checkpoint_resume_required',
+        message: 'checkpoint control state requires explicit native/domain resume admission' };
     const sourceMapMode = hydration.sourceMapMode;
     if (hydration.outputTarget !== 'light-dom') {
         return {
@@ -10719,6 +10802,7 @@ export function writeDataIslandHydrationData(
         scopePolicyStamp: snapshot.scopePolicyStamp,
         ariaReferenceProfile: snapshot.ariaReferenceProfile,
         privacyPolicyStamp: snapshot.privacyPolicyStamp,
+        ...(snapshot.checkpointControls ? { checkpointControls: snapshot.checkpointControls.version } : {}),
         ...(snapshot.nativeSlices?.length ? { nativeSlices: exportNativeCemSlices(snapshot.nativeSlices) } : {}),
         ...(snapshot.nativeAttributes?.length ? { nativeAttributes: exportNativeCemAttributes(snapshot.nativeAttributes) } : {}),
     });
@@ -10730,7 +10814,8 @@ export function writeDataIslandHydrationData(
     );
     replaceIslandRecordSection(island, DATA_ISLAND_SECTIONS.slices, snapshot.slices);
     replaceIslandRecordSection(island, DATA_ISLAND_SECTIONS.resources, snapshot.resourceState ?? {});
-    replaceIslandRecordSection(island, DATA_ISLAND_SECTIONS.formData, snapshot.formData ?? {});
+    replaceIslandRecordSection(island, DATA_ISLAND_SECTIONS.formData, snapshot.checkpointControls
+        ? { forms: snapshot.formData ?? {}, controls: snapshot.checkpointControls } : snapshot.formData ?? {});
     replaceIslandRecordSection(island, DATA_ISLAND_SECTIONS.validationState, snapshot.validationState);
     replaceIslandRecordSection(island, DATA_ISLAND_SECTIONS.eventPayloads, snapshot.eventPayloads);
 }

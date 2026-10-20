@@ -106,24 +106,53 @@ UTF-8 transport must fit 1 MiB. At most 256 owners and 256 admissions are tracke
 Overflow blocks the domain instead of omitting owners or buffering input; ordinary
 rendering still proceeds. A fresh host domain is required after overflow.
 
-Portability is deliberately conservative: plain declarative owners and directly
-bound scalar value/checked slices must agree with their live controls. Unsupported
-or unbound control edits, password/file controls, behavior capabilities, foreign
-placements, live HTTP/repository/storage/location resources and host-command
-owners make the **entire domain unavailable**. Such state needs complete portable
-control/resource/capability and external-operation outcome admission before it
-can participate. No owner is skipped, password/file controls are refused, and no action
-is retried. The trusted consent policy must also refuse credentials in authored
-payload or slices. The current capture receipt has an empty operation journal because
-those action owners are refused.
+Control capture supports owned native inputs, textareas, selects and buttons,
+including unbound edits, and the existing shared plaintext-editor capability.
+`cem_ml::checkpoint_control_state::validate` and WASM
+`validateCheckpointControls` admit the explicit `cem-checkpoint-controls/1` JSON
+control DTO before publication: at most 256 controls, 1,024 options per select
+and 256 KiB for both input and normalized output. Stable render identities,
+unique IDs, effective input types, option/value consistency, UTF-16 selection
+bounds, focus, checked/indeterminate, disabled/read-only and custom validity are
+validated. This named scalar UI boundary is not an AST representation.
+Property-only edits are checked against the published control fingerprint;
+composition or a deferred editor value blocks capture until a fresh publication.
 
-Automatic capture is not enabled in Studio. Physical runtime-domain discovery,
-resource/capability/control portability, operation journaling, memory-pressure
-admission drain, generation replacement, fresh-owner semantic resume, stale-message
-fencing and declarative recovery status remain follow-up work. The complete Studio
-long-session verifier now covers the current navigator shell and must remain
-passing before replacement is enabled. Saved project revisions and unsaved editor
-state remain independent.
+Controls belong in `cem-form:form-state`, alongside the existing forms record.
+A hydration marker identifies the extension. Checkpoint exports use root version
+`1.0.0-checkpoint.1`; ordinary live snapshots remain `0.2.0`. Older generic
+hydration must reject the new major version rather than silently dropping edits.
+Current generic adoption also refuses these islands with
+`cem-element.checkpoint_resume_required`: explicit native/domain semantic resume
+is still required. Capture does not enable HTML-copy restoration.
+
+Shared `mountCemView` registers trusted command roots and journals an opaque
+operation ID **before** invoking the existing handler. Synchronous success or a
+fulfilled Promise acknowledges the outcome; throws, rejections and completion
+after disposal, owner replacement or policy changes retain `unknown`. Shared
+storage and location writes likewise record before their browser effect and
+acknowledge only a successful return. No command arguments, source values,
+storage keys or credentials enter the journal. Outcomes survive owner removal;
+an orphan outcome blocks capture until a future explicit reconciliation contract
+can retire it. The 256-operation limit blocks recovery without suppressing an
+ordinary action. Outcomes are metadata, never an instruction to replay.
+
+Explicit non-live HTTP(S) URL readers without embedded userinfo may export their
+complete location snapshot and a `read-again` resource disposition. Live/ambient
+location reads, consumed location writer state, storage, HTTP and repository
+resources remain unavailable pending complete export/reacquisition contracts.
+Other behavior capabilities, foreign placements, arbitrary contenteditable,
+password/file/credential controls and hidden custom-validity messages block the
+**entire domain**. No owner or value is silently omitted or truncated. Trusted
+whole-island consent must also refuse credentials in authored payload or slices.
+
+Automatic capture is not enabled in Studio. Remaining resource/capability
+portability, safe journal retirement, physical runtime-domain discovery,
+memory-pressure admission drain, generation replacement, fresh-owner semantic
+resume, stale-message fencing and declarative recovery status remain follow-up
+work. The complete Studio long-session verifier must remain passing before
+replacement is enabled. Saved project revisions and unsaved editor state remain
+independent.
 
 Evidence: native `committed_checkpoint`/`runtime_memory` fixtures, shared
 `committed-checkpoint.spec.ts`, and real module
@@ -134,8 +163,16 @@ garbage-collected or that owners have already resumed.
 
 Publication evidence: `checkpoint-publication.spec.ts` exercises all-owner and
 admission barriers, input coalescing, async sealing races, privacy/policy erasure,
-stale handles and overflow. `checkpoint-publication.stories.ts` uses real native
+stale handles, bounded operation outcomes, asynchronous exporter membership races and overflow. `checkpoint-publication.stories.ts` uses real native
 sealing with worker and fallback rendering, nested owners, direct edits, snapshot
 revision changes, held/failed/repaired CSS, unsupported-owner refusal,
 cross-document inert-template traversal limits, reconnect ordinals and continued
 ordinary rendering. Existing stylesheet and data-island fixtures remain required.
+
+Control evidence: native `checkpoint_control_state` and `data_island_validation`
+fixtures cover bounded normalization, invalid shapes, Unicode selections and
+resource/form-domain envelopes. Browser fixtures exercise complete native edits,
+the production source editor, composition, property-only invalidation, command
+outcomes without replay, fixed URL reads, storage effects and orphan refusal.
+The real-WASM fixture validates controls under recovery headroom and proves
+reservations release after errors. No Studio UI JavaScript is introduced.

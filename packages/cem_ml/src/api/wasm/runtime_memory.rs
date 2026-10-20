@@ -32,3 +32,16 @@ pub fn seal_checkpoint(candidate: &str, receipt: &str) -> Result<String, JsValue
         .map_err(|error| JsValue::from_str(error.0))?;
     seal(candidate, receipt).map_err(JsValue::from_str)
 }
+
+/// Bounded browser control serialization admission in each linked runtime.
+#[wasm_bindgen(js_name = "validateCheckpointControls")]
+pub fn validate_checkpoint_controls(input: &str) -> Result<String, JsValue> {
+    use crate::checkpoint_control_state::{validate, MAX_BYTES};
+    if input.len() > MAX_BYTES {
+        return Err(JsValue::from_str("cem.checkpoint.controls.limit"));
+    }
+    let _permit = runtime_budget()
+        .admit_recovery(runtime_sample(), (input.len() as u64) * 8 + 65536)
+        .map_err(|error| JsValue::from_str(error.0))?;
+    validate(input).map_err(JsValue::from_str)
+}

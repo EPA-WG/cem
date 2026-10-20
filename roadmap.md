@@ -439,7 +439,9 @@ recovery headroom and bounded portable checkpoint transport with host-owned
 session storage implemented 2026-10-19. See the
 [checkpoint contract](docs/committed-checkpoints.md). Opt-in host-domain
 publication/capture for complete portable declarative owners is implemented.
-Complete control/resource/capability portability, external-operation journaling,
+Native-validated control edits, shared plaintext-editor capture, fixed read-only
+URL snapshots and opaque external-operation outcome journaling are implemented.
+Remaining capability/resource export and reacquisition, safe journal retirement,
 physical worker/fallback runtime coverage and runtime replacement remain next. Continue this in the shared native/WASM
 engine and `cem-elements`; recovery status UI belongs in declarative
 `cem-components`. Studio consumes the same mechanism. This requires shared

@@ -12,6 +12,7 @@ export interface CemCheckpointPublicationOptions {
     /** Coalesce automatic captures after publication/admission drain. Default false. */
     automatic?: boolean;
 }
+export interface CemCheckpointOperation { acknowledge(): void }
 export interface CemCheckpointPublicationOwner {
     invalidate(): void;
     input(): void;
@@ -22,7 +23,7 @@ interface Owner {
     id: string;
     sequence: number;
     receipt?: CemCheckpointOwnerReceipt;
-    exportIsland: () => string | undefined;
+    exportIsland: () => string | undefined | Promise<string | undefined>;
     current: () => boolean;
 }
 const MAX_BYTES = 1024 * 1024;
@@ -34,6 +35,8 @@ const MAX_OWNERS = 256;
 export class CemCheckpointPublicationCoordinator {
     private store: CemCommittedCheckpointStore;
     private readonly owners = new Map<string, Owner>();
+    private readonly operations = new Map<string, CemCommitReceipt['operations'][number]>();
+    private policySequence = 0;
     private readonly admissions = new Set<object>();
     private policyStamp: string;
     private allowOwner?: CemCheckpointPublicationOptions['allowOwner'];
@@ -56,7 +59,7 @@ export class CemCheckpointPublicationCoordinator {
 
     get lastError(): string | undefined { return this.error; }
 
-    register(id: string, exportIsland: () => string | undefined, current: () => boolean = () => true, initialEventSequence = 0): CemCheckpointPublicationOwner {
+    register(id: string, exportIsland: () => string | undefined | Promise<string | undefined>, current: () => boolean = () => true, initialEventSequence = 0): CemCheckpointPublicationOwner {
         if (this.disposed || this.owners.has(id) || !id || this.owners.size >= MAX_OWNERS
             || !Number.isSafeInteger(initialEventSequence) || initialEventSequence < 0) {
             // An unregistered owner must never disappear from the all-owner proof.
@@ -87,6 +90,25 @@ export class CemCheckpointPublicationCoordinator {
         };
     }
 
+    /** Record before delivering a host operation. No arguments, command names
+     * or callbacks enter the journal, and no operation is ever retried. */
+    operation(instanceId: string, operationId: string): CemCheckpointOperation {
+        const owner = this.owners.get(instanceId);
+        const key = JSON.stringify([instanceId, operationId]);
+        if (this.disposed || !owner || !operationId || operationId.length > 1024 || /\p{Cc}/u.test(operationId)
+            || this.operations.has(key) || this.operations.size >= 256) {
+            this.blocked = true; this.invalidate(); throw new Error('cem.checkpoint.operations.limit');
+        }
+        const record: CemCommitReceipt['operations'][number] = { instanceId, operationId, outcome: 'unknown' };
+        this.operations.set(key, record); this.invalidate(); this.schedule();
+        const source = new WeakRef(owner), policy = this.policySequence;
+        return { acknowledge: () => {
+            if (this.disposed || this.policySequence !== policy || this.owners.get(instanceId) !== source.deref()
+                || record.outcome === 'acknowledged') return;
+            record.outcome = 'acknowledged'; this.invalidate(); this.schedule();
+        } };
+    }
+
     /** Track preparation/host admissions, including superseded work until its
      * finally block drains. Refuse rather than buffer work beyond the ceiling. */
     admit(): () => void {
@@ -99,6 +121,7 @@ export class CemCheckpointPublicationCoordinator {
     setPolicy(stamp: string, allowOwner?: CemCheckpointPublicationOptions['allowOwner']): void {
         if (this.disposed || !stamp) throw new Error('cem.checkpoint.identity');
         this.invalidate(); this.store.dispose(); this.store = new CemCommittedCheckpointStore(this.options.runtimeId);
+        this.policySequence++;
         this.policyStamp = stamp; this.allowOwner = allowOwner;
         for (const owner of this.owners.values()) owner.receipt = undefined;
     }
@@ -106,6 +129,7 @@ export class CemCheckpointPublicationCoordinator {
     private invalidate(): void { this.epoch++; this.store.invalidate(); }
     private ready(): boolean {
         if (this.disposed || this.blocked || this.admissions.size || !this.owners.size) return false;
+        for (const operation of this.operations.values()) if (!this.owners.has(operation.instanceId)) return false;
         for (const owner of this.owners.values()) {
             if (!owner.receipt || !owner.current()) { this.store.invalidate(); return false; }
         }
@@ -118,14 +142,18 @@ export class CemCheckpointPublicationCoordinator {
         const epoch = this.epoch;
         const store = this.store;
         try {
+            const sources = [...this.owners.values()];
             const receipt: CemCommitReceipt = { runtimeId: this.options.runtimeId, generation: this.options.generation,
                 commitSequence: ++this.sequence, policyStamp: this.policyStamp,
-                owners: [...this.owners.values()].map(owner => ({ ...owner.receipt! })), operations: [] };
+                owners: sources.map(owner => ({ ...owner.receipt! })), operations: [...this.operations.values()].map(record => ({ ...record })) };
             const owners = [];
             let bytes = 0;
-            for (const owner of this.owners.values()) {
+            for (const owner of sources) {
+                if (epoch !== this.epoch || !this.ready()) throw new Error('cem.checkpoint.stale');
                 if (this.allowOwner?.(Object.freeze({ ...owner.receipt! })) !== true) throw new Error('cem.checkpoint.privacy');
-                const island = owner.exportIsland();
+                const exported = owner.exportIsland();
+                const island = typeof exported === 'string' || exported === undefined ? exported : await exported;
+                if (epoch !== this.epoch || !this.ready()) throw new Error('cem.checkpoint.stale');
                 if (typeof island !== 'string' || !island) throw new Error('cem.checkpoint.unavailable');
                 bytes += island.length;
                 if (bytes > MAX_BYTES) throw new Error('cem.checkpoint.limit');
@@ -152,7 +180,7 @@ export class CemCheckpointPublicationCoordinator {
     current(): CemStoredCheckpoint | undefined { return this.ready() ? this.store.current() : undefined; }
     lastCommitted(): CemStoredCheckpoint | undefined { return this.store.lastCommitted(); }
     dispose(): void {
-        this.disposed = true; this.invalidate(); this.store.dispose(); this.owners.clear(); this.admissions.clear();
+        this.disposed = true; this.invalidate(); this.store.dispose(); this.owners.clear(); this.admissions.clear(); this.operations.clear();
     }
     private schedule(): void {
         if (!this.options.automatic || this.scheduled || this.capturing || this.disposed) return;

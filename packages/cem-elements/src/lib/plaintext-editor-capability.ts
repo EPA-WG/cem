@@ -19,6 +19,12 @@ export function cemPlaintextEditorEventValue(target: EventTarget | null): string
     return target ? controls.get(target)?.value : undefined;
 }
 
+/** Composition and deferred external values are not committed editor state. */
+export function cemPlaintextEditorCheckpointReady(host: HTMLElement): boolean {
+    const state = states.get(host);
+    return !!state?.control && !state.composing && state.deferred === undefined;
+}
+
 /** Browser-owned plaintext editing; rendering and styling remain declarative. */
 export const CEM_PLAINTEXT_EDITOR_CAPABILITY: CemProducedElementBehavior = {
     constructed(host, context) {

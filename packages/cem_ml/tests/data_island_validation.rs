@@ -168,3 +168,42 @@ fn unready_selected_model_cannot_fall_back_to_builtin_namespace_claims() {
         .iter()
         .any(|d| d.code == "cem.schema.unresolved_namespace"));
 }
+
+#[test]
+fn pinned_read_only_resource_state_is_portable_domain_data() {
+    let source = EXAMPLE.replace(
+        "{cem-resources:resources |",
+        r#"{cem-resources:resources |
+        {cem-resources:resource @name="location:page" @kind=record |
+            {cem-resources:resource @name=kind @kind=string | location}
+            {cem-resources:resource @name=key @kind=string | pinned-url}
+            {cem-resources:resource @name=live @kind=boolean | false}
+            {cem-resources:resource @name=lastValue @kind=string | https://example.test/docs}
+        }
+        {cem-resources:resource @name=checkpointResources @kind=record |
+            {cem-resources:resource @name=disposition @kind=string | read-again}
+        }"#,
+    );
+    assert_ne!(source, EXAMPLE);
+    let report = validate(&source, Some(SCHEMA), Some(CONTENT_TYPE));
+    assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
+    assert!(report.validation_complete());
+}
+
+#[test]
+fn checkpoint_control_envelope_belongs_to_the_form_domain() {
+    let source = EXAMPLE
+        .replace("@version=\"0.1.2\"", "@version=\"1.0.0-checkpoint.1\"")
+        .replace(
+            "{cem-form:form-state |",
+            r#"{cem-form:form-state |
+            {cem-form:field @name=controls @kind=record |
+                {cem-form:field @name=version @kind=string | cem-checkpoint-controls/1}
+                {cem-form:field @name=controls @kind=array}
+            }"#,
+        );
+    assert_ne!(source, EXAMPLE);
+    let report = validate(&source, Some(SCHEMA), Some(CONTENT_TYPE));
+    assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
+    assert!(report.validation_complete());
+}

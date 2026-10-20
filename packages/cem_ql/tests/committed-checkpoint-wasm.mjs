@@ -31,6 +31,16 @@ let previousMemory;
     wasm.configureRuntimeMemoryBudget(JSON.stringify({ softLimitBytes: 1, hardLimitBytes: observed + 32 * 1024 * 1024,
         recoveryHeadroomBytes: 32 * 1024 * 1024, maxConcurrentOperations: 2 }));
     assert.ok(JSON.parse(wasm.compileTemplate('{p | refused}', '[]')).diagnostics.some(d => d.code === 'cem.runtime.memory.admission'));
+    const controls = { version: 'cem-checkpoint-controls/1', controls: [{ id: 'editor:1', kind: 'text', inputType: 'plaintext',
+        value: 'Draft é😀', checked: false, indeterminate: false, multiple: false, options: [],
+        selection: { start: 1, end: 3, direction: 'backward' }, focused: true, disabled: false, readOnly: true, customValidity: '' }] };
+    assert.deepEqual(JSON.parse(wasm.validateCheckpointControls(JSON.stringify(controls))), controls);
+    const secret = structuredClone(controls); secret.controls[0].inputType = 'password';
+    assert.throws(() => wasm.validateCheckpointControls(JSON.stringify(secret)));
+    const invalidSelection = structuredClone(controls); invalidSelection.controls[0].selection.end = 1000;
+    assert.throws(() => wasm.validateCheckpointControls(JSON.stringify(invalidSelection)));
+    assert.equal(JSON.parse(wasm.runtimeMemoryStatus()).activeOperations, 0);
+
     await store.capture(JSON.stringify(candidate), wasm.sealCommittedCheckpoint);
     assert.notEqual(store.current().bytes.buffer, native.memory.buffer);
     const changed = structuredClone(candidate); changed.receipt.owners[0].dataRevision = 'not-committed';

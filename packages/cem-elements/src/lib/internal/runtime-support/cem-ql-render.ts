@@ -23,6 +23,7 @@ import { DEFAULT_CEM_VALUE_ARTIFACT_LIMITS, type NativeCemAttributeBinding, type
 // eslint-disable-next-line @nx/enforce-module-boundaries -- generated WASM bindings are the Phase 3A internal runtime boundary.
 import initCemQlWasm, {
     cemQlVersion,
+    validateCheckpointControls,
     compileTemplate,
     adoptDomStylesheets,
     adoptInstanceStylesheets,
@@ -401,13 +402,20 @@ export interface CemMlTemplateProcessingResult {
 let initPromise: Promise<void> | undefined;
 let ready = false;
 
-/** Resolve authored navigation attributes before slot insertion and patch comparison. */
+/** Named JSON control serialization boundary. Native code validates scalar
+ * shapes, identities, limits and UTF-16 positions; no JS AST is reconstructed. */
+export async function validatePortableCheckpointControls(state: string): Promise<void> {
+    await ensureRuntimeReady();
+    validateCheckpointControls(state);
+}
+
 /** Validate scalar XML Base metadata through the shared native URL boundary. */
 export async function resolveDeclarationResourceBase(documentUrl: string, bases: string[]): Promise<string> {
     await ensureRuntimeReady();
     return resolveResourceBaseWasm(documentUrl, JSON.stringify(bases));
 }
 
+/** Resolve authored navigation attributes before slot insertion and patch comparison. */
 export async function resolveRenderPlanLinks(nodes: RenderPlanNode[], sourceUrl?: string | null): Promise<RenderPlanNode[]> {
     if (sourceUrl == null) return nodes;
     const hrefs: string[] = [];
