@@ -487,9 +487,14 @@ pub struct Menu {
     launcher: Option<Endpoint>,
     panel: Option<Endpoint>,
     disposition: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    policies: Option<MenuPolicies>,
 }
 impl Menu {
     pub fn validate(&self, open: bool) -> Result<(), &'static str> {
+        if let Some(policies) = &self.policies {
+            policies.validate()?;
+        }
         if self.disposition != "reacquire"
             || self.parent.is_some() != self.launcher.is_some()
             || open != self.panel.is_some()
@@ -503,6 +508,58 @@ impl Menu {
                 })
         {
             return Err("cem.checkpoint.runtime.menu");
+        }
+        Ok(())
+    }
+}
+
+/// Semantic policies and current endpoints; physical geometry/focus is freshly admitted.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct MenuPolicies {
+    composite_node: String,
+    anchor: MenuRole,
+    boundary: MenuRole,
+    boundary_owner: Option<Endpoint>,
+    focus_target: MenuRole,
+    return_focus: MenuRole,
+    anchor_lost: String,
+    geometry: String,
+}
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MenuRole {
+    mode: String,
+    target: Option<Endpoint>,
+}
+impl MenuRole {
+    fn valid(&self, defaults: &[&str]) -> bool {
+        if self.mode == "target" {
+            self.target.as_ref().is_some_and(|e| {
+                [&e.instance_id, &e.data_revision, &e.node_id]
+                    .iter()
+                    .all(|s| identity(s))
+            })
+        } else {
+            defaults.contains(&self.mode.as_str()) && self.target.is_none()
+        }
+    }
+}
+impl MenuPolicies {
+    fn validate(&self) -> Result<(), &'static str> {
+        if !identity(&self.composite_node)
+            || self.composite_node == "host"
+            || !self.anchor.valid(&["invoker"])
+            || !self.boundary.valid(&["viewport"])
+            || !self.focus_target.valid(&["auto", "none"])
+            || !self.return_focus.valid(&["auto", "none"])
+            || !matches!(self.anchor_lost.as_str(), "close" | "freeze")
+            || self.geometry != "recompute"
+            || self.boundary_owner.as_ref().is_some_and(|e| {
+                e.node_id != "host" || !identity(&e.instance_id) || !identity(&e.data_revision)
+            })
+        {
+            return Err("cem.checkpoint.runtime.menu-policy");
         }
         Ok(())
     }

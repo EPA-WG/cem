@@ -1,3 +1,4 @@
+import { checkpointPopupGeometry, createCemSurfaceGeometryLease, releasePopupGeometry } from './popup-controller.js';
 import { connectCemStandaloneDatalist } from './standalone-datalist.js';
 import { CemSurfaceBody } from './surface-body.js';
 import { applyRenderPlanToRange, checkpointRenderedDatalistOrigin, renderedNativeAttributeBindings, type RenderPlan } from './projection.js';
@@ -980,6 +981,144 @@ export const SubmenuAndCompletedTaskCheckpoint: Story = {
 export const SubmenuAndCompletedTaskCheckpointFallback: Story = {
     render: () => '<section aria-label="Submenu and task fallback checkpoint"></section>',
     play: ({ canvasElement }) => submenuTaskCheckpointContract(canvasElement, true),
+};
+
+async function explicitSubmenuCheckpointContract(canvasElement: HTMLElement, fallback: boolean) {
+    await init(); const root = canvasElement.querySelector<HTMLElement>('section')!;
+    root.setAttribute('interaction-scope', '');
+    let duringSeal: (() => void) | undefined;
+    const f = fixture(root, fallback, false, undefined, {}, async (candidate, receipt) => {
+        duringSeal?.(); duringSeal = undefined;
+        await Promise.resolve(); return wasm.sealCommittedCheckpoint(candidate, receipt);
+    });
+    try {
+        const targets = await f.create('{div @interaction-name=bounds @style="position:relative;width:600px;height:260px" | {button @type=button @interaction-name=dock | Dock}{button @type=button @interaction-name=return | Return}{input @name=draft @value=Original}}');
+        await f.runtime.whenRenderSettled(targets);
+        const dock = targets.querySelector<HTMLButtonElement>('button')!, returnTo = targets.querySelector<HTMLButtonElement>('button:nth-of-type(2)')!;
+        const input = targets.querySelector('input')!;
+        input.focus(); input.value = 'Unsaved draft'; input.setSelectionRange(2, 8);
+        input.dispatchEvent(new InputEvent('input', { bubbles: true })); await f.runtime.whenRenderSettled(targets);
+        const menu = await f.create(declarationTemplate(menuDeclaration), 'cem-ml', root,
+            '<button part="control" type="button">More</button>', 'composite-menu', { keyboard: 'menu', direction: 'column', boundary: '@bounds' });
+        await f.runtime.whenRenderSettled(menu);
+        const launcher = menu.querySelector<HTMLButtonElement>('button')!; launcher.id = `explicit-launcher-${crypto.randomUUID()}`;
+        const submenu = await f.create(declarationTemplate(menuDeclaration), 'cem-ml', root,
+            '<button type="button">Alpha</button><button type="button" interaction-name="entry">Beta</button>', 'composite-menu',
+            { 'parent-item': `#${launcher.id}`, anchor: '@dock', 'focus-target': '@entry', 'return-focus': '@return', 'anchor-lost': 'freeze' });
+        await f.runtime.whenRenderSettled(submenu);
+        const entry = submenu.querySelector<HTMLButtonElement>('button:nth-of-type(2)')!;
+        const capture = () => waitFor(async () => { await f.coordinator.capture(); });
+        const policyIsland = () => decode(f.coordinator).owners.find(owner => owner.instanceId === f.runtime.readInstanceSnapshot(submenu).instanceId)!.island;
+        await capture(); expect(submenu.hidden).toBe(true);
+        expect(policyIsland()).toContain('recompute'); expect(policyIsland()).toContain('boundaryOwner');
+        const edges = f.coordinator.current()!.receipt.relationships!;
+        const hostId = f.runtime.readInstanceSnapshot(submenu).instanceId;
+        for (const property of ['anchor', 'boundary', 'focus-target', 'return-focus']) {
+            expect(edges.some(edge => edge.requester.instanceId === hostId && edge.requester.nodeId === 'host' && edge.property === property)).toBe(true);
+        }
+        expect(edges.some(edge => edge.requester.instanceId === hostId && edge.property === 'interaction' && edge.requester.nodeId === 'host'
+            && edge.provider.instanceId === f.runtime.readInstanceSnapshot(menu).instanceId)).toBe(true);
+        await userEvent.click(launcher); await waitFor(() => expect(submenu.hidden).toBe(false));
+        await waitFor(() => expect(document.activeElement).toBe(entry)); await capture();
+        const style = submenu.getAttribute('style'); const revision = f.runtime.readInstanceSnapshot(submenu).dataRevision;
+        await capture(); expect(document.activeElement).toBe(entry); expect(submenu.getAttribute('style')).toBe(style);
+        expect(f.runtime.readInstanceSnapshot(submenu).dataRevision).toBe(revision);
+        expect(input.value).toBe('Unsaved draft'); expect(input.selectionStart).toBe(2); expect(input.selectionEnd).toBe(8);
+        const geometryCurrent = () => checkpointPopupGeometry(launcher, submenu, true, submenu, menu);
+        expect(geometryCurrent()).toBe(true);
+        const last = f.coordinator.lastCommitted()!.bytes;
+        dock.style.transform = 'translateX(25px)';
+        expect(geometryCurrent()).toBe(false);
+        await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); expect(f.coordinator.lastCommitted()!.bytes).toEqual(last);
+        await waitFor(() => expect(geometryCurrent()).toBe(true)); await capture();
+        targets.querySelector<HTMLElement>('[interaction-name=bounds]')!.style.width = '580px';
+        expect(geometryCurrent()).toBe(false); await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+        await waitFor(() => expect(geometryCurrent()).toBe(true)); await capture();
+        submenu.style.left = '13px'; expect(geometryCurrent()).toBe(false);
+        await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+        await f.runtime.whenRenderSettled(submenu); window.dispatchEvent(new Event('resize')); await capture();
+        dock.hidden = true; await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+        expect(submenu.hidden).toBe(false); // freeze keeps presentation, never stale geometry authority.
+        dock.hidden = false; window.dispatchEvent(new Event('resize')); await capture();
+        releasePopupGeometry(submenu);
+        const foreign = createCemSurfaceGeometryLease(root, submenu, () => undefined);
+        try {
+            expect(foreign.fit(dock, undefined, 'block-end start')).toBe(true);
+            await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+        } finally { foreign.release(); }
+        await userEvent.keyboard('{Escape}'); await waitFor(() => expect(submenu.hidden).toBe(true));
+        await userEvent.click(launcher); await capture();
+        await userEvent.keyboard('{Escape}'); await waitFor(() => expect(submenu.hidden).toBe(true));
+        expect(document.activeElement).toBe(returnTo); await capture();
+        // Closed panels keep target identity; eligibility and focus are reacquired on opening.
+        entry.disabled = true; await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); entry.disabled = false; await capture();
+        const unowned = document.createElement('button'); unowned.id = `unowned-${crypto.randomUUID()}`; root.append(unowned);
+        for (const target of [`#${unowned.id}`, '#missing-target']) {
+            submenu.setAttribute('anchor', target); await f.runtime.whenRenderSettled(submenu);
+            await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+        }
+        unowned.remove(); submenu.setAttribute('anchor', '@dock'); await f.runtime.whenRenderSettled(submenu); await capture();
+        const duplicate = document.createElement('button'); duplicate.setAttribute('interaction-name', 'dock'); root.append(duplicate);
+        await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); duplicate.remove(); await capture();
+        submenu.setAttribute('focus-target', 'none'); submenu.setAttribute('return-focus', 'none'); submenu.setAttribute('boundary', 'viewport');
+        await f.runtime.whenRenderSettled(submenu); await capture();
+        expect(policyIsland()).toContain('none');
+        await userEvent.click(launcher); expect(document.activeElement).toBe(launcher); await capture();
+        await userEvent.keyboard('{Escape}'); await capture();
+        const good = f.coordinator.lastCommitted()!.bytes;
+        duringSeal = () => submenu.setAttribute('anchor', '#missing-during-seal');
+        await expect(f.coordinator.capture()).rejects.toThrow('stale'); expect(f.coordinator.lastCommitted()!.bytes).toEqual(good);
+        submenu.setAttribute('anchor', '@dock'); await f.runtime.whenRenderSettled(submenu); await capture();
+        f.coordinator.setPolicy('revoked:submenu', () => false);
+        for (const host of [targets, menu, submenu]) { host.setAttribute('title', 'New policy'); await f.runtime.whenRenderSettled(host); }
+        await expect(f.coordinator.capture()).rejects.toThrow('privacy'); expect(f.coordinator.lastCommitted()).toBeUndefined();
+    } finally { f.dispose(); root.removeAttribute('interaction-scope'); }
+}
+export const ExplicitSubmenuGeometryAndFocusCheckpoint: Story = {
+    render: () => '<section aria-label="Explicit submenu worker checkpoint"></section>',
+    play: ({ canvasElement }) => explicitSubmenuCheckpointContract(canvasElement, false),
+};
+export const ExplicitSubmenuGeometryAndFocusCheckpointFallback: Story = {
+    render: () => '<section aria-label="Explicit submenu fallback checkpoint"></section>',
+    play: ({ canvasElement }) => explicitSubmenuCheckpointContract(canvasElement, true),
+};
+
+async function typedSubmenuCheckpointContract(canvasElement: HTMLElement, fallback: boolean) {
+    await init(); const root = canvasElement.querySelector<HTMLElement>('section')!;
+    const f = fixture(root, fallback);
+    try {
+        const menu = await f.create(declarationTemplate(menuDeclaration), 'cem-ml', root,
+            '<button part="control" type="button">More</button>', 'composite-menu', { keyboard: 'menu', direction: 'column' });
+        await f.runtime.whenRenderSettled(menu);
+        const launcher = menu.querySelector('button')!; launcher.id = `typed-launcher-${crypto.randomUUID()}`;
+        const definition = await f.create(declarationTemplate(menuDeclaration), 'cem-ml', root, undefined, 'composite-menu');
+        await f.runtime.whenRenderSettled(definition); const tag = definition.localName; definition.remove();
+        // Native reference expressions publish the typed markers; the fixture does not author them.
+        const producer = await f.create(`{cem:variable @name=entry @select='data:read("<button type=\\"button\\">Entry</button>", "xml").root.children'}{cem:variable @name=returner @select='data:read("<button type=\\"button\\">Return</button>", "xml").root.children'}{cem:variable @name=anchorNode @select='data:read("<div style=\\"width:80px;height:20px\\">Anchor</div>", "xml").root.children'}{cem:variable @name=bounds @select='data:read("<div style=\\"width:600px;height:300px\\">Boundary</div>", "xml").root.children'}{${tag} @parent-item="#${launcher.id}" @focus-target={#entry} @return-focus={#returner} @anchor={#anchorNode} @boundary={#bounds} | {$entry}}{$returner}{$anchorNode}{$bounds}`);
+        await f.runtime.whenRenderSettled(producer);
+        const submenu = producer.querySelector<HTMLElement>(tag)!;
+        expect(submenu).not.toBeNull(); await f.runtime.whenRenderSettled(submenu);
+        for (const name of ['anchor', 'boundary', 'focus-target', 'return-focus']) expect(submenu.hasAttribute(`data-cem-node-ref-${name}`)).toBe(true);
+        const capture = () => waitFor(async () => { await f.coordinator.capture(); });
+        await capture();
+        await userEvent.click(launcher); await waitFor(() => expect(submenu.hidden).toBe(false)); await capture();
+        expect(document.activeElement).toBe(submenu.querySelector('button'));
+        const id = f.runtime.readInstanceSnapshot(submenu).instanceId;
+        const edges = f.coordinator.current()!.receipt.relationships!.filter(edge => edge.requester.instanceId === id && edge.requester.nodeId === 'host');
+        expect(edges.map(edge => edge.property).sort()).toEqual(['anchor', 'boundary', 'focus-target', 'return-focus']);
+        await userEvent.keyboard('{Escape}'); await capture();
+        expect(document.activeElement?.textContent).toBe('Return');
+        producer.remove(); await capture();
+        expect(f.coordinator.current()!.receipt.owners).toHaveLength(1);
+    } finally { f.dispose(); }
+}
+export const TypedSubmenuGeometryAndFocusCheckpoint: Story = {
+    render: () => '<section aria-label="Typed submenu worker checkpoint"></section>',
+    play: ({ canvasElement }) => typedSubmenuCheckpointContract(canvasElement, false),
+};
+export const TypedSubmenuGeometryAndFocusCheckpointFallback: Story = {
+    render: () => '<section aria-label="Typed submenu fallback checkpoint"></section>',
+    play: ({ canvasElement }) => typedSubmenuCheckpointContract(canvasElement, true),
 };
 
 async function externalCheckpointSource(fallback: boolean, portable = true, captured?: CheckpointSource, datalist = false) {

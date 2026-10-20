@@ -150,3 +150,11 @@ export function observePopupGeometry(host: HTMLElement, update: () => void, pane
 export function queueSurfaceGeometry(host: HTMLElement, panel: HTMLElement): void {
     for (const observer of state.observers.get(host) ?? []) if (observer.panel === panel) schedule(observer);
 }
+
+/** Read-only checkpoint fence for the legacy popup owner's settled, unmodified claims. */
+export function checkpointSurfaceGeometryCurrent(host: HTMLElement, panel: HTMLElement): boolean {
+    const claims = state.styles.get(panel);
+    return ownsSurfaceGeometry(panel) && state.owners.get(panel) === host && !!claims?.size
+        && [...claims].every(([name, claim]) => same(readStyle(panel, name), claim.applied))
+        && ![...state.observers.get(host) ?? []].some(observer => observer.targets.has(panel) && observer.frame !== undefined);
+}

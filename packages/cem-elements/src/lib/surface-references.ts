@@ -12,8 +12,13 @@ export function surfaceElementAvailable(target?: HTMLElement): target is HTMLEle
     return !!target?.isConnected && !target.closest('[hidden]:not([hidden="until-found"]),[inert],[disabled],[aria-disabled="true"]') &&
         target.getClientRects().length > 0 && !['hidden', 'collapse'].includes(getComputedStyle(target).visibility);
 }
+/** Structural focus role, including targets retained in a closed owning surface. */
+export function surfaceFocusTargetEligible(target?: HTMLElement): target is HTMLElement {
+    return !!target?.isConnected && !target.closest('[inert],[disabled],[aria-disabled="true"]')
+        && target.matches('button,input:not([type="hidden"]),select,textarea,a[href],[tabindex],[contenteditable]:not([contenteditable="false"])');
+}
 function focusable(target?: HTMLElement): target is HTMLElement {
-    return surfaceElementAvailable(target) && target.matches('button,input:not([type="hidden"]),select,textarea,a[href],[tabindex],[contenteditable]:not([contenteditable="false"])');
+    return surfaceElementAvailable(target) && surfaceFocusTargetEligible(target);
 }
 export function focusSurface(host: HTMLElement, surface: HTMLElement, fallback?: HTMLElement): void {
     const value = host.getAttribute('focus-target') ?? 'auto';

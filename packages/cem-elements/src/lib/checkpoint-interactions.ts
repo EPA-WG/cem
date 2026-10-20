@@ -57,7 +57,12 @@ export interface CheckpointSurface {
         pointer: { left: number; right: number; top: number; bottom: number } | null;
         selection: { left: number; right: number; top: number; bottom: number } | null };
 }
-export interface CheckpointMenu { parent: CheckpointEndpoint | null; launcher: CheckpointEndpoint | null; panel: CheckpointEndpoint | null; disposition: 'reacquire' }
+export interface CheckpointMenu { parent: CheckpointEndpoint | null; launcher: CheckpointEndpoint | null; panel: CheckpointEndpoint | null; disposition: 'reacquire'; policies?: CheckpointMenuPolicies }
+export interface CheckpointMenuRole { mode: 'target' | 'invoker' | 'viewport' | 'auto' | 'none'; target: CheckpointEndpoint | null }
+export interface CheckpointMenuPolicies {
+    compositeNode: string; anchor: CheckpointMenuRole; boundary: CheckpointMenuRole; boundaryOwner: CheckpointEndpoint | null;
+    focusTarget: CheckpointMenuRole; returnFocus: CheckpointMenuRole; anchorLost: 'close' | 'freeze'; geometry: 'recompute';
+}
 export interface CheckpointPopup { trigger: string; panel: string; scrollTop: number; scrollLeft: number; disposition: 'reacquire' }
 
 // Exact invocation snapshots are private host evidence, never inferred from markup.

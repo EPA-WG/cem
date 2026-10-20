@@ -1,10 +1,10 @@
-import type { CheckpointEndpoint, CheckpointMenu } from './checkpoint-interactions.js';
+import type { CheckpointEndpoint, CheckpointMenu, CheckpointMenuPolicies, CheckpointMenuRole } from './checkpoint-interactions.js';
 import { registerCemMenuRelay, resetCemTaskActivation, consumeCemTaskActivation } from './menu-task-relay.js';
 import { interactionReference, interactionControl, reportInteractionReference, observeInteractionReferences } from './interaction-reference.js';
-import { focusSurface, restoreSurfaceFocus } from './surface-references.js';
+import { focusSurface, restoreSurfaceFocus, surfaceElementAvailable, surfaceFocusTargetEligible } from './surface-references.js';
 import type { CemProducedElementBehavior } from './cem-elements.js';
 import { compositeIndex } from './composite-navigation.js';
-import { showPopup, hidePopup, positionPopup, observePopupGeometry, releasePopupGeometry } from './popup-controller.js';
+import { checkpointPopupGeometry, showPopup, hidePopup, positionPopup, observePopupGeometry, releasePopupGeometry } from './popup-controller.js';
 
 // Direct composite parts and projected submenu slots are the declaration contract.
 const COMPOSITE = '[part~="composite"]';
@@ -144,7 +144,7 @@ function close(host: HTMLElement, restore = false): void {
 function dismiss(host: HTMLElement): void { close(rootMenu(host) ?? host); }
 function boundaryOwner(host: HTMLElement): HTMLElement {
     const visited = new Set<HTMLElement>();
-    while (!host.hasAttribute('boundary') && !visited.has(host)) {
+    while (!host.hasAttribute('boundary') && !host.hasAttribute('data-cem-node-ref-boundary') && !visited.has(host)) {
         visited.add(host); const parent = parentMenu(host); if (!parent) break; host = parent;
     }
     return host;
@@ -334,15 +334,51 @@ export const CEM_COMPOSITE_MENU_CAPABILITY: CemProducedElementBehavior = {
     },
 };
 
+/** Resolve current semantic policy, never retain authored IDs or browser geometry. */
+function checkpointMenuPolicies(instance: HTMLElement, parentHost: HTMLElement | undefined, resolve: (node: HTMLElement) => CheckpointEndpoint | undefined): CheckpointMenuPolicies | null | undefined {
+    const names = ['anchor', 'boundary', 'focus-target', 'return-focus', 'anchor-lost'];
+    const boundaryHost = boundaryOwner(instance);
+    const inherited = boundaryHost !== instance && (boundaryHost.hasAttribute('boundary') || boundaryHost.hasAttribute('data-cem-node-ref-boundary'));
+    if (!inherited && !names.some(name => instance.hasAttribute(name) || instance.hasAttribute(`data-cem-node-ref-${name}`))) return null;
+    const box = container(instance), composite = box && resolve(box), self = resolve(instance);
+    if (!composite || !self || composite.instanceId !== self.instanceId || composite.dataRevision !== self.dataRevision || composite.nodeId === 'host'
+        || (box as HTMLElement & { cemRenderNodeId?: string }).cemRenderNodeId !== composite.nodeId) return undefined;
+    const boundary = inherited ? boundaryHost : instance;
+    const boundaryEndpoint = inherited ? resolve(boundaryHost) : null;
+    if (boundaryEndpoint === undefined || boundaryEndpoint?.nodeId !== undefined && boundaryEndpoint.nodeId !== 'host') return undefined;
+    const role = (source: HTMLElement, name: string, fallback: 'invoker' | 'viewport' | 'auto'): CheckpointMenuRole | undefined => {
+        const value = source.getAttribute(name) ?? fallback, typed = source.hasAttribute(`data-cem-node-ref-${name}`);
+        if (!typed && (value === fallback || fallback === 'auto' && value === 'none')) return { mode: value as CheckpointMenuRole['mode'], target: null };
+        const reference = interactionReference(source, value, name);
+        const node = reference.target;
+        if (reference.code || !(node instanceof HTMLElement) || !node.isConnected || node.getRootNode() !== instance.getRootNode()) return undefined;
+        if (fallback === 'auto' && (!surfaceFocusTargetEligible(node) || name === 'focus-target' && !instance.contains(node)
+            || !instance.hidden && !surfaceElementAvailable(node))) return undefined;
+        const target = resolve(node);
+        return target && (target.nodeId === 'host' || (node as HTMLElement & { cemRenderNodeId?: string }).cemRenderNodeId === target.nodeId)
+            ? { mode: 'target', target } : undefined;
+    };
+    const anchor = role(instance, 'anchor', 'invoker'), boundaryRole = role(boundary, 'boundary', 'viewport');
+    const focusTarget = role(instance, 'focus-target', 'auto'), returnFocus = role(instance, 'return-focus', 'auto');
+    const anchorLost = instance.getAttribute('anchor-lost') ?? 'close';
+    if (!anchor || !boundaryRole || !focusTarget || !returnFocus || !['close', 'freeze'].includes(anchorLost)) return undefined;
+    if (parentHost && stateFor(parentHost).openPanel === instance) {
+        const trigger = owner(instance);
+        if (!trigger || !checkpointPopupGeometry(trigger, instance, column(parentHost), instance, boundaryHost)) return undefined;
+    }
+    return { compositeNode: composite.nodeId, anchor, boundary: boundaryRole, boundaryOwner: boundaryEndpoint,
+        focusTarget, returnFocus, anchorLost: anchorLost as 'close' | 'freeze', geometry: 'recompute' };
+}
+
 /** Read-only portable state; listeners, generated IDs and grants are reacquired. */
 export function cemCompositeMenuCheckpoint(instance: HTMLElement, resolve: (node: HTMLElement) => CheckpointEndpoint | undefined) {
     const state = states.get(instance);
     if (!instance.isConnected || !state?.abort || state.abort.signal.aborted || state.syncing || state.queuedActivations) return undefined;
-    // Explicit geometry/focus policies require their own authority contracts.
-    if (['anchor', 'boundary', 'focus-target', 'return-focus'].some(name => instance.hasAttribute(name) || instance.hasAttribute(`data-cem-node-ref-${name}`))) return undefined;
     const parentHost = parentMenu(instance) ?? undefined, launcherControl = owner(instance) ?? undefined;
     if (state.parent !== parentHost || !!parentHost !== !!launcherControl || !rootMenu(instance)) return undefined;
-    if (parentHost && panelFor(launcherControl!) !== instance) return undefined;
+    if (parentHost && (panelFor(launcherControl!) !== instance || (stateFor(parentHost).openPanel === instance) === !!instance.hidden)) return undefined;
+    const policies = checkpointMenuPolicies(instance, parentHost, resolve);
+    if (policies === undefined) return undefined;
     const parent = parentHost ? resolve(parentHost) : null, launcher = launcherControl ? resolve(launcherControl) : null;
     const panelHost = state.open && panelFor(state.open);
     if (state.open && unavailable(state.open) || !!state.open !== !!state.openPanel || state.openPanel !== (panelHost ?? undefined)
@@ -351,6 +387,6 @@ export function cemCompositeMenuCheckpoint(instance: HTMLElement, resolve: (node
     if (parent === undefined || launcher === undefined || panel === undefined) return undefined;
     const activeNode = state.active?.getAttribute('data-cem-render-node-id') ?? null;
     if (state.active && (!activeNode || !controls(instance).includes(state.active))) return undefined;
-    const contract: CheckpointMenu = { parent, launcher, panel, disposition: 'reacquire' };
+    const contract: CheckpointMenu = { parent, launcher, panel, disposition: 'reacquire', ...(policies ? { policies } : {}) };
     return { kind: 'composite-menu' as const, activeNode, typeahead: state.buffer, typeaheadAt: state.typedAt, open: !!state.open, state: contract };
 }

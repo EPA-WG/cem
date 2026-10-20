@@ -141,7 +141,27 @@ bounded typeahead clock), tab-panels (roving index/count), and composite-menu
 retain validated parent, launcher and open-panel owner/revision/node endpoints,
 with `reacquire` disposition. These endpoints join the complete dependency receipt;
 DOM IDs, geometry observers, popup leases and task callbacks are never serialized.
-Explicit menu geometry/focus policies still require their own adapters.
+Explicit submenu policies retain `anchor` (invoker/target), `boundary`
+(viewport/target), entry and return focus (auto/none/target), inherited boundary
+owner and `anchor-lost` (close/freeze). Targets use current acknowledged
+owner/revision/render-node endpoints, including scoped and native typed
+references. Logical menu-chain receipts belong to the owned composite node;
+explicit policy receipts belong to the host, so a launcher and an authored
+return destination remain distinct dependencies. The portable policy always
+requires `geometry: recompute`. It carries no DOM IDs, rectangles, style claims,
+observers or focus/geometry leases.
+
+Open explicit submenus must have a settled placement from their current geometry
+owner. Capture checks current anchor/boundary/panel/containing-block geometry,
+viewport, direction, pending geometry work and owned style claims without
+repositioning, focusing or opening anything. Missing/changed anchors, stale
+placements and foreign ownership refuse the complete domain, including a frozen
+menu still visible after anchor loss. Closed panels may retain structurally
+eligible focus targets inside hidden output; current visibility and focus
+eligibility must be reacquired when reopening. Missing, ambiguous, disabled,
+inert, unowned or cross-runtime targets remain unsupported. Resume must acquire
+fresh references, layout and focus authority; this capture contract does not
+implement automatic runtime replacement or restore old pixels.
 Selected/expanded values and tab selection remain in canonical
 attributes/slices. Normalized item caches and generated accessibility IDs are
 derived from the retained payload, never serialized browser ASTs. Stable focus is
@@ -488,3 +508,11 @@ provider changes and explicit orphan retirement. Host journal fixtures cover
 current-policy reconciliation, unknown refusal, atomic retirement, failed/stale/
 cancelled seals, stale handles and more than 256 repeated retirements without
 retaining old identities or replaying effects.
+
+Submenu policy evidence includes native role/default/endpoint validation and
+independent-module WASM import, plus production menu worker/fallback plays using
+scoped and native `{#...}` references. Closed/open, inherited/viewport boundaries,
+none/explicit focus, read-only capture, preserved edits/caret, moved or missing
+anchors, resized boundaries, altered style claims, foreign geometry ownership,
+revocation, disposal and stale async seals are covered. Invalid state preserves
+the last-good host bytes without silently skipping the affected owner.

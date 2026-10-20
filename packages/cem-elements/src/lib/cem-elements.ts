@@ -3066,8 +3066,22 @@ export class CemElementRuntime {
         if (this.declarationForInstance(instance)?.behavior === CEM_COMPOSITE_MENU_CAPABILITY) {
             const menu = cemCompositeMenuCheckpoint(instance, element => this.checkpointEndpoint(element));
             if (!menu) return undefined;
+            const policies = menu.state.policies;
+            const chainRequester = policies ? { ...requester, nodeId: policies.compositeNode } : requester;
             for (const [name, provider] of [['interaction', menu.state.parent], ['return-focus', menu.state.launcher], ['anchor', menu.state.panel]] as const) {
-                if (provider) result.push({ id: `${requester.instanceId}:menu:${name}`, kind: 'placement', requester, provider, property: name, disposition: 'reacquire' });
+                if (provider) result.push({ id: `${requester.instanceId}:menu:${name}`, kind: 'placement', requester: chainRequester, provider, property: name, disposition: 'reacquire' });
+            }
+            if (policies) {
+                for (const [name, provider] of [['anchor', policies.anchor.target], ['boundary', policies.boundary.target],
+                    ['focus-target', policies.focusTarget.target], ['return-focus', policies.returnFocus.target], ['interaction', policies.boundaryOwner]] as const) {
+                    if (!provider) continue;
+                    // Native placement publication may already prove this exact host attribute.
+                    const existing = result.find(edge => edge.requester.instanceId === requester.instanceId && edge.requester.nodeId === requester.nodeId && edge.property === name);
+                    if (existing) {
+                        if (existing.kind !== 'placement' || existing.provider.instanceId !== provider.instanceId
+                            || existing.provider.dataRevision !== provider.dataRevision || existing.provider.nodeId !== provider.nodeId) return undefined;
+                    } else result.push({ id: `${requester.instanceId}:menu-policy:${name}`, kind: 'placement', requester, provider, property: name, disposition: 'reacquire' });
+                }
             }
         }
         if (this.declarationForInstance(instance)?.behavior === CEM_NATIVE_SURFACE_CAPABILITY) {

@@ -2,15 +2,13 @@ import { popupPosition, popupLocalPosition, popupBounds } from './composite-navi
 import { interactionReference, reportInteractionReference } from './interaction-reference.js';
 import { snapshotGeometryRect, type CemInvocationGeometry } from './surface-invocation.js';
 import { surfacePosition, validSurfacePlacement } from './surface-position.js';
-import { claimSurfaceGeometry, ownsSurfaceGeometry, releaseSurfaceGeometryClaim, releaseSurfaceGeometry,
+import { checkpointSurfaceGeometryCurrent, claimSurfaceGeometry, ownsSurfaceGeometry, releaseSurfaceGeometryClaim, releaseSurfaceGeometry,
     writeGeometryStyle, restoreGeometryStyle, writeGeometryPlacement, watchSurfaceGeometry, observePopupGeometry, queueSurfaceGeometry } from './surface-geometry.js';
 export { observePopupGeometry } from './surface-geometry.js';
 
-/** Shared browser popup geometry; declarations retain ownership of panel paint. */
-export function positionPopup(trigger: HTMLElement, panel: HTMLElement, column = false, host?: HTMLElement, boundaryHost = host): boolean {
-    if (!ownsSurfaceGeometry(panel)) return false;
+function popupGeometryInputs(trigger: HTMLElement, panel: HTMLElement, host?: HTMLElement, boundaryHost = host) {
     const view = trigger.ownerDocument.defaultView;
-    if (!view || panel.hidden) return false;
+    if (!view || panel.hidden) return undefined;
     const selected = (source: HTMLElement | undefined, name: string, fallback: string, defaultTarget?: HTMLElement) => {
         const value = source?.getAttribute(name) ?? fallback;
         const target = !source || !source.hasAttribute(`data-cem-node-ref-${name}`) && value === fallback ? defaultTarget : interactionReference(source, value, name).target;
@@ -24,10 +22,38 @@ export function positionPopup(trigger: HTMLElement, panel: HTMLElement, column =
     const viewport = view.visualViewport;
     const bounds = popupBounds({ left: viewport?.offsetLeft ?? 0, top: viewport?.offsetTop ?? 0,
         right: (viewport?.offsetLeft ?? 0) + (viewport?.width ?? view.innerWidth), bottom: (viewport?.offsetTop ?? 0) + (viewport?.height ?? view.innerHeight) }, boundary?.getBoundingClientRect());
-    if (!anchor || explicitBoundary && !boundary || !bounds) {
+    return anchor && (!explicitBoundary || boundary) && bounds ? { view, anchor, boundary, bounds } : undefined;
+}
+const popupGeometrySnapshots = new WeakMap<HTMLElement, { host: HTMLElement; boundaryHost?: HTMLElement; trigger: HTMLElement; column: boolean; anchor: Element; boundary?: Element; signature: string }>();
+function popupGeometrySignature(trigger: HTMLElement, panel: HTMLElement, inputs: NonNullable<ReturnType<typeof popupGeometryInputs>>): string {
+    const rect = (element?: Element | null) => {
+        if (!element) return null;
+        const { left, top, right, bottom, width, height } = element.getBoundingClientRect();
+        return [left, top, right, bottom, width, height];
+    };
+    const parent = panel.offsetParent, style = getComputedStyle(panel), anchorStyle = getComputedStyle(inputs.anchor);
+    const viewport = inputs.view.visualViewport;
+    return JSON.stringify([rect(trigger), rect(inputs.anchor), rect(inputs.boundary), rect(panel), rect(parent), inputs.bounds,
+        inputs.view.innerWidth, inputs.view.innerHeight, viewport && [viewport.offsetLeft, viewport.offsetTop, viewport.width, viewport.height, viewport.scale],
+        parent instanceof HTMLElement && [parent.scrollLeft, parent.scrollTop, parent.clientLeft, parent.clientTop],
+        style.position, style.direction, style.writingMode, anchorStyle.direction, anchorStyle.writingMode]);
+}
+/** Fresh-layout evidence only. No style writes, focus moves, observer drains or serialized pixels. */
+export function checkpointPopupGeometry(trigger: HTMLElement, panel: HTMLElement, column: boolean, host: HTMLElement, boundaryHost = host): boolean {
+    const saved = popupGeometrySnapshots.get(panel), inputs = popupGeometryInputs(trigger, panel, host, boundaryHost);
+    return !!saved && !!inputs && checkpointSurfaceGeometryCurrent(host, panel) && saved.host === host && saved.boundaryHost === boundaryHost
+        && saved.trigger === trigger && saved.column === column && saved.anchor === inputs.anchor && saved.boundary === inputs.boundary
+        && saved.signature === popupGeometrySignature(trigger, panel, inputs);
+}
+/** Shared browser popup geometry; declarations retain ownership of panel paint. */
+export function positionPopup(trigger: HTMLElement, panel: HTMLElement, column = false, host?: HTMLElement, boundaryHost = host): boolean {
+    if (!ownsSurfaceGeometry(panel)) return false;
+    const inputs = popupGeometryInputs(trigger, panel, host, boundaryHost);
+    if (!inputs) {
         if (host) reportInteractionReference(host, 'interaction-anchor-unavailable', 'geometry');
         return false;
     }
+    const { view, anchor, boundary, bounds } = inputs;
     if (host) {
         reportInteractionReference(host, undefined, 'geometry');
         watchSurfaceGeometry(host, panel, [anchor, panel, ...(boundary ? [boundary] : [])]);
@@ -42,6 +68,7 @@ export function positionPopup(trigger: HTMLElement, panel: HTMLElement, column =
         : { left, top };
     writeGeometryStyle(panel, 'left', `${local.left}px`);
     writeGeometryStyle(panel, 'top', `${local.top}px`);
+    if (host) popupGeometrySnapshots.set(panel, { host, boundaryHost, trigger, column, anchor, boundary, signature: popupGeometrySignature(trigger, panel, inputs) });
     return true;
 }
 
@@ -117,6 +144,7 @@ function fitSurface(host: HTMLElement, panel: HTMLElement, trigger: HTMLElement 
     return true;
 }
 export function releasePopupGeometry(panel: HTMLElement): void {
+    popupGeometrySnapshots.delete(panel);
     releaseSurfaceGeometry(panel);
 }
 export function showPopup(trigger: HTMLElement, panel: HTMLElement, column = false, host?: HTMLElement, boundaryHost = host): boolean {

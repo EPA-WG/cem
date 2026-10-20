@@ -154,6 +154,19 @@ assert.equal(wasm.validateCheckpointRuntime(submenuSaved), submenuSaved);
 assert.equal(JSON.parse(wasm.validateCheckpointRuntime(submenuSaved)).capability.open, true);
 submenu.capability.state.panel = null;
 assert.throws(() => wasm.validateCheckpointRuntime(JSON.stringify(submenu)));
+const explicitSubmenu = structuredClone(submenu);
+explicitSubmenu.capability.state.panel = menuEndpoint;
+explicitSubmenu.capability.state.policies = { compositeNode: 'composite.1',
+    anchor: {mode: 'target', target: menuEndpoint}, boundary: {mode: 'viewport', target: null}, boundaryOwner: null,
+    focusTarget: {mode: 'none', target: null}, returnFocus: {mode: 'target', target: menuEndpoint}, anchorLost: 'freeze', geometry: 'recompute' };
+const explicitSaved = wasm.validateCheckpointRuntime(JSON.stringify(explicitSubmenu));
+const { wasm: menuGeneration } = await load('explicit-submenu');
+assert.equal(menuGeneration.validateCheckpointRuntime(explicitSaved), explicitSaved);
+explicitSubmenu.capability.state.policies.geometry = 'restore-pixels';
+assert.throws(() => wasm.validateCheckpointRuntime(JSON.stringify(explicitSubmenu)));
+explicitSubmenu.capability.state.policies.geometry = 'recompute';
+explicitSubmenu.capability.state.policies.anchor.lease = 'stale authority';
+assert.throws(() => wasm.validateCheckpointRuntime(JSON.stringify(explicitSubmenu)));
 const datalist = { ...active, capability: { kind: 'suggestions', state: { phase: 'native-datalist', source: active.capability.state.source,
     providerRevision: 2, targetNode: 'datalist.1', claim: 'attached', presentation: 'reset-on-resume' } } };
 const datalistSaved = wasm.validateCheckpointRuntime(JSON.stringify(datalist));

@@ -660,3 +660,71 @@ fn standalone_datalist_ownership_requires_portable_source_and_reset_intent() {
     s["references"]["rowCount"] = json!(0);
     assert!(validate(&s.to_string()).is_err());
 }
+
+fn menu_policy_state() -> Value {
+    let endpoint = json!({"instanceId":"owner","dataRevision":"2","nodeId":"target"});
+    let mut s = state();
+    s["capability"] = json!({"kind":"composite-menu","activeNode":"item","typeahead":"","typeaheadAt":0,"open":false,
+        "state":{"parent":null,"launcher":null,"panel":null,"disposition":"reacquire","policies":{
+            "compositeNode":"composite","anchor":{"mode":"target","target":endpoint},
+            "boundary":{"mode":"target","target":endpoint},"boundaryOwner":{"instanceId":"parent","dataRevision":"3","nodeId":"host"},
+            "focusTarget":{"mode":"target","target":endpoint},"returnFocus":{"mode":"target","target":endpoint},
+            "anchorLost":"freeze","geometry":"recompute"}}});
+    s
+}
+#[test]
+fn submenu_geometry_and_focus_policies_round_trip_as_reacquisition_intent() {
+    let mut s = menu_policy_state();
+    let normalized = validate(&s.to_string()).unwrap();
+    assert_eq!(validate(&normalized).unwrap(), normalized);
+    for (role, mode) in [
+        ("anchor", "invoker"),
+        ("boundary", "viewport"),
+        ("focusTarget", "auto"),
+        ("returnFocus", "none"),
+    ] {
+        s["capability"]["state"]["policies"][role] = json!({"mode":mode,"target":null});
+        assert!(validate(&s.to_string()).is_ok());
+    }
+    s["capability"]["state"]["policies"]["boundaryOwner"] = Value::Null;
+    s["capability"]["state"]["policies"]["anchorLost"] = json!("close");
+    assert!(validate(&s.to_string()).is_ok());
+}
+#[test]
+fn submenu_policy_contracts_refuse_incomplete_roles_pixels_and_private_authority() {
+    let s = menu_policy_state();
+    for (key, value) in [
+        ("compositeNode", json!("")),
+        ("compositeNode", json!("host")),
+        ("anchorLost", json!("restore")),
+        ("geometry", json!("restore-pixels")),
+        ("rect", json!({"left":1})),
+        ("lease", json!("authority")),
+    ] {
+        let mut bad = s.clone();
+        bad["capability"]["state"]["policies"][key] = value;
+        assert!(validate(&bad.to_string()).is_err(), "{key}");
+    }
+    for role in ["anchor", "boundary", "focusTarget", "returnFocus"] {
+        for value in [
+            json!({"mode":"target","target":null}),
+            json!({"mode":"unknown","target":null}),
+            json!({"mode":"auto","target":{"instanceId":"x","dataRevision":"1","nodeId":"node"}}),
+            json!({"mode":"target","target":{"instanceId":"x","dataRevision":"","nodeId":"node"}}),
+            json!({"mode":"target","target":{"instanceId":"x","dataRevision":"1","nodeId":"node","grant":"private"}}),
+        ] {
+            let mut bad = s.clone();
+            bad["capability"]["state"]["policies"][role] = value;
+            assert!(validate(&bad.to_string()).is_err(), "{role}");
+        }
+        let mut bad = s.clone();
+        bad["capability"]["state"]["policies"]
+            .as_object_mut()
+            .unwrap()
+            .remove(role);
+        assert!(validate(&bad.to_string()).is_err());
+    }
+    let mut bad = s;
+    bad["capability"]["state"]["policies"]["boundaryOwner"]["nodeId"] = json!("raw-node");
+    assert!(validate(&bad.to_string()).is_err());
+}

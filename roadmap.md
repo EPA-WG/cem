@@ -453,7 +453,10 @@ receipts. Settled idle/failed/unavailable listbox states now retain original
 source/query intent. Retained inactive selection proofs carry their own original
 source and exact ordinal/value for fresh native revalidation. Settled submenu
 parent/launcher/open-panel endpoints and completed menu-to-dialog invocation
-handoffs join the complete receipt graph; queued activation and preparation remain
+handoffs join the complete receipt graph. Explicit submenu anchor/boundary and
+entry/return-focus policies now retain current target and inherited-owner receipts,
+with fresh geometry/focus admission required and no pixel or lease restoration;
+stale geometry and foreign ownership refuse capture. Queued activation and preparation remain
 nonportable. Native datalist captures its unfocused
 model, exact provider/placement claims and failed local source intent; browser
 picker restoration remains outside the contract. Externally admitted listbox
