@@ -363,7 +363,7 @@ impl CemValueGraph {
         Ok(())
     }
 
-    pub(super) fn string_value(&self, root: u32, max_bytes: usize) -> Result<String, String> {
+    pub(crate) fn string_value(&self, root: u32, max_bytes: usize) -> Result<String, String> {
         let mut result = String::new();
         let mut pending = vec![(root, true)];
         while let Some((id, root)) = pending.pop() {

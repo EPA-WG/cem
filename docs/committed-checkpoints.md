@@ -190,7 +190,7 @@ at most 256 unique root identities, with `rematerialize` disposition. Materializ
 bodies also carry an immutable original `cem-render-projection/1` record.
 `reuseOnOpen` preserves whether the original template is still the current node;
 replacing that node keeps retained output until the next ordinary open replaces it. This is
-an explicitly named scalar renderer-output checkpoint transport, not authored
+an explicitly named renderer-output/binary-artifact checkpoint transport, not authored
 application data, an evaluation AST or DOM-to-source import. Entries come from
 private committed native renderer attribute/text/topology records at mounting;
 DOM is checked against those witnesses, never serialized to reconstruct source.
@@ -204,8 +204,26 @@ format, origin, namespace/name bounds, unique IDs and attributes, balanced depth
 range pairing and exact ordered roots. It caps transport entries at 4,096, depth
 at 64 and attributes per element at 128. Projection contents share the aggregate
 256 KiB original-source/resource budget; the complete runtime record remains
-bounded to 512 KiB. Opaque native attribute capsules cannot enter this scalar
-transport and still refuse capture. Password/file types and sensitive autofill
+bounded to 512 KiB. Retained native attribute capsules use an optional shared `nativeArtifacts`
+table of opaque CEMV bytes/content hashes, with per-attribute artifact/root indices.
+Native validation checks the existing CEMV format, inner integrity and outer
+content hash, selected attribute name/root, typed value contracts, source
+provenance, sensitive attributes and credential-bearing provenance URLs. It
+rejects duplicate/unreferenced artifacts, malformed indices and private fields.
+At most 64 artifacts, 4,096 native graph records/edges and depth 64 are admitted;
+artifact bytes share the existing aggregate 256 KiB budget. Decoded graph storage
+is bounded too. Shared renderer capsules are encoded once per projection.
+
+Private renderer records retain one bounded immutable byte witness per published
+buffer. Capture compares actual bytes and metadata, including retained-clone
+witnesses; an unchanged projected DOM string or claimed hash is insufficient.
+Original retained artifacts survive current template/source changes without
+replacing edits or focus. Native import reconstructs typed/materialized source
+values and provenance in a new owner; it never reconstructs them from strings or
+a JavaScript AST. Original CEMB reference-input envelopes remain in the owner's
+separate native source contract. Executable/live source references, opaque native
+contexts and unsupported bindings remain fenced; this does not revive source
+grants or replay expressions/actions. Password/file types and sensitive autofill
 tokens are refused in original output too, including historical produced-host inputs. Returned records cannot mutate retained
 provenance. Original output remains portable when the current template changes,
 including insertion/removal or empty output, without discarding retained edits.
@@ -516,3 +534,12 @@ none/explicit focus, read-only capture, preserved edits/caret, moved or missing
 anchors, resized boundaries, altered style claims, foreign geometry ownership,
 revocation, disposal and stale async seals are covered. Invalid state preserves
 the last-good host bytes without silently skipping the affected owner.
+
+Native retained-capsule evidence covers native graph/provenance round trips,
+shared roots, integrity/hash/binding/private-field rejection, sensitive and
+credential source refusal, and aggregate budgets. Worker/fallback plays retain
+old source-value capsules across current source changes, preserve edits/caret and
+focus, reject metadata replacement and in-place byte corruption, preserve
+last-good bytes during stale async seals and dispose/rematerialize normally.
+The real-WASM probe reimports renderer-produced capsules into an independent
+module and verifies typed integer/boolean values at the explicit JSON export boundary.

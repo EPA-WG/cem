@@ -102,9 +102,10 @@ export interface CheckpointManualListbox {
 /** Named renderer checkpoint transport. Never authored data or an evaluation AST. */
 export interface CheckpointRenderProjection {
     version: 'cem-render-projection/1';
+    nativeArtifacts?: { contentHash: string; base64: string }[];
     origin: { instanceId: string; templateArtifactId: string; dataRevision: string; scopePolicyStamp: string };
     entries: (
-        | { kind: 'element'; nodeId: string; tag: string; namespace: string | null; attributes: { name: string; value: string }[] }
+        | { kind: 'element'; nodeId: string; tag: string; namespace: string | null; attributes: { name: string; value: string; nativeValue?: { artifact: number; index: number } }[] }
         | { kind: 'text' | 'comment'; nodeId: string; text: string }
         | { kind: 'end' }
         | { kind: 'range-start' | 'range-end'; nodeId: string; rangeId: string }

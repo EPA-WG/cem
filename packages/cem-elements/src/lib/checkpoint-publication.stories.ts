@@ -1,7 +1,7 @@
 import { checkpointPopupGeometry, createCemSurfaceGeometryLease, releasePopupGeometry } from './popup-controller.js';
 import { connectCemStandaloneDatalist } from './standalone-datalist.js';
 import { CemSurfaceBody } from './surface-body.js';
-import { applyRenderPlanToRange, checkpointRenderedDatalistOrigin, renderedNativeAttributeBindings, type RenderPlan } from './projection.js';
+import { applyRenderPlanToRange, checkpointRenderedDatalistOrigin, checkpointRenderedTemplateProjection, renderedNativeAttributeBindings, restoreNativeAttributeBindings, type RenderPlan } from './projection.js';
 import { connectCemManualListbox } from './manual-listbox.js';
 import type { CemCheckpointSealer } from './committed-checkpoint.js';
 import type { CheckpointSource } from './checkpoint-interactions.js';
@@ -1473,6 +1473,89 @@ export const NestedRetainedBodyOwners: Story = {
             } finally { f.dispose(); }
         }
     },
+};
+
+async function retainedNativeCapsulesContract(canvasElement: HTMLElement, fallback: boolean) {
+    await init(); const root = canvasElement.querySelector('section')!;
+    let references = elementReferenceFixtureInputs('{option @value=alpha @label=Alpha}{option @value=beta @label=Beta}');
+    let race: (() => void) | undefined;
+    const f = fixture(root, fallback, false, undefined, { elementReferenceInputs: host => host.hasAttribute('capsule-source') ? references : undefined },
+        async (candidate, receipt) => { const sealed = wasm.sealCommittedCheckpoint(candidate, receipt); race?.(); race = undefined; return sealed; });
+    try {
+        const childDefinition = await f.create('{input @value=Child}');
+        await f.runtime.whenRenderSettled(childDefinition); const childTag = childDefinition.localName; childDefinition.remove();
+        const host = await f.create(`{slice @name=relation}{slice @name=destination}{attribute @name=caption | Original}{dialog @part=surface @aria-label=Capsules | {template @slot=body | {div @native-count={42} @native-source={$destination}}{div @native-flag={false}}{input @value={$caption}}{p | {$caption}}{${childTag} @native-model={true}}}}`, 'cem-ml', root, undefined, 'native-surface', { 'capsule-source': '' });
+        await f.runtime.whenRenderSettled(host);
+        const capture = () => waitFor(async () => { await f.coordinator.capture(); });
+        await capture(); const dialog = host.querySelector('dialog')!;
+        const template = host.querySelector<HTMLTemplateElement>('template[slot=body]')!;
+        const original = checkpointRenderedTemplateProjection(template)!;
+        expect(original.nativeArtifacts).toHaveLength(1); // All roots share the native render artifact.
+        const inertBinding = renderedNativeAttributeBindings(template.content.querySelector('div')!)[0];
+        const inertIndex = inertBinding.value.index; inertBinding.value.index = 999;
+        await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); inertBinding.value.index = inertIndex; await capture();
+        const capsule = original.entries.find(entry => entry.kind === 'element' && entry.attributes.some(a => a.name === 'native-count'))!;
+        if (capsule.kind !== 'element') throw new Error('missing capsule');
+        const count = capsule.attributes.find(a => a.name === 'native-count')!.nativeValue!;
+        const bytes = Uint8Array.from(atob(original.nativeArtifacts![count.artifact].base64), c => c.charCodeAt(0));
+        expect(wasm.exportCemJsonValue(bytes, count.index, 'native-count', '')).toBe('42');
+        const imported = wasm.importNativeValueArtifact(bytes, JSON.stringify({maxBytes:262144,maxValues:4096,maxDepth:64}));
+        expect(wasm.disposeNativeValueArtifact(imported)).toBe(true);
+        dialog.showModal(); const input = await waitFor(() => { const field = dialog.querySelector('input'); expect(field).not.toBeNull(); return field!; });
+        const target = dialog.querySelector<HTMLElement>('div[native-count]')!;
+        const child = await waitFor(() => { const nested = dialog.querySelector<HTMLElement>(childTag); expect(nested?.querySelector('input')).toBeTruthy(); return nested!; });
+        await f.runtime.whenRenderSettled(child); const childInput = child.querySelector('input')!; childInput.value = 'Independent child draft';
+        input.value = 'Unsaved capsule draft é'; input.focus(); input.setSelectionRange(2, 8); await capture();
+        expect(decode(f.coordinator).owners).toHaveLength(2);
+        expect(f.coordinator.current()!.receipt.relationships!.some(edge => edge.provider.instanceId === f.runtime.readInstanceSnapshot(child).instanceId)).toBe(true);
+        expect(decode(f.coordinator).owners.find(owner => owner.instanceId === f.runtime.readInstanceSnapshot(host).instanceId)!.island).toContain('nativeArtifacts');
+        expect(decode(f.coordinator).owners.some(owner => owner.island.includes('cem-native-source/1'))).toBe(true);
+        host.setAttribute('caption', 'Current template'); await f.runtime.whenRenderSettled(host); await capture();
+        expect(dialog.querySelector('input')).toBe(input); expect(input.value).toBe('Unsaved capsule draft é');
+        expect(document.activeElement).toBe(input); expect([input.selectionStart, input.selectionEnd]).toEqual([2, 8]);
+        references = elementReferenceFixtureInputs('{option @value=gamma @label=Gamma}{option @value=delta @label=Delta}');
+        f.runtime.refreshElementReferences(host); await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+        await f.runtime.whenRenderSettled(host); await capture();
+        const currentTemplate = host.querySelector<HTMLTemplateElement>('template[slot=body]')!;
+        expect(checkpointRenderedTemplateProjection(currentTemplate)!.nativeArtifacts![0].contentHash).not.toBe(original.nativeArtifacts![0].contentHash);
+        expect(decode(f.coordinator).owners.some(owner => owner.island.includes(original.nativeArtifacts![0].base64))).toBe(true);
+        expect(childInput.value).toBe('Independent child draft');
+        expect(input.value).toBe('Unsaved capsule draft é'); expect(document.activeElement).toBe(input);
+        const childBindings = renderedNativeAttributeBindings(child);
+        const oldChildIndex = childBindings[0].value.index; childBindings[0].value.index = 999;
+        await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); childBindings[0].value.index = oldChildIndex; await capture();
+        const originalBindings = renderedNativeAttributeBindings(target);
+        const binding = originalBindings.find(b => b.name === 'native-count')!;
+        const bad = { ...binding.value, artifact: binding.value.artifact.slice(0) };
+        new Uint8Array(bad.artifact)[bad.artifact.byteLength - 1] ^= 1;
+        const prior = f.coordinator.lastCommitted()!.bytes;
+        restoreNativeAttributeBindings(target, originalBindings.map(b => b === binding ? { name:b.name, value:bad } : b));
+        await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+        expect(f.coordinator.lastCommitted()!.bytes).toEqual(prior);
+        restoreNativeAttributeBindings(target, originalBindings); await capture();
+        // Mutation in place cannot be hidden behind a claimed unchanged content hash.
+        const actual = new Uint8Array(binding.value.artifact), last = actual.length - 1, byte = actual[last]; actual[last] ^= 1;
+        await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); actual[last] = byte; await capture();
+        const good = f.coordinator.lastCommitted()!.bytes;
+        race = () => { new Uint8Array(binding.value.artifact)[last] ^= 1; };
+        await expect(f.coordinator.capture()).rejects.toThrow('stale'); expect(f.coordinator.lastCommitted()!.bytes).toEqual(good);
+        actual[last] = byte; await capture();
+        // Caller changes to a returned checkpoint cannot mutate the retained original bytes.
+        original.nativeArtifacts![0].base64 = 'forged'; await capture();
+        expect(input.value).toBe('Unsaved capsule draft é'); expect(document.activeElement).toBe(input);
+        host.setAttribute('materialize', 'dispose'); await f.runtime.whenRenderSettled(host); dialog.close();
+        await waitFor(() => expect(dialog.querySelector('input')).toBeNull()); await capture();
+        dialog.showModal(); await waitFor(() => expect(dialog.querySelector('input')!.value).toBe('Current template')); await capture();
+        dialog.close(); await capture();
+    } finally { f.dispose(); }
+}
+export const RetainedNativeAttributeAndSourceCapsules: Story = {
+    render: () => '<section aria-label="Retained native capsules worker checkpoint"></section>',
+    play: ({ canvasElement }) => retainedNativeCapsulesContract(canvasElement, false),
+};
+export const RetainedNativeAttributeAndSourceCapsulesFallback: Story = {
+    render: () => '<section aria-label="Retained native capsules fallback checkpoint"></section>',
+    play: ({ canvasElement }) => retainedNativeCapsulesContract(canvasElement, true),
 };
 
 export const NativeDynamicBodyProjection: Story = {

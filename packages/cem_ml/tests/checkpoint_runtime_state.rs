@@ -728,3 +728,179 @@ fn submenu_policy_contracts_refuse_incomplete_roles_pixels_and_private_authority
     bad["capability"]["state"]["policies"]["boundaryOwner"]["nodeId"] = json!("raw-node");
     assert!(validate(&bad.to_string()).is_err());
 }
+
+fn native_projection_state() -> Value {
+    use cem_ml::value::artifact::{
+        CemValueArtifactLimits, CemValueGraph, CemValueProvenance, CemValueRecord,
+    };
+    let graph = CemValueGraph {
+        roots: vec![0],
+        records: vec![
+            CemValueRecord {
+                kind: "attribute".into(),
+                name: "native-options".into(),
+                native_content: true,
+                values: vec![1, 2],
+                ..Default::default()
+            },
+            CemValueRecord {
+                lexical: "42".into(),
+                datatype: "integer".into(),
+                provenance: Some(CemValueProvenance {
+                    source_uri: Some("https://example.test/options.cem".into()),
+                    source_key: Some("original".into()),
+                    line_number: Some(3),
+                }),
+                ..Default::default()
+            },
+            CemValueRecord {
+                lexical: "é😀".into(),
+                ..Default::default()
+            },
+        ],
+    };
+    let artifact = graph.encode(&CemValueArtifactLimits::default()).unwrap();
+    let hash = cem_ml::content_cache::ContentHash::from_blake3(&artifact).header_value();
+    let mut s = state();
+    s["capability"] = json!({"kind":"native-surface","phase":"closed","defaultsInitialized":true,"state":{"returnValue":"","modal":false,"focusWithin":false,"closeReason":"native","invocation":null,"disposition":"reacquire","body":{
+        "templateNode":"template","mode":"retain","materialized":true,"roots":["child"],"disposition":"rematerialize","reuseOnOpen":false,
+        "projection":{"version":"cem-render-projection/1","origin":{"instanceId":"parent","templateArtifactId":"artifact","dataRevision":"1","scopePolicyStamp":"policy"},
+            "nativeArtifacts":[{"contentHash":hash,"base64":STANDARD.encode(artifact)}],
+            "entries":[{"kind":"element","nodeId":"child","tag":"cem-options","namespace":null,"attributes":[{"name":"native-options","value":"42é😀","nativeValue":{"artifact":0,"index":0}}]},{"kind":"end"}]}
+    }}});
+    s
+}
+#[test]
+fn retained_native_capsules_keep_original_bytes_types_and_source_provenance() {
+    let s = native_projection_state();
+    let normalized = validate(&s.to_string()).unwrap();
+    assert_eq!(validate(&normalized).unwrap(), normalized);
+    let saved: Value = serde_json::from_str(&normalized).unwrap();
+    assert_eq!(saved, s);
+    let artifact = &saved["capability"]["state"]["body"]["projection"]["nativeArtifacts"][0];
+    let bytes = STANDARD
+        .decode(artifact["base64"].as_str().unwrap())
+        .unwrap();
+    let fresh =
+        cem_ml::value::artifact::CemValueGraph::decode(&bytes, &Default::default()).unwrap();
+    assert_eq!(fresh.records[1].datatype, "integer");
+    assert_eq!(
+        fresh.records[1]
+            .provenance
+            .as_ref()
+            .unwrap()
+            .source_uri
+            .as_deref(),
+        Some("https://example.test/options.cem")
+    );
+    assert_eq!(fresh.records[2].lexical, "é😀");
+    let mut shared = s;
+    let p = &mut shared["capability"]["state"]["body"]["projection"];
+    p["entries"][0]["attributes"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"name":"another","value":""}));
+    assert!(validate(&shared.to_string()).is_ok());
+}
+#[test]
+fn retained_native_capsules_reject_corruption_authority_and_mismatched_bindings() {
+    let s = native_projection_state();
+    let prefix = "/capability/state/body/projection/";
+    for (path, value) in [
+        ("nativeArtifacts/0/contentHash", json!("forged")),
+        (
+            "nativeArtifacts/0/base64",
+            json!(STANDARD.encode(b"CEMV invalid")),
+        ),
+        ("entries/0/attributes/0/nativeValue/artifact", json!(1)),
+        ("entries/0/attributes/0/nativeValue/index", json!(1)),
+        ("entries/0/attributes/0/name", json!("different")),
+    ] {
+        let mut bad = s.clone();
+        *bad.pointer_mut(&format!("{prefix}{path}")).unwrap() = value;
+        assert!(validate(&bad.to_string()).is_err(), "{path}");
+    }
+    for key in ["handle", "grant", "sourceHandle"] {
+        let mut bad = s.clone();
+        bad["capability"]["state"]["body"]["projection"]["nativeArtifacts"][0][key] =
+            json!("private");
+        assert!(validate(&bad.to_string()).is_err());
+    }
+    let mut bad = s.clone();
+    bad["capability"]["state"]["body"]["projection"]["entries"][0]["attributes"][0]
+        ["nativeValue"] = Value::Null;
+    assert!(validate(&bad.to_string()).is_err()); // No unreferenced hidden artifact payloads.
+}
+
+#[test]
+fn retained_native_capsules_share_artifacts_and_enforce_privacy_and_aggregate_limits() {
+    use cem_ml::value::artifact::{CemValueGraph, CemValueRecord};
+    let s = native_projection_state();
+    let p = &s["capability"]["state"]["body"]["projection"];
+    let decoded = STANDARD
+        .decode(p["nativeArtifacts"][0]["base64"].as_str().unwrap())
+        .unwrap();
+    let graph = CemValueGraph::decode(&decoded, &Default::default()).unwrap();
+    let install = |state: &mut Value, graph: &CemValueGraph| {
+        let bytes = graph.encode(&Default::default()).unwrap();
+        state["capability"]["state"]["body"]["projection"]["nativeArtifacts"][0] = json!({
+            "contentHash":cem_ml::content_cache::ContentHash::from_blake3(&bytes).header_value(),"base64":STANDARD.encode(bytes)});
+    };
+    let mut shared = s.clone();
+    let mut two = graph.clone();
+    let mut attribute = two.records[0].clone();
+    attribute.name = "second".into();
+    two.roots.push(two.records.len() as u32);
+    two.records.push(attribute);
+    install(&mut shared, &two);
+    shared["capability"]["state"]["body"]["projection"]["entries"][0]["attributes"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"name":"second","value":"","nativeValue":{"artifact":0,"index":1}}));
+    assert!(validate(&shared.to_string()).is_ok());
+    for (name, value) in [
+        ("type", "PASSWORD"),
+        ("autocomplete", "section-a one-time-code"),
+    ] {
+        let mut private = graph.clone();
+        private.records.push(CemValueRecord {
+            kind: "attribute".into(),
+            name: name.into(),
+            lexical: value.into(),
+            ..Default::default()
+        });
+        let mut bad = s.clone();
+        install(&mut bad, &private);
+        assert!(validate(&bad.to_string()).is_err());
+    }
+    let mut credential = graph.clone();
+    credential.records[1]
+        .provenance
+        .as_mut()
+        .unwrap()
+        .source_uri = Some("https://user:secret@example.test/source.cem".into());
+    let mut bad = s.clone();
+    install(&mut bad, &credential);
+    assert!(validate(&bad.to_string()).is_err());
+    let mut large = graph.clone();
+    large.records[2].lexical = "x".repeat(140_000);
+    let mut bad = s.clone();
+    install(&mut bad, &large);
+    bad["capability"]["state"]["body"]["projection"]["entries"][0]["attributes"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"name":"title","value":"y".repeat(130_000)}));
+    assert!(bad.to_string().len() < cem_ml::checkpoint_runtime_state::MAX_BYTES);
+    assert!(validate(&bad.to_string()).is_err());
+    let mut bad = s.clone();
+    bad["capability"]["state"]["body"]["projection"]["nativeArtifacts"]
+        .as_array_mut()
+        .unwrap()
+        .push(p["nativeArtifacts"][0].clone());
+    assert!(validate(&bad.to_string()).is_err());
+    let mut corrupt = decoded;
+    *corrupt.last_mut().unwrap() ^= 1;
+    let mut bad = s;
+    bad["capability"]["state"]["body"]["projection"]["nativeArtifacts"][0] = json!({"contentHash":cem_ml::content_cache::ContentHash::from_blake3(&corrupt).header_value(),"base64":STANDARD.encode(corrupt)});
+    assert!(validate(&bad.to_string()).is_err());
+}

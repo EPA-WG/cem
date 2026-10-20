@@ -1,5 +1,7 @@
-//! Explicit scalar checkpoint transport for committed renderer output, never an
-//! evaluation AST, authored input, live DOM serialization or native authority.
+//! Explicit renderer checkpoint transport with opaque native value bytes, never
+//! an evaluation AST, authored input, live DOM serialization or native authority.
+use crate::value::artifact::{CemValueArtifactLimits, CemValueGraph};
+use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 #[derive(Serialize, Deserialize)]
@@ -8,6 +10,9 @@ pub struct Projection {
     version: String,
     origin: Origin,
     entries: Vec<Entry>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(rename = "nativeArtifacts")]
+    native_artifacts: Vec<NativeArtifact>,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -54,6 +59,83 @@ enum Entry {
 struct Attribute {
     name: String,
     value: String,
+    #[serde(rename = "nativeValue", skip_serializing_if = "Option::is_none")]
+    native_value: Option<NativeValue>,
+}
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct NativeArtifact {
+    content_hash: String,
+    base64: String,
+}
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NativeValue {
+    artifact: usize,
+    index: usize,
+}
+fn sensitive(name: &str, value: &str) -> bool {
+    name.eq_ignore_ascii_case("type")
+        && ["password", "file"]
+            .iter()
+            .any(|s| value.eq_ignore_ascii_case(s))
+        || name.eq_ignore_ascii_case("autocomplete")
+            && value.split_whitespace().any(|v| {
+                ["current-password", "new-password", "one-time-code"]
+                    .iter()
+                    .any(|s| v.eq_ignore_ascii_case(s))
+            })
+}
+impl NativeArtifact {
+    fn decode(&self, bytes: &mut usize) -> Result<CemValueGraph, &'static str> {
+        let fail = "cem.checkpoint.runtime.projection.native";
+        let decoded = STANDARD.decode(&self.base64).map_err(|_| fail)?;
+        *bytes = bytes.saturating_add(decoded.len());
+        if *bytes > 256 * 1024
+            || crate::content_cache::ContentHash::from_blake3(&decoded).header_value()
+                != self.content_hash
+        {
+            return Err(fail);
+        }
+        let graph = CemValueGraph::decode(
+            &decoded,
+            &CemValueArtifactLimits {
+                max_bytes: 256 * 1024,
+                max_values: 4096,
+                max_depth: 64,
+            },
+        )
+        .map_err(|_| fail)?;
+        if graph.accounted_bytes() > 256 * 1024 {
+            return Err(fail);
+        }
+        for (id, record) in graph.records.iter().enumerate() {
+            if record.kind == "attribute"
+                && (record.name.eq_ignore_ascii_case("type")
+                    || record.name.eq_ignore_ascii_case("autocomplete"))
+                && sensitive(
+                    &record.name,
+                    &graph
+                        .string_value(id as u32, 256 * 1024)
+                        .map_err(|_| fail)?,
+                )
+            {
+                return Err(fail);
+            }
+            if record
+                .provenance
+                .as_ref()
+                .and_then(|p| p.source_uri.as_ref())
+                .is_some_and(|uri| {
+                    url::Url::parse(uri)
+                        .is_ok_and(|url| !url.username().is_empty() || url.password().is_some())
+                })
+            {
+                return Err(fail);
+            }
+        }
+        Ok(graph)
+    }
 }
 fn identity(s: &str) -> bool {
     !s.is_empty() && s.len() <= 1024 && !s.chars().any(char::is_control)
@@ -86,6 +168,23 @@ impl Projection {
             *bytes = bytes.saturating_add(field.len());
         }
         if self.version != "cem-render-projection/1" || self.entries.len() > 4096 {
+            return Err(fail);
+        }
+        if self.native_artifacts.len() > 64 {
+            return Err(fail);
+        }
+        let graphs = self
+            .native_artifacts
+            .iter()
+            .map(|artifact| artifact.decode(bytes))
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut used_artifacts = BTreeSet::new();
+        let mut hashes = BTreeSet::new();
+        if self
+            .native_artifacts
+            .iter()
+            .any(|a| !hashes.insert(&a.content_hash))
+        {
             return Err(fail);
         }
         let mut ids = BTreeSet::new();
@@ -134,18 +233,20 @@ impl Projection {
                     }
                     let mut names = BTreeSet::new();
                     for a in attributes {
-                        if a.name.eq_ignore_ascii_case("type")
-                            && ["password", "file"]
-                                .iter()
-                                .any(|v| a.value.eq_ignore_ascii_case(v))
-                            || a.name.eq_ignore_ascii_case("autocomplete")
-                                && a.value.split_whitespace().any(|v| {
-                                    ["current-password", "new-password", "one-time-code"]
-                                        .iter()
-                                        .any(|secret| v.eq_ignore_ascii_case(secret))
-                                })
-                        {
+                        if sensitive(&a.name, &a.value) {
                             return Err(fail);
+                        }
+                        if let Some(value) = &a.native_value {
+                            let graph = graphs.get(value.artifact).ok_or(fail)?;
+                            let root = graph.roots.get(value.index).ok_or(fail)?;
+                            let record = &graph.records[*root as usize];
+                            if record.kind != "attribute"
+                                || record.name != a.name
+                                || !record.has_native_content()
+                            {
+                                return Err(fail);
+                            }
+                            used_artifacts.insert(value.artifact);
                         }
                         if !name(&a.name) || !names.insert(&a.name) {
                             return Err(fail);
@@ -195,7 +296,7 @@ impl Projection {
                 return Err(fail);
             }
         }
-        if depth != 0 || range.is_some() || found != roots {
+        if depth != 0 || range.is_some() || found != roots || used_artifacts.len() != graphs.len() {
             return Err(fail);
         }
         Ok(elements)

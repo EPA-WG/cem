@@ -1,9 +1,10 @@
+import type { NativeCemAttributeBinding } from './native-values.js';
 import type { CheckpointDeferredBody, CheckpointEndpoint, CheckpointRenderProjection } from './checkpoint-interactions.js';
-import { materializeRenderedTemplate, checkpointRenderedTemplateProjection } from './projection.js';
+import { materializeRenderedTemplate, checkpointRenderedTemplateProjection, checkpointRenderedNativeAttributeBindings } from './projection.js';
 import { reportInteractionReference } from './interaction-reference.js';
 
 interface BodyRecord { template: HTMLTemplateElement; nodes: ChildNode[]; projection?: CheckpointRenderProjection;
-    topology: { node: Node; parent: Node | null; text: string | null; attributes: string | null; id?: string; children: readonly ChildNode[]; produced: boolean }[] }
+    topology: { node: Node; parent: Node | null; text: string | null; attributes: string | null; id?: string; children: readonly ChildNode[]; produced: boolean; native?: readonly NativeCemAttributeBinding[] }[] }
 // Browser projection ownership only. Never recaptured as the instance's native data.
 const BODY_OWNERS = Symbol.for('cem.surface-bodies.v1');
 const environment = globalThis as typeof globalThis & { [BODY_OWNERS]?: WeakMap<HTMLElement, BodyRecord> };
@@ -30,11 +31,19 @@ export class CemSurfaceBody {
         const templateNode = (contract.template as HTMLTemplateElement & { cemRenderNodeId?: string }).cemRenderNodeId;
         if (!templateNode || contract.template.getAttribute('data-cem-render-node-id') !== templateNode
             || !checkpointRenderedTemplateProjection(contract.template) || record && (!record.projection || record.topology.length > 4096)) return undefined;
+        const checked = new Map<ArrayBuffer, boolean>();
         const owners: NonNullable<CheckpointDeferredBody['owners']> = [];
         for (const entry of record?.topology ?? []) {
             const { node, parent, text, attributes, id, produced, children } = entry;
             if (node.parentNode !== parent || !id || (node as Node & { cemRenderNodeId?: string }).cemRenderNodeId !== id
                 || node.nodeType === 1 && (node as Element).getAttribute('data-cem-render-node-id') !== id) return undefined;
+            const native = node.nodeType === 1 ? checkpointRenderedNativeAttributeBindings(node as Element, checked) : [];
+            // A retained clone keeps its original immutable capsule witnesses. A metadata
+            // replacement needs ordinary disposal/rematerialization before capture.
+            if (!native || !entry.native || native.length !== entry.native.length || native.some((binding, index) => {
+                const old = entry.native![index]; return old.name !== binding.name || old.value.contentHash !== binding.value.contentHash
+                    || old.value.index !== binding.value.index || old.value.artifact !== binding.value.artifact;
+            })) return undefined;
             if (produced) {
                 const owner = resolve(node as HTMLElement);
                 if (!owner || owner.nodeId !== 'host' || owners.length >= 256) return undefined;
@@ -76,14 +85,14 @@ export class CemSurfaceBody {
         if (contract.template) {
             const fragment = materializeRenderedTemplate(contract.template);
             const nodes = [...fragment.childNodes];
-            const topology: BodyRecord['topology'] = [];
+            const topology: BodyRecord['topology'] = [], checked = new Map<ArrayBuffer, boolean>();
             const visit = (node: Node) => {
                 if (topology.length > 4096) return;
                 const produced = node.nodeType === 1 && !!node.ownerDocument?.defaultView?.customElements.get((node as Element).localName);
                 const container = node instanceof HTMLTemplateElement ? node.content : node;
                 topology.push({ node, parent: node.parentNode, text: node.nodeType === 3 || node.nodeType === 8 ? node.textContent : null,
                     attributes: produced ? null : bodyAttributes(node), id: (node as Node & { cemRenderNodeId?: string }).cemRenderNodeId,
-                    children: [...container.childNodes], produced });
+                    children: [...container.childNodes], produced, native: node.nodeType === 1 ? checkpointRenderedNativeAttributeBindings(node as Element, checked) : [] });
                 if (!produced) for (const child of container.childNodes) visit(child);
             };
             for (const node of nodes) visit(node);

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import ts from 'typescript';
 
-// Exercise the actual shared host store with two independent generated WASM
+// Exercise the actual shared host store with independently generated WASM
 // glue modules/memories. No mock sealing or WASM-memory snapshots.
 const source = await readFile(new URL('../../cem-elements/src/lib/committed-checkpoint.ts', import.meta.url), 'utf8');
 const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText;
@@ -188,6 +188,28 @@ assert.equal(JSON.parse(wasm.validateCheckpointRuntime(JSON.stringify(completedC
 completedCommit.capability.changeSuppression.revision = 3; assert.throws(() => wasm.validateCheckpointRuntime(JSON.stringify(completedCommit)));
 const invalidActive = structuredClone(active); invalidActive.capability.state.source.sources[0].digest = 'obsolete';
 assert.throws(() => wasm.validateCheckpointRuntime(JSON.stringify(invalidActive)));
+// Native renderer capsules remain binary; a fresh generation imports them independently.
+const capsuleTemplate = JSON.parse(wasm.compileTemplate('{div @native-count={42} @native-flag={false}}', '[]'));
+try {
+    const plan = JSON.parse(wasm.renderTemplateWithNativeValues(capsuleTemplate.artifactId, 0, '{}', '[]', '[]', '', 'capsule-owner', undefined, undefined));
+    assert.deepEqual(plan.diagnostics, []);
+    const artifact = wasm.takeRenderValueArtifact(plan.nativeValueArtifactId).slice();
+    const capsule = { ...runtimeState, resources: [], capability: {kind:'native-surface',phase:'closed',defaultsInitialized:true,
+        state:{returnValue:'',modal:false,focusWithin:false,closeReason:'native',invocation:null,disposition:'reacquire',body:{
+            templateNode:'template',mode:'retain',materialized:true,roots:['body'],disposition:'rematerialize',reuseOnOpen:false,
+            projection:{version:'cem-render-projection/1',origin:{instanceId:'editor',templateArtifactId:'original',dataRevision:'1',scopePolicyStamp:'scope'},
+                nativeArtifacts:[{contentHash:plan.nativeValueContentHash,base64:Buffer.from(artifact).toString('base64')}],
+                entries:[{kind:'element',nodeId:'body',tag:'div',namespace:null,attributes:plan.nodes[0].attributes.map(a=>({name:a.name,value:a.value,nativeValue:{artifact:0,index:a.nativeValueIndex}}))},{kind:'end'}]}}}}};
+    const saved = wasm.validateCheckpointRuntime(JSON.stringify(capsule));
+    const { wasm: fresh } = await load('retained-native-capsules');
+    assert.equal(fresh.validateCheckpointRuntime(saved), saved);
+    const id = fresh.importNativeValueArtifact(artifact, JSON.stringify({maxBytes:262144,maxValues:4096,maxDepth:64}));
+    assert.equal(fresh.exportCemJsonValue(artifact, plan.nodes[0].attributes.find(a=>a.name==='native-count').nativeValueIndex, 'native-count', ''), '42');
+    assert.equal(fresh.exportCemJsonValue(artifact, plan.nodes[0].attributes.find(a=>a.name==='native-flag').nativeValueIndex, 'native-flag', ''), 'false');
+    assert.equal(fresh.disposeNativeValueArtifact(id), true);
+    capsule.capability.state.body.projection.nativeArtifacts[0].contentHash = 'forged';
+    assert.throws(()=>fresh.validateCheckpointRuntime(JSON.stringify(capsule)));
+} finally { wasm.disposeTemplate(capsuleTemplate.artifactId); }
 // Execution/resume is deliberately not performed by the transport store.
 store.invalidate(); assert.equal(store.current(), undefined);
 assert.ok(store.lastCommitted()); store.dispose(); assert.equal(store.lastCommitted(), undefined);

@@ -139,12 +139,41 @@ function rememberRenderedChildren(element: Element, plan: readonly RenderPlanNod
     renderedChildren.set(element, { plan, nodes: Array.from(renderPlanElementChildContainer(element).childNodes), owner: renderPlanOwnerKey(owner), origin: checkpointProjectionOrigin(owner) });
 }
 
-type NativeAttributeStore = WeakMap<Element, Map<string, { value: NativeCemValue; projection: string }>>;
+type NativeAttributeRecord = { value: NativeCemValue; projection: string; checkpoint?: NativeCemValue };
+type NativeAttributeStore = WeakMap<Element, Map<string, NativeAttributeRecord>>;
 const NATIVE_ATTRIBUTE_STORE = Symbol.for('cem.native-attribute-store.v1');
 // Source and packaged runtimes may coexist on one page. Their components must
 // read the same native handoff without exposing an AST as JavaScript records.
 const nativeAttributeEnvironment = globalThis as typeof globalThis & { [NATIVE_ATTRIBUTE_STORE]?: NativeAttributeStore };
 const nativeAttributeValues = nativeAttributeEnvironment[NATIVE_ATTRIBUTE_STORE] ??= new WeakMap();
+// One bounded immutable byte witness per published buffer, shared by its attribute roots.
+const nativeCheckpointBytes = new WeakMap<ArrayBuffer, ArrayBuffer>();
+function nativeAttributeRecord(value: NativeCemValue, projection: string): NativeAttributeRecord {
+    if (value.artifact.byteLength > 256 * 1024) return { value, projection };
+    let artifact = nativeCheckpointBytes.get(value.artifact);
+    if (!artifact) { artifact = value.artifact.slice(0); nativeCheckpointBytes.set(value.artifact, artifact); }
+    return { value, projection, checkpoint: { kind: value.kind, artifact, contentHash: value.contentHash, index: value.index } };
+}
+function sameCheckpointBytes(a: ArrayBuffer, b: ArrayBuffer): boolean {
+    if (a === b) return true;
+    if (a.byteLength !== b.byteLength) return false;
+    const x = new Uint8Array(a), y = new Uint8Array(b);
+    return x.every((byte, index) => byte === y[index]);
+}
+/** Read private committed capsules. A filtered-away or changed value blocks capture. */
+export function checkpointRenderedNativeAttributeBindings(element: Element, checked = new Map<ArrayBuffer, boolean>()): readonly NativeCemAttributeBinding[] | undefined {
+    const bindings: NativeCemAttributeBinding[] = [];
+    for (const [name, record] of nativeAttributeValues.get(element) ?? []) {
+        const { value, checkpoint } = record;
+        if (!checkpoint || value.kind !== 'cem-native-value-v1' || value.contentHash !== checkpoint.contentHash || value.index !== checkpoint.index
+            || renderPlanAttributeValue(element, name) !== record.projection) return undefined;
+        let current = checked.get(value.artifact);
+        if (current === undefined) { current = sameCheckpointBytes(value.artifact, checkpoint.artifact); checked.set(value.artifact, current); }
+        if (!current) return undefined;
+        bindings.push({ name, value: checkpoint });
+    }
+    return bindings;
+}
 /** Retained native attributes, separate from their final browser string projection. */
 export function renderedNativeAttributeBindings(element: Element, consumedAttributes: readonly string[] = []): NativeCemAttributeBinding[] {
     return [...(nativeAttributeValues.get(element) ?? [])].filter(([name, record]) => {
@@ -155,13 +184,13 @@ export function renderedNativeAttributeBindings(element: Element, consumedAttrib
     }).map(([name, record]) => ({ name, value: record.value }));
 }
 export function restoreNativeAttributeBindings(element: Element, bindings: readonly NativeCemAttributeBinding[]): void {
-    nativeAttributeValues.set(element, new Map(bindings.map(({ name, value }) => [name, { value, projection: renderPlanAttributeValue(element, name) ?? '' }])));
+    nativeAttributeValues.set(element, new Map(bindings.map(({ name, value }) => [name, nativeAttributeRecord(value, renderPlanAttributeValue(element, name) ?? '')])));
 }
 function syncNativeAttributes(element: Element, attributes: readonly RenderPlanAttribute[]): void {
     const previous = nativeAttributeValues.get(element);
-    const next = new Map<string, { value: NativeCemValue; projection: string }>();
+    const next = new Map<string, NativeAttributeRecord>();
     for (const attribute of attributes) {
-        if (attribute.nativeValue) next.set(attribute.name, { value: attribute.nativeValue, projection: attribute.value });
+        if (attribute.nativeValue) next.set(attribute.name, nativeAttributeRecord(attribute.nativeValue, attribute.value));
     }
     nativeAttributeValues.set(element, next);
     // Metadata may change while the projected string stays identical. A normal
@@ -2014,6 +2043,27 @@ function checkpointProjectionOrigin(plan: RenderPlanIdentity): CheckpointRenderP
 function checkpointRenderedChildProjection(template: Element): CheckpointRenderProjection | undefined {
     let count = 0, valid = true, bytes = 0;
     const entries: CheckpointRenderProjection['entries'] = [];
+    const nativeArtifacts: NonNullable<CheckpointRenderProjection['nativeArtifacts']> = [];
+    const artifacts = new Map<ArrayBuffer, number>(), byHash = new Map<string, { artifact: ArrayBuffer; index: number }>(), checked = new Map<ArrayBuffer, boolean>();
+    const nativeIndex = (value: NativeCemValue): { artifact: number; index: number } | undefined => {
+        let artifact = artifacts.get(value.artifact);
+        if (artifact === undefined) {
+            const previous = byHash.get(value.contentHash);
+            if (previous) {
+                if (!sameCheckpointBytes(previous.artifact, value.artifact)) { valid = false; return; }
+                artifact = previous.index;
+            } else {
+                bytes += value.artifact.byteLength;
+                if (bytes > 256 * 1024 || nativeArtifacts.length >= 64) { valid = false; return; }
+                artifact = nativeArtifacts.length;
+                let binary = ''; for (const byte of new Uint8Array(value.artifact)) binary += String.fromCharCode(byte);
+                nativeArtifacts.push({ contentHash: value.contentHash, base64: btoa(binary) });
+                byHash.set(value.contentHash, { artifact: value.artifact, index: artifact });
+            }
+            artifacts.set(value.artifact, artifact);
+        }
+        return { artifact, index: value.index };
+    };
     const visit = (parent: Element, depth: number): void => {
         const record = renderedChildren.get(parent), container = renderPlanElementChildContainer(parent);
         if (!valid || !record?.owner || depth > 64 || record.nodes.length !== container.childNodes.length) { valid = false; return; }
@@ -2033,7 +2083,8 @@ function checkpointRenderedChildProjection(template: Element): CheckpointRenderP
                 entries.push({ kind: node.nodeType === 3 ? 'text' : 'comment', nodeId: id, text }); continue;
             }
             const element = node as Element, attributes = renderedAttributeValues.get(element);
-            if (!attributes || element.getAttribute(RENDER_NODE_ID_ATTR) !== id || renderedNativeAttributeBindings(element).length
+            const native = checkpointRenderedNativeAttributeBindings(element, checked);
+            if (!attributes || !native || native.some(binding => !attributes.has(binding.name)) || element.getAttribute(RENDER_NODE_ID_ATTR) !== id
                 || [...attributes].some(([name, value]) => element.getAttribute(name) !== value)
                 || [...element.attributes].some(attribute => !attributes.has(attribute.name)
                     && ![RENDER_NODE_ID_ATTR, TEMPLATE_ARTIFACT_ID_ATTR, DATA_REVISION_ATTR, SOURCE_FIDELITY_ATTR, SOURCE_FRAME_ATTR].includes(attribute.name))) { valid = false; return; }
@@ -2041,13 +2092,16 @@ function checkpointRenderedChildProjection(template: Element): CheckpointRenderP
                 || name.toLowerCase() === 'autocomplete' && value.toLowerCase().split(/\s+/).some(token => ['current-password','new-password','one-time-code'].includes(token)))) { valid = false; return; }
             bytes += id.length + element.localName.length + [...attributes].reduce((sum, [name,value]) => sum + name.length + value.length, 0);
             entries.push({ kind: 'element', nodeId: id, namespace: element.namespaceURI, tag: element.localName,
-                attributes: [...attributes].map(([name,value]) => ({ name,value })) });
+                attributes: [...attributes].map(([name,value]) => {
+                    const binding = native.find(binding => binding.name === name);
+                    return { name,value, ...(binding ? { nativeValue: nativeIndex(binding.value) } : {}) };
+                }) });
             visit(element, depth + 1); entries.push({ kind: 'end' });
         }
     };
     visit(template, 0);
     const origin = renderedChildren.get(template)?.origin;
-    return valid && origin && entries.length <= 4096 && bytes <= 256 * 1024 ? { version: 'cem-render-projection/1', origin: { ...origin }, entries } : undefined;
+    return valid && origin && entries.length <= 4096 && bytes <= 256 * 1024 ? { version: 'cem-render-projection/1', origin: { ...origin }, entries, ...(nativeArtifacts.length ? { nativeArtifacts } : {}) } : undefined;
 }
 export function checkpointRenderedTemplateProjection(template: HTMLTemplateElement): CheckpointRenderProjection | undefined {
     return checkpointRenderedChildProjection(template);
@@ -2056,7 +2110,7 @@ export function checkpointRenderedTemplateProjection(template: HTMLTemplateEleme
 export function checkpointRenderedDatalistOrigin(target: HTMLDataListElement): CheckpointRenderProjection['origin'] | undefined {
     const attributes = renderedAttributeValues.get(target), projection = checkpointRenderedChildProjection(target);
     const nodeId = (target as Element & { cemRenderNodeId?: string }).cemRenderNodeId;
-    if (!projection || !attributes || !nodeId || renderedNativeAttributeBindings(target).length || target.getAttribute(RENDER_NODE_ID_ATTR) !== nodeId
+    if (!projection || projection.nativeArtifacts?.length || !attributes || !nodeId || renderedNativeAttributeBindings(target).length || target.getAttribute(RENDER_NODE_ID_ATTR) !== nodeId
         || [...attributes].some(([name, value]) => target.getAttribute(name) !== value)
         || [...target.attributes].some(attribute => !attributes.has(attribute.name)
             && !['id', RENDER_NODE_ID_ATTR, TEMPLATE_ARTIFACT_ID_ATTR, DATA_REVISION_ATTR, SOURCE_FIDELITY_ATTR, SOURCE_FRAME_ATTR].includes(attribute.name))) return undefined;
@@ -2257,7 +2311,7 @@ export function applyPatchFramesToRange(
                     setRenderPlanAttribute(element, operation.name, operation.value);
                 }
                 const native = nativeAttributeValues.get(element) ?? new Map();
-                if (operation.nativeValue && operation.value !== null) native.set(operation.name, { value: operation.nativeValue, projection: operation.value });
+                if (operation.nativeValue && operation.value !== null) native.set(operation.name, nativeAttributeRecord(operation.nativeValue, operation.value));
                 else native.delete(operation.name);
                 nativeAttributeValues.set(element, native);
                 renderedAttributeValues.set(element, attributes);

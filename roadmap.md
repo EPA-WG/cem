@@ -473,8 +473,12 @@ intent; opaque sources and unknown direct leases still block capture. Native def
 its native origin, materialization/root identities and edited controls across
 later template changes. Paired dynamic ranges and independently acknowledged
 nested produced/deferred owners are captured with complete dependency receipts.
-Opaque native capsules, untracked output and unknown child authority remain
-blocking. Gestures, pending work, unknown provider authority and
+Retained projections now preserve bounded native CEMV attribute capsules,
+including typed/materialized source values and provenance, with native integrity,
+binding/privacy checks and private renderer byte witnesses. Original artifacts
+remain separate from current template/source inputs and require fresh native
+import. Executable/live sources, opaque contexts, unsupported bindings, untracked
+output and unknown child authority remain blocking. Gestures, pending work, unknown provider authority and
 unsupported source/widget states remain blocking. Complete
 physical worker/fallback runtime coverage and
 runtime replacement remain next. Continue this in the shared native/WASM
