@@ -1,3 +1,4 @@
+import { checkpointBase64, type CheckpointSource } from './checkpoint-interactions.js';
 import type { CemElementReferenceInputs } from './element-reference-inputs.js';
 import type { NativeCemValue } from './native-values.js';
 import type { CemProcessingHost, CemProcessingNativeSessionInput, CemProcessingNativeSessionResult } from './internal/runtime-support/processing-host.js';
@@ -38,6 +39,7 @@ export interface CemNativeSuggestionsConfig {
 }
 /** Retained source lease. Query freshness belongs to each immutable publication. */
 export class CemNativeCapabilitySession {
+    private checkpointInput?: Extract<CemProcessingNativeSessionInput, { action: 'prepare' }>;
     private released = false;
     private releasePromise?: Promise<void>;
     private ownerLost = false;
@@ -56,7 +58,7 @@ export class CemNativeCapabilitySession {
         signal?.addEventListener('abort', this.abort, { once: true });
     }
     static async prepare(host: CemProcessingHost, input: Extract<CemProcessingNativeSessionInput, { action: 'prepare' }>,
-        current: () => boolean, signal?: AbortSignal): Promise<CemNativeCapabilitySession> {
+        current: () => boolean, signal?: AbortSignal, checkpoint = false): Promise<CemNativeCapabilitySession> {
         const handle = Object.freeze({ ...input.handle });
         const job = host.nativeSession({ ...input, handle });
         const cancel = () => { void host.cancel({ targetJobId: job.jobId, reason: 'superseded' }).result.catch(() => undefined); };
@@ -68,11 +70,42 @@ export class CemNativeCapabilitySession {
                 await host.nativeSession({ action: 'release', handle }).result;
                 throw new Error('Native capability preparation was superseded');
             }
-            return new CemNativeCapabilitySession(host, handle, result.length, () => !signal?.aborted && current(), signal, result.suggestions);
+            const session = new CemNativeCapabilitySession(host, handle, result.length, () => !signal?.aborted && current(), signal, result.suggestions);
+            // Explicit opt-in only. Never retain a JS materialization of source ASTs.
+            const sourceInputs = input.sources.kind === 'cem-native-session-import-v1' ? [input.sources.bytes] : input.sources.sources.map(source => source.bundle);
+            const metadataBounded = input.sources.kind === 'cem-native-session-import-v1' ? input.sources.sourceUri.length <= 4096
+                : input.sources.bindings.length <= 256 && input.sources.grants.length <= 256
+                    && input.sources.bindings.every(binding => binding.name.length <= 1024 && binding.select.length <= 4096);
+            if (checkpoint && metadataBounded && input.select.length <= 4096 && handle.sourceRevision.length <= 1024
+                && Object.values(input.labelTemplates ?? {}).every(value => value.length <= 4096) && sourceInputs.length <= 64 && sourceInputs.reduce((sum, bytes) => sum + bytes.byteLength, 0) <= 256 * 1024
+                && !Object.keys(input.data).length && !input.nativeAttributes?.length && !input.nativeSlices?.length) session.checkpointInput = structuredClone(input);
+            return session;
         } catch (error) {
             await host.nativeSession({ action: 'release', handle }).result.catch(() => undefined);
             throw error;
         } finally { signal?.removeEventListener('abort', cancel); }
+    }
+    checkpointSource(): CheckpointSource | undefined {
+        const input = this.checkpointInput;
+        if (!this.valid || !input || !this.suggestions || this.suggestions.rows > 1024) return undefined;
+        const imported = input.sources.kind === 'cem-native-session-import-v1';
+        const original = input.sources;
+        const sources: CheckpointSource['sources'] = [];
+        let bytes = 0;
+        for (const source of imported ? [original as CemNativeSessionImport] : (original as CemNativeSessionSources).sources) {
+            const buffer = 'bytes' in source ? source.bytes : source.bundle;
+            bytes += buffer.byteLength; if (bytes > 256 * 1024) return undefined;
+            const base64 = checkpointBase64(buffer); if (base64 === undefined) return undefined;
+            sources.push({ codec: 'bytes' in source ? 'xml' : 'cemb', base64, sourceUri: 'bytes' in source ? source.sourceUri : null,
+                primarySourceId: 'bytes' in source ? 1 : source.primarySourceId, context: 'bytes' in source ? true : source.context });
+            // Non-default source traversal contracts require their own portable limits.
+            if ('bundle' in source && (source.maxDepth !== undefined || source.maxWork !== undefined || source.unresolved !== undefined)) return undefined;
+        }
+        return { version: 'cem-native-source/1', revision: this.handle.sourceRevision, rowCount: this.suggestions.rows, select: input.select,
+            resolve: input.resolve ?? false, requesting: imported ? 0 : (original as CemNativeSessionSources).requesting, sources,
+            bindings: imported ? [] : (original as CemNativeSessionSources).bindings.map(binding => ({ ...binding })),
+            crossings: imported ? [] : (original as CemNativeSessionSources).grants.map(([from, to]) => ({ from, to })),
+            labels: { option: input.labelTemplates?.option ?? null, group: input.labelTemplates?.group ?? null }, disposition: 'reacquire' };
     }
     get valid(): boolean { return !this.released && !this.host.ownerScope.disposed && this.host.mode === this.ownerMode && this.current(); }
     async view(expression: string, index?: number, suggestions?: CemNativeSuggestionsConfig): Promise<CemNativeSessionView> {
@@ -89,7 +122,7 @@ export class CemNativeCapabilitySession {
         if (this.releasePromise) return this.releasePromise;
         let resolve!: () => void, reject!: (error: unknown) => void;
         this.releasePromise = new Promise<void>((complete, failed) => { resolve = complete; reject = failed; });
-        this.released = true; this.stopOwnerLoss();
+        this.released = true; this.checkpointInput = undefined; this.stopOwnerLoss();
         for (const expire of [...this.sourceExpiryListeners]) expire(); this.sourceExpiryListeners.clear();
         this.signal?.removeEventListener('abort', this.abort);
         void Promise.allSettled([...this.publications].map(publication => publication.release())).then(async () => {
@@ -128,14 +161,14 @@ export class CemNativeCapabilitySession {
                         nativeSuggestions: { handle: this.handle, publication } }).result;
                     if (!this.valid || !current()) throw new Error('Native publication render was superseded');
                     return result;
-                }, handle => {
+                }, (handle, index) => {
                     let source = this.rowSources.get(handle);
                     if (!source) {
-                        source = createCemNativeSuggestionSource(() => this.valid, expire => { this.sourceExpiryListeners.add(expire); return () => { this.sourceExpiryListeners.delete(expire); }; });
+                        source = createCemNativeSuggestionSource(() => this.valid, expire => { this.sourceExpiryListeners.add(expire); return () => { this.sourceExpiryListeners.delete(expire); }; }, index);
                         this.rowSources.set(handle, source);
                     }
                     return source;
-                });
+                }, () => this.checkpointSource());
             this.publications.add(admitted);
             return admitted;
         } catch (error) {

@@ -1,4 +1,4 @@
-import { getCemEditorProvider, isCemEditorLeaseFor, type CemEditorLease } from './form-control-capability.js';
+import { getCemEditorProvider, isCemEditorLeaseFor, subscribeCemEditorCheckpoint, type CemEditorLease } from './form-control-capability.js';
 import { createCemSurfaceGeometryLease, nativeSurfaceGeometry } from './popup-controller.js';
 import { observeInteractionReferences, reportInteractionReference } from './interaction-reference.js';
 import { assertCemSurfaceOwnerAvailable, createCemSurfaceSession, observeCemSurfaceDismissalRegion, type CemSurfaceLifetime, type CemSurfaceSession } from './surface-session.js';
@@ -87,7 +87,7 @@ export function connectCemManualListbox(owner: HTMLElement, options: Options): C
     try {
         releases.push(observeInteractionReferences(host, () => current.reconcile()));
         releases.push(lifecycle.subscribe(() => current.dismiss('revision')));
-        releases.push(provider.subscribe(update => {
+        releases.push(subscribeCemEditorCheckpoint(provider, lease, update => {
             if ((update.cause === 'claims' || update.cause === 'availability'
                 || update.cause === 'attribute-claims' && lease.attributes.valid) && lease.valid) { current.reconcile(); return; }
             current.dismiss(update.cause);

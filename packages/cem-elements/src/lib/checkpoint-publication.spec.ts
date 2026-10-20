@@ -226,3 +226,22 @@ describe('checkpoint dependency contracts', () => {
         await expect(pending).rejects.toThrow('stale'); expect(c.current()).toBeUndefined(); c.dispose();
     });
 });
+
+describe('derived checkpoint dependencies', () => {
+    it('requires every derived endpoint and rechecks graph identity after asynchronous exports', async () => {
+        let release!: () => void, held = false;
+        const edge = { id: 'derived', kind: 'editor-provider' as const, disposition: 'reacquire' as const, property: 'suggestions',
+            requester: { instanceId: 'a', dataRevision: '1', nodeId: 'host' }, provider: { instanceId: 'b', dataRevision: '1', nodeId: 'host' } };
+        let dependencies: typeof edge[] | undefined = [edge];
+        const c = new CemCheckpointPublicationCoordinator(options());
+        const a = c.register('a', () => held ? new Promise(resolve => { release = () => resolve('<template/>'); }) : '<template/>', () => true, 0, () => dependencies);
+        a.published(metadata); await expect(c.capture()).rejects.toThrow('unavailable');
+        const b = c.register('b', () => '<template/>'); b.published({ ...metadata, instanceId: 'b' });
+        await c.capture(); expect(read(c).receipt.relationships[0].id).toBe('derived'); const last = c.lastCommitted()!.bytes;
+        held = true; const pending = c.capture(); edge.provider.nodeId = 'different'; release();
+        await expect(pending).rejects.toThrow('stale'); expect(c.lastCommitted()!.bytes).toEqual(last); expect(c.current()).toBeUndefined();
+        dependencies = undefined; expect(c.current()).toBeUndefined();
+        dependencies = [edge]; held = false; await c.capture();
+        b.remove(); await expect(c.capture()).rejects.toThrow('unavailable'); c.dispose();
+    });
+});

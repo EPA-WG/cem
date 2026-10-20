@@ -132,8 +132,8 @@ alongside plaintext-editor. It preserves private authored/default values, custom
 validity, form disabling, consumed selection requests, selected/preview values,
 active/range anchors, expanded state and typeahead clock state where applicable.
 Generated IDs, normalized option caches and listeners are derived again from the
-canonical payload. Pending programmatic values, composition, provider leases,
-claims and deferred commits block capture.
+canonical payload. Pending programmatic values, composition, unaccounted provider
+leases/claims and deferred commits block capture.
 
 Stable non-form capture supports navigation-landmark, tree-view (roving value and
 bounded typeahead clock), tab-panels (roving index/count), and composite-menu
@@ -145,15 +145,70 @@ an owner-local host or render-node identity; nested owners record their own focu
 Native controls retain their exact edits and selection in the control domain.
 Keyboard, focus and surface lifecycle events invalidate publication before export.
 
-Popup capture requires an internal trigger and a closed surface. Native-surface
-requires a closed, settled controller with consumed default-open initialization;
-preparation, top-layer visibility, exit/hover timers, task handoffs, invocation and
-return-focus sessions, nonempty dialog return values and retained deferred body
-projections refuse the entire domain. Resume must suppress default-open
-initialization. Other capabilities, active suggestions/provider leases and foreign
-placement relationships continue blocking owner export. `cem-grid` is declarative
-layout and uses ordinary payload/control/focus capture; this does not admit an
-arbitrary stateful ARIA grid controller.
+Settled popup capture requires an internal trigger, stable render-node identities
+and no external geometry references. Both open and closed states retain scroll
+position and fresh geometry/authority intent. Settled native dialog/popover
+controllers retain open/closed phase, modality, return value, focus-within state,
+close reason and invocation command/context key/input kind/geometry. Invocation
+source, return destination and logical parent use trusted owner/revision/node
+endpoints and join the complete receipt graph. Resume must consume default-open
+initialization and restore visibility without redelivering opening/closing actions.
+Preparation, closing/exit work, pointer or activation-key gestures, task handoffs,
+active tooltip interest/timers, native context handles, external geometry and
+retained deferred-body projections still block capture. A gesture settles after
+native activation dispatch; disposal removes its listeners and pending timer.
+`cem-grid` remains declarative layout using ordinary payload/control/focus capture,
+without admitting an arbitrary stateful ARIA grid controller.
+
+Ready, editable listbox suggestions retain original source provenance, provider/query and
+prepared revisions, exact publication configuration, query/feedback/visibility
+intent, row availability/eligibility, scroll state, active row and committed
+selection proof intent. Rows use source-order ordinals, so equal values remain
+distinct. Values and caret selection remain in the editor's native-control
+record. A proof is inert and must be revalidated against a fresh native source
+and fresh host authority; no old source object, publication, lease or token is
+serialized. Pending queries, composition, armed pointer/key commits, ancestors
+with unsupported surface lifetimes and stale placements block capture.
+
+A form provider can admit exactly one accounted shared suggestions consumer.
+The shared adapter checks its exclusive lease, both attribute claim objects,
+subscriptions and all validity owners (including empty claims), and captures
+provider revision/consumer/validity state. A completed commit's exact revision/value
+and one-shot duplicate-native-change suppression are portable; a held key or
+mismatched suppression record still blocks capture. Unknown subscriptions, competing
+leases/claims or out-of-domain consumers block the complete checkpoint. Ordinary
+widget admission and behavior are unchanged. Native datalist and other
+unaccounted provider consumers remain unsupported.
+
+`CemNativeCapabilitySession.prepare(..., signal, true)` explicitly opts a trusted
+host source into capture; declarative local suggestions select this only when
+checkpoint publication is enabled. Only original bounded XML or explicit CEMB
+reload bundles with empty scalar input and no additional native slice/attribute
+bindings are currently portable. The `cem-native-source/1` envelope retains
+source revision, row count, selection, label selectors, source/binding graph and
+directed crossing **intent** with `reacquire` disposition. Crossings never grant
+authority on resume. Native validation imports XML normally, verifies/reloads
+CEMB source and lexical metadata, and normalizes original-byte SHA-256 digests.
+Source bodies share the aggregate 256 KiB resource ceiling; source count caps at
+64, binding/crossing and placement records at 256, and rows at 1,024. Custom
+source traversal policies, nonempty input data, additional native bindings and
+unaccounted source ownership remain blocking.
+
+Source invocation snapshots copy original bytes and metadata before native
+processing. Later caller buffer or selector mutations cannot change the captured
+frame's provenance. Passive reference inputs are retained even when a frame does
+not use a placement. Adapter state can be acknowledged after its existing
+DOM/CSS publication settles, without forcing a template rerender that would
+invalidate its source/placement leases. Shared adapters use `readInstanceSnapshot`
+for revision-neutral inspection; the existing advancing snapshot API is preserved.
+
+Committed foreign placements are exported from the actual authority registry.
+Capture verifies current grants, exact producer ownership/revision/node identity,
+requester routes and marker coverage, and retains the complete invocation source
+and binding graph, selected source index, selector and producer path. Prepared
+transactions, revoked endpoints, forged markers and absent producers refuse the
+whole domain. Endpoint resolution currently requires the owning shared runtime;
+authored IDs and marker attributes cannot establish ownership.
 
 The acknowledged receipt may carry at most 256 `relationships`: a unique host ID,
 kind (`editor-provider` or `placement`), requester/provider endpoints
@@ -171,10 +226,12 @@ after every asynchronous export/seal. Removal of an owner blocks dependent inten
 policy changes revoke registrations until explicitly removed/replaced. Release
 functions are idempotent. The native contract is checked even if the host callback
 claims currentness. Registration does not bypass unsupported owner export fences.
-Live suggestions and placement producers still need complete adapters for their
-private state, native source provenance, fresh grant acquisition and authority
-revocation before they can be admitted or resumed. Never synthesize these
-contracts from authored IDs or `data-cem-placement-ref-*` markers.
+Runtime owner registrations also derive dependencies directly from their shared
+adapters. The coordinator checks complete endpoint publication and graph identity
+before/after every asynchronous export and seal; a changed graph invalidates
+current bytes while preserving the last good export. Explicit semantic resume
+and independently granted source/provider/placement authority are still required.
+Never synthesize contracts from authored IDs or `data-cem-placement-ref-*` markers.
 
 `cem_ml::checkpoint_runtime_state::validate` / WASM `validateCheckpointRuntime`
 validate this explicit scalar lifecycle boundary. Input and normalized output are
@@ -237,8 +294,8 @@ an unbounded tombstone set. Retirement supports bounded repeated operations; the
 be recorded. Retire before overflow: compaction cannot retroactively account for
 an unjournaled effect. Ordinary actions remain available when capture is refused.
 
-Automatic capture is not enabled in Studio. Open/transient widget sessions, live
-provider/placement admission, physical runtime-domain discovery,
+Automatic capture is not enabled in Studio. Remaining unaccounted widget/source
+states and cross-runtime endpoints, physical runtime-domain discovery,
 memory-pressure admission drain, generation replacement, fresh-owner semantic
 resume, stale-message fencing and declarative recovery status remain follow-up
 work. The complete Studio long-session verifier must remain passing before

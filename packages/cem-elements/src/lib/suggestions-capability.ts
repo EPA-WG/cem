@@ -190,7 +190,7 @@ function localInputs(instance: HTMLElement, state: State): CemSuggestionsControl
                             ...(sourceLabels.some(label => label.slot === 'option') ? { option: 'seq:where(input.children.children, fn(n) => n.name == "option-label")' } : {}),
                             ...(sourceLabels.some(label => label.slot === 'group-label') ? { group: 'seq:where(input.children.children, fn(n) => n.name == "group-label")' } : {}),
                         },
-                    }, () => local.options.current?.() === true, abort.signal);
+                    }, () => local.options.current?.() === true, abort.signal, runtime.checkpointCaptureEnabled);
                 }
                 const source = await session;
                 if (!queryCurrent()) throw new Error('Local suggestions preparation was superseded');
@@ -206,7 +206,7 @@ function localInputs(instance: HTMLElement, state: State): CemSuggestionsControl
                     runtime.refreshElementReferences(instance); await runtime.whenRenderSettled(instance);
                     const mapped = runtime.renderedSuggestionsFor(instance);
                     if (!queryCurrent() || !mapped?.current()) throw new Error('Local suggestions has no current committed row placements');
-                    const fieldProducer = runtime.snapshotInstance(editorHost).instanceId, producer = environment.snapshot.instanceId;
+                    const fieldProducer = (runtime.checkpointCaptureEnabled ? runtime.readInstanceSnapshot(editorHost) : runtime.snapshotInstance(editorHost)).instanceId, producer = environment.snapshot.instanceId;
                     const current = () => queryCurrent() && mapped.current();
                     const editorLease = coordinator.register({ producer: fieldProducer, revision: String(provider.revision), current,
                         kind: 'editor', element: editorHost }); leases.push(editorLease);
@@ -286,7 +286,10 @@ function synchronize(instance: HTMLElement, state: State): void {
         stop(state);
         const current = () => resolveCemSuggestionsEditor(instance).host === options.editorHost && (options.current?.() ?? true);
         try { state.controller = connectCemSuggestionsController(instance, { ...options, current,
-            onFeedback(feedback) { state.feedback = feedback; presentFeedback(instance, state, options.listbox); options.onFeedback?.(feedback); },
+            onFeedback(feedback) { if (state.context.runtime.checkpointCaptureEnabled) queueMicrotask(() => {
+                state.context.runtime.checkpointInteractionSettled(instance);
+                state.context.runtime.checkpointInteractionSettled(options.editorHost);
+            }); state.feedback = feedback; presentFeedback(instance, state, options.listbox); options.onFeedback?.(feedback); },
         }); state.options = options; }
         catch { reportInteractionReference(instance, 'suggestions-binding-unavailable', 'suggestions-binding'); return; }
     }
@@ -345,3 +348,11 @@ export const CEM_SUGGESTIONS_CAPABILITY: CemProducedElementBehavior = {
         stop(state); releaseLocal(state); state.localBlocked = false; state.configuration = undefined;
     },
 };
+
+/** Only a settled shared controller can admit its exact editor provider. */
+export function cemSuggestionsCheckpoint(instance: HTMLElement) {
+    const state = states.get(instance);
+    if (!state?.observer || state.queued || state.native || state.localBlocked) return undefined;
+    return state.controller?.checkpoint();
+}
+export function cemSuggestionsCheckpointEditor(instance: HTMLElement): HTMLElement | undefined { return states.get(instance)?.options?.editorHost; }

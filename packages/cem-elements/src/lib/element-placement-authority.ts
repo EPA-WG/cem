@@ -1,3 +1,4 @@
+import { snapshotCheckpointReferences } from './checkpoint-interactions.js';
 import type { CemElementPlacementUse, CemElementReferenceInputs } from './element-reference-inputs.js';
 import { DEFAULT_CEM_VALUE_ARTIFACT_LIMITS, type CemValueArtifactLimits } from './native-values.js';
 
@@ -37,7 +38,7 @@ interface Entry<Root> {
 interface Grant<Root> { requester: string; entry: Entry<Root>; properties: Set<string>; active: boolean }
 interface Transaction { token: string; participants: Set<string>; revisions: Record<string, string>; open: boolean }
 interface Snapshot<Root> { requester: string; root: Root; grants: Grant<Root>[]; byToken: Map<string, Grant<Root>[]>; transaction?: Transaction }
-interface Dependency<Root> { snapshot: Snapshot<Root>; uses: readonly CemElementPlacementUse[]; invalidate(uses: readonly CemElementPlacementUse[]): void }
+interface Dependency<Root> { inputs: CemElementReferenceInputs; snapshot: Snapshot<Root>; uses: readonly CemElementPlacementUse[]; invalidate(uses: readonly CemElementPlacementUse[]): void }
 const token = (value: string) => typeof value === 'string' && !!value && !/[\s\p{Cc}]/u.test(value);
 const properties = new Set(['commandfor', 'popovertarget', 'interestfor', 'form', 'list', 'for', 'aria-controls', 'aria-labelledby', 'aria-describedby',
     'aria-owns', 'aria-activedescendant', 'aria-details', 'aria-errormessage', 'headers', 'command-target', 'interaction', 'trigger-for', 'parent-item',
@@ -93,7 +94,7 @@ export class CemPlacementAuthority<Root> {
             this.sweep();
         } });
     }
-    prepare(requester: string, input: CemElementReferenceInputs, root: Root, transaction?: CemPlacementTransaction): CemElementReferenceInputs {
+    prepare(requester: string, input: CemElementReferenceInputs, root: Root, transaction?: CemPlacementTransaction, captureSources = false): CemElementReferenceInputs {
         if (!token(requester)) throw new Error('Invalid requesting producer');
         const prepared = transaction ? this.requireTransaction(transaction) : undefined;
         if (prepared && !prepared.participants.has(requester)) throw new Error('Requester is outside placement transaction');
@@ -115,11 +116,12 @@ export class CemPlacementAuthority<Root> {
             if (committedRevisions[producer] && committedRevisions[producer] !== revision) throw new Error('Conflicting producer revisions');
             committedRevisions[producer] = revision;
         }
-        const result: CemElementReferenceInputs = Object.freeze({ ...input, sources: Object.freeze(sources), placements: Object.freeze({
+        const raw: CemElementReferenceInputs = Object.freeze({ ...input, sources: Object.freeze(sources), placements: Object.freeze({
             admissions: Object.freeze(admissions), grants: Object.freeze(grants.map(g => Object.freeze({ requester, token: g.entry.token, properties: Object.freeze([...g.properties]) }))),
             committedRevisions: Object.freeze(committedRevisions), ...(prepared ? { preparedTransaction: Object.freeze({ token: prepared.token,
                 participants: Object.freeze([...prepared.participants]), producerRevisions: Object.freeze({ ...prepared.revisions }) }) } : {}),
         }) });
+        const result = captureSources ? snapshotCheckpointReferences(raw) ?? raw : raw;
         if (new TextEncoder().encode(JSON.stringify(result.placements)).length > Math.min(128 * 1024, this.limits.maxBytes)) throw new Error('Placement metadata byte limit exceeded');
         const byToken = new Map<string, Grant<Root>[]>();
         for (const grant of grants) { const selected = byToken.get(grant.entry.token) ?? []; selected.push(grant); byToken.set(grant.entry.token, selected); }
@@ -176,6 +178,21 @@ export class CemPlacementAuthority<Root> {
             throw error;
         }
     }
+    /** Original committed authority only; tokens/transactions never leave this boundary. */
+    checkpoint(requester: string): { use: CemElementPlacementUse; description: CemPlacementDescription; inputs: CemElementReferenceInputs }[] | undefined {
+        if ([...this.transactions.values()].some(transaction => transaction.open && transaction.participants.has(requester))) return undefined;
+        const dependency = this.dependencies.get(requester);
+        if (!dependency) return [];
+        const result: { use: CemElementPlacementUse; description: CemPlacementDescription; inputs: CemElementReferenceInputs }[] = [];
+        for (const use of dependency.uses) {
+            const grant = (dependency.snapshot.byToken.get(use.token) ?? []).find(grant => grant.active && grant.entry.active
+                && !grant.entry.transaction && grant.properties.has(use.attribute) && grant.entry.endpoint.ready(dependency.snapshot.root, false));
+            const description = grant?.entry.description;
+            if (!description || description.producer !== use.producer || description.revision !== use.revision || description.id !== use.id) return undefined;
+            result.push({ use: { ...use }, description, inputs: dependency.inputs });
+        }
+        return result;
+    }
     sweep(): void {
         for (const [requester, dependency] of this.dependencies) {
             const invalid = dependency.uses.filter(use => !(dependency.snapshot.byToken.get(use.token) ?? []).some(g => g.active && g.entry.active && g.entry.token === use.token
@@ -215,7 +232,7 @@ export class CemPlacementAuthority<Root> {
     private track(input: CemElementReferenceInputs, uses: readonly CemElementPlacementUse[], invalidate: (uses: readonly CemElementPlacementUse[]) => void): void {
         const snapshot = this.snapshots.get(input);
         if (!snapshot) throw new Error('Missing publication snapshot');
-        if (uses.length) this.dependencies.set(snapshot.requester, { snapshot, uses: uses.map(u => ({ ...u })), invalidate });
+        if (uses.length) this.dependencies.set(snapshot.requester, { inputs: input, snapshot, uses: uses.map(u => ({ ...u })), invalidate });
         else this.dependencies.delete(snapshot.requester);
     }
 }

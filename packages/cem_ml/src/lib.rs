@@ -439,3 +439,5 @@ mod tests {
         );
     }
 }
+
+pub mod checkpoint_interactions;

@@ -1,3 +1,4 @@
+import type { CheckpointSource } from './checkpoint-interactions.js';
 import type { CemNativePublicationConfig } from './native-capability-session.js';
 import type { CemProcessingCompileInput, CemProcessingRenderDiffInput, CemProcessingRenderDiffResult, CemProcessingNativeSessionInput, CemProcessingNativeSessionResult } from './internal/runtime-support/processing-host.js';
 import { assertProcessingBoundaryValue } from './projection.js';
@@ -18,6 +19,7 @@ export interface CemNativeSuggestionsBinding {
     readonly kind: 'cem-live-suggestions-binding-v1';
     readonly config: Readonly<CemNativePublicationConfig>;
     readonly valid: boolean;
+    checkpointSource(): CheckpointSource | undefined;
     render(template: string, data: Record<string, unknown>): Promise<Rendered>;
     renderComponent(frame: CemNativeSuggestionsComponentFrame): Promise<CemProcessingRenderDiffResult>;
     rows(): Promise<readonly CemNativeSuggestionRow[]>;
@@ -54,7 +56,9 @@ export function isCemNativeSuggestionRow(value: unknown): value is CemNativeSugg
 export function isCemNativeSuggestionRowFor(row: CemNativeSuggestionRow, binding: CemNativeSuggestionsBinding): boolean {
     return rows.get(row) === binding;
 }
-export function createCemNativeSuggestionSource(current: () => boolean, subscribe: (expire: () => void) => () => void): CemNativeSuggestionSource {
+const checkpointIndexes = new WeakMap<CemNativeSuggestionSource, number>();
+export function checkpointSuggestionIndex(source: CemNativeSuggestionSource): number | undefined { return source.valid ? checkpointIndexes.get(source) : undefined; }
+export function createCemNativeSuggestionSource(current: () => boolean, subscribe: (expire: () => void) => () => void, checkpointIndex?: number): CemNativeSuggestionSource {
     let expired = false;
     const listeners = new Set<() => void>();
     const nativeSubscription: { stop(): void } = { stop: () => undefined };
@@ -67,10 +71,12 @@ export function createCemNativeSuggestionSource(current: () => boolean, subscrib
     nativeSubscription.stop = subscribe(expire);
     if (expired) nativeSubscription.stop();
     const valid = () => { if (!expired && !current()) expire(); return !expired; };
-    return Object.freeze({ kind: 'cem-live-suggestion-source-v1' as const,
+    const source = Object.freeze({ kind: 'cem-live-suggestion-source-v1' as const,
         get valid() { return valid(); },
         subscribe(listener: () => void) { if (!valid()) { listener(); return () => undefined; } listeners.add(listener); return () => { listeners.delete(listener); }; },
         toJSON() { throw new TypeError('Live native source identity cannot be serialized'); } });
+    if (checkpointIndex !== undefined) checkpointIndexes.set(source, checkpointIndex);
+    return source;
 }
 
 type Frame = Omit<Extract<CemProcessingNativeSessionInput, { action: 'render-suggestions-frame' }>, 'handle'>
@@ -86,7 +92,7 @@ export function isCemNativeSuggestionsBinding(value: unknown): value is CemNativ
 export function createCemNativeSuggestionsPublication(config: Readonly<CemNativePublicationConfig>, current: () => boolean,
     run: (input: Frame) => Promise<CemProcessingNativeSessionResult>, releaseOwner: () => Promise<void>, publication: string,
     runComponent: (frame: CemNativeSuggestionsComponentFrame) => Promise<CemProcessingRenderDiffResult>,
-    sourceForHandle: (handle: string) => CemNativeSuggestionSource): CemNativeSuggestionsPublication {
+    sourceForHandle: (handle: string, index: number) => CemNativeSuggestionSource, checkpointSource?: () => CheckpointSource | undefined): CemNativeSuggestionsPublication {
     let released = false, expired = false;
     const publicationListeners = new Set<() => void>();
     const notify = (listeners: Set<() => void>) => { for (const listener of [...listeners]) { try { listener(); } catch { /* Revocation must reach every lease. */ } } };
@@ -117,6 +123,7 @@ export function createCemNativeSuggestionsPublication(config: Readonly<CemNative
             const binding: CemNativeSuggestionsBinding = Object.freeze({
                 kind: 'cem-live-suggestions-binding-v1' as const,
                 config: publisher.config,
+                checkpointSource() { return admitted(this) ? checkpointSource?.() : undefined; },
                 get valid() { return admitted(this); },
                 async render(template: string, data: Record<string, unknown>) {
                     if (!admitted(this)) throw new Error('Native consumer binding is no longer current');
@@ -148,8 +155,8 @@ export function createCemNativeSuggestionsPublication(config: Readonly<CemNative
                     const result = await run({ action: 'suggestions-rows', publication });
                     if (!admitted(this)) throw new Error('Native row preparation was superseded');
                     if (result.status !== 'rows') throw new Error('Invalid native row preparation reply');
-                    const prepared = result.rows.map(control => {
-                        const source = sourceForHandle(control.handle);
+                    const prepared = result.rows.map((control, index) => {
+                        const source = sourceForHandle(control.handle, index);
                         const row: CemNativeSuggestionRow = Object.freeze({ source, value: control.value, eligible: control.eligible, available: control.available,
                             get valid() { return admitted(binding) && source.valid; }, toJSON: nonportable });
                         rows.set(row, binding); rowHandles.set(row, control.handle); return row;

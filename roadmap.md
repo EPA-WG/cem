@@ -446,9 +446,13 @@ and live URL export/reacquisition policies, consumed writer suppression metadata
 and explicit terminal journal retirement are implemented. Stable tree/tab/menu
 navigation, owner-local focus and closed settled surfaces now have native
 checkpoint contracts. Native receipt contracts describe complete provider and
-placement endpoints with fresh reacquisition required; active leases, foreign
-placement owners and transient widget sessions still block capture. Their full
-state/authority adapters, physical worker/fallback runtime coverage and
+placement endpoints with fresh reacquisition required. Shared active listbox
+suggestions/providers and committed placements now capture original bounded
+XML/CEMB provenance, source-order selection/proof state and current dependency
+receipts. Settled popup/dialog capture retains visibility, invocation/return-focus
+endpoints and return values. Gestures, pending work, unknown provider authority,
+retained bodies and unsupported source/widget states remain blocking. Complete
+physical worker/fallback runtime coverage and
 runtime replacement remain next. Continue this in the shared native/WASM
 engine and `cem-elements`; recovery status UI belongs in declarative
 `cem-components`. Studio consumes the same mechanism. This requires shared

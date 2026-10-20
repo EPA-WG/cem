@@ -787,6 +787,10 @@
         "@epa-wg/cem-elements/dist/lib/checkpoint-controls.js": {
             "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/checkpoint-controls.js",
             "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/checkpoint-interactions.js": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/checkpoint-interactions.js",
+            "contentType": "text/javascript"
         }
     }
 }

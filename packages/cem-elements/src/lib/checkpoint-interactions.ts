@@ -1,0 +1,59 @@
+import type { CemCheckpointRelationship } from './committed-checkpoint.js';
+/** Named scalar lifecycle contracts. Original source bytes enter native import. */
+export type CheckpointEndpoint = CemCheckpointRelationship['provider'];
+export interface CheckpointSource {
+    version: 'cem-native-source/1'; revision: string; rowCount: number; select: string; resolve: boolean; requesting: number;
+    sources: { codec: 'xml' | 'cemb'; base64: string; sourceUri: string | null; primarySourceId: number; context: boolean; digest?: string | null }[];
+    bindings: { source: number; name: string; select: string }[];
+    crossings: { from: number; to: number }[]; labels: { option: string | null; group: string | null }; disposition: 'reacquire';
+}
+export interface CheckpointSuggestions {
+    source: CheckpointSource; providerRevision: number; queryRevision: number; preparedRevision: number; query: string;
+    publication: { filter: string; filterBy: string | null; expanded: boolean | null; active: number | null; committed: number | null };
+    intent: boolean; feedbackIntent: boolean; feedbackState: 'ready'; activeIndex: number; committedIndex: number; committedValue: string | null;
+    visible: boolean; scrollTop: number; scrollLeft: number;
+    rows: { index: number; value: string; eligible: boolean; available: boolean; nodeId: string }[];
+}
+export interface CheckpointPlacement {
+    requesterNode: string; property: string; producer: string; revision: string; providerNode: string;
+    sourceIndex: number; path: number[]; select: string; source: CheckpointSource; disposition: 'reacquire';
+}
+export function checkpointBase64(buffer: ArrayBuffer): string | undefined {
+    if (buffer.byteLength > 256 * 1024) return undefined;
+    let binary = ''; for (const byte of new Uint8Array(buffer)) binary += String.fromCharCode(byte);
+    return btoa(binary);
+}
+
+export interface CheckpointSurface {
+    returnValue: string | null; modal: boolean; focusWithin: boolean; closeReason: string; disposition: 'reacquire';
+    invocation: null | { source: CheckpointEndpoint | null; returnDestination: CheckpointEndpoint | null; logicalParent: CheckpointEndpoint | null;
+        command: string | null; contextKey: string | null; inputKind: 'pointer' | 'keyboard' | 'programmatic';
+        pointer: { left: number; right: number; top: number; bottom: number } | null;
+        selection: { left: number; right: number; top: number; bottom: number } | null };
+}
+export interface CheckpointPopup { trigger: string; panel: string; scrollTop: number; scrollLeft: number; disposition: 'reacquire' }
+
+// Exact invocation snapshots are private host evidence, never inferred from markup.
+const referenceSnapshots = new WeakSet<object>();
+import type { CemElementReferenceInputs } from './element-reference-inputs.js';
+export function snapshotCheckpointReferences(input: CemElementReferenceInputs): CemElementReferenceInputs | undefined {
+    if (input.sources.length > 64 || input.bindings.length > 256 || input.grants.length > 256
+        || input.sources.reduce((sum, source) => sum + source.bundle.byteLength, 0) > 256 * 1024
+        || input.bindings.some(binding => binding.name.length > 1024 || binding.select.length > 4096)
+        || input.sources.some(source => source.maxDepth !== undefined || source.maxWork !== undefined || source.unresolved !== undefined)) return undefined;
+    const snapshot: CemElementReferenceInputs = Object.freeze({ ...input,
+        sources: Object.freeze(input.sources.map(source => Object.freeze({ ...source, bundle: source.bundle.slice(0) }))),
+        bindings: Object.freeze(input.bindings.map(binding => Object.freeze({ ...binding }))), grants: Object.freeze(input.grants.map(([from, to]) => Object.freeze([from, to] as const))) });
+    referenceSnapshots.add(snapshot); return snapshot;
+}
+export function checkpointReferenceSource(input: CemElementReferenceInputs, revision: string): CheckpointSource | undefined {
+    if (!referenceSnapshots.has(input)) return undefined;
+    const sources: CheckpointSource['sources'] = [];
+    for (const source of input.sources) {
+        const base64 = checkpointBase64(source.bundle); if (base64 === undefined) return undefined;
+        sources.push({ codec: 'cemb', base64, sourceUri: null, primarySourceId: source.primarySourceId, context: source.context });
+    }
+    return { version: 'cem-native-source/1', revision, rowCount: 0, select: 'input.children', resolve: false, requesting: input.requesting,
+        sources, bindings: input.bindings.map(binding => ({ ...binding })), crossings: input.grants.map(([from, to]) => ({ from, to })),
+        labels: { option: null, group: null }, disposition: 'reacquire' };
+}

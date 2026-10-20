@@ -182,7 +182,10 @@ export const CEM_POPUP_CAPABILITY: CemProducedElementBehavior = {
 /** Read-only portable state; listeners, generated IDs and grants are reacquired. */
 export function cemPopupCheckpoint(instance: HTMLElement) {
     const state = states.get(instance);
-    if (!state?.abort || state.abort.signal.aborted || !state.panel || !state.trigger || state.external || state.open
-        || state.panel.matches(':popover-open') || instance.getAttribute('open') !== 'false') return undefined;
-    return { kind: 'popup' as const, open: false as const };
+    if (!state?.abort || state.abort.signal.aborted || !state.panel || !state.trigger || state.external
+        || hostReference(instance) || state.open && !state.geometryReady) return undefined;
+    const trigger = state.trigger.getAttribute('data-cem-render-node-id'), panel = state.panel.getAttribute('data-cem-render-node-id');
+    if (!trigger || !panel) return undefined;
+    return { kind: 'popup' as const, open: state.open, state: { trigger, panel, scrollTop: state.panel.scrollTop, scrollLeft: state.panel.scrollLeft, disposition: 'reacquire' as const } };
 }
+function hostReference(host: HTMLElement): boolean { return host.hasAttribute('anchor') || host.hasAttribute('boundary'); }

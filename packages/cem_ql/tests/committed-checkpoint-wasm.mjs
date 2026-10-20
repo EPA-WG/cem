@@ -85,6 +85,23 @@ dependent.receipt.relationships = [{ id: 'control', kind: 'placement', dispositi
 assert.deepEqual(JSON.parse(wasm.sealCommittedCheckpoint(JSON.stringify(dependent), JSON.stringify(dependent.receipt))), dependent);
 dependent.receipt.relationships[0].provider.dataRevision = 'stale';
 assert.throws(() => wasm.sealCommittedCheckpoint(JSON.stringify(dependent), JSON.stringify(dependent.receipt)));
+const active = { ...runtimeState, resources: [], capability: { kind: 'suggestions', state: {
+    source: { version: 'cem-native-source/1', revision: 'options:1', rowCount: 2, select: 'input.children', resolve: false, requesting: 0,
+        sources: [{ codec: 'xml', base64: Buffer.from('<options><option value="same">First</option><option value="same">Second</option></options>').toString('base64'), sourceUri: 'https://example.test/options.xml', primarySourceId: 1, context: true }],
+        bindings: [], crossings: [], labels: { option: null, group: null }, disposition: 'reacquire' },
+    publication: { filter: 'none', filterBy: null, expanded: null, active: null, committed: null },
+    providerRevision: 0, preparedRevision: 0, queryRevision: 1, query: 'same', intent: false, feedbackIntent: false, feedbackState: 'ready', activeIndex: -1,
+    committedIndex: 1, committedValue: 'same', visible: false, scrollTop: 0, scrollLeft: 0,
+    rows: [{ index: 0, value: 'same', eligible: true, available: true, nodeId: 'row.0' }, { index: 1, value: 'same', eligible: true, available: true, nodeId: 'row.1' }] } } };
+const activeSaved = wasm.validateCheckpointRuntime(JSON.stringify(active));
+assert.equal(JSON.parse(activeSaved).capability.state.committedIndex, 1);
+assert.equal(wasm.validateCheckpointRuntime(activeSaved), activeSaved);
+const completedCommit = { ...runtimeState, resources: [], capability: { kind: 'form-control', authoredValue: null, formDisabled: false, customValidity: '', selectionRequest: null,
+    provider: { revision: 4, consumer: 'suggestions', validity: '' }, changeSuppression: { revision: 4, value: 'same', disposition: 'suppress-once' } } };
+assert.equal(JSON.parse(wasm.validateCheckpointRuntime(JSON.stringify(completedCommit))).capability.changeSuppression.disposition, 'suppress-once');
+completedCommit.capability.changeSuppression.revision = 3; assert.throws(() => wasm.validateCheckpointRuntime(JSON.stringify(completedCommit)));
+const invalidActive = structuredClone(active); invalidActive.capability.state.source.sources[0].digest = 'obsolete';
+assert.throws(() => wasm.validateCheckpointRuntime(JSON.stringify(invalidActive)));
 // Execution/resume is deliberately not performed by the transport store.
 store.invalidate(); assert.equal(store.current(), undefined);
 assert.ok(store.lastCommitted()); store.dispose(); assert.equal(store.lastCommitted(), undefined);

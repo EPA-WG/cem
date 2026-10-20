@@ -1,3 +1,4 @@
+import type { CheckpointSource, CheckpointSuggestions, CheckpointPlacement, CheckpointSurface, CheckpointPopup } from './checkpoint-interactions.js';
 import { cemPlaintextEditorEventValue } from './plaintext-editor-capability.js';
 
 /** Explicit browser control-state DTO; not a document or template AST. Native
@@ -16,14 +17,16 @@ export interface CemCheckpointControlState {
  * bytes for native import; they are never parsed or projected into a JS AST. */
 export interface CemCheckpointRuntimeState {
     version: 'cem-checkpoint-runtime/1';
+    references?: CheckpointSource;
+    placements?: CheckpointPlacement[];
     focus?: { target: 'host' | 'node'; nodeId: string | null };
-    capability: null | { kind: 'navigation-landmark' }
+    capability: null | { kind: 'suggestions'; state: CheckpointSuggestions } | { kind: 'navigation-landmark' }
         | { kind: 'tree-view'; focusValue: string; typeahead: string; typeaheadAt: number }
         | { kind: 'tab-panels'; focusIndex: number; tabCount: number }
         | { kind: 'composite-menu'; activeNode: string | null; typeahead: string; typeaheadAt: number; open: false }
-        | { kind: 'popup'; open: false }
-        | { kind: 'native-surface'; phase: 'closed'; defaultsInitialized: true }
-        | { kind: 'form-control'; authoredValue: string | null; formDisabled: boolean; customValidity: string; selectionRequest: string | null }
+        | { kind: 'popup'; open: boolean; state?: CheckpointPopup }
+        | { kind: 'native-surface'; phase: 'closed' | 'open'; defaultsInitialized: true; state?: CheckpointSurface }
+        | { kind: 'form-control'; changeSuppression?: { revision: number; value: string; disposition: 'suppress-once' }; provider?: { revision: number; consumer: string; validity: string }; authoredValue: string | null; formDisabled: boolean; customValidity: string; selectionRequest: string | null }
         | { kind: 'plaintext-editor'; authored: string | null; selectionRequest: string | null }
         | { kind: 'checkable-control'; authoredIndeterminate: boolean }
         | { kind: 'choice-select'; selection: string[]; defaultValues: string[]; activeIndex: number; rangeAnchor: number;

@@ -1,5 +1,7 @@
+import type { CheckpointSuggestions } from './checkpoint-interactions.js';
+import { checkpointSuggestionIndex } from './native-suggestions-publication.js';
 import type { CemPlatformCloseCoordinator, CemPlatformCloseLease } from './platform-close.js';
-import { getCemEditorProvider } from './form-control-capability.js';
+import { getCemEditorProvider, registerCemEditorCheckpoint, subscribeCemEditorCheckpoint } from './form-control-capability.js';
 import { connectCemManualListbox, type CemManualListboxController } from './manual-listbox.js';
 import { reportInteractionReference } from './interaction-reference.js';
 import type { CemNativeSuggestionSource } from './native-suggestions-publication.js';
@@ -33,6 +35,7 @@ export interface CemSuggestionsController {
     readonly active: CemNativeSuggestionSource | undefined;
     readonly committed: CemNativeSuggestionSource | undefined;
     readonly feedback: CemSuggestionsFeedback;
+    checkpoint(): CheckpointSuggestions | undefined;
     refresh(): Promise<void>;
     reconcile(): void;
     dismiss(reason?: string): void;
@@ -45,7 +48,8 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
     if (!provider || !(editor instanceof HTMLInputElement) || editor.type !== 'text' || editor.hasAttribute('list')) {
         throw new TypeError('Suggestions requires an exact supported editor provider');
     }
-    const abort = new AbortController(), lease = provider.lease({}), validity = provider.validity({});
+    const checkpointOwner = {};
+    const abort = new AbortController(), lease = provider.lease(checkpointOwner), validity = provider.validity(checkpointOwner);
     let disposed = false, generation = 0, queryRevision = 0, preparedRevision = -1, query = '', intent = false;
     let placements: CemSuggestionsPlacements | undefined, unsubscribePlacement: (() => void) | undefined;
     let active: CemSuggestionsPlacedRow | undefined, committed: { source: CemNativeSuggestionSource; value: string } | undefined;
@@ -196,7 +200,7 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
         else if (rect.bottom > bottom) options.listbox.scrollTop += rect.bottom - bottom;
         return true;
     };
-    releases.push(provider.subscribe(update => {
+    releases.push(subscribeCemEditorCheckpoint(provider, lease, update => {
         if (disposed) return;
         if (update.cause === 'attribute-claims') return;
         if (update.cause === 'claims' || update.cause === 'availability') {
@@ -265,8 +269,32 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
     }, { signal: abort.signal });
     editor.addEventListener('select', () => { active = undefined; claim(); }, { signal: abort.signal });
     editor.addEventListener('focusout', () => { dismiss('focus'); }, { signal: abort.signal });
+    const checkpoint = (): CheckpointSuggestions | undefined => {
+        if (!bound() || pending || pointer || reconciling || platformClose || popup?.pending || !current()
+            || options.ancestors?.length || feedbackState !== 'ready') return undefined;
+        const config = placements?.binding.config;
+        if (!config || config.profile === 'native-datalist') return undefined;
+        const source = placements?.binding.checkpointSource();
+        if (!source || !placements || placements.rows.length > 1024) return undefined;
+        let size = query.length + (committed?.value.length ?? 0);
+        const rows: CheckpointSuggestions['rows'] = [];
+        for (const row of placements.rows) {
+            const index = checkpointSuggestionIndex(row.native.source), nodeId = row.element.getAttribute('data-cem-render-node-id');
+            size += row.native.value.length + (nodeId?.length ?? 0);
+            if (size > 256 * 1024 || index === undefined || !nodeId || !row.native.valid) return undefined;
+            rows.push({ index, nodeId, value: row.native.value, eligible: eligibleRow(row), available: row.native.available });
+        }
+        const activeIndex = active ? checkpointSuggestionIndex(active.native.source) : -1;
+        const committedIndex = committed ? checkpointSuggestionIndex(committed.source) : -1;
+        if (activeIndex === undefined || committedIndex === undefined || committed && committed.value !== editor.value) return undefined;
+        return { source, publication: { filter: config.filter ?? 'contains', filterBy: config.filterBy ?? null, expanded: config.expanded ?? null, active: config.active ?? null, committed: config.committed ?? null }, providerRevision: provider.revision, queryRevision, preparedRevision, query, intent, feedbackIntent,
+            feedbackState: 'ready', activeIndex, committedIndex, committedValue: committed?.value ?? null,
+            visible: !!popup?.visible, scrollTop: options.listbox.scrollTop, scrollLeft: options.listbox.scrollLeft, rows };
+    };
+    releases.push(registerCemEditorCheckpoint(provider, { host, owner: checkpointOwner, lease, current: () => !!checkpoint() }));
     void request(false); updateValidity();
     return {
+        checkpoint,
         get retained() { return retained(); },
         get visible() { return !!popup?.visible; }, get pending() { return pending; },
         get active() { return active?.native.source; }, get committed() { updateValidity(); return committed?.source; },

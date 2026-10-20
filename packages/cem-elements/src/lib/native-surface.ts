@@ -1,3 +1,4 @@
+import type { CheckpointSurface, CheckpointEndpoint } from './checkpoint-interactions.js';
 import { captureCemMenuTaskRelay, type CemMenuTaskRelay } from './menu-task-relay.js';
 import { getCemActionInvocation } from './action-command-capability.js';
 import { interactionReference, observeInteractionReferences, reportInteractionReference } from './interaction-reference.js';
@@ -350,13 +351,25 @@ class NativeSurface implements CemNativeSurfaceController {
         this.closeReason = reason;
         queueMicrotask(() => { if (visible(this.owner) && this.closeReason === reason) this.closeReason = 'native'; });
     }
-    checkpointReady(): boolean {
-        return !this.disposed && this.host.isConnected && this.owner.isConnected && this.phase === 'closed'
-            && !visible(this.owner) && !this.preparation && !this.prepared && !this.timer && !this.activation
-            && !this.invocation && !this.relay && !this.releaseBusy && this.body.checkpointReady()
-            && (!nativeDialog(this.owner) || !this.owner.returnValue) && !this.wasOpen && !this.restore && !this.tooltipPointer
-            && !this.tooltipAutomatic && !this.tooltipDismissed && !this.describedSources.size
-            && [...this.tooltipSources.values()].every(source => !source.focused && !source.pointer && !source.touch);
+    checkpoint(resolve: (node: HTMLElement) => CheckpointEndpoint | undefined): { phase: 'open' | 'closed'; state: CheckpointSurface } | undefined {
+        if (this.disposed || !this.host.isConnected || !this.owner.isConnected || !['closed', 'open'].includes(this.phase)
+            || this.preparation || this.prepared || this.timer || this.activation || this.relay || this.releaseBusy || !this.body.checkpointReady()
+            || this.restore || this.tooltipPointer || this.tooltipAutomatic || this.tooltipDismissed || this.describedSources.size
+            || [...this.tooltipSources.values()].some(source => source.focused || source.pointer || source.touch)
+            || this.invocation?.context || this.host.hasAttribute('anchor') || this.host.hasAttribute('boundary')
+            || this.phase === 'open' && (this.kind() !== 'dialog' || !visible(this.owner)) || this.phase === 'closed' && visible(this.owner)) return undefined;
+        const invocation = this.phase === 'open' ? this.invocation : undefined;
+        if ((invocation?.command?.length ?? 0) > 4096 || (invocation?.contextKey?.length ?? 0) > 4096
+            || nativeDialog(this.owner) && this.owner.returnValue.length > 65536 || this.closeReason.length > 1024) return undefined;
+        const source = invocation?.source ? resolve(invocation.source) : null;
+        const returnDestination = invocation?.returnDestination ? resolve(invocation.returnDestination) : null;
+        const logicalParent = invocation?.logicalParent ? resolve(invocation.logicalParent) : null;
+        if (source === undefined || returnDestination === undefined || logicalParent === undefined) return undefined;
+        return { phase: this.phase as 'open' | 'closed', state: { returnValue: nativeDialog(this.owner) ? this.owner.returnValue : null,
+            modal: this.owner.matches(':modal'), focusWithin: this.focusWithin, closeReason: this.closeReason, disposition: 'reacquire',
+            invocation: invocation ? { source, returnDestination, logicalParent, command: invocation.command ?? null, contextKey: invocation.contextKey ?? null,
+                inputKind: invocation.inputKind ?? 'programmatic', pointer: invocation.geometry?.pointer ? { ...invocation.geometry.pointer } : null,
+                selection: invocation.geometry?.selection ? { ...invocation.geometry.selection } : null } : null } };
     }
     private sync(): void {
         if (this.disposed) return;
@@ -595,8 +608,9 @@ export const CEM_NATIVE_SURFACE_CAPABILITY: CemProducedElementBehavior = {
 };
 
 /** Top-layer/preparation/return-focus sessions require a separate resume contract. */
-export function cemNativeSurfaceCheckpoint(host: HTMLElement) {
+export function cemNativeSurfaceCheckpoint(host: HTMLElement, resolve: (node: HTMLElement) => CheckpointEndpoint | undefined = () => undefined) {
     const owner = providerControllers.get(host)?.owner;
-    if (!owner || !defaultsInitialized.has(host) || !controllers.get(owner)?.controller.checkpointReady()) return undefined;
-    return { kind: 'native-surface' as const, phase: 'closed' as const, defaultsInitialized: true as const };
+    const captured = owner && defaultsInitialized.has(host) ? controllers.get(owner)?.controller.checkpoint(resolve) : undefined;
+    if (!captured) return undefined;
+    return { kind: 'native-surface' as const, defaultsInitialized: true as const, ...captured };
 }

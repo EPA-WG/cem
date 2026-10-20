@@ -191,3 +191,131 @@ fn validates_stable_non_form_interaction_and_focus_contracts() {
         assert!(validate(&s.to_string()).is_err());
     }
 }
+
+#[test]
+fn active_suggestions_keep_source_order_proof_and_require_reacquisition() {
+    let mut s = state();
+    s["capability"] = json!({"kind":"suggestions","state":{
+        "source":{"version":"cem-native-source/1","revision":"source:1","rowCount":2,"select":"input.children","resolve":false,"requesting":0,
+            "sources":[{"codec":"xml","base64":STANDARD.encode("<options><option value='same'>First</option><option value='same'>Second</option></options>"),"sourceUri":"https://example.test/options.xml","primarySourceId":1,"context":true}],"bindings":[],"crossings":[],"labels":{"option":null,"group":null},"disposition":"reacquire"},
+        "publication":{"filter":"none","filterBy":null,"expanded":null,"active":null,"committed":null},"providerRevision":2,"queryRevision":3,"preparedRevision":2,"query":"same","intent":true,"feedbackIntent":true,"feedbackState":"ready","activeIndex":1,"committedIndex":0,"committedValue":"same","visible":true,"scrollTop":4,"scrollLeft":0,
+        "rows":[{"index":0,"value":"same","eligible":true,"available":true,"nodeId":"row.0"},{"index":1,"value":"same","eligible":true,"available":true,"nodeId":"row.1"}]}});
+    let normalized = validate(&s.to_string()).unwrap();
+    let portable: Value = serde_json::from_str(&normalized).unwrap();
+    assert_eq!(portable["capability"]["state"]["committedIndex"], 0);
+    assert_eq!(portable["capability"]["state"]["activeIndex"], 1);
+    assert_eq!(
+        portable["capability"]["state"]["source"]["sources"][0]["digest"]
+            .as_str()
+            .unwrap()
+            .len(),
+        64
+    );
+    for (name, value) in [
+        ("feedbackState", json!("pending")),
+        ("activeIndex", json!(2)),
+        ("committedIndex", json!(-1)),
+        ("preparedRevision", json!(1)),
+        ("sessionKey", json!("old-authority")),
+    ] {
+        let mut bad = s.clone();
+        bad["capability"]["state"][name] = value;
+        assert!(validate(&bad.to_string()).is_err(), "{name}");
+    }
+    let mut bad = s.clone();
+    bad["capability"]["state"]["source"]["sources"][0]["codec"] = json!("js-ast");
+    assert!(validate(&bad.to_string()).is_err());
+}
+
+#[test]
+fn placement_sources_require_original_bundles_and_unique_inert_routes() {
+    use cem_ml::{
+        ast::reload::{ReferenceReloadBundle, ReloadLimits, ReloadSource},
+        import::import_bytes_with_lexical_scopes,
+        schema::vocab::CompiledSchema,
+        source::SourceId,
+    };
+    let text = "{dialog | Target}";
+    let imported = import_bytes_with_lexical_scopes(
+        text.as_bytes(),
+        "text/cem-ml",
+        "memory:target.cem",
+        CompiledSchema::cem_core(),
+    )
+    .unwrap();
+    let bundle = ReferenceReloadBundle::export(
+        &imported.captured,
+        vec![ReloadSource::new(
+            SourceId(1),
+            "memory:target.cem",
+            text.as_bytes(),
+            true,
+        )],
+        ReloadLimits::default(),
+    )
+    .unwrap()
+    .encode(ReloadLimits::default())
+    .unwrap();
+    let source = json!({"version":"cem-native-source/1","revision":"producer:1","rowCount":0,"select":"input.children","resolve":false,"requesting":0,
+        "sources":[{"codec":"cemb","base64":STANDARD.encode(bundle),"sourceUri":null,"primarySourceId":1,"context":true}],"bindings":[],"crossings":[],"labels":{"option":null,"group":null},"disposition":"reacquire"});
+    let mut references = state();
+    references["references"] = source.clone();
+    assert!(validate(&references.to_string()).is_ok());
+    let route = json!({"requesterNode":"button.1","property":"commandfor","producer":"producer","revision":"producer:1","providerNode":"dialog.1","sourceIndex":0,"path":[0],"select":"input.children","source":source,"disposition":"reacquire"});
+    let mut s = state();
+    s["placements"] = json!([route.clone()]);
+    assert!(validate(&s.to_string()).is_ok());
+    s["placements"] = json!([route.clone(), route]);
+    assert!(validate(&s.to_string()).is_err());
+    s["placements"].as_array_mut().unwrap().pop();
+    for (name, value) in [
+        ("token", json!("old-grant")),
+        ("property", json!("onclick")),
+        ("disposition", json!("restore-grant")),
+    ] {
+        let mut bad = s.clone();
+        bad["placements"][0][name] = value;
+        assert!(validate(&bad.to_string()).is_err());
+    }
+    let mut bad = s;
+    bad["placements"][0]["source"]["sources"][0]["base64"] = json!(STANDARD.encode("not a bundle"));
+    assert!(validate(&bad.to_string()).is_err());
+}
+#[test]
+fn settled_surface_sessions_preserve_return_values_and_refuse_transitions() {
+    let mut s = state();
+    let session = json!({"returnValue":"done","modal":true,"focusWithin":true,"closeReason":"native","disposition":"reacquire","invocation":{
+        "source":{"instanceId":"toolbar","dataRevision":"1","nodeId":"open.1"},"returnDestination":{"instanceId":"toolbar","dataRevision":"1","nodeId":"open.1"},"logicalParent":null,
+        "command":"show-modal","contextKey":"record:2","inputKind":"keyboard","pointer":null,"selection":null}});
+    s["capability"] =
+        json!({"kind":"native-surface","phase":"open","defaultsInitialized":true,"state":session});
+    assert!(validate(&s.to_string()).is_ok());
+    for phase in ["preparing", "closing"] {
+        let mut bad = s.clone();
+        bad["capability"]["phase"] = json!(phase);
+        assert!(validate(&bad.to_string()).is_err());
+    }
+    let mut bad = s.clone();
+    bad["capability"]["state"]["invocation"]["context"] = json!("native-handle");
+    assert!(validate(&bad.to_string()).is_err());
+    s["capability"]["phase"] = json!("closed");
+    s["capability"]["state"]["modal"] = json!(false);
+    s["capability"]["state"]["invocation"] = Value::Null;
+    assert!(validate(&s.to_string()).is_ok());
+    s["capability"] = json!({"kind":"popup","open":true,"state":{"trigger":"button.1","panel":"aside.1","scrollTop":12,"scrollLeft":0,"disposition":"reacquire"}});
+    assert!(validate(&s.to_string()).is_ok());
+}
+
+#[test]
+fn completed_provider_commits_keep_exact_one_shot_change_suppression() {
+    let mut s = state();
+    s["capability"]["provider"] = json!({"revision":4,"consumer":"suggestions","validity":""});
+    s["capability"]["changeSuppression"] =
+        json!({"revision":4,"value":"same","disposition":"suppress-once"});
+    assert!(validate(&s.to_string()).is_ok());
+    s["capability"]["changeSuppression"]["revision"] = json!(3);
+    assert!(validate(&s.to_string()).is_err());
+    s["capability"]["changeSuppression"]["revision"] = json!(4);
+    s["capability"]["changeSuppression"]["disposition"] = json!("replay");
+    assert!(validate(&s.to_string()).is_err());
+}

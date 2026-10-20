@@ -377,11 +377,23 @@ and interactive action preview are live.
 
 
 Checkpoint non-form interaction uses the shared native runtime control contract:
-owner-local focus anchors, tree/menu roving state and typeahead, tabs, and closed
+owner-local focus anchors, tree/menu roving state and typeahead, tabs, and
 settled surfaces. Rebuild derived item caches/accessibility IDs from canonical
 payload, and consume default-open initialization before any resume render.
-Open/preparing/closing surface sessions and active suggestions/placement owners
-remain nonportable. Provider/placement receipt contracts describe current owner
+Preparation/closing sessions and unaccounted widget/source authority remain
+nonportable. Provider/placement receipt contracts describe current owner
 and revision endpoints and require fresh host reacquisition; neither serialized
 IDs nor a matching old token confer authority. Exact supported states and
 publication fences are specified in [Committed checkpoints](committed-checkpoints.md).
+
+
+Active listbox suggestion checkpoint state preserves source-order row/proof
+identity, exact native publication/query state and editor/provider claims through
+the shared adapters. Original XML/CEMB sources and lexical bindings pass native
+import/reload validation. Committed placement source graphs and settled surface
+invocation endpoints derive dependencies from actual host authority. These
+records require fresh source/provider/placement admission and proof validation;
+resume must not replay actions or default-open initialization. Gesture and
+preparation/closing barriers, unaccounted claims/sources, retained bodies and
+unknown endpoints continue refusing the complete domain. See the supported
+capture limits in [Committed checkpoints](committed-checkpoints.md).

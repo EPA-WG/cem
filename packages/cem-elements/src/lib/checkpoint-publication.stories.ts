@@ -1,22 +1,41 @@
+import { CemNativeCapabilitySession } from './native-capability-session.js';
+import { cemProcessingHostForScope } from './internal/runtime-support/processing-host-runtime.js';
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect, waitFor } from 'storybook/test';
 import { CemElementRuntime, type CemElementRuntimeOptions } from './cem-elements.js';
 import { CemCheckpointPublicationCoordinator } from './checkpoint-publication.js';
 import { ingestContractVersion } from './disposition.js';
 import { CemRepositoryRegistry, type CemRepositoryChange } from './repository.js';
+import { cemSuggestionsCheckpoint, cemSuggestionsControllerFor } from './suggestions-capability.js';
+import { CemElementPlacementCoordinator } from './element-placement-coordinator.js';
+import { elementReferenceFixtureInputs, ELEMENT_REFERENCE_TEMPLATE } from './element-reference-lifecycle.fixtures.js';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- production declarative XHTML is fixture input, not a runtime dependency.
+import suggestionsDeclaration from '../../../cem-components/src/components/cem-suggestions/cem-suggestions.xhtml?raw';
 import { getCemEditorProvider } from './form-control-capability.js';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- production declarative XHTML is fixture input, not a runtime dependency.
 import selectDeclaration from '../../../cem-components/src/components/cem-select/cem-select.xhtml?raw';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- production declarative XHTML is fixture input, not a runtime dependency.
 import autocompleteDeclaration from '../../../cem-components/src/components/cem-autocomplete/cem-autocomplete.xhtml?raw';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- production declarative XHTML is fixture input, not a runtime dependency.
 import fieldDeclaration from '../../../cem-components/src/components/cem-field/cem-field.xhtml?raw';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- production declarative XHTML is fixture input, not a runtime dependency.
 import checkboxDeclaration from '../../../cem-components/src/components/cem-checkbox/cem-checkbox.xhtml?raw';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- production declarative XHTML is fixture input, not a runtime dependency.
 import treeDeclaration from '../../../cem-components/src/components/cem-tree/cem-tree.xhtml?raw';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- production declarative XHTML is fixture input, not a runtime dependency.
 import tabsDeclaration from '../../../cem-components/src/components/cem-tabs/cem-tabs.xhtml?raw';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- production declarative XHTML is fixture input, not a runtime dependency.
 import navDeclaration from '../../../cem-components/src/components/cem-nav/cem-nav.xhtml?raw';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- production declarative XHTML is fixture input, not a runtime dependency.
 import menuDeclaration from '../../../cem-components/src/components/cem-menu/cem-menu.xhtml?raw';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- production declarative XHTML is fixture input, not a runtime dependency.
 import dropdownDeclaration from '../../../cem-components/src/components/cem-dropdown/cem-dropdown.xhtml?raw';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- production declarative XHTML is fixture input, not a runtime dependency.
 import dialogDeclaration from '../../../cem-components/src/components/cem-dialog/cem-dialog.xhtml?raw';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- production declarative XHTML is fixture input, not a runtime dependency.
 import gridDeclaration from '../../../cem-components/src/components/cem-grid/cem-grid.xhtml?raw';
 import { mountCemView } from './host-view.js';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- production declarative XHTML is fixture input, not a runtime dependency.
 import sourceEditorDeclaration from '../../../cem-components/src/components/cem-source-editor/cem-source-editor.xhtml?raw';
 import { createCemDeclarationScope } from './declaration-scope.js';
 // eslint-disable-next-line @nx/enforce-module-boundaries -- real native checkpoint transport acceptance.
@@ -613,21 +632,133 @@ export const SettledSurfacesAndTransientSessionRefusal: Story = {
                 await f.runtime.whenRenderSettled(popup); await f.coordinator.capture();
                 expect(decode(f.coordinator).owners[0].island).toContain('popup');
                 popup.setAttribute('open', 'true'); await f.runtime.whenRenderSettled(popup);
-                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                await f.coordinator.capture(); expect(decode(f.coordinator).owners[0].island).toContain('reacquire');
                 popup.setAttribute('open', 'false'); await f.runtime.whenRenderSettled(popup); await f.coordinator.capture();
                 const surface = await f.create(declarationTemplate(dialogDeclaration), 'cem-ml', root, '<p>Dialog content</p>', 'native-surface');
                 await f.runtime.whenRenderSettled(surface); await f.coordinator.capture();
                 expect(decode(f.coordinator).owners.find(owner => owner.island.includes('native-surface'))!.island).toContain('defaultsInitialized');
                 const dialog = surface.querySelector('dialog')!; dialog.showModal();
-                await f.runtime.whenRenderSettled(surface); await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                await f.runtime.whenRenderSettled(surface); await waitFor(async () => { await f.coordinator.capture(); });
+                expect(dialog.open).toBe(true);
                 dialog.close('complete'); await f.runtime.whenRenderSettled(surface);
-                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                await waitFor(async () => { await f.coordinator.capture(); });
+                expect(decode(f.coordinator).owners.find(owner => owner.island.includes('native-surface'))!.island).toContain('complete');
                 dialog.returnValue = ''; await waitFor(async () => { await f.runtime.whenRenderSettled(surface); await f.coordinator.capture(); });
                 // A menu without an open submenu carries only roving focus/typeahead.
                 const menu = await f.create(declarationTemplate(menuDeclaration), 'cem-ml', root, '<button type="button">First</button><button type="button">Second</button>', 'composite-menu');
                 await f.runtime.whenRenderSettled(menu); await f.coordinator.capture();
                 expect(decode(f.coordinator).owners.find(owner => owner.island.includes('composite-menu'))!.island).toContain('activeNode');
             } finally { f.dispose(); }
+        }
+    },
+};
+
+async function activeSuggestionsCheckpointContract(canvasElement: HTMLElement, mode: boolean): Promise<void> {
+        await init(); const root = canvasElement.querySelector('section')!;
+        for (const fallback of [mode]) {
+            const f = fixture(root, fallback, false, undefined, { localSuggestions: true });
+            try {
+                const original = await f.create(declarationTemplate(fieldDeclaration), 'cem-ml', root, undefined, 'form-control');
+                await f.runtime.whenRenderSettled(original); const tag = original.localName; original.remove();
+                const host = await f.create(declarationTemplate(suggestionsDeclaration), 'cem-ml', root,
+                    `<${tag} slot="editor" name="choice" label="Choice"></${tag}><template slot="options"><option value="same">Alpha</option><option value="same">Another</option><option value="b">Beta</option></template>`, 'suggestions', { filter: 'none', 'require-selection': '' });
+                await f.runtime.whenRenderSettled(host);
+                const field = host.querySelector<HTMLElement>(tag)!; await f.runtime.whenRenderSettled(field);
+                const input = field.querySelector('input')!;
+                const ready = () => waitFor(() => expect(cemSuggestionsCheckpoint(host)).toBeDefined());
+                const capture = () => waitFor(async () => { await f.coordinator.capture(); });
+                await ready();
+                const revision = f.runtime.readInstanceSnapshot(host).dataRevision;
+                expect(f.runtime.readInstanceSnapshot(host).dataRevision).toBe(revision);
+                await capture(); expect(decode(f.coordinator).owners).toHaveLength(2);
+                expect(f.coordinator.current()!.receipt.relationships?.some(edge => edge.kind === 'editor-provider')).toBe(true);
+                input.focus(); input.value = 'same'; input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+                await ready(); await capture();
+                input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+                await ready(); await capture(); expect(cemSuggestionsCheckpoint(host)?.activeIndex).toBe(0);
+                input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+                await capture(); expect(cemSuggestionsCheckpoint(host)?.activeIndex).toBe(1);
+                const listbox = host.querySelector<HTMLElement>('[part~=surface]')!;
+                listbox.querySelector('[role=option]')!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse', isPrimary: true, pointerId: 1, button: 0 }));
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                listbox.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: 1 })); await capture();
+                input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true }));
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true }));
+                await ready(); await capture();
+                expect(cemSuggestionsCheckpoint(host)?.committedIndex).toBe(1); expect(input.value).toBe('same');
+                const saved = decode(f.coordinator).owners.find(owner => owner.island.includes('cem-native-source/1'))!.island;
+                expect(saved).toContain('committedIndex'); expect(saved).not.toContain('sessionKey');
+                const captured = cemSuggestionsCheckpoint(host)!;
+                const copyScope = createCemDeclarationScope({ document });
+                const copyOwner = cemProcessingHostForScope(copyScope, { workerScriptUrl: new URL('./internal/runtime-support/processing-worker.ts', import.meta.url),
+                    ...(fallback ? { workerFactory: () => { throw new Error('independent checkpoint fallback'); } } : {}) });
+                const originalSource = captured.source.sources[0];
+                const bytes = Uint8Array.from(atob(originalSource.base64), character => character.charCodeAt(0));
+                const copy = await CemNativeCapabilitySession.prepare(copyOwner, { action: 'prepare', adapter: 'suggestions-v1',
+                    handle: { sessionKey: crypto.randomUUID(), instanceId: 'checkpoint-copy', scopePolicyStamp: 'copy-policy', sourceRevision: captured.source.revision },
+                    sources: { kind: 'cem-native-session-import-v1', bytes: bytes.buffer, sourceUri: originalSource.sourceUri!, contentType: 'application/xml' },
+                    data: {}, select: captured.source.select, limits: { maxBytes: 256 * 1024, maxValues: 1024, maxDepth: 64 } }, () => true);
+                try {
+                    const publication = await copy.publishSuggestions({ query: captured.query, queryRevision: captured.queryRevision, filter: 'none' }, () => true);
+                    const binding = publication.bind({ instanceId: 'fresh-consumer', scopePolicyStamp: 'fresh-policy', revision: '1', current: () => true });
+                    const rows = await binding.rows();
+                    expect(rows[captured.committedIndex].value).toBe(captured.committedValue);
+                    expect(rows[0].source).not.toBe(rows[1].source);
+                    expect(rows[captured.committedIndex].source).not.toBe(cemSuggestionsControllerFor(host)?.committed);
+                    binding.release(); await publication.release();
+                } finally { await copy.release(); copyScope.dispose(); }
+                const provider = getCemEditorProvider(field)!;
+                const foreign = provider.subscribe(() => undefined);
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); foreign(); await capture();
+                const emptyValidity = provider.validity({});
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); emptyValidity.release(); await capture();
+                input.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                input.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true })); await ready(); await capture();
+                host.setAttribute('options-state', 'pending'); await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                host.setAttribute('options-state', 'ready'); await ready(); await capture();
+                expect(input.value).toBe('same');
+            } finally { f.dispose(); }
+        }
+
+}
+export const ActiveSuggestionsProviderAndProofCapture: Story = {
+    render: () => '<section aria-label="Active suggestions worker checkpoint"></section>',
+    play: ({ canvasElement }) => activeSuggestionsCheckpointContract(canvasElement, false),
+};
+export const ActiveSuggestionsProviderAndProofCaptureFallback: Story = {
+    render: () => '<section aria-label="Active suggestions fallback checkpoint"></section>',
+    play: ({ canvasElement }) => activeSuggestionsCheckpointContract(canvasElement, true),
+};
+export const CommittedPlacementCaptureAndRevocation: Story = {
+    render: () => '<section aria-label="Committed placement checkpoint"></section>',
+    play: async ({ canvasElement }) => {
+        await init(); const root = canvasElement.querySelector('section')!;
+        for (const fallback of [false, true]) {
+            const placements = new CemElementPlacementCoordinator(document), references = elementReferenceFixtureInputs();
+            const f = fixture(root, fallback, false, undefined, { placementCoordinator: placements, elementReferenceInputs: () => references });
+            try {
+                const producer = await f.create(`{dialog @id=checkpoint-target-${crypto.randomUUID()} | Target}`); await f.runtime.whenRenderSettled(producer);
+                await f.coordinator.capture();
+                const target = producer.querySelector('dialog')!, receipt = f.coordinator.current()!.receipt.owners[0];
+                const lease = placements.register({ producer: receipt.instanceId, path: [0], revision: String(receipt.dataRevision), element: target,
+                    source: references.sources[1], select: 'input.children', currentRevision: () => producer.isConnected ? String(receipt.dataRevision) : undefined });
+                const consumer = await f.create(ELEMENT_REFERENCE_TEMPLATE.replace('{$destination}', '')); await f.runtime.whenRenderSettled(consumer);
+                const revoke = placements.grant(f.runtime.snapshotInstance(consumer).instanceId, lease, ['commandfor']);
+                f.runtime.refreshElementReferences(consumer); await f.runtime.whenRenderSettled(consumer);
+                expect(consumer.querySelector('button')?.getAttribute('commandfor')).toBe(target.id);
+                await f.coordinator.capture(); expect(f.coordinator.current()!.receipt.relationships).toHaveLength(1);
+                expect(decode(f.coordinator).owners.find(owner => owner.island.includes('cem-native-source/1'))!.island).toContain('cemb');
+                const last = f.coordinator.lastCommitted()!.bytes;
+                producer.remove(); await expect(f.coordinator.capture()).rejects.toThrow();
+                expect(f.coordinator.lastCommitted()!.bytes).toEqual(last);
+                revoke(); lease.dispose(); consumer.remove();
+                const repaired = await f.create('{p | Portable owner after revocation}'); await f.runtime.whenRenderSettled(repaired);
+                await waitFor(async () => { await f.coordinator.capture(); });
+                const button = repaired.querySelector('p');
+                if (button) { button.setAttribute('data-cem-placement-ref-commandfor', ''); await expect(f.coordinator.capture()).rejects.toThrow(); }
+            } finally { f.dispose(); placements.dispose(); }
         }
     },
 };

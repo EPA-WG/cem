@@ -1,3 +1,5 @@
+import { snapshotCheckpointReferences, checkpointReferenceSource, type CheckpointEndpoint } from './checkpoint-interactions.js';
+import type { CemCheckpointRelationship } from './committed-checkpoint.js';
 import { captureCheckpointControls, checkpointScalarPortable, type CemCheckpointControlState, type CemCheckpointRuntimeState } from './checkpoint-controls.js';
 import { type CemCheckpointPublicationCoordinator, type CemCheckpointPublicationOwner } from './checkpoint-publication.js';
 import { isDomInstance } from './dom-realm.js';
@@ -153,7 +155,7 @@ import { CEM_RANGE_INPUT_CAPABILITY } from './range-input-capability.js';
 import { CEM_CALENDAR_INPUT_CAPABILITY } from './calendar-input-capability.js';
 import { CEM_EDITABLE_CHOICE_CAPABILITY, cemEditableChoiceCheckpoint } from './editable-choice-capability.js';
 import { CEM_CHECKABLE_CONTROL_CAPABILITY, cemCheckableControlCheckpoint } from './checkable-control.js';
-import { CEM_SUGGESTIONS_CAPABILITY, refreshCemSuggestionsAuthorization, localCemSuggestionsBinding, type CemLocalSuggestionsEnvironment } from './suggestions-capability.js';
+import { CEM_SUGGESTIONS_CAPABILITY, cemSuggestionsCheckpoint, cemSuggestionsCheckpointEditor, refreshCemSuggestionsAuthorization, localCemSuggestionsBinding, type CemLocalSuggestionsEnvironment } from './suggestions-capability.js';
 import type { CemSuggestionsControllerOptions } from './suggestions-controller.js';
 import { CEM_POPUP_CAPABILITY, cemPopupCheckpoint } from './popup-capability.js';
 import { CEM_NATIVE_SURFACE_CAPABILITY, cemNativeSurfaceCheckpoint } from './native-surface.js';
@@ -1808,9 +1810,10 @@ export class CemElementRuntime {
     private readonly formEventBindings = new WeakMap<Element, FormEventBinding>();
     private readonly customValidityExpressions = new WeakMap<Element, string>();
     private readonly customValidationMessages = new WeakMap<Element, string>();
-    private readonly checkpointOwners = new WeakMap<HTMLElement, { owner: CemCheckpointPublicationOwner; detach(): void }>();
+    private readonly checkpointOwners = new WeakMap<HTMLElement, { owner: CemCheckpointPublicationOwner; detach(): void; settled(): void }>();
     private readonly checkpointCommandRoots = new WeakSet<HTMLElement>();
     private readonly checkpointComposing = new WeakSet<HTMLElement>();
+    private readonly checkpointInteracting = new WeakSet<HTMLElement>();
     private readonly checkpointEventSequences = new WeakMap<HTMLElement, number>();
     private readonly checkpointPublishedTokens = new WeakMap<HTMLElement, number>();
     private readonly checkpointPublication?: CemCheckpointPublicationCoordinator;
@@ -2612,6 +2615,15 @@ export class CemElementRuntime {
         return this.createSnapshot(instance, declaration, island);
     }
 
+    /** Inspect current lifecycle state without allocating a new render revision. */
+    readInstanceSnapshot(instance: HTMLElement): DataIslandSnapshot {
+        const declaration = this.declarationForInstance(instance);
+        if (!declaration) throw new Error(`No declaration registered for <${instance.localName}>`);
+        const island = this.ensureDataIsland(instance);
+        return this.snapshotFromCapturedForms(instance, declaration, island, String(this.dataRevisions.get(instance) ?? 0),
+            this.instanceStates.get(instance), this.captureRenderedForms(instance));
+    }
+
     /** Read the effective declaration version without reserving a property on the produced element. */
     declarationVersionFor(instance: HTMLElement): string | null {
         return this.declarationForInstance(instance)?.declarationVersion ?? null;
@@ -2630,7 +2642,7 @@ export class CemElementRuntime {
 
     /** Trusted capability hook. A serialized declaration cannot manufacture this authority. */
     suggestionsControllerInputsFor(instance: HTMLElement): CemSuggestionsControllerOptions | undefined {
-        return this.suggestionsControllerInputsOption?.(instance, this.snapshotInstance(instance));
+        return this.suggestionsControllerInputsOption?.(instance, this.checkpointPublication ? this.readInstanceSnapshot(instance) : this.snapshotInstance(instance));
     }
 
     /** Explicit host policy. Disabling synchronously revokes affected local controllers and claims. */
@@ -2648,7 +2660,7 @@ export class CemElementRuntime {
         if (!this.localSuggestionsEnabled || compiled.mode !== 'cem-ml' || compiled.declarationScope.disposed) return undefined;
         const payload = directIslandSection(this.ensureDataIsland(instance), DATA_ISLAND_SECTIONS.payload);
         const optionsSources = [...(payload?.children ?? [])].filter(child => child.getAttribute('slot') === 'options');
-        return { snapshot: this.snapshotInstance(instance), owner: this.processingHost(compiled), limits: this.nativeValueLimits, optionsSources, labelSources: [...(payload?.children ?? [])].filter(child => ['option', 'group-label'].includes(child.getAttribute('slot') ?? '')), sourceRoot: payload ?? undefined,
+        return { snapshot: this.checkpointPublication ? this.readInstanceSnapshot(instance) : this.snapshotInstance(instance), owner: this.processingHost(compiled), limits: this.nativeValueLimits, optionsSources, labelSources: [...(payload?.children ?? [])].filter(child => ['option', 'group-label'].includes(child.getAttribute('slot') ?? '')), sourceRoot: payload ?? undefined,
             ownsEditor: editor => this.initializedInstances.has(editor) && !!this.declarationForInstance(editor),
             current: () => this.localSuggestionsEnabled && instance.isConnected && !compiled.declarationScope.disposed
                 && this.declarationForInstance(instance) === compiled,
@@ -2875,6 +2887,16 @@ export class CemElementRuntime {
         return undefined;
     }
 
+    /** Shared adapter publication after browser-owned interaction settles. No render or action replay. */
+    checkpointInteractionSettled(instance: HTMLElement): void {
+        const owner = this.checkpointOwners.get(instance);
+        void this.whenRenderSettled(instance).then(() => { if (owner && this.checkpointOwners.get(instance) === owner) owner.settled(); }, () => undefined);
+    }
+    private checkpointAdapterOwnsInteraction(compiled: CompiledDeclaration): boolean {
+        return [CEM_SUGGESTIONS_CAPABILITY, CEM_FORM_CONTROL_CAPABILITY, CEM_POPUP_CAPABILITY, CEM_NATIVE_SURFACE_CAPABILITY].includes(compiled.behavior!);
+    }
+    get checkpointCaptureEnabled(): boolean { return !!this.checkpointPublication; }
+
     private checkpointControls(instance: HTMLElement): CemCheckpointControlState | undefined {
         const bounds = this.renderBounds.get(instance);
         return bounds ? captureCheckpointControls(renderedElementsBetween(bounds, 'input,textarea,select,button,[contenteditable]')
@@ -2884,7 +2906,7 @@ export class CemElementRuntime {
     private checkpointRuntimeState(instance: HTMLElement, compiled: CompiledDeclaration, state: InstanceState, documents = false): CemCheckpointRuntimeState | undefined {
         let capability: CemCheckpointRuntimeState['capability'] = null;
         if (compiled.behavior === CEM_PLAINTEXT_EDITOR_CAPABILITY) capability = cemPlaintextEditorCheckpoint(instance) ?? null;
-        else if (compiled.behavior === CEM_FORM_CONTROL_CAPABILITY) capability = cemFormControlCheckpoint(instance) ?? null;
+        else if (compiled.behavior === CEM_FORM_CONTROL_CAPABILITY) capability = cemFormControlCheckpoint(instance, consumer => this.instanceStates.has(consumer) && this.declarationForInstance(consumer)?.behavior === CEM_SUGGESTIONS_CAPABILITY && cemSuggestionsCheckpoint(consumer) ? this.instanceId(consumer) : undefined) ?? null;
         else if (compiled.behavior === CEM_CHECKABLE_CONTROL_CAPABILITY) capability = cemCheckableControlCheckpoint(instance) ?? null;
         else if (compiled.behavior === CEM_CHOICE_SELECT_CAPABILITY) capability = cemChoiceSelectCheckpoint(instance) ?? null;
         else if (compiled.behavior === CEM_EDITABLE_CHOICE_CAPABILITY) capability = cemEditableChoiceCheckpoint(instance) ?? null;
@@ -2893,7 +2915,12 @@ export class CemElementRuntime {
         else if (compiled.behavior === CEM_NAVIGATION_LANDMARK_CAPABILITY) capability = cemNavigationLandmarkCheckpoint(instance) ?? null;
         else if (compiled.behavior === CEM_COMPOSITE_MENU_CAPABILITY) capability = cemCompositeMenuCheckpoint(instance) ?? null;
         else if (compiled.behavior === CEM_POPUP_CAPABILITY) capability = cemPopupCheckpoint(instance) ?? null;
-        else if (compiled.behavior === CEM_NATIVE_SURFACE_CAPABILITY) capability = cemNativeSurfaceCheckpoint(instance) ?? null;
+        else if (compiled.behavior === CEM_NATIVE_SURFACE_CAPABILITY) capability = cemNativeSurfaceCheckpoint(instance, element => this.checkpointEndpoint(element)) ?? null;
+        else if (compiled.behavior === CEM_SUGGESTIONS_CAPABILITY) {
+            const editor = cemSuggestionsCheckpointEditor(instance);
+            if (!editor || !this.instanceStates.has(editor) || this.declarationForInstance(editor)?.behavior !== CEM_FORM_CONTROL_CAPABILITY) return undefined;
+            const captured = cemSuggestionsCheckpoint(instance); if (captured) capability = { kind: 'suggestions', state: captured };
+        }
         if (compiled.behavior && !capability) return undefined;
         const resources: CemCheckpointRuntimeState['resources'] = [];
         let documentBytes = 0;
@@ -2960,17 +2987,55 @@ export class CemElementRuntime {
             if (!nodeId) return undefined;
             focus = { target: 'node', nodeId };
         }
-        return { version: 'cem-checkpoint-runtime/1', capability, ...(focus ? { focus } : {}), resources, writers, writeDisposition: 'suppress-until-new-input' };
+        const placements = this.checkpointPlacements(instance);
+        if (!placements) return undefined;
+        const prepared = this.placementInputs.get(instance);
+        const references = prepared && checkpointReferenceSource(prepared.inputs, String(this.dataRevisions.get(instance)));
+        if (prepared && (!references || prepared.token !== this.checkpointPublishedTokens.get(instance)) || this.referenceInputControllers.has(instance)) return undefined;
+        return { version: 'cem-checkpoint-runtime/1', capability, ...(references ? { references } : {}), ...(placements.length ? { placements } : {}), ...(focus ? { focus } : {}), resources, writers, writeDisposition: 'suppress-until-new-input' };
     }
 
+    private checkpointEndpoint(element: HTMLElement): CheckpointEndpoint | undefined {
+        if (!this.instanceStates.has(element) && (directDataIsland(element) || element.ownerDocument.defaultView?.customElements.get(element.localName))) return undefined;
+        for (let host: HTMLElement | null = element; host; host = host.parentElement) {
+            if (!this.instanceStates.has(host) || !this.declarationForInstance(host)) continue;
+            const nodeId = element === host ? 'host' : this.ownsRenderedElement(host, element) ? element.getAttribute('data-cem-render-node-id') : null;
+            if (!nodeId) return undefined;
+            return { instanceId: this.instanceId(host), dataRevision: String(this.dataRevisions.get(host)), nodeId };
+        }
+        return undefined;
+    }
+    private checkpointPlacements(instance: HTMLElement) {
+        if (this.placementCoordinator) return this.placementCoordinator.checkpoint(this.instanceId(instance), instance, element => this.checkpointEndpoint(element), element => this.ownsRenderedElement(instance, element));
+        return hasCemPlacementRelationships(instance) ? undefined : [];
+    }
+    private checkpointDependencies(instance: HTMLElement): CemCheckpointRelationship[] | undefined {
+        const requester = this.checkpointEndpoint(instance), placements = this.checkpointPlacements(instance);
+        if (!requester || !placements) return undefined;
+        const result: CemCheckpointRelationship[] = placements.map(placement => ({ id: `${requester.instanceId}:placement:${placement.requesterNode}:${placement.property}`,
+            kind: 'placement', requester: { ...requester, nodeId: placement.requesterNode },
+            provider: { instanceId: placement.producer, dataRevision: placement.revision, nodeId: placement.providerNode }, property: placement.property, disposition: 'reacquire' }));
+        if (this.declarationForInstance(instance)?.behavior === CEM_SUGGESTIONS_CAPABILITY) {
+            const editor = cemSuggestionsCheckpointEditor(instance), provider = editor && this.checkpointEndpoint(editor);
+            if (!provider || !cemSuggestionsCheckpoint(instance)) return undefined;
+            result.push({ id: `${requester.instanceId}:editor`, kind: 'editor-provider', requester, provider, property: 'suggestions', disposition: 'reacquire' });
+        }
+        if (this.declarationForInstance(instance)?.behavior === CEM_NATIVE_SURFACE_CAPABILITY) {
+            const invocation = cemNativeSurfaceCheckpoint(instance, element => this.checkpointEndpoint(element))?.state.invocation;
+            for (const [name, provider] of [['anchor', invocation?.source], ['return-focus', invocation?.returnDestination], ['interaction', invocation?.logicalParent]] as const) {
+                if (provider) result.push({ id: `${requester.instanceId}:surface:${name}`, kind: 'placement', requester, provider, property: name, disposition: 'reacquire' });
+            }
+        }
+        return result;
+    }
     private checkpointFingerprint(instance: HTMLElement, compiled: CompiledDeclaration): string | undefined {
         const state = this.instanceStates.get(instance);
-        if (!state || this.checkpointComposing.has(instance) || hasCemPlacementRelationships(instance)) return undefined;
+        if (!state || this.checkpointComposing.has(instance) || this.checkpointInteracting.has(instance)) return undefined;
         const runtime = this.checkpointRuntimeState(instance, compiled, state);
         const controls = this.checkpointControls(instance);
         if (!runtime || !controls) return undefined;
         for (const control of instance.querySelectorAll('[host-command]')) if (!this.checkpointCommandRoot(control)) return undefined;
-        return JSON.stringify({ controls, runtime, resources: portableResourceState(state),
+        return JSON.stringify({ controls, runtime, dependencies: this.checkpointDependencies(instance), resources: portableResourceState(state),
             values: runtime.resources.filter(resource => ['repository-query', 'storage-status', 'http'].includes(resource.kind)).map(resource => state.slices[resource.name]) });
     }
 
@@ -2995,7 +3060,9 @@ export class CemElementRuntime {
             const fingerprint = this.checkpointFingerprint(instance, compiled);
             if (!fingerprint) return false;
             if (publishedControls !== fingerprint) {
-                this.renderInstance(instance, compiled); return false;
+                if (this.checkpointAdapterOwnsInteraction(compiled)) this.checkpointInteractionSettled(instance);
+                else this.renderInstance(instance, compiled);
+                return false;
             }
             return true;
         };
@@ -3033,11 +3100,11 @@ export class CemElementRuntime {
                 resourceState: { ...snapshot.resourceState, ...Object.fromEntries(validated.resources.filter(resource => ['http', 'repository-query', 'storage-status'].includes(resource.kind)).map(resource => {
                     const key = `${resource.kind === 'repository-query' ? 'repository' : resource.kind}:${resource.name}`;
                     return [key, { ...(snapshot.resourceState?.[key] as Record<string, unknown>), status: resource.state }];
-                })), checkpointRuntime: { version: validated.version, resources: validated.resources, writers: validated.writers, ...(validated.focus ? { focus: validated.focus } : {}), writeDisposition: validated.writeDisposition } } });
+                })), checkpointRuntime: { version: validated.version, resources: validated.resources, ...(validated.references ? { references: validated.references } : {}), ...(validated.placements ? { placements: validated.placements } : {}), writers: validated.writers, ...(validated.focus ? { focus: validated.focus } : {}), writeDisposition: validated.writeDisposition } } });
             state.observer?.takeRecords();
             units = 0; length = 0; visit(island, 0);
             return island.outerHTML;
-        }, current, this.checkpointEventSequences.get(instance) ?? 0); }
+        }, current, this.checkpointEventSequences.get(instance) ?? 0, () => this.checkpointDependencies(instance)); }
         catch { return; /* Coordinator is blocked; ordinary owner lifecycle continues. */ }
         const published = owner.published;
         owner.published = receipt => {
@@ -3048,8 +3115,27 @@ export class CemElementRuntime {
         const input = () => {
             owner.input();
             this.checkpointEventSequences.set(instance, (this.checkpointEventSequences.get(instance) ?? 0) + 1);
-            this.renderInstance(instance, compiled);
+            if (this.checkpointAdapterOwnsInteraction(compiled)) this.checkpointInteractionSettled(instance);
+            else this.renderInstance(instance, compiled);
         };
+        const pointers = new Set<number>(), keys = new Set<string>();
+        let gestureTimer: ReturnType<typeof setTimeout> | undefined;
+        const beginGesture = (event: Event) => {
+            if (event instanceof PointerEvent) pointers.add(event.pointerId);
+            else if (event instanceof KeyboardEvent && ['Enter', ' ', 'Escape'].includes(event.key)) keys.add(event.code || event.key);
+            else return;
+            if (gestureTimer !== undefined) clearTimeout(gestureTimer);
+            this.checkpointInteracting.add(instance); owner.invalidate();
+        };
+        const endGesture = (event: Event) => {
+            const removed = event instanceof PointerEvent ? pointers.delete(event.pointerId) : event instanceof KeyboardEvent ? keys.delete(event.code || event.key) : false;
+            if (!removed || pointers.size || keys.size) return;
+            // Let native activation/click finish before publishing a settled frame.
+            gestureTimer = setTimeout(() => { gestureTimer = undefined; this.checkpointInteracting.delete(instance); input(); }, 0);
+        };
+        instance.addEventListener('pointerdown', beginGesture, true);
+        instance.addEventListener('keydown', beginGesture, true);
+        for (const name of ['pointerup', 'pointercancel', 'keyup']) instance.ownerDocument.addEventListener(name, endGesture, true);
         const compositionStart = () => { this.checkpointComposing.add(instance); owner.invalidate(); };
         const compositionEnd = () => { this.checkpointComposing.delete(instance); input(); };
         instance.addEventListener('compositionstart', compositionStart, true);
@@ -3063,12 +3149,25 @@ export class CemElementRuntime {
             removed = true; owner.remove(); releaseScope();
             instance.removeEventListener('compositionstart', compositionStart, true);
             instance.removeEventListener('compositionend', compositionEnd, true);
-            this.checkpointComposing.delete(instance);
+            this.checkpointComposing.delete(instance); this.checkpointInteracting.delete(instance);
+            if (gestureTimer !== undefined) clearTimeout(gestureTimer);
+            instance.removeEventListener('pointerdown', beginGesture, true); instance.removeEventListener('keydown', beginGesture, true);
+            for (const name of ['pointerup', 'pointercancel', 'keyup']) instance.ownerDocument.removeEventListener(name, endGesture, true);
             for (const name of events) instance.removeEventListener(name, input, true);
             this.checkpointOwners.delete(instance);
         };
         releaseScope = onCemDeclarationScopeDispose(compiled.declarationScope, detach);
-        this.checkpointOwners.set(instance, { owner, detach });
+        this.checkpointOwners.set(instance, { owner, detach, settled: () => {
+            if (!this.checkpointAdapterOwnsInteraction(compiled) || !instance.isConnected || compiled.declarationScope.disposed
+                || this.declarationForInstance(instance) !== compiled || !publishedRevision
+                || String(this.dataRevisions.get(instance)) !== publishedRevision
+                || this.checkpointPublishedTokens.get(instance) !== this.renderTokens.get(instance)) return;
+            const fingerprint = this.checkpointFingerprint(instance, compiled);
+            if (!fingerprint) return;
+            if (publishedControls === fingerprint && owner.acknowledged) return;
+            publishedControls = fingerprint;
+            owner.published({ instanceId: this.instanceId(instance), declarationIdentity: compiled.artifactId, dataRevision: publishedRevision });
+        } });
     }
 
     private connectProducedInstance(instance: HTMLElement, compiled: CompiledDeclaration): void {
@@ -4244,7 +4343,8 @@ export class CemElementRuntime {
             });
             const inputs = await Promise.race([prepare, disposed]);
             if (!inputs) { this.placementInputs.delete(instance); return undefined; }
-            const admitted = this.placementCoordinator ? this.placementCoordinator.prepare(instance, snapshot.instanceId, inputs) : inputs;
+            const admitted = this.placementCoordinator ? this.placementCoordinator.prepare(instance, snapshot.instanceId, inputs, undefined, !!this.checkpointPublication)
+                : this.checkpointPublication && !inputs.placements ? snapshotCheckpointReferences(inputs) ?? inputs : inputs;
             this.placementInputs.set(instance, { token, inputs: admitted });
             return admitted;
         } finally {

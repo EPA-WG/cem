@@ -1,3 +1,4 @@
+import { checkpointReferenceSource, type CheckpointPlacement, type CheckpointEndpoint } from './checkpoint-interactions.js';
 import { CemPlacementAuthority, type CemPlacementLease, type CemPlacementTransaction } from './element-placement-authority.js';
 import type { CemElementPlacementUse, CemElementReferenceInputs } from './element-reference-inputs.js';
 import { placementPlanElement, placementRoutes, withoutPlacementRelationships } from './element-placement-plans.js';
@@ -85,10 +86,10 @@ export class CemElementPlacementCoordinator {
             () => ready(stage.host, false), transaction, ready);
     }
     grant(requester: string, lease: CemPlacementLease, properties: readonly string[]): () => void { this.active(); return this.authority.grant(requester, lease, properties); }
-    prepare(requester: HTMLElement, instanceId: string, inputs: CemElementReferenceInputs, transaction?: CemPlacementTransaction): CemElementReferenceInputs {
+    prepare(requester: HTMLElement, instanceId: string, inputs: CemElementReferenceInputs, transaction?: CemPlacementTransaction, captureSources = false): CemElementReferenceInputs {
         this.active();
         if (!(transaction ? this.preparedRoot(requester, this.group(transaction), new Set()) : requester.isConnected && requester.getRootNode() === this.root)) throw new Error('Requester is outside the permitted DOM root');
-        return this.authority.prepare(instanceId, inputs, requester, transaction);
+        return this.authority.prepare(instanceId, inputs, requester, transaction, captureSources);
     }
     publish<T>(requester: HTMLElement, inputs: CemElementReferenceInputs, uses: readonly CemElementPlacementUse[], commit: () => T,
         invalidate: (uses: readonly CemElementPlacementUse[]) => void = () => undefined, current: () => boolean = () => requester.isConnected): T {
@@ -147,6 +148,38 @@ export class CemElementPlacementCoordinator {
         })));
         for (const watched of this.watched) if (watched.staged && watched.ready()) watched.staged = false;
         this.groups.delete(transaction.token); this.refresh();
+    }
+    checkpoint(requester: string, host: HTMLElement, endpoint: (element: HTMLElement) => CheckpointEndpoint | undefined, owns: (element: Element) => boolean): CheckpointPlacement[] | undefined {
+        if (this.disposed || this.groups.size) return undefined;
+        const admitted = this.authority.checkpoint(requester);
+        if (!admitted || admitted.length > 256) return undefined;
+        const result: CheckpointPlacement[] = [];
+        let bytes = 0;
+        const routes = new Set<string>();
+        for (const { use, description, inputs } of admitted) {
+            const targets = [...this.root.querySelectorAll('[id]')].filter(element => element.id === description.id);
+            const provider = targets.length === 1 ? targets[0] : undefined;
+            const captured = provider instanceof HTMLElement ? endpoint(provider) : undefined;
+            const providerNode = captured?.nodeId;
+            if (captured?.instanceId !== description.producer || captured.dataRevision !== description.revision) return undefined;
+            const nodes = [...host.querySelectorAll('[data-cem-render-node-id]')].filter(element => owns(element) && element.getAttribute('data-cem-render-node-id') === use.renderNodeId);
+            const node = nodes.length === 1 ? nodes[0] : undefined;
+            if (!providerNode || !node || node.getAttribute(use.attribute) !== description.id || !node.hasAttribute(`data-cem-placement-ref-${use.attribute}`)) return undefined;
+            const source = checkpointReferenceSource(inputs, endpoint(host)?.dataRevision ?? '');
+            const admission = inputs.placements?.admissions.find(admission => admission.token === use.token);
+            if (!source || !admission) return undefined;
+            bytes += inputs.sources.reduce((sum, source) => sum + source.bundle.byteLength, 0); if (bytes > 256 * 1024) return undefined;
+            const sourceIndex = admission.source;
+            routes.add(`${use.renderNodeId}:${use.attribute}`);
+            result.push({ requesterNode: use.renderNodeId, property: use.attribute, producer: description.producer, revision: description.revision, providerNode,
+                sourceIndex, path: [...description.path], select: description.select, disposition: 'reacquire',
+                source });
+        }
+        // Markers can never manufacture authority or hide an unaccounted route.
+        for (const node of [...host.querySelectorAll('[data-cem-render-node-id]')].filter(owns)) for (const name of node.getAttributeNames()) {
+            if (name.startsWith('data-cem-placement-ref-') && !routes.has(`${node.getAttribute('data-cem-render-node-id')}:${name.slice('data-cem-placement-ref-'.length)}`)) return undefined;
+        }
+        return result;
     }
     release(requester: string): void { this.authority.release(requester); }
     refresh(): void {

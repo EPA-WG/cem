@@ -15,6 +15,7 @@ export interface CemCheckpointPublicationOptions {
 export interface CemCheckpointJournalAuthority { runtimeId: string; generation: number; policyStamp: string }
 export interface CemCheckpointOperation { readonly operationId: string; acknowledge(): void }
 export interface CemCheckpointPublicationOwner {
+    readonly acknowledged: boolean;
     invalidate(): void;
     input(): void;
     published(receipt: Omit<CemCheckpointOwnerReceipt, 'acceptedEventSequence'>): void;
@@ -26,6 +27,7 @@ interface Owner {
     receipt?: CemCheckpointOwnerReceipt;
     exportIsland: () => string | undefined | Promise<string | undefined>;
     current: () => boolean;
+    dependencies: () => CemCheckpointRelationship[] | undefined;
 }
 const MAX_BYTES = 1024 * 1024;
 const MAX_OWNERS = 256;
@@ -48,6 +50,7 @@ export class CemCheckpointPublicationCoordinator {
     private sequence = 0;
     private epoch = 0;
     private capturing = false;
+    private dependencyIdentity?: string;
     private scheduled = false;
     private disposed = false;
     private blocked = false;
@@ -64,16 +67,18 @@ export class CemCheckpointPublicationCoordinator {
 
     get lastError(): string | undefined { return this.error; }
 
-    register(id: string, exportIsland: () => string | undefined | Promise<string | undefined>, current: () => boolean = () => true, initialEventSequence = 0): CemCheckpointPublicationOwner {
+    register(id: string, exportIsland: () => string | undefined | Promise<string | undefined>, current: () => boolean = () => true, initialEventSequence = 0, dependencies: () => CemCheckpointRelationship[] | undefined = () => []): CemCheckpointPublicationOwner {
         if (this.disposed || this.owners.has(id) || !id || this.owners.size >= MAX_OWNERS
             || !Number.isSafeInteger(initialEventSequence) || initialEventSequence < 0) {
             // An unregistered owner must never disappear from the all-owner proof.
             this.blocked = true; this.invalidate(); throw new Error('cem.checkpoint.owners');
         }
-        const owner: Owner = { id, exportIsland, current, sequence: initialEventSequence };
+        const owner: Owner = { id, exportIsland, current, sequence: initialEventSequence, dependencies };
         this.owners.set(id, owner); this.invalidate();
+        const acknowledged = () => !this.disposed && this.owners.get(id) === owner && !!owner.receipt;
         const active = () => { if (this.disposed || this.owners.get(id) !== owner) throw new Error('cem.checkpoint.stale'); };
         return {
+            get acknowledged() { return acknowledged(); },
             invalidate: () => { if (this.disposed) return; active(); owner.receipt = undefined; this.invalidate(); },
             input: () => {
                 if (this.disposed) return;
@@ -179,6 +184,18 @@ export class CemCheckpointPublicationCoordinator {
     }
 
     private invalidate(): void { this.epoch++; this.store.invalidate(); }
+    private dependencySnapshot(): CemCheckpointRelationship[] | undefined {
+        const dependencies = [...this.relationships.values()].map(record => record.descriptor);
+        for (const owner of this.owners.values()) {
+            const next = owner.dependencies();
+            if (!next || next.some(edge => edge.requester.instanceId !== owner.id)) return undefined;
+            dependencies.push(...next); if (dependencies.length > 256) return undefined;
+        }
+        for (const edge of dependencies) for (const endpoint of [edge.requester, edge.provider]) {
+            if (this.owners.get(endpoint.instanceId)?.receipt?.dataRevision !== endpoint.dataRevision) return undefined;
+        }
+        return dependencies;
+    }
     private ready(): boolean {
         if (this.disposed || this.blocked || this.admissions.size || !this.owners.size) return false;
         for (const operation of this.operations.values()) if (!this.owners.has(operation.instanceId) && !this.retirement.has(operation.operationId)) return false;
@@ -192,6 +209,10 @@ export class CemCheckpointPublicationCoordinator {
         for (const owner of this.owners.values()) {
             if (!owner.receipt || !owner.current()) { this.store.invalidate(); return false; }
         }
+        const dependencies = this.dependencySnapshot();
+        if (!dependencies) { this.store.invalidate(); return false; }
+        const identity = JSON.stringify(dependencies);
+        if (this.dependencyIdentity !== identity) { this.dependencyIdentity = identity; this.invalidate(); }
         return true;
     }
 
@@ -203,33 +224,37 @@ export class CemCheckpointPublicationCoordinator {
         try {
             const sources = [...this.owners.values()];
             const retired = [...this.retirement];
+            const dependencies = this.dependencySnapshot();
+            if (!dependencies) throw new Error('cem.checkpoint.unavailable');
+            const dependencyIdentity = JSON.stringify(dependencies);
+            const dependenciesCurrent = () => JSON.stringify(this.dependencySnapshot()) === dependencyIdentity;
             const receipt: CemCommitReceipt = { runtimeId: this.options.runtimeId, generation: this.options.generation,
                 commitSequence: ++this.sequence, policyStamp: this.policyStamp,
                 owners: sources.map(owner => ({ ...owner.receipt! })),
-                ...(this.relationships.size ? { relationships: [...this.relationships.values()].map(({ descriptor }) => ({ ...descriptor, requester: { ...descriptor.requester }, provider: { ...descriptor.provider } })) } : {}), operations: [...this.operations.values()].filter(record => !this.retirement.has(record.operationId)).map(record => ({ ...record })) };
+                ...(dependencies.length ? { relationships: dependencies.map(descriptor => ({ ...descriptor, requester: { ...descriptor.requester }, provider: { ...descriptor.provider } })) } : {}), operations: [...this.operations.values()].filter(record => !this.retirement.has(record.operationId)).map(record => ({ ...record })) };
             const owners = [];
             let bytes = 0;
             for (const owner of sources) {
-                if (epoch !== this.epoch || !this.ready()) throw new Error('cem.checkpoint.stale');
+                if (epoch !== this.epoch || !this.ready() || !dependenciesCurrent()) throw new Error('cem.checkpoint.stale');
                 if (this.allowOwner?.(Object.freeze({ ...owner.receipt! })) !== true) throw new Error('cem.checkpoint.privacy');
                 const exported = owner.exportIsland();
                 const island = typeof exported === 'string' || exported === undefined ? exported : await exported;
-                if (epoch !== this.epoch || !this.ready()) throw new Error('cem.checkpoint.stale');
+                if (epoch !== this.epoch || !this.ready() || !dependenciesCurrent()) throw new Error('cem.checkpoint.stale');
                 if (typeof island !== 'string' || !island) throw new Error('cem.checkpoint.unavailable');
                 bytes += island.length;
                 if (bytes > MAX_BYTES) throw new Error('cem.checkpoint.limit');
                 owners.push({ instanceId: owner.id, island });
             }
-            if (epoch !== this.epoch || !this.ready()) throw new Error('cem.checkpoint.stale');
+            if (epoch !== this.epoch || !this.ready() || !dependenciesCurrent()) throw new Error('cem.checkpoint.stale');
             const candidate = JSON.stringify({ version: 'cem-committed-checkpoint/1', receipt, owners });
             if (candidate.length > MAX_BYTES || new TextEncoder().encode(candidate).byteLength > MAX_BYTES) throw new Error('cem.checkpoint.limit');
             store.acknowledge(receipt);
             await store.capture(candidate, async (candidateJson, receiptJson) => {
                 const sealed = await this.options.seal(candidateJson, receiptJson);
-                if (epoch !== this.epoch || !this.ready()) throw new Error('cem.checkpoint.stale');
+                if (epoch !== this.epoch || !this.ready() || !dependenciesCurrent()) throw new Error('cem.checkpoint.stale');
                 return sealed;
             }, signal);
-            if (epoch !== this.epoch || !this.ready()) { store.invalidate(); throw new Error('cem.checkpoint.stale'); }
+            if (epoch !== this.epoch || !this.ready() || !dependenciesCurrent()) { store.invalidate(); throw new Error('cem.checkpoint.stale'); }
             for (const id of retired) { this.operations.delete(id); this.retirement.delete(id); }
             this.error = undefined;
         } finally {

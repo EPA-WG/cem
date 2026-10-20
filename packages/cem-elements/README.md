@@ -15,7 +15,7 @@ execution, without replay. Shared form, checkbox, select and autocomplete
 capabilities retain private control state. Settled HTTP, repository, storage and
 live/ambient URL resources carry native-validated source/reacquisition metadata;
 resume must suppress consumed writes and reacquire host permissions. Pending or
-leased/private state blocks the complete domain. Trusted hosts can explicitly
+unaccounted leased/private state blocks the complete domain. Trusted hosts can explicitly
 reconcile unknown outcomes and stage terminal journal retirement under matching
 runtime/generation/policy authority; compaction waits for a successful all-owner
 seal. IDs are host-issued and never reused; no operation is replayed.
@@ -24,13 +24,17 @@ by ordinary hydration. Ordinary rendering continues.
 This is host-session capture, not automatic WASM replacement or resume. See
 [the checkpoint contract](../../docs/committed-checkpoints.md).
 
-Stable tree/tab/menu navigation and closed settled popup/dialog state now have
+Stable tree/tab/menu navigation and settled popup/dialog state now have
 native checkpoint contracts, including owner-local focus anchors. Trusted hosts
 can register inert provider/placement dependency intent with
 `coordinator.relationship(descriptor, current, authority)`; native sealing requires
-complete current endpoint receipts and fresh reacquisition. Active suggestions,
-foreign placement owners and transient surface sessions remain blocking. These
-contracts do not enable runtime replacement or semantic resume.
+complete current endpoint receipts and fresh reacquisition. Shared active listbox
+suggestions/providers, committed placements and settled open popup/dialog state
+now capture bounded native-validated provenance and interaction state. Selection
+proof, source crossings and invocation endpoints are reacquisition intents;
+unknown leases, pending work, gestures, retained bodies and unaccounted source
+inputs remain blocking. These contracts do not enable runtime replacement or
+semantic resume; ordinary hydration still rejects checkpoint extensions.
 
 
 Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>

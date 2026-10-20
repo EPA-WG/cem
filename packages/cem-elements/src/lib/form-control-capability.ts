@@ -51,6 +51,7 @@ interface FormControlState {
     leases: Set<object>;
     attributeClaims: Map<object, CemEditorAttributeClaim | CemEditorDatalistClaim>;
     validityClaims: Map<object, string>;
+    validityOwners: Set<object>;
     generation: number;
     checkpoint?: { control: Control; revision: number; value: string };
     selectionRequest?: string;
@@ -76,14 +77,40 @@ export function isCemEditorLeaseFor(lease: CemEditorLease, provider: CemEditorPr
 export function isCemEditorCompositionKey(event: KeyboardEvent): boolean { return event.isComposing || compositionKeys.has(event); }
 /** Provider identity is established by the shared form capability, never a DOM selector. */
 export function getCemEditorProvider(host: HTMLElement): CemEditorProvider | undefined { return providers.get(host); }
-/** Only standalone, settled provider state can be reconstructed without live
- * leases, validity owners, claims or in-flight key/commit suppression. */
-export function cemFormControlCheckpoint(instance: HTMLElement) {
+interface CheckpointConsumer { host: HTMLElement; owner: object; lease: CemEditorLease; current(): boolean }
+const checkpointConsumers = new WeakMap<CemEditorProvider, Set<CheckpointConsumer>>();
+const checkpointListeners = new WeakMap<(update: CemEditorUpdate) => void, CemEditorLease>();
+/** Shared-controller registration, never exposed as an authored capability. */
+export function registerCemEditorCheckpoint(provider: CemEditorProvider, consumer: CheckpointConsumer): () => void {
+    const consumers = checkpointConsumers.get(provider) ?? new Set<CheckpointConsumer>();
+    consumers.add(consumer); checkpointConsumers.set(provider, consumers);
+    return () => { consumers.delete(consumer); if (!consumers.size) checkpointConsumers.delete(provider); };
+}
+export function subscribeCemEditorCheckpoint(provider: CemEditorProvider, lease: CemEditorLease, listener: (update: CemEditorUpdate) => void): () => void {
+    checkpointListeners.set(listener, lease);
+    const release = provider.subscribe(listener);
+    return () => { checkpointListeners.delete(listener); release(); };
+}
+/** Admit only standalone providers or one exactly accounted shared consumer. */
+export function cemFormControlCheckpoint(instance: HTMLElement, consumerId?: (host: HTMLElement) => string | undefined) {
     const state = states.get(instance);
-    if (!state?.control || !state.abort || state.composing || state.imePresses.size || state.handledPresses.size
-        || state.listeners.size || state.leases.size || state.attributeClaims.size || state.validityClaims.size || state.checkpoint) return undefined;
+    if (!state?.control || !state.abort || state.composing || state.imePresses.size || state.handledPresses.size) return undefined;
+    if (state.checkpoint && (state.checkpoint.control !== state.control || state.checkpoint.revision !== state.revision || state.checkpoint.value !== state.control.value)) return undefined;
+    const changeSuppression = state.checkpoint ? { revision: state.checkpoint.revision, value: state.checkpoint.value, disposition: 'suppress-once' as const } : undefined;
+    let provider: { revision: number; consumer: string; validity: string } | undefined;
+    if (state.listeners.size || state.leases.size || state.attributeClaims.size || state.validityClaims.size || state.validityOwners.size) {
+        const consumers = checkpointConsumers.get(state.provider);
+        const known = consumers?.size === 1 ? [...consumers][0] : undefined, consumer = known && consumerId?.(known.host);
+        if (!known || !consumer || !known.lease.valid || !known.lease.attributes.valid || known.lease.datalist.valid || !known.current() || state.leases.size !== 1
+            || [...state.leases].some(token => (token as { owner: object }).owner !== known.owner)
+            || [...state.listeners].some(listener => checkpointListeners.get(listener) !== known.lease)
+            || [...state.attributeClaims.values()].some(claim => claim !== known.lease.attributes && claim !== known.lease.datalist)
+            || [...state.validityOwners].some(token => (token as { owner: object }).owner !== known.owner)
+            || [...state.validityClaims.keys()].some(token => (token as { owner: object }).owner !== known.owner)) return undefined;
+        provider = { revision: state.revision, consumer, validity: [...state.validityClaims.values()][0] ?? '' };
+    }
     return { kind: 'form-control' as const, authoredValue: state.authoredValue ?? null, formDisabled: state.formDisabled,
-        customValidity: state.customValidity, selectionRequest: state.selectionRequest ?? null };
+        customValidity: state.customValidity, selectionRequest: state.selectionRequest ?? null, ...(provider ? { provider } : {}), ...(changeSuppression ? { changeSuppression } : {}) };
 }
 const validityKeys = [
     'badInput', 'customError', 'patternMismatch', 'rangeOverflow', 'rangeUnderflow',
@@ -96,7 +123,7 @@ export const CEM_FORM_CONTROL_CAPABILITY: CemProducedElementBehavior = {
     constructed(instance, context) {
         const state: FormControlState = { context, authoredValue: undefined, formDisabled: false, customValidity: '',
             provider: undefined as unknown as CemEditorProvider, control: null, revision: 0, composing: false,
-            imePresses: new Set(), handledPresses: new Map(), listeners: new Set(), leases: new Set(), attributeClaims: new Map(), validityClaims: new Map(), generation: 0 };
+            imePresses: new Set(), handledPresses: new Map(), listeners: new Set(), leases: new Set(), attributeClaims: new Map(), validityClaims: new Map(), validityOwners: new Set(), generation: 0 };
         states.set(instance, state);
         state.provider = editorProvider(instance, state);
         providers.set(instance, state.provider);
@@ -180,7 +207,7 @@ export const CEM_FORM_CONTROL_CAPABILITY: CemProducedElementBehavior = {
         const state = stateFor(instance);
         state.abort?.abort(); state.abort = undefined;
         state.composing = false; state.imePresses.clear(); state.handledPresses.clear(); state.checkpoint = undefined;
-        state.generation++; state.leases.clear(); state.validityClaims.clear();
+        state.generation++; state.leases.clear(); state.validityClaims.clear(); state.validityOwners.clear();
         for (const claim of state.attributeClaims.values()) claim.dispose(); state.attributeClaims.clear();
         publish(instance, state, 'availability');
         if (state.onInput) {
@@ -211,7 +238,7 @@ export const CEM_FORM_CONTROL_CAPABILITY: CemProducedElementBehavior = {
     rendered(instance) {
         const state = stateFor(instance), control = controlFor(instance);
         if (state.control !== control) {
-            state.control = control; state.generation++; state.leases.clear(); state.validityClaims.clear();
+            state.control = control; state.generation++; state.leases.clear(); state.validityClaims.clear(); state.validityOwners.clear();
             for (const claim of state.attributeClaims.values()) claim.dispose(); state.attributeClaims.clear();
             publish(instance, state, 'rebind', true);
         }
@@ -308,6 +335,7 @@ function editorProvider(instance: HTMLElement, state: FormControlState): CemEdit
         subscribe(listener) { state.listeners.add(listener); return () => state.listeners.delete(listener); },
         validity(owner) {
             const token = { owner }, generation = state.generation; let released = false;
+            state.validityOwners.add(token);
             return {
                 set(message) {
                     if (released || generation !== state.generation || !instance.isConnected || !state.abort) return false;
@@ -316,7 +344,7 @@ function editorProvider(instance: HTMLElement, state: FormControlState): CemEdit
                 },
                 release() {
                     if (released) return;
-                    released = true; state.validityClaims.delete(token); synchronize(instance, state);
+                    released = true; state.validityOwners.delete(token); state.validityClaims.delete(token); synchronize(instance, state);
                 },
             };
         },

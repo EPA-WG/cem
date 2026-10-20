@@ -80,32 +80,7 @@ fn valid_relationships(receipt: &CommitReceipt) -> bool {
                 }
             }
             "placement" => {
-                if !matches!(
-                    r.property.as_str(),
-                    "commandfor"
-                        | "popovertarget"
-                        | "interestfor"
-                        | "form"
-                        | "list"
-                        | "for"
-                        | "aria-controls"
-                        | "aria-labelledby"
-                        | "aria-describedby"
-                        | "aria-owns"
-                        | "aria-activedescendant"
-                        | "aria-details"
-                        | "aria-errormessage"
-                        | "headers"
-                        | "command-target"
-                        | "interaction"
-                        | "trigger-for"
-                        | "parent-item"
-                        | "focus-target"
-                        | "return-focus"
-                        | "anchor"
-                        | "boundary"
-                        | "editor-for"
-                ) {
+                if !placement_property(&r.property) {
                     return false;
                 }
             }
@@ -215,4 +190,33 @@ pub fn seal(candidate_json: &str, receipt_json: &str) -> Result<String, &'static
         return Err("cem.checkpoint.limit");
     }
     Ok(sealed)
+}
+
+pub(crate) fn placement_property(property: &str) -> bool {
+    matches!(
+        property,
+        "commandfor"
+            | "popovertarget"
+            | "interestfor"
+            | "form"
+            | "list"
+            | "for"
+            | "aria-controls"
+            | "aria-labelledby"
+            | "aria-describedby"
+            | "aria-owns"
+            | "aria-activedescendant"
+            | "aria-details"
+            | "aria-errormessage"
+            | "headers"
+            | "command-target"
+            | "interaction"
+            | "trigger-for"
+            | "parent-item"
+            | "focus-target"
+            | "return-focus"
+            | "anchor"
+            | "boundary"
+            | "editor-for"
+    )
 }
