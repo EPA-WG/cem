@@ -12,6 +12,24 @@ export interface CemCheckpointControlState {
         focused: boolean; disabled: boolean; readOnly: boolean; customValidity: string;
     }[];
 }
+/** Named capability/resource lifecycle DTO. Document bodies are original source
+ * bytes for native import; they are never parsed or projected into a JS AST. */
+export interface CemCheckpointRuntimeState {
+    version: 'cem-checkpoint-runtime/1';
+    capability: null | { kind: 'form-control'; authoredValue: string | null; formDisabled: boolean; customValidity: string; selectionRequest: string | null }
+        | { kind: 'plaintext-editor'; authored: string | null; selectionRequest: string | null }
+        | { kind: 'checkable-control'; authoredIndeterminate: boolean }
+        | { kind: 'choice-select'; selection: string[]; defaultValues: string[]; activeIndex: number; rangeAnchor: number;
+            expanded: boolean; previewSelection: string[]; mode: string; authoredValue: string | null; valueRequest: string | null;
+            formDisabled: boolean; typeahead: string; typeaheadAt: number; focusedPart: string | null }
+        | { kind: 'editable-choice'; activeIndex: number; authoredValue: string | null; committedOptionValue: string | null;
+            defaultCommittedOptionValue: string | null; defaultDisplayValue: string; defaultValue: string; displayValue: string;
+            edited: boolean; expanded: boolean; formDisabled: boolean; value: string };
+    resources: { name: string; kind: string; disposition: string; revision: number; cursor: number; live: boolean; state: string;
+        url?: string; method?: string; document?: { base64: string; contentType: string; sourceUri: string; digest: string | null } }[];
+    writers: { index: number; trigger: string | null; implicit: boolean }[];
+    writeDisposition: 'suppress-until-new-input';
+}
 export function captureCheckpointControls(elements: readonly Element[]): CemCheckpointControlState | undefined {
     if (elements.length > 256) return undefined;
     const controls: CemCheckpointControlState['controls'] = [];
@@ -47,4 +65,42 @@ export function captureCheckpointControls(elements: readonly Element[]): CemChec
             customValidity });
     }
     return { version: 'cem-checkpoint-controls/1', controls };
+}
+
+/** Existing scalar repository DTOs must survive DOM-native record encoding
+ * exactly; structured-clone support alone also permits nonportable host values. */
+export function checkpointScalarPortable(value: unknown): boolean {
+    const seen = new Set<object>(); let count = 0, length = 0;
+    const visit = (value: unknown, depth: number): boolean => {
+        if (++count > 16384 || depth > 64) return false;
+        if (typeof value === 'string') { length += value.length; return length <= 512 * 1024; }
+        if (value === null || typeof value === 'boolean') return true;
+        if (typeof value === 'number') return Number.isFinite(value);
+        if (typeof value !== 'object' || !value || seen.has(value)) return false;
+        if (!Array.isArray(value) && Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) return false;
+        if (Array.isArray(value) && value.length > 16384) return false;
+        const keys = Reflect.ownKeys(value);
+        if (keys.length > 16385) return false;
+        for (const key of keys) {
+            if (typeof key !== 'string') return false;
+            if (Array.isArray(value) && key === 'length') continue;
+            const property = Object.getOwnPropertyDescriptor(value, key);
+            if (!property?.enumerable || !Object.hasOwn(property, 'value')) return false;
+        }
+        if (Array.isArray(value) && keys.length !== value.length + 1) return false;
+        seen.add(value);
+        let result = true;
+        if (Array.isArray(value)) {
+            if (value.length > 16384) result = false;
+            else for (const child of value) if (!visit(child, depth + 1)) { result = false; break; }
+        } else {
+            for (const key in value) {
+                if (!Object.hasOwn(value, key)) continue;
+                length += key.length;
+                if (length > 512 * 1024 || !visit((value as Record<string, unknown>)[key], depth + 1)) { result = false; break; }
+            }
+        }
+        seen.delete(value); return result;
+    };
+    return visit(value, 0);
 }

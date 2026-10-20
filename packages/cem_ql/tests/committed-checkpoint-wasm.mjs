@@ -21,6 +21,12 @@ const candidate = { version: 'cem-committed-checkpoint/1', receipt,
     owners: [{ instanceId: 'editor', island: '<template data-cem-data-island>unsaved é text</template>' }] };
 const store = new CemCommittedCheckpointStore('runtime-a');
 store.acknowledge(receipt);
+const runtimeState = { version: 'cem-checkpoint-runtime/1', capability: null,
+    resources: [{ name: 'remote', kind: 'http', disposition: 'reimport-and-read-again', revision: 1, cursor: 0, live: false, state: 'loaded',
+        url: 'https://example.test/source.xml', method: 'GET', document: { base64: Buffer.from('<data>é😀</data>').toString('base64'),
+            contentType: 'application/xml', sourceUri: 'https://example.test/source.xml', digest: null } }],
+    writers: [{ index: 0, trigger: null, implicit: true }], writeDisposition: 'suppress-until-new-input' };
+let portableRuntime;
 let previousMemory;
 {
     const { wasm, native } = await load(1);
@@ -41,6 +47,11 @@ let previousMemory;
     assert.throws(() => wasm.validateCheckpointControls(JSON.stringify(invalidSelection)));
     assert.equal(JSON.parse(wasm.runtimeMemoryStatus()).activeOperations, 0);
 
+    portableRuntime = wasm.validateCheckpointRuntime(JSON.stringify(runtimeState));
+    assert.match(JSON.parse(portableRuntime).resources[0].document.digest, /^[a-f0-9]{64}$/);
+    const badRuntime = structuredClone(runtimeState); badRuntime.resources[0].url = 'https://user:secret@example.test/source.xml';
+    assert.throws(() => wasm.validateCheckpointRuntime(JSON.stringify(badRuntime)));
+    assert.equal(JSON.parse(wasm.runtimeMemoryStatus()).activeOperations, 0);
     await store.capture(JSON.stringify(candidate), wasm.sealCommittedCheckpoint);
     assert.notEqual(store.current().bytes.buffer, native.memory.buffer);
     const changed = structuredClone(candidate); changed.receipt.owners[0].dataRevision = 'not-committed';
@@ -58,7 +69,13 @@ assert.notEqual(native.memory, previousMemory);
 const resealed = wasm.sealCommittedCheckpoint(new TextDecoder().decode(saved.bytes), JSON.stringify(saved.receipt));
 assert.deepEqual(JSON.parse(resealed), candidate);
 assert.equal(JSON.parse(resealed).receipt.operations[0].outcome, 'unknown');
+assert.equal(wasm.validateCheckpointRuntime(portableRuntime), portableRuntime);
+const body = JSON.parse(portableRuntime).resources[0].document;
+const document = wasm.retainCemDocument(Buffer.from(body.base64, 'base64'), body.contentType, body.sourceUri);
+assert.ok(document > 0); assert.ok(wasm.disposeCemDocument(document));
+const terminal = structuredClone(candidate); terminal.receipt.operations[0].outcome = 'not-applied';
+assert.equal(JSON.parse(wasm.sealCommittedCheckpoint(JSON.stringify(terminal), JSON.stringify(terminal.receipt))).receipt.operations[0].outcome, 'not-applied');
 // Execution/resume is deliberately not performed by the transport store.
 store.invalidate(); assert.equal(store.current(), undefined);
 assert.ok(store.lastCommitted()); store.dispose(); assert.equal(store.lastCommitted(), undefined);
-console.log('Committed checkpoint real WASM: headroom, native receipt validation, independent host bytes and fresh-module import passed');
+console.log('Committed checkpoint real WASM: headroom, receipt/control/runtime validation, source reimport, terminal outcomes and independent host bytes passed');

@@ -441,8 +441,11 @@ session storage implemented 2026-10-19. See the
 publication/capture for complete portable declarative owners is implemented.
 Native-validated control edits, shared plaintext-editor capture, fixed read-only
 URL snapshots and opaque external-operation outcome journaling are implemented.
-Remaining capability/resource export and reacquisition, safe journal retirement,
-physical worker/fallback runtime coverage and runtime replacement remain next. Continue this in the shared native/WASM
+Native-validated form/choice capability state, settled HTTP/repository/storage
+and live URL export/reacquisition policies, consumed writer suppression metadata
+and explicit terminal journal retirement are implemented. Remaining behavioral
+capability/placement admission, physical worker/fallback runtime coverage and
+runtime replacement remain next. Continue this in the shared native/WASM
 engine and `cem-elements`; recovery status UI belongs in declarative
 `cem-components`. Studio consumes the same mechanism. This requires shared
 JavaScript lifecycle work; alert the user before implementation. The verified

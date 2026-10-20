@@ -3,6 +3,11 @@ import type { CemProducedElementBehavior } from './cem-elements.js';
 interface CheckableState { control: HTMLInputElement; indeterminate: boolean }
 const states = new WeakMap<HTMLElement, CheckableState>();
 
+export function cemCheckableControlCheckpoint(instance: HTMLElement) {
+    const state = states.get(instance);
+    return state?.control.isConnected ? { kind: 'checkable-control' as const, authoredIndeterminate: state.indeterminate } : undefined;
+}
+
 /** Native checked/defaultChecked, radio grouping, events and forms remain browser-owned. */
 export const CEM_CHECKABLE_CONTROL_CAPABILITY: CemProducedElementBehavior = {
     rendered(instance) {

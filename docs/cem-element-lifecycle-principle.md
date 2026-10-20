@@ -310,7 +310,12 @@ markup. Its checkpoint-only root/hydration version is
 `1.0.0-checkpoint.1`, with a hydration marker identifying the extension; ordinary
 live snapshots retain their existing version. Generic hydration must refuse this
 extension until explicit semantic resume admits controls and resource/capability
-state. Unsupported or private state blocks the complete runtime domain rather
+state. Runtime checkpoint metadata additionally retains supported private form/
+choice capability state and resource reimport/read/resubscribe policies in their
+existing domains. Consumed writer state must be admitted and restored before
+any declaration evaluation; reacquisition needs fresh host authority and cannot
+replay writes or external actions. Explicit journal retirement commits only with
+a successful complete checkpoint. Unsupported or private state blocks the complete runtime domain rather
 than producing a partially recoverable owner.
 
 ## State authority and portable capabilities

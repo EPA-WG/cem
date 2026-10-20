@@ -38,6 +38,7 @@ pub struct OperationReceipt {
 pub enum OperationOutcome {
     Acknowledged,
     Unknown,
+    NotApplied,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

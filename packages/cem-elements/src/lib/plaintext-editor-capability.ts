@@ -25,6 +25,12 @@ export function cemPlaintextEditorCheckpointReady(host: HTMLElement): boolean {
     return !!state?.control && !state.composing && state.deferred === undefined;
 }
 
+export function cemPlaintextEditorCheckpoint(host: HTMLElement) {
+    const state = states.get(host);
+    return cemPlaintextEditorCheckpointReady(host) && state
+        ? { kind: 'plaintext-editor' as const, authored: state.authored ?? null, selectionRequest: state.request ?? null } : undefined;
+}
+
 /** Browser-owned plaintext editing; rendering and styling remain declarative. */
 export const CEM_PLAINTEXT_EDITOR_CAPABILITY: CemProducedElementBehavior = {
     constructed(host, context) {

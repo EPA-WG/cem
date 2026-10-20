@@ -11,8 +11,14 @@ and admission drain. Native control edits and the shared plaintext editor use a
 bounded native-validated control envelope; composition, credential/file inputs
 and unsupported capabilities block the whole domain. Trusted `mountCemView`
 commands and shared storage/location effects record opaque outcomes before
-execution, without replay. Fixed non-live URL readers carry a read-again
-disposition; other resource portability and journal retirement remain pending.
+execution, without replay. Shared form, checkbox, select and autocomplete
+capabilities retain private control state. Settled HTTP, repository, storage and
+live/ambient URL resources carry native-validated source/reacquisition metadata;
+resume must suppress consumed writes and reacquire host permissions. Pending or
+leased/private state blocks the complete domain. Trusted hosts can explicitly
+reconcile unknown outcomes and stage terminal journal retirement under matching
+runtime/generation/policy authority; compaction waits for a successful all-owner
+seal. IDs are host-issued and never reused; no operation is replayed.
 Checkpoint-only form envelopes require explicit semantic resume and are refused
 by ordinary hydration. Ordinary rendering continues.
 This is host-session capture, not automatic WASM replacement or resume. See

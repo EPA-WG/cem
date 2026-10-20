@@ -3,6 +3,12 @@ import { expect, waitFor } from 'storybook/test';
 import { CemElementRuntime, type CemElementRuntimeOptions } from './cem-elements.js';
 import { CemCheckpointPublicationCoordinator } from './checkpoint-publication.js';
 import { ingestContractVersion } from './disposition.js';
+import { CemRepositoryRegistry, type CemRepositoryChange } from './repository.js';
+import { getCemEditorProvider } from './form-control-capability.js';
+import selectDeclaration from '../../../cem-components/src/components/cem-select/cem-select.xhtml?raw';
+import autocompleteDeclaration from '../../../cem-components/src/components/cem-autocomplete/cem-autocomplete.xhtml?raw';
+import fieldDeclaration from '../../../cem-components/src/components/cem-field/cem-field.xhtml?raw';
+import checkboxDeclaration from '../../../cem-components/src/components/cem-checkbox/cem-checkbox.xhtml?raw';
 import { mountCemView } from './host-view.js';
 import sourceEditorDeclaration from '../../../cem-components/src/components/cem-source-editor/cem-source-editor.xhtml?raw';
 import { createCemDeclarationScope } from './declaration-scope.js';
@@ -12,13 +18,13 @@ export default { title: 'CEM Elements/Checkpoint Publication', tags: ['test'] } 
 type Story = StoryObj;
 type Reader = NonNullable<Exclude<NonNullable<CemElementRuntimeOptions['retainedStylesheets']>, false>['read']>;
 const decode = (c: CemCheckpointPublicationCoordinator) => JSON.parse(new TextDecoder().decode(c.current()!.bytes)) as { receipt: { owners: { acceptedEventSequence: number }[] }; owners: { instanceId: string; island: string }[] };
-function fixture(root: HTMLElement, fallback: boolean, automatic = false, read?: Reader) {
+function fixture(root: HTMLElement, fallback: boolean, automatic = false, read?: Reader, options: Partial<CemElementRuntimeOptions> = {}) {
     const document = root.ownerDocument;
     const suffix = crypto.randomUUID();
     const coordinator = new CemCheckpointPublicationCoordinator({ runtimeId: `session-${suffix}`, generation: 1, policyStamp: 'whole-private-island:1',
         allowOwner: () => true, seal: (candidate, receipt) => wasm.sealCommittedCheckpoint(candidate, receipt), automatic });
     const scope = createCemDeclarationScope({ document });
-    const runtime = new CemElementRuntime({ declarationTag: `declaration-${suffix}`, declarationScope: scope, checkpointPublication: coordinator,
+    const runtime = new CemElementRuntime({ ...options, declarationTag: `declaration-${suffix}`, declarationScope: scope, checkpointPublication: coordinator,
         moduleUrlRoot: { baseUrl: 'https://example.test/', importMap: {} }, retainedStylesheets: { read },
         ...(fallback ? { processingWorkerFactory: () => { throw new Error('fixture selects fallback'); } } : {}) });
     async function create(source: string, mode: 'dom' | 'cem-ml' = 'cem-ml', container = root, payload?: string, capability?: string) {
@@ -318,25 +324,30 @@ export const PinnedReadOnlyResourcesAndAmbientRefusal: Story = {
                 expect(island).toContain('https://example.test/docs'); expect(island).toContain('read-again');
                 expect(island).not.toContain('AbortController');
                 const ambient = await f.create('{location-element @slice=current @live=true}{p | Ambient URL}');
-                await f.runtime.whenRenderSettled(ambient); await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                await f.runtime.whenRenderSettled(ambient); await f.coordinator.capture();
+                expect(decode(f.coordinator).owners.some(owner => owner.island.includes('read-and-subscribe'))).toBe(true);
                 ambient.remove(); await f.coordinator.capture();
                 const effectOutcomes: string[] = [];
                 const operation = f.coordinator.operation.bind(f.coordinator);
-                f.coordinator.operation = (instanceId, operationId) => {
-                    const effect = operation(instanceId, operationId); effectOutcomes.push('unknown');
-                    return { acknowledge: () => { effectOutcomes.push('acknowledged'); effect.acknowledge(); } };
+                f.coordinator.operation = (instanceId) => {
+                    const effect = operation(instanceId); effectOutcomes.push('unknown');
+                    return { operationId: effect.operationId, acknowledge: () => { effectOutcomes.push('acknowledged'); effect.acknowledge(); } };
                 };
                 const writer = await f.create(`{local-storage @slice=draft @key="${storageKey}" @type=text @value=recorded}{p | Storage writer}`);
                 await f.runtime.whenRenderSettled(writer); expect(localStorage.getItem(storageKey)).toBe('recorded');
                 expect(effectOutcomes.length).toBeGreaterThanOrEqual(2);
                 expect(effectOutcomes).toEqual(Array.from({ length: effectOutcomes.length / 2 }, () => ['unknown', 'acknowledged']).flat());
-                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                await f.coordinator.capture();
+                const receipt = f.coordinator.current()!.receipt;
+                expect(receipt.operations.every(record => record.outcome === 'acknowledged')).toBe(true);
                 writer.remove();
                 // The external effect belongs to the removed owner and must not
                 // vanish just because that owner's resource object was released.
                 await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
                 expect(f.coordinator.lastCommitted()).toBeDefined();
                 expect(localStorage.getItem(storageKey)).toBe('recorded');
+                f.coordinator.retireOperations(receipt.operations.map(record => record.operationId), receipt);
+                await f.coordinator.capture(); expect(f.coordinator.current()!.receipt.operations).toHaveLength(0);
             } finally { localStorage.removeItem(storageKey); f.dispose(); }
             const g = fixture(root, fallback);
             const previousUrl = root.ownerDocument.location.href;
@@ -345,19 +356,202 @@ export const PinnedReadOnlyResourcesAndAmbientRefusal: Story = {
                 await g.runtime.whenRenderSettled(base); await g.coordinator.capture();
                 const effectOutcomes: string[] = [];
                 const operation = g.coordinator.operation.bind(g.coordinator);
-                g.coordinator.operation = (instanceId, operationId) => {
-                    const effect = operation(instanceId, operationId); effectOutcomes.push('unknown');
-                    return { acknowledge: () => { effectOutcomes.push('acknowledged'); effect.acknowledge(); } };
+                g.coordinator.operation = (instanceId) => {
+                    const effect = operation(instanceId); effectOutcomes.push('unknown');
+                    return { operationId: effect.operationId, acknowledge: () => { effectOutcomes.push('acknowledged'); effect.acknowledge(); } };
                 };
                 const writer = await g.create('{location-element @method=history.replaceState @src="https://outside.example.invalid/"}{p | Rejected writer}');
                 await g.runtime.whenRenderSettled(writer);
                 expect(root.ownerDocument.location.href).toBe(previousUrl);
                 expect(g.runtime.diagnosticsFor(writer).some(item => item.code === 'cem-element.location_write_failed')).toBe(true);
                 expect(effectOutcomes).toEqual(['unknown']);
-                await expect(g.coordinator.capture()).rejects.toThrow('unavailable'); writer.remove();
-                await expect(g.coordinator.capture()).rejects.toThrow('unavailable');
+                await g.coordinator.capture();
+                const receipt = g.coordinator.current()!.receipt;
+                expect(receipt.operations.map(record => record.outcome)).toEqual(['unknown']);
+                expect(decode(g.coordinator).owners.some(owner => owner.island.includes('suppress-until-new-input'))).toBe(true);
+                writer.remove(); await expect(g.coordinator.capture()).rejects.toThrow('unavailable');
                 expect(g.coordinator.lastCommitted()).toBeDefined();
+                g.coordinator.reconcileOperation(receipt.operations[0].operationId, 'not-applied', receipt);
+                g.coordinator.retireOperations([receipt.operations[0].operationId], receipt);
+                await g.coordinator.capture(); expect(g.coordinator.current()!.receipt.operations).toHaveLength(0);
             } finally { g.dispose(); }
+        }
+    },
+};
+
+function declarationTemplate(source: string): string {
+    const template = new DOMParser().parseFromString(source, 'application/xml').querySelector('template') as HTMLTemplateElement;
+    return template.content?.textContent || template.textContent!;
+}
+function islandContent(island: string): DocumentFragment {
+    return (new DOMParser().parseFromString(island, 'text/html').querySelector('template') as HTMLTemplateElement).content;
+}
+export const SharedFormAndCheckableCapabilityState: Story = {
+    render: () => '<section aria-label="Shared form capability checkpoints"></section>',
+    play: async ({ canvasElement }) => {
+        await init(); const root = canvasElement.querySelector('section')!;
+        for (const fallback of [false, true]) {
+            const f = fixture(root, fallback);
+            try {
+                const form = root.ownerDocument.createElement('form'); root.append(form);
+                const field = await f.create(declarationTemplate(fieldDeclaration), 'cem-ml', form, undefined, 'form-control');
+                field.setAttribute('name', 'draft'); await f.runtime.whenRenderSettled(field);
+                const control = field.querySelector<HTMLInputElement>('input')!;
+                control.value = 'Unsaved é😀'; control.setSelectionRange(1, 5, 'backward');
+                control.dispatchEvent(new InputEvent('input', { bubbles: true }));
+                (field as HTMLElement & { setCustomValidity(message: string): void }).setCustomValidity('Review draft');
+                await f.runtime.whenRenderSettled(field); await f.coordinator.capture();
+                const saved = decode(f.coordinator).owners[0].island;
+                expect(saved).toContain('Unsaved é😀'); expect(saved).toContain('Review draft'); expect(saved).toContain('form-control');
+                expect(new FormData(form).get('draft')).toBe('Unsaved é😀');
+                const lease = getCemEditorProvider(field)!.lease({});
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); lease.release();
+                await f.runtime.whenRenderSettled(field); await f.coordinator.capture();
+                control.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                control.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+                await f.runtime.whenRenderSettled(field); await f.coordinator.capture();
+                const check = await f.create(declarationTemplate(checkboxDeclaration), 'cem-ml', form, undefined, 'checkable-control');
+                check.setAttribute('indeterminate', ''); await f.runtime.whenRenderSettled(check);
+                const checkbox = check.querySelector<HTMLInputElement>('input')!;
+                checkbox.checked = false; checkbox.indeterminate = true;
+                await f.coordinator.capture();
+                expect(decode(f.coordinator).owners.some(owner => owner.island.includes('checkable-control'))).toBe(true);
+                expect(checkbox.checked).toBe(false); expect(checkbox.indeterminate).toBe(true);
+            } finally { f.dispose(); }
+        }
+    },
+};
+export const HttpDocumentsAndPendingResourceRefusal: Story = {
+    render: () => '<section aria-label="HTTP document checkpoint source"></section>',
+    play: async ({ canvasElement }) => {
+        await init(); const root = canvasElement.querySelector('section')!;
+        for (const fallback of [false, true]) {
+            let release!: () => void, reads = 0, credentialRead = false;
+            const raw = '<catalog><entry>é😀 source</entry></catalog>';
+            const f = fixture(root, fallback, false, undefined, {
+                httpResourcePolicy: { allowCrossOrigin: true },
+                loadHttpResource: request => {
+                    reads++;
+                    if (request.authoredUrl.includes('secret')) credentialRead = request.headers.authorization === 'fixture-secret';
+                    if (request.authoredUrl.includes('failed')) throw new Error('Fixture read failure');
+                    const source = request.authoredUrl.includes('large') ? 'x'.repeat(256 * 1024 + 1) : raw;
+                    const contentType = request.authoredUrl.includes('large') ? 'text/plain' : 'application/xml';
+                    const result = { response: { url: request.resolvedUrl, status: 200, statusText: 'OK', ok: true, redirected: false,
+                        headers: { 'content-type': contentType }, contentType }, body: (async function* () { yield new TextEncoder().encode(source); })() };
+                    return reads === 1 ? new Promise(resolve => { release = () => resolve(result); }) : Promise.resolve(result);
+                },
+            });
+            try {
+                const instance = await f.create('{http-request @slice=remote @url="https://example.test/source.xml" @content-type="application/xml"}{p | {$datadom.slices.remote.state}}');
+                await waitFor(() => expect(reads).toBe(1));
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); release();
+                await f.runtime.whenRenderSettled(instance); await f.coordinator.capture();
+                const saved = decode(f.coordinator).owners[0].island;
+                expect(saved).toContain('reimport-and-read-again'); expect(saved).not.toContain('documentKey');
+                const content = islandContent(saved);
+                const base64 = content.querySelector('[name=base64]')!.textContent!;
+                const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+                expect(new TextDecoder().decode(bytes)).toBe(raw);
+                expect(content.querySelector('[name=digest]')!.textContent).toMatch(/^[a-f0-9]{64}$/);
+                const native = wasm.retainCemDocument(bytes, 'application/xml', 'https://example.test/source.xml');
+                expect(native).toBeGreaterThan(0); expect(wasm.disposeCemDocument(native)).toBe(true);
+                await f.coordinator.capture(); expect(reads).toBe(1);
+                const large = await f.create('{http-request @slice=large @url="https://example.test/large.txt" @content-type="text/plain"}{p | {$datadom.slices.large.state}}');
+                await f.runtime.whenRenderSettled(large); await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); large.remove();
+                const credential = await f.create(`<http-request slice="secret" url="https://example.test/secret.xml" header-authorization="fixture-secret"></http-request><p>Credential owner</p>`, 'dom');
+                await f.runtime.whenRenderSettled(credential); expect(credentialRead).toBe(true); await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                credential.remove(); await f.coordinator.capture(); expect(reads).toBe(3);
+                const failed = await f.create('{http-request @slice=failed @url="https://example.test/failed.xml"}{p | {$datadom.slices.failed.state}}');
+                await f.runtime.whenRenderSettled(failed); await f.coordinator.capture();
+                expect(decode(f.coordinator).owners.some(owner => owner.island.includes('Fixture read failure'))).toBe(true);
+                await f.coordinator.capture(); expect(reads).toBe(4);
+            } finally { f.dispose(); }
+        }
+    },
+};
+export const LiveRepositoryStorageAndLocationState: Story = {
+    render: () => '<section aria-label="Live provider checkpoint state"></section>',
+    play: async ({ canvasElement }) => {
+        await init(); const root = canvasElement.querySelector('section')!;
+        for (const fallback of [false, true]) {
+            const key = `checkpoint-json-${crypto.randomUUID()}`;
+            localStorage.setItem(key, '{"label":"Original é"}');
+            const registry = new CemRepositoryRegistry(), subscribers = new Set<(change: CemRepositoryChange) => void>();
+            let revision = 1, queries = 0, releases = 0, executions = 0;
+            registry.register('checkpoint-tests', {
+                query: async request => ({ protocolVersion: 1, repository: request.repository, operation: request.operation,
+                    requestRevision: request.requestRevision, repositoryRevision: revision, value: { label: `Repository ${++queries}` }, diagnostics: [] }),
+                execute: async () => { executions++; throw new Error('Render must not execute commands'); },
+                status: async () => ({ protocolVersion: 1, repository: 'checkpoint-tests', state: 'ready', repositoryRevision: revision, persisted: true, diagnostics: [] }),
+                subscribe: (_cursor, notify) => { subscribers.add(notify); return () => { releases++; subscribers.delete(notify); }; },
+            });
+            const f = fixture(root, fallback, false, undefined, { repositoryRegistry: registry.readOnly() });
+            const href = root.ownerDocument.location.href;
+            try {
+                const instance = await f.create(`{repository-query @slice=projects @repository=checkpoint-tests @operation=list @live=true @cursor=0}{storage-status @slice=status @repository=checkpoint-tests @live=true @cursor=0}{local-storage @slice=draft @key="${key}" @type=json @live=true}{location-element @slice=page @live=true}{p | {$datadom.slices.projects.data.label}}`);
+                await waitFor(async () => { await f.runtime.whenRenderSettled(instance); await f.coordinator.capture(); });
+                let saved = decode(f.coordinator).owners[0].island;
+                expect(saved).toContain('Original é'); expect(saved).toContain('cem-native-slices-v1');
+                expect(saved).toContain('repository-query'); expect(saved).toContain('storage-status'); expect(saved).toContain('read-and-subscribe');
+                revision++; for (const notify of subscribers) notify({ protocolVersion: 1, repository: 'checkpoint-tests', cursor: revision, repositoryRevision: revision });
+                expect(f.coordinator.current()).toBeUndefined();
+                await waitFor(async () => { await f.runtime.whenRenderSettled(instance); await f.coordinator.capture(); });
+                expect(queries).toBe(2);
+                localStorage.setItem(key, '{"label":"Changed é"}'); expect(f.coordinator.current()).toBeUndefined();
+                await waitFor(async () => { await f.runtime.whenRenderSettled(instance); await f.coordinator.capture(); });
+                saved = decode(f.coordinator).owners[0].island; expect(saved).toContain('Changed é');
+                root.ownerDocument.defaultView!.history.replaceState({}, '', `${href.split('#')[0]}#checkpoint-live`);
+                expect(f.coordinator.current()).toBeUndefined();
+                await waitFor(async () => { await f.runtime.whenRenderSettled(instance); await f.coordinator.capture(); });
+                expect(decode(f.coordinator).owners[0].island).toContain('#checkpoint-live');
+                expect(executions).toBe(0); expect(subscribers.size).toBe(2);
+                instance.remove(); expect(subscribers.size).toBe(0); expect(releases).toBe(2);
+            } finally { f.dispose(); root.ownerDocument.defaultView!.history.replaceState({}, '', href); localStorage.removeItem(key); }
+            const failed = fixture(root, fallback, false, undefined, { repositoryRegistry: {
+                query: async () => { throw new Error('Unavailable reader'); },
+                status: async () => { throw new Error('Unavailable status'); },
+                subscribe: () => { throw new Error('Unavailable subscription'); },
+            } });
+            try {
+                const instance = await failed.create('{repository-query @slice=query @repository=missing @operation=list @live=true}{storage-status @slice=status @repository=missing @live=true}{p | Failed subscriptions}');
+                await failed.runtime.whenRenderSettled(instance); await failed.coordinator.capture();
+                const saved = decode(failed.coordinator).owners[0].island;
+                expect(saved).toContain('read-and-subscribe'); expect(saved).toContain('Unavailable subscription');
+            } finally { failed.dispose(); }
+
+        }
+    },
+};
+
+export const FormAssociatedChoiceState: Story = {
+    render: () => '<section aria-label="Choice capability checkpoint edits"></section>',
+    play: async ({ canvasElement }) => {
+        await init(); const root = canvasElement.querySelector('section')!;
+        const payload = '<cem-option value="a" selected>Alpha</cem-option><cem-option value="b">Beta</cem-option>';
+        for (const fallback of [false, true]) {
+            const f = fixture(root, fallback);
+            try {
+                const select = await f.create(declarationTemplate(selectDeclaration), 'cem-ml', root, payload, 'choice-select');
+                await f.runtime.whenRenderSettled(select);
+                (select as HTMLElement & { value: string }).value = 'b';
+                await f.runtime.whenRenderSettled(select); select.querySelector<HTMLButtonElement>('[role=combobox]')!.click();
+                await f.runtime.whenRenderSettled(select); await f.coordinator.capture();
+                let saved = decode(f.coordinator).owners[0].island;
+                expect(saved).toContain('choice-select'); expect(saved).toContain('previewSelection'); expect(saved).toContain('Beta');
+                const editor = await f.create(declarationTemplate(autocompleteDeclaration), 'cem-ml', root, payload, 'editable-choice');
+                await f.runtime.whenRenderSettled(editor);
+                const input = editor.querySelector<HTMLInputElement>('input')!;
+                input.value = 'Unsaved choice é'; input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+                await f.runtime.whenRenderSettled(editor); await f.coordinator.capture();
+                saved = decode(f.coordinator).owners.find(owner => owner.island.includes('editable-choice'))!.island;
+                expect(saved).toContain('Unsaved choice é'); expect(saved).toContain('defaultDisplayValue');
+                input.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                input.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+                await f.runtime.whenRenderSettled(editor); await f.coordinator.capture();
+                expect(input.value).toBe('Unsaved choice é');
+            } finally { f.dispose(); }
         }
     },
 };

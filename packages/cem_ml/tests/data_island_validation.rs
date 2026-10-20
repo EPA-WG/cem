@@ -207,3 +207,30 @@ fn checkpoint_control_envelope_belongs_to_the_form_domain() {
     assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
     assert!(report.validation_complete());
 }
+
+#[test]
+fn checkpoint_capability_and_reacquisition_records_use_existing_owned_domains() {
+    let source = EXAMPLE
+        .replace(
+            "{cem-form:form-state |",
+            r#"{cem-form:form-state |
+        {cem-form:field @name=capability @kind=record |
+            {cem-form:field @name=kind @kind=string | form-control}
+            {cem-form:field @name=customValidity @kind=string | Review}
+        }"#,
+        )
+        .replace(
+            "{cem-resources:resources |",
+            r#"{cem-resources:resources |
+        {cem-resources:resource @name=checkpointRuntime @kind=record |
+            {cem-resources:resource @name=version @kind=string | cem-checkpoint-runtime/1}
+            {cem-resources:resource @name=writeDisposition @kind=string | suppress-until-new-input}
+            {cem-resources:resource @name=resources @kind=array}
+            {cem-resources:resource @name=writers @kind=array}
+        }"#,
+        );
+    assert_ne!(source, EXAMPLE);
+    let report = validate(&source, Some(SCHEMA), Some(CONTENT_TYPE));
+    assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
+    assert!(report.validation_complete());
+}

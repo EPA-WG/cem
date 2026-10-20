@@ -24,6 +24,7 @@ import { DEFAULT_CEM_VALUE_ARTIFACT_LIMITS, type NativeCemAttributeBinding, type
 import initCemQlWasm, {
     cemQlVersion,
     validateCheckpointControls,
+    validateCheckpointRuntime,
     compileTemplate,
     adoptDomStylesheets,
     adoptInstanceStylesheets,
@@ -407,6 +408,12 @@ let ready = false;
 export async function validatePortableCheckpointControls(state: string): Promise<void> {
     await ensureRuntimeReady();
     validateCheckpointControls(state);
+}
+
+/** Named lifecycle control DTO; native validation retains original source bytes. */
+export async function validatePortableCheckpointRuntime(state: string): Promise<string> {
+    await ensureRuntimeReady();
+    return validateCheckpointRuntime(state);
 }
 
 /** Validate scalar XML Base metadata through the shared native URL boundary. */

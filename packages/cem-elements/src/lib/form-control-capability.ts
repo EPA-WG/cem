@@ -76,6 +76,15 @@ export function isCemEditorLeaseFor(lease: CemEditorLease, provider: CemEditorPr
 export function isCemEditorCompositionKey(event: KeyboardEvent): boolean { return event.isComposing || compositionKeys.has(event); }
 /** Provider identity is established by the shared form capability, never a DOM selector. */
 export function getCemEditorProvider(host: HTMLElement): CemEditorProvider | undefined { return providers.get(host); }
+/** Only standalone, settled provider state can be reconstructed without live
+ * leases, validity owners, claims or in-flight key/commit suppression. */
+export function cemFormControlCheckpoint(instance: HTMLElement) {
+    const state = states.get(instance);
+    if (!state?.control || !state.abort || state.composing || state.imePresses.size || state.handledPresses.size
+        || state.listeners.size || state.leases.size || state.attributeClaims.size || state.validityClaims.size || state.checkpoint) return undefined;
+    return { kind: 'form-control' as const, authoredValue: state.authoredValue ?? null, formDisabled: state.formDisabled,
+        customValidity: state.customValidity, selectionRequest: state.selectionRequest ?? null };
+}
 const validityKeys = [
     'badInput', 'customError', 'patternMismatch', 'rangeOverflow', 'rangeUnderflow',
     'stepMismatch', 'tooLong', 'tooShort', 'typeMismatch', 'valueMissing',

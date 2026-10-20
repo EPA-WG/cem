@@ -179,3 +179,23 @@ fn complete_multi_owner_set_is_bounded_and_duplicate_receipts_fail_closed() {
     )
     .is_err());
 }
+
+#[test]
+fn explicitly_reconciled_not_applied_outcomes_are_terminal_metadata_not_replay() {
+    use cem_ml::committed_checkpoint::{OperationOutcome, OperationReceipt};
+    let mut checkpoint = candidate();
+    checkpoint.receipt.operations.push(OperationReceipt {
+        instance_id: "editor".into(),
+        operation_id: "opaque:1".into(),
+        outcome: OperationOutcome::NotApplied,
+    });
+    let receipt = serde_json::to_string(&checkpoint.receipt).unwrap();
+    let restored: Checkpoint =
+        serde_json::from_str(&seal(&encoded(&checkpoint), &receipt).unwrap()).unwrap();
+    assert_eq!(
+        restored.receipt.operations[0].outcome,
+        OperationOutcome::NotApplied
+    );
+    checkpoint.receipt.operations.clear();
+    assert!(seal(&encoded(&checkpoint), &receipt).is_err());
+}

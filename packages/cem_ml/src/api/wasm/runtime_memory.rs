@@ -45,3 +45,16 @@ pub fn validate_checkpoint_controls(input: &str) -> Result<String, JsValue> {
         .map_err(|error| JsValue::from_str(error.0))?;
     validate(input).map_err(JsValue::from_str)
 }
+
+/// Native admission for capability/resource checkpoint control metadata and bytes.
+#[wasm_bindgen(js_name = "validateCheckpointRuntime")]
+pub fn validate_checkpoint_runtime(input: &str) -> Result<String, JsValue> {
+    use crate::checkpoint_runtime_state::{validate, MAX_BYTES};
+    if input.len() > MAX_BYTES {
+        return Err(JsValue::from_str("cem.checkpoint.runtime.limit"));
+    }
+    let _permit = runtime_budget()
+        .admit_recovery(runtime_sample(), (input.len() as u64) * 8 + 65536)
+        .map_err(|error| JsValue::from_str(error.0))?;
+    validate(input).map_err(JsValue::from_str)
+}

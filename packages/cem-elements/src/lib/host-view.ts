@@ -7,6 +7,8 @@ export interface CemHostCommandRequest {
     /** Native/admitted plaintext value or validated tree/tab/artifact identity; never arbitrary event detail. */
     readonly value: string | null;
     readonly isTrusted: boolean;
+    /** Opaque host journal ID, present only for opted-in checkpoint domains. */
+    readonly checkpointOperationId?: string;
     /** Native successful string controls, captured only for a form submit command. */
     readonly fields?: Readonly<Record<string, readonly string[]>>;
 }
@@ -82,15 +84,15 @@ export function mountCemView(runtime: CemElementRuntime, options: CemHostViewOpt
                 || control.hasAttribute('disabled') || commands.get(command) !== handler
                 || control.getAttribute('host-command') !== command
                 || (control.getAttribute('host-command-event') ?? 'click') !== event.type) return;
+            const operation = runtime.beginCheckpointOperation(element);
             const request = Object.freeze({ command, eventType: event.type, value, isTrusted: event.isTrusted,
-                ...(fields ? { fields } : {}) });
+                ...(fields ? { fields } : {}), ...(operation ? { checkpointOperationId: operation.operationId } : {}) });
             // Do not queue this call: file pickers/install prompts need the
             // same trusted event stack as the native control activation.
-            const acknowledge = runtime.beginCheckpointOperation(element);
             const result = handler(request);
             if (result && typeof (result as PromiseLike<unknown>).then === 'function') {
-                void Promise.resolve(result).then(() => { if (active) acknowledge?.(); }, report);
-            } else if (active) acknowledge?.();
+                void Promise.resolve(result).then(() => { if (active) operation?.acknowledge(); }, report);
+            } else if (active) operation?.acknowledge();
         } catch (error) {
             report(error);
         }

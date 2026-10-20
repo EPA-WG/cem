@@ -46,4 +46,4 @@ export type { CemPageDetail } from './lib/pagination-capability.js';
 export { mountCemLivePreview, type CemLivePreview, type CemLivePreviewOptions, type CemLivePreviewResource, type CemLivePreviewResources } from './lib/live-preview.js';
 export { registerCemArtifactTree, mountCemArtifactPreview, type CemPreviewArtifact, type CemArtifactTree, type CemArtifactPreview, type CemArtifactPreviewOptions } from './lib/artifact-preview.js';
 
-export { CemCheckpointPublicationCoordinator, type CemCheckpointPublicationOptions, type CemCheckpointPublicationOwner, type CemCheckpointOperation } from './lib/checkpoint-publication.js';
+export { CemCheckpointPublicationCoordinator, type CemCheckpointPublicationOptions, type CemCheckpointPublicationOwner, type CemCheckpointJournalAuthority, type CemCheckpointOperation } from './lib/checkpoint-publication.js';

@@ -57,6 +57,16 @@ interface EditableChoiceState {
 const EDITABLE_CHOICE_STATES = new WeakMap<HTMLElement, EditableChoiceState>();
 let editableChoiceSequence = 0;
 
+export function cemEditableChoiceCheckpoint(instance: HTMLElement) {
+    const state = EDITABLE_CHOICE_STATES.get(instance);
+    if (!state?.connected || !state.initialized || state.pendingValue !== undefined || state.options.length > 1024
+        || inputFor(instance)?.value !== state.displayValue) return undefined;
+    return { kind: 'editable-choice' as const, activeIndex: state.activeIndex, authoredValue: state.authoredValue,
+        committedOptionValue: state.committedOptionValue, defaultCommittedOptionValue: state.defaultCommittedOptionValue,
+        defaultDisplayValue: state.defaultDisplayValue, defaultValue: state.defaultValue, displayValue: state.displayValue,
+        edited: state.edited, expanded: state.expanded, formDisabled: state.formDisabled, value: state.value };
+}
+
 export const CEM_EDITABLE_CHOICE_CAPABILITY: CemProducedElementBehavior = {
     formAssociated: true,
     constructed(instance, context) {

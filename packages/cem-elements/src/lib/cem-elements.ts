@@ -1,4 +1,4 @@
-import { captureCheckpointControls, type CemCheckpointControlState } from './checkpoint-controls.js';
+import { captureCheckpointControls, checkpointScalarPortable, type CemCheckpointControlState, type CemCheckpointRuntimeState } from './checkpoint-controls.js';
 import { type CemCheckpointPublicationCoordinator, type CemCheckpointPublicationOwner } from './checkpoint-publication.js';
 import { isDomInstance } from './dom-realm.js';
 import { CEM_LIVE_PREVIEW_CAPABILITY } from './live-preview-capability.js';
@@ -45,6 +45,7 @@ import {
 import {
     cemMlTemplateArtifactPayloadKey,
     validatePortableCheckpointControls,
+    validatePortableCheckpointRuntime,
     compileCemMlTemplate,
     convertLegacyTemplate,
     processCemMlTemplate,
@@ -136,8 +137,8 @@ import {
     type CemRepositoryRequest,
     type CemRepositoryStatus,
 } from './repository.js';
-import { CEM_FORM_CONTROL_CAPABILITY } from './form-control-capability.js';
-import { CEM_PLAINTEXT_EDITOR_CAPABILITY, cemPlaintextEditorEventValue, cemPlaintextEditorCheckpointReady } from './plaintext-editor-capability.js';
+import { CEM_FORM_CONTROL_CAPABILITY, cemFormControlCheckpoint } from './form-control-capability.js';
+import { CEM_PLAINTEXT_EDITOR_CAPABILITY, cemPlaintextEditorEventValue, cemPlaintextEditorCheckpoint } from './plaintext-editor-capability.js';
 import { CEM_NAVIGATION_LANDMARK_CAPABILITY } from './navigation-landmark-capability.js';
 import { CEM_DISCLOSURE_PANEL_CAPABILITY } from './disclosure-panel-capability.js';
 import { CEM_SORT_ACTION_CAPABILITY } from './sort-action-capability.js';
@@ -150,8 +151,8 @@ import { CEM_TREE_VIEW_CAPABILITY } from './tree-view-capability.js';
 import { CEM_TIME_INPUT_CAPABILITY } from './time-input-capability.js';
 import { CEM_RANGE_INPUT_CAPABILITY } from './range-input-capability.js';
 import { CEM_CALENDAR_INPUT_CAPABILITY } from './calendar-input-capability.js';
-import { CEM_EDITABLE_CHOICE_CAPABILITY } from './editable-choice-capability.js';
-import { CEM_CHECKABLE_CONTROL_CAPABILITY } from './checkable-control.js';
+import { CEM_EDITABLE_CHOICE_CAPABILITY, cemEditableChoiceCheckpoint } from './editable-choice-capability.js';
+import { CEM_CHECKABLE_CONTROL_CAPABILITY, cemCheckableControlCheckpoint } from './checkable-control.js';
 import { CEM_SUGGESTIONS_CAPABILITY, refreshCemSuggestionsAuthorization, localCemSuggestionsBinding, type CemLocalSuggestionsEnvironment } from './suggestions-capability.js';
 import type { CemSuggestionsControllerOptions } from './suggestions-controller.js';
 import { CEM_POPUP_CAPABILITY } from './popup-capability.js';
@@ -159,7 +160,7 @@ import { CEM_NATIVE_SURFACE_CAPABILITY } from './native-surface.js';
 import { CEM_ACTION_CONTROL_CAPABILITY } from './action-control-capability.js';
 import { CEM_ACTION_COMMAND_CAPABILITY } from './action-command-capability.js';
 import { CEM_COMPOSITE_MENU_CAPABILITY } from './composite-menu-capability.js';
-import { CEM_CHOICE_SELECT_CAPABILITY } from './choice-select-capability.js';
+import { CEM_CHOICE_SELECT_CAPABILITY, cemChoiceSelectCheckpoint } from './choice-select-capability.js';
 import { consumeLocationWriteTrigger } from './internal/runtime-support/location-write-trigger.js';
 
 export * from './edge-ssr-host.js';
@@ -404,6 +405,7 @@ export interface DataIslandSnapshot {
     /** Native-validated explicit browser control serialization; requires
      * semantic checkpoint resume, never ordinary serialized-HTML adoption. */
     checkpointControls?: CemCheckpointControlState;
+    checkpointRuntime?: CemCheckpointRuntimeState;
     validationState: Record<string, unknown>;
     eventPayloads: Record<string, unknown>;
     /** Complete portable resource lifecycle state. Live host capability objects are never serialized. */
@@ -1098,9 +1100,11 @@ interface ActiveHttpResource {
     revision: number;
     controller: AbortController;
     settled: Promise<void>;
+    checkpointSource?: { bytes: ArrayBuffer; contentType: string; sourceUri: string };
 }
 
 interface ActiveRepositoryQueryResource {
+    live: boolean;
     key: string;
     revision: number;
     cursor: number;
@@ -1111,6 +1115,7 @@ interface ActiveRepositoryQueryResource {
 }
 
 interface ActiveStorageStatusResource {
+    live: boolean;
     key: string;
     revision: number;
     cursor: number;
@@ -1120,6 +1125,7 @@ interface ActiveStorageStatusResource {
 }
 
 interface NativeJsonStorageState {
+    checkpointPending?: boolean;
     revision: number;
     eventRevision: number;
     value?: NativeCemSliceBinding;
@@ -1791,6 +1797,7 @@ export class CemElementRuntime {
     private readonly hydrationSnapshots = new WeakMap<HTMLElement, DataIslandSnapshot>();
     private readonly instanceIds = new WeakMap<HTMLElement, string>();
     private readonly dataRevisions = new WeakMap<HTMLElement, number>();
+    private readonly checkpointImplicitWriters = new WeakMap<HTMLElement, Set<number>>();
     private readonly locationWriteTriggers = new WeakMap<HTMLElement, Map<number, string>>();
     private readonly renderBounds = new WeakMap<HTMLElement, RenderBounds>();
     private readonly committedRenderPlans = new WeakMap<HTMLElement, RenderPlan>();
@@ -2686,7 +2693,7 @@ export class CemElementRuntime {
             }
         }
         if (changed) this.checkpointOwners.get(instance)?.owner.invalidate();
-        if (changed && options.render === false && this.checkpointPublication && compiled.behavior === CEM_PLAINTEXT_EDITOR_CAPABILITY) {
+        if (changed && options.render === false && this.checkpointPublication && [CEM_PLAINTEXT_EDITOR_CAPABILITY, CEM_FORM_CONTROL_CAPABILITY].includes(compiled.behavior!)) {
             // Native text edits normally avoid template work. An opted-in
             // checkpoint needs a fresh acknowledged revision of those slices.
             queueMicrotask(() => { if (instance.isConnected && !compiled.declarationScope.disposed) this.renderInstance(instance, compiled); });
@@ -2842,14 +2849,16 @@ export class CemElementRuntime {
         };
     }
 
-    beginCheckpointOperation(instance: HTMLElement): (() => void) | undefined {
+    beginCheckpointOperation(instance: HTMLElement): import('./checkpoint-publication.js').CemCheckpointOperation | undefined {
         if (!this.checkpointCommandRoots.has(instance)) return undefined;
-        return this.beginCheckpointEffect(instance);
+        if (!this.checkpointPublication) return undefined;
+        try { return this.checkpointPublication.operation(this.instanceId(instance)); }
+        catch { return undefined; }
     }
 
     private beginCheckpointEffect(instance: HTMLElement): (() => void) | undefined {
         if (!this.checkpointPublication) return undefined;
-        try { return this.checkpointPublication.operation(this.instanceId(instance), crypto.randomUUID()).acknowledge; }
+        try { return this.checkpointPublication.operation(this.instanceId(instance)).acknowledge; }
         catch { return undefined; /* Refused recovery cannot suppress an ordinary action. */ }
     }
 
@@ -2872,23 +2881,83 @@ export class CemElementRuntime {
             .filter(control => this.ownsRenderedElement(instance, control))) : undefined;
     }
 
-    private checkpointOwnerPortable(instance: HTMLElement, compiled: CompiledDeclaration, state?: InstanceState): boolean {
-        if (!state || (compiled.behavior && compiled.behavior !== CEM_PLAINTEXT_EDITOR_CAPABILITY)
-            || (compiled.behavior === CEM_PLAINTEXT_EDITOR_CAPABILITY && !cemPlaintextEditorCheckpointReady(instance))
-            || this.checkpointComposing.has(instance) || hasCemPlacementRelationships(instance)
-            || Object.keys(state.httpResources).length || Object.keys(state.repositoryQueryResources).length
-            || Object.keys(state.storageStatusResources).length || Object.keys(state.localStorageResources).length
-            || this.locationWriteTriggers.has(instance)) return false;
-        for (const [name, resource] of Object.entries(state.locationResources)) {
-            const event = state.eventPayloads[name];
-            if (resource.live || !isPlainRecord(event) || typeof event.href !== 'string') return false;
-            try {
-                const url = new URL(event.href);
-                if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return false;
-            } catch { return false; }
+    private checkpointRuntimeState(instance: HTMLElement, compiled: CompiledDeclaration, state: InstanceState, documents = false): CemCheckpointRuntimeState | undefined {
+        let capability: CemCheckpointRuntimeState['capability'] = null;
+        if (compiled.behavior === CEM_PLAINTEXT_EDITOR_CAPABILITY) capability = cemPlaintextEditorCheckpoint(instance) ?? null;
+        else if (compiled.behavior === CEM_FORM_CONTROL_CAPABILITY) capability = cemFormControlCheckpoint(instance) ?? null;
+        else if (compiled.behavior === CEM_CHECKABLE_CONTROL_CAPABILITY) capability = cemCheckableControlCheckpoint(instance) ?? null;
+        else if (compiled.behavior === CEM_CHOICE_SELECT_CAPABILITY) capability = cemChoiceSelectCheckpoint(instance) ?? null;
+        else if (compiled.behavior === CEM_EDITABLE_CHOICE_CAPABILITY) capability = cemEditableChoiceCheckpoint(instance) ?? null;
+        if (compiled.behavior && !capability) return undefined;
+        const resources: CemCheckpointRuntimeState['resources'] = [];
+        let documentBytes = 0;
+        for (const [name, active] of Object.entries(state.httpResources)) {
+            const envelope = state.slices[name] as CemHttpResourceEnvelope | undefined;
+            if (!envelope || !['loaded', 'failed'].includes(envelope.state)) return undefined;
+            // Only read methods and noncredential headers can be exported.
+            if (!['GET', 'HEAD'].includes(envelope.request.method) || Object.keys(envelope.request.headers).some(key =>
+                !['accept', 'accept-language', 'content-type', 'if-none-match', 'if-modified-since', 'cache-control'].includes(key.toLowerCase()))) return undefined;
+            if (envelope.response && Object.keys(envelope.response.headers).some(key => /auth|cookie|api[-_]?key|token|secret/i.test(key))) return undefined;
+            const source = active.checkpointSource;
+            if (envelope.state === 'loaded' && envelope.request.method === 'GET' && (!active.document || !source)) return undefined;
+            let document: CemCheckpointRuntimeState['resources'][number]['document'];
+            if (source) {
+                documentBytes += source.bytes.byteLength;
+                if (documentBytes > 256 * 1024) return undefined;
+                let binary = '';
+                if (documents) for (const byte of new Uint8Array(source.bytes)) binary += String.fromCharCode(byte);
+                document = { base64: documents ? btoa(binary) : '', contentType: source.contentType, sourceUri: source.sourceUri, digest: null };
+            }
+            resources.push({ name, kind: 'http', disposition: 'reimport-and-read-again', revision: active.revision, cursor: 0,
+                live: false, state: envelope.state, url: envelope.request.resolvedUrl, method: envelope.request.method, ...(document ? { document } : {}) });
         }
-        for (const control of instance.querySelectorAll('[host-command]')) if (!this.checkpointCommandRoot(control)) return false;
-        return this.checkpointControls(instance) !== undefined;
+        for (const [kind, entries] of [['repository-query', state.repositoryQueryResources], ['storage-status', state.storageStatusResources]] as const) {
+            for (const [name, active] of Object.entries(entries)) {
+                const envelope = state.slices[name] as CemRepositoryQueryEnvelope | CemStorageStatusEnvelope | undefined;
+                if (!envelope || active.refreshQueued || !['loaded', 'failed'].includes(envelope.state)
+                    || !checkpointScalarPortable(envelope.data)
+                    || 'request' in envelope && !checkpointScalarPortable(envelope.request.parameters ?? null)) return undefined;
+                resources.push({ name, kind, disposition: active.live ? 'read-and-subscribe' : 'read-again', revision: active.revision,
+                    cursor: active.cursor, live: active.live, state: envelope.state });
+            }
+        }
+        for (const [name, active] of Object.entries(state.localStorageResources)) {
+            if (['password', 'file'].includes(active.storageType) || active.native?.checkpointPending || active.native?.disposed) return undefined;
+            if (active.live && localStorageForWindow(instance.ownerDocument.defaultView)?.getItem(active.key) !== active.lastRawValue) return undefined;
+            resources.push({ name, kind: 'local-storage', disposition: active.live ? 'read-and-subscribe' : 'read-again',
+                revision: active.native?.revision ?? 0, cursor: 0, live: active.live, state: 'loaded' });
+        }
+        for (const [name, active] of Object.entries(state.locationResources)) {
+            const value = active.lastValue as { href?: string } | undefined;
+            if (!value?.href || active.live && instance.ownerDocument.location.href !== value.href) return undefined;
+            resources.push({ name, kind: 'location', disposition: active.live ? 'read-and-subscribe' : 'read-again',
+                revision: state.resourceRevisions[name] ?? 0, cursor: 0, live: active.live, state: 'loaded', url: value.href });
+        }
+        if (resources.length > 256 || !checkpointScalarPortable(resources.filter(resource => ['repository-query', 'storage-status'].includes(resource.kind))
+            .map(resource => (state.slices[resource.name] as { data: unknown }).data))) return undefined;
+        if (Object.values(state.httpResources).some(resource => resource.key.length > 512 * 1024)
+            || Object.values(state.localStorageResources).some(resource => (resource.lastRawValue?.length ?? 0) > 256 * 1024)) return undefined;
+        for (const resource of resources) if (resource.url) {
+            try { const url = new URL(resource.url); if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return undefined; }
+            catch { return undefined; }
+        }
+        const writers: CemCheckpointRuntimeState['writers'] = [];
+        const implicit = this.checkpointImplicitWriters.get(instance);
+        for (const [index, trigger] of this.locationWriteTriggers.get(instance) ?? []) writers.push({ index, trigger, implicit: implicit?.has(index) ?? false });
+        for (const index of implicit ?? []) if (!this.locationWriteTriggers.get(instance)?.has(index)) writers.push({ index, trigger: null, implicit: true });
+        if (writers.length > 256) return undefined;
+        return { version: 'cem-checkpoint-runtime/1', capability, resources, writers, writeDisposition: 'suppress-until-new-input' };
+    }
+
+    private checkpointFingerprint(instance: HTMLElement, compiled: CompiledDeclaration): string | undefined {
+        const state = this.instanceStates.get(instance);
+        if (!state || this.checkpointComposing.has(instance) || hasCemPlacementRelationships(instance)) return undefined;
+        const runtime = this.checkpointRuntimeState(instance, compiled, state);
+        const controls = this.checkpointControls(instance);
+        if (!runtime || !controls) return undefined;
+        for (const control of instance.querySelectorAll('[host-command]')) if (!this.checkpointCommandRoot(control)) return undefined;
+        return JSON.stringify({ controls, runtime, resources: portableResourceState(state),
+            values: runtime.resources.filter(resource => ['repository-query', 'storage-status', 'http'].includes(resource.kind)).map(resource => state.slices[resource.name]) });
     }
 
     private connectCheckpointOwner(instance: HTMLElement, compiled: CompiledDeclaration): void {
@@ -2909,8 +2978,9 @@ export class CemElementRuntime {
             if (state && records.length) {
                 this.handleInstanceMutations(instance, compiled, this.ensureDataIsland(instance), state, records); return false;
             }
-            if (!this.checkpointOwnerPortable(instance, compiled, state)) return false;
-            if (publishedControls !== JSON.stringify(this.checkpointControls(instance))) {
+            const fingerprint = this.checkpointFingerprint(instance, compiled);
+            if (!fingerprint) return false;
+            if (publishedControls !== fingerprint) {
                 this.renderInstance(instance, compiled); return false;
             }
             return true;
@@ -2939,15 +3009,17 @@ export class CemElementRuntime {
             const controls = this.checkpointControls(instance);
             if (!controls) return undefined;
             await validatePortableCheckpointControls(JSON.stringify(controls));
+            const runtime = this.checkpointRuntimeState(instance, compiled, state, true);
+            if (!runtime) return undefined;
+            // Decode only this explicitly named native lifecycle control DTO.
+            const validated = JSON.parse(await validatePortableCheckpointRuntime(JSON.stringify(runtime))) as CemCheckpointRuntimeState;
             if (!current()) return undefined;
             const snapshot = this.snapshotFromCapturedForms(instance, compiled, island, publishedRevision, state, this.captureRenderedForms(instance));
-            writeDataIslandHydrationData(island, { ...snapshot, version: '1.0.0-checkpoint.1', checkpointControls: controls,
-                resourceState: { ...snapshot.resourceState,
-                    ...(Object.keys(state.locationResources).length ? { checkpointResources: {
-                        version: 'cem-checkpoint-resource-dispositions/1',
-                        resources: Object.keys(state.locationResources).map(name => ({ name, kind: 'location', disposition: 'read-again' })),
-                    } } : {}),
-                } });
+            writeDataIslandHydrationData(island, { ...snapshot, version: '1.0.0-checkpoint.1', checkpointControls: controls, checkpointRuntime: validated,
+                resourceState: { ...snapshot.resourceState, ...Object.fromEntries(validated.resources.filter(resource => ['http', 'repository-query', 'storage-status'].includes(resource.kind)).map(resource => {
+                    const key = `${resource.kind === 'repository-query' ? 'repository' : resource.kind}:${resource.name}`;
+                    return [key, { ...(snapshot.resourceState?.[key] as Record<string, unknown>), status: resource.state }];
+                })), checkpointRuntime: { version: validated.version, resources: validated.resources, writers: validated.writers, writeDisposition: validated.writeDisposition } } });
             state.observer?.takeRecords();
             units = 0; length = 0; visit(island, 0);
             return island.outerHTML;
@@ -2956,7 +3028,7 @@ export class CemElementRuntime {
         const published = owner.published;
         owner.published = receipt => {
             publishedRevision = receipt.dataRevision;
-            publishedControls = JSON.stringify(this.checkpointControls(instance));
+            publishedControls = this.checkpointFingerprint(instance, compiled);
             published(receipt);
         };
         const input = () => {
@@ -5529,6 +5601,7 @@ export class CemElementRuntime {
         }
 
         const active: ActiveRepositoryQueryResource = {
+            live: declaration.live,
             key,
             revision: 0,
             cursor: 0,
@@ -5794,6 +5867,7 @@ export class CemElementRuntime {
         existing?.unsubscribe?.();
 
         const active: ActiveStorageStatusResource = {
+            live: declaration.live,
             key,
             revision: 0,
             cursor: 0,
@@ -6167,6 +6241,7 @@ export class CemElementRuntime {
                 native.value = binding;
                 native.scalar = scalar;
                 const raw = existing.lastRawValue;
+                native.checkpointPending = true;
                 native.pending = (async () => {
                     try {
                         let text: string | null = null;
@@ -6202,7 +6277,11 @@ export class CemElementRuntime {
                         report(error);
                         this.renderInstance(instance, compiled);
                     }
-                })();
+                })().finally(() => {
+                    if (native.revision !== revision) return;
+                    native.checkpointPending = false;
+                    if (this.checkpointPublication && instance.isConnected && !native.disposed) this.renderInstance(instance, compiled);
+                });
                 function isCurrent(): boolean {
                     return !native.disposed && native.revision === revision && instance.isConnected && !compiled.declarationScope.disposed;
                 }
@@ -6229,7 +6308,8 @@ export class CemElementRuntime {
             native.value = undefined;
             native.acceptedValue = undefined;
             native.scalar = null;
-            native.pending = (async () => {
+            native.checkpointPending = true;
+                native.pending = (async () => {
                 try {
                     if (raw !== null) {
                         const result = await valueJob(native, { action: 'import',
@@ -6252,7 +6332,11 @@ export class CemElementRuntime {
                     this.writeLocalStorageEventPayload(state, declaration, null, raw, source);
                 }
                 if (isCurrent()) this.renderInstance(instance, compiled);
-            })();
+            })().finally(() => {
+                    if (native.revision !== revision) return;
+                    native.checkpointPending = false;
+                    if (this.checkpointPublication && instance.isConnected && !native.disposed) this.renderInstance(instance, compiled);
+                });
             function isCurrent(): boolean {
                 return !native.disposed && native.revision === revision && instance.isConnected && !compiled.declarationScope.disposed;
             }
@@ -6410,6 +6494,11 @@ export class CemElementRuntime {
                 this.locationWriteTriggers.set(instance, consumed);
             }
             if (consumeLocationWriteTrigger(consumed, writer, declaration.trigger)) {
+                if (this.checkpointPublication && declaration.trigger === undefined) {
+                    let implicit = this.checkpointImplicitWriters.get(instance);
+                    if (!implicit) { implicit = new Set(); this.checkpointImplicitWriters.set(instance, implicit); }
+                    implicit.add(writer);
+                }
                 const acknowledge = this.beginCheckpointEffect(instance);
                 const writeDiagnostics = writeLocationTarget(window, instance.ownerDocument, declaration, compiled.producedTag);
                 if (!writeDiagnostics.length) acknowledge?.();
@@ -6531,6 +6620,7 @@ export class CemElementRuntime {
     }
 
     private releaseHttpResource(active: ActiveHttpResource): void {
+        active.checkpointSource = undefined;
         active.controller.abort();
         if (active.document && active.host) {
             void active.host.document({ action: 'release', handle: active.document }).result.catch(() => undefined);
@@ -6686,11 +6776,13 @@ export class CemElementRuntime {
                 scopePolicyStamp: this.scopePolicyStamp,
             };
             if (method !== 'HEAD') {
+                const source = { bytes: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
+                    contentType: loaded.response.contentType ?? request.expectedContentType ?? '', sourceUri: loaded.response.url || request.resolvedUrl };
+                const active = this.instanceStates.get(instance)?.httpResources[declaration.sliceName];
+                if (this.checkpointPublication && active) active.checkpointSource = source;
                 try {
                     await host.document({ action: 'retain', handle,
-                        bytes: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
-                        contentType: loaded.response.contentType ?? request.expectedContentType ?? '',
-                        sourceUri: loaded.response.url || request.resolvedUrl,
+                        ...source,
                     }).result;
                 } catch (error) {
                     if (!this.isActiveHttpResource(instance, declaration.sliceName, key, revision)) return;
@@ -9107,7 +9199,7 @@ function readDataIslandHydrationData(island: HTMLTemplateElement): HydrationSnap
             message: 'the context-root and hydration-data contract versions did not match',
         };
     }
-    if (hydration.checkpointControls !== undefined) return { ok: false,
+    if (hydration.checkpointControls !== undefined || hydration.checkpointRuntime !== undefined) return { ok: false,
         code: 'cem-element.checkpoint_resume_required',
         message: 'checkpoint control state requires explicit native/domain resume admission' };
     const sourceMapMode = hydration.sourceMapMode;
@@ -10803,6 +10895,7 @@ export function writeDataIslandHydrationData(
         ariaReferenceProfile: snapshot.ariaReferenceProfile,
         privacyPolicyStamp: snapshot.privacyPolicyStamp,
         ...(snapshot.checkpointControls ? { checkpointControls: snapshot.checkpointControls.version } : {}),
+        ...(snapshot.checkpointRuntime ? { checkpointRuntime: snapshot.checkpointRuntime.version } : {}),
         ...(snapshot.nativeSlices?.length ? { nativeSlices: exportNativeCemSlices(snapshot.nativeSlices) } : {}),
         ...(snapshot.nativeAttributes?.length ? { nativeAttributes: exportNativeCemAttributes(snapshot.nativeAttributes) } : {}),
     });
@@ -10815,7 +10908,7 @@ export function writeDataIslandHydrationData(
     replaceIslandRecordSection(island, DATA_ISLAND_SECTIONS.slices, snapshot.slices);
     replaceIslandRecordSection(island, DATA_ISLAND_SECTIONS.resources, snapshot.resourceState ?? {});
     replaceIslandRecordSection(island, DATA_ISLAND_SECTIONS.formData, snapshot.checkpointControls
-        ? { forms: snapshot.formData ?? {}, controls: snapshot.checkpointControls } : snapshot.formData ?? {});
+        ? { forms: snapshot.formData ?? {}, controls: snapshot.checkpointControls, ...(snapshot.checkpointRuntime ? { capability: snapshot.checkpointRuntime.capability } : {}) } : snapshot.formData ?? {});
     replaceIslandRecordSection(island, DATA_ISLAND_SECTIONS.validationState, snapshot.validationState);
     replaceIslandRecordSection(island, DATA_ISLAND_SECTIONS.eventPayloads, snapshot.eventPayloads);
 }

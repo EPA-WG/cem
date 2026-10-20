@@ -1,0 +1,153 @@
+use base64::{engine::general_purpose::STANDARD, Engine};
+use cem_ml::checkpoint_runtime_state::validate;
+use serde_json::{json, Value};
+fn state() -> Value {
+    json!({"version":"cem-checkpoint-runtime/1","capability":{"kind":"form-control","authoredValue":null,"formDisabled":false,"customValidity":"Review","selectionRequest":null},
+        "resources":[{"name":"page","kind":"location","disposition":"read-and-subscribe","revision":0,"cursor":0,"live":true,"state":"loaded","url":"https://example.test/docs"}],
+        "writers":[{"index":0,"trigger":"save:1","implicit":false},{"index":1,"trigger":null,"implicit":true}],"writeDisposition":"suppress-until-new-input"})
+}
+#[test]
+fn preserves_capabilities_live_resources_and_consumed_writer_state() {
+    let input = state();
+    assert_eq!(
+        serde_json::from_str::<Value>(&validate(&input.to_string()).unwrap()).unwrap(),
+        input
+    );
+    for kind in ["repository-query", "storage-status", "local-storage"] {
+        let mut s = state();
+        s["resources"][0]["kind"] = kind.into();
+        s["resources"][0]["url"] = Value::Null;
+        assert!(validate(&s.to_string()).is_ok(), "{kind}");
+    }
+    let mut mixed = state();
+    mixed["writers"][0]["implicit"] = true.into();
+    assert!(validate(&mixed.to_string()).is_ok());
+    for cap in [
+        json!({"kind":"checkable-control","authoredIndeterminate":true}),
+        json!({"kind":"plaintext-editor","authored":null,"selectionRequest":null}),
+        Value::Null,
+    ] {
+        let mut s = state();
+        s["capability"] = cap;
+        assert!(validate(&s.to_string()).is_ok());
+    }
+}
+#[test]
+fn retains_original_http_document_bytes_with_native_digest_and_no_handles() {
+    let mut s = state();
+    s["resources"][0] = json!({"name":"data","kind":"http","disposition":"reimport-and-read-again","revision":3,"cursor":0,"live":false,"state":"loaded","url":"https://example.test/data.xml","method":"GET",
+        "document":{"base64":STANDARD.encode("<data>é😀</data>"),"contentType":"application/xml","sourceUri":"https://example.test/data.xml","digest":null}});
+    let normalized = validate(&s.to_string()).unwrap();
+    let output: Value = serde_json::from_str(&normalized).unwrap();
+    assert_eq!(
+        STANDARD
+            .decode(
+                output["resources"][0]["document"]["base64"]
+                    .as_str()
+                    .unwrap()
+            )
+            .unwrap(),
+        "<data>é😀</data>".as_bytes()
+    );
+    assert_eq!(
+        output["resources"][0]["document"]["digest"]
+            .as_str()
+            .unwrap()
+            .len(),
+        64
+    );
+    assert_eq!(validate(&normalized).unwrap(), normalized);
+    // Reimport into an independently owned native document table, never a JS AST.
+    let doc = &output["resources"][0]["document"];
+    let mut documents = cem_ml::import::documents::CemDocuments::default();
+    let bytes = STANDARD.decode(doc["base64"].as_str().unwrap()).unwrap();
+    let id = documents
+        .retain(
+            &bytes,
+            doc["contentType"].as_str().unwrap(),
+            doc["sourceUri"].as_str().unwrap(),
+        )
+        .unwrap();
+    let node = cem_ml::validation::xpath::XPathNativeNode::cem_document(documents.get(id).unwrap());
+    assert_eq!(node.string_value(), "é😀");
+    assert!(documents.dispose(id));
+    let mut expanded = s.clone();
+    expanded["capability"]["customValidity"] = "".into();
+    let remaining = 512 * 1024 - expanded.to_string().len();
+    expanded["capability"]["customValidity"] = "x".repeat(remaining).into();
+    assert_eq!(expanded.to_string().len(), 512 * 1024);
+    assert!(validate(&expanded.to_string()).is_err());
+    s["resources"][0]["document"]["digest"] = "wrong".into();
+    assert!(validate(&s.to_string()).is_err());
+    s["resources"][0]["document"]["digest"] = Value::Null;
+    s["resources"][0]["document"]["base64"] = "%%%".into();
+    assert!(validate(&s.to_string()).is_err());
+}
+#[test]
+fn refuses_pending_credential_unknown_duplicate_and_replayable_state() {
+    for value in ["scheduled", "in-progress", "waiting"] {
+        let mut s = state();
+        s["resources"][0]["state"] = value.into();
+        assert!(validate(&s.to_string()).is_err());
+    }
+    for url in [
+        "https://user:secret@example.test/",
+        "javascript:alert(1)",
+        "relative",
+    ] {
+        let mut s = state();
+        s["resources"][0]["url"] = url.into();
+        assert!(validate(&s.to_string()).is_err());
+    }
+    let mut s = state();
+    s["capability"]["lease"] = 7.into();
+    assert!(validate(&s.to_string()).is_err());
+    let mut s = state();
+    s["writeDisposition"] = "retry".into();
+    assert!(validate(&s.to_string()).is_err());
+    let mut s = state();
+    let duplicate = s["resources"][0].clone();
+    s["resources"].as_array_mut().unwrap().push(duplicate);
+    assert!(validate(&s.to_string()).is_err());
+    let mut s = state();
+    s["resources"][0]["cursor"] = 9_007_199_254_740_992u64.into();
+    assert!(validate(&s.to_string()).is_err());
+    let mut s = state();
+    s["resources"][0]["disposition"] = "read-again".into();
+    assert!(validate(&s.to_string()).is_err());
+    let mut s = state();
+    s["writers"][0]["trigger"] = Value::Null;
+    assert!(validate(&s.to_string()).is_err());
+}
+#[test]
+fn bounds_counts_documents_and_normalized_output() {
+    let mut s = state();
+    s["resources"] = json!((0..257)
+        .map(|n| {
+            let mut r = state()["resources"][0].clone();
+            r["name"] = format!("resource:{n}").into();
+            r
+        })
+        .collect::<Vec<_>>());
+    assert!(validate(&s.to_string()).is_err());
+    let mut s = state();
+    s["capability"]["customValidity"] = "x".repeat(512 * 1024).into();
+    assert!(validate(&s.to_string()).is_err());
+    let mut s = state();
+    s["resources"][0] = json!({"name":"large","kind":"http","disposition":"reimport-and-read-again","revision":1,"cursor":0,"live":false,"state":"loaded","url":"https://example.test/a","method":"GET","document":{"base64":STANDARD.encode(vec![b'x';256*1024+1]),"contentType":"text/plain","sourceUri":"https://example.test/a","digest":null}});
+    assert!(validate(&s.to_string()).is_err());
+}
+
+#[test]
+fn choice_editors_preserve_selection_preview_defaults_and_clock_state() {
+    let select = json!({"kind":"choice-select","selection":["b"],"defaultValues":["a"],"activeIndex":1,"rangeAnchor":0,"expanded":true,"previewSelection":["a"],"mode":"dropdown","authoredValue":null,"valueRequest":"request:1","formDisabled":false,"typeahead":"b","typeaheadAt":1234,"focusedPart":"control"});
+    let editable = json!({"kind":"editable-choice","activeIndex":0,"authoredValue":null,"committedOptionValue":"a","defaultCommittedOptionValue":"a","defaultDisplayValue":"Alpha","defaultValue":"a","displayValue":"Draft é","edited":true,"expanded":false,"formDisabled":false,"value":"Draft é"});
+    for capability in [select, editable] {
+        let mut s = state();
+        s["capability"] = capability;
+        assert!(validate(&s.to_string()).is_ok());
+    }
+    let mut s = state();
+    s["capability"] = json!({"kind":"choice-select","selection":[],"defaultValues":[],"activeIndex":-2,"rangeAnchor":0,"expanded":false,"previewSelection":[],"mode":"bad","authoredValue":null,"valueRequest":null,"formDisabled":false,"typeahead":"","typeaheadAt":0,"focusedPart":null});
+    assert!(validate(&s.to_string()).is_err());
+}

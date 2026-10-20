@@ -13,7 +13,7 @@ export interface CemCommitReceipt {
     commitSequence: number;
     policyStamp: string;
     owners: CemCheckpointOwnerReceipt[];
-    operations: { instanceId: string; operationId: string; outcome: 'acknowledged' | 'unknown' }[];
+    operations: { instanceId: string; operationId: string; outcome: 'acknowledged' | 'unknown' | 'not-applied' }[];
 }
 export type CemCheckpointSealer = (candidate: string, receipt: string) => string | Promise<string>;
 export interface CemStoredCheckpoint {

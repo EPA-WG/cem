@@ -126,28 +126,79 @@ Current generic adoption also refuses these islands with
 `cem-element.checkpoint_resume_required`: explicit native/domain semantic resume
 is still required. Capture does not enable HTML-copy restoration.
 
-Shared `mountCemView` registers trusted command roots and journals an opaque
-operation ID **before** invoking the existing handler. Synchronous success or a
-fulfilled Promise acknowledges the outcome; throws, rejections and completion
-after disposal, owner replacement or policy changes retain `unknown`. Shared
-storage and location writes likewise record before their browser effect and
-acknowledge only a successful return. No command arguments, source values,
-storage keys or credentials enter the journal. Outcomes survive owner removal;
-an orphan outcome blocks capture until a future explicit reconciliation contract
-can retire it. The 256-operation limit blocks recovery without suppressing an
-ordinary action. Outcomes are metadata, never an instruction to replay.
+The native `cem-checkpoint-runtime/1` control envelope extends capture to shared
+form-control, checkable-control, choice-select and editable-choice capabilities,
+alongside plaintext-editor. It preserves private authored/default values, custom
+validity, form disabling, consumed selection requests, selected/preview values,
+active/range anchors, expanded state and typeahead clock state where applicable.
+Generated IDs, normalized option caches and listeners are derived again from the
+canonical payload. Pending programmatic values, composition, provider leases,
+claims and deferred commits block capture. Other behavioral capabilities and
+foreign placement relationships still require their own admission contracts.
 
-Explicit non-live HTTP(S) URL readers without embedded userinfo may export their
-complete location snapshot and a `read-again` resource disposition. Live/ambient
-location reads, consumed location writer state, storage, HTTP and repository
-resources remain unavailable pending complete export/reacquisition contracts.
-Other behavior capabilities, foreign placements, arbitrary contenteditable,
-password/file/credential controls and hidden custom-validity messages block the
-**entire domain**. No owner or value is silently omitted or truncated. Trusted
-whole-island consent must also refuse credentials in authored payload or slices.
+`cem_ml::checkpoint_runtime_state::validate` / WASM `validateCheckpointRuntime`
+validate this explicit scalar lifecycle boundary. Input and normalized output are
+bounded to 512 KiB; resources and consumed writer entries each cap at 256, choice
+options/values at 1,024, and original HTTP source bodies at an aggregate 256 KiB.
+Unique identities, safe counters, terminal lifecycle state, URL credential rules,
+read/resubscribe dispositions and writer suppression are checked. Original HTTP
+bytes use a base64 envelope with content type, source URI and a native SHA-256
+digest; mismatched digests or malformed bodies fail admission. These are original
+source bytes for the normal native import boundary, never a JS document/AST.
+The envelope is split between the existing form (capability) and resource domains;
+a hydration marker identifies the runtime extension. Generic hydration continues
+to refuse it until explicit native/domain semantic resume exists.
 
-Automatic capture is not enabled in Studio. Remaining resource/capability
-portability, safe journal retirement, physical runtime-domain discovery,
+Completed HTTP GET/HEAD resources carry `reimport-and-read-again`: a loaded GET
+must retain its original native-import source bytes. Repository queries and
+storage status retain their complete scalar envelopes, revisions and cursors;
+live readers carry `read-and-subscribe`, other readers `read-again`. Local storage
+retains exact raw values and existing opaque native JSON value artifacts; pending
+native reads/exports block capture. Live/ambient location captures its complete
+URL state. Live provider changes invalidate before recapture; storage/location
+freshness checks also catch changes ahead of event delivery. Repository values
+that DOM-native scalar records cannot preserve (Map, Date, buffers, undefined,
+hidden/symbol/accessor properties, cycles, nonfinite numbers or excessive depth/size) refuse the complete domain.
+
+Consumed location trigger tokens and implicit writer indices, plus the resource
+`writeDisposition: suppress-until-new-input`, are resume obligations. Reacquisition
+must restore writer suppression **before** evaluating the declaration and must
+obtain fresh host permissions/subscriptions; it cannot replay an initialization
+write or a command. Ordinary rendering retains its existing resource behavior.
+Credential URLs, credential request headers, unsupported request methods or
+unresolved resource state refuse capture. Whole-island consent must also exclude
+secrets in response bytes, parameters, payload and slices; no owner is redacted,
+omitted or truncated to make recovery appear available.
+
+Shared `mountCemView` registers trusted command roots. `operation(instanceId)`
+issues a host-generated opaque ID before delivery and returns
+`{operationId, acknowledge}`; callers no longer supply/reuse operation IDs.
+`CemHostCommandRequest.checkpointOperationId` exposes only that scalar identity to
+trusted handlers in opted-in domains. Shared storage/location writes use the same
+journal. Success acknowledges; throws, rejection and stale/disposed completions
+retain `unknown`. No arguments, command names, source values or credentials enter
+the journal, and no entry is ever an instruction to replay.
+
+The trusted host may call `reconcileOperation(id, outcome, authority)` after
+independently establishing a final `acknowledged` or `not-applied` outcome. Authority must match
+`{runtimeId, generation, policyStamp}`; an authored record or late handler callback
+cannot establish an external outcome. `retireOperations(ids, authority)` accepts
+only terminal records and stages their exclusion from the next checkpoint.
+Unknown records cannot be retired. Orphaned records continue to block capture
+until explicitly resolved and staged; then every surviving owner must publish
+and drain as usual. Journal compaction occurs **only after** a successful native
+all-owner seal commits outside WASM. Failure, cancellation or stale sealing keeps
+both records and retirement intent; policy changes revoke intent and erase old
+private host bytes. Old acknowledgement handles cannot mutate retired entries.
+
+A monotonic host counter and per-coordinator nonce keep IDs non-reusable without
+an unbounded tombstone set. Retirement supports bounded repeated operations; the
+256-entry journal ceiling still disables recovery if an additional effect cannot
+be recorded. Retire before overflow: compaction cannot retroactively account for
+an unjournaled effect. Ordinary actions remain available when capture is refused.
+
+Automatic capture is not enabled in Studio. Remaining behavioral capability/placement
+admission, physical runtime-domain discovery,
 memory-pressure admission drain, generation replacement, fresh-owner semantic
 resume, stale-message fencing and declarative recovery status remain follow-up
 work. The complete Studio long-session verifier must remain passing before
@@ -176,3 +227,11 @@ the production source editor, composition, property-only invalidation, command
 outcomes without replay, fixed URL reads, storage effects and orphan refusal.
 The real-WASM fixture validates controls under recovery headroom and proves
 reservations release after errors. No Studio UI JavaScript is introduced.
+
+Runtime-state evidence includes native capability/resource and form-domain
+fixtures, fresh native source reimport, real-WASM validation under recovery
+headroom, production field/checkbox/select/autocomplete browser capture, live
+provider changes and explicit orphan retirement. Host journal fixtures cover
+current-policy reconciliation, unknown refusal, atomic retirement, failed/stale/
+cancelled seals, stale handles and more than 256 repeated retirements without
+retaining old identities or replaying effects.

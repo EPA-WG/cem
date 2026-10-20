@@ -58,6 +58,19 @@ interface SelectState {
 const SELECT_STATES = new WeakMap<HTMLElement, SelectState>();
 let selectSequence = 0;
 
+/** Actual selection/preview state only; normalized options and generated DOM
+ * IDs are derived from the canonical payload during explicit semantic resume. */
+export function cemChoiceSelectCheckpoint(instance: HTMLElement) {
+    const state = SELECT_STATES.get(instance);
+    if (!state?.connected || !state.initialized || state.pendingValues || state.refocus || state.options.length > 1024) return undefined;
+    const active = instance.ownerDocument.activeElement;
+    return { kind: 'choice-select' as const, selection: [...state.selection], defaultValues: [...state.defaultValues], activeIndex: state.activeIndex,
+        rangeAnchor: state.rangeAnchor, expanded: state.expanded, previewSelection: [...state.previewSelection], mode: state.mode,
+        authoredValue: state.authoredValue, valueRequest: state.valueRequest, formDisabled: state.formDisabled,
+        typeahead: state.typeahead, typeaheadAt: state.typeaheadAt,
+        focusedPart: active === instance ? 'host' : active === instance.querySelector('[part~=control]') ? 'control' : null };
+}
+
 export const CEM_CHOICE_SELECT_CAPABILITY: CemProducedElementBehavior = {
     formAssociated: true,
     constructed(instance, context) {

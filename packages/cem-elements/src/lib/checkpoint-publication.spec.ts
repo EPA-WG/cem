@@ -86,29 +86,29 @@ describe('all-owner publication checkpoint capture', () => {
     it('records unknown external outcomes before delivery and fences stale completions without replay', async () => {
         const c = new CemCheckpointPublicationCoordinator(options());
         const a = c.register('a', () => '<template>state</template>'); a.published(metadata); await c.capture();
-        const operation = c.operation('a', 'opaque-operation');
+        const operation = c.operation('a');
         expect(c.current()).toBeUndefined(); await c.capture();
-        expect(read(c).receipt.operations).toEqual([{ instanceId: 'a', operationId: 'opaque-operation', outcome: 'unknown' }]);
+        expect(read(c).receipt.operations).toEqual([{ instanceId: 'a', operationId: operation.operationId, outcome: 'unknown' }]);
         operation.acknowledge(); await c.capture();
         expect(read(c).receipt.operations[0].outcome).toBe('acknowledged');
-        const late = c.operation('a', 'late'); a.remove(); late.acknowledge();
+        const late = c.operation('a'); a.remove(); late.acknowledge();
         const replacement = c.register('a', () => '<template>fresh</template>'); replacement.published(metadata);
-        await c.capture(); expect(read(c).receipt.operations.find((o: { operationId: string }) => o.operationId === 'late').outcome).toBe('unknown');
-        const policyLate = c.operation('a', 'policy-late');
+        await c.capture(); expect(read(c).receipt.operations.find((o: { operationId: string }) => o.operationId === late.operationId).outcome).toBe('unknown');
+        const policyLate = c.operation('a');
         c.setPolicy('private:2', () => true); policyLate.acknowledge(); replacement.published(metadata);
-        await c.capture(); expect(read(c).receipt.operations.find((o: { operationId: string }) => o.operationId === 'policy-late').outcome).toBe('unknown');
-        expect(() => c.operation('a', 'late')).toThrow(); c.dispose();
+        await c.capture(); expect(read(c).receipt.operations.find((o: { operationId: string }) => o.operationId === policyLate.operationId).outcome).toBe('unknown');
+        expect(c.operation('a').operationId).not.toBe(late.operationId); c.dispose();
     });
     it('keeps pending outcomes when an owner disappears and refuses journal overflow', async () => {
         const c = new CemCheckpointPublicationCoordinator(options());
         const a = c.register('a', () => '<template>state</template>'); a.published(metadata);
-        c.operation('a', 'unknown'); a.remove();
+        c.operation('a'); a.remove();
         c.register('b', () => '<template>b</template>').published({ ...metadata, instanceId: 'b' });
         await expect(c.capture()).rejects.toThrow('unavailable'); c.dispose();
         const d = new CemCheckpointPublicationCoordinator(options());
         d.register('a', () => '<template/>').published(metadata);
-        for (let i = 0; i < 256; i++) d.operation('a', `op:${i}`).acknowledge();
-        await d.capture(); expect(() => d.operation('a', 'overflow')).toThrow('limit');
+        for (let i = 0; i < 256; i++) d.operation('a').acknowledge();
+        await d.capture(); expect(() => d.operation('a')).toThrow('limit');
         expect(d.current()).toBeUndefined(); expect(d.lastCommitted()).toBeDefined(); d.dispose();
     });
 
@@ -120,6 +120,66 @@ describe('all-owner publication checkpoint capture', () => {
         c.register('new', () => { newExports++; return '<template>new</template>'; }).published({ ...metadata, instanceId: 'new' });
         release('<template>old a</template>'); await expect(pending).rejects.toThrow('stale');
         expect(newExports).toBe(0); expect(c.current()).toBeUndefined(); expect(c.lastCommitted()).toBeDefined(); c.dispose();
+    });
+
+    it('stages terminal retirement until an all-owner seal succeeds, retaining failed attempts', async () => {
+        let fail=false;
+        const c=new CemCheckpointPublicationCoordinator({ ...options(), seal: text => { if(fail) throw new Error('held failure'); return text; } });
+        const a=c.register('a',()=>'<template>state</template>'); a.published(metadata);
+        const op=c.operation('a'); op.acknowledge(); await c.capture();
+        const authority={runtimeId:'host-session',generation:1,policyStamp:'private:1'};
+        c.retireOperations([op.operationId], authority); expect(c.current()).toBeUndefined(); fail=true;
+        await expect(c.capture()).rejects.toThrow('held failure');
+        expect(c.lastCommitted()!.receipt.operations).toHaveLength(1);
+        fail=false; await c.capture(); expect(read(c).receipt.operations).toHaveLength(0);
+        const before=c.current(); op.acknowledge(); expect(c.current()).toEqual(before);
+        expect(()=>c.retireOperations([op.operationId],authority)).toThrow(); c.dispose();
+    });
+    it('requires explicit current authority to reconcile orphan outcomes before retirement', async () => {
+        const c=new CemCheckpointPublicationCoordinator(options());
+        const a=c.register('a',()=>'<template>a</template>'); a.published(metadata);
+        const op=c.operation('a'); a.remove(); op.acknowledge();
+        const b=c.register('b',()=>'<template>b</template>'); b.published({...metadata,instanceId:'b'});
+        const authority={runtimeId:'host-session',generation:1,policyStamp:'private:1'};
+        expect(()=>c.retireOperations([op.operationId],authority)).toThrow('unknown');
+        expect(()=>c.reconcileOperation(op.operationId,'not-applied',{...authority,generation:2})).toThrow('authority');
+        c.setPolicy('private:2',()=>true);
+        expect(()=>c.reconcileOperation(op.operationId,'not-applied',authority)).toThrow('authority');
+        const current={...authority,policyStamp:'private:2'};
+        c.reconcileOperation(op.operationId,'not-applied',current);
+        c.retireOperations([op.operationId],current);
+        c.register('active',()=>'<template>active</template>').published({...metadata,instanceId:'active'});
+        // Policy changes require every surviving owner to publish anew.
+        await expect(c.capture()).rejects.toThrow('unavailable');
+        b.published({...metadata,instanceId:'b'}); await c.capture();
+        expect(read(c).receipt.operations).toHaveLength(0); c.dispose();
+    });
+    it('keeps identities non-reusable through bounded repeated retirement and fences held seals', async () => {
+        const c=new CemCheckpointPublicationCoordinator(options());
+        const a=c.register('a',()=>'<template>a</template>'); a.published(metadata);
+        const authority={runtimeId:'host-session',generation:1,policyStamp:'private:1'};
+        let first='';
+        for(let n=0;n<300;n++) {
+            const op=c.operation('a'); if(!n) first=op.operationId;
+            else expect(op.operationId).not.toBe(first);
+            op.acknowledge(); c.retireOperations([op.operationId],authority); await c.capture();
+            expect(read(c).receipt.operations).toHaveLength(0);
+        }
+        expect(()=>c.reconcileOperation(first,'acknowledged',authority)).toThrow(); c.dispose();
+    });
+
+    it('retains retirement intent and old bytes when input or cancellation fences an async seal', async () => {
+        let held=false, release!:(value:string)=>void, text='';
+        const c=new CemCheckpointPublicationCoordinator({...options(),seal: value => held ? new Promise<string>(done=>{release=done;text=value;}) : value});
+        const a=c.register('a',()=>'<template>state</template>'); a.published(metadata);
+        const op=c.operation('a'); op.acknowledge(); await c.capture();
+        const authority={runtimeId:'host-session',generation:1,policyStamp:'private:1'};
+        c.retireOperations([op.operationId],authority); held=true; const pending=c.capture();
+        a.input(); a.published({...metadata,dataRevision:'2'}); release(text);
+        await expect(pending).rejects.toThrow('stale'); expect(c.lastCommitted()!.receipt.operations).toHaveLength(1);
+        const abort=new AbortController(), cancelled=c.capture(abort.signal); abort.abort(); release(text);
+        await expect(cancelled).rejects.toThrow('stale'); expect(c.lastCommitted()!.receipt.operations).toHaveLength(1);
+        held=false; await c.capture(); expect(read(c).receipt.operations).toHaveLength(0); c.dispose();
     });
 
 });
