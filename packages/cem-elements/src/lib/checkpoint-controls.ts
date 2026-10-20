@@ -1,4 +1,4 @@
-import type { CheckpointSource, CheckpointSuggestions, CheckpointPlacement, CheckpointSurface, CheckpointPopup } from './checkpoint-interactions.js';
+import type { CheckpointSource, CheckpointSuggestions, CheckpointPlacement, CheckpointSurface, CheckpointPopup, CheckpointMenu } from './checkpoint-interactions.js';
 import { cemPlaintextEditorEventValue } from './plaintext-editor-capability.js';
 
 /** Explicit browser control-state DTO; not a document or template AST. Native
@@ -23,7 +23,7 @@ export interface CemCheckpointRuntimeState {
     capability: null | { kind: 'suggestions'; state: CheckpointSuggestions } | { kind: 'navigation-landmark' }
         | { kind: 'tree-view'; focusValue: string; typeahead: string; typeaheadAt: number }
         | { kind: 'tab-panels'; focusIndex: number; tabCount: number }
-        | { kind: 'composite-menu'; activeNode: string | null; typeahead: string; typeaheadAt: number; open: false }
+        | { kind: 'composite-menu'; activeNode: string | null; typeahead: string; typeaheadAt: number; open: boolean; state?: CheckpointMenu }
         | { kind: 'popup'; open: boolean; state?: CheckpointPopup }
         | { kind: 'native-surface'; phase: 'closed' | 'open'; defaultsInitialized: true; state?: CheckpointSurface }
         | { kind: 'form-control'; changeSuppression?: { revision: number; value: string; disposition: 'suppress-once' }; provider?: { revision: number; consumer: string; validity: string }; authoredValue: string | null; formDisabled: boolean; customValidity: string; selectionRequest: string | null }

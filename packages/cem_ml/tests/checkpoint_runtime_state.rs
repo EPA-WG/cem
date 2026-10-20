@@ -364,3 +364,56 @@ fn native_datalist_checkpoints_reacquire_claims_and_reset_ua_presentation() {
         assert!(validate(&bad.to_string()).is_err(), "{key}");
     }
 }
+
+#[test]
+fn inactive_retained_proof_requires_original_source_ordinal_and_fresh_validation() {
+    let source = json!({"version":"cem-native-source/1","revision":"retained:1","rowCount":2,"select":"input.children","resolve":false,"requesting":0,
+        "sources":[{"codec":"xml","base64":STANDARD.encode("<options><option value='same'/><option value='same'/></options>"),"sourceUri":"https://example.test/options.xml","primarySourceId":1,"context":true}],"bindings":[],"crossings":[],"labels":{"option":null,"group":null},"disposition":"reacquire"});
+    let mut s = state();
+    let mut intent = source.clone();
+    intent["rowCount"] = json!(0);
+    s["capability"] = json!({"kind":"suggestions","state":{"phase":"inactive","profile":"listbox","source":intent,"providerRevision":4,"queryRevision":5,"query":"same","feedbackState":"unavailable","feedbackIntent":false,"editable":false,
+        "proof":{"source":source,"index":1,"value":"same","disposition":"revalidate"}}});
+    assert!(validate(&s.to_string()).is_ok());
+    for (key, value) in [
+        ("index", json!(2)),
+        ("value", json!("different")),
+        ("disposition", json!("restore-handle")),
+        ("handle", json!("old")),
+    ] {
+        let mut bad = s.clone();
+        bad["capability"]["state"]["proof"][key] = value;
+        assert!(validate(&bad.to_string()).is_err(), "{key}");
+    }
+    let mut bad = s.clone();
+    bad["capability"]["state"]["profile"] = json!("native-datalist");
+    assert!(validate(&bad.to_string()).is_err());
+    s["capability"]["state"]["proof"]["source"]["sources"][0]["base64"] =
+        json!(STANDARD.encode("<invalid"));
+    assert!(validate(&s.to_string()).is_err());
+}
+
+#[test]
+fn settled_submenus_require_bounded_relationship_intent_without_live_authority() {
+    let endpoint = json!({"instanceId":"menu-parent","dataRevision":"4","nodeId":"menu.1"});
+    let mut s = state();
+    s["capability"] = json!({"kind":"composite-menu","activeNode":"item.1","typeahead":"m","typeaheadAt":4,"open":true,
+        "state":{"parent":endpoint,"launcher":endpoint,"panel":endpoint,"disposition":"reacquire"}});
+    assert!(validate(&s.to_string()).is_ok());
+    for (key, value) in [
+        ("launcher", Value::Null),
+        ("panel", Value::Null),
+        ("disposition", json!("restore-grant")),
+        ("geometry", json!({})),
+    ] {
+        let mut bad = s.clone();
+        bad["capability"]["state"][key] = value;
+        assert!(validate(&bad.to_string()).is_err(), "{key}");
+    }
+    let mut bad = s.clone();
+    bad["capability"]["state"]["parent"]["dataRevision"] = json!("");
+    assert!(validate(&bad.to_string()).is_err());
+    s["capability"]["open"] = json!(false);
+    s["capability"]["state"]["panel"] = Value::Null;
+    assert!(validate(&s.to_string()).is_ok());
+}

@@ -106,6 +106,22 @@ for (const feedbackState of ['idle', 'failed', 'unavailable']) {
     inactive.capability.state.feedbackState = 'pending';
     assert.throws(() => wasm.validateCheckpointRuntime(JSON.stringify(inactive)));
 }
+const retainedProof = { ...active, capability: { kind: 'suggestions', state: { phase: 'inactive', profile: 'listbox',
+    source: { ...active.capability.state.source, rowCount: 0 }, providerRevision: 4, queryRevision: 5, query: 'same', feedbackState: 'unavailable', feedbackIntent: false, editable: false,
+    proof: { source: active.capability.state.source, index: 1, value: 'same', disposition: 'revalidate' } } } };
+const retainedSaved = wasm.validateCheckpointRuntime(JSON.stringify(retainedProof));
+assert.equal(wasm.validateCheckpointRuntime(retainedSaved), retainedSaved);
+assert.equal(JSON.parse(wasm.validateCheckpointRuntime(retainedSaved)).capability.state.proof.index, 1);
+retainedProof.capability.state.proof.value = 'wrong';
+assert.throws(() => wasm.validateCheckpointRuntime(JSON.stringify(retainedProof)));
+const menuEndpoint = { instanceId: 'parent', dataRevision: '4', nodeId: 'menu.1' };
+const submenu = { ...runtimeState, resources: [], capability: { kind: 'composite-menu', activeNode: 'item.1', typeahead: '', typeaheadAt: 0, open: true,
+    state: { parent: menuEndpoint, launcher: menuEndpoint, panel: menuEndpoint, disposition: 'reacquire' } } };
+const submenuSaved = wasm.validateCheckpointRuntime(JSON.stringify(submenu));
+assert.equal(wasm.validateCheckpointRuntime(submenuSaved), submenuSaved);
+assert.equal(JSON.parse(wasm.validateCheckpointRuntime(submenuSaved)).capability.open, true);
+submenu.capability.state.panel = null;
+assert.throws(() => wasm.validateCheckpointRuntime(JSON.stringify(submenu)));
 const datalist = { ...active, capability: { kind: 'suggestions', state: { phase: 'native-datalist', source: active.capability.state.source,
     providerRevision: 2, targetNode: 'datalist.1', claim: 'attached', presentation: 'reset-on-resume' } } };
 const datalistSaved = wasm.validateCheckpointRuntime(JSON.stringify(datalist));

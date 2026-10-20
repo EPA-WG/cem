@@ -18,6 +18,7 @@ export interface CheckpointInactiveSuggestions {
     phase: 'inactive'; profile: 'listbox' | 'native-datalist'; source: CheckpointSource;
     providerRevision: number; queryRevision: number; query: string;
     feedbackState: 'idle' | 'failed' | 'unavailable'; feedbackIntent: boolean; editable: boolean;
+    proof?: { source: CheckpointSource; index: number; value: string; disposition: 'revalidate' };
 }
 export interface CheckpointDatalist {
     phase: 'native-datalist'; source: CheckpointSource; providerRevision: number; targetNode: string;
@@ -50,6 +51,7 @@ export interface CheckpointSurface {
         pointer: { left: number; right: number; top: number; bottom: number } | null;
         selection: { left: number; right: number; top: number; bottom: number } | null };
 }
+export interface CheckpointMenu { parent: CheckpointEndpoint | null; launcher: CheckpointEndpoint | null; panel: CheckpointEndpoint | null; disposition: 'reacquire' }
 export interface CheckpointPopup { trigger: string; panel: string; scrollTop: number; scrollLeft: number; disposition: 'reacquire' }
 
 // Exact invocation snapshots are private host evidence, never inferred from markup.

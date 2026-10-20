@@ -88,6 +88,16 @@ pub struct InactiveSuggestions {
     feedback_state: String,
     feedback_intent: bool,
     editable: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    proof: Option<RetainedProof>,
+}
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RetainedProof {
+    source: Source,
+    index: u32,
+    value: String,
+    disposition: String,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -119,6 +129,16 @@ impl Suggestions {
                         && (state.editable || state.feedback_intent)
                 {
                     return Err("cem.checkpoint.runtime.suggestions");
+                }
+                if let Some(proof) = &mut state.proof {
+                    proof.source.validate(bytes)?;
+                    if state.profile != "listbox"
+                        || proof.index >= proof.source.row_count
+                        || proof.value != state.query
+                        || proof.disposition != "revalidate"
+                    {
+                        return Err("cem.checkpoint.runtime.suggestions");
+                    }
                 }
                 Ok(())
             }
@@ -477,4 +497,33 @@ pub struct ChangeSuppression {
     pub revision: u64,
     pub value: String,
     pub disposition: String,
+}
+
+/// Validated controller relationships, never authored IDs or geometry leases.
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Menu {
+    parent: Option<Endpoint>,
+    launcher: Option<Endpoint>,
+    panel: Option<Endpoint>,
+    disposition: String,
+}
+impl Menu {
+    pub fn validate(&self, open: bool) -> Result<(), &'static str> {
+        if self.disposition != "reacquire"
+            || self.parent.is_some() != self.launcher.is_some()
+            || open != self.panel.is_some()
+            || [&self.parent, &self.launcher, &self.panel]
+                .into_iter()
+                .flatten()
+                .any(|e| {
+                    ![&e.instance_id, &e.data_revision, &e.node_id]
+                        .iter()
+                        .all(|s| identity(s))
+                })
+        {
+            return Err("cem.checkpoint.runtime.menu");
+        }
+        Ok(())
+    }
 }

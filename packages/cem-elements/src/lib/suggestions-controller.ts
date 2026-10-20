@@ -1,5 +1,5 @@
 import type { CheckpointSuggestions, CheckpointSource, CheckpointReadySuggestions } from './checkpoint-interactions.js';
-import { checkpointSuggestionIndex } from './native-suggestions-publication.js';
+import { checkpointSuggestionIndex, checkpointSuggestionSource } from './native-suggestions-publication.js';
 import type { CemPlatformCloseCoordinator, CemPlatformCloseLease } from './platform-close.js';
 import { getCemEditorProvider, registerCemEditorCheckpoint, subscribeCemEditorCheckpoint } from './form-control-capability.js';
 import { connectCemManualListbox, type CemManualListboxController } from './manual-listbox.js';
@@ -66,7 +66,7 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
     const focused = () => editor.ownerDocument.activeElement === editor;
     const retained = () => !disposed && host.isConnected && options.editorHost.isConnected && lease.current && provider.control === editor && (options.current?.() ?? true);
     const bound = () => retained() && lease.valid;
-    const current = () => bound() && provider.editable && !provider.composing && !!placements?.current()
+    const current = () => feedbackState === 'ready' && bound() && provider.editable && !provider.composing && !!placements?.current()
         && preparedRevision === provider.revision && query === editor.value;
     const eligibleRow = (row: CemSuggestionsPlacedRow) => row.native.valid && row.native.eligible
         && options.listbox.contains(row.element) && !row.element.closest('[hidden],[inert],[disabled],[aria-disabled="true"]');
@@ -275,11 +275,15 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
         if (!bound() || pending || pointer || reconciling || platformClose || popup?.pending || provider.composing
             || options.ancestors?.length || host.getAttribute('options-state') === 'pending') return undefined;
         if (feedbackState !== 'ready' || !provider.editable) {
-            // No stale publication/proof survives an inactive source contract.
-            if (feedbackState === 'pending' || active || committed || popup?.visible) return undefined;
+            // A retained proof carries its own exact source, independent of current feedback.
+            if (feedbackState === 'pending' || active || popup?.visible) return undefined;
             const source = options.checkpointSource?.();
             if (!source || source.rowCount !== 0) return undefined;
-            return { phase: 'inactive', profile: 'listbox', source, providerRevision: provider.revision, queryRevision,
+            const proofSource = committed && checkpointSuggestionSource(committed.source);
+            const index = committed && checkpointSuggestionIndex(committed.source);
+            if (committed && (!proofSource || index === undefined || index >= proofSource.rowCount || committed.value !== editor.value)) return undefined;
+            const proof = committed && proofSource && index !== undefined ? { source: proofSource, index, value: committed.value, disposition: 'revalidate' as const } : undefined;
+            return { ...(proof ? { proof } : {}), phase: 'inactive', profile: 'listbox', source, providerRevision: provider.revision, queryRevision,
                 query: editor.value, feedbackState: !provider.editable ? 'unavailable' : feedbackState === 'failed' ? 'failed' : 'idle',
                 feedbackIntent: provider.editable && feedbackIntent, editable: provider.editable };
         }

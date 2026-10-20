@@ -450,7 +450,11 @@ placement endpoints with fresh reacquisition required. Shared active listbox
 suggestions/providers and committed placements now capture original bounded
 XML/CEMB provenance, source-order selection/proof state and current dependency
 receipts. Settled idle/failed/unavailable listbox states now retain original
-source/query intent without stale proofs. Native datalist captures its unfocused
+source/query intent. Retained inactive selection proofs carry their own original
+source and exact ordinal/value for fresh native revalidation. Settled submenu
+parent/launcher/open-panel endpoints and completed menu-to-dialog invocation
+handoffs join the complete receipt graph; queued activation and preparation remain
+nonportable. Native datalist captures its unfocused
 model, exact provider/placement claims and failed local source intent; browser
 picker restoration remains outside the contract. Original native-session inputs
 are snapshotted before async submission. Settled popup/dialog capture retains visibility, invocation/return-focus

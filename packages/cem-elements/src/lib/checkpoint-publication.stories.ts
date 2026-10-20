@@ -1,7 +1,8 @@
+import { cemCompositeMenuCheckpoint } from './composite-menu-capability.js';
 import { CemNativeCapabilitySession } from './native-capability-session.js';
 import { cemProcessingHostForScope } from './internal/runtime-support/processing-host-runtime.js';
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
-import { expect, waitFor } from 'storybook/test';
+import { expect, userEvent, waitFor } from 'storybook/test';
 import { CemElementRuntime, type CemElementRuntimeOptions } from './cem-elements.js';
 import { CemCheckpointPublicationCoordinator } from './checkpoint-publication.js';
 import { ingestContractVersion } from './disposition.js';
@@ -712,6 +713,20 @@ async function activeSuggestionsCheckpointContract(canvasElement: HTMLElement, m
                     expect(rows[captured.committedIndex].source).not.toBe(cemSuggestionsControllerFor(host)?.committed);
                     binding.release(); await publication.release();
                 } finally { await copy.release(); copyScope.dispose(); }
+                // The same native proof survives a read-only handoff without serializing a publication lease.
+                const retained = cemSuggestionsControllerFor(host)!.committed;
+                input.blur(); field.setAttribute('readonly', ''); await f.runtime.whenRenderSettled(field);
+                const inactive = () => { const state = cemSuggestionsCheckpoint(host); return state && 'phase' in state && state.phase === 'inactive' ? state : undefined; };
+                await waitFor(() => expect(inactive()?.proof?.index).toBe(1)); await capture();
+                expect(inactive()?.proof?.source).toEqual(captured.source);
+                expect(inactive()?.proof?.value).toBe('same'); expect(input.validationMessage).toBe(''); expect(input.validity.customError).toBe(false);
+                expect(cemSuggestionsControllerFor(host)!.committed).toBe(retained);
+                const inactiveForeign = getCemEditorProvider(field)!.subscribe(() => undefined);
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); inactiveForeign(); await capture();
+                const inactiveIsland = decode(f.coordinator).owners.find(owner => owner.island.includes('revalidate'))!.island;
+                expect(inactiveIsland).toContain('proof'); expect(inactiveIsland).not.toContain('sessionKey');
+                field.removeAttribute('readonly'); await f.runtime.whenRenderSettled(field);
+                await ready(); await capture(); input.focus(); await ready(); await capture();
                 const provider = getCemEditorProvider(field)!;
                 const foreign = provider.subscribe(() => undefined);
                 await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); foreign(); await capture();
@@ -722,6 +737,21 @@ async function activeSuggestionsCheckpointContract(canvasElement: HTMLElement, m
                 input.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true })); await ready(); await capture();
                 host.setAttribute('options-state', 'pending'); await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
                 host.setAttribute('options-state', 'ready'); await ready(); await capture();
+                expect(input.value).toBe('same');
+                input.blur(); field.setAttribute('readonly', ''); await f.runtime.whenRenderSettled(field);
+                await waitFor(() => expect(inactive()?.proof).toBeDefined()); await capture();
+                const retainedCommit = f.coordinator.lastCommitted()!.bytes;
+                const originalOptions = f.runtime.localSuggestionsEnvironmentFor(host)!.optionsSources[0] as HTMLTemplateElement;
+                originalOptions.innerHTML = '<option value=changed>Changed source</option>';
+                await expect(f.coordinator.capture()).rejects.toThrow();
+                await waitFor(() => expect(cemSuggestionsControllerFor(host)?.committed).toBeUndefined());
+                await waitFor(() => expect(inactive()?.feedbackState).toBe('unavailable'));
+                expect(inactive()?.proof).toBeUndefined(); expect(input.validity.customError).toBe(true);
+                // Read-only native controls hide customError messages; preserve whole-domain refusal.
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                expect(f.coordinator.lastCommitted()!.bytes).toEqual(retainedCommit);
+                field.removeAttribute('readonly'); await f.runtime.whenRenderSettled(field); input.focus();
+                await ready(); await capture(); expect(input.validationMessage).toBe('Select a suggestion.');
                 expect(input.value).toBe('same');
             } finally { f.dispose(); }
         }
@@ -867,7 +897,7 @@ async function nativeDatalistCheckpointContract(canvasElement: HTMLElement, fall
                 expect(input.hasAttribute('list')).toBe(false);
                 // Equal bytes still schedule a source handover; reject the now-stale async export.
                 const failedSourceCommit = f.coordinator.lastCommitted()!.bytes;
-                source.innerHTML = source.innerHTML;
+                const sameSourceText = source.innerHTML; source.innerHTML = sameSourceText;
                 await expect(f.coordinator.capture()).rejects.toThrow('cem.checkpoint.stale');
                 expect(f.coordinator.current()).toBeUndefined();
                 expect(f.coordinator.lastCommitted()!.bytes).toEqual(failedSourceCommit);
@@ -891,4 +921,54 @@ export const NativeDatalistCheckpoint: Story = {
 export const NativeDatalistCheckpointFallback: Story = {
     render: () => '<section aria-label="Native datalist fallback checkpoint"></section>',
     play: ({ canvasElement }) => nativeDatalistCheckpointContract(canvasElement, true),
+};
+
+async function submenuTaskCheckpointContract(canvasElement: HTMLElement, fallback: boolean) {
+    await init(); const root = canvasElement.querySelector<HTMLElement>('section')!;
+    const f = fixture(root, fallback);
+    try {
+        const menu = await f.create(declarationTemplate(menuDeclaration), 'cem-ml', root,
+            '<div><button part="control" type="button">More</button></div>', 'composite-menu', { keyboard: 'menu', direction: 'column' });
+        await f.runtime.whenRenderSettled(menu);
+        const launcher = menu.querySelector<HTMLButtonElement>('button')!; launcher.id = `submenu-launcher-${crypto.randomUUID()}`;
+        const submenu = await f.create(declarationTemplate(menuDeclaration), 'cem-ml', root,
+            '<button type="button">Edit</button>', 'composite-menu', { 'parent-item': `#${launcher.id}` });
+        await f.runtime.whenRenderSettled(submenu);
+        const surface = await f.create(declarationTemplate(dialogDeclaration), 'cem-ml', root, '<input aria-label="Task entry" autofocus>', 'native-surface');
+        await f.runtime.whenRenderSettled(surface);
+        const dialog = surface.querySelector('dialog')!; dialog.id = `submenu-task-${crypto.randomUUID()}`;
+        const edit = submenu.querySelector<HTMLButtonElement>('button')!;
+        edit.setAttribute('commandfor', dialog.id); edit.setAttribute('command', '--cem-show');
+        const capture = () => waitFor(async () => { await f.coordinator.capture(); });
+        await capture(); expect(submenu.hidden).toBe(true);
+        await userEvent.click(launcher); await waitFor(() => expect(submenu.hidden).toBe(false));
+        await capture();
+        expect(decode(f.coordinator).owners.filter(owner => owner.island.includes('composite-menu'))).toHaveLength(2);
+        expect(f.coordinator.current()!.receipt.relationships?.filter(edge => edge.id.includes(':menu:'))).toHaveLength(3);
+        expect(cemCompositeMenuCheckpoint(menu, () => ({ instanceId: 'fixture', dataRevision: '1', nodeId: 'node' }))?.open).toBe(true);
+        launcher.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
+        await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+        launcher.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true })); await capture();
+        let queuedRefused = false;
+        submenu.addEventListener('click', () => { queuedRefused = !cemCompositeMenuCheckpoint(submenu, () => ({ instanceId: 'fixture', dataRevision: '1', nodeId: 'node' })); }, { once: true });
+        await userEvent.click(edit); await waitFor(() => expect(dialog.open).toBe(true));
+        expect(queuedRefused).toBe(true); await capture();
+        const edges = f.coordinator.current()!.receipt.relationships!;
+        expect(edges.some(edge => edge.id.includes(':surface:interaction'))).toBe(true);
+        expect(edges.some(edge => edge.id.includes(':surface:return-focus') && edge.provider.nodeId === launcher.getAttribute('data-cem-render-node-id'))).toBe(true);
+        expect(submenu.hidden).toBe(true); expect(document.activeElement).toBe(dialog.querySelector('input'));
+        dialog.close('saved'); await waitFor(() => expect(document.activeElement).toBe(launcher)); await capture();
+        const last = f.coordinator.lastCommitted()!.bytes;
+        submenu.setAttribute('parent-item', '#missing-submenu-parent');
+        await expect(f.coordinator.capture()).rejects.toThrow(); expect(f.coordinator.lastCommitted()!.bytes).toEqual(last);
+        submenu.setAttribute('parent-item', `#${launcher.id}`); await f.runtime.whenRenderSettled(submenu); await capture();
+    } finally { f.dispose(); }
+}
+export const SubmenuAndCompletedTaskCheckpoint: Story = {
+    render: () => '<section aria-label="Submenu and task worker checkpoint"></section>',
+    play: ({ canvasElement }) => submenuTaskCheckpointContract(canvasElement, false),
+};
+export const SubmenuAndCompletedTaskCheckpointFallback: Story = {
+    render: () => '<section aria-label="Submenu and task fallback checkpoint"></section>',
+    play: ({ canvasElement }) => submenuTaskCheckpointContract(canvasElement, true),
 };

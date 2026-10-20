@@ -56,9 +56,11 @@ export function isCemNativeSuggestionRow(value: unknown): value is CemNativeSugg
 export function isCemNativeSuggestionRowFor(row: CemNativeSuggestionRow, binding: CemNativeSuggestionsBinding): boolean {
     return rows.get(row) === binding;
 }
+const checkpointSources = new WeakMap<CemNativeSuggestionSource, () => CheckpointSource | undefined>();
+export function checkpointSuggestionSource(source: CemNativeSuggestionSource): CheckpointSource | undefined { return source.valid ? checkpointSources.get(source)?.() : undefined; }
 const checkpointIndexes = new WeakMap<CemNativeSuggestionSource, number>();
 export function checkpointSuggestionIndex(source: CemNativeSuggestionSource): number | undefined { return source.valid ? checkpointIndexes.get(source) : undefined; }
-export function createCemNativeSuggestionSource(current: () => boolean, subscribe: (expire: () => void) => () => void, checkpointIndex?: number): CemNativeSuggestionSource {
+export function createCemNativeSuggestionSource(current: () => boolean, subscribe: (expire: () => void) => () => void, checkpointIndex?: number, checkpointSource?: () => CheckpointSource | undefined): CemNativeSuggestionSource {
     let expired = false;
     const listeners = new Set<() => void>();
     const nativeSubscription: { stop(): void } = { stop: () => undefined };
@@ -76,6 +78,7 @@ export function createCemNativeSuggestionSource(current: () => boolean, subscrib
         subscribe(listener: () => void) { if (!valid()) { listener(); return () => undefined; } listeners.add(listener); return () => { listeners.delete(listener); }; },
         toJSON() { throw new TypeError('Live native source identity cannot be serialized'); } });
     if (checkpointIndex !== undefined) checkpointIndexes.set(source, checkpointIndex);
+    if (checkpointSource) checkpointSources.set(source, checkpointSource);
     return source;
 }
 

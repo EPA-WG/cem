@@ -52,6 +52,8 @@ enum Capability {
         typeahead: String,
         typeahead_at: u64,
         open: bool,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        state: Option<crate::checkpoint_interactions::Menu>,
     },
     Popup {
         open: bool,
@@ -246,9 +248,14 @@ pub fn validate(input: &str) -> Result<String, &'static str> {
             typeahead,
             typeahead_at,
             open,
+            state,
         }) => {
-            if *open
-                || active_node.as_deref().is_some_and(|node| !identity(node))
+            if let Some(state) = state {
+                state.validate(*open)?;
+            } else if *open {
+                return Err("cem.checkpoint.runtime.menu");
+            }
+            if active_node.as_deref().is_some_and(|node| !identity(node))
                 || typeahead.len() > 4096
                 || *typeahead_at > SAFE
             {

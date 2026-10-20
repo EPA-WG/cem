@@ -137,8 +137,12 @@ leases/claims and deferred commits block capture.
 
 Stable non-form capture supports navigation-landmark, tree-view (roving value and
 bounded typeahead clock), tab-panels (roving index/count), and composite-menu
-without an open submenu or parent session (active render-node identity and
-typeahead). Selected/expanded values and tab selection remain in canonical
+(active render-node identity and typeahead). Settled submenu sessions additionally
+retain validated parent, launcher and open-panel owner/revision/node endpoints,
+with `reacquire` disposition. These endpoints join the complete dependency receipt;
+DOM IDs, geometry observers, popup leases and task callbacks are never serialized.
+Explicit menu geometry/focus policies still require their own adapters.
+Selected/expanded values and tab selection remain in canonical
 attributes/slices. Normalized item caches and generated accessibility IDs are
 derived from the retained payload, never serialized browser ASTs. Stable focus is
 an owner-local host or render-node identity; nested owners record their own focus.
@@ -153,7 +157,10 @@ close reason and invocation command/context key/input kind/geometry. Invocation
 source, return destination and logical parent use trusted owner/revision/node
 endpoints and join the complete receipt graph. Resume must consume default-open
 initialization and restore visibility without redelivering opening/closing actions.
-Preparation, closing/exit work, pointer or activation-key gestures, task handoffs,
+Completed menu-to-dialog handoffs use the dialog invocation’s source, logical
+parent and return destination endpoints after the menu relay has committed.
+Resume restores state without invoking the command or reusing the old relay.
+Preparation, closing/exit work, pointer or activation-key gestures, queued activations,
 active tooltip interest/timers, native context handles, external geometry and
 retained deferred-body projections still block capture. A gesture settles after
 native activation dispatch; disposal removes its listeners and pending timer.
@@ -173,11 +180,22 @@ with unsupported surface lifetimes and stale placements block capture.
 Settled inactive listbox states have a separate strict `phase: inactive`
 contract for idle, failed and unavailable providers. It retains original source
 intent, profile, provider/query revisions, editor query and feedback intent, with
-zero row count and no row, active-selection or committed-proof fields. Local
-sources supply their original captured XML and label selectors; external hosts
-must explicitly supply original source intent. Missing provenance, pending
-queries/readiness, composition, retained proofs or revoked host policy still
-block capture. Source validation does not retry a query or replay an action.
+zero row count and no rows or active-selection fields. An optional retained
+`proof` has its own original source envelope, exact source-order `index`, editor
+`value` and `disposition: revalidate`. Its source may differ from the inactive
+query’s source intent. The value must match the editor query and the ordinal
+must fit that source’s row count; native datalist profiles cannot carry proofs.
+Native source validation shares the aggregate byte budget. Resume must recreate
+the native session and revalidate the exact ordinal/value with fresh authority
+before restoring required-selection validity; transport admission is not proof
+of semantic membership. Local sources supply their original captured XML and
+label selectors; external hosts
+must explicitly supply original source intent. Missing source/proof provenance,
+pending queries/readiness, composition or revoked host policy still block capture.
+Source validation does not retry a query or replay an action. Native controls
+with `customError` and an unobservable validation message (for example a
+read-only input after proof revocation) retain the existing whole-domain refusal;
+re-enabling the control exposes the message for exact capture.
 
 Native datalist capture uses `phase: native-datalist`: original native source,
 provider revision, owned datalist render-node identity, attached/unavailable claim

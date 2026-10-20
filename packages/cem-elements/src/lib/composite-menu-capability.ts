@@ -1,3 +1,4 @@
+import type { CheckpointEndpoint, CheckpointMenu } from './checkpoint-interactions.js';
 import { registerCemMenuRelay, resetCemTaskActivation, consumeCemTaskActivation } from './menu-task-relay.js';
 import { interactionReference, interactionControl, reportInteractionReference, observeInteractionReferences } from './interaction-reference.js';
 import { focusSurface, restoreSurfaceFocus } from './surface-references.js';
@@ -20,6 +21,7 @@ let sequence = 0;
 const menus = new Set<HTMLElement>();
 interface State {
     relayRevision: number;
+    queuedActivations: number;
     active?: HTMLElement;
     open?: HTMLElement;
     openPanel?: HTMLElement;
@@ -37,7 +39,7 @@ interface State {
 }
 function stateFor(host: HTMLElement): State {
     let state = states.get(host);
-    if (!state) { state = { relayRevision: 0, buffer: '', typedAt: 0, syncing: false }; states.set(host, state); }
+    if (!state) { state = { relayRevision: 0, queuedActivations: 0, buffer: '', typedAt: 0, syncing: false }; states.set(host, state); }
     return state;
 }
 function container(host: HTMLElement): HTMLElement | null { return host.querySelector<HTMLElement>(`:scope > ${COMPOSITE}`); }
@@ -279,7 +281,9 @@ export const CEM_COMPOSITE_MENU_CAPABILITY: CemProducedElementBehavior = {
                 if (state.open === control) close(host, true); else open(host, control);
             } else if (enabled(host)) {
                 // Let native link/command activation complete before dismissing.
+                state.queuedActivations++;
                 queueMicrotask(() => {
+                    state.queuedActivations--;
                     if (consumeCemTaskActivation(control) || event.defaultPrevented || !host.isConnected) return;
                     dismiss(host); host.dispatchEvent(new Event('cem-popup-dismiss', { bubbles: true }));
                 });
@@ -331,11 +335,22 @@ export const CEM_COMPOSITE_MENU_CAPABILITY: CemProducedElementBehavior = {
 };
 
 /** Read-only portable state; listeners, generated IDs and grants are reacquired. */
-export function cemCompositeMenuCheckpoint(instance: HTMLElement) {
+export function cemCompositeMenuCheckpoint(instance: HTMLElement, resolve: (node: HTMLElement) => CheckpointEndpoint | undefined) {
     const state = states.get(instance);
-    // Open submenu sessions retain return-focus, task relay and geometry authority.
-    if (!state?.abort || state.abort.signal.aborted || state.syncing || state.open || state.openPanel || state.parent) return undefined;
+    if (!instance.isConnected || !state?.abort || state.abort.signal.aborted || state.syncing || state.queuedActivations) return undefined;
+    // Explicit geometry/focus policies require their own authority contracts.
+    if (['anchor', 'boundary', 'focus-target', 'return-focus'].some(name => instance.hasAttribute(name) || instance.hasAttribute(`data-cem-node-ref-${name}`))) return undefined;
+    const parentHost = parentMenu(instance) ?? undefined, launcherControl = owner(instance) ?? undefined;
+    if (state.parent !== parentHost || !!parentHost !== !!launcherControl || !rootMenu(instance)) return undefined;
+    if (parentHost && panelFor(launcherControl!) !== instance) return undefined;
+    const parent = parentHost ? resolve(parentHost) : null, launcher = launcherControl ? resolve(launcherControl) : null;
+    const panelHost = state.open && panelFor(state.open);
+    if (state.open && unavailable(state.open) || !!state.open !== !!state.openPanel || state.openPanel !== (panelHost ?? undefined)
+        || state.openPanel && (state.openPanel.hidden || !stateFor(state.openPanel).geometryReady)) return undefined;
+    const panel = state.openPanel ? resolve(state.openPanel) : null;
+    if (parent === undefined || launcher === undefined || panel === undefined) return undefined;
     const activeNode = state.active?.getAttribute('data-cem-render-node-id') ?? null;
-    if (state.active && (!activeNode || !instance.contains(state.active))) return undefined;
-    return { kind: 'composite-menu' as const, activeNode, typeahead: state.buffer, typeaheadAt: state.typedAt, open: false as const };
+    if (state.active && (!activeNode || !controls(instance).includes(state.active))) return undefined;
+    const contract: CheckpointMenu = { parent, launcher, panel, disposition: 'reacquire' };
+    return { kind: 'composite-menu' as const, activeNode, typeahead: state.buffer, typeaheadAt: state.typedAt, open: !!state.open, state: contract };
 }

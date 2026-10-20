@@ -166,7 +166,7 @@ export class CemNativeCapabilitySession {
                 }, (handle, index) => {
                     let source = this.rowSources.get(handle);
                     if (!source) {
-                        source = createCemNativeSuggestionSource(() => this.valid, expire => { this.sourceExpiryListeners.add(expire); return () => { this.sourceExpiryListeners.delete(expire); }; }, index);
+                        source = createCemNativeSuggestionSource(() => this.valid, expire => { this.sourceExpiryListeners.add(expire); return () => { this.sourceExpiryListeners.delete(expire); }; }, index, () => this.checkpointSource());
                         this.rowSources.set(handle, source);
                     }
                     return source;

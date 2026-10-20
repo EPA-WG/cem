@@ -2893,7 +2893,7 @@ export class CemElementRuntime {
         void this.whenRenderSettled(instance).then(() => { if (owner && this.checkpointOwners.get(instance) === owner) owner.settled(); }, () => undefined);
     }
     private checkpointAdapterOwnsInteraction(compiled: CompiledDeclaration): boolean {
-        return [CEM_SUGGESTIONS_CAPABILITY, CEM_FORM_CONTROL_CAPABILITY, CEM_POPUP_CAPABILITY, CEM_NATIVE_SURFACE_CAPABILITY].includes(compiled.behavior!);
+        return [CEM_SUGGESTIONS_CAPABILITY, CEM_FORM_CONTROL_CAPABILITY, CEM_POPUP_CAPABILITY, CEM_NATIVE_SURFACE_CAPABILITY, CEM_COMPOSITE_MENU_CAPABILITY].includes(compiled.behavior!);
     }
     get checkpointCaptureEnabled(): boolean { return !!this.checkpointPublication; }
 
@@ -2913,7 +2913,7 @@ export class CemElementRuntime {
         else if (compiled.behavior === CEM_TREE_VIEW_CAPABILITY) capability = cemTreeViewCheckpoint(instance) ?? null;
         else if (compiled.behavior === CEM_TAB_PANELS_CAPABILITY) capability = cemTabPanelsCheckpoint(instance) ?? null;
         else if (compiled.behavior === CEM_NAVIGATION_LANDMARK_CAPABILITY) capability = cemNavigationLandmarkCheckpoint(instance) ?? null;
-        else if (compiled.behavior === CEM_COMPOSITE_MENU_CAPABILITY) capability = cemCompositeMenuCheckpoint(instance) ?? null;
+        else if (compiled.behavior === CEM_COMPOSITE_MENU_CAPABILITY) capability = cemCompositeMenuCheckpoint(instance, element => this.checkpointEndpoint(element)) ?? null;
         else if (compiled.behavior === CEM_POPUP_CAPABILITY) capability = cemPopupCheckpoint(instance) ?? null;
         else if (compiled.behavior === CEM_NATIVE_SURFACE_CAPABILITY) capability = cemNativeSurfaceCheckpoint(instance, element => this.checkpointEndpoint(element)) ?? null;
         else if (compiled.behavior === CEM_SUGGESTIONS_CAPABILITY) {
@@ -3019,6 +3019,13 @@ export class CemElementRuntime {
             const editor = cemSuggestionsCheckpointEditor(instance), provider = editor && this.checkpointEndpoint(editor);
             if (!provider || !cemSuggestionsCheckpoint(instance)) return undefined;
             result.push({ id: `${requester.instanceId}:editor`, kind: 'editor-provider', requester, provider, property: 'suggestions', disposition: 'reacquire' });
+        }
+        if (this.declarationForInstance(instance)?.behavior === CEM_COMPOSITE_MENU_CAPABILITY) {
+            const menu = cemCompositeMenuCheckpoint(instance, element => this.checkpointEndpoint(element));
+            if (!menu) return undefined;
+            for (const [name, provider] of [['interaction', menu.state.parent], ['return-focus', menu.state.launcher], ['anchor', menu.state.panel]] as const) {
+                if (provider) result.push({ id: `${requester.instanceId}:menu:${name}`, kind: 'placement', requester, provider, property: name, disposition: 'reacquire' });
+            }
         }
         if (this.declarationForInstance(instance)?.behavior === CEM_NATIVE_SURFACE_CAPABILITY) {
             const invocation = cemNativeSurfaceCheckpoint(instance, element => this.checkpointEndpoint(element))?.state.invocation;
