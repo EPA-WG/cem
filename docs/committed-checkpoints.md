@@ -170,15 +170,38 @@ and fresh host authority; no old source object, publication, lease or token is
 serialized. Pending queries, composition, armed pointer/key commits, ancestors
 with unsupported surface lifetimes and stale placements block capture.
 
+Settled inactive listbox states have a separate strict `phase: inactive`
+contract for idle, failed and unavailable providers. It retains original source
+intent, profile, provider/query revisions, editor query and feedback intent, with
+zero row count and no row, active-selection or committed-proof fields. Local
+sources supply their original captured XML and label selectors; external hosts
+must explicitly supply original source intent. Missing provenance, pending
+queries/readiness, composition, retained proofs or revoked host policy still
+block capture. Source validation does not retry a query or replay an action.
+
+Native datalist capture uses `phase: native-datalist`: original native source,
+provider revision, owned datalist render-node identity, attached/unavailable claim
+state and `presentation: reset-on-resume`. Input type, edits, validity and caret
+remain in the provider/control record. The exact shared lease accounts for both
+attachment and placement subscriptions. Native picker visibility/selection is
+not observable, so a focused native-datalist editor refuses the complete domain;
+only its settled, unfocused model is portable. Resume requires fresh list/target
+ownership and never restores an old browser picker or grants row-selection proof.
+Failed local native sources retain an inactive source contract after releasing
+claims/subscriptions; capture does not retry unchanged invalid sources. Repair
+creates fresh native admission. One weakly owned current original-source snapshot
+is retained, without native connections or a history of sources.
+
 A form provider can admit exactly one accounted shared suggestions consumer.
 The shared adapter checks its exclusive lease, both attribute claim objects,
-subscriptions and all validity owners (including empty claims), and captures
+subscriptions and all validity owners (including empty claims). Ready listboxes,
+attached datalists and inactive/unavailable consumers require exactly their
+attributes, datalist or empty claim state respectively. Capture retains
 provider revision/consumer/validity state. A completed commit's exact revision/value
 and one-shot duplicate-native-change suppression are portable; a held key or
 mismatched suppression record still blocks capture. Unknown subscriptions, competing
 leases/claims or out-of-domain consumers block the complete checkpoint. Ordinary
-widget admission and behavior are unchanged. Native datalist and other
-unaccounted provider consumers remain unsupported.
+widget admission and behavior are unchanged. Other unaccounted provider consumers remain unsupported.
 
 `CemNativeCapabilitySession.prepare(..., signal, true)` explicitly opts a trusted
 host source into capture; declarative local suggestions select this only when
@@ -195,7 +218,9 @@ source traversal policies, nonempty input data, additional native bindings and
 unaccounted source ownership remain blocking.
 
 Source invocation snapshots copy original bytes and metadata before native
-processing. Later caller buffer or selector mutations cannot change the captured
+processing, including before asynchronous native-session submission. Execution
+and the private checkpoint receive independent copies of the same admitted input;
+caller mutation during preparation cannot rewrite either source bytes or selectors. Later caller buffer or selector mutations cannot change the captured
 frame's provenance. Passive reference inputs are retained even when a frame does
 not use a placement. Adapter state can be acknowledged after its existing
 DOM/CSS publication settles, without forcing a template rerender that would

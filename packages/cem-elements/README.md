@@ -36,6 +36,16 @@ unknown leases, pending work, gestures, retained bodies and unaccounted source
 inputs remain blocking. These contracts do not enable runtime replacement or
 semantic resume; ordinary hydration still rejects checkpoint extensions.
 
+Settled idle/failed/unavailable listbox sources preserve original XML and query
+intent through a separate inactive checkpoint contract, without stale row proofs.
+Native datalist capture accounts for the exact provider/placement subscriptions
+and preserves original source, input edits and attached/unavailable claim intent.
+Its editor must be unfocused because browser picker state cannot be observed;
+presentation resets and relationships are freshly admitted on future resume.
+Failed local native sources can be captured without automatically retrying them.
+Portable opt-in native-session inputs are copied before asynchronous submission so caller
+mutations cannot change execution or captured source provenance.
+
 
 Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
 

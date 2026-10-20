@@ -319,3 +319,48 @@ fn completed_provider_commits_keep_exact_one_shot_change_suppression() {
     s["capability"]["changeSuppression"]["disposition"] = json!("replay");
     assert!(validate(&s.to_string()).is_err());
 }
+
+#[test]
+fn inactive_suggestions_preserve_source_intent_without_old_proofs() {
+    let source = json!({"version":"cem-native-source/1","revision":"source:inactive","rowCount":0,"select":"input.children","resolve":false,"requesting":0,
+        "sources":[{"codec":"xml","base64":STANDARD.encode("<options/>"),"sourceUri":"https://example.test/options.xml","primarySourceId":1,"context":true}],"bindings":[],"crossings":[],"labels":{"option":null,"group":null},"disposition":"reacquire"});
+    for profile in ["listbox", "native-datalist"] {
+        for feedback in ["idle", "failed", "unavailable"] {
+            let mut s = state();
+            s["capability"] = json!({"kind":"suggestions","state":{"phase":"inactive","profile":profile,"source":source,"providerRevision":4,"queryRevision":5,"query":"edited","feedbackState":feedback,"feedbackIntent":false,"editable":feedback != "unavailable"}});
+            assert!(validate(&s.to_string()).is_ok(), "{s}");
+            for (key, value) in [
+                ("feedbackState", json!("pending")),
+                ("activeIndex", json!(0)),
+                ("committedValue", json!("old")),
+                ("lease", json!("old")),
+                ("providerRevision", json!(9_007_199_254_740_992u64)),
+            ] {
+                let mut bad = s.clone();
+                bad["capability"]["state"][key] = value;
+                assert!(validate(&bad.to_string()).is_err(), "{key}");
+            }
+        }
+    }
+}
+#[test]
+fn native_datalist_checkpoints_reacquire_claims_and_reset_ua_presentation() {
+    let mut s = state();
+    s["capability"] = json!({"kind":"suggestions","state":{"phase":"native-datalist","providerRevision":3,"targetNode":"datalist.1","claim":"attached","presentation":"reset-on-resume",
+        "source":{"version":"cem-native-source/1","revision":"source:datalist","rowCount":1,"select":"input.children","resolve":false,"requesting":0,
+        "sources":[{"codec":"xml","base64":STANDARD.encode("<options><option value='A'/></options>"),"sourceUri":"https://example.test/options.xml","primarySourceId":1,"context":true}],"bindings":[],"crossings":[],"labels":{"option":null,"group":null},"disposition":"reacquire"}}});
+    assert!(validate(&s.to_string()).is_ok());
+    s["capability"]["state"]["claim"] = json!("unavailable");
+    assert!(validate(&s.to_string()).is_ok());
+    for (key, value) in [
+        ("targetNode", json!("")),
+        ("claim", json!("restore-old-lease")),
+        ("presentation", json!("restore-popup")),
+        ("rows", json!([])),
+        ("providerRevision", json!(9_007_199_254_740_992u64)),
+    ] {
+        let mut bad = s.clone();
+        bad["capability"]["state"][key] = value;
+        assert!(validate(&bad.to_string()).is_err(), "{key}");
+    }
+}

@@ -1,4 +1,4 @@
-import type { CheckpointSuggestions } from './checkpoint-interactions.js';
+import type { CheckpointSuggestions, CheckpointSource, CheckpointReadySuggestions } from './checkpoint-interactions.js';
 import { checkpointSuggestionIndex } from './native-suggestions-publication.js';
 import type { CemPlatformCloseCoordinator, CemPlatformCloseLease } from './platform-close.js';
 import { getCemEditorProvider, registerCemEditorCheckpoint, subscribeCemEditorCheckpoint } from './form-control-capability.js';
@@ -13,6 +13,8 @@ export interface CemSuggestionsControllerOptions {
     listbox: HTMLElement;
     /** The trusted host renders and grants a native publication before returning its placements. */
     prepare(query: string, queryRevision: number): Promise<CemSuggestionsPlacements>;
+    /** Trusted original source intent for settled inactive states; not live authority. */
+    checkpointSource?(): CheckpointSource | undefined;
     ancestors?: readonly CemSurfaceLifetime[];
     /** Explicit trusted host admission; never enabled by local markup. */
     platformClose?: CemPlatformCloseCoordinator;
@@ -270,14 +272,24 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
     editor.addEventListener('select', () => { active = undefined; claim(); }, { signal: abort.signal });
     editor.addEventListener('focusout', () => { dismiss('focus'); }, { signal: abort.signal });
     const checkpoint = (): CheckpointSuggestions | undefined => {
-        if (!bound() || pending || pointer || reconciling || platformClose || popup?.pending || !current()
-            || options.ancestors?.length || feedbackState !== 'ready') return undefined;
+        if (!bound() || pending || pointer || reconciling || platformClose || popup?.pending || provider.composing
+            || options.ancestors?.length || host.getAttribute('options-state') === 'pending') return undefined;
+        if (feedbackState !== 'ready' || !provider.editable) {
+            // No stale publication/proof survives an inactive source contract.
+            if (feedbackState === 'pending' || active || committed || popup?.visible) return undefined;
+            const source = options.checkpointSource?.();
+            if (!source || source.rowCount !== 0) return undefined;
+            return { phase: 'inactive', profile: 'listbox', source, providerRevision: provider.revision, queryRevision,
+                query: editor.value, feedbackState: !provider.editable ? 'unavailable' : feedbackState === 'failed' ? 'failed' : 'idle',
+                feedbackIntent: provider.editable && feedbackIntent, editable: provider.editable };
+        }
+        if (!current()) return undefined;
         const config = placements?.binding.config;
         if (!config || config.profile === 'native-datalist') return undefined;
         const source = placements?.binding.checkpointSource();
         if (!source || !placements || placements.rows.length > 1024) return undefined;
         let size = query.length + (committed?.value.length ?? 0);
-        const rows: CheckpointSuggestions['rows'] = [];
+        const rows: CheckpointReadySuggestions['rows'] = [];
         for (const row of placements.rows) {
             const index = checkpointSuggestionIndex(row.native.source), nodeId = row.element.getAttribute('data-cem-render-node-id');
             size += row.native.value.length + (nodeId?.length ?? 0);
@@ -291,7 +303,8 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
             feedbackState: 'ready', activeIndex, committedIndex, committedValue: committed?.value ?? null,
             visible: !!popup?.visible, scrollTop: options.listbox.scrollTop, scrollLeft: options.listbox.scrollLeft, rows };
     };
-    releases.push(registerCemEditorCheckpoint(provider, { host, owner: checkpointOwner, lease, current: () => !!checkpoint() }));
+    releases.push(registerCemEditorCheckpoint(provider, { host, owner: checkpointOwner, lease, current: () => !!checkpoint(),
+        claim: () => { const state = checkpoint(); return state ? 'phase' in state ? 'none' : 'attributes' : undefined; } }));
     void request(false); updateValidity();
     return {
         checkpoint,

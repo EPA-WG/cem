@@ -60,7 +60,16 @@ export class CemNativeCapabilitySession {
     static async prepare(host: CemProcessingHost, input: Extract<CemProcessingNativeSessionInput, { action: 'prepare' }>,
         current: () => boolean, signal?: AbortSignal, checkpoint = false): Promise<CemNativeCapabilitySession> {
         const handle = Object.freeze({ ...input.handle });
-        const job = host.nativeSession({ ...input, handle });
+        let checkpointInput: Extract<CemProcessingNativeSessionInput, { action: 'prepare' }> | undefined;
+        // Copy before submission, so async caller aliases cannot change admitted provenance.
+        const sourceInputs = input.sources.kind === 'cem-native-session-import-v1' ? [input.sources.bytes] : input.sources.sources.map(source => source.bundle);
+        const metadataBounded = input.sources.kind === 'cem-native-session-import-v1' ? input.sources.sourceUri.length <= 4096
+            : input.sources.bindings.length <= 256 && input.sources.grants.length <= 256
+                && input.sources.bindings.every(binding => binding.name.length <= 1024 && binding.select.length <= 4096);
+        if (checkpoint && metadataBounded && input.select.length <= 4096 && handle.sourceRevision.length <= 1024
+            && Object.values(input.labelTemplates ?? {}).every(value => value.length <= 4096) && sourceInputs.length <= 64 && sourceInputs.reduce((sum, bytes) => sum + bytes.byteLength, 0) <= 256 * 1024
+            && !Object.keys(input.data).length && !input.nativeAttributes?.length && !input.nativeSlices?.length) checkpointInput = structuredClone(input);
+        const job = host.nativeSession({ ...(checkpointInput ? structuredClone(checkpointInput) : input), handle });
         const cancel = () => { void host.cancel({ targetJobId: job.jobId, reason: 'superseded' }).result.catch(() => undefined); };
         signal?.addEventListener('abort', cancel, { once: true });
         try {
@@ -71,14 +80,7 @@ export class CemNativeCapabilitySession {
                 throw new Error('Native capability preparation was superseded');
             }
             const session = new CemNativeCapabilitySession(host, handle, result.length, () => !signal?.aborted && current(), signal, result.suggestions);
-            // Explicit opt-in only. Never retain a JS materialization of source ASTs.
-            const sourceInputs = input.sources.kind === 'cem-native-session-import-v1' ? [input.sources.bytes] : input.sources.sources.map(source => source.bundle);
-            const metadataBounded = input.sources.kind === 'cem-native-session-import-v1' ? input.sources.sourceUri.length <= 4096
-                : input.sources.bindings.length <= 256 && input.sources.grants.length <= 256
-                    && input.sources.bindings.every(binding => binding.name.length <= 1024 && binding.select.length <= 4096);
-            if (checkpoint && metadataBounded && input.select.length <= 4096 && handle.sourceRevision.length <= 1024
-                && Object.values(input.labelTemplates ?? {}).every(value => value.length <= 4096) && sourceInputs.length <= 64 && sourceInputs.reduce((sum, bytes) => sum + bytes.byteLength, 0) <= 256 * 1024
-                && !Object.keys(input.data).length && !input.nativeAttributes?.length && !input.nativeSlices?.length) session.checkpointInput = structuredClone(input);
+            session.checkpointInput = checkpointInput;
             return session;
         } catch (error) {
             await host.nativeSession({ action: 'release', handle }).result.catch(() => undefined);

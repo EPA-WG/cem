@@ -653,6 +653,10 @@ export const SettledSurfacesAndTransientSessionRefusal: Story = {
     },
 };
 
+function readySuggestionsCheckpoint(host: HTMLElement) {
+    const state = cemSuggestionsCheckpoint(host);
+    return state && !('phase' in state) ? state : undefined;
+}
 async function activeSuggestionsCheckpointContract(canvasElement: HTMLElement, mode: boolean): Promise<void> {
         await init(); const root = canvasElement.querySelector('section')!;
         for (const fallback of [mode]) {
@@ -665,7 +669,7 @@ async function activeSuggestionsCheckpointContract(canvasElement: HTMLElement, m
                 await f.runtime.whenRenderSettled(host);
                 const field = host.querySelector<HTMLElement>(tag)!; await f.runtime.whenRenderSettled(field);
                 const input = field.querySelector('input')!;
-                const ready = () => waitFor(() => expect(cemSuggestionsCheckpoint(host)).toBeDefined());
+                const ready = () => waitFor(() => expect(readySuggestionsCheckpoint(host)).toBeDefined());
                 const capture = () => waitFor(async () => { await f.coordinator.capture(); });
                 await ready();
                 const revision = f.runtime.readInstanceSnapshot(host).dataRevision;
@@ -675,9 +679,9 @@ async function activeSuggestionsCheckpointContract(canvasElement: HTMLElement, m
                 input.focus(); input.value = 'same'; input.dispatchEvent(new InputEvent('input', { bubbles: true }));
                 await ready(); await capture();
                 input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-                await ready(); await capture(); expect(cemSuggestionsCheckpoint(host)?.activeIndex).toBe(0);
+                await ready(); await capture(); expect(readySuggestionsCheckpoint(host)?.activeIndex).toBe(0);
                 input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-                await capture(); expect(cemSuggestionsCheckpoint(host)?.activeIndex).toBe(1);
+                await capture(); expect(readySuggestionsCheckpoint(host)?.activeIndex).toBe(1);
                 const listbox = host.querySelector<HTMLElement>('[part~=surface]')!;
                 listbox.querySelector('[role=option]')!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse', isPrimary: true, pointerId: 1, button: 0 }));
                 await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
@@ -686,10 +690,10 @@ async function activeSuggestionsCheckpointContract(canvasElement: HTMLElement, m
                 await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
                 input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true }));
                 await ready(); await capture();
-                expect(cemSuggestionsCheckpoint(host)?.committedIndex).toBe(1); expect(input.value).toBe('same');
+                expect(readySuggestionsCheckpoint(host)?.committedIndex).toBe(1); expect(input.value).toBe('same');
                 const saved = decode(f.coordinator).owners.find(owner => owner.island.includes('cem-native-source/1'))!.island;
                 expect(saved).toContain('committedIndex'); expect(saved).not.toContain('sessionKey');
-                const captured = cemSuggestionsCheckpoint(host)!;
+                const captured = readySuggestionsCheckpoint(host)!;
                 const copyScope = createCemDeclarationScope({ document });
                 const copyOwner = cemProcessingHostForScope(copyScope, { workerScriptUrl: new URL('./internal/runtime-support/processing-worker.ts', import.meta.url),
                     ...(fallback ? { workerFactory: () => { throw new Error('independent checkpoint fallback'); } } : {}) });
@@ -761,4 +765,130 @@ export const CommittedPlacementCaptureAndRevocation: Story = {
             } finally { f.dispose(); placements.dispose(); }
         }
     },
+};
+
+async function remainingSuggestionsFixture(root: HTMLElement, fallback: boolean, profile: 'listbox' | 'native-datalist', type = 'text', readonly = false) {
+    const f = fixture(root, fallback, false, undefined, { localSuggestions: true });
+    const declaration = await f.create(declarationTemplate(fieldDeclaration), 'cem-ml', root, undefined, 'form-control');
+    await f.runtime.whenRenderSettled(declaration); const tag = declaration.localName; declaration.remove();
+    const host = await f.create(declarationTemplate(suggestionsDeclaration), 'cem-ml', root,
+        `<${tag} slot="editor" type="${type}" name="choice" label="Choice"${readonly ? ' readonly' : ''}></${tag}><template slot="options"><option value="1" label="One">One</option><option value="2" label="Two">Two</option></template>`,
+        'suggestions', profile === 'listbox' ? { filter: 'none' } : { profile });
+    await f.runtime.whenRenderSettled(host);
+    const field = host.querySelector<HTMLElement>(tag)!; await f.runtime.whenRenderSettled(field);
+    const input = field.querySelector('input')!;
+    const capture = () => waitFor(async () => { await f.coordinator.capture(); });
+    return { f, host, field, input, capture };
+}
+async function inactiveSuggestionsContract(canvasElement: HTMLElement, fallback: boolean) {
+    await init(); const root = canvasElement.querySelector<HTMLElement>('section')!;
+    const { f, host, field, input, capture } = await remainingSuggestionsFixture(root, fallback, 'listbox', 'text', true);
+    const inactive = () => { const state = cemSuggestionsCheckpoint(host); return state && 'phase' in state && state.phase === 'inactive' ? state : undefined; };
+    try {
+        await waitFor(() => expect(inactive()?.feedbackState).toBe('unavailable')); await capture();
+        expect(inactive()?.source.rowCount).toBe(0);
+        field.removeAttribute('readonly'); await f.runtime.whenRenderSettled(field);
+        await waitFor(() => expect(inactive()?.feedbackState).toBe('idle')); await capture();
+        const provider = getCemEditorProvider(field)!;
+        const foreign = provider.subscribe(() => undefined);
+        await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); foreign(); await capture();
+        const validity = provider.validity({});
+        await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); validity.release(); await capture();
+        input.focus(); await waitFor(() => expect(readySuggestionsCheckpoint(host)).toBeDefined());
+        host.setAttribute('require-selection', '');
+        input.value = 'Unsaved'; input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        await waitFor(() => expect(readySuggestionsCheckpoint(host)?.query).toBe('Unsaved')); await capture();
+        host.setAttribute('options-state', 'failed');
+        await waitFor(() => expect(inactive()?.feedbackState).toBe('failed')); await capture();
+        expect(inactive()?.query).toBe('Unsaved'); expect(inactive()?.source.rowCount).toBe(0);
+        expect(input.validationMessage).toBe('Select a suggestion.');
+        expect(atob(inactive()!.source.sources[0].base64)).toContain('One');
+        const saved = decode(f.coordinator).owners.find(owner => owner.island.includes('cem-native-source/1'))!.island;
+        expect(saved).not.toContain('committedIndex'); expect(saved).not.toContain('sessionKey');
+        input.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+        await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+        input.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true })); await capture();
+        host.setAttribute('options-state', 'pending'); await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+        host.setAttribute('options-state', 'ready');
+        await waitFor(() => expect(readySuggestionsCheckpoint(host)).toBeDefined()); await capture();
+        expect(input.value).toBe('Unsaved');
+        const last = f.coordinator.lastCommitted()!.bytes;
+        f.runtime.setLocalSuggestionsEnabled(false); await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+        expect(f.coordinator.lastCommitted()!.bytes).toEqual(last);
+        f.runtime.setLocalSuggestionsEnabled(true);
+        await waitFor(() => expect(readySuggestionsCheckpoint(host)).toBeDefined()); await capture();
+    } finally { f.dispose(); }
+}
+export const InactiveSuggestionsCheckpoint: Story = {
+    render: () => '<section aria-label="Inactive suggestions worker checkpoint"></section>',
+    play: ({ canvasElement }) => inactiveSuggestionsContract(canvasElement, false),
+};
+export const InactiveSuggestionsCheckpointFallback: Story = {
+    render: () => '<section aria-label="Inactive suggestions fallback checkpoint"></section>',
+    play: ({ canvasElement }) => inactiveSuggestionsContract(canvasElement, true),
+};
+async function nativeDatalistCheckpointContract(canvasElement: HTMLElement, fallback: boolean) {
+    await init(); const root = canvasElement.querySelector<HTMLElement>('section')!; root.tabIndex = -1;
+    for (const type of ['text', 'email', 'number']) {
+        const { f, host, field, input, capture } = await remainingSuggestionsFixture(root, fallback, 'native-datalist', type);
+        const datalist = () => { const state = cemSuggestionsCheckpoint(host); return state && 'phase' in state && state.phase === 'native-datalist' ? state : undefined; };
+        try {
+            await waitFor(() => expect(datalist()?.claim).toBe('attached')); await capture();
+            expect(input.type).toBe(type); expect(input.list?.options.length).toBe(2);
+            expect(input.hasAttribute('aria-controls')).toBe(false);
+            expect(datalist()?.source.rowCount).toBe(2);
+            expect(f.coordinator.current()!.receipt.relationships?.some(edge => edge.kind === 'editor-provider')).toBe(true);
+            const last = f.coordinator.lastCommitted()!.bytes;
+            input.focus(); input.value = '2'; input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+            await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); expect(f.coordinator.lastCommitted()!.bytes).toEqual(last);
+            root.focus(); await capture(); expect(input.value).toBe('2');
+            const foreign = getCemEditorProvider(field)!.subscribe(() => undefined);
+            await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); foreign(); await capture();
+            field.setAttribute('readonly', ''); await f.runtime.whenRenderSettled(field);
+            await waitFor(() => expect(datalist()?.claim).toBe('unavailable')); await capture();
+            expect(input.hasAttribute('list')).toBe(false);
+            field.removeAttribute('readonly'); await f.runtime.whenRenderSettled(field);
+            await waitFor(() => expect(datalist()?.claim).toBe('attached')); await capture();
+            const source = f.runtime.localSuggestionsEnvironmentFor(host)!.optionsSources[0] as HTMLTemplateElement;
+            source.innerHTML = '<option value="3" label="New">New</option>';
+            await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+            await waitFor(() => expect(datalist()?.source.rowCount).toBe(1)); await capture();
+            expect(atob(datalist()!.source.sources[0].base64)).toContain('New'); expect(input.list?.options[0].value).toBe('3');
+            if (type === 'text') {
+                const inactive = () => { const state = cemSuggestionsCheckpoint(host); return state && 'phase' in state && state.phase === 'inactive' ? state : undefined; };
+                host.setAttribute('options-state', 'failed');
+                await waitFor(() => expect(inactive()?.feedbackState).toBe('failed')); await capture();
+                expect(input.hasAttribute('list')).toBe(false); expect(inactive()?.profile).toBe('native-datalist');
+                host.setAttribute('options-state', 'pending'); await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                host.setAttribute('options-state', 'ready'); await waitFor(() => expect(datalist()?.claim).toBe('attached')); await capture();
+                source.innerHTML = '<optgroup label="Unsupported"><option value="x">X</option></optgroup>';
+                await waitFor(() => expect(inactive()?.feedbackState).toBe('failed')); await capture();
+                expect(atob(inactive()!.source.sources[0].base64)).toContain('Unsupported');
+                expect(input.hasAttribute('list')).toBe(false);
+                // Equal bytes still schedule a source handover; reject the now-stale async export.
+                const failedSourceCommit = f.coordinator.lastCommitted()!.bytes;
+                source.innerHTML = source.innerHTML;
+                await expect(f.coordinator.capture()).rejects.toThrow('cem.checkpoint.stale');
+                expect(f.coordinator.current()).toBeUndefined();
+                expect(f.coordinator.lastCommitted()!.bytes).toEqual(failedSourceCommit);
+                await waitFor(() => expect(inactive()?.feedbackState).toBe('failed')); await capture();
+                source.innerHTML = '<option value="3" label="New">New</option>';
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                await waitFor(() => expect(datalist()?.claim).toBe('attached')); await capture();
+            }
+            input.setAttribute('list', 'author-owned'); await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+            input.removeAttribute('list'); await waitFor(() => expect(datalist()?.claim).toBe('attached')); await capture();
+            f.runtime.setLocalSuggestionsEnabled(false); await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+            f.runtime.setLocalSuggestionsEnabled(true); await waitFor(() => expect(datalist()?.claim).toBe('attached')); await capture();
+            expect(input.value).toBe('2');
+        } finally { f.dispose(); }
+    }
+}
+export const NativeDatalistCheckpoint: Story = {
+    render: () => '<section aria-label="Native datalist worker checkpoint"></section>',
+    play: ({ canvasElement }) => nativeDatalistCheckpointContract(canvasElement, false),
+};
+export const NativeDatalistCheckpointFallback: Story = {
+    render: () => '<section aria-label="Native datalist fallback checkpoint"></section>',
+    play: ({ canvasElement }) => nativeDatalistCheckpointContract(canvasElement, true),
 };

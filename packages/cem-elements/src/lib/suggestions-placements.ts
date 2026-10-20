@@ -1,5 +1,5 @@
 import { DEFAULT_CEM_VALUE_ARTIFACT_LIMITS, type CemValueArtifactLimits } from './native-values.js';
-import { getCemEditorProvider, type CemEditorProvider } from './form-control-capability.js';
+import { getCemEditorProvider, isCemEditorLeaseFor, subscribeCemEditorCheckpoint, type CemEditorProvider, type CemEditorLease } from './form-control-capability.js';
 import { isCemNativeSuggestionsBinding, isCemNativeSuggestionRow, isCemNativeSuggestionRowFor, type CemNativeSuggestionRow, type CemNativeSuggestionsBinding } from './native-suggestions-publication.js';
 
 export interface CemSuggestionsPlacementLease { dispose(): void }
@@ -143,7 +143,7 @@ export class CemSuggestionsPlacementCoordinator {
         });
     }
     /** Host prepares a complete option projection before issuing this transient authority. */
-    prepareDatalist(editorLease: CemSuggestionsPlacementLease, datalistLease: CemSuggestionsPlacementLease): CemDatalistPlacements {
+    prepareDatalist(editorLease: CemSuggestionsPlacementLease, datalistLease: CemSuggestionsPlacementLease, checkpointLease?: CemEditorLease): CemDatalistPlacements {
         const editorEntry = this.entries.get(editorLease), target = this.entries.get(datalistLease);
         if (!editorEntry || editorEntry.description.kind !== 'editor' || !target || target.description.kind !== 'datalist') {
             throw new Error('Invalid datalist placement mapping');
@@ -174,6 +174,7 @@ export class CemSuggestionsPlacementCoordinator {
                         && grant.entry === editorEntry && grant.properties.has('editor-for'));
             } catch { return false; }
         };
+        if (checkpointLease && !isCemEditorLeaseFor(checkpointLease, provider)) throw new Error('Datalist checkpoint lease belongs to another provider');
         if (!check()) throw new Error('Datalist requires prepared options and current placement grants in both directions');
         const inserted = !datalist.hasAttribute('id');
         if (inserted) datalist.id = target.id;
@@ -196,7 +197,8 @@ export class CemSuggestionsPlacementCoordinator {
             subscribe: (listener: () => void) => { if (expired) { listener(); return () => undefined; } listeners.add(listener); return () => { listeners.delete(listener); }; },
             release: invalidate,
         });
-        const stopProvider = provider.subscribe(() => { if (!check()) invalidate(); });
+        const onProvider = () => { if (!check()) invalidate(); };
+        const stopProvider = checkpointLease ? subscribeCemEditorCheckpoint(provider, checkpointLease, onProvider) : provider.subscribe(onProvider);
         datalistAdmissions.add(placements); return placements;
     }
     refresh(): void { for (const admission of [...this.admissions]) if (!admission.check()) admission.invalidate(); }

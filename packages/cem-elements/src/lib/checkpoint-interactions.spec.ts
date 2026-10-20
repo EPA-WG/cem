@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkpointReferenceSource, snapshotCheckpointReferences } from './checkpoint-interactions.js';
+import { checkpointReferenceSource, snapshotCheckpointReferences, checkpointXmlSource } from './checkpoint-interactions.js';
 import type { CemElementReferenceInputs } from './element-reference-inputs.js';
 const input = (): CemElementReferenceInputs => ({ kind: 'cem-element-reference-inputs-v1', requesting: 0,
     sources: [{ bundle: Uint8Array.of(1, 2, 3).buffer, primarySourceId: 1, context: true }],
@@ -21,5 +21,16 @@ describe('checkpoint source invocation snapshots', () => {
         expect(snapshotCheckpointReferences(oversized)).toBeUndefined();
         const policy = input(); policy.sources[0].maxWork = 10;
         expect(snapshotCheckpointReferences(policy)).toBeUndefined();
+    });
+});
+
+describe('inactive original XML source intent', () => {
+    it('copies scalar labels and retains bytes without manufacturing row proofs', () => {
+        const labels = { option: 'input.children', group: null };
+        const source = checkpointXmlSource('<options/>', 'memory:options.xml', 'source:1', 'input.children', labels)!;
+        labels.option = 'changed';
+        expect(source.labels.option).toBe('input.children'); expect(source.rowCount).toBe(0);
+        expect(atob(source.sources[0].base64)).toBe('<options/>'); expect(source.disposition).toBe('reacquire');
+        expect(checkpointXmlSource('é'.repeat(256 * 1024), 'memory:options.xml', '1', 'input.children')).toBeUndefined();
     });
 });

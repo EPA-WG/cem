@@ -96,6 +96,22 @@ const active = { ...runtimeState, resources: [], capability: { kind: 'suggestion
 const activeSaved = wasm.validateCheckpointRuntime(JSON.stringify(active));
 assert.equal(JSON.parse(activeSaved).capability.state.committedIndex, 1);
 assert.equal(wasm.validateCheckpointRuntime(activeSaved), activeSaved);
+for (const feedbackState of ['idle', 'failed', 'unavailable']) {
+    const inactive = { ...active, capability: { kind: 'suggestions', state: { phase: 'inactive', profile: 'listbox',
+        source: { ...active.capability.state.source, rowCount: 0 }, providerRevision: 2, queryRevision: 3, query: 'draft',
+        feedbackState, feedbackIntent: false, editable: feedbackState !== 'unavailable' } } };
+    const saved = wasm.validateCheckpointRuntime(JSON.stringify(inactive));
+    assert.equal(JSON.parse(saved).capability.state.feedbackState, feedbackState);
+    assert.equal(wasm.validateCheckpointRuntime(saved), saved);
+    inactive.capability.state.feedbackState = 'pending';
+    assert.throws(() => wasm.validateCheckpointRuntime(JSON.stringify(inactive)));
+}
+const datalist = { ...active, capability: { kind: 'suggestions', state: { phase: 'native-datalist', source: active.capability.state.source,
+    providerRevision: 2, targetNode: 'datalist.1', claim: 'attached', presentation: 'reset-on-resume' } } };
+const datalistSaved = wasm.validateCheckpointRuntime(JSON.stringify(datalist));
+assert.equal(wasm.validateCheckpointRuntime(datalistSaved), datalistSaved);
+datalist.capability.state.presentation = 'restore-popup';
+assert.throws(() => wasm.validateCheckpointRuntime(JSON.stringify(datalist)));
 const completedCommit = { ...runtimeState, resources: [], capability: { kind: 'form-control', authoredValue: null, formDisabled: false, customValidity: '', selectionRequest: null,
     provider: { revision: 4, consumer: 'suggestions', validity: '' }, changeSuppression: { revision: 4, value: 'same', disposition: 'suppress-once' } } };
 assert.equal(JSON.parse(wasm.validateCheckpointRuntime(JSON.stringify(completedCommit))).capability.changeSuppression.disposition, 'suppress-once');

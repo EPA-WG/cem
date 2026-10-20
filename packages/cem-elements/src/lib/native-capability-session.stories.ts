@@ -77,6 +77,22 @@ export const RetainedSourcesWorkerAndFallback: Story = {
                 const immutable = await preparing;
                 try { await expect(immutable.handle.sourceRevision).toBe('source-5'); }
                 finally { await immutable.release(); }
+                const originalText = '<option value="original">Original</option>';
+                const originalBytes = new TextEncoder().encode(originalText).buffer;
+                const capturedInput: Extract<CemProcessingNativeSessionInput, { action: 'prepare' }> = {
+                    action: 'prepare', adapter: 'suggestions-v1', handle: handle(6), data: {}, select: 'input.children', limits: DEFAULT_CEM_VALUE_ARTIFACT_LIMITS,
+                    sources: { kind: 'cem-native-session-import-v1', bytes: originalBytes, contentType: 'application/xml', sourceUri: 'memory:checkpoint.xml' } };
+                const capturing = CemNativeCapabilitySession.prepare(host, capturedInput, () => true, undefined, true);
+                new Uint8Array(originalBytes).fill(0); capturedInput.select = 'invalid-caller-selector'; capturedInput.handle.sourceRevision = 'caller-alias';
+                const capturedSession = await capturing;
+                try {
+                    const saved = capturedSession.checkpointSource();
+                    expect(saved?.select).toBe('input.children'); expect(saved?.revision).toBe('source-6');
+                    expect(atob(saved!.sources[0].base64)).toBe(originalText);
+                    const publication = await capturedSession.publishSuggestions({ query: '', queryRevision: 1, filter: 'none' }, () => true);
+                    const binding = publication.bind({ instanceId: 'checkpoint-reader', scopePolicyStamp: 'test', revision: '1', current: () => true });
+                    try { expect((await binding.rows())[0].value).toBe('original'); } finally { binding.release(); await publication.release(); }
+                } finally { await capturedSession.release(); }
                 const denied = input('Denied'); denied.sources.grants = [];
                 await expect(CemNativeCapabilitySession.prepare(host, denied, () => true)).rejects.toThrow();
                 const pending = input('Pending'); pending.sources.sources[0].context = false;

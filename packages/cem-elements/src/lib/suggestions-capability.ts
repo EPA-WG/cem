@@ -1,4 +1,5 @@
-import { createLocalDatalist, nativeDatalistConfiguration, type CemNativeDatalistAttachment } from './native-datalist-attachment.js';
+import { checkpointXmlSource } from './checkpoint-interactions.js';
+import { checkpointInactiveDatalist, createLocalDatalist, nativeDatalistConfiguration, type CemNativeDatalistAttachment } from './native-datalist-attachment.js';
 import { captureLocalSuggestions, localSuggestionsNamespaceStamp } from './local-suggestions-capture.js';
 import type { DataIslandSnapshot, CemProducedElementBehavior, CemProducedElementBehaviorContext } from './cem-elements.js';
 import { connectCemSuggestionsController, type CemSuggestionsController, type CemSuggestionsControllerOptions, type CemSuggestionsFeedback } from './suggestions-controller.js';
@@ -142,6 +143,12 @@ function localInputs(instance: HTMLElement, state: State): CemSuggestionsControl
     const capturedSources = [...(sourceTemplate ? [sourceTemplate] : []), ...sourceLabels];
     const namespaces = localSuggestionsNamespaceStamp(capturedSources, environment.limits);
     const sourceText = captureLocalSuggestions(instance.ownerDocument, sourceTemplate, sourceLabels, environment.limits);
+    const sourceRevision = crypto.randomUUID();
+    const checkpointSource = runtime.checkpointCaptureEnabled ? checkpointXmlSource(sourceText, instance.baseURI, sourceRevision,
+        'seq:where(input.children.children, fn(n) => n.name == "options").children', {
+            option: sourceLabels.some(label => label.slot === 'option') ? 'seq:where(input.children.children, fn(n) => n.name == "option-label")' : null,
+            group: sourceLabels.some(label => label.slot === 'group-label') ? 'seq:where(input.children.children, fn(n) => n.name == "group-label")' : null,
+        }) : undefined;
 
     const abort = new AbortController(), coordinator = new CemSuggestionsPlacementCoordinator(instance.getRootNode() as Document | ShadowRoot, environment.limits);
     let session: Promise<CemNativeCapabilitySession> | undefined, publication: CemNativeSuggestionsPublication | undefined;
@@ -155,6 +162,7 @@ function localInputs(instance: HTMLElement, state: State): CemSuggestionsControl
     for (const label of sourceLabels) { sourceObserver.observe(label, { attributes: true }); sourceObserver.observe(label.content, { childList: true, subtree: true, attributes: true, characterData: true }); }
     const local: LocalState = { template, sourceTemplate, sourceLabels, provider, abort,
         options: { editorHost, listbox,
+            checkpointSource: () => checkpointSource && local.options.current?.() ? structuredClone(checkpointSource) : undefined,
             current: () => {
                 let sameNamespaces = false;
                 try { sameNamespaces = namespaces === localSuggestionsNamespaceStamp(capturedSources, environment.limits); } catch { /* invalid capture revokes this source revision */ }
@@ -183,7 +191,7 @@ function localInputs(instance: HTMLElement, state: State): CemSuggestionsControl
                     const bytes = new TextEncoder().encode(sourceText);
                     session = CemNativeCapabilitySession.prepare(environment.owner, { action: 'prepare', adapter: 'suggestions-v1',
                         handle: { sessionKey: crypto.randomUUID(), instanceId: environment.snapshot.instanceId,
-                            scopePolicyStamp: environment.snapshot.scopePolicyStamp, sourceRevision: crypto.randomUUID() },
+                            scopePolicyStamp: environment.snapshot.scopePolicyStamp, sourceRevision },
                         sources: { kind: 'cem-native-session-import-v1', bytes: bytes.buffer as ArrayBuffer, contentType: 'application/xml', sourceUri: instance.baseURI },
                         data: {}, select: 'seq:where(input.children.children, fn(n) => n.name == "options").children', limits: environment.limits,
                         labelTemplates: {
@@ -352,7 +360,15 @@ export const CEM_SUGGESTIONS_CAPABILITY: CemProducedElementBehavior = {
 /** Only a settled shared controller can admit its exact editor provider. */
 export function cemSuggestionsCheckpoint(instance: HTMLElement) {
     const state = states.get(instance);
-    if (!state?.observer || state.queued || state.native || state.localBlocked) return undefined;
+    if (!state?.observer || state.queued || state.localBlocked || instance.getAttribute('options-state') === 'pending') return undefined;
+    if ((instance.getAttribute('profile') ?? 'listbox') === 'native-datalist') {
+        if (state.native && !state.native.failed) return state.native.checkpoint();
+        if (instance.getAttribute('options-state') !== 'failed' && !state.native?.failed) return undefined;
+        if (state.context.runtime.suggestionsControllerInputsFor(instance)) return undefined;
+        const environment = state.context.runtime.localSuggestionsEnvironmentFor(instance);
+        return environment && checkpointInactiveDatalist(instance, state.context, environment);
+    }
     return state.controller?.checkpoint();
 }
-export function cemSuggestionsCheckpointEditor(instance: HTMLElement): HTMLElement | undefined { return states.get(instance)?.options?.editorHost; }
+export function cemSuggestionsCheckpointEditor(instance: HTMLElement): HTMLElement | undefined { const state = states.get(instance);
+    return state?.native?.editorHost ?? state?.options?.editorHost ?? ((instance.getAttribute('profile') ?? 'listbox') === 'native-datalist' ? resolveCemSuggestionsEditor(instance, 'native-datalist').host : undefined); }

@@ -7,12 +7,31 @@ export interface CheckpointSource {
     bindings: { source: number; name: string; select: string }[];
     crossings: { from: number; to: number }[]; labels: { option: string | null; group: string | null }; disposition: 'reacquire';
 }
-export interface CheckpointSuggestions {
+export interface CheckpointReadySuggestions {
     source: CheckpointSource; providerRevision: number; queryRevision: number; preparedRevision: number; query: string;
     publication: { filter: string; filterBy: string | null; expanded: boolean | null; active: number | null; committed: number | null };
     intent: boolean; feedbackIntent: boolean; feedbackState: 'ready'; activeIndex: number; committedIndex: number; committedValue: string | null;
     visible: boolean; scrollTop: number; scrollLeft: number;
     rows: { index: number; value: string; eligible: boolean; available: boolean; nodeId: string }[];
+}
+export interface CheckpointInactiveSuggestions {
+    phase: 'inactive'; profile: 'listbox' | 'native-datalist'; source: CheckpointSource;
+    providerRevision: number; queryRevision: number; query: string;
+    feedbackState: 'idle' | 'failed' | 'unavailable'; feedbackIntent: boolean; editable: boolean;
+}
+export interface CheckpointDatalist {
+    phase: 'native-datalist'; source: CheckpointSource; providerRevision: number; targetNode: string;
+    claim: 'attached' | 'unavailable'; presentation: 'reset-on-resume';
+}
+export type CheckpointSuggestions = CheckpointReadySuggestions | CheckpointInactiveSuggestions | CheckpointDatalist;
+/** Original XML at an explicit source boundary; this envelope confers no authority. */
+export function checkpointXmlSource(text: string, sourceUri: string, revision: string, select: string,
+    labels: CheckpointSource['labels'] = { option: null, group: null }): CheckpointSource | undefined {
+    if (sourceUri.length > 4096 || !revision || revision.length > 1024 || select.length > 4096
+        || Object.values(labels).some(value => value !== null && value.length > 4096) || text.length > 256 * 1024) return undefined;
+    const base64 = checkpointBase64(new TextEncoder().encode(text).buffer); if (base64 === undefined) return undefined;
+    return { version: 'cem-native-source/1', revision, rowCount: 0, select, resolve: false, requesting: 0,
+        sources: [{ codec: 'xml', base64, sourceUri, primarySourceId: 1, context: true }], bindings: [], crossings: [], labels: { ...labels }, disposition: 'reacquire' };
 }
 export interface CheckpointPlacement {
     requesterNode: string; property: string; producer: string; revision: string; providerNode: string;

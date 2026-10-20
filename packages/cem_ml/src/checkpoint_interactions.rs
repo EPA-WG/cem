@@ -51,7 +51,7 @@ struct Labels {
 }
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct Suggestions {
+pub struct ReadySuggestions {
     publication: Publication,
     source: Source,
     provider_revision: u64,
@@ -68,6 +68,74 @@ pub struct Suggestions {
     scroll_top: f64,
     scroll_left: f64,
     rows: Vec<Row>,
+}
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Suggestions {
+    Ready(ReadySuggestions),
+    Inactive(InactiveSuggestions),
+    Datalist(DatalistSuggestions),
+}
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct InactiveSuggestions {
+    phase: String,
+    profile: String,
+    source: Source,
+    provider_revision: u64,
+    query_revision: u64,
+    query: String,
+    feedback_state: String,
+    feedback_intent: bool,
+    editable: bool,
+}
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DatalistSuggestions {
+    phase: String,
+    source: Source,
+    provider_revision: u64,
+    target_node: String,
+    claim: String,
+    presentation: String,
+}
+impl Suggestions {
+    pub fn validate(&mut self, bytes: &mut usize) -> Result<(), &'static str> {
+        match self {
+            Self::Ready(state) => state.validate(bytes),
+            Self::Inactive(state) => {
+                state.source.validate(bytes)?;
+                if state.phase != "inactive"
+                    || !matches!(state.profile.as_str(), "listbox" | "native-datalist")
+                    || state.source.row_count != 0
+                    || state.provider_revision > SAFE
+                    || state.query_revision > SAFE
+                    || state.query.len() > 65536
+                    || !matches!(
+                        state.feedback_state.as_str(),
+                        "idle" | "failed" | "unavailable"
+                    )
+                    || state.feedback_state == "unavailable"
+                        && (state.editable || state.feedback_intent)
+                {
+                    return Err("cem.checkpoint.runtime.suggestions");
+                }
+                Ok(())
+            }
+            Self::Datalist(state) => {
+                state.source.validate(bytes)?;
+                if state.phase != "native-datalist"
+                    || state.provider_revision > SAFE
+                    || !identity(&state.target_node)
+                    || !matches!(state.claim.as_str(), "attached" | "unavailable")
+                    || state.presentation != "reset-on-resume"
+                {
+                    return Err("cem.checkpoint.runtime.datalist");
+                }
+                Ok(())
+            }
+        }
+    }
 }
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -214,7 +282,7 @@ impl Source {
         Ok(())
     }
 }
-impl Suggestions {
+impl ReadySuggestions {
     pub fn validate(&mut self, bytes: &mut usize) -> Result<(), &'static str> {
         self.source.validate(bytes)?;
         let count = self.source.row_count as i32;

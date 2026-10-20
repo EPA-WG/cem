@@ -397,3 +397,13 @@ resume must not replay actions or default-open initialization. Gesture and
 preparation/closing barriers, unaccounted claims/sources, retained bodies and
 unknown endpoints continue refusing the complete domain. See the supported
 capture limits in [Committed checkpoints](committed-checkpoints.md).
+
+
+Inactive suggestion capture records original source/query intent separately from
+ready row proofs. Native datalist contracts preserve provider edits and exact
+claim/subscription ownership while refusing a focused, unobservable UA picker.
+Failed local sources release transient claims and remain failed until ordinary
+source/configuration repair; capture performs no retry. Native session capture
+copies original inputs before asynchronous submission. All source interpretation
+and lifecycle-envelope validation remain native. Exact supported states and
+remaining fences are in [Committed checkpoints](committed-checkpoints.md).

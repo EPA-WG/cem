@@ -77,14 +77,16 @@ export function isCemEditorLeaseFor(lease: CemEditorLease, provider: CemEditorPr
 export function isCemEditorCompositionKey(event: KeyboardEvent): boolean { return event.isComposing || compositionKeys.has(event); }
 /** Provider identity is established by the shared form capability, never a DOM selector. */
 export function getCemEditorProvider(host: HTMLElement): CemEditorProvider | undefined { return providers.get(host); }
-interface CheckpointConsumer { host: HTMLElement; owner: object; lease: CemEditorLease; current(): boolean }
+interface CheckpointConsumer { host: HTMLElement; owner: object; lease: CemEditorLease; current(): boolean; claim?(): 'attributes' | 'datalist' | 'none' | undefined }
 const checkpointConsumers = new WeakMap<CemEditorProvider, Set<CheckpointConsumer>>();
 const checkpointListeners = new WeakMap<(update: CemEditorUpdate) => void, CemEditorLease>();
 /** Shared-controller registration, never exposed as an authored capability. */
 export function registerCemEditorCheckpoint(provider: CemEditorProvider, consumer: CheckpointConsumer): () => void {
     const consumers = checkpointConsumers.get(provider) ?? new Set<CheckpointConsumer>();
     consumers.add(consumer); checkpointConsumers.set(provider, consumers);
-    return () => { consumers.delete(consumer); if (!consumers.size) checkpointConsumers.delete(provider); };
+    let active = true;
+    return () => { if (!active) return; active = false; consumers.delete(consumer);
+        if (!consumers.size && checkpointConsumers.get(provider) === consumers) checkpointConsumers.delete(provider); };
 }
 export function subscribeCemEditorCheckpoint(provider: CemEditorProvider, lease: CemEditorLease, listener: (update: CemEditorUpdate) => void): () => void {
     checkpointListeners.set(listener, lease);
@@ -101,7 +103,11 @@ export function cemFormControlCheckpoint(instance: HTMLElement, consumerId?: (ho
     if (state.listeners.size || state.leases.size || state.attributeClaims.size || state.validityClaims.size || state.validityOwners.size) {
         const consumers = checkpointConsumers.get(state.provider);
         const known = consumers?.size === 1 ? [...consumers][0] : undefined, consumer = known && consumerId?.(known.host);
-        if (!known || !consumer || !known.lease.valid || !known.lease.attributes.valid || known.lease.datalist.valid || !known.current() || state.leases.size !== 1
+        const claim = known?.claim ? known.claim() : 'attributes';
+        const claimsCurrent = known && (claim === 'attributes' ? known.lease.attributes.valid && !known.lease.datalist.valid
+            : claim === 'datalist' ? known.lease.datalist.valid && !known.lease.attributes.valid
+                : claim === 'none' && !known.lease.attributes.valid && !known.lease.datalist.valid);
+        if (!known || !consumer || !known.lease.valid || !claimsCurrent || !known.current() || state.leases.size !== 1
             || [...state.leases].some(token => (token as { owner: object }).owner !== known.owner)
             || [...state.listeners].some(listener => checkpointListeners.get(listener) !== known.lease)
             || [...state.attributeClaims.values()].some(claim => claim !== known.lease.attributes && claim !== known.lease.datalist)
