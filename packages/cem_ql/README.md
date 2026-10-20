@@ -1547,8 +1547,8 @@ writing. Receipts retain no input/output values, native views, provider callback
 DOM nodes or previous receipt chain. There is no new WASM transport or Studio JS.
 
 This is an opt-in native query dependency contract. CEM-ML render-wide aggregation
-and complete native provider contracts are available below; render-result caching
-remains disabled. A match never replaces
+and complete native provider contracts are available below. Ordinary render
+entrypoints keep evaluating; an opt-in guarded cache is described below. A match never replaces
 current operation/cancellation admission, runtime-generation ownership, accepted
 events, commands, resource freshness or publication checks. Opaque render inputs
 continue through the existing evaluation path.
@@ -1612,12 +1612,67 @@ receipt retains no artifact trees, input/output values, hooks, callbacks, native
 views, DOM handles or previous render history. No new JS, WASM wire format or
 Studio-specific behavior is introduced.
 
-Render memoization is the next separate step. A matching receipt never replaces
+A matching receipt never replaces
 operation/cancellation admission, current runtime ownership, accepted-event and
 command execution, resource freshness or native publication checks. Native hosts
 without complete immutable/current provider contracts remain on ordinary evaluation.
 Finer binding-to-axis invalidation requires a later provenance proof; read-name
 membership alone cannot authorize ignoring a changed provider axis.
+
+## Guarded native pure-render cache
+
+`render_cache::PureRenderCache` is an opt-in native consumer of complete render
+receipts. A miss performs the ordinary tracked render. Only a successful, pure,
+bounded receipt and supported fully owned output can populate the cache. An
+unchanged admitted request can then skip render evaluation and reload an
+independent output plan. `evaluations()` counts actual render invocations;
+`CheckedPureRender::hit` reports reuse. Normal diagnostics/failure and host updates
+remain available on misses. Ordinary render APIs and the existing WASM/browser
+processing path continue evaluating; no automatic Studio caching is enabled.
+
+`begin(DependencyAdmission)` captures an opaque weak native-store ticket plus the
+consumer owner, runtime generation and requested revision. `render` rejects
+cancelled/unknown scopes, foreign or reset store tickets and stale owners before
+host admission. Its mandatory `admit` callback executes accepted-event, command and
+resource admission on **every** request, including a cache hit. The separate
+`current` callback reads pinned metadata without repeating those actions. Both
+must attest the supplied `TemplateData` snapshot. Admission errors or changes to
+owner/revision/provider metadata reject the result rather than return old output.
+If admission changes inputs, construct a new data snapshot and request; retrying
+event/command execution remains the host's own operation-id/at-most-once contract.
+
+Currentness and operation control are checked after admission, after lookup/decode
+or evaluation, and before insertion/return. Keys include the complete native render
+identity and effective policy plus consumer owner/runtime generation. A newly
+admitted revision with identical pure inputs may reuse output, but an older request
+cannot publish under it. `reset` clears the store and invalidates old native tickets;
+equal counters in another cache cannot revive a request. Final DOM/native
+publication still requires the embedding consumer's current ownership checks.
+
+The existing `ContentCache` owns immutable serialized bytes, count/byte limits,
+leases, LRU eviction and generation fencing; no second receipt-to-output inventory
+or decoded plan cache is added. Defaults remain 64 entries / 32 MiB with configurable
+`ContentCacheLimits`. Output encoding caps each payload at 4 MiB, 16,384 traversal
+units and depth 64. Capacity/encoding refusal preserves successful uncached output.
+Native binary encoding preserves source frames, host updates, namespaces, contracts,
+and owned atomic attribute types, including nonfinite floats and decimal lexical
+values. Every hit reloads independent owned nodes/streams/contracts.
+
+Live references and native-valued attributes (including native typed/provenance
+views), resources, lambdas, records/arrays in attribute streams and partially
+consumed/chain streams are unsupported cache payloads and keep normal rendering.
+No conversion to lexical-only attributes or anonymous native owners is used to
+force a hit. Native callbacks, dynamic/CEMT/readers/resolvers, captured runtime
+scopes, diagnostics and caught failures remain ineligible under the render proof.
+
+Decode checks current cancellation and scope memory availability, including
+ancestors, and charges temporary input decoding to the current operation. Pressure
+before decoding falls back without poisoning control. Returned-plan heap and
+whole-WASM accounting are still the separate runtime-budget work: store limits
+are not a process-RSS/OOM guarantee. The cache retains no caller native values,
+callbacks, DOM, prepared transactions or preceding owners; request tickets retain
+no store payload. Shared native/WASM processing integration requires explicit
+provider-currentness and admission capabilities before enabling reuse there.
 
 ## Template compilation dependency receipts
 

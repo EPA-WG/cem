@@ -434,7 +434,7 @@ pub struct ResourceHandle {
     pub fail_accessor: bool,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum AtomValue {
     String(String),
     Integer(i64),
@@ -479,6 +479,9 @@ impl PartialEq for ItemStream {
 }
 
 impl ItemStream {
+    pub(crate) fn cache_materialized_items(&self) -> Option<&[Item]> {
+        (self.cursor == 0 && !self.chain && self.error.is_none() && self.diagnostics.is_empty()).then_some(self.items.as_slice())
+    }
     pub fn empty() -> Self {
         Self {
             items: Vec::new(),

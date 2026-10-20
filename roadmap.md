@@ -568,8 +568,14 @@ The native `DependencySnapshot` bridge includes closure, policy, resolver and sc
 identity. Whole-render matching conservatively includes every provider axis;
 query invocations remain distinct and opaque/cancelled/repaired work is ineligible.
 Bounded receipts retain no native input/output owners or preceding render history.
-Pure render-evaluation memoization remains the next step, with independent runtime,
-event/command/resource admission. See [render receipts](packages/cem_ql/README.md#cem-ml-render-dependency-receipts).
+An opt-in native pure-render cache now stores bounded owned output bytes in the
+existing native artifact store. Complete provider/template/contract/policy identities,
+weak runtime tickets, current owner/revision checks and mandatory independent
+admission guard hits. Native/reference-valued output stays uncached; every hit
+reloads independent owned output with provenance. Shared native/WASM processing
+integration remains explicit follow-up work; current browser consumers keep
+ordinary evaluation until their provider/admission contracts are available. See
+[guarded native reuse](packages/cem_ql/README.md#guarded-native-pure-render-cache).
 Incremental root publication is now implemented through an atomic owned-range
 operation, including empty output. Matching native-derived root identities preserve
 controls, edits and focus/selection; corruption and ownership changes still recover.

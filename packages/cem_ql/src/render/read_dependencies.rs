@@ -17,7 +17,7 @@ pub const MAX_RENDER_READ_NAMES: usize = 1024;
 /// Providers must remain pinned/immutable for the render and be revalidated at
 /// publication. Binding, focus or datadom changes must advance their axes even when
 /// they render equal output. No defaults claim provider stability.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RenderFreshness {
     pub environment: DependencyVersion,
     pub inputs: BTreeMap<DependencyInput, DependencyVersion>,
@@ -440,4 +440,11 @@ mod tests {
         ));
         assert_eq!(render_plan_to_html(&tracked.output.plan), "<p>static</p>");
     }
+}
+
+// Population requires a successful full render receipt. This key only allows a
+// previously proven entry to be considered under the identical complete inputs.
+pub(crate) fn reuse_identity(artifact: &TemplateArtifact, data: &TemplateData, freshness: &RenderFreshness, policy: ScopePolicy) -> Option<ContentHash> {
+    let tracker = RenderReadTracker::new(artifact, data, freshness, policy, false);
+    match tracker.stamp? { DependencyVersion::Content(hash) => Some(hash), _ => None }
 }

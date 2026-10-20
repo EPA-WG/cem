@@ -50,6 +50,7 @@ pub mod suggestions;
 pub mod template;
 pub mod template_artifact;
 pub mod template_cache;
+pub mod render_cache;
 pub mod transport;
 pub mod types;
 pub mod xpath;
