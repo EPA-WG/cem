@@ -22,8 +22,9 @@ use crate::resolve::{Arity, FunctionKey, ImportPolicy, NameResolver, QNameKey};
 use crate::semantic::validate_module_shape;
 use crate::types::{FunctionSignature, TyConfig, Type, TypeChecker};
 
-#[cfg(any(target_arch = "wasm32", test))]
+#[cfg_attr(not(any(target_arch = "wasm32", test)), allow(dead_code))]
 mod json_boundary;
+pub(crate) use json_boundary::parse_template_data;
 
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;

@@ -427,6 +427,22 @@ fn budget_axis_json(axis: BudgetAxis) -> Value {
     json!(axis.as_str())
 }
 
+/// Shared owned control-data boundary used by retained rendering and WASM.
+pub(crate) fn parse_template_data(input: &str) -> Result<crate::render::TemplateData, String> {
+    if input.trim().is_empty() {
+        return Ok(Default::default());
+    }
+    let value: Value = serde_json::from_str(input).map_err(|err| err.to_string())?;
+    let Value::Object(map) = value else {
+        return Err("template data must be a JSON object".into());
+    };
+    let mut data = crate::render::TemplateData::default();
+    for (name, value) in map {
+        data.bindings.insert(name, json_value_to_stream(value)?);
+    }
+    Ok(data)
+}
+
 #[cfg(test)]
 mod tests {
     use serde_json::{json, Value};

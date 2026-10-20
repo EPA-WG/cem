@@ -311,7 +311,15 @@ export type CemProcessingResourceControl =
     | CemProcessingRepositoryQueryControl
     | CemProcessingStorageStatusControl;
 
+/** Native counters only; never freshness or permission to publish. */
+export interface CemProcessingRenderReuse {
+    hit: boolean;
+    evaluations: number;
+    admissions: number;
+    runtimeGeneration: number;
+}
 export interface CemProcessingRenderDiffResult {
+    renderReuse?: CemProcessingRenderReuse;
     suggestionPlacements?: { handle: string; renderNodeId: string }[];
     elementPlacementUses?: CemElementPlacementUse[];
     revision: RenderRevision;

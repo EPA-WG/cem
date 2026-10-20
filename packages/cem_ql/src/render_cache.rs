@@ -14,6 +14,7 @@ use cem_ml::{
     operation_control::{ExecutionScopeId, OperationControl},
 };
 mod output;
+pub mod retained;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RenderAdmission {

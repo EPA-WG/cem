@@ -1,6 +1,6 @@
 import { resolveAriaReferenceProfile, type CemAriaReferenceProfile } from '../../aria-reference-profile.js';
 import { assertElementReferenceInputs, type CemElementReferenceInputs, type CemElementPlacementUse } from '../../element-reference-inputs.js';
-import { CemProcessingDiagnosticError, type CemProcessingDiagnostic, type CemProcessingStylesheetInput, type CemProcessingStylesheetResult, type CemProcessingNativeSessionInput, type CemProcessingNativeSessionResult } from './processing-host.js';
+import { CemProcessingDiagnosticError, type CemProcessingRenderReuse, type CemProcessingDiagnostic, type CemProcessingStylesheetInput, type CemProcessingStylesheetResult, type CemProcessingNativeSessionInput, type CemProcessingNativeSessionResult } from './processing-host.js';
 import { DEFAULT_CEM_VALUE_ARTIFACT_LIMITS, type NativeCemAttributeBinding, type NativeCemSliceBinding, type CemValueArtifactLimits } from "../../native-values.js";
 /**
  * Host runtime-support boundary for the `cem_ql` WASM render engine
@@ -36,6 +36,7 @@ import initCemQlWasm, {
     disposeTemplate,
     importTemplateArtifact,
     renderTemplateWithNativeValues,
+    renderTemplateWithNativeValuesAndAdmission,
     importCemDocumentValue,
     exportCemJsonValue,
     importNativeValueArtifact,
@@ -101,6 +102,7 @@ export interface CemQlHostAttributeUpdate {
 }
 
 export interface CemQlRenderResult {
+    renderReuse?: CemProcessingRenderReuse;
     suggestionPlacements?: { handle: string; renderNodeId: string }[];
     elementPlacementUses?: CemElementPlacementUse[];
     nodes: RenderPlanNode[];
@@ -170,6 +172,8 @@ export interface CemMlTemplateCompileResult {
 }
 
 export interface CemQlRenderOptions {
+    /** Shared processing-host admission; unavailable to authored data/templates. */
+    retainedRenderAdmission?: { owner: string; scopePolicyStamp: string };
     nativeSuggestions?: { sessionId: number; publication: string };
     ariaReferenceProfile?: CemAriaReferenceProfile;
     /** Enable native relationship ID projection for this persisted producer identity. */
@@ -348,6 +352,7 @@ export interface CemMlTemplateProcessingIdentity {
 }
 
 export interface CemMlTemplateProcessingInput {
+    retainedRenderAdmission?: { owner: string; scopePolicyStamp: string };
     nativeSuggestions?: { sessionId: number; publication: string };
     elementReferenceInputs?: CemElementReferenceInputs;
     /** Opt-in ordinary HTML navigation base, captured from the owning declaration. */
@@ -383,6 +388,7 @@ export interface RetainedCemMlTemplate {
 }
 
 export interface CemMlTemplateProcessingResult {
+    renderReuse?: CemProcessingRenderReuse;
     suggestionPlacements?: { handle: string; renderNodeId: string }[];
     elementPlacementUses?: CemElementPlacementUse[];
     renderPlan: RenderPlan;
@@ -809,10 +815,15 @@ export async function renderRetainedCemMlTemplate(
 ): Promise<CemQlRenderResult> {
     assertProcessingBoundaryValue(data, 'CEM-ML render data');
     await ensureRuntimeReady();
-    return withNativeAttributes(options, bindings => withElementReferences(options, references => mapWasmRenderPlan(renderTemplateWithNativeValues(
-        artifactId, options.xpathCompanionId ?? 0, JSON.stringify(data ?? {}),
-        JSON.stringify(options.documents ?? []), bindings,
-        JSON.stringify(options.nativeValueLimits ?? DEFAULT_CEM_VALUE_ARTIFACT_LIMITS), options.elementReferenceInstanceId, references, options.ariaReferenceProfile), options)));
+    return withNativeAttributes(options, bindings => withElementReferences(options, references => {
+        const args = [artifactId, options.xpathCompanionId ?? 0, JSON.stringify(data ?? {}),
+            JSON.stringify(options.documents ?? []), bindings,
+            JSON.stringify(options.nativeValueLimits ?? DEFAULT_CEM_VALUE_ARTIFACT_LIMITS), options.elementReferenceInstanceId, references, options.ariaReferenceProfile] as const;
+        const json = options.retainedRenderAdmission
+            ? renderTemplateWithNativeValuesAndAdmission(...args, JSON.stringify(options.retainedRenderAdmission))
+            : renderTemplateWithNativeValues(...args);
+        return mapWasmRenderPlan(json, options);
+    }));
 }
 
 function withNativeAttributes<T>(options: CemQlRenderOptions, render: (bindings: string) => T): T {
@@ -1005,6 +1016,7 @@ function mapWasmRenderPlan(planJson: string, options: CemQlRenderOptions): CemQl
         return { handle, renderNodeId: target.renderNodeId };
     });
     return {
+        renderReuse: plan.renderReuse,
         nodes,
         suggestionPlacements,
         elementPlacementUses: uses,
@@ -1060,6 +1072,7 @@ export async function processCemMlTemplate(
 
     return {
         renderPlan,
+        renderReuse: rendered.renderReuse,
         hostAttributeUpdates: rendered.hostAttributeUpdates,
         suggestionPlacements: rendered.suggestionPlacements,
         elementPlacementUses: rendered.elementPlacementUses,
@@ -1086,6 +1099,7 @@ export async function processRetainedCemMlTemplate(
     }
 
     const renderOptions = {
+        retainedRenderAdmission: input.retainedRenderAdmission,
         nativeSuggestions: input.nativeSuggestions,
         elementReferenceInstanceId: input.identity.instanceId,
         ariaReferenceProfile: resolveAriaReferenceProfile(input.identity.ariaReferenceProfile),
@@ -1110,6 +1124,7 @@ export async function processRetainedCemMlTemplate(
     assertProcessingBoundaryValue(renderPlan, 'CEM-ML render plan');
     return {
         renderPlan,
+        renderReuse: rendered.renderReuse,
         hostAttributeUpdates: rendered.hostAttributeUpdates,
         suggestionPlacements: rendered.suggestionPlacements,
         elementPlacementUses: rendered.elementPlacementUses,
@@ -1122,6 +1137,7 @@ export async function processRetainedCemMlTemplate(
 }
 
 interface WasmRenderPlan {
+    renderReuse?: CemProcessingRenderReuse;
     suggestionPlacements?: { path: number[]; handle: string }[];
     ariaReferenceProfile?: CemAriaReferenceProfile;
     elementPlacementUses?: (Omit<CemElementPlacementUse, 'renderNodeId'> & { path: number[] })[];

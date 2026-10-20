@@ -1627,8 +1627,8 @@ bounded receipt and supported fully owned output can populate the cache. An
 unchanged admitted request can then skip render evaluation and reload an
 independent output plan. `evaluations()` counts actual render invocations;
 `CheckedPureRender::hit` reports reuse. Normal diagnostics/failure and host updates
-remain available on misses. Ordinary render APIs and the existing WASM/browser
-processing path continue evaluating; no automatic Studio caching is enabled.
+remain available on misses. Ordinary render APIs continue evaluating. Shared
+retained WASM/worker processing opts in for the owned JSON boundary described below.
 
 `begin(DependencyAdmission)` captures an opaque weak native-store ticket plus the
 consumer owner, runtime generation and requested revision. `render` rejects
@@ -1671,8 +1671,40 @@ before decoding falls back without poisoning control. Returned-plan heap and
 whole-WASM accounting are still the separate runtime-budget work: store limits
 are not a process-RSS/OOM guarantee. The cache retains no caller native values,
 callbacks, DOM, prepared transactions or preceding owners; request tickets retain
-no store payload. Shared native/WASM processing integration requires explicit
-provider-currentness and admission capabilities before enabling reuse there.
+no store payload.
+
+### Shared retained WASM processing
+
+`RetainedJsonRenderCache` derives complete freshness from the actual JSON parsed
+by Rust. It fingerprints the input bytes with the native content hash, assigns
+its own admission revision, and qualifies the environment by engine versions and
+scope policy. Browser hashes and revision strings cannot establish input equality.
+JSON formatting changes conservatively miss. Input proof is bounded at 1 MiB and
+65,536 traversal units; tagged native/resource handles remain opaque even unused.
+
+`renderTemplateWithNativeValuesAndAdmission` receives an internal owner/scope
+context from shared processing. One cache per WASM runtime retains at most the
+existing 64 entries / 32 MiB. Reset or template disposal invalidates all cached
+outputs and advances the runtime generation. Explicit documents, companions,
+native bindings and element-reference inputs keep the ordinary fresh path.
+Native-valued output and opaque computations remain ineligible under the native
+render proof. The legacy `renderTemplateWithNativeValues` export stays fresh.
+
+Shared worker and fallback dispatch pin clone-safe request inputs before awaiting
+preflight. Engine/instance/artifact ownership qualifies each request; a superseding
+render or released artifact cannot publish an earlier completion. Native value and
+relationship projection, host attribute updates, resource lowering, DOM diff and
+publication admission still execute after each pure hit. Accepted events and
+commands continue through their existing host admission before the render request;
+this cache stores no action results. Optional `renderReuse` counters show actual
+evaluations/admissions/hits for verification; they confer no freshness or permission
+to publish. Provider-specific native snapshots and runtime recovery remain separate
+work; unsupported inputs retain fresh evaluation.
+
+After `yarn nx run cem_ql:build:wasm`, run
+`node packages/cem_ql/tests/retained-render-cache-wasm.mjs` for the real WASM
+freshness, native-value projection, capability fallback and disposal checks.
+`retained-render-reuse.stories.ts` exercises worker and fallback publication.
 
 ## Template compilation dependency receipts
 

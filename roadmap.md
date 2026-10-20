@@ -557,8 +557,8 @@ CSSOM and animations. Direct projection now retains unchanged child input snapsh
 including native bytes, and leaves their live DOM untouched. Patch publication checks
 complete owner/revision identities and releases consumed/cancelled snapshots.
 Browser fixtures cover native controls, editable content, focus/selection, changed
-bindings and worker/fallback integration. Evaluation and resource work still run;
-native query read tracking is now available through an opt-in bounded receipt.
+bindings and worker/fallback integration. Resource admission still runs; native
+query read tracking provides a bounded receipt before pure evaluation can be reused.
 Taken branches and optimized field reads record whole binding dependencies;
 provider-owned pure/freshness stamps, native IR/provenance and scope/policy must
 match. Opaque calls, failed/cancelled work and oversized metadata remain ineligible.
@@ -572,9 +572,11 @@ An opt-in native pure-render cache now stores bounded owned output bytes in the
 existing native artifact store. Complete provider/template/contract/policy identities,
 weak runtime tickets, current owner/revision checks and mandatory independent
 admission guard hits. Native/reference-valued output stays uncached; every hit
-reloads independent owned output with provenance. Shared native/WASM processing
-integration remains explicit follow-up work; current browser consumers keep
-ordinary evaluation until their provider/admission contracts are available. See
+reloads independent owned output with provenance. Shared retained WASM/worker
+processing now uses this cache for native-proven owned JSON inputs, with pinned
+requests, fresh value/reference projection and resource/host publication admission.
+Native capabilities and opaque computations keep fresh evaluation. Whole-runtime
+memory budgets, committed checkpoints and runtime replacement remain next. See
 [guarded native reuse](packages/cem_ql/README.md#guarded-native-pure-render-cache).
 Incremental root publication is now implemented through an atomic owned-range
 operation, including empty output. Matching native-derived root identities preserve

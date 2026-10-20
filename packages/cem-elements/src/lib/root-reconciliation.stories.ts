@@ -145,3 +145,30 @@ export const CorruptionStillRecovers: Story = {
         expect(Array.from(host.childNodes)).toEqual([bounds.start, retained, bounds.end]);
     },
 };
+
+export const CapturedInputPatchInvalidatesOwner: Story = {
+    render: () => '<section></section>', play: ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section')!;
+        const tag = 'cem-captured-input-owner-fixture';
+        if (!customElements.get(tag)) customElements.define(tag, class extends HTMLElement {});
+        const bounds = {start:document.createComment('start'),end:document.createComment('end')};
+        root.append(bounds.start,bounds.end);
+        const original = plan([element(tag,'owner',{},[element('input','field',{value:'Original'})])],1);
+        applyRenderPlanToRange(bounds,original,document);
+        const owner = root.querySelector(tag)!, field = owner.querySelector('input')!;
+        const inert = document.createElement('template');
+        const payload = document.createElement('section'); inert.content.append(payload);
+        payload.append(field);
+        owner.append(document.createElement('p'));
+        const options = {preserveElementChildren:(node:Element)=>node===owner,
+            authoredChildContainer:(node:Element)=>node===owner?payload:undefined};
+        const disabled = plan([element(tag,'owner',{},[element('input','field',{value:'Original',disabled:'true'})])],2);
+        expect(preparePatchFramesForRange(bounds,diffRenderPlansToPatchFrames(original,disabled),renderPlanIdentity(disabled),document,options)
+            .commit(renderPlanIdentity(disabled)).status).toBe('applied');
+        expect(field.disabled).toBe(true);
+        applyRenderPlanToRange(bounds,{...original,dataRevision:'3'},document,options);
+        expect(field.disabled).toBe(false);
+        expect(payload.querySelector('input')).toBe(field);
+        expect(owner.querySelector('p')).not.toBeNull();
+    },
+};

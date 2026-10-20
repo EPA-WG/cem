@@ -96,6 +96,23 @@ pub fn render_template_with_cem_documents(
 pub fn render_template_with_native_values(
     artifact_id: u32, companion_id: u32, data_json: &str, bindings_json: &str, native_bindings_json: &str, limits_json: &str, element_reference_instance_id: Option<String>, element_reference_inputs_json: Option<String>, aria_reference_profile: Option<String>,
 ) -> String {
+    render_native_values_internal(artifact_id, companion_id, data_json, bindings_json, native_bindings_json, limits_json, element_reference_instance_id, element_reference_inputs_json, aria_reference_profile, None)
+}
+
+#[wasm_bindgen(js_name = "renderTemplateWithNativeValuesAndAdmission")]
+pub fn render_template_with_native_values_and_admission(
+    artifact_id: u32, companion_id: u32, data_json: &str, bindings_json: &str, native_bindings_json: &str, limits_json: &str, element_reference_instance_id: Option<String>, element_reference_inputs_json: Option<String>, aria_reference_profile: Option<String>, admission_json: &str,
+) -> String {
+    if admission_json.len() > 20_000 { return error_json("cem.render.context", "Render admission exceeds bounds"); }
+    let context = match serde_json::from_str(admission_json) {
+        Ok(context) => context, Err(error) => return error_json("cem.render.context", error.to_string()),
+    };
+    render_native_values_internal(artifact_id, companion_id, data_json, bindings_json, native_bindings_json, limits_json, element_reference_instance_id, element_reference_inputs_json, aria_reference_profile, Some(context))
+}
+
+fn render_native_values_internal(
+    artifact_id: u32, companion_id: u32, data_json: &str, bindings_json: &str, native_bindings_json: &str, limits_json: &str, element_reference_instance_id: Option<String>, element_reference_inputs_json: Option<String>, aria_reference_profile: Option<String>, context: Option<crate::render_cache::retained::RetainedJsonRenderContext>,
+) -> String {
     let profile = match aria_reference_profile.as_deref().map(str::parse).transpose() {
         Ok(profile) => profile.unwrap_or_default(),
         Err(message) => return error_json("cem.element_reference.profile", message),
@@ -127,6 +144,7 @@ pub fn render_template_with_native_values(
         Ok(bindings) => bindings,
         Err(error) => return error_json("cem.ql.wasm.invalid_document_binding", error.to_string()),
     };
+    let json_only = data_json.len() <= crate::eval::dependencies::MAX_EVALUATION_RECEIPT_BYTES && companion_id == 0 && bindings.is_empty() && native_bindings_json.trim() == "[]" && element_reference_inputs_json.is_none();
     let mut seen = std::collections::BTreeSet::new();
     for binding in bindings {
         if !seen.insert(binding.slice.clone()) {
@@ -161,6 +179,16 @@ pub fn render_template_with_native_values(
             Ok(execution) => execution,
             Err(error) => return element_reference_inputs_error(error),
         };
-        plan_json_for_elements(&render_compiled_template(artifact.artifact(), &data), &limits, element_reference_instance_id.as_deref(), execution, profile, data.bindings.get("suggestions").and_then(|s| s.items.first()).and_then(crate::suggestions::SuggestionsView::from_root).as_ref()).to_string()
+        if let Some(context) = context.filter(|_| json_only) {
+            let rendered = match render_reuse::render(artifact_id, artifact, data_json, context) {
+                Ok(rendered) => rendered, Err(error) => return error_json(error.code, error.message),
+            };
+            // Relationship/value projection remains fresh even after a pure hit.
+            let mut result = plan_json_for_elements(&rendered.plan, &limits, element_reference_instance_id.as_deref(), execution, profile, None);
+            result["renderReuse"] = render_reuse::telemetry(rendered.hit);
+            result.to_string()
+        } else {
+            plan_json_for_elements(&render_compiled_template(artifact.artifact(), &data), &limits, element_reference_instance_id.as_deref(), execution, profile, data.bindings.get("suggestions").and_then(|s| s.items.first()).and_then(crate::suggestions::SuggestionsView::from_root).as_ref()).to_string()
+        }
     })
 }

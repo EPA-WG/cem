@@ -108,6 +108,9 @@ const renderedAttributeValues = new WeakMap<Element, Map<string, string>>();
 // route its children to that canonical container, never to the child's output.
 const capturedPayloadEnvelopes = new WeakMap<Node, HTMLTemplateElement>();
 const capturedEnvelopeContents = new WeakMap<Element, Node>();
+// Current authored-container edges bridge inert template/island boundaries.
+// Weak keys retain neither preceding plans nor replaced payload owners.
+const authoredInputParents = new WeakMap<Node, Node>();
 export function retainCapturedPayloadEnvelope(payload: Element, envelope: HTMLTemplateElement): void {
     capturedPayloadEnvelopes.set(payload, envelope);
     capturedEnvelopeContents.set(envelope, payload);
@@ -2155,8 +2158,11 @@ export function applyPatchFramesToRange(
     try {
         for (const { operation, target } of resolved) {
             // Targeted patches may change authored inputs without a parent reconciliation.
-            for (let parent = target.parentElement; parent; parent = parent.parentElement) {
-                const inputs = renderedChildren.get(parent);
+            const visited = new Set<Node>();
+            for (let parent = authoredInputParents.get(target) ?? target.parentNode;
+                parent && !visited.has(parent); parent = authoredInputParents.get(parent) ?? parent.parentNode) {
+                visited.add(parent);
+                const inputs = parent.nodeType === 1 ? renderedChildren.get(parent as Element) : undefined;
                 if (inputs) inputs.plan = undefined;
             }
             if (operation.op === 'setText') {
@@ -2914,6 +2920,9 @@ function mergeRenderPlanNode(
         authoredPlanChildren(childContainer, desired.children),
         context,
     );
+    if (childContainer !== element) renderedChildren.set(element, {
+        plan: desired.children, nodes: Array.from(childContainer.childNodes), owner: renderPlanOwnerKey(context.plan),
+    });
 }
 
 function mergeDynamicRange(
@@ -3526,6 +3535,8 @@ function findNodeByRenderIdentity(node: Node, id: string, options: RenderPlanApp
     const authored = node.nodeType === 1 ? options.authoredChildContainer?.(node as Element) : undefined;
     const container = authored ?? (node.nodeType === 1 ? renderPlanElementChildContainer(node as Element) : node);
     const envelope = authored && capturedPayloadEnvelopes.get(authored);
+    if (container !== node) authoredInputParents.set(container, node);
+    if (envelope) authoredInputParents.set(envelope, node);
     if (envelope && renderIdentity(envelope) === id) return envelope;
     for (let child = container.firstChild; child; child = child.nextSibling) {
         const found = findNodeByRenderIdentity(child, id, options);

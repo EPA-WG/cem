@@ -89,8 +89,15 @@ export interface CemProcessingEngineOptions {
 const DEFAULT_ARTIFACT_CACHE_ENTRIES = 64;
 const DEFAULT_RENDER_PLAN_CACHE_ENTRIES = 64;
 
+let renderReuseOwnerSequence = 0;
+function renderReuseOwner(): string {
+    if (renderReuseOwnerSequence >= Number.MAX_SAFE_INTEGER) throw new RangeError('Processing owner identity exhausted');
+    return `processing-${++renderReuseOwnerSequence}`;
+}
 /** Shared semantic implementation used inside the worker and by main-thread fallback. */
 export class CemProcessingEngine {
+    private readonly renderReuseOwner = renderReuseOwner();
+    private readonly activeRenders = new Map<string, object>();
     private readonly artifacts: CemProcessingLruCache<string, RetainedTemplateArtifact>;
     private readonly compiledArtifacts: CemProcessingLruCache<string, CachedTemplateCompilation>;
     private readonly renderPlans: CemProcessingLruCache<string, RenderPlan>;
@@ -433,82 +440,97 @@ export class CemProcessingEngine {
                 || input.documents?.some(binding => binding.slice === 'suggestions')) throw new Error('Native suggestions slice is reserved');
         }
         const previous = retainedPreviousPlan(this.renderPlans, input.previousRenderPlan, input.artifact);
-        const processed = await processRetainedCemMlTemplate(artifact.wasmArtifactId, {
-            linkBaseUrl: artifact.input.linkBaseUrl,
-            xslt: artifact.compilation.xslt,
-            xpathCompanionId: artifact.compilation.xpathLibrary?.companionId,
-            documents: (input.documents ?? []).map(({ slice, handle }) => {
-                if (handle.instanceId !== input.revision.instanceId || handle.scopePolicyStamp !== input.revision.scopePolicyStamp) {
-                    throw new Error('CEM document binding belongs to another instance or scope');
-                }
-                const document = this.documents.get(JSON.stringify(handle));
-                if (!document) throw new Error('CEM document is not retained by this processing host');
-                return { slice, documentId: document.id };
-            }),
-            elementReferenceInputs: input.elementReferenceInputs,
-            nativeAttributes: input.nativeAttributes,
-            nativeSlices: input.nativeSlices,
-            nativeSuggestions: live && owner ? { sessionId: owner.id, publication: live.publication } : undefined,
-            nativeValueLimits: effectiveLimits,
-            source: processingSourceText(artifact.input),
-            data: input.data,
-            payload: input.snapshot.payload,
-            identity: {
-                producedTag: artifact.input.producedTag,
-                ...input.revision,
-            },
-            renderNodeIdPrefix: artifact.input.producedTag,
-        });
-        this.assertActive();
-        checkLive();
-        if (live && processed.diagnostics.some(diagnostic => diagnostic.severity === 'error' || diagnostic.severity === 'fatal')) {
-            throw new Error(processed.diagnostics.map(diagnostic => diagnostic.message).join('; '));
+        const renderKey = JSON.stringify([input.revision.instanceId, input.revision.scopePolicyStamp]);
+        if (renderKey.length > 8192 || !this.activeRenders.has(renderKey) && this.activeRenders.size >= 1024) throw new RangeError('Active render admission exceeds bounds');
+        const token = {};
+        this.activeRenders.set(renderKey, token);
+        try {
+            const processed = await processRetainedCemMlTemplate(artifact.wasmArtifactId, {
+                retainedRenderAdmission: { owner: JSON.stringify([this.renderReuseOwner, input.revision.instanceId]), scopePolicyStamp: input.revision.scopePolicyStamp },
+                linkBaseUrl: artifact.input.linkBaseUrl,
+                xslt: artifact.compilation.xslt,
+                xpathCompanionId: artifact.compilation.xpathLibrary?.companionId,
+                documents: (input.documents ?? []).map(({ slice, handle }) => {
+                    if (handle.instanceId !== input.revision.instanceId || handle.scopePolicyStamp !== input.revision.scopePolicyStamp) {
+                        throw new Error('CEM document binding belongs to another instance or scope');
+                    }
+                    const document = this.documents.get(JSON.stringify(handle));
+                    if (!document) throw new Error('CEM document is not retained by this processing host');
+                    return { slice, documentId: document.id };
+                }),
+                elementReferenceInputs: input.elementReferenceInputs,
+                nativeAttributes: input.nativeAttributes,
+                nativeSlices: input.nativeSlices,
+                nativeSuggestions: live && owner ? { sessionId: owner.id, publication: live.publication } : undefined,
+                nativeValueLimits: effectiveLimits,
+                source: processingSourceText(artifact.input),
+                data: input.data,
+                payload: input.snapshot.payload,
+                identity: {
+                    producedTag: artifact.input.producedTag,
+                    ...input.revision,
+                },
+                renderNodeIdPrefix: artifact.input.producedTag,
+            });
+            this.assertActive();
+            if (this.activeRenders.get(renderKey) !== token
+                || this.artifacts.get(retainedArtifactKey(input.artifact.scopePolicyStamp, input.artifact.artifactId)) !== artifact) {
+                throw new Error('Render admission was superseded or released');
+            }
+            checkLive();
+            if (live && processed.diagnostics.some(diagnostic => diagnostic.severity === 'error' || diagnostic.severity === 'fatal')) {
+                throw new Error(processed.diagnostics.map(diagnostic => diagnostic.message).join('; '));
+            }
+            const scoped = scopeRenderPlan(processed.renderPlan, input.scopeUid, {
+                payloadStylesInstalled: input.payloadStylesInstalled,
+                payload: input.snapshot.payload,
+            });
+            const lowered = lowerResourceControls(scoped.renderPlan);
+            const frames = diffRenderPlansToPatchFrames(previous, lowered.renderPlan, {
+                batchSize: input.patchBatchSize,
+            });
+            const renderPlanId = edgeContentAddress('render-plan', lowered.renderPlan).key;
+            const nextRenderPlan: CemProcessingRenderPlanHandle = {
+                kind: 'render-plan-handle',
+                renderPlanId,
+                templateArtifactId: input.artifact.artifactId,
+                revision: renderPlanIdentity(scoped.renderPlan),
+                renderEngineVersion: RENDER_ENGINE_VERSION,
+                sourceMapMode: input.artifact.sourceMapMode,
+            };
+            this.renderPlans.set(renderPlanId, lowered.renderPlan);
+            const generatedIdDiagnostics = validateRenderPlanGeneratedIds(lowered.renderPlan);
+            return {
+                revision: input.revision,
+                renderReuse: processed.renderReuse,
+                nextRenderPlan,
+                frames,
+                suggestionPlacements: processed.suggestionPlacements,
+                elementPlacementUses: processed.elementPlacementUses,
+                hostAttributeUpdates: processed.hostAttributeUpdates,
+                resourceControls: lowered.resourceControls,
+                diagnostics: [
+                    ...processed.diagnostics,
+                    ...scoped.diagnostics.map((diagnostic) => ({
+                        code: diagnostic.code,
+                        severity: diagnostic.severity,
+                        message: diagnostic.message,
+                    })),
+                    ...generatedIdDiagnostics.map((diagnostic) => ({
+                        code: diagnostic.code,
+                        severity: diagnostic.severity,
+                        message: diagnostic.message,
+                    })),
+                ],
+            };
+        } finally {
+            if (this.activeRenders.get(renderKey) === token) this.activeRenders.delete(renderKey);
         }
-        const scoped = scopeRenderPlan(processed.renderPlan, input.scopeUid, {
-            payloadStylesInstalled: input.payloadStylesInstalled,
-            payload: input.snapshot.payload,
-        });
-        const lowered = lowerResourceControls(scoped.renderPlan);
-        const frames = diffRenderPlansToPatchFrames(previous, lowered.renderPlan, {
-            batchSize: input.patchBatchSize,
-        });
-        const renderPlanId = edgeContentAddress('render-plan', lowered.renderPlan).key;
-        const nextRenderPlan: CemProcessingRenderPlanHandle = {
-            kind: 'render-plan-handle',
-            renderPlanId,
-            templateArtifactId: input.artifact.artifactId,
-            revision: renderPlanIdentity(scoped.renderPlan),
-            renderEngineVersion: RENDER_ENGINE_VERSION,
-            sourceMapMode: input.artifact.sourceMapMode,
-        };
-        this.renderPlans.set(renderPlanId, lowered.renderPlan);
-        const generatedIdDiagnostics = validateRenderPlanGeneratedIds(lowered.renderPlan);
-        return {
-            revision: input.revision,
-            nextRenderPlan,
-            frames,
-            suggestionPlacements: processed.suggestionPlacements,
-            elementPlacementUses: processed.elementPlacementUses,
-            hostAttributeUpdates: processed.hostAttributeUpdates,
-            resourceControls: lowered.resourceControls,
-            diagnostics: [
-                ...processed.diagnostics,
-                ...scoped.diagnostics.map((diagnostic) => ({
-                    code: diagnostic.code,
-                    severity: diagnostic.severity,
-                    message: diagnostic.message,
-                })),
-                ...generatedIdDiagnostics.map((diagnostic) => ({
-                    code: diagnostic.code,
-                    severity: diagnostic.severity,
-                    message: diagnostic.message,
-                })),
-            ],
-        };
     }
 
     dispose(_input: CemProcessingDisposeInput): CemProcessingDisposeResult {
         for (const session of this.nativeSessions.values()) releaseRetainedNativeSession(session.id);
+        this.activeRenders.clear();
         this.nativeSessions.clear();
         this.nativeSessionOperations.clear();
         this.nativeSessionKeys.clear();

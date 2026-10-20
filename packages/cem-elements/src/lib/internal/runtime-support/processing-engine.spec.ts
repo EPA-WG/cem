@@ -1162,3 +1162,25 @@ it.each(['suggestions-v1', 'native-datalist-v1'] as const)('fences %s component 
     await expect(engine.nativeSession({ action: 'view', handle, expression: 'input.name' })).resolves.toHaveProperty('status', 'view');
     engine.dispose();
 });
+
+describe('Guarded render publication', () => {
+    it('rejects an older completion after a newer render for the same instance', async () => {
+        const engine = new CemProcessingEngine();
+        const compiled = await engine.compile({ language: 'cem-ml', producedTag: 'cem-worker-card', templateArtifactId: 'template-worker-card-1',
+            registrationIdentity: 'guarded-render', source: createCemProcessingTextSource('{p | test}'), sourceRef: {kind:'inline', value:'test'}, resolverIdentity:'test', scopePolicyStamp:'scope-policy-v1', sourceMapMode:'dev' });
+        const process = vi.mocked(processRetainedCemMlTemplate), normal = process.getMockImplementation()!;
+        let finish!: (value: Awaited<ReturnType<typeof processRetainedCemMlTemplate>>) => void;
+        process.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+        const snapshot = snapshotFixture('1');
+        const input = {artifact:compiled.artifact, snapshot, revision:revision(snapshot), data:{label:'old'}, scopeUid:'scope'};
+        const older = engine.renderDiff(input);
+        const rejected = expect(older).rejects.toThrow('superseded');
+        const next = snapshotFixture('2');
+        await engine.renderDiff({...input, snapshot:next, revision:revision(next), data:{label:'new'}});
+        const args = process.mock.calls.at(-2)!;
+        finish(await normal(...args));
+        await rejected;
+        expect(process.mock.calls.at(-1)![1].retainedRenderAdmission).toEqual(expect.objectContaining({scopePolicyStamp:'scope-policy-v1'}));
+        engine.dispose({});
+    });
+});

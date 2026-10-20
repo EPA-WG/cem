@@ -650,8 +650,9 @@ class RootCemProcessingHost implements CemProcessingHost {
     }
 
     renderDiff(input: CemProcessingRenderDiffInput): CemProcessingJob<CemProcessingRenderDiffResult> {
+        // Pin the request before async dispatch/preflight in either execution mode.
+        input = structuredClone(input);
         if (input.nativeSuggestions) {
-            input = structuredClone(input);
             const live = input.nativeSuggestions;
             if (!live) throw new Error('Missing live publication');
             const handle = { ...live.handle, sessionKey: JSON.stringify([this.nativeSessionOwner, live.handle.sessionKey]) };

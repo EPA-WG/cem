@@ -23,6 +23,7 @@ use crate::template_artifact::{
 mod stylesheets;
 mod values;
 mod xpath_functions;
+mod render_reuse;
 mod xslt_bundle;
 
 use crate::retained_template::RetainedTemplate;
@@ -391,6 +392,7 @@ pub fn wasm_dispose_template(artifact_id: u32) -> bool {
         };
         let existed = slot.is_some();
         *slot = None;
+        if existed { render_reuse::reset(); }
         existed
     })
 }
@@ -436,18 +438,7 @@ fn retain_owner(owner: RetainedTemplate) -> u32 {
 }
 
 fn parse_template_data(input: &str) -> Result<TemplateData, String> {
-    if input.trim().is_empty() {
-        return Ok(TemplateData::default());
-    }
-    let value: Value = serde_json::from_str(input).map_err(|err| err.to_string())?;
-    let Value::Object(map) = value else {
-        return Err("template data must be a JSON object".to_owned());
-    };
-    let mut data = TemplateData::default();
-    for (name, value) in map {
-        data.bindings.insert(name, json_value_to_stream(value)?);
-    }
-    Ok(data)
+    super::parse_template_data(input)
 }
 
 fn element_reference_inputs_error(message: impl ToString) -> String {

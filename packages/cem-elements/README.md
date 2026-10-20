@@ -1315,3 +1315,25 @@ path and optional query/fragment. Bind `host-command-event="cem-preview-navigate
 on the preview host to let a routing service choose the next artifact. The shared
 host-view bridge accepts only that owner's event, reads no accessors or inherited
 detail, and forwards no other payload. It does not change editor/project selection.
+
+
+### Guarded retained rendering
+
+Shared WASM/worker processing can reuse a pure native render body for unchanged,
+fully owned JSON inputs. Rust establishes input equality from actual parsed data;
+unchanged browser revision strings alone never qualify. Worker and fallback
+requests pin their inputs before async dispatch and reject superseded or released
+render owners. This is shared runtime functionality; components and Studio require
+no JavaScript or authored cache hints.
+
+Native reference/document/companion bindings, opaque computations and unsupported
+native-valued output keep fresh evaluation. Every hit still projects native values
+and relationships, publishes host attribute updates, lowers resource controls and
+prepares DOM patches under current publication checks. Matching DOM retains user
+edits, focus and selection through the existing patch path. Targeted input patches
+also invalidate logical owner receipts across inert payload/template boundaries;
+returning to an earlier body reconciles changed owned attributes. Events and commands
+retain normal admission. The native cache stores bounded owned output bytes only,
+clears on template disposal/runtime reset, and retains no DOM, native owners or
+previous connection. Optional processing `renderReuse` counters are diagnostic;
+they never authorize publication. See the [native contract](../cem_ql/README.md#shared-retained-wasm-processing).
