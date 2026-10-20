@@ -211,6 +211,26 @@ forced colors and offline reload. `verify:output` checks relative JavaScript
 dependencies against shipped assets. The full `verify:static-worker` gate remains
 separate and still validates every Feature Tour schema example and worker workflow.
 
+The delivery verifier follows the current navigator shell: its theme trigger and
+Create/Clone/Delete controls are shared contextual `cem-icon-button` instances,
+the status lives in the footer, and project layout has three visible regions.
+It checks inherited action tokens, all theme modes, forced colors, responsive
+geometry and editor/selection retention without reinstating removed Install or
+storage controls. Fixture selection uses the public URL navigation service;
+`verify:navigation` separately exercises physical tree selection and Clone.
+Portable archive import/export, search, Trash/Restore, structural editing and draft-backup assertions
+use their existing public services where the former controls were removed.
+The complete Login validation/repair, native output, provenance, live interaction,
+independent-copy and offline save/reload assertions remain in the lifecycle gate.
+
+With project navigation active, **Results → Operation output** uses the shared
+`cem-media-preview` to show text, sandboxed documents and live CEM output. The
+project preview keeps its independent build/artifact selection. Standalone
+workbenches retain their existing preview placement. Newly committed projects
+are admitted from a refreshed workbench inventory when notification delivery
+lags behind the tree model, so opening a copy cannot silently rebuild its source
+project instead.
+
 `src/workbench-controls.xhtml` now owns workbench selection, source editing,
 revision/status presentation, save/reload and operation controls. Parse/inspect
 use native forms and the shared host command's successful scalar values, including

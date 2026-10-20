@@ -25,7 +25,7 @@
         {div @data-cem-studio-workbench-tools-mount="" | {cem-studio-workbench-tools}}
        }
        {cem-tab @value=results @label=Results |
-        {div @data-cem-studio-workbench-results-mount="" | {cem-studio-workbench-results}}
+        {div @data-cem-studio-workbench-results-mount="" | {cem-studio-workbench-results @project-preview={if datadom.slices.navigation { true } else { null }}}}
        }
       }
      }

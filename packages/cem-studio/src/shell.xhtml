@@ -11,7 +11,7 @@
  {body |
  {style @type=text/css |```
 :scope { display: block; min-inline-size: 0; color: var(--cem-palette-comfort-text); background-color: var(--cem-palette-comfort); font-family: var(--cem-typography-ui-font-family); }
-[part~='root'] { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--cem-gap-related); min-inline-size: 0; min-block-size: calc(100dvb - 2 * var(--cem-gap-related)); }
+[part~='root'] { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--cem-gap-related); min-inline-size: 0; min-block-size: calc(100dvb - 2 * var(--cem-gap-related)); }
 [part~='heading'] { margin: 0; font: inherit; overflow-wrap: anywhere; }
 [part~='workspace'], [part~='workspace'] > * { min-inline-size: 0; min-block-size: 0; block-size: 100%; }
 [part~='status'] { display: flex; flex-wrap: wrap; gap: var(--cem-gap-related); justify-content: space-between; padding: var(--cem-inset-container); border-block-start: var(--cem-stroke-boundary) solid currentColor; }

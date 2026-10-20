@@ -66,8 +66,8 @@ This stage provides sealing, host storage and explicit invalidation APIs.
 Automatic all-owner quiescence/publication wiring, live island export, bounded
 pending-input handling, runtime replacement, fresh-owner resume, stale-message
 fencing and declarative recovery status follow together. They are not enabled
-by this store. The complete Studio long-session verifier must be repaired for
-the current navigator shell and pass before replacement is enabled. Saved project
+by this store. The complete Studio long-session verifier now covers the current navigator
+shell and must remain passing before runtime replacement is enabled. Saved project
 revisions and unsaved editor state must remain independent.
 
 Evidence: native `committed_checkpoint`/`runtime_memory` fixtures, shared

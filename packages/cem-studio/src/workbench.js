@@ -315,7 +315,11 @@ export async function createCemStudioSessionWorkbench({ repository, session, hom
     const adapter = { snapshot, subscribe(notify) { subscribers.add(notify); notify(snapshot()); return () => subscribers.delete(notify); },
         async selectWorkbench(id) {
             provenanceNavigation = undefined;
-            const target = choices.find(item => item.id === id);
+            let target = choices.find(item => item.id === id);
+            // Repository publication can reach the URL/tree model before this
+            // asynchronous inventory. Admit a committed target from a fresh
+            // inventory rather than silently leaving the previous project open.
+            if (!target) { await refreshNavigation(); target = choices.find(item => item.id === id); }
             if (!target) throw new Error('The selected workbench is unavailable');
             await session.select(target.selection);
             return snapshot();

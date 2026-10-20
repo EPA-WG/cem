@@ -41,6 +41,24 @@ afterEach(async () => {
 });
 
 describe('CEM Studio Feature Tour workbench', () => {
+    it('opens a just-imported project before cached inventory receives its repository notification', async () => {
+        const repository = await repositoryWithSource('saved content');
+        const validator = validatorFor(validResult());
+        const session = createCemStudioProjectSession({ openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator, selection }) });
+        workbenches.push(session);
+        // Delay notification delivery without delaying the committed repository.
+        const inventory = { query: input => repository.query(input), execute: input => repository.execute(input), subscribe: () => () => undefined };
+        const workbench = await createCemStudioSessionWorkbench({ repository: inventory, session }); workbenches.push(workbench);
+        const bundle = (await repository.query(request('export-project', { projectId: 'feature-tour' }))).value;
+        bundle.project = { ...bundle.project, id: 'just-imported', name: 'Just imported', rootUri: 'studio://just-imported/' };
+        await repository.execute(request('import-project', { bundle, mode: 'create' }));
+        expect(workbench.snapshot().workbenches.some(choice => choice.selection.projectId === 'just-imported')).toBe(false);
+        await workbench.selectWorkbench(JSON.stringify({ projectId: 'just-imported', resourceId: 'source' }));
+        expect(workbench.snapshot()).toMatchObject({ projectId: 'just-imported', resourceId: 'source', persistedText: 'saved content' });
+        await expect(workbench.selectWorkbench(JSON.stringify({ projectId: 'missing', resourceId: 'source' }))).rejects.toThrow('unavailable');
+        expect(workbench.snapshot().projectId).toBe('just-imported');
+    });
+
     it('selects explicit build entries with URL precedence, missing-output reporting and stale admission guards', async () => {
         const repository = await repositoryWithSource('{main | saved}');
         const bundle = (await repository.query(request('export-project', { projectId: 'feature-tour' }))).value;
@@ -191,7 +209,7 @@ describe('CEM Studio Feature Tour workbench', () => {
             await vi.waitFor(() => expect(workbench.snapshot().navigation.saved.children.some(item => item.route.project === copyId)).toBe(true));
             await workbench.openEntity(`project=${copyId}&file=${articleId}`); await view.whenSettled(); await build();
             expect(preview().projection.outputs.filter(output => output.contentType.startsWith('text/html')).every(output => output.text.includes('Shared layout edited.'))).toBe(true);
-            expect(preview().projection.buildRun.artifacts.every(item => item.uri.startsWith(`studio://${copyId}/`))).toBe(true);
+            expect(preview().projection.buildRun.artifacts.every(item => item.uri.startsWith(`studio://${copyId}/`)), JSON.stringify(preview().projection.buildRun.artifacts.map(item => item.uri))).toBe(true);
             root.querySelector('cem-expansion[label="Pinned builds"] [part="header"]').click(); await view.whenSettled();
             const toolbar = root.querySelector('cem-studio-workbench-preview [part="build-controls"]');
             const previewRegion = root.querySelector('cem-studio-workbench-preview [part="preview"]');

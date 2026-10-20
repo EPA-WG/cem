@@ -210,6 +210,20 @@
   {cem-tabs @label="Projection results" @value=output |
    {cem-tab @label="Operation output" @value=output |
  {cem-stack @gap=md |
+    {cem:if @test='seq:count(datadom.attributes.project-preview) > 0' |
+     {section @aria-label="Operation output preview" @data-cem-studio-operation-preview="" |
+      {cem:choose |
+       {cem:when @test='projection.output.available == false' | {cem-alert @label="No output was published. See the command diagnostics below." @tone=warning}}
+       {cem:when @test=projection.preview |
+        {cem:variable @name=preview @select=projection.preview}
+        {cem:variable @name=mode @select='if preview.kind == "text" { "text" } else { if preview.kind == "sandboxed-html" { "document" } else { if preview.kind == "live-cem" { "live" } else { "message" } } }'}
+        {cem:variable @name=value @select='if preview.kind == "text" { preview.text } else { if preview.kind == "sandboxed-html" || preview.kind == "live-cem" { preview.source } else { preview.reason } }'}
+        {cem-media-preview @source-uri={preview.sourceUri} @resource-set={preview.resourceSet} @label={preview.label} @mode={mode} @truncated={if preview.truncated { true } else { null }} @value={value}}
+       }
+       {cem:otherwise | {cem-alert @label="Run an operation to preview its bounded result"}}
+      }
+     }
+    }
     {cem:if @test='seq:count(projection.artifacts.id) > 0' |
      {cem-select @label="Output artifact" @value={projection.selectedArtifactId}
       @disabled={if busy { true } else { null }} @host-command=select-artifact @host-command-event=change |
