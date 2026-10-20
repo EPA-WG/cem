@@ -50,6 +50,7 @@ export function checkpointBase64(buffer: ArrayBuffer): string | undefined {
 }
 
 export interface CheckpointSurface {
+    body?: CheckpointDeferredBody;
     returnValue: string | null; modal: boolean; focusWithin: boolean; closeReason: string; disposition: 'reacquire';
     invocation: null | { source: CheckpointEndpoint | null; returnDestination: CheckpointEndpoint | null; logicalParent: CheckpointEndpoint | null;
         command: string | null; contextKey: string | null; inputKind: 'pointer' | 'keyboard' | 'programmatic';
@@ -82,4 +83,12 @@ export function checkpointReferenceSource(input: CemElementReferenceInputs, revi
     return { version: 'cem-native-source/1', revision, rowCount: 0, select: 'input.children', resolve: false, requesting: input.requesting,
         sources, bindings: input.bindings.map(binding => ({ ...binding })), crossings: input.grants.map(([from, to]) => ({ from, to })),
         labels: { option: null, group: null }, disposition: 'reacquire' };
+}
+
+export interface CheckpointDeferredBody {
+    templateNode: string; mode: 'retain' | 'dispose'; materialized: boolean; roots: string[]; disposition: 'rematerialize';
+}
+export interface CheckpointManualListbox {
+    panel: CheckpointEndpoint; editor: CheckpointEndpoint; providerRevision: number; visible: boolean;
+    presentation: 'reset-on-resume'; disposition: 'reacquire';
 }

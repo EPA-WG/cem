@@ -1,4 +1,4 @@
-import type { CheckpointSource, CheckpointSuggestions, CheckpointPlacement, CheckpointSurface, CheckpointPopup, CheckpointMenu, CheckpointNativePublication } from './checkpoint-interactions.js';
+import type { CheckpointSource, CheckpointSuggestions, CheckpointPlacement, CheckpointSurface, CheckpointPopup, CheckpointMenu, CheckpointNativePublication, CheckpointManualListbox } from './checkpoint-interactions.js';
 import { cemPlaintextEditorEventValue } from './plaintext-editor-capability.js';
 
 /** Explicit browser control-state DTO; not a document or template AST. Native
@@ -19,6 +19,7 @@ export interface CemCheckpointRuntimeState {
     version: 'cem-checkpoint-runtime/1';
     references?: CheckpointSource;
     nativePublication?: CheckpointNativePublication;
+    manualListbox?: CheckpointManualListbox;
     placements?: CheckpointPlacement[];
     focus?: { target: 'host' | 'node'; nodeId: string | null };
     capability: null | { kind: 'suggestions'; state: CheckpointSuggestions } | { kind: 'navigation-landmark' }

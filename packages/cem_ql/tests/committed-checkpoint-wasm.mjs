@@ -122,6 +122,16 @@ assert.equal(wasm.validateCheckpointRuntime(retainedSaved), retainedSaved);
 assert.equal(JSON.parse(wasm.validateCheckpointRuntime(retainedSaved)).capability.state.proof.index, 1);
 retainedProof.capability.state.proof.value = 'wrong';
 assert.throws(() => wasm.validateCheckpointRuntime(JSON.stringify(retainedProof)));
+const deferredDelegate = { ...runtimeState, resources: [], capability: { kind: 'native-surface', phase: 'closed', defaultsInitialized: true,
+    state: { returnValue: '', modal: false, focusWithin: false, closeReason: 'native', invocation: null, disposition: 'reacquire',
+        body: { templateNode: 'template.1', mode: 'retain', materialized: true, roots: ['input.1'], disposition: 'rematerialize' } } },
+    manualListbox: { panel: { instanceId: 'listbox', dataRevision: '1', nodeId: 'panel.1' }, editor: { instanceId: 'field', dataRevision: '2', nodeId: 'host' },
+        providerRevision: 2, visible: false, presentation: 'reset-on-resume', disposition: 'reacquire' } };
+const deferredSaved = wasm.validateCheckpointRuntime(JSON.stringify(deferredDelegate));
+assert.equal(wasm.validateCheckpointRuntime(deferredSaved), deferredSaved);
+assert.equal(JSON.parse(deferredSaved).capability.state.body.roots[0], 'input.1');
+deferredDelegate.capability.state.body.roots.push('input.1');
+assert.throws(() => wasm.validateCheckpointRuntime(JSON.stringify(deferredDelegate)));
 const menuEndpoint = { instanceId: 'parent', dataRevision: '4', nodeId: 'menu.1' };
 const submenu = { ...runtimeState, resources: [], capability: { kind: 'composite-menu', activeNode: 'item.1', typeahead: '', typeaheadAt: 0, open: true,
     state: { parent: menuEndpoint, launcher: menuEndpoint, panel: menuEndpoint, disposition: 'reacquire' } } };

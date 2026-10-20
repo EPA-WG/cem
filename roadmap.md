@@ -462,8 +462,12 @@ source intent. Source-backed declarative native publication consumers retain
 original provenance, query/configuration and committed row identities, with fresh
 admission required; opaque or revoked bindings refuse capture. Original native-session inputs
 are snapshotted before async submission. Settled popup/dialog capture retains visibility, invocation/return-focus
-endpoints and return values. Gestures, pending work, unknown provider authority,
-retained bodies and unsupported source/widget states remain blocking. Complete
+endpoints and return values. Opted-in standalone manual-listbox delegates now
+retain exact provider/endpoint ownership and reset/reacquisition intent. Current
+native deferred-body projections retain materialization/root identities and edited
+controls; stale retained projections, nested produced bodies and untracked body
+content remain blocking. Gestures, pending work, unknown provider authority and
+unsupported source/widget states remain blocking. Complete
 physical worker/fallback runtime coverage and
 runtime replacement remain next. Continue this in the shared native/WASM
 engine and `cem-elements`; recovery status UI belongs in declarative

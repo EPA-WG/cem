@@ -126,6 +126,7 @@ function authoredPlanChildren(container: Node, children: readonly RenderPlanNode
 }
 
 // Authored light-DOM inputs and a custom element's rendered output have different owners.
+const renderedTextValues = new WeakMap<Node, string>();
 const renderedChildren = new WeakMap<Element, { plan?: readonly RenderPlanNode[]; nodes: ChildNode[]; owner?: string }>();
 const renderedRangeOwners = new WeakMap<Comment, { end: Comment; parent: Node; owner: string; rootIds: string[] }>();
 function isRegisteredCustomElement(element: Element): boolean {
@@ -2003,12 +2004,43 @@ function escapeRegExp(value: string): string {
  * Materialize a render plan into a live light-DOM fragment. UI-adapter side: this is the
  * only place the projection boundary touches live DOM on the way out.
  */
+/** Private projection equality evidence. This is never checkpoint source data or authority. */
+export function renderedTemplateCheckpointKey(template: HTMLTemplateElement): string | undefined {
+    let count = 0, valid = true;
+    const entries: unknown[] = [];
+    const visit = (parent: Element, depth: number): void => {
+        const record = renderedChildren.get(parent), container = renderPlanElementChildContainer(parent);
+        if (!record?.owner || depth > 64 || record.nodes.length !== container.childNodes.length) { valid = false; return; }
+        for (const [index, node] of record.nodes.entries()) {
+            if (++count > 4096 || node !== container.childNodes[index]) { valid = false; return; }
+            const id = (node as Node & { cemRenderNodeId?: string }).cemRenderNodeId;
+            if (!id) { valid = false; return; }
+            if (node.nodeType !== 1) {
+                const text = renderedTextValues.get(node);
+                if (text === undefined || node.textContent !== text) { valid = false; return; }
+                entries.push([node.nodeType, id, text]); continue;
+            }
+            const element = node as Element, attributes = renderedAttributeValues.get(element);
+            if (!attributes || element.getAttribute(RENDER_NODE_ID_ATTR) !== id
+                || [...attributes].some(([name, value]) => element.getAttribute(name) !== value)
+                || [...element.attributes].some(attribute => !attributes.has(attribute.name)
+                    && ![RENDER_NODE_ID_ATTR, TEMPLATE_ARTIFACT_ID_ATTR, DATA_REVISION_ATTR, SOURCE_FIDELITY_ATTR, SOURCE_FRAME_ATTR].includes(attribute.name))) { valid = false; return; }
+            entries.push([1, id, element.namespaceURI, element.localName, [...attributes], renderedNativeAttributeBindings(element)]);
+            visit(element, depth + 1); entries.push(['end']);
+        }
+    };
+    visit(template, 0);
+    if (!valid) return undefined;
+    const key = JSON.stringify(entries);
+    return key.length <= 512 * 1024 ? key : undefined;
+}
 /** Materialize derived template output while retaining native attribute capsules.
  * This copies browser projection, never recaptures instance data or invents native authority.
  */
 export function materializeRenderedTemplate(template: HTMLTemplateElement): DocumentFragment {
     const fragment = template.ownerDocument.importNode(template.content, true);
     const copy = (source: Node, target: Node): void => {
+        (target as Node & { cemRenderNodeId?: string }).cemRenderNodeId = (source as Node & { cemRenderNodeId?: string }).cemRenderNodeId;
         if (source.nodeType === 1 && target.nodeType === 1) {
             const original = source as Element, element = target as Element;
             restoreNativeAttributeBindings(element, renderedNativeAttributeBindings(original));
@@ -2406,6 +2438,7 @@ function materializeSerializedNode(node: SerializedNode, identity: RenderPlanIde
 /** A changed authored textarea body also controls its dirty live value. */
 function setRenderedText(target: Node, value: string): void {
     target.textContent = value;
+    if (target.nodeType === 3 || target.nodeType === 8) renderedTextValues.set(target, value);
     const parent = target.nodeType === 1 ? target as Element : target.parentElement;
     if (parent?.localName === 'textarea' && parent.namespaceURI === XHTML_NAMESPACE) {
         const textarea = parent as HTMLTextAreaElement;
@@ -2511,11 +2544,13 @@ function materializeNode(node: RenderPlanNode, plan: RenderPlan, document: Docum
     if (node.kind === 'text') {
         const text = document.createTextNode(node.text) as Text & { cemRenderNodeId?: string };
         text.cemRenderNodeId = textNodePatchId(node);
+        renderedTextValues.set(text, node.text);
         return text;
     }
     if (node.kind === 'comment') {
         const comment = document.createComment(node.text) as Comment & { cemRenderNodeId?: string };
         comment.cemRenderNodeId = textNodePatchId(node);
+        renderedTextValues.set(comment, node.text);
         return comment;
     }
 
@@ -2975,6 +3010,7 @@ function createRenderPlanDomNodes(node: RenderPlanNode, context: RenderPlanApply
 
 function createTextLikeNode(node: Extract<RenderPlanNode, { kind: 'text' | 'comment' }>, document: Document): Node {
     const created = node.kind === 'text' ? document.createTextNode(node.text) : document.createComment(node.text);
+    renderedTextValues.set(created, node.text);
     (created as Node & { cemRenderNodeId?: string }).cemRenderNodeId = textNodePatchId(node);
     return created;
 }

@@ -20,6 +20,8 @@ struct State {
     references: Option<crate::checkpoint_interactions::Source>,
     #[serde(skip_serializing_if = "Option::is_none")]
     native_publication: Option<crate::checkpoint_interactions::NativePublication>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    manual_listbox: Option<crate::checkpoint_interactions::ManualListbox>,
     resources: Vec<Resource>,
     writers: Vec<Writer>,
     write_disposition: String,
@@ -185,6 +187,9 @@ pub fn validate(input: &str) -> Result<String, &'static str> {
         })
     {
         return Err("cem.checkpoint.runtime.focus");
+    }
+    if let Some(delegate) = &state.manual_listbox {
+        delegate.validate()?;
     }
     let mut source_bytes = 0;
     if let Some(source) = &mut state.references {

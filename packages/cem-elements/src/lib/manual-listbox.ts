@@ -1,4 +1,5 @@
-import { getCemEditorProvider, isCemEditorLeaseFor, subscribeCemEditorCheckpoint, type CemEditorLease } from './form-control-capability.js';
+import type { CheckpointEndpoint, CheckpointManualListbox } from './checkpoint-interactions.js';
+import { getCemEditorProvider, registerCemEditorCheckpoint, isCemEditorLeaseFor, subscribeCemEditorCheckpoint, type CemEditorLease } from './form-control-capability.js';
 import { createCemSurfaceGeometryLease, nativeSurfaceGeometry } from './popup-controller.js';
 import { observeInteractionReferences, reportInteractionReference } from './interaction-reference.js';
 import { assertCemSurfaceOwnerAvailable, createCemSurfaceSession, observeCemSurfaceDismissalRegion, type CemSurfaceLifetime, type CemSurfaceSession } from './surface-session.js';
@@ -8,6 +9,8 @@ export interface CemManualListboxLifecycle {
     current(): boolean;
     /** Source, query and row publication are ready at this consumer lifecycle stage. */
     ready(): boolean;
+    /** Host opts into inert reset/reacquisition; callbacks remain current admission policy. */
+    checkpoint?: boolean;
     /** Revoke any outstanding opening when the captured relationship/revision changes. */
     subscribe(invalidate: () => void): () => void;
 }
@@ -21,11 +24,19 @@ interface Options {
     onVisibility?(open: boolean, reason: string): void;
 }
 export interface CemManualListboxController extends CemSurfaceSession { open(): boolean }
+const checkpointDelegates = new WeakMap<HTMLElement, { editor: HTMLElement; panel: HTMLElement; capture(): Omit<CheckpointManualListbox, 'panel' | 'editor'> | undefined }>();
+export function hasCemManualListboxCheckpoint(host: HTMLElement): boolean { return checkpointDelegates.has(host); }
+export function cemManualListboxCheckpoint(host: HTMLElement, resolve: (node: HTMLElement) => CheckpointEndpoint | undefined): CheckpointManualListbox | undefined {
+    const delegate = checkpointDelegates.get(host), state = delegate?.capture();
+    const panel = delegate && resolve(delegate.panel), editor = delegate && resolve(delegate.editor);
+    return state && panel && editor ? { ...state, panel, editor } : undefined;
+}
 const noninteractive = 'button,a[href],input,select,textarea,summary,iframe,object,embed,audio[controls],video[controls],[contenteditable]:not([contenteditable="false"]),[tabindex],[autofocus]';
 
 /** Package-private semantic delegate. It neither selects rows nor writes values or editor ARIA. */
 export function connectCemManualListbox(owner: HTMLElement, options: Options): CemManualListboxController {
     assertCemSurfaceOwnerAvailable(owner);
+    if (!options.editorLease && options.lifecycle.checkpoint && checkpointDelegates.has(options.host)) throw new TypeError('Duplicate standalone delegate checkpoint owner');
     const { host, editorHost, lifecycle } = options;
     const provider = getCemEditorProvider(editorHost), editor = provider?.control;
     if (!provider || !(editor instanceof HTMLInputElement)) throw new TypeError('Manual listbox requires an exact native editor provider');
@@ -35,7 +46,8 @@ export function connectCemManualListbox(owner: HTMLElement, options: Options): C
     // Acquire surface ownership before the editor claim: a competing surface must not perturb another provider.
     let session: CemSurfaceSession | undefined;
     const geometry = createCemSurfaceGeometryLease(host, owner, () => session?.reconcile());
-    const lease = options.editorLease ?? provider.lease({});
+    const checkpointOwner = {};
+    const lease = options.editorLease ?? provider.lease(checkpointOwner);
     const releaseLease = () => { if (!options.editorLease) lease.release(); };
     const placement = () => host.getAttribute('placement') ?? 'block-end start';
     const admittedAncestors = (node: HTMLElement) => {
@@ -114,6 +126,23 @@ export function connectCemManualListbox(owner: HTMLElement, options: Options): C
         if (editor.ownerDocument.activeElement !== editor) current.dismiss('focus');
     }), { signal: abort.signal });
     let disposed = false;
+    if (!options.editorLease && lifecycle.checkpoint) {
+        const capture = () => {
+            if (disposed || lifecycle.checkpoint !== true || current.pending || !host.isConnected || !owner.isConnected || !editorHost.isConnected
+                || !lease.valid || lease.attributes.valid || lease.datalist.valid || provider.composing
+                || getCemEditorProvider(editorHost) !== provider || provider.control !== editor
+                || !lifecycle.current() || !lifecycle.ready() || host.hasAttribute('anchor') || host.hasAttribute('boundary')
+                || ancestors.length || editor.type !== 'text' || editor.hasAttribute('list') || host.hasAttribute('mode') || host.hasAttribute('kind') || placement() === 'center'
+                || owner.matches('[tabindex],[autofocus],[contenteditable]:not([contenteditable="false"])') || owner.getAttribute('role') !== 'listbox' || owner.getAttribute('popover') !== 'manual'
+                || owner.querySelector(noninteractive) || current.visible !== owner.matches(':popover-open')
+                || current.visible && !check()) return undefined;
+            return { providerRevision: provider.revision, visible: current.visible, presentation: 'reset-on-resume' as const, disposition: 'reacquire' as const };
+        };
+        const record = { editor: editorHost, panel: owner, capture };
+        checkpointDelegates.set(host, record);
+        releases.push(() => { if (checkpointDelegates.get(host) === record) checkpointDelegates.delete(host); });
+        releases.push(registerCemEditorCheckpoint(provider, { host, owner: checkpointOwner, lease, current: () => !!capture(), claim: () => 'none' }));
+    }
     return {
         get visible() { return current.visible; }, get pending() { return current.pending; }, get generation() { return current.generation; },
         prepare: () => current.prepare(), complete: attempt => current.complete(attempt),

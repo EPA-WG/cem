@@ -162,8 +162,26 @@ parent and return destination endpoints after the menu relay has committed.
 Resume restores state without invoking the command or reusing the old relay.
 Preparation, closing/exit work, pointer or activation-key gestures, queued activations,
 active tooltip interest/timers, native context handles, external geometry and
-retained deferred-body projections still block capture. A gesture settles after
+unsupported deferred-body projections still block capture. A gesture settles after
 native activation dispatch; disposal removes its listeners and pending timer.
+Deferred native dialog bodies retain a native-validated `body` contract: current
+template render-node identity, `retain`/`dispose` mode, materialization state and
+at most 256 unique root identities, with `rematerialize` disposition. On future
+semantic resume, recreate the current native template projection before applying
+ordinary control/focus checkpoints. No live DOM or previous native handles are
+serialized as source. Private committed renderer records verify template
+attributes, text and topology, including targeted patches; cloning preserves
+native render-node identities and attribute capsules. A materialized body must
+still match that projection and its original owned topology/attributes (native
+control disabled/readonly state uses the control contract). Edited values,
+selection and focus survive capture and unrelated rerenders. Never-materialized,
+empty and disposed bodies also have explicit state. Bodies are bounded to 4,096
+projection nodes and a private equality key bounded to 512K UTF-16 code units. Stale retained content after
+a changed template, untracked/dynamic boundary nodes, nested produced components,
+contenteditable bodies, foreign insertions/mutations and private or unsupported
+controls refuse the whole domain. Closing a `dispose` body and freshly
+materializing it repairs a stale projection; capture itself never disposes edits.
+
 `cem-grid` remains declarative layout using ordinary payload/control/focus capture,
 without admitting an arbitrary stateful ARIA grid controller.
 
@@ -251,6 +269,21 @@ delegate shares its owning suggestions controller’s lease and subscriptions;
 a standalone delegate or direct host datalist lease without a complete registered
 owner contract remains unaccounted and blocks capture. No public API accepts a
 caller-supplied portable provider record in place of live ownership.
+
+A standalone shared manual-listbox delegate can opt in with
+`lifecycle.checkpoint: true`. Its exact private lease owner and tagged provider
+subscription register with the shared form-provider accounting. The produced
+host captures `manualListbox`: current panel/editor endpoints, provider revision,
+visibility, `reset-on-resume` presentation and `reacquire` disposition. Both
+endpoints join the complete current receipt graph. This delegate owns no row
+selection/value or editor ARIA claims; those cannot be silently included. The
+host's `current()`/`ready()` callbacks remain current admission policy. Revoked
+opt-in, pending attempts, composition/gestures, foreign claims/listeners, explicit
+geometry or ancestor lifetimes, unsupported profiles and disconnected endpoints
+block capture. Disconnect removes accounting and releases the exact lease once.
+No opt-in or an unregistered direct datalist lease still blocks capture. These
+contracts record reset/reacquisition intent, not a platform popup restoration or
+callback/lease serialization.
 
 `CemNativeCapabilitySession.prepare(..., signal, true)` explicitly opts a trusted
 host source into capture; declarative local suggestions select this only when

@@ -352,8 +352,9 @@ class NativeSurface implements CemNativeSurfaceController {
         queueMicrotask(() => { if (visible(this.owner) && this.closeReason === reason) this.closeReason = 'native'; });
     }
     checkpoint(resolve: (node: HTMLElement) => CheckpointEndpoint | undefined): { phase: 'open' | 'closed'; state: CheckpointSurface } | undefined {
-        if (this.disposed || !this.host.isConnected || !this.owner.isConnected || !['closed', 'open'].includes(this.phase)
-            || this.preparation || this.prepared || this.timer || this.activation || this.relay || this.releaseBusy || !this.body.checkpointReady()
+        const body = this.body.checkpoint();
+        if (body === undefined || this.disposed || !this.host.isConnected || !this.owner.isConnected || !['closed', 'open'].includes(this.phase)
+            || this.preparation || this.prepared || this.timer || this.activation || this.relay || this.releaseBusy
             || this.restore || this.tooltipPointer || this.tooltipAutomatic || this.tooltipDismissed || this.describedSources.size
             || [...this.tooltipSources.values()].some(source => source.focused || source.pointer || source.touch)
             || this.invocation?.context || this.host.hasAttribute('anchor') || this.host.hasAttribute('boundary')
@@ -365,7 +366,7 @@ class NativeSurface implements CemNativeSurfaceController {
         const returnDestination = invocation?.returnDestination ? resolve(invocation.returnDestination) : null;
         const logicalParent = invocation?.logicalParent ? resolve(invocation.logicalParent) : null;
         if (source === undefined || returnDestination === undefined || logicalParent === undefined) return undefined;
-        return { phase: this.phase as 'open' | 'closed', state: { returnValue: nativeDialog(this.owner) ? this.owner.returnValue : null,
+        return { phase: this.phase as 'open' | 'closed', state: { ...(body ? { body } : {}), returnValue: nativeDialog(this.owner) ? this.owner.returnValue : null,
             modal: this.owner.matches(':modal'), focusWithin: this.focusWithin, closeReason: this.closeReason, disposition: 'reacquire',
             invocation: invocation ? { source, returnDestination, logicalParent, command: invocation.command ?? null, contextKey: invocation.contextKey ?? null,
                 inputKind: invocation.inputKind ?? 'programmatic', pointer: invocation.geometry?.pointer ? { ...invocation.geometry.pointer } : null,

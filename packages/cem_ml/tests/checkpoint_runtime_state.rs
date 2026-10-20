@@ -462,3 +462,64 @@ fn native_publication_consumers_require_original_sources_and_exact_row_contracts
     s["references"] = references;
     assert!(validate(&s.to_string()).is_err());
 }
+
+#[test]
+fn standalone_delegates_and_deferred_bodies_have_inert_exact_contracts() {
+    let endpoint = json!({"instanceId":"owner","dataRevision":"1","nodeId":"panel"});
+    let delegate = json!({"panel":endpoint,"editor":{"instanceId":"editor","dataRevision":"2","nodeId":"host"},"providerRevision":2,"visible":false,"presentation":"reset-on-resume","disposition":"reacquire"});
+    let body = json!({"templateNode":"template","mode":"retain","materialized":true,"roots":["input","text"],"disposition":"rematerialize"});
+    let mut s = state();
+    s["capability"] = json!({"kind":"native-surface","phase":"closed","defaultsInitialized":true,"state":{"returnValue":"","modal":false,"focusWithin":false,"closeReason":"native","invocation":null,"disposition":"reacquire","body":body}});
+    s["manualListbox"] = delegate.clone();
+    assert_eq!(
+        validate(&validate(&s.to_string()).unwrap()).unwrap(),
+        validate(&s.to_string()).unwrap()
+    );
+    for bad in [
+        json!({"panel":endpoint,"editor":null,"providerRevision":2,"visible":false,"presentation":"reset-on-resume","disposition":"reacquire"}),
+        {
+            let mut v = delegate.clone();
+            v["providerRevision"] = json!(9_007_199_254_740_992u64);
+            v
+        },
+        {
+            let mut v = delegate.clone();
+            v["lease"] = json!("authority");
+            v
+        },
+        {
+            let mut v = delegate.clone();
+            v["presentation"] = json!("restore-platform-picker");
+            v
+        },
+        {
+            let mut v = delegate.clone();
+            v["panel"]["nodeId"] = json!("");
+            v
+        },
+    ] {
+        let mut bad_state = s.clone();
+        bad_state["manualListbox"] = bad;
+        assert!(validate(&bad_state.to_string()).is_err());
+    }
+    for (key, value) in [
+        ("mode", json!("eager")),
+        ("roots", json!(["same", "same"])),
+        ("roots", json!(["template"])),
+        ("roots", json!([""])),
+        ("disposition", json!("reuse-dom")),
+        ("grant", json!("forged")),
+        (
+            "roots",
+            json!((0..257).map(|i| format!("n{i}")).collect::<Vec<_>>()),
+        ),
+    ] {
+        let mut v = s.clone();
+        v["capability"]["state"]["body"][key] = value;
+        assert!(validate(&v.to_string()).is_err(), "{key}");
+    }
+    s["capability"]["state"]["body"]["materialized"] = json!(false);
+    assert!(validate(&s.to_string()).is_err());
+    s["capability"]["state"]["body"]["roots"] = json!([]);
+    assert!(validate(&s.to_string()).is_ok());
+}

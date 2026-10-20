@@ -1,3 +1,4 @@
+import { connectCemManualListbox } from './manual-listbox.js';
 import type { CemCheckpointSealer } from './committed-checkpoint.js';
 import type { CheckpointSource } from './checkpoint-interactions.js';
 import type { CemNativeSuggestionsPublication } from './native-suggestions-publication.js';
@@ -1136,4 +1137,131 @@ export const ExternalProviderCheckpoint: Story = {
 export const ExternalProviderCheckpointFallback: Story = {
     render: () => '<section aria-label="External provider fallback checkpoint"></section>',
     play: ({ canvasElement }) => externalProviderCheckpointContract(canvasElement, true),
+};
+
+export const StandaloneDelegateOwnership: Story = {
+    render: () => '<section aria-label="Standalone delegate checkpoint ownership"></section>',
+    play: async ({ canvasElement }) => {
+        await init(); const root = canvasElement.querySelector('section')!;
+        for (const fallback of [false, true]) {
+            let ready = true, race = false;
+            const listeners = new Set<() => void>();
+            const f = fixture(root, fallback, false, undefined, {}, async (candidate, receipt) => {
+                const sealed = wasm.sealCommittedCheckpoint(candidate, receipt);
+                if (race) ready = false;
+                return sealed;
+            });
+            let controller: ReturnType<typeof connectCemManualListbox> | undefined;
+            try {
+                const field = await f.create(declarationTemplate(fieldDeclaration), 'cem-ml', root, undefined, 'form-control', { value: 'Unsaved draft' });
+                const host = await f.create('{div @role=listbox @popover=manual | {div @role=option | Choice}}');
+                await f.runtime.whenRenderSettled(field); await f.runtime.whenRenderSettled(host);
+                const panel = host.querySelector<HTMLElement>('[role=listbox]')!, input = field.querySelector('input')!;
+                const provider = getCemEditorProvider(field)!;
+                const lifecycle = { current: () => ready, ready: () => ready, subscribe: (listener: () => void) => { listeners.add(listener); return () => listeners.delete(listener); } };
+                controller = connectCemManualListbox(panel, { host, editorHost: field, lifecycle });
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                controller.disconnect();
+                controller = connectCemManualListbox(panel, { host, editorHost: field, lifecycle: { ...lifecycle, checkpoint: true } });
+                await waitFor(async () => { await f.coordinator.capture(); });
+                let saved = decode(f.coordinator); expect(saved.owners.some(owner => owner.island.includes('manualListbox'))).toBe(true);
+                expect(saved.owners.some(owner => owner.island.includes('reset-on-resume'))).toBe(true);
+                input.focus(); input.setSelectionRange(1, 5);
+                expect(controller.open()).toBe(true);
+                await waitFor(async () => { await f.coordinator.capture(); });
+                expect(document.activeElement).toBe(input); expect(input.value).toBe('Unsaved draft');
+                expect([input.selectionStart, input.selectionEnd]).toEqual([1, 5]);
+                const foreign = provider.lease({});
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); foreign.release();
+                await waitFor(async () => { await f.coordinator.capture(); });
+                controller.dismiss('fixture');
+                const pending = controller.prepare()!; expect(pending).toBeTruthy();
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); controller.dismiss('cancel');
+                await waitFor(async () => { await f.coordinator.capture(); });
+                const lastGood = f.coordinator.lastCommitted()!.bytes;
+                race = true;
+                await expect(f.coordinator.capture()).rejects.toThrow('stale');
+                expect(f.coordinator.lastCommitted()!.bytes).toEqual(lastGood);
+                race = false;
+                for (const listener of listeners) listener();
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                ready = true;
+                await waitFor(async () => { await f.coordinator.capture(); });
+                controller.disconnect(); controller = undefined;
+                await waitFor(async () => { await f.coordinator.capture(); });
+                saved = decode(f.coordinator); expect(saved.owners.some(owner => owner.island.includes('manualListbox'))).toBe(false);
+                expect(listeners.size).toBe(0);
+            } finally { controller?.disconnect(); f.dispose(); }
+        }
+    },
+};
+export const DeferredBodyProjectionOwnership: Story = {
+    render: () => '<section aria-label="Deferred body checkpoint projection"></section>',
+    play: async ({ canvasElement }) => {
+        await init(); const root = canvasElement.querySelector('section')!;
+        for (const fallback of [false, true]) {
+            let raceTarget: HTMLElement | undefined;
+            const f = fixture(root, fallback, false, undefined, {}, async (candidate, receipt) => {
+                const sealed = wasm.sealCommittedCheckpoint(candidate, receipt);
+                raceTarget?.setAttribute('title', 'Changed while sealing');
+                return sealed;
+            });
+            try {
+                const host = await f.create('{attribute @name=caption | Initial}{dialog @part=surface @aria-label=Deferred | {template @slot=body | {input @value={$caption}}{p | {$caption}}}}', 'cem-ml', root, undefined, 'native-surface');
+                await f.runtime.whenRenderSettled(host);
+                await waitFor(async () => { await f.coordinator.capture(); });
+                let saved = decode(f.coordinator).owners[0].island;
+                expect(saved).toContain('rematerialize'); expect(host.querySelector('input')).toBeNull();
+                const templateInput = host.querySelector<HTMLTemplateElement>('template[slot=body]')!.content.querySelector('input')!;
+                const initial = f.coordinator.lastCommitted()!.bytes;
+                templateInput.setAttribute('value', 'Forged projection');
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                expect(f.coordinator.lastCommitted()!.bytes).toEqual(initial);
+                templateInput.setAttribute('value', 'Initial');
+                await waitFor(async () => { await f.coordinator.capture(); });
+                const dialog = host.querySelector('dialog')!; dialog.showModal();
+                const input = await waitFor(() => { const value = dialog.querySelector('input'); expect(value).not.toBeNull(); return value!; });
+                input.value = 'Unsaved retained é'; input.focus(); input.setSelectionRange(2, 6);
+                await waitFor(async () => { await f.coordinator.capture(); });
+                saved = decode(f.coordinator).owners[0].island;
+                expect(saved).toContain('Unsaved retained é'); expect(saved).toContain('materialized');
+                expect([input.selectionStart, input.selectionEnd]).toEqual([2, 6]);
+                host.setAttribute('title', 'Unrelated render'); await f.runtime.whenRenderSettled(host);
+                expect(dialog.querySelector('input')).toBe(input); expect(input.value).toBe('Unsaved retained é');
+                expect(document.activeElement).toBe(input);
+                await waitFor(async () => { await f.coordinator.capture(); });
+                const beforeRace = f.coordinator.lastCommitted()!.bytes;
+                raceTarget = dialog.querySelector('p')!;
+                await expect(f.coordinator.capture()).rejects.toThrow('stale');
+                expect(f.coordinator.lastCommitted()!.bytes).toEqual(beforeRace);
+                raceTarget.removeAttribute('title'); raceTarget = undefined;
+                await waitFor(async () => { await f.coordinator.capture(); });
+                dialog.close(); await waitFor(async () => { await f.coordinator.capture(); });
+                expect(dialog.querySelector('input')).toBe(input);
+                let lastGood = f.coordinator.lastCommitted()!.bytes;
+                const foreign = document.createElement('span'); dialog.append(foreign);
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                expect(f.coordinator.lastCommitted()!.bytes).toEqual(lastGood); foreign.remove();
+                await waitFor(async () => { await f.coordinator.capture(); });
+                lastGood = f.coordinator.lastCommitted()!.bytes;
+                host.setAttribute('caption', 'Changed'); await f.runtime.whenRenderSettled(host);
+                expect(dialog.querySelector('input')).toBe(input); expect(input.value).toBe('Unsaved retained é');
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                expect(f.coordinator.lastCommitted()!.bytes).toEqual(lastGood);
+                host.setAttribute('materialize', 'dispose'); await f.runtime.whenRenderSettled(host);
+                dialog.showModal(); await waitFor(() => expect(dialog.open).toBe(true)); dialog.close();
+                await waitFor(() => expect(dialog.querySelector('input')).toBeNull());
+                await waitFor(async () => { await f.coordinator.capture(); });
+                dialog.showModal();
+                await waitFor(() => expect(dialog.querySelector('input')!.value).toBe('Changed'));
+                await waitFor(async () => { await f.coordinator.capture(); });
+                dialog.close(); await waitFor(() => expect(dialog.querySelector('input')).toBeNull());
+                const empty = await f.create('{dialog @part=surface @aria-label=Empty | {template @slot=body}}', 'cem-ml', root, undefined, 'native-surface');
+                await f.runtime.whenRenderSettled(empty); empty.querySelector('dialog')!.showModal();
+                await waitFor(async () => { await f.coordinator.capture(); });
+                empty.querySelector('dialog')!.close();
+                await waitFor(async () => { await f.coordinator.capture(); });
+            } finally { f.dispose(); }
+        }
+    },
 };

@@ -1,7 +1,8 @@
-import { materializeRenderedTemplate } from './projection.js';
+import type { CheckpointDeferredBody } from './checkpoint-interactions.js';
+import { materializeRenderedTemplate, renderedTemplateCheckpointKey } from './projection.js';
 import { reportInteractionReference } from './interaction-reference.js';
 
-interface BodyRecord { template: HTMLTemplateElement; nodes: ChildNode[] }
+interface BodyRecord { template: HTMLTemplateElement; nodes: ChildNode[]; checkpointKey?: string; topology: { node: Node; parent: Node | null; text: string | null; attributes: string | null }[] }
 // Browser projection ownership only. Never recaptured as the instance's native data.
 const BODY_OWNERS = Symbol.for('cem.surface-bodies.v1');
 const environment = globalThis as typeof globalThis & { [BODY_OWNERS]?: WeakMap<HTMLElement, BodyRecord> };
@@ -9,9 +10,35 @@ const bodies = environment[BODY_OWNERS] ??= new WeakMap<HTMLElement, BodyRecord>
 export function ownsCemSurfaceBodyNode(owner: HTMLElement, node: Node): boolean {
     return bodies.get(owner)?.nodes.includes(node as ChildNode) ?? false;
 }
+function bodyAttributes(node: Node): string | null {
+    if (node.nodeType !== 1) return null;
+    const element = node as Element;
+    return JSON.stringify([...element.attributes].filter(attribute => !element.matches('input,textarea,select,button') || !['disabled', 'readonly'].includes(attribute.name))
+        .map(attribute => [attribute.name, attribute.value]).sort(([a], [b]) => a.localeCompare(b)));
+}
 export class CemSurfaceBody {
     /** Preserved materialized bodies are a separate owned projection domain. */
-    checkpointReady(): boolean { return !bodies.has(this.owner); }
+    checkpoint(): CheckpointDeferredBody | null | undefined {
+        const contract = this.contract(); if (!contract) return undefined;
+        const record = bodies.get(this.owner);
+        if (!contract.template) return record ? undefined : null;
+        if (contract.mode === 'eager') return record ? undefined : null;
+        const templateNode = (contract.template as HTMLTemplateElement & { cemRenderNodeId?: string }).cemRenderNodeId;
+        const key = renderedTemplateCheckpointKey(contract.template);
+        if (record && !record.topology) return undefined;
+        const admittedNodes = new Set(record?.topology.map(entry => entry.node));
+        if (!templateNode || contract.template.getAttribute('data-cem-render-node-id') !== templateNode || key === undefined
+            || record && (record.template !== contract.template || record.checkpointKey !== key || record.topology.length > 4096
+                || record.topology.some(({ node, parent, text, attributes }) => node.parentNode !== parent || text !== null && node.textContent !== text || bodyAttributes(node) !== attributes)
+                || record.topology.some(({ node }) => node.nodeType === 1 && ((node as Element).matches('[contenteditable]') || !!node.ownerDocument?.defaultView?.customElements.get((node as Element).localName)
+                    || (node as Element).getAttribute('data-cem-render-node-id') !== (node as Node & { cemRenderNodeId?: string }).cemRenderNodeId
+                    || [...node.childNodes].some(child => !admittedNodes.has(child)))))) return undefined;
+        const roots = (record?.nodes ?? []).map(node => (node as Node & { cemRenderNodeId?: string }).cemRenderNodeId);
+        if (roots.length > 256 || roots.some(id => !id) || new Set(roots).size !== roots.length
+            || record?.nodes.some(node => node.parentNode !== this.owner)) return undefined;
+        return { templateNode, mode: contract.mode as 'retain' | 'dispose', materialized: !!record,
+            roots: roots as string[], disposition: 'rematerialize' };
+    }
     constructor(private readonly owner: HTMLElement, private readonly host: HTMLElement, private readonly beforeDispose: (nodes: readonly ChildNode[]) => void,
         private readonly chrome: (node: Node) => boolean = () => false) {}
     private contract(): { template?: HTMLTemplateElement; mode: string } | undefined {
@@ -36,8 +63,13 @@ export class CemSurfaceBody {
         if (contract.template) {
             const fragment = materializeRenderedTemplate(contract.template);
             const nodes = [...fragment.childNodes];
-            bodies.set(this.owner, { template: contract.template, nodes });
+            const topology: BodyRecord['topology'] = [];
+            const visit = (node: Node) => { topology.push({ node, parent: node.parentNode, text: node.nodeType === 3 || node.nodeType === 8 ? node.textContent : null, attributes: bodyAttributes(node) });
+                for (const child of node.childNodes) visit(child); };
+            for (const node of nodes) visit(node);
+            bodies.set(this.owner, { template: contract.template, nodes, topology, checkpointKey: renderedTemplateCheckpointKey(contract.template) });
             contract.template.after(fragment);
+            for (const entry of topology) entry.parent = entry.node.parentNode;
         }
         return true;
     }

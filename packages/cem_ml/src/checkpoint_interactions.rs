@@ -391,6 +391,8 @@ struct Invocation {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Surface {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    body: Option<DeferredBody>,
     return_value: Option<String>,
     modal: bool,
     focus_within: bool,
@@ -409,6 +411,9 @@ pub struct Popup {
 }
 impl Surface {
     pub fn validate(&self, phase: &str) -> Result<(), &'static str> {
+        if let Some(body) = &self.body {
+            body.validate()?;
+        }
         let fail = "cem.checkpoint.runtime.surface";
         if self.disposition != "reacquire"
             || self.close_reason.len() > 1024
@@ -561,5 +566,60 @@ impl NativePublication {
         }
         self.publication.validate(self.source.row_count as i32)?;
         validate_rows(&self.rows, self.source.row_count)
+    }
+}
+
+/// Recreate a current native template projection before applying control checkpoints.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DeferredBody {
+    template_node: String,
+    mode: String,
+    materialized: bool,
+    roots: Vec<String>,
+    disposition: String,
+}
+impl DeferredBody {
+    fn validate(&self) -> Result<(), &'static str> {
+        let mut ids = BTreeSet::new();
+        if !identity(&self.template_node)
+            || !matches!(self.mode.as_str(), "retain" | "dispose")
+            || self.disposition != "rematerialize"
+            || self.roots.len() > 256
+            || !self.materialized && !self.roots.is_empty()
+            || self
+                .roots
+                .iter()
+                .any(|id| !identity(id) || id == &self.template_node || !ids.insert(id))
+        {
+            return Err("cem.checkpoint.runtime.body");
+        }
+        Ok(())
+    }
+}
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ManualListbox {
+    panel: Endpoint,
+    editor: Endpoint,
+    provider_revision: u64,
+    visible: bool,
+    presentation: String,
+    disposition: String,
+}
+impl ManualListbox {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.provider_revision > SAFE
+            || self.presentation != "reset-on-resume"
+            || self.disposition != "reacquire"
+            || [&self.panel, &self.editor].iter().any(|e| {
+                ![&e.instance_id, &e.data_revision, &e.node_id]
+                    .iter()
+                    .all(|s| identity(s))
+            })
+        {
+            return Err("cem.checkpoint.runtime.delegate");
+        }
+        Ok(())
     }
 }
