@@ -7,12 +7,22 @@ export interface CemCheckpointOwnerReceipt {
     dataRevision: string;
     acceptedEventSequence: number;
 }
+/** Inert dependency intent, issued by the trusted host. Never a grant or lease. */
+export interface CemCheckpointRelationship {
+    id: string;
+    kind: 'editor-provider' | 'placement';
+    requester: { instanceId: string; dataRevision: string; nodeId: string };
+    provider: { instanceId: string; dataRevision: string; nodeId: string };
+    property: string;
+    disposition: 'reacquire';
+}
 export interface CemCommitReceipt {
     runtimeId: string;
     generation: number;
     commitSequence: number;
     policyStamp: string;
     owners: CemCheckpointOwnerReceipt[];
+    relationships?: CemCheckpointRelationship[];
     operations: { instanceId: string; operationId: string; outcome: 'acknowledged' | 'unknown' | 'not-applied' }[];
 }
 export type CemCheckpointSealer = (candidate: string, receipt: string) => string | Promise<string>;

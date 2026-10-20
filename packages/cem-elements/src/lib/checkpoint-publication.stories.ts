@@ -9,6 +9,13 @@ import selectDeclaration from '../../../cem-components/src/components/cem-select
 import autocompleteDeclaration from '../../../cem-components/src/components/cem-autocomplete/cem-autocomplete.xhtml?raw';
 import fieldDeclaration from '../../../cem-components/src/components/cem-field/cem-field.xhtml?raw';
 import checkboxDeclaration from '../../../cem-components/src/components/cem-checkbox/cem-checkbox.xhtml?raw';
+import treeDeclaration from '../../../cem-components/src/components/cem-tree/cem-tree.xhtml?raw';
+import tabsDeclaration from '../../../cem-components/src/components/cem-tabs/cem-tabs.xhtml?raw';
+import navDeclaration from '../../../cem-components/src/components/cem-nav/cem-nav.xhtml?raw';
+import menuDeclaration from '../../../cem-components/src/components/cem-menu/cem-menu.xhtml?raw';
+import dropdownDeclaration from '../../../cem-components/src/components/cem-dropdown/cem-dropdown.xhtml?raw';
+import dialogDeclaration from '../../../cem-components/src/components/cem-dialog/cem-dialog.xhtml?raw';
+import gridDeclaration from '../../../cem-components/src/components/cem-grid/cem-grid.xhtml?raw';
 import { mountCemView } from './host-view.js';
 import sourceEditorDeclaration from '../../../cem-components/src/components/cem-source-editor/cem-source-editor.xhtml?raw';
 import { createCemDeclarationScope } from './declaration-scope.js';
@@ -27,7 +34,7 @@ function fixture(root: HTMLElement, fallback: boolean, automatic = false, read?:
     const runtime = new CemElementRuntime({ ...options, declarationTag: `declaration-${suffix}`, declarationScope: scope, checkpointPublication: coordinator,
         moduleUrlRoot: { baseUrl: 'https://example.test/', importMap: {} }, retainedStylesheets: { read },
         ...(fallback ? { processingWorkerFactory: () => { throw new Error('fixture selects fallback'); } } : {}) });
-    async function create(source: string, mode: 'dom' | 'cem-ml' = 'cem-ml', container = root, payload?: string, capability?: string) {
+    async function create(source: string, mode: 'dom' | 'cem-ml' = 'cem-ml', container = root, payload?: string, capability?: string, attributes: Record<string, string> = {}) {
         const tag = `checkpoint-${crypto.randomUUID()}`;
         const declaration = document.createElement('div'); declaration.setAttribute('tag', tag);
         const template = document.createElement('template');
@@ -36,6 +43,7 @@ function fixture(root: HTMLElement, fallback: boolean, automatic = false, read?:
         declaration.append(template); root.append(declaration); runtime.registerDeclaration(declaration);
         await runtime.whenDeclarationSettled(declaration);
         const instance = document.createElement(tag);
+        for (const [name, value] of Object.entries(attributes)) instance.setAttribute(name, value);
         if (payload) { const inert = document.createElement('template'); inert.innerHTML = payload; instance.append(inert); }
         container.append(instance);
         return instance;
@@ -551,6 +559,74 @@ export const FormAssociatedChoiceState: Story = {
                 input.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
                 await f.runtime.whenRenderSettled(editor); await f.coordinator.capture();
                 expect(input.value).toBe('Unsaved choice é');
+            } finally { f.dispose(); }
+        }
+    },
+};
+
+
+export const NonFormWidgetContracts: Story = {
+    render: () => '<section aria-label="Non-form checkpoint interaction"></section>',
+    play: async ({ canvasElement }) => {
+        await init(); const root = canvasElement.querySelector('section')!;
+        for (const fallback of [false, true]) {
+            const f = fixture(root, fallback);
+            const capture = async () => { await f.coordinator.capture(); return decode(f.coordinator); };
+            try {
+                const tree = await f.create(declarationTemplate(treeDeclaration), 'cem-ml', root,
+                    '<cem-tree-item value="docs" label="Documentation"><cem-tree-item value="readme" label="Readme"></cem-tree-item></cem-tree-item><cem-tree-item value="source" label="Source"></cem-tree-item>',
+                    'tree-view', { label: 'Project resources', selection: 'single', 'expanded-values': 'docs', 'selected-values': 'readme' });
+                await f.runtime.whenRenderSettled(tree);
+                const node = tree.querySelector<HTMLButtonElement>('[data-tree-value="readme"]')!;
+                node.focus(); node.dispatchEvent(new KeyboardEvent('keydown', { key: 's', bubbles: true }));
+                await f.runtime.whenRenderSettled(tree);
+                let saved = (await capture()).owners[0].island;
+                expect(saved).toContain('tree-view'); expect(saved).toContain('typeahead'); expect(saved).toContain('source');
+                expect(saved).toContain('selected-values'); expect(saved).toContain('expanded-values'); expect(saved).toContain('nodeId');
+                const focused = document.activeElement; await capture(); expect(document.activeElement).toBe(focused);
+                const tabs = await f.create(declarationTemplate(tabsDeclaration), 'cem-ml', root,
+                    '<cem-tab value="one" label="One"><p>First</p></cem-tab><cem-tab value="two" label="Two"><p>Second</p></cem-tab>', 'tab-panels', { label: 'Views' });
+                await f.runtime.whenRenderSettled(tabs);
+                tabs.querySelectorAll<HTMLButtonElement>('[role=tab]')[1].focus();
+                await f.runtime.whenRenderSettled(tabs);
+                saved = (await capture()).owners.find(owner => owner.island.includes('tab-panels'))!.island;
+                expect(saved).toContain('focusIndex'); expect(saved).toContain('tabCount');
+                const nav = await f.create(declarationTemplate(navDeclaration), 'cem-ml', root, '<a href="#checkpoint" aria-current="page">Current</a>', 'navigation-landmark');
+                await f.runtime.whenRenderSettled(nav); nav.querySelector('a')!.focus();
+                await f.runtime.whenRenderSettled(nav); saved = (await capture()).owners.find(owner => owner.island.includes('navigation-landmark'))!.island;
+                expect(saved).toContain('aria-current'); expect(saved).toContain('nodeId');
+                const grid = await f.create(declarationTemplate(gridDeclaration), 'cem-ml', root, '<button type="button">Grid action</button>');
+                await f.runtime.whenRenderSettled(grid); grid.querySelector('button')!.focus(); await f.runtime.whenRenderSettled(grid);
+                expect((await capture()).owners.length).toBe(4);
+            } finally { f.dispose(); }
+        }
+    },
+};
+export const SettledSurfacesAndTransientSessionRefusal: Story = {
+    render: () => '<section aria-label="Checkpoint surface admission"></section>',
+    play: async ({ canvasElement }) => {
+        await init(); const root = canvasElement.querySelector('section')!;
+        for (const fallback of [false, true]) {
+            const f = fixture(root, fallback);
+            try {
+                const popup = await f.create(declarationTemplate(dropdownDeclaration), 'cem-ml', root, '<p>Popup content</p>', 'popup', { open: 'false' });
+                await f.runtime.whenRenderSettled(popup); await f.coordinator.capture();
+                expect(decode(f.coordinator).owners[0].island).toContain('popup');
+                popup.setAttribute('open', 'true'); await f.runtime.whenRenderSettled(popup);
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                popup.setAttribute('open', 'false'); await f.runtime.whenRenderSettled(popup); await f.coordinator.capture();
+                const surface = await f.create(declarationTemplate(dialogDeclaration), 'cem-ml', root, '<p>Dialog content</p>', 'native-surface');
+                await f.runtime.whenRenderSettled(surface); await f.coordinator.capture();
+                expect(decode(f.coordinator).owners.find(owner => owner.island.includes('native-surface'))!.island).toContain('defaultsInitialized');
+                const dialog = surface.querySelector('dialog')!; dialog.showModal();
+                await f.runtime.whenRenderSettled(surface); await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                dialog.close('complete'); await f.runtime.whenRenderSettled(surface);
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                dialog.returnValue = ''; await waitFor(async () => { await f.runtime.whenRenderSettled(surface); await f.coordinator.capture(); });
+                // A menu without an open submenu carries only roving focus/typeahead.
+                const menu = await f.create(declarationTemplate(menuDeclaration), 'cem-ml', root, '<button type="button">First</button><button type="button">Second</button>', 'composite-menu');
+                await f.runtime.whenRenderSettled(menu); await f.coordinator.capture();
+                expect(decode(f.coordinator).owners.find(owner => owner.island.includes('composite-menu'))!.island).toContain('activeNode');
             } finally { f.dispose(); }
         }
     },

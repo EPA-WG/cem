@@ -594,3 +594,10 @@ function installTokenListProperty(instance: HTMLElement, property: string, attri
         },
     });
 }
+
+/** Read-only portable state; listeners, generated IDs and grants are reacquired. */
+export function cemTreeViewCheckpoint(instance: HTMLElement) {
+    const state = TREE_STATES.get(instance);
+    if (!state?.connected || state.issue || state.refocusValue || state.flatItems.length > 1024) return undefined;
+    return { kind: 'tree-view' as const, focusValue: state.focusValue, typeahead: state.typeaheadBuffer, typeaheadAt: state.lastTypeaheadAt };
+}

@@ -133,8 +133,48 @@ validity, form disabling, consumed selection requests, selected/preview values,
 active/range anchors, expanded state and typeahead clock state where applicable.
 Generated IDs, normalized option caches and listeners are derived again from the
 canonical payload. Pending programmatic values, composition, provider leases,
-claims and deferred commits block capture. Other behavioral capabilities and
-foreign placement relationships still require their own admission contracts.
+claims and deferred commits block capture.
+
+Stable non-form capture supports navigation-landmark, tree-view (roving value and
+bounded typeahead clock), tab-panels (roving index/count), and composite-menu
+without an open submenu or parent session (active render-node identity and
+typeahead). Selected/expanded values and tab selection remain in canonical
+attributes/slices. Normalized item caches and generated accessibility IDs are
+derived from the retained payload, never serialized browser ASTs. Stable focus is
+an owner-local host or render-node identity; nested owners record their own focus.
+Native controls retain their exact edits and selection in the control domain.
+Keyboard, focus and surface lifecycle events invalidate publication before export.
+
+Popup capture requires an internal trigger and a closed surface. Native-surface
+requires a closed, settled controller with consumed default-open initialization;
+preparation, top-layer visibility, exit/hover timers, task handoffs, invocation and
+return-focus sessions, nonempty dialog return values and retained deferred body
+projections refuse the entire domain. Resume must suppress default-open
+initialization. Other capabilities, active suggestions/provider leases and foreign
+placement relationships continue blocking owner export. `cem-grid` is declarative
+layout and uses ordinary payload/control/focus capture; this does not admit an
+arbitrary stateful ARIA grid controller.
+
+The acknowledged receipt may carry at most 256 `relationships`: a unique host ID,
+kind (`editor-provider` or `placement`), requester/provider endpoints
+(`instanceId`, `dataRevision`, owner-local `nodeId`), property and the required
+`reacquire` disposition. Native sealing verifies both endpoints against the
+complete owner receipt set, rejects duplicate requester/property routes and
+multiple suggestions consumers of one exclusive editor, and allowlists placement
+properties. Unknown fields, including old tokens, sessions or grants, are refused.
+These are scalar dependency contracts, not source ASTs or authority.
+
+Trusted hosts register intent with `coordinator.relationship(descriptor, current,
+authority)`, using current runtime/generation/policy authority. The coordinator
+copies descriptors and checks endpoint revisions and host freshness before and
+after every asynchronous export/seal. Removal of an owner blocks dependent intent;
+policy changes revoke registrations until explicitly removed/replaced. Release
+functions are idempotent. The native contract is checked even if the host callback
+claims currentness. Registration does not bypass unsupported owner export fences.
+Live suggestions and placement producers still need complete adapters for their
+private state, native source provenance, fresh grant acquisition and authority
+revocation before they can be admitted or resumed. Never synthesize these
+contracts from authored IDs or `data-cem-placement-ref-*` markers.
 
 `cem_ml::checkpoint_runtime_state::validate` / WASM `validateCheckpointRuntime`
 validate this explicit scalar lifecycle boundary. Input and normalized output are
@@ -197,8 +237,8 @@ an unbounded tombstone set. Retirement supports bounded repeated operations; the
 be recorded. Retire before overflow: compaction cannot retroactively account for
 an unjournaled effect. Ordinary actions remain available when capture is refused.
 
-Automatic capture is not enabled in Studio. Remaining behavioral capability/placement
-admission, physical runtime-domain discovery,
+Automatic capture is not enabled in Studio. Open/transient widget sessions, live
+provider/placement admission, physical runtime-domain discovery,
 memory-pressure admission drain, generation replacement, fresh-owner semantic
 resume, stale-message fencing and declarative recovery status remain follow-up
 work. The complete Studio long-session verifier must remain passing before

@@ -329,3 +329,13 @@ export const CEM_COMPOSITE_MENU_CAPABILITY: CemProducedElementBehavior = {
         if (state.parent?.isConnected) synchronize(state.parent);
     },
 };
+
+/** Read-only portable state; listeners, generated IDs and grants are reacquired. */
+export function cemCompositeMenuCheckpoint(instance: HTMLElement) {
+    const state = states.get(instance);
+    // Open submenu sessions retain return-focus, task relay and geometry authority.
+    if (!state?.abort || state.abort.signal.aborted || state.syncing || state.open || state.openPanel || state.parent) return undefined;
+    const activeNode = state.active?.getAttribute('data-cem-render-node-id') ?? null;
+    if (state.active && (!activeNode || !instance.contains(state.active))) return undefined;
+    return { kind: 'composite-menu' as const, activeNode, typeahead: state.buffer, typeaheadAt: state.typedAt, open: false as const };
+}

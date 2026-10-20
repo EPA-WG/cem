@@ -75,6 +75,16 @@ const document = wasm.retainCemDocument(Buffer.from(body.base64, 'base64'), body
 assert.ok(document > 0); assert.ok(wasm.disposeCemDocument(document));
 const terminal = structuredClone(candidate); terminal.receipt.operations[0].outcome = 'not-applied';
 assert.equal(JSON.parse(wasm.sealCommittedCheckpoint(JSON.stringify(terminal), JSON.stringify(terminal.receipt))).receipt.operations[0].outcome, 'not-applied');
+const widget = { ...JSON.parse(portableRuntime), capability: { kind: 'tree-view', focusValue: 'docs', typeahead: 'd', typeaheadAt: 1 },
+    focus: { target: 'node', nodeId: 'tree.1' } };
+assert.deepEqual(JSON.parse(wasm.validateCheckpointRuntime(JSON.stringify(widget))), widget);
+const dependent = structuredClone(candidate);
+dependent.receipt.relationships = [{ id: 'control', kind: 'placement', disposition: 'reacquire', property: 'aria-controls',
+    requester: { instanceId: 'editor', dataRevision: 'draft:2', nodeId: 'button.1' },
+    provider: { instanceId: 'editor', dataRevision: 'draft:2', nodeId: 'panel.1' } }];
+assert.deepEqual(JSON.parse(wasm.sealCommittedCheckpoint(JSON.stringify(dependent), JSON.stringify(dependent.receipt))), dependent);
+dependent.receipt.relationships[0].provider.dataRevision = 'stale';
+assert.throws(() => wasm.sealCommittedCheckpoint(JSON.stringify(dependent), JSON.stringify(dependent.receipt)));
 // Execution/resume is deliberately not performed by the transport store.
 store.invalidate(); assert.equal(store.current(), undefined);
 assert.ok(store.lastCommitted()); store.dispose(); assert.equal(store.lastCommitted(), undefined);

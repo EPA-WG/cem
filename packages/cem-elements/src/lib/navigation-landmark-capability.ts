@@ -77,3 +77,8 @@ function suppress(event: Event): void {
     event.preventDefault();
     event.stopImmediatePropagation();
 }
+
+/** Read-only portable state; listeners, generated IDs and grants are reacquired. */
+export function cemNavigationLandmarkCheckpoint(instance: HTMLElement) {
+    return NAVIGATION_STATES.get(instance)?.connected ? { kind: 'navigation-landmark' as const } : undefined;
+}

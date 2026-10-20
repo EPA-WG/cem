@@ -10,6 +10,7 @@ fn receipt() -> CommitReceipt {
         commit_sequence: 3,
         policy_stamp: "private-session".into(),
         operations: vec![],
+        relationships: vec![],
         owners: vec![OwnerReceipt {
             instance_id: "editor".into(),
             declaration_identity: "source:1".into(),
@@ -198,4 +199,52 @@ fn explicitly_reconciled_not_applied_outcomes_are_terminal_metadata_not_replay()
     );
     checkpoint.receipt.operations.clear();
     assert!(seal(&encoded(&checkpoint), &receipt).is_err());
+}
+
+#[test]
+fn relationship_contracts_require_complete_current_owners_and_fresh_authority() {
+    use serde_json::{json, Value};
+    let mut c = serde_json::to_value(candidate()).unwrap();
+    c["receipt"]["owners"].as_array_mut().unwrap().push(json!({"instanceId":"menu","declarationIdentity":"source:menu","dataRevision":"view:3","acceptedEventSequence":0}));
+    c["owners"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"instanceId":"menu","island":"<template/>"}));
+    let relationship = json!({"id":"editor-menu","kind":"editor-provider","requester":{"instanceId":"menu","dataRevision":"view:3","nodeId":"host"},"provider":{"instanceId":"editor","dataRevision":"draft:2","nodeId":"field.1"},"property":"suggestions","disposition":"reacquire"});
+    c["receipt"]["relationships"] = json!([relationship]);
+    let check = |v: &Value| seal(&v.to_string(), &v["receipt"].to_string());
+    assert!(check(&c).is_ok());
+    let mut placement = c.clone();
+    placement["receipt"]["relationships"][0]["kind"] = "placement".into();
+    placement["receipt"]["relationships"][0]["property"] = "aria-controls".into();
+    assert!(check(&placement).is_ok());
+    for (field, value) in [
+        ("disposition", json!("restore-token")),
+        ("property", json!("onclick")),
+        ("token", json!("old-authority")),
+    ] {
+        let mut invalid = placement.clone();
+        invalid["receipt"]["relationships"][0][field] = value;
+        assert!(check(&invalid).is_err(), "{invalid}");
+    }
+    for (field, value) in [
+        ("instanceId", json!("outside-domain")),
+        ("dataRevision", json!("obsolete")),
+        ("nodeId", json!("")),
+    ] {
+        let mut invalid = c.clone();
+        invalid["receipt"]["relationships"][0]["provider"][field] = value;
+        assert!(check(&invalid).is_err());
+    }
+    let mut duplicate = c.clone();
+    let mut second = relationship.clone();
+    second["id"] = "another".into();
+    duplicate["receipt"]["relationships"]
+        .as_array_mut()
+        .unwrap()
+        .push(second);
+    assert!(check(&duplicate).is_err());
+    let mut excessive = c.clone();
+    excessive["receipt"]["relationships"] = json!(vec![relationship; 257]);
+    assert!(check(&excessive).is_err());
 }

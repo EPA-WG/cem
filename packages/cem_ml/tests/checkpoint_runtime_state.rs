@@ -151,3 +151,43 @@ fn choice_editors_preserve_selection_preview_defaults_and_clock_state() {
     s["capability"] = json!({"kind":"choice-select","selection":[],"defaultValues":[],"activeIndex":-2,"rangeAnchor":0,"expanded":false,"previewSelection":[],"mode":"bad","authoredValue":null,"valueRequest":null,"formDisabled":false,"typeahead":"","typeaheadAt":0,"focusedPart":null});
     assert!(validate(&s.to_string()).is_err());
 }
+
+#[test]
+fn validates_stable_non_form_interaction_and_focus_contracts() {
+    for capability in [
+        json!({"kind":"navigation-landmark"}),
+        json!({"kind":"tree-view","focusValue":"docs","typeahead":"do","typeaheadAt":12}),
+        json!({"kind":"tab-panels","focusIndex":1,"tabCount":3}),
+        json!({"kind":"composite-menu","activeNode":"menu.1","typeahead":"s","typeaheadAt":4,"open":false}),
+        json!({"kind":"popup","open":false}),
+        json!({"kind":"native-surface","phase":"closed","defaultsInitialized":true}),
+    ] {
+        let mut s = state();
+        s["capability"] = capability;
+        s["focus"] = json!({"target":"node","nodeId":"render.1"});
+        let result = validate(&s.to_string()).unwrap();
+        assert_eq!(serde_json::from_str::<Value>(&result).unwrap(), s);
+    }
+    for capability in [
+        json!({"kind":"tree-view","focusValue":"docs","typeahead":"x".repeat(4097),"typeaheadAt":12}),
+        json!({"kind":"tab-panels","focusIndex":3,"tabCount":3}),
+        json!({"kind":"tab-panels","focusIndex":-2,"tabCount":3}),
+        json!({"kind":"composite-menu","activeNode":null,"typeahead":"","typeaheadAt":0,"open":true}),
+        json!({"kind":"popup","open":true}),
+        json!({"kind":"native-surface","phase":"preparing","defaultsInitialized":true}),
+        json!({"kind":"suggestions","token":"old-native-authority"}),
+    ] {
+        let mut s = state();
+        s["capability"] = capability;
+        assert!(validate(&s.to_string()).is_err(), "{s}");
+    }
+    for focus in [
+        json!({"target":"host","nodeId":"not-host"}),
+        json!({"target":"node","nodeId":""}),
+        json!({"target":"selector","nodeId":"input"}),
+    ] {
+        let mut s = state();
+        s["focus"] = focus;
+        assert!(validate(&s.to_string()).is_err());
+    }
+}

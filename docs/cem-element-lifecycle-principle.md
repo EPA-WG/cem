@@ -374,3 +374,14 @@ validation fails before committing that transaction.
 Browser evidence is in `custom-element-ownership.stories.ts`; source and packaged
 component playground checks also cover theme changes while the source viewer
 and interactive action preview are live.
+
+
+Checkpoint non-form interaction uses the shared native runtime control contract:
+owner-local focus anchors, tree/menu roving state and typeahead, tabs, and closed
+settled surfaces. Rebuild derived item caches/accessibility IDs from canonical
+payload, and consume default-open initialization before any resume render.
+Open/preparing/closing surface sessions and active suggestions/placement owners
+remain nonportable. Provider/placement receipt contracts describe current owner
+and revision endpoints and require fresh host reacquisition; neither serialized
+IDs nor a matching old token confer authority. Exact supported states and
+publication fences are specified in [Committed checkpoints](committed-checkpoints.md).

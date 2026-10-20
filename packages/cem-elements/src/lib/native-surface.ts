@@ -350,6 +350,14 @@ class NativeSurface implements CemNativeSurfaceController {
         this.closeReason = reason;
         queueMicrotask(() => { if (visible(this.owner) && this.closeReason === reason) this.closeReason = 'native'; });
     }
+    checkpointReady(): boolean {
+        return !this.disposed && this.host.isConnected && this.owner.isConnected && this.phase === 'closed'
+            && !visible(this.owner) && !this.preparation && !this.prepared && !this.timer && !this.activation
+            && !this.invocation && !this.relay && !this.releaseBusy && this.body.checkpointReady()
+            && (!nativeDialog(this.owner) || !this.owner.returnValue) && !this.wasOpen && !this.restore && !this.tooltipPointer
+            && !this.tooltipAutomatic && !this.tooltipDismissed && !this.describedSources.size
+            && [...this.tooltipSources.values()].every(source => !source.focused && !source.pointer && !source.touch);
+    }
     private sync(): void {
         if (this.disposed) return;
         if (!this.disconnecting && (!this.host.isConnected || !this.owner.isConnected)) { this.disconnect(); return; }
@@ -585,3 +593,10 @@ export const CEM_NATIVE_SURFACE_CAPABILITY: CemProducedElementBehavior = {
     },
     disconnected(host) { providerControllers.get(host)?.disconnect(); providerControllers.delete(host); },
 };
+
+/** Top-layer/preparation/return-focus sessions require a separate resume contract. */
+export function cemNativeSurfaceCheckpoint(host: HTMLElement) {
+    const owner = providerControllers.get(host)?.owner;
+    if (!owner || !defaultsInitialized.has(host) || !controllers.get(owner)?.controller.checkpointReady()) return undefined;
+    return { kind: 'native-surface' as const, phase: 'closed' as const, defaultsInitialized: true as const };
+}

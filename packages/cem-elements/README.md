@@ -24,6 +24,15 @@ by ordinary hydration. Ordinary rendering continues.
 This is host-session capture, not automatic WASM replacement or resume. See
 [the checkpoint contract](../../docs/committed-checkpoints.md).
 
+Stable tree/tab/menu navigation and closed settled popup/dialog state now have
+native checkpoint contracts, including owner-local focus anchors. Trusted hosts
+can register inert provider/placement dependency intent with
+`coordinator.relationship(descriptor, current, authority)`; native sealing requires
+complete current endpoint receipts and fresh reacquisition. Active suggestions,
+foreign placement owners and transient surface sessions remain blocking. These
+contracts do not enable runtime replacement or semantic resume.
+
+
 Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
 
 `@epa-wg/cem-elements` provides the `<cem-element>` browser substrate for declarative light-DOM custom elements. It is

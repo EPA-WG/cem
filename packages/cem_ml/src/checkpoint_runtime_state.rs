@@ -12,13 +12,48 @@ const SAFE: u64 = 9_007_199_254_740_991;
 struct State {
     version: String,
     capability: Option<Capability>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    focus: Option<Focus>,
     resources: Vec<Resource>,
     writers: Vec<Writer>,
     write_disposition: String,
 }
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct Focus {
+    target: String,
+    node_id: Option<String>,
+}
+#[derive(Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 enum Capability {
+    NavigationLandmark {},
+    #[serde(rename_all = "camelCase")]
+    TreeView {
+        focus_value: String,
+        typeahead: String,
+        typeahead_at: u64,
+    },
+    #[serde(rename_all = "camelCase")]
+    TabPanels {
+        focus_index: i32,
+        tab_count: u32,
+    },
+    #[serde(rename_all = "camelCase")]
+    CompositeMenu {
+        active_node: Option<String>,
+        typeahead: String,
+        typeahead_at: u64,
+        open: bool,
+    },
+    Popup {
+        open: bool,
+    },
+    #[serde(rename_all = "camelCase")]
+    NativeSurface {
+        phase: String,
+        defaults_initialized: bool,
+    },
     #[serde(rename_all = "camelCase")]
     FormControl {
         authored_value: Option<String>,
@@ -32,7 +67,9 @@ enum Capability {
         selection_request: Option<String>,
     },
     #[serde(rename_all = "camelCase")]
-    CheckableControl { authored_indeterminate: bool },
+    CheckableControl {
+        authored_indeterminate: bool,
+    },
     #[serde(rename_all = "camelCase")]
     ChoiceSelect {
         selection: Vec<String>,
@@ -119,7 +156,56 @@ pub fn validate(input: &str) -> Result<String, &'static str> {
     {
         return Err("cem.checkpoint.runtime.format");
     }
+    if state
+        .focus
+        .as_ref()
+        .is_some_and(|focus| match focus.target.as_str() {
+            "host" => focus.node_id.is_some(),
+            "node" => !focus.node_id.as_deref().is_some_and(identity),
+            _ => true,
+        })
+    {
+        return Err("cem.checkpoint.runtime.focus");
+    }
     match &state.capability {
+        Some(Capability::TreeView {
+            focus_value,
+            typeahead,
+            typeahead_at,
+        }) => {
+            if focus_value.len() > 1024 || typeahead.len() > 4096 || *typeahead_at > SAFE {
+                return Err("cem.checkpoint.runtime.capability");
+            }
+        }
+        Some(Capability::TabPanels {
+            focus_index,
+            tab_count,
+        }) => {
+            if *tab_count > 1024 || *focus_index < -1 || *focus_index >= *tab_count as i32 {
+                return Err("cem.checkpoint.runtime.capability");
+            }
+        }
+        Some(Capability::CompositeMenu {
+            active_node,
+            typeahead,
+            typeahead_at,
+            open,
+        }) => {
+            if *open
+                || active_node.as_deref().is_some_and(|node| !identity(node))
+                || typeahead.len() > 4096
+                || *typeahead_at > SAFE
+            {
+                return Err("cem.checkpoint.runtime.capability");
+            }
+        }
+        Some(Capability::Popup { open: true }) => return Err("cem.checkpoint.runtime.capability"),
+        Some(Capability::NativeSurface {
+            phase,
+            defaults_initialized,
+        }) if phase != "closed" || !defaults_initialized => {
+            return Err("cem.checkpoint.runtime.capability")
+        }
         Some(Capability::ChoiceSelect {
             selection,
             default_values,

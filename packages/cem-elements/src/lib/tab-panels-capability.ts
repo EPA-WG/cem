@@ -377,3 +377,10 @@ function firstEnabledFrom(state: TabsState, start: number): number {
     }
     return -1;
 }
+
+/** Read-only portable state; listeners, generated IDs and grants are reacquired. */
+export function cemTabPanelsCheckpoint(instance: HTMLElement) {
+    const state = TABS_STATES.get(instance);
+    if (!state?.connected || state.issue || state.refocusIndex >= 0 || state.tabs.length > 1024) return undefined;
+    return { kind: 'tab-panels' as const, focusIndex: state.focusIndex, tabCount: state.tabs.length };
+}

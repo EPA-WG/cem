@@ -139,15 +139,15 @@ import {
 } from './repository.js';
 import { CEM_FORM_CONTROL_CAPABILITY, cemFormControlCheckpoint } from './form-control-capability.js';
 import { CEM_PLAINTEXT_EDITOR_CAPABILITY, cemPlaintextEditorEventValue, cemPlaintextEditorCheckpoint } from './plaintext-editor-capability.js';
-import { CEM_NAVIGATION_LANDMARK_CAPABILITY } from './navigation-landmark-capability.js';
+import { CEM_NAVIGATION_LANDMARK_CAPABILITY, cemNavigationLandmarkCheckpoint } from './navigation-landmark-capability.js';
 import { CEM_DISCLOSURE_PANEL_CAPABILITY } from './disclosure-panel-capability.js';
 import { CEM_SORT_ACTION_CAPABILITY } from './sort-action-capability.js';
 import { CEM_PROGRESS_STATUS_CAPABILITY } from './progress-status-capability.js';
 import { CEM_PAGINATION_CAPABILITY } from './pagination-capability.js';
 import { CEM_NATIVE_LIST_CAPABILITY } from './native-list-capability.js';
-import { CEM_TAB_PANELS_CAPABILITY } from './tab-panels-capability.js';
+import { CEM_TAB_PANELS_CAPABILITY, cemTabPanelsCheckpoint } from './tab-panels-capability.js';
 import { CEM_WORKFLOW_PANELS_CAPABILITY } from './workflow-panels-capability.js';
-import { CEM_TREE_VIEW_CAPABILITY } from './tree-view-capability.js';
+import { CEM_TREE_VIEW_CAPABILITY, cemTreeViewCheckpoint } from './tree-view-capability.js';
 import { CEM_TIME_INPUT_CAPABILITY } from './time-input-capability.js';
 import { CEM_RANGE_INPUT_CAPABILITY } from './range-input-capability.js';
 import { CEM_CALENDAR_INPUT_CAPABILITY } from './calendar-input-capability.js';
@@ -155,11 +155,11 @@ import { CEM_EDITABLE_CHOICE_CAPABILITY, cemEditableChoiceCheckpoint } from './e
 import { CEM_CHECKABLE_CONTROL_CAPABILITY, cemCheckableControlCheckpoint } from './checkable-control.js';
 import { CEM_SUGGESTIONS_CAPABILITY, refreshCemSuggestionsAuthorization, localCemSuggestionsBinding, type CemLocalSuggestionsEnvironment } from './suggestions-capability.js';
 import type { CemSuggestionsControllerOptions } from './suggestions-controller.js';
-import { CEM_POPUP_CAPABILITY } from './popup-capability.js';
-import { CEM_NATIVE_SURFACE_CAPABILITY } from './native-surface.js';
+import { CEM_POPUP_CAPABILITY, cemPopupCheckpoint } from './popup-capability.js';
+import { CEM_NATIVE_SURFACE_CAPABILITY, cemNativeSurfaceCheckpoint } from './native-surface.js';
 import { CEM_ACTION_CONTROL_CAPABILITY } from './action-control-capability.js';
 import { CEM_ACTION_COMMAND_CAPABILITY } from './action-command-capability.js';
-import { CEM_COMPOSITE_MENU_CAPABILITY } from './composite-menu-capability.js';
+import { CEM_COMPOSITE_MENU_CAPABILITY, cemCompositeMenuCheckpoint } from './composite-menu-capability.js';
 import { CEM_CHOICE_SELECT_CAPABILITY, cemChoiceSelectCheckpoint } from './choice-select-capability.js';
 import { consumeLocationWriteTrigger } from './internal/runtime-support/location-write-trigger.js';
 
@@ -2888,6 +2888,12 @@ export class CemElementRuntime {
         else if (compiled.behavior === CEM_CHECKABLE_CONTROL_CAPABILITY) capability = cemCheckableControlCheckpoint(instance) ?? null;
         else if (compiled.behavior === CEM_CHOICE_SELECT_CAPABILITY) capability = cemChoiceSelectCheckpoint(instance) ?? null;
         else if (compiled.behavior === CEM_EDITABLE_CHOICE_CAPABILITY) capability = cemEditableChoiceCheckpoint(instance) ?? null;
+        else if (compiled.behavior === CEM_TREE_VIEW_CAPABILITY) capability = cemTreeViewCheckpoint(instance) ?? null;
+        else if (compiled.behavior === CEM_TAB_PANELS_CAPABILITY) capability = cemTabPanelsCheckpoint(instance) ?? null;
+        else if (compiled.behavior === CEM_NAVIGATION_LANDMARK_CAPABILITY) capability = cemNavigationLandmarkCheckpoint(instance) ?? null;
+        else if (compiled.behavior === CEM_COMPOSITE_MENU_CAPABILITY) capability = cemCompositeMenuCheckpoint(instance) ?? null;
+        else if (compiled.behavior === CEM_POPUP_CAPABILITY) capability = cemPopupCheckpoint(instance) ?? null;
+        else if (compiled.behavior === CEM_NATIVE_SURFACE_CAPABILITY) capability = cemNativeSurfaceCheckpoint(instance) ?? null;
         if (compiled.behavior && !capability) return undefined;
         const resources: CemCheckpointRuntimeState['resources'] = [];
         let documentBytes = 0;
@@ -2946,7 +2952,15 @@ export class CemElementRuntime {
         for (const [index, trigger] of this.locationWriteTriggers.get(instance) ?? []) writers.push({ index, trigger, implicit: implicit?.has(index) ?? false });
         for (const index of implicit ?? []) if (!this.locationWriteTriggers.get(instance)?.has(index)) writers.push({ index, trigger: null, implicit: true });
         if (writers.length > 256) return undefined;
-        return { version: 'cem-checkpoint-runtime/1', capability, resources, writers, writeDisposition: 'suppress-until-new-input' };
+        const focused = instance.ownerDocument.activeElement;
+        let focus: CemCheckpointRuntimeState['focus'];
+        if (focused === instance) focus = { target: 'host', nodeId: null };
+        else if (focused && instance.contains(focused) && this.ownsRenderedElement(instance, focused)) {
+            const nodeId = focused.getAttribute('data-cem-render-node-id');
+            if (!nodeId) return undefined;
+            focus = { target: 'node', nodeId };
+        }
+        return { version: 'cem-checkpoint-runtime/1', capability, ...(focus ? { focus } : {}), resources, writers, writeDisposition: 'suppress-until-new-input' };
     }
 
     private checkpointFingerprint(instance: HTMLElement, compiled: CompiledDeclaration): string | undefined {
@@ -3019,7 +3033,7 @@ export class CemElementRuntime {
                 resourceState: { ...snapshot.resourceState, ...Object.fromEntries(validated.resources.filter(resource => ['http', 'repository-query', 'storage-status'].includes(resource.kind)).map(resource => {
                     const key = `${resource.kind === 'repository-query' ? 'repository' : resource.kind}:${resource.name}`;
                     return [key, { ...(snapshot.resourceState?.[key] as Record<string, unknown>), status: resource.state }];
-                })), checkpointRuntime: { version: validated.version, resources: validated.resources, writers: validated.writers, writeDisposition: validated.writeDisposition } } });
+                })), checkpointRuntime: { version: validated.version, resources: validated.resources, writers: validated.writers, ...(validated.focus ? { focus: validated.focus } : {}), writeDisposition: validated.writeDisposition } } });
             state.observer?.takeRecords();
             units = 0; length = 0; visit(island, 0);
             return island.outerHTML;
@@ -3040,7 +3054,7 @@ export class CemElementRuntime {
         const compositionEnd = () => { this.checkpointComposing.delete(instance); input(); };
         instance.addEventListener('compositionstart', compositionStart, true);
         instance.addEventListener('compositionend', compositionEnd, true);
-        const events = ['beforeinput', 'input', 'change', 'click', 'submit', 'reset', 'select', 'focusin', 'focusout'];
+        const events = ['beforeinput', 'input', 'change', 'click', 'submit', 'reset', 'select', 'focusin', 'focusout', 'keydown', 'keyup', 'toggle', 'close', 'cancel'];
         for (const name of events) instance.addEventListener(name, input, true);
         let removed = false;
         let releaseScope = () => undefined as void;

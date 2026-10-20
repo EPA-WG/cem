@@ -10,6 +10,8 @@ export function ownsCemSurfaceBodyNode(owner: HTMLElement, node: Node): boolean 
     return bodies.get(owner)?.nodes.includes(node as ChildNode) ?? false;
 }
 export class CemSurfaceBody {
+    /** Preserved materialized bodies are a separate owned projection domain. */
+    checkpointReady(): boolean { return !bodies.has(this.owner); }
     constructor(private readonly owner: HTMLElement, private readonly host: HTMLElement, private readonly beforeDispose: (nodes: readonly ChildNode[]) => void,
         private readonly chrome: (node: Node) => boolean = () => false) {}
     private contract(): { template?: HTMLTemplateElement; mode: string } | undefined {

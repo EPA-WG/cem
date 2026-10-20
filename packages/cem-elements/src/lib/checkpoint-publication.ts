@@ -1,4 +1,4 @@
-import { CemCommittedCheckpointStore, type CemCheckpointOwnerReceipt, type CemCheckpointSealer, type CemCommitReceipt, type CemStoredCheckpoint } from './committed-checkpoint.js';
+import { CemCommittedCheckpointStore, type CemCheckpointOwnerReceipt, type CemCheckpointSealer, type CemCommitReceipt, type CemStoredCheckpoint, type CemCheckpointRelationship } from './committed-checkpoint.js';
 
 export interface CemCheckpointPublicationOptions {
     /** Trusted host session/domain identity. All clients of a replaceable runtime
@@ -38,6 +38,7 @@ export class CemCheckpointPublicationCoordinator {
     private readonly owners = new Map<string, Owner>();
     private readonly operations = new Map<string, CemCommitReceipt['operations'][number]>();
     private readonly retirement = new Set<string>();
+    private readonly relationships = new Map<string, { descriptor: CemCheckpointRelationship; current: () => boolean; policy: number }>();
     private readonly journalIdentity = crypto.randomUUID();
     private operationSequence = 0;
     private policySequence = 0;
@@ -91,6 +92,23 @@ export class CemCheckpointPublicationCoordinator {
                 if (this.owners.get(id) !== owner) return;
                 this.owners.delete(id); this.invalidate(); this.schedule();
             },
+        };
+    }
+
+    /** Trusted host registration of a complete dependency intent. This does not
+     * admit unsupported widget owners or authorize a restored relationship.
+     * Endpoint publication revisions and current host authority must still match. */
+    relationship(descriptor: CemCheckpointRelationship, current: () => boolean, authority: CemCheckpointJournalAuthority): () => void {
+        this.journalAuthority(authority);
+        if (!descriptor.id || this.relationships.has(descriptor.id) || this.relationships.size >= 256) {
+            this.blocked = true; this.invalidate(); throw new Error('cem.checkpoint.relationships.limit');
+        }
+        // Copy the named scalar contract, never retain the caller's mutable record.
+        const record = { descriptor: { ...descriptor, requester: { ...descriptor.requester }, provider: { ...descriptor.provider } }, current, policy: this.policySequence };
+        this.relationships.set(descriptor.id, record); this.invalidate(); this.schedule();
+        return () => {
+            if (this.relationships.get(record.descriptor.id) !== record) return;
+            this.relationships.delete(record.descriptor.id); this.invalidate(); this.schedule();
         };
     }
 
@@ -164,6 +182,13 @@ export class CemCheckpointPublicationCoordinator {
     private ready(): boolean {
         if (this.disposed || this.blocked || this.admissions.size || !this.owners.size) return false;
         for (const operation of this.operations.values()) if (!this.owners.has(operation.instanceId) && !this.retirement.has(operation.operationId)) return false;
+        for (const relationship of this.relationships.values()) {
+            if (relationship.policy !== this.policySequence || !relationship.current()) { this.store.invalidate(); return false; }
+            for (const endpoint of [relationship.descriptor.requester, relationship.descriptor.provider]) {
+                const owner = this.owners.get(endpoint.instanceId);
+                if (!owner?.receipt || owner.receipt.dataRevision !== endpoint.dataRevision) { this.store.invalidate(); return false; }
+            }
+        }
         for (const owner of this.owners.values()) {
             if (!owner.receipt || !owner.current()) { this.store.invalidate(); return false; }
         }
@@ -180,7 +205,8 @@ export class CemCheckpointPublicationCoordinator {
             const retired = [...this.retirement];
             const receipt: CemCommitReceipt = { runtimeId: this.options.runtimeId, generation: this.options.generation,
                 commitSequence: ++this.sequence, policyStamp: this.policyStamp,
-                owners: sources.map(owner => ({ ...owner.receipt! })), operations: [...this.operations.values()].filter(record => !this.retirement.has(record.operationId)).map(record => ({ ...record })) };
+                owners: sources.map(owner => ({ ...owner.receipt! })),
+                ...(this.relationships.size ? { relationships: [...this.relationships.values()].map(({ descriptor }) => ({ ...descriptor, requester: { ...descriptor.requester }, provider: { ...descriptor.provider } })) } : {}), operations: [...this.operations.values()].filter(record => !this.retirement.has(record.operationId)).map(record => ({ ...record })) };
             const owners = [];
             let bytes = 0;
             for (const owner of sources) {
@@ -216,7 +242,7 @@ export class CemCheckpointPublicationCoordinator {
     current(): CemStoredCheckpoint | undefined { return this.ready() ? this.store.current() : undefined; }
     lastCommitted(): CemStoredCheckpoint | undefined { return this.store.lastCommitted(); }
     dispose(): void {
-        this.disposed = true; this.invalidate(); this.store.dispose(); this.owners.clear(); this.admissions.clear(); this.operations.clear(); this.retirement.clear();
+        this.disposed = true; this.invalidate(); this.store.dispose(); this.owners.clear(); this.admissions.clear(); this.operations.clear(); this.retirement.clear(); this.relationships.clear();
     }
     private schedule(): void {
         if (!this.options.automatic || this.scheduled || this.capturing || this.disposed) return;

@@ -47,3 +47,5 @@ export { mountCemLivePreview, type CemLivePreview, type CemLivePreviewOptions, t
 export { registerCemArtifactTree, mountCemArtifactPreview, type CemPreviewArtifact, type CemArtifactTree, type CemArtifactPreview, type CemArtifactPreviewOptions } from './lib/artifact-preview.js';
 
 export { CemCheckpointPublicationCoordinator, type CemCheckpointPublicationOptions, type CemCheckpointPublicationOwner, type CemCheckpointJournalAuthority, type CemCheckpointOperation } from './lib/checkpoint-publication.js';
+
+export type { CemCheckpointRelationship } from './lib/committed-checkpoint.js';

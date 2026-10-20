@@ -443,8 +443,12 @@ Native-validated control edits, shared plaintext-editor capture, fixed read-only
 URL snapshots and opaque external-operation outcome journaling are implemented.
 Native-validated form/choice capability state, settled HTTP/repository/storage
 and live URL export/reacquisition policies, consumed writer suppression metadata
-and explicit terminal journal retirement are implemented. Remaining behavioral
-capability/placement admission, physical worker/fallback runtime coverage and
+and explicit terminal journal retirement are implemented. Stable tree/tab/menu
+navigation, owner-local focus and closed settled surfaces now have native
+checkpoint contracts. Native receipt contracts describe complete provider and
+placement endpoints with fresh reacquisition required; active leases, foreign
+placement owners and transient widget sessions still block capture. Their full
+state/authority adapters, physical worker/fallback runtime coverage and
 runtime replacement remain next. Continue this in the shared native/WASM
 engine and `cem-elements`; recovery status UI belongs in declarative
 `cem-components`. Studio consumes the same mechanism. This requires shared

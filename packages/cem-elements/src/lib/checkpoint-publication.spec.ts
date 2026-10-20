@@ -183,3 +183,46 @@ describe('all-owner publication checkpoint capture', () => {
     });
 
 });
+
+describe('checkpoint dependency contracts', () => {
+    it('pins complete endpoint revisions, copies intent, fences policy and requires explicit removal', async () => {
+        const c = new CemCheckpointPublicationCoordinator(options());
+        const a = c.register('a', () => '<template/>'); a.published(metadata);
+        const b = c.register('b', () => '<template/>'); b.published({ ...metadata, instanceId: 'b', dataRevision: 'b:1' });
+        let current = true;
+        const authority = { runtimeId: 'runtime', generation: 1, policyStamp: 'private:1' };
+        const descriptor = { id: 'reference', kind: 'placement' as const,
+            requester: { instanceId: 'a', dataRevision: metadata.dataRevision, nodeId: 'a.1' },
+            provider: { instanceId: 'b', dataRevision: 'b:1', nodeId: 'b.1' },
+            property: 'aria-controls', disposition: 'reacquire' as const };
+        // Use the same trusted session authority as the fixture's options.
+        authority.runtimeId = options().runtimeId; authority.policyStamp = options().policyStamp;
+        const remove = c.relationship(descriptor, () => current, authority);
+        descriptor.provider.nodeId = 'mutated';
+        await c.capture();
+        expect(read(c).receipt.relationships?.[0].provider.nodeId).toBe('b.1');
+        current = false; expect(c.current()).toBeUndefined();
+        await expect(c.capture()).rejects.toThrow('unavailable');
+        current = true; b.published({ ...metadata, instanceId: 'b', dataRevision: 'b:2' });
+        await expect(c.capture()).rejects.toThrow('unavailable');
+        b.published({ ...metadata, instanceId: 'b', dataRevision: 'b:1' }); await c.capture();
+        b.remove(); await expect(c.capture()).rejects.toThrow('unavailable');
+        remove(); remove(); await c.capture();
+        expect(read(c).receipt.relationships).toBeUndefined();
+        const next = { ...descriptor, provider: { ...descriptor.provider, instanceId: 'a', dataRevision: metadata.dataRevision } };
+        const release = c.relationship(next, () => true, authority);
+        c.setPolicy('private:2', () => true); a.published(metadata);
+        await expect(c.capture()).rejects.toThrow('unavailable');
+        release(); await c.capture(); c.dispose();
+    });
+    it('checks dependency freshness again after asynchronous native sealing', async () => {
+        let finish!: () => void, current = true;
+        const c = new CemCheckpointPublicationCoordinator({ ...options(), seal: text => new Promise(resolve => { finish = () => resolve(text); }) });
+        c.register('a', () => '<template/>').published(metadata);
+        c.relationship({ id: 'edge', kind: 'placement', requester: { instanceId: 'a', dataRevision: metadata.dataRevision, nodeId: 'a.1' },
+            provider: { instanceId: 'a', dataRevision: metadata.dataRevision, nodeId: 'a.2' }, property: 'aria-controls', disposition: 'reacquire' },
+            () => current, { runtimeId: options().runtimeId, generation: 1, policyStamp: options().policyStamp });
+        const pending = c.capture(); current = false; finish();
+        await expect(pending).rejects.toThrow('stale'); expect(c.current()).toBeUndefined(); c.dispose();
+    });
+});

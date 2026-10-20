@@ -25,6 +25,94 @@ pub struct CommitReceipt {
     pub owners: Vec<OwnerReceipt>,
     /// Outstanding external actions must be recorded as unknown, not retried.
     pub operations: Vec<OperationReceipt>,
+    /// Inert host-described dependencies. Fresh grants/leases are mandatory.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub relationships: Vec<Relationship>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Endpoint {
+    pub instance_id: String,
+    pub data_revision: String,
+    pub node_id: String,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Relationship {
+    pub id: String,
+    pub kind: String,
+    pub requester: Endpoint,
+    pub provider: Endpoint,
+    pub property: String,
+    pub disposition: String,
+}
+fn valid_relationships(receipt: &CommitReceipt) -> bool {
+    if receipt.relationships.len() > 256 {
+        return false;
+    }
+    let mut ids = BTreeSet::new();
+    let mut targets = BTreeSet::new();
+    let mut editors = BTreeSet::new();
+    for r in &receipt.relationships {
+        if !identity(&r.id) || !ids.insert(&r.id) || r.disposition != "reacquire" {
+            return false;
+        }
+        for endpoint in [&r.requester, &r.provider] {
+            if !identity(&endpoint.node_id)
+                || !receipt.owners.iter().any(|owner| {
+                    owner.instance_id == endpoint.instance_id
+                        && owner.data_revision == endpoint.data_revision
+                })
+            {
+                return false;
+            }
+        }
+        if !targets.insert((&r.requester.instance_id, &r.requester.node_id, &r.property)) {
+            return false;
+        }
+        match r.kind.as_str() {
+            "editor-provider" => {
+                if r.property != "suggestions"
+                    || r.requester == r.provider
+                    || !editors.insert((&r.provider.instance_id, &r.provider.node_id))
+                {
+                    return false;
+                }
+            }
+            "placement" => {
+                if !matches!(
+                    r.property.as_str(),
+                    "commandfor"
+                        | "popovertarget"
+                        | "interestfor"
+                        | "form"
+                        | "list"
+                        | "for"
+                        | "aria-controls"
+                        | "aria-labelledby"
+                        | "aria-describedby"
+                        | "aria-owns"
+                        | "aria-activedescendant"
+                        | "aria-details"
+                        | "aria-errormessage"
+                        | "headers"
+                        | "command-target"
+                        | "interaction"
+                        | "trigger-for"
+                        | "parent-item"
+                        | "focus-target"
+                        | "return-focus"
+                        | "anchor"
+                        | "boundary"
+                        | "editor-for"
+                ) {
+                    return false;
+                }
+            }
+            _ => return false,
+        }
+    }
+    true
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -69,6 +157,9 @@ fn valid_receipt(receipt: &CommitReceipt) -> bool {
         || receipt.owners.len() > 256
         || receipt.operations.len() > 256
     {
+        return false;
+    }
+    if !valid_relationships(receipt) {
         return false;
     }
     let mut owners = BTreeSet::new();

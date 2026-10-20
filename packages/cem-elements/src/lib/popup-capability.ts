@@ -178,3 +178,11 @@ export const CEM_POPUP_CAPABILITY: CemProducedElementBehavior = {
         if (state.panel) releasePopupGeometry(state.panel); state.geometryReady = false; popups.delete(host); releaseExternal(host);
     },
 };
+
+/** Read-only portable state; listeners, generated IDs and grants are reacquired. */
+export function cemPopupCheckpoint(instance: HTMLElement) {
+    const state = states.get(instance);
+    if (!state?.abort || state.abort.signal.aborted || !state.panel || !state.trigger || state.external || state.open
+        || state.panel.matches(':popover-open') || instance.getAttribute('open') !== 'false') return undefined;
+    return { kind: 'popup' as const, open: false as const };
+}
