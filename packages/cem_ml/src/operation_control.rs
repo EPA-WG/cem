@@ -1443,7 +1443,26 @@ impl OperationControl {
     }
 
     pub fn check_scope(&self, scope: ExecutionScopeId) -> Result<(), ControlError> {
-        self.check_scope_at(scope, Instant::now())
+        self.check_scope_at(scope, Instant::now())?;
+        #[cfg(target_arch = "wasm32")]
+        self.check_runtime_memory(scope, crate::runtime_memory::runtime_budget(), crate::runtime_memory::runtime_sample())?;
+        Ok(())
+    }
+
+    /// Reuse normal memory failure delivery/unwinding, preserving an earlier
+    /// cancellation or failure. The host never fabricates allocator telemetry.
+    pub fn check_runtime_memory(&self, scope: ExecutionScopeId,
+        budget: &crate::runtime_memory::RuntimeMemoryBudget,
+        sample: crate::runtime_memory::MemorySample) -> Result<(), ControlError> {
+        self.check_scope_at(scope, Instant::now())?;
+        let status = budget.status(sample);
+        if status.hard_pressure {
+            let failure = self.fail_scope(ROOT_EXECUTION_SCOPE_ID, ControlCause::MemoryExceeded {
+                requested: 0, charged: sample.observed_bytes(), limit: status.config.work_limit(),
+            }, None)?;
+            return Err(ControlError::Triggered(failure));
+        }
+        Ok(())
     }
 
     pub fn fail_scope(

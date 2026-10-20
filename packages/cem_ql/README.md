@@ -1781,3 +1781,19 @@ already retained handle remain compile-once. No Studio cache or JavaScript UI is
 
 Run `yarn nx run cem_ql:test:checked-template-cache` for native invalidation,
 ownership, bounds and parity fixtures followed by the real compiled WASM fixture.
+
+## Runtime memory budgets
+
+The linked shared native runtime measures WASM allocator live/peak requested bytes
+and linear-memory capacity separately. Compile/render and retained input boundaries
+reserve workspace before parsing; cooperative operation-control checks stop work
+at the hard ceiling while leaving recovery headroom. Cleanup remains available.
+The embedding host configures limits with `configureRuntimeMemoryBudget` and reads
+small counters through `runtimeMemoryStatus`; authored data cannot assert memory
+freshness or bypass admission. The pure-render cache remains within this runtime's
+allocator footprint, with its own independent count/byte limits.
+
+See the [shared memory contract](../cem_ml/README.md#wasm-memory-admission-and-headroom)
+for defaults, coverage, conservative reservations and limits of cooperative
+accounting. Host JS/DOM memory and ABI copies are separate; portable checkpoints
+and whole-runtime replacement are subsequent work.

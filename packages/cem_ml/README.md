@@ -318,3 +318,51 @@ diagnostics and native source/output frames through this store. These native
 storage APIs do not yet enable dependency-to-artifact lookup in CLI/WASM/browser
 compilation consumers or bypass evaluation/resource/event lifecycles. That wiring
 must use the shared dependency identities and fresh context before enabling hits.
+
+## WASM memory admission and headroom
+
+Shared `runtime_memory` owns per-runtime limits and RAII workspace reservations.
+The WASM allocator wrapper measures **requested live allocation bytes** and their
+peak, including realloc/free; it never returns null to enforce policy. Each WASM
+instance independently observes its linear-memory capacity. These figures overlap
+and are not summed: admission conservatively uses the larger observation plus
+outstanding workspace reservations. Allocator overhead/fragmentation, JS heaps,
+DOM, host buffers and other WASM instances are not totalled into this report.
+Native hosts may use the same policy with their own trusted allocator samples.
+
+Defaults are a 768 MiB soft admission threshold, 1 GiB hard budget, 64 MiB of
+withheld recovery headroom and at most 64 concurrent admitted operations. Trusted
+embedders can call `configureRuntimeMemoryBudget(JSON.stringify({
+softLimitBytes, hardLimitBytes, recoveryHeadroomBytes, maxConcurrentOperations
+}))`; the complete configuration is validated and cannot change while work holds
+reservations. `runtimeMemoryStatus()` returns small counters/configuration only.
+No authored document, query or browser byte-count claim can set these counters.
+The same exports are linked into CEM-QL and the command-service WASM runtime.
+
+New guarded work reserves eight times its actual input byte length plus 64 KiB
+of workspace before parsing. This is a conservative admission estimate, not a
+proof of its eventual allocation requirement. Reservations are bounded, released
+on return/error/drop and held across asynchronous command execution. Soft
+pressure stops new work; already admitted work can finish while below the hard
+work ceiling (`hardLimitBytes - recoveryHeadroomBytes`). Operation-control safe
+points observe actual runtime pressure and deliver the existing root memory
+failure/unwinding contract at that ceiling. Earlier cancellation/failure wins.
+No automatic command/action retry or runtime replacement is performed.
+
+Compile/render, retained CSS/document/native input and command-service entrypoints
+perform native admission. Disposal/cancellation and status/configuration remain callable under pressure;
+taking an already-produced value artifact is also ungated. Export routines still
+obey their existing operation-control checks; explicit checkpoint/recovery
+admission is subsequent work. Host-to-WASM
+ABI input copies happen before Rust entrypoint admission; initial instantiation,
+allocations between safe points and APIs without an admission wrapper can still
+exceed a forecast. This is proactive cooperative control, not an allocator hard
+cap, process-RSS bound, or a guarantee that fatal WASM OOM can be caught. Headroom
+is withheld from ordinary admission; durable checkpoint storage and runtime
+replacement are the next stages. Freeing data reduces live bytes, but does not
+shrink WASM capacity or automatically clear capacity pressure.
+
+Native policy/allocation tests: `cargo test -p cem-ml --test runtime_memory` and
+`cargo test -p cem-ml --lib operation_control::`. After the CEM-QL WASM build, run
+`node packages/cem_ql/tests/runtime-memory-wasm.mjs` for actual allocator/capacity,
+pressure refusal, cleanup and subsequent admission checks.

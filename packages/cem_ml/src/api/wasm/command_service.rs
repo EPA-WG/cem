@@ -83,6 +83,10 @@ pub async fn execute_command_service_v1(
     progress: Option<Function>,
     host_configuration_json: Option<String>,
 ) -> String {
+    let _memory = match crate::runtime_memory::admit_input(request_json.len().saturating_add(capability_request_json.len()).saturating_add(host_configuration_json.as_ref().map_or(0,String::len))) {
+        Ok(permit) => permit,
+        Err(error) => return command_service_response(Err(WasmCommandServiceError {code:error.0.into(),message:"WASM memory admission refused before command acceptance".into()})),
+    };
     command_service_response(
         execute_command_service(
             &request_json,

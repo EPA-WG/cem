@@ -35,6 +35,7 @@ fn next_id() -> Result<u32, String> {
 
 #[wasm_bindgen(js_name = "importNativeValueArtifact")]
 pub fn import(bytes: &[u8], limits_json: &str) -> Result<u32, JsValue> {
+    let _memory = cem_ml::runtime_memory::admit_input(bytes.len()).map_err(|error|JsValue::from_str(error.0))?;
     let limits: CemValueArtifactLimits =
         serde_json::from_str(limits_json).map_err(|e| JsValue::from_str(&e.to_string()))?;
     let values = decode_values(bytes, &limits).map_err(|e| JsValue::from_str(&e))?;
@@ -179,6 +180,7 @@ pub(super) fn clear_output() { OUTPUT.with(|output| output.borrow_mut().take());
 
 #[wasm_bindgen(js_name = "importCemDocumentValue")]
 pub fn import_document(bytes: &[u8], content_type: &str, uri: &str, limits_json: &str) -> Result<Vec<u8>, JsValue> {
+    let _memory = cem_ml::runtime_memory::admit_input(bytes.len()).map_err(|error|JsValue::from_str(error.0))?;
     let limits = limits(limits_json).map_err(|e| JsValue::from_str(&e))?;
     crate::api::native_values::import_document(bytes, content_type, uri, &limits).map_err(|e| JsValue::from_str(&e))
 }
@@ -234,6 +236,7 @@ pub fn parse_reference_source(
     uri: &str,
     limits_json: &str,
 ) -> Result<u32, JsValue> {
+    let _memory = cem_ml::runtime_memory::admit_input(bytes.len()).map_err(|error|transport_error(error.0, "MemoryPressure", "WASM memory admission refused", None))?;
     let source =
         RetainedReferenceSource::parse(bytes, content_type, uri, reload_limits(limits_json)?)
             .map_err(|e| transport_error("cem.reference.reload", e.kind_name(), &e, None))?;
@@ -245,6 +248,7 @@ pub fn import_reference_bundle(
     primary_source_id: u32,
     limits_json: &str,
 ) -> Result<u32, JsValue> {
+    let _memory = cem_ml::runtime_memory::admit_input(bytes.len()).map_err(|error|transport_error(error.0, "MemoryPressure", "WASM memory admission refused", None))?;
     let source =
         RetainedReferenceSource::reload(bytes, primary_source_id, reload_limits(limits_json)?)
             .map_err(|e| transport_error("cem.reference.reload", e.kind_name(), &e, None))?;

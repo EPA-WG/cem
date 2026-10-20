@@ -434,7 +434,9 @@ Goal: when memory approaches a configured budget, checkpoint the committed
 `cem-element` state between renders, replace the entire affected WASM runtime,
 and resume without losing edits or repeating actions.
 
-Status: planned 2026-10-18. Design and implement this in the shared native/WASM
+Status: native/WASM allocator and capacity accounting, admission budgets and
+recovery headroom implemented 2026-10-19. Portable committed checkpoints and
+runtime replacement remain next. Continue this in the shared native/WASM
 engine and `cem-elements`; recovery status UI belongs in declarative
 `cem-components`. Studio consumes the same mechanism. This requires shared
 JavaScript lifecycle work; alert the user before implementation. The verified

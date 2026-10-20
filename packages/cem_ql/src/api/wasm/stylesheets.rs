@@ -90,6 +90,7 @@ fn with_owner(
 
 #[wasm_bindgen(js_name = "beginTemplateStylesheet")]
 pub fn begin(artifact_id: u32, options_json: &str) -> String {
+    let _memory = match cem_ml::runtime_memory::admit_input(options_json.len()) {Ok(permit)=>permit,Err(refused)=>return error(refused.0)};
     if options_json.len() > cem_ml::import::MAX_DOCUMENT_BYTES {
         return error("stylesheet control exceeds byte limit");
     }
@@ -136,6 +137,7 @@ pub fn deliver(
     final_url: &str,
     content_type: &str,
 ) -> String {
+    let _memory = match cem_ml::runtime_memory::admit_input(bytes.len()) {Ok(permit)=>permit,Err(refused)=>return error(refused.0)};
     with_owner(artifact_id, |owner| {
         progress(
             load_id,

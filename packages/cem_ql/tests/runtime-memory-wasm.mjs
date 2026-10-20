@@ -1,0 +1,45 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import * as wasm from '../dist/wasm/cem_ql.js';
+const native = await wasm.default({module_or_path:await readFile(new URL('../dist/wasm/cem_ql_bg.wasm',import.meta.url))});
+const status=()=>JSON.parse(wasm.runtimeMemoryStatus());
+const original=status().config;
+const configured=config=>JSON.parse(wasm.configureRuntimeMemoryBudget(JSON.stringify(config)));
+const template=JSON.parse(wasm.compileTemplate('{p | {$value}}','["value"]'));
+assert.ok(template.artifactId);
+try {
+    const retained=()=>JSON.parse(wasm.renderTemplateWithNativeValuesAndAdmission(template.artifactId,0,'{"value":"Ada"}','[]','[]','','owner',undefined,undefined,JSON.stringify({owner:'owner',scopePolicyStamp:'scope'})));
+    assert.equal(retained().renderReuse.hit,false);
+    assert.equal(retained().renderReuse.hit,true);
+    const initial=status();
+    assert.ok(initial.sample.allocatorLiveBytes>0);
+    assert.ok(initial.sample.allocatorPeakBytes>=initial.sample.allocatorLiveBytes);
+    assert.equal(initial.sample.linearMemoryBytes,native.memory.buffer.byteLength);
+    assert.equal(initial.activeOperations,0); assert.equal(initial.reservedBytes,0);
+    native.memory.grow(1);
+    assert.equal(status().sample.linearMemoryBytes,initial.sample.linearMemoryBytes+65536);
+    assert.throws(()=>configured({...original,recoveryHeadroomBytes:0}));
+    assert.deepEqual(status().config,original);
+    // Deliberately lower trusted setup below current measured capacity.
+    configured({softLimitBytes:1,hardLimitBytes:65536,recoveryHeadroomBytes:32768,maxConcurrentOperations:1});
+    assert.equal(status().hardPressure,true);
+    const refused=JSON.parse(wasm.compileTemplate('{p | refused}','[]'));
+    assert.ok(refused.diagnostics.some(d=>d.code==='cem.runtime.memory.admission'));
+    assert.equal(refused.artifactId,undefined);
+    const render=retained();
+    assert.deepEqual(render.nodes,[]);
+    assert.ok(render.diagnostics.some(d=>d.code==='cem.runtime.memory.admission'));
+    assert.equal(status().activeOperations,0); assert.equal(status().reservedBytes,0);
+    let callbacks=0;
+    const forbidden=()=>{callbacks++; throw new Error('Pressure must reject before callbacks or command acceptance');};
+    const command=JSON.parse(await wasm.executeCommandServiceV1('{}','{}',forbidden,forbidden,forbidden,forbidden,forbidden));
+    assert.equal(command.error.code,'cem.runtime.memory.admission'); assert.equal(callbacks,0);
+    // Cleanup is admitted even when ordinary work is stopped.
+    assert.equal(wasm.disposeTemplate(template.artifactId),true);
+    configured(original);
+    const repaired=JSON.parse(wasm.compileTemplate('{p | repaired}','[]'));
+    assert.ok(repaired.artifactId); assert.deepEqual(repaired.diagnostics,[]);
+    wasm.disposeTemplate(repaired.artifactId);
+    assert.equal(status().activeOperations,0);
+    console.log('Real WASM allocator/linear accounting, headroom refusal, atomic setup, cleanup and subsequent admission passed.');
+} finally {configured(original);wasm.disposeTemplate(template.artifactId);}

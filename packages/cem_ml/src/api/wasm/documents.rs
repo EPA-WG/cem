@@ -11,6 +11,7 @@ pub fn retained_cem_document(id: u32) -> Option<Arc<RetainedCemTree>> {
 
 #[wasm_bindgen(js_name = "retainCemDocument")]
 pub fn retain_cem_document(bytes: &[u8], content_type: &str, uri: &str) -> Result<u32, JsValue> {
+    let _memory = crate::runtime_memory::admit_input(bytes.len()).map_err(|error|JsValue::from_str(error.0))?;
     DOCUMENTS
         .with(|documents| documents.borrow_mut().retain(bytes, content_type, uri))
         .map_err(|message| JsValue::from_str(&message))

@@ -38,6 +38,8 @@
 //! Embedders running the pipeline from Rust-side WASM code pass it as
 //! the observer to `observe_pipeline`.
 
+mod runtime_memory;
+
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 

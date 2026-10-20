@@ -113,6 +113,7 @@ pub fn render_template_with_native_values_and_admission(
 fn render_native_values_internal(
     artifact_id: u32, companion_id: u32, data_json: &str, bindings_json: &str, native_bindings_json: &str, limits_json: &str, element_reference_instance_id: Option<String>, element_reference_inputs_json: Option<String>, aria_reference_profile: Option<String>, context: Option<crate::render_cache::retained::RetainedJsonRenderContext>,
 ) -> String {
+    let _memory = match cem_ml::runtime_memory::admit_input(data_json.len().saturating_add(bindings_json.len()).saturating_add(native_bindings_json.len()).saturating_add(element_reference_inputs_json.as_ref().map_or(0, String::len))) { Ok(permit) => permit, Err(error) => return error_json(error.0, "WASM memory admission refused; recovery headroom is reserved") };
     let profile = match aria_reference_profile.as_deref().map(str::parse).transpose() {
         Ok(profile) => profile.unwrap_or_default(),
         Err(message) => return error_json("cem.element_reference.profile", message),
