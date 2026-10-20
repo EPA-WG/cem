@@ -166,21 +166,46 @@ unsupported deferred-body projections still block capture. A gesture settles aft
 native activation dispatch; disposal removes its listeners and pending timer.
 Deferred native dialog bodies retain a native-validated `body` contract: current
 template render-node identity, `retain`/`dispose` mode, materialization state and
-at most 256 unique root identities, with `rematerialize` disposition. On future
-semantic resume, recreate the current native template projection before applying
-ordinary control/focus checkpoints. No live DOM or previous native handles are
-serialized as source. Private committed renderer records verify template
-attributes, text and topology, including targeted patches; cloning preserves
-native render-node identities and attribute capsules. A materialized body must
-still match that projection and its original owned topology/attributes (native
-control disabled/readonly state uses the control contract). Edited values,
-selection and focus survive capture and unrelated rerenders. Never-materialized,
-empty and disposed bodies also have explicit state. Bodies are bounded to 4,096
-projection nodes and a private equality key bounded to 512K UTF-16 code units. Stale retained content after
-a changed template, untracked/dynamic boundary nodes, nested produced components,
-contenteditable bodies, foreign insertions/mutations and private or unsupported
-controls refuse the whole domain. Closing a `dispose` body and freshly
-materializing it repairs a stale projection; capture itself never disposes edits.
+at most 256 unique root identities, with `rematerialize` disposition. Materialized
+bodies also carry an immutable original `cem-render-projection/1` record.
+`reuseOnOpen` preserves whether the original template is still the current node;
+replacing that node keeps retained output until the next ordinary open replaces it. This is
+an explicitly named scalar renderer-output checkpoint transport, not authored
+application data, an evaluation AST or DOM-to-source import. Entries come from
+private committed native renderer attribute/text/topology records at mounting;
+DOM is checked against those witnesses, never serialized to reconstruct source.
+The original instance, artifact, revision and scope-policy identity comes from
+private native publication records. Targeted fragment child patches and replacements
+update these records along with the committed projection.
+
+The flat projection transport preserves element/attribute/text/comment output and
+privately registered paired dynamic range markers. Native validation checks
+format, origin, namespace/name bounds, unique IDs and attributes, balanced depth,
+range pairing and exact ordered roots. It caps transport entries at 4,096, depth
+at 64 and attributes per element at 128. Projection contents share the aggregate
+256 KiB original-source/resource budget; the complete runtime record remains
+bounded to 512 KiB. Opaque native attribute capsules cannot enter this scalar
+transport and still refuse capture. Password/file types and sensitive autofill
+tokens are refused in original output too, including historical produced-host inputs. Returned records cannot mutate retained
+provenance. Original output remains portable when the current template changes,
+including insertion/removal or empty output, without discarding retained edits.
+
+Original produced component hosts are independent ownership boundaries. Each
+records its original projection `hostNode` and current owner/revision/host endpoint;
+both parent and child join the complete receipt graph. The child adapter captures
+its current model, controls, focus and any nested deferred body. Pending,
+composing, unsupported, unacknowledged or missing children block the complete
+domain. Parent body inspection does not copy or replace child-owned DOM. Counterfeit
+hosts, foreign insertions/mutations, altered range markers, untracked output and
+raw contenteditable/private controls remain refused. Raw body control values,
+selection, disabled/readonly state and focus use the ordinary control contract.
+
+Future semantic resume must materialize the retained original output before
+hydrating the independent child snapshots and restoring controls/focus, requiring
+fresh current scope/authority. Never-materialized, empty and disposed bodies have
+explicit state. Closing a `dispose` body and reopening uses the latest template;
+capture never disposes or resets edits. This transport does not enable automatic
+runtime replacement or execute opening/closing actions.
 
 `cem-grid` remains declarative layout using ordinary payload/control/focus capture,
 without admitting an arbitrary stateful ARIA grid controller.

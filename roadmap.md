@@ -463,10 +463,12 @@ original provenance, query/configuration and committed row identities, with fres
 admission required; opaque or revoked bindings refuse capture. Original native-session inputs
 are snapshotted before async submission. Settled popup/dialog capture retains visibility, invocation/return-focus
 endpoints and return values. Opted-in standalone manual-listbox delegates now
-retain exact provider/endpoint ownership and reset/reacquisition intent. Current
-native deferred-body projections retain materialization/root identities and edited
-controls; stale retained projections, nested produced bodies and untracked body
-content remain blocking. Gestures, pending work, unknown provider authority and
+retain exact provider/endpoint ownership and reset/reacquisition intent. Native deferred-body projections retain immutable original renderer output,
+its native origin, materialization/root identities and edited controls across
+later template changes. Paired dynamic ranges and independently acknowledged
+nested produced/deferred owners are captured with complete dependency receipts.
+Opaque native capsules, untracked output and unknown child authority remain
+blocking. Gestures, pending work, unknown provider authority and
 unsupported source/widget states remain blocking. Complete
 physical worker/fallback runtime coverage and
 runtime replacement remain next. Continue this in the shared native/WASM

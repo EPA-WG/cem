@@ -132,6 +132,20 @@ assert.equal(wasm.validateCheckpointRuntime(deferredSaved), deferredSaved);
 assert.equal(JSON.parse(deferredSaved).capability.state.body.roots[0], 'input.1');
 deferredDelegate.capability.state.body.roots.push('input.1');
 assert.throws(() => wasm.validateCheckpointRuntime(JSON.stringify(deferredDelegate)));
+const originalBody = structuredClone(deferredDelegate);
+originalBody.capability.state.body.roots = ['field'];
+originalBody.capability.state.body.reuseOnOpen = true;
+originalBody.capability.state.body.projection = { version: 'cem-render-projection/1', origin: { instanceId: 'parent', templateArtifactId: 'artifact', dataRevision: '1', scopePolicyStamp: 'policy' }, entries: [
+    { kind: 'element', nodeId: 'field', tag: 'cem-field', namespace: null, attributes: [{name:'value', value:'Original'}] }, {kind:'end'} ] };
+originalBody.capability.state.body.owners = [{ hostNode: 'field', owner: { instanceId: 'child', dataRevision: '3', nodeId: 'host' } }];
+const originalSaved = wasm.validateCheckpointRuntime(JSON.stringify(originalBody));
+assert.equal(wasm.validateCheckpointRuntime(originalSaved), originalSaved);
+assert.equal(JSON.parse(originalSaved).capability.state.body.projection.entries[0].attributes[0].value, 'Original');
+originalBody.capability.state.body.projection.entries[0].nativeValue = 'handle';
+assert.throws(() => wasm.validateCheckpointRuntime(JSON.stringify(originalBody)));
+delete originalBody.capability.state.body.projection.entries[0].nativeValue;
+originalBody.capability.state.body.projection.entries[0].attributes.push({name:'type',value:'password'});
+assert.throws(() => wasm.validateCheckpointRuntime(JSON.stringify(originalBody)));
 const menuEndpoint = { instanceId: 'parent', dataRevision: '4', nodeId: 'menu.1' };
 const submenu = { ...runtimeState, resources: [], capability: { kind: 'composite-menu', activeNode: 'item.1', typeahead: '', typeaheadAt: 0, open: true,
     state: { parent: menuEndpoint, launcher: menuEndpoint, panel: menuEndpoint, disposition: 'reacquire' } } };

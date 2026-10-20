@@ -3062,7 +3062,12 @@ export class CemElementRuntime {
             }
         }
         if (this.declarationForInstance(instance)?.behavior === CEM_NATIVE_SURFACE_CAPABILITY) {
-            const invocation = cemNativeSurfaceCheckpoint(instance, element => this.checkpointEndpoint(element))?.state.invocation;
+            const surface = cemNativeSurfaceCheckpoint(instance, element => this.checkpointEndpoint(element));
+            const invocation = surface?.state.invocation;
+            for (const binding of surface?.state.body?.owners ?? []) {
+                result.push({ id: `${requester.instanceId}:body:${binding.hostNode}`, kind: 'placement', requester: { ...requester, nodeId: binding.hostNode },
+                    provider: binding.owner, property: 'interaction', disposition: 'reacquire' });
+            }
             for (const [name, provider] of [['anchor', invocation?.source], ['return-focus', invocation?.returnDestination], ['interaction', invocation?.logicalParent]] as const) {
                 if (provider) result.push({ id: `${requester.instanceId}:surface:${name}`, kind: 'placement', requester, provider, property: name, disposition: 'reacquire' });
             }

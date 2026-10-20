@@ -441,3 +441,4 @@ mod tests {
 }
 
 pub mod checkpoint_interactions;
+mod checkpoint_projection;

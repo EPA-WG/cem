@@ -1,3 +1,5 @@
+import { CemSurfaceBody } from './surface-body.js';
+import { applyRenderPlanToRange, type RenderPlan } from './projection.js';
 import { connectCemManualListbox } from './manual-listbox.js';
 import type { CemCheckpointSealer } from './committed-checkpoint.js';
 import type { CheckpointSource } from './checkpoint-interactions.js';
@@ -1246,8 +1248,10 @@ export const DeferredBodyProjectionOwnership: Story = {
                 lastGood = f.coordinator.lastCommitted()!.bytes;
                 host.setAttribute('caption', 'Changed'); await f.runtime.whenRenderSettled(host);
                 expect(dialog.querySelector('input')).toBe(input); expect(input.value).toBe('Unsaved retained é');
-                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
-                expect(f.coordinator.lastCommitted()!.bytes).toEqual(lastGood);
+                await waitFor(async () => { await f.coordinator.capture(); });
+                saved = decode(f.coordinator).owners[0].island;
+                expect(saved).toContain('cem-render-projection/1'); expect(saved).toContain('Initial'); expect(saved).toContain('Changed');
+                expect(saved).toContain('Unsaved retained é');
                 host.setAttribute('materialize', 'dispose'); await f.runtime.whenRenderSettled(host);
                 dialog.showModal(); await waitFor(() => expect(dialog.open).toBe(true)); dialog.close();
                 await waitFor(() => expect(dialog.querySelector('input')).toBeNull());
@@ -1263,5 +1267,118 @@ export const DeferredBodyProjectionOwnership: Story = {
                 await waitFor(async () => { await f.coordinator.capture(); });
             } finally { f.dispose(); }
         }
+    },
+};
+
+export const NestedRetainedBodyOwners: Story = {
+    render: () => '<section aria-label="Nested retained body checkpoints"></section>',
+    play: async ({ canvasElement }) => {
+        await init(); const root = canvasElement.querySelector('section')!;
+        for (const fallback of [false, true]) {
+            let raceTarget: HTMLInputElement | undefined;
+            const f = fixture(root, fallback, false, undefined, {}, async (candidate, receipt) => {
+                const sealed = wasm.sealCommittedCheckpoint(candidate, receipt);
+                if (raceTarget) raceTarget.value = 'Changed while sealing';
+                return sealed;
+            });
+            try {
+                const fieldDefinition = await f.create(declarationTemplate(fieldDeclaration), 'cem-ml', root, undefined, 'form-control');
+                const fieldTag = fieldDefinition.localName; await f.runtime.whenRenderSettled(fieldDefinition); fieldDefinition.remove();
+                const childDefinition = await f.create('{dialog @part=surface @aria-label=Inner | {template @slot=body | {input @value="Inner original"}}}', 'cem-ml', root, undefined, 'native-surface');
+                const childTag = childDefinition.localName; await f.runtime.whenRenderSettled(childDefinition); childDefinition.remove();
+                const host = await f.create(`{attribute @name=caption | Original}{attribute @name=shown | true}{dialog @part=surface @aria-label=Outer | {template @slot=body | {${fieldTag} @value={$caption}}{${childTag}}{cem:if @test='$shown == "true"' | {p | {$caption}}}}}`, 'cem-ml', root, undefined, 'native-surface');
+                await f.runtime.whenRenderSettled(host); const outer = host.querySelector('dialog')!; outer.showModal();
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                const field = await waitFor(() => { const child = outer.querySelector<HTMLElement>(fieldTag); expect(child?.querySelector('input')).toBeTruthy(); return child!; });
+                const child = outer.querySelector<HTMLElement>(childTag)!;
+                await f.runtime.whenRenderSettled(field); await f.runtime.whenRenderSettled(child);
+                const input = field.querySelector('input')!; input.value = 'Independent draft é'; input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+                await f.runtime.whenRenderSettled(field); input.focus(); input.setSelectionRange(2, 7);
+                await waitFor(async () => { await f.coordinator.capture(); });
+                expect(decode(f.coordinator).owners).toHaveLength(3);
+                const hostMarker = field.getAttribute('data-cem-render-node-id')!;
+                field.setAttribute('data-cem-render-node-id', 'forged');
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); field.setAttribute('data-cem-render-node-id', hostMarker);
+                await waitFor(async () => { await f.coordinator.capture(); });
+                input.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                input.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+                await f.runtime.whenRenderSettled(field); await waitFor(async () => { await f.coordinator.capture(); });
+                expect(decode(f.coordinator).owners.some(owner => owner.island.includes('Independent draft é'))).toBe(true);
+                host.setAttribute('caption', 'Latest template'); host.setAttribute('shown', 'false'); await f.runtime.whenRenderSettled(host);
+                expect(outer.querySelector(fieldTag)).toBe(field); expect(outer.querySelector('p')!.textContent).toBe('Original');
+                await waitFor(async () => { await f.coordinator.capture(); });
+                expect(input.value).toBe('Independent draft é'); expect(document.activeElement).toBe(input);
+                expect([input.selectionStart, input.selectionEnd]).toEqual([2, 7]);
+                const inner = child.querySelector('dialog')!; inner.showModal();
+                const innerInput = await waitFor(() => { const control = inner.querySelector('input'); expect(control).toBeTruthy(); return control!; });
+                innerInput.value = 'Inner draft'; innerInput.focus();
+                await waitFor(async () => { await f.coordinator.capture(); });
+                const beforeRace = f.coordinator.lastCommitted()!.bytes; raceTarget = input;
+                await expect(f.coordinator.capture()).rejects.toThrow('stale');
+                expect(f.coordinator.lastCommitted()!.bytes).toEqual(beforeRace); raceTarget = undefined;
+                input.value = 'Independent draft é'; await waitFor(async () => { await f.coordinator.capture(); });
+                const foreign = document.createElement('span'); outer.append(foreign);
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); foreign.remove();
+                await waitFor(async () => { await f.coordinator.capture(); });
+                // An original produced host cannot be substituted by a same-tag island.
+                const next = field.nextSibling; field.remove();
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                const counterfeit = document.createElement(fieldTag); counterfeit.setAttribute('data-cem-render-node-id', field.getAttribute('data-cem-render-node-id')!);
+                outer.insertBefore(counterfeit, next); await f.runtime.whenRenderSettled(counterfeit);
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); counterfeit.remove(); outer.insertBefore(field, next);
+                await f.runtime.whenRenderSettled(field); await waitFor(async () => { await f.coordinator.capture(); });
+                inner.close(); outer.close(); await waitFor(async () => { await f.coordinator.capture(); });
+                expect(outer.querySelector(fieldTag)).toBe(field); expect(inner.querySelector('input')).toBe(innerInput);
+            } finally { f.dispose(); }
+        }
+    },
+};
+
+export const NativeDynamicBodyProjection: Story = {
+    render: () => '<section aria-label="Native dynamic body projection transport"></section>',
+    play: async ({ canvasElement }) => {
+        await init(); const root = canvasElement.querySelector('section')!;
+        const bounds = { start: document.createComment('start'), end: document.createComment('end') }; root.append(bounds.start,bounds.end);
+        const plan = (text: string): RenderPlan => ({ producedTag: 'fixture', instanceId: 'fixture', templateArtifactId: 'body', dataRevision: text,
+            outputTarget: 'light-dom', scopePolicyStamp: 'test', nodes: [ { kind: 'element', namespace: null, tag: 'div', renderNodeId: 'owner', attributes: [], children: [
+                { kind: 'element', namespace: null, tag: 'template', renderNodeId: 'template', attributes: [{ name: 'slot', value: 'body' }], children: [
+                    { kind: 'text', renderNodeId: 'value', text }, { kind: 'element', namespace: null, tag: 'input', renderNodeId: 'editor', attributes: [{name:'value',value:'Initial'}], children: [] },
+                ] },
+            ] } ] });
+        applyRenderPlanToRange(bounds, plan('Original dynamic'), document, { dynamicTextRanges: true });
+        const owner = root.querySelector('div')!, body = new CemSurfaceBody(owner, owner, () => undefined);
+        try {
+            expect(body.mount()).toBe(true); const input = owner.querySelector('input')!; input.value = 'Draft';
+            const retainedRoots = new Set([...owner.childNodes].filter(node => node !== owner.querySelector('template')));
+            const before = body.checkpoint()!; expect(before.projection!.entries.some(entry => entry.kind === 'range-start')).toBe(true);
+            expect(before.projection!.origin.dataRevision).toBe('Original dynamic');
+            applyRenderPlanToRange(bounds, plan('Current dynamic'), document, { dynamicTextRanges: true, preserveNode: node => retainedRoots.has(node as ChildNode) });
+            const after = body.checkpoint()!; expect(after.projection).toEqual(before.projection); expect(input.value).toBe('Draft');
+            const textEntry = before.projection!.entries.find(entry => entry.kind === 'text');
+            if (textEntry?.kind === 'text') textEntry.text = 'Caller mutation';
+            expect(body.checkpoint()!.projection!.entries.some(entry => entry.kind === 'text' && entry.text === 'Original dynamic')).toBe(true);
+            const dto = { version: 'cem-checkpoint-runtime/1', resources: [], writers: [], writeDisposition: 'suppress-until-new-input',
+                capability: { kind: 'native-surface', phase: 'closed', defaultsInitialized: true, state: { body: after,
+                    returnValue: null, modal: false, focusWithin: false, closeReason: 'native', invocation: null, disposition: 'reacquire' } } };
+            const saved = wasm.validateCheckpointRuntime(JSON.stringify(dto)); expect(wasm.validateCheckpointRuntime(saved)).toBe(saved);
+            const marker = [...owner.childNodes].find(node => node.nodeType === 8)!; const old = marker.textContent;
+            marker.textContent = 'cem-start:forged'; expect(body.checkpoint()).toBeUndefined(); marker.textContent = old;
+            expect(body.checkpoint()).toBeDefined();
+            const foreign = document.createComment('cem-end:forged'); owner.append(foreign); expect(body.valid()).toBe(true); expect(body.checkpoint()).toBeUndefined(); foreign.remove();
+            const replacement = plan('Replacement template');
+            if (replacement.nodes[0].kind === 'element' && replacement.nodes[0].children[0].kind === 'element') replacement.nodes[0].children[0].renderNodeId = 'replacement-template';
+            applyRenderPlanToRange(bounds, replacement, document, { dynamicTextRanges: true, preserveNode: node => retainedRoots.has(node as ChildNode) });
+            expect(body.checkpoint()!.reuseOnOpen).toBe(false); expect(input.value).toBe('Draft');
+            body.mount(); expect(body.checkpoint()!.reuseOnOpen).toBe(true); expect(owner.querySelector('input')).not.toBe(input);
+            body.dispose(); expect(body.checkpoint()!.materialized).toBe(false);
+            body.mount(); expect(body.checkpoint()!.projection!.entries.some(entry => entry.kind === 'text' && entry.text === 'Replacement template')).toBe(true);
+            body.dispose();
+            const privatePlan = plan('Private input');
+            const frame = privatePlan.nodes[0];
+            if (frame.kind === 'element' && frame.children[0].kind === 'element' && frame.children[0].children[1].kind === 'element') frame.children[0].children[1].attributes.push({ name: 'type', value: 'password' });
+            applyRenderPlanToRange(bounds, privatePlan, document, { dynamicTextRanges: true });
+            body.mount(); expect(body.checkpoint()).toBeUndefined();
+        } finally { body.dispose(); root.replaceChildren(); }
     },
 };

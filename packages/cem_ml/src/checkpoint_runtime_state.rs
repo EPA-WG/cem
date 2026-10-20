@@ -291,7 +291,7 @@ pub fn validate(input: &str) -> Result<String, &'static str> {
                 return Err("cem.checkpoint.runtime.surface");
             }
             if let Some(state) = state {
-                state.validate(phase)?;
+                state.validate(phase, &mut source_bytes)?;
             }
         }
         Some(Capability::ChoiceSelect {

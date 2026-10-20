@@ -410,9 +410,9 @@ pub struct Popup {
     disposition: String,
 }
 impl Surface {
-    pub fn validate(&self, phase: &str) -> Result<(), &'static str> {
+    pub fn validate(&self, phase: &str, bytes: &mut usize) -> Result<(), &'static str> {
         if let Some(body) = &self.body {
-            body.validate()?;
+            body.validate(bytes)?;
         }
         let fail = "cem.checkpoint.runtime.surface";
         if self.disposition != "reacquire"
@@ -578,9 +578,15 @@ pub struct DeferredBody {
     materialized: bool,
     roots: Vec<String>,
     disposition: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    projection: Option<crate::checkpoint_projection::Projection>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reuse_on_open: Option<bool>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    owners: Vec<BodyOwner>,
 }
 impl DeferredBody {
-    fn validate(&self) -> Result<(), &'static str> {
+    fn validate(&self, bytes: &mut usize) -> Result<(), &'static str> {
         let mut ids = BTreeSet::new();
         if !identity(&self.template_node)
             || !matches!(self.mode.as_str(), "retain" | "dispose")
@@ -594,8 +600,41 @@ impl DeferredBody {
         {
             return Err("cem.checkpoint.runtime.body");
         }
+        if self.projection.is_some() != self.reuse_on_open.is_some()
+            || !self.materialized && (self.projection.is_some() || !self.owners.is_empty())
+            || self.owners.len() > 256
+        {
+            return Err("cem.checkpoint.runtime.body");
+        }
+        let elements = self
+            .projection
+            .as_ref()
+            .map(|p| p.validate(&self.roots, bytes))
+            .transpose()?;
+        let mut hosts = BTreeSet::new();
+        let mut owners = BTreeSet::new();
+        for binding in &self.owners {
+            if !elements
+                .as_ref()
+                .is_some_and(|ids| ids.contains(binding.host_node.as_str()))
+                || !hosts.insert(&binding.host_node)
+                || !owners.insert(&binding.owner.instance_id)
+                || ![&binding.owner.instance_id, &binding.owner.data_revision]
+                    .iter()
+                    .all(|s| identity(s))
+                || binding.owner.node_id != "host"
+            {
+                return Err("cem.checkpoint.runtime.body");
+            }
+        }
         Ok(())
     }
+}
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct BodyOwner {
+    host_node: String,
+    owner: Endpoint,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

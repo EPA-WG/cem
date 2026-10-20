@@ -14,7 +14,7 @@ function required<T extends HTMLElement>(root: ParentNode, selector: string): T 
 function deferred() { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; }
 
 export const RetainDisposeAndExitCleanup: Story = {
-    render: () => '<section><button>Launch</button><input aria-label="Application draft" value="Saved separately"><dialog aria-label="Editor"><template slot="body"><input aria-label="Body draft" value="Initial"></template></dialog></section>',
+    render: () => '<section><button>Launch</button><input aria-label="Application draft" value="Saved separately"><dialog aria-label="Editor"><!-- Authored body note --><template slot="body"><input aria-label="Body draft" value="Initial"></template></dialog></section>',
     play: async ({ canvasElement }) => {
         const dialog = required<HTMLDialogElement>(canvasElement, 'dialog'), source = required(canvasElement, 'button');
         const application = required<HTMLInputElement>(canvasElement, 'section > input');

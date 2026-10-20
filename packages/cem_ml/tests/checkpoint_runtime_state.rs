@@ -523,3 +523,89 @@ fn standalone_delegates_and_deferred_bodies_have_inert_exact_contracts() {
     s["capability"]["state"]["body"]["roots"] = json!([]);
     assert!(validate(&s.to_string()).is_ok());
 }
+
+#[test]
+fn original_retained_projections_preserve_ranges_and_nested_owner_intent() {
+    let entries = json!([
+        {"kind":"element","nodeId":"child","tag":"cem-field","namespace":null,"attributes":[{"name":"value","value":"Original"}]},
+        {"kind":"end"},
+        {"kind":"range-start","nodeId":"text:start","rangeId":"text"},
+        {"kind":"text","nodeId":"text","text":"Old output"},
+        {"kind":"range-end","nodeId":"text:end","rangeId":"text"}
+    ]);
+    let body = json!({"templateNode":"template","mode":"retain","materialized":true,"roots":["child","text:start","text","text:end"],"disposition":"rematerialize",
+        "reuseOnOpen":true,"projection":{"version":"cem-render-projection/1","origin":{"instanceId":"parent","templateArtifactId":"artifact","dataRevision":"1","scopePolicyStamp":"policy"},"entries":entries},"owners":[{"hostNode":"child","owner":{"instanceId":"nested","dataRevision":"4","nodeId":"host"}}]});
+    let mut s = state();
+    s["capability"] = json!({"kind":"native-surface","phase":"closed","defaultsInitialized":true,"state":{"returnValue":"","modal":false,"focusWithin":false,"closeReason":"native","invocation":null,"disposition":"reacquire","body":body}});
+    let normalized = validate(&s.to_string()).unwrap();
+    assert_eq!(validate(&normalized).unwrap(), normalized);
+    let mut replace = s.clone();
+    replace["capability"]["state"]["body"]["reuseOnOpen"] = json!(false);
+    assert!(validate(&replace.to_string()).is_ok());
+    for (path, value) in [
+        ("/capability/state/body/reuseOnOpen", Value::Null),
+        (
+            "/capability/state/body/projection/entries/0/attributes",
+            json!([{"name":"type","value":"password"}]),
+        ),
+        (
+            "/capability/state/body/projection/entries/0/attributes",
+            json!([{"name":"autocomplete","value":"section-login current-password"}]),
+        ),
+        (
+            "/capability/state/body/projection/version",
+            json!("unknown"),
+        ),
+        (
+            "/capability/state/body/projection/origin/dataRevision",
+            json!(""),
+        ),
+        (
+            "/capability/state/body/projection/entries/0/nativeValue",
+            json!("handle"),
+        ),
+        (
+            "/capability/state/body/projection/entries/0/nodeId",
+            json!("text"),
+        ),
+        (
+            "/capability/state/body/projection/entries/4/rangeId",
+            json!("foreign"),
+        ),
+        (
+            "/capability/state/body/projection/entries/0/attributes",
+            json!([{"name":"value","value":"a"},{"name":"value","value":"b"}]),
+        ),
+        ("/capability/state/body/roots", json!(["child"])),
+        ("/capability/state/body/owners/0/hostNode", json!("text")),
+        ("/capability/state/body/owners/0/owner/nodeId", json!("")),
+        ("/capability/state/body/materialized", json!(false)),
+    ] {
+        let mut bad = s.clone();
+        // Unknown fields are explicit negative transport cases.
+        if path.ends_with("nativeValue") {
+            bad["capability"]["state"]["body"]["projection"]["entries"][0]["nativeValue"] = value;
+        } else {
+            *bad.pointer_mut(path).unwrap() = value;
+        }
+        assert!(validate(&bad.to_string()).is_err(), "{path}");
+    }
+    let mut bad = s.clone();
+    bad["capability"]["state"]["body"]["projection"]["entries"] = json!([{"kind":"end"}]);
+    assert!(validate(&bad.to_string()).is_err());
+    let mut bad = s.clone();
+    bad["capability"]["state"]["body"]["owners"] =
+        json!([body["owners"][0].clone(), body["owners"][0].clone()]);
+    assert!(validate(&bad.to_string()).is_err());
+    let mut bad = s.clone();
+    bad["capability"]["state"]["body"]["projection"]["entries"][3]["text"] =
+        json!("x".repeat(256 * 1024 + 1));
+    assert!(validate(&bad.to_string()).is_err());
+    let mut aggregate = s.clone();
+    aggregate["capability"]["state"]["body"]["projection"]["entries"][3]["text"] =
+        json!("x".repeat(140_000));
+    aggregate["resources"] = json!([{ "name":"data", "kind":"http", "disposition":"reimport-and-read-again", "revision":1, "cursor":0, "live":false, "state":"loaded", "url":"https://example.test/source.xml", "method":"GET",
+        "document":{"base64":STANDARD.encode(format!("<root>{}</root>","x".repeat(140_000))),"contentType":"application/xml","sourceUri":"https://example.test/source.xml","digest":null} }]);
+    assert!(aggregate.to_string().len() < 512 * 1024);
+    assert!(validate(&aggregate.to_string()).is_err());
+}

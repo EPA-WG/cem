@@ -352,7 +352,7 @@ class NativeSurface implements CemNativeSurfaceController {
         queueMicrotask(() => { if (visible(this.owner) && this.closeReason === reason) this.closeReason = 'native'; });
     }
     checkpoint(resolve: (node: HTMLElement) => CheckpointEndpoint | undefined): { phase: 'open' | 'closed'; state: CheckpointSurface } | undefined {
-        const body = this.body.checkpoint();
+        const body = this.body.checkpoint(resolve);
         if (body === undefined || this.disposed || !this.host.isConnected || !this.owner.isConnected || !['closed', 'open'].includes(this.phase)
             || this.preparation || this.prepared || this.timer || this.activation || this.relay || this.releaseBusy
             || this.restore || this.tooltipPointer || this.tooltipAutomatic || this.tooltipDismissed || this.describedSources.size

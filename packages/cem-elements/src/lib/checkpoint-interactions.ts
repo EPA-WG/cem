@@ -87,8 +87,21 @@ export function checkpointReferenceSource(input: CemElementReferenceInputs, revi
 
 export interface CheckpointDeferredBody {
     templateNode: string; mode: 'retain' | 'dispose'; materialized: boolean; roots: string[]; disposition: 'rematerialize';
+    projection?: CheckpointRenderProjection; reuseOnOpen?: boolean; owners?: { hostNode: string; owner: CheckpointEndpoint }[];
 }
 export interface CheckpointManualListbox {
     panel: CheckpointEndpoint; editor: CheckpointEndpoint; providerRevision: number; visible: boolean;
     presentation: 'reset-on-resume'; disposition: 'reacquire';
+}
+
+/** Named renderer checkpoint transport. Never authored data or an evaluation AST. */
+export interface CheckpointRenderProjection {
+    version: 'cem-render-projection/1';
+    origin: { instanceId: string; templateArtifactId: string; dataRevision: string; scopePolicyStamp: string };
+    entries: (
+        | { kind: 'element'; nodeId: string; tag: string; namespace: string | null; attributes: { name: string; value: string }[] }
+        | { kind: 'text' | 'comment'; nodeId: string; text: string }
+        | { kind: 'end' }
+        | { kind: 'range-start' | 'range-end'; nodeId: string; rangeId: string }
+    )[];
 }

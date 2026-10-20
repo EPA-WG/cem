@@ -1,3 +1,4 @@
+import type { CheckpointRenderProjection } from './checkpoint-interactions.js';
 import { ariaReferenceProfileKey, type CemAriaReferenceProfile } from './aria-reference-profile.js';
 import { sameNativeCemValue, type NativeCemValue, type NativeCemAttributeBinding } from "./native-values.js";
 /**
@@ -126,15 +127,16 @@ function authoredPlanChildren(container: Node, children: readonly RenderPlanNode
 }
 
 // Authored light-DOM inputs and a custom element's rendered output have different owners.
+const renderedDynamicBoundaries = new WeakMap<Node, { id: string; kind: 'start' | 'end' }>();
 const renderedTextValues = new WeakMap<Node, string>();
-const renderedChildren = new WeakMap<Element, { plan?: readonly RenderPlanNode[]; nodes: ChildNode[]; owner?: string }>();
+const renderedChildren = new WeakMap<Element, { plan?: readonly RenderPlanNode[]; nodes: ChildNode[]; owner?: string; origin?: CheckpointRenderProjection['origin'] }>();
 const renderedRangeOwners = new WeakMap<Comment, { end: Comment; parent: Node; owner: string; rootIds: string[] }>();
 function isRegisteredCustomElement(element: Element): boolean {
     return element.namespaceURI === XHTML_NAMESPACE
         && !!element.ownerDocument.defaultView?.customElements.get(element.localName);
 }
 function rememberRenderedChildren(element: Element, plan: readonly RenderPlanNode[], owner: RenderPlan): void {
-    renderedChildren.set(element, { plan, nodes: Array.from(renderPlanElementChildContainer(element).childNodes), owner: renderPlanOwnerKey(owner) });
+    renderedChildren.set(element, { plan, nodes: Array.from(renderPlanElementChildContainer(element).childNodes), owner: renderPlanOwnerKey(owner), origin: checkpointProjectionOrigin(owner) });
 }
 
 type NativeAttributeStore = WeakMap<Element, Map<string, { value: NativeCemValue; projection: string }>>;
@@ -2004,35 +2006,52 @@ function escapeRegExp(value: string): string {
  * Materialize a render plan into a live light-DOM fragment. UI-adapter side: this is the
  * only place the projection boundary touches live DOM on the way out.
  */
-/** Private projection equality evidence. This is never checkpoint source data or authority. */
-export function renderedTemplateCheckpointKey(template: HTMLTemplateElement): string | undefined {
-    let count = 0, valid = true;
-    const entries: unknown[] = [];
+function checkpointProjectionOrigin(plan: RenderPlanIdentity): CheckpointRenderProjection['origin'] {
+    return { instanceId: plan.instanceId, templateArtifactId: plan.templateArtifactId, dataRevision: plan.dataRevision, scopePolicyStamp: plan.scopePolicyStamp };
+}
+/** Copy only committed renderer records into the named checkpoint transport.
+ * Live nodes are checked against private witnesses; their content is never imported as source. */
+export function checkpointRenderedTemplateProjection(template: HTMLTemplateElement): CheckpointRenderProjection | undefined {
+    let count = 0, valid = true, bytes = 0;
+    const entries: CheckpointRenderProjection['entries'] = [];
     const visit = (parent: Element, depth: number): void => {
         const record = renderedChildren.get(parent), container = renderPlanElementChildContainer(parent);
-        if (!record?.owner || depth > 64 || record.nodes.length !== container.childNodes.length) { valid = false; return; }
+        if (!valid || !record?.owner || depth > 64 || record.nodes.length !== container.childNodes.length) { valid = false; return; }
         for (const [index, node] of record.nodes.entries()) {
             if (++count > 4096 || node !== container.childNodes[index]) { valid = false; return; }
             const id = (node as Node & { cemRenderNodeId?: string }).cemRenderNodeId;
             if (!id) { valid = false; return; }
+            const boundary = renderedDynamicBoundaries.get(node);
+            if (boundary) {
+                if (node.nodeType !== 8 || node.textContent !== `cem-${boundary.kind}:${boundary.id}` || id !== `${boundary.id}:${boundary.kind}`) { valid = false; return; }
+                entries.push({ kind: boundary.kind === 'start' ? 'range-start' : 'range-end', nodeId: id, rangeId: boundary.id }); continue;
+            }
             if (node.nodeType !== 1) {
                 const text = renderedTextValues.get(node);
                 if (text === undefined || node.textContent !== text) { valid = false; return; }
-                entries.push([node.nodeType, id, text]); continue;
+                bytes += id.length + text.length;
+                entries.push({ kind: node.nodeType === 3 ? 'text' : 'comment', nodeId: id, text }); continue;
             }
             const element = node as Element, attributes = renderedAttributeValues.get(element);
-            if (!attributes || element.getAttribute(RENDER_NODE_ID_ATTR) !== id
+            if (!attributes || element.getAttribute(RENDER_NODE_ID_ATTR) !== id || renderedNativeAttributeBindings(element).length
                 || [...attributes].some(([name, value]) => element.getAttribute(name) !== value)
                 || [...element.attributes].some(attribute => !attributes.has(attribute.name)
                     && ![RENDER_NODE_ID_ATTR, TEMPLATE_ARTIFACT_ID_ATTR, DATA_REVISION_ATTR, SOURCE_FIDELITY_ATTR, SOURCE_FRAME_ATTR].includes(attribute.name))) { valid = false; return; }
-            entries.push([1, id, element.namespaceURI, element.localName, [...attributes], renderedNativeAttributeBindings(element)]);
-            visit(element, depth + 1); entries.push(['end']);
+            if ([...attributes].some(([name,value]) => name.toLowerCase() === 'type' && ['password','file'].includes(value.toLowerCase())
+                || name.toLowerCase() === 'autocomplete' && value.toLowerCase().split(/\s+/).some(token => ['current-password','new-password','one-time-code'].includes(token)))) { valid = false; return; }
+            bytes += id.length + element.localName.length + [...attributes].reduce((sum, [name,value]) => sum + name.length + value.length, 0);
+            entries.push({ kind: 'element', nodeId: id, namespace: element.namespaceURI, tag: element.localName,
+                attributes: [...attributes].map(([name,value]) => ({ name,value })) });
+            visit(element, depth + 1); entries.push({ kind: 'end' });
         }
     };
     visit(template, 0);
-    if (!valid) return undefined;
-    const key = JSON.stringify(entries);
-    return key.length <= 512 * 1024 ? key : undefined;
+    const origin = renderedChildren.get(template)?.origin;
+    return valid && origin && entries.length <= 4096 && bytes <= 256 * 1024 ? { version: 'cem-render-projection/1', origin: { ...origin }, entries } : undefined;
+}
+export function renderedTemplateCheckpointKey(template: HTMLTemplateElement): string | undefined {
+    const projection = checkpointRenderedTemplateProjection(template);
+    return projection && JSON.stringify(projection);
 }
 /** Materialize derived template output while retaining native attribute capsules.
  * This copies browser projection, never recaptures instance data or invents native authority.
@@ -2041,6 +2060,8 @@ export function materializeRenderedTemplate(template: HTMLTemplateElement): Docu
     const fragment = template.ownerDocument.importNode(template.content, true);
     const copy = (source: Node, target: Node): void => {
         (target as Node & { cemRenderNodeId?: string }).cemRenderNodeId = (source as Node & { cemRenderNodeId?: string }).cemRenderNodeId;
+        const boundary = renderedDynamicBoundaries.get(source); if (boundary) renderedDynamicBoundaries.set(target, { ...boundary });
+        const text = renderedTextValues.get(source); if (text !== undefined) renderedTextValues.set(target, text);
         if (source.nodeType === 1 && target.nodeType === 1) {
             const original = source as Element, element = target as Element;
             restoreNativeAttributeBindings(element, renderedNativeAttributeBindings(original));
@@ -2050,6 +2071,10 @@ export function materializeRenderedTemplate(template: HTMLTemplateElement): Docu
         const a = source.nodeType === 1 ? renderPlanElementChildContainer(source as Element) : source;
         const b = target.nodeType === 1 ? renderPlanElementChildContainer(target as Element) : target;
         Array.from(a.childNodes).forEach((child, index) => copy(child, b.childNodes[index]));
+        if (source.nodeType === 1 && target.nodeType === 1) {
+            const record = renderedChildren.get(source as Element);
+            if (record) renderedChildren.set(target as Element, { nodes: [...b.childNodes], owner: record.owner, origin: record.origin && { ...record.origin } });
+        }
     };
     copy(template.content, fragment);
     return fragment;
@@ -2233,10 +2258,14 @@ export function applyPatchFramesToRange(
                     document,
                     options,
                 });
+                // Template/authored containers may be fragments, so the child merger
+                // cannot associate their fresh native topology with the owning element.
+                renderedChildren.set(element, { plan: children, nodes: [...childContainer.childNodes], owner: renderPlanOwnerKey(plan), origin: checkpointProjectionOrigin(plan) });
             } else {
                 trackSelectChildren(target.parentNode);
                 const replacement = materializeSerializedNode(operation.node.node, parsed.commit.nextRenderPlan, document);
-                const inputs = target.parentElement ? renderedChildren.get(target.parentElement) : undefined;
+                const parent = target.parentElement ?? (target.parentNode && authoredInputParents.get(target.parentNode));
+                const inputs = parent?.nodeType === 1 ? renderedChildren.get(parent as Element) : undefined;
                 const index = inputs?.nodes.indexOf(target as ChildNode) ?? -1;
                 if (inputs && index >= 0) inputs.nodes[index] = replacement as ChildNode;
                 target.parentNode?.replaceChild(replacement, target);
@@ -2526,6 +2555,8 @@ function updateNodeRenderMetadata(node: Node, identity: RenderPlanIdentity, opti
     let preserveChildren = false;
     if (node.nodeType === 1) {
         const element = node as Element;
+        const record = renderedChildren.get(element);
+        if (record?.owner === renderPlanOwnerKey(identity)) record.origin = checkpointProjectionOrigin(identity);
         element.setAttribute(TEMPLATE_ARTIFACT_ID_ATTR, identity.templateArtifactId);
         element.setAttribute(DATA_REVISION_ATTR, identity.dataRevision);
         preserveChildren = isRegisteredCustomElement(element)
@@ -2771,7 +2802,7 @@ function mergeCustomElementInputs(element: Element, desired: readonly RenderPlan
             moveConnectedNodeBefore(element, next[index], next[index + 1]);
         }
     }
-    renderedChildren.set(element, { plan: desired, nodes: next, owner: renderPlanOwnerKey(context.plan) });
+    renderedChildren.set(element, { plan: desired, nodes: next, owner: renderPlanOwnerKey(context.plan), origin: checkpointProjectionOrigin(context.plan) });
 }
 
 // Source and packaged runtimes share only this transient browser lifecycle flag.
@@ -2956,7 +2987,7 @@ function mergeRenderPlanNode(
         context,
     );
     if (childContainer !== element) renderedChildren.set(element, {
-        plan: desired.children, nodes: Array.from(childContainer.childNodes), owner: renderPlanOwnerKey(context.plan),
+        plan: desired.children, nodes: Array.from(childContainer.childNodes), owner: renderPlanOwnerKey(context.plan), origin: checkpointProjectionOrigin(context.plan),
     });
 }
 
@@ -2991,9 +3022,9 @@ function createRenderPlanDomNodes(node: RenderPlanNode, context: RenderPlanApply
         }
         const id = dynamicRangeId(node);
         return [
-            context.document.createComment(`cem-start:${id}`),
+            createDynamicBoundary(context.document, id, 'start'),
             createTextLikeNode(node, context.document),
-            context.document.createComment(`cem-end:${id}`),
+            createDynamicBoundary(context.document, id, 'end'),
         ];
     }
 
@@ -3008,6 +3039,11 @@ function createRenderPlanDomNodes(node: RenderPlanNode, context: RenderPlanApply
     return [element];
 }
 
+function createDynamicBoundary(document: Document, id: string, kind: 'start' | 'end'): Comment {
+    const node = document.createComment(`cem-${kind}:${id}`);
+    (node as Comment & { cemRenderNodeId?: string }).cemRenderNodeId = `${id}:${kind}`;
+    renderedDynamicBoundaries.set(node, { id, kind }); return node;
+}
 function createTextLikeNode(node: Extract<RenderPlanNode, { kind: 'text' | 'comment' }>, document: Document): Node {
     const created = node.kind === 'text' ? document.createTextNode(node.text) : document.createComment(node.text);
     renderedTextValues.set(created, node.text);
