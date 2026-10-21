@@ -1,6 +1,8 @@
 import {
     buildBrowserCommandInvocation,
     createBrowserCommandServiceClient,
+    closeBrowserCommandNativeAdmission,
+    revalidateBrowserCommandNativeCheckpoint,
     claimBrowserCommandNativeEmbedding,
     checkpointBrowserCommandNativeEmbedding,
     releaseBrowserCommandNativeEmbedding,
@@ -13,6 +15,7 @@ import {
     type CommandInvocationV1,
     type CommandNativeEmbeddingOwnership,
     type CommandNativeInventory,
+    type CommandNativeClosureValidation,
     type CommandPresentationV1,
     type CommandResolvedResourceV1,
     type CommandResolvedWriteV1,
@@ -102,10 +105,16 @@ async function compilePublicBrowserCommandContract(): Promise<void> {
     const nativeCheckpoint = await client.checkpointNative(5000, [embedding]);
     const inventory: CommandNativeInventory | undefined = nativeCheckpoint.nativeInventory;
     const blockers: number | undefined = inventory?.blockingResources;
+    const coordinated = await client.closeNativeAdmission([embedding], 5000);
+    const confirmed = await client.revalidateNativeCheckpoint(coordinated, [embedding], 5000);
+    const closure: CommandNativeClosureValidation | undefined = confirmed.nativeClosure;
+    void closure;
     client.releaseNativeEmbedding(embedding);
     const mainEmbedding = await claimBrowserCommandNativeEmbedding();
     const mainProof = await checkpointBrowserCommandNativeEmbedding([mainEmbedding]);
     const mainCurrent: boolean = isBrowserCommandNativeInventoryCurrent(mainProof);
+    const mainClosed = await closeBrowserCommandNativeAdmission([mainEmbedding], 5000);
+    await revalidateBrowserCommandNativeCheckpoint(mainClosed, [mainEmbedding], 5000);
     releaseBrowserCommandNativeEmbedding(mainEmbedding);
     void [blockers, mainCurrent];
     const scope: 'managed-cli-only' = nativeCheckpoint.scope;

@@ -18,6 +18,7 @@ pub const COMMAND_REGISTRIES: &[&str] = &[
     "command-bridges",
     "command-operations",
     "memory-operations",
+    "native-entries",
     "native-values",
     "parse-observers",
     "reference-executions",

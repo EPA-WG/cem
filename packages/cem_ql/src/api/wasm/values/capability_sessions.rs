@@ -47,7 +47,7 @@ fn suggestions_config(
 }
 #[wasm_bindgen(js_name = "configureNativeSuggestionLabels")]
 pub fn configure_labels(id: u32, config: &str) -> Result<(), JsValue> {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     #[derive(serde::Deserialize)]
     #[serde(deny_unknown_fields)]
     struct Labels { option: Option<String>, group: Option<String> }
@@ -61,7 +61,7 @@ pub fn configure_labels(id: u32, config: &str) -> Result<(), JsValue> {
 }
 #[wasm_bindgen(js_name = "prepareNativeSuggestions")]
 pub fn prepare_suggestions(id: u32) -> Result<String, JsValue> {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     SESSIONS.with(|sessions| {
         let sessions = sessions.borrow();
         let session = sessions.get(&id).ok_or_else(|| session_error("Unknown native capability session"))?;
@@ -91,7 +91,7 @@ pub fn prepare(
     bindings_json: &str,
     limits_json: &str,
 ) -> Result<u32, JsValue> {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     let limits = limits(limits_json).map_err(session_error)?;
     if data_json.len() > limits.max_bytes {
         return Err(session_error("Session control input byte limit exceeded"));
@@ -107,7 +107,7 @@ pub fn prepare(
 }
 #[wasm_bindgen(js_name = "nativeCapabilitySessionLength")]
 pub fn length(id: u32) -> Result<u32, JsValue> {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     SESSIONS.with(|sessions| {
         let sessions = sessions.borrow();
         let session = sessions
@@ -118,7 +118,7 @@ pub fn length(id: u32) -> Result<u32, JsValue> {
 }
 #[wasm_bindgen(js_name = "exportNativeCapabilityView")]
 pub fn export(id: u32, expression: &str, index: Option<u32>) -> Result<String, JsValue> {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     SESSIONS.with(|sessions| {
         let sessions = sessions.borrow();
         let session = sessions
@@ -159,7 +159,7 @@ pub fn export_suggestions(
     expression: &str,
     index: Option<u32>,
 ) -> Result<String, JsValue> {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     SESSIONS.with(|sessions| {
         let sessions = sessions.borrow();
         let session = sessions
@@ -180,7 +180,7 @@ pub fn render_suggestion(
     index: Option<u32>,
     group: bool,
 ) -> Result<String, JsValue> {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     SESSIONS.with(|sessions| {
         let sessions = sessions.borrow();
         let session = sessions
@@ -211,7 +211,7 @@ pub fn render_suggestion(
 }
 #[wasm_bindgen(js_name = "renderNativeCapabilityTemplate")]
 pub fn render(id: u32, artifact_id: u32, index: Option<u32>) -> Result<String, JsValue> {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     SESSIONS.with(|sessions| {
         let sessions = sessions.borrow();
         let session = sessions
@@ -233,7 +233,7 @@ pub fn render(id: u32, artifact_id: u32, index: Option<u32>) -> Result<String, J
 }
 #[wasm_bindgen(js_name = "publishNativeSuggestions")]
 pub fn publish_suggestions(id: u32, key: &str, config_json: &str) -> Result<(), JsValue> {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     SESSIONS.with(|sessions| {
         let sessions = sessions.borrow();
         let session = sessions
@@ -248,7 +248,7 @@ pub fn publish_suggestions(id: u32, key: &str, config_json: &str) -> Result<(), 
 }
 #[wasm_bindgen(js_name = "publishNativeDatalist")]
 pub fn publish_datalist(id: u32, key: &str, controls: &str) -> Result<(), JsValue> {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     SESSIONS.with(|sessions| {
         let sessions = sessions.borrow();
         let session = sessions.get(&id).ok_or_else(|| session_error("Unknown native capability session"))?;
@@ -257,7 +257,7 @@ pub fn publish_datalist(id: u32, key: &str, controls: &str) -> Result<(), JsValu
 }
 #[wasm_bindgen(js_name = "prepareNativeDatalist")]
 pub fn prepare_datalist(id: u32) -> Result<String, JsValue> {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     SESSIONS.with(|sessions| {
         let sessions = sessions.borrow();
         let session = sessions.get(&id).ok_or_else(|| session_error("Unknown native capability session"))?;
@@ -277,7 +277,7 @@ pub fn prepare_datalist(id: u32) -> Result<String, JsValue> {
 }
 #[wasm_bindgen(js_name = "releaseNativeSuggestions")]
 pub fn release_suggestions(id: u32, key: &str) -> bool {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(true) { Ok(permit) => permit, Err(_error) => return false };
     SESSIONS.with(|sessions| {
         sessions
             .borrow()
@@ -292,7 +292,7 @@ pub fn render_suggestions_frame(
     artifact_id: u32,
     data_json: &str,
 ) -> Result<String, JsValue> {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     SESSIONS.with(|sessions| {
         let sessions = sessions.borrow();
         let session = sessions
@@ -318,7 +318,7 @@ pub fn render_suggestions_frame(
 }
 #[wasm_bindgen(js_name = "nativeSuggestionRowControls")]
 pub fn row_controls(id: u32, key: &str) -> Result<String, JsValue> {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     SESSIONS.with(|sessions| {
         let sessions = sessions.borrow();
         let session = sessions
@@ -332,7 +332,7 @@ pub fn row_controls(id: u32, key: &str) -> Result<String, JsValue> {
 }
 #[wasm_bindgen(js_name = "disposeNativeCapabilitySession")]
 pub fn dispose(id: u32) -> bool {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(true) { Ok(permit) => permit, Err(_error) => return false };
     SESSIONS.with(|sessions| sessions.borrow_mut().remove(&id).is_some())
 }
 

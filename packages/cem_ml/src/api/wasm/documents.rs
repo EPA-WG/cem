@@ -12,7 +12,7 @@ pub fn retained_cem_document(id: u32) -> Option<Arc<RetainedCemTree>> {
 
 #[wasm_bindgen(js_name = "retainCemDocument")]
 pub fn retain_cem_document(bytes: &[u8], content_type: &str, uri: &str) -> Result<u32, JsValue> {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     let _memory = crate::runtime_memory::admit_input(bytes.len()).map_err(|error|JsValue::from_str(error.0))?;
     DOCUMENTS
         .with(|documents| documents.borrow_mut().retain(bytes, content_type, uri))
@@ -21,7 +21,7 @@ pub fn retain_cem_document(bytes: &[u8], content_type: &str, uri: &str) -> Resul
 
 #[wasm_bindgen(js_name = "disposeCemDocument")]
 pub fn dispose_cem_document(id: u32) -> bool {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(true) { Ok(permit) => permit, Err(_error) => return false };
     DOCUMENTS.with(|documents| documents.borrow_mut().dispose(id))
 }
 

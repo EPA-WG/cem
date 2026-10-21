@@ -1,4 +1,4 @@
-export type { CommandNativeEmbeddingOwnership, CommandNativeInventory } from './native-embedding.js';
+export type { CommandNativeEmbeddingOwnership, CommandNativeInventory, CommandNativeClosureValidation } from './native-embedding.js';
 export type { CommandNativeDrain } from './native-admission.js';
 import { availableParallelism } from 'node:os';
 import { Worker } from 'node:worker_threads';
@@ -71,6 +71,8 @@ export type {
     NodeCommandWritable,
 } from './node-host.js';
 export {
+    closeNodeCommandNativeAdmission,
+    revalidateNodeCommandNativeCheckpoint,
     claimNodeCommandNativeEmbedding,
     releaseNodeCommandNativeEmbedding,
     checkpointNodeCommandNativeEmbedding,

@@ -155,6 +155,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 
 export {
+    closeCommandNativeEmbeddingAdmission as closeNodeCommandNativeAdmission,
+    revalidateCommandNativeEmbedding as revalidateNodeCommandNativeCheckpoint,
     claimCommandNativeEmbedding as claimNodeCommandNativeEmbedding,
     releaseCommandNativeEmbedding as releaseNodeCommandNativeEmbedding,
     checkpointCommandNativeEmbedding as checkpointNodeCommandNativeEmbedding,

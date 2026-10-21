@@ -47,7 +47,7 @@ use std::collections::BTreeMap;
 /// into typed native CSS trees, never projected as JavaScript parser records.
 #[wasm_bindgen(js_name = "remapArtifactCss")]
 pub fn remap_artifact_css_json(source: &str, inline: bool, replacements_json: &str) -> Result<String, JsValue> {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     let replacements: Option<BTreeMap<String, String>> = serde_json::from_str(replacements_json)
         .map_err(|error| JsValue::from_str(&error.to_string()))?;
     let result = crate::artifact_css::remap_artifact_css(source, inline, replacements.as_ref())
@@ -118,7 +118,7 @@ pub fn version() -> String {
 /// spans for both small component hosts and richer Studio preview surfaces.
 #[wasm_bindgen(js_name = "renderCemMlToHtmlV1")]
 pub fn render_cem_ml_to_html_v1(request_json: &str) -> String {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
     crate::api::html_render::render_cem_ml_to_html_v1_json(request_json)
 }
 
@@ -126,14 +126,14 @@ pub fn render_cem_ml_to_html_v1(request_json: &str) -> String {
 /// without normalizing or executing the source.
 #[wasm_bindgen(js_name = "highlightSourceToHtmlV1")]
 pub fn highlight_source_to_html_v1(request_json: &str) -> String {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
     crate::api::source_highlight::highlight_source_to_html_v1_json(request_json)
 }
 
 /// Describe/edit a bounded transform graph using the same native AST and validation.
 #[wasm_bindgen(js_name = "authorTransformConfigV1")]
 pub fn author_transform_config_v1(request_json: &str) -> String {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
     crate::transform_config_authoring::author_transform_config_json(request_json)
 }
 
@@ -167,7 +167,7 @@ enum WasmModuleUrlReferrer {
 /// Scalar source-base metadata transport; no AST/DOM handoff.
 #[wasm_bindgen(js_name = "resolveResourceBase")]
 pub fn resolve_resource_base_json(document_url: &str, bases_json: &str) -> Result<String, JsValue> {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     let bases: Vec<String> = serde_json::from_str(bases_json)
         .map_err(|error| JsValue::from_str(&error.to_string()))?;
     crate::resource_base::resolve_resource_base(document_url, &bases)
@@ -177,7 +177,7 @@ pub fn resolve_resource_base_json(document_url: &str, bases_json: &str) -> Resul
 /// Scalar navigation URL transport, with no AST/DOM or module-map handoff.
 #[wasm_bindgen(js_name = "resolveNavigationLinks")]
 pub fn resolve_navigation_links_json(source_url: &str, hrefs_json: &str) -> Result<String, JsValue> {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     let hrefs: Vec<String> = serde_json::from_str(hrefs_json)
         .map_err(|error| JsValue::from_str(&error.to_string()))?;
     let resolved = crate::navigation_links::resolve_navigation_links(
@@ -192,7 +192,7 @@ pub fn resolve_navigation_links_json(source_url: &str, hrefs_json: &str) -> Resu
 /// WASM runtimes.
 #[wasm_bindgen(js_name = "resolveModuleUrl")]
 pub fn resolve_module_url_json(request_json: &str) -> String {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
     let request: WasmModuleUrlResolutionRequest = match serde_json::from_str(request_json) {
         Ok(request) => request,
         Err(error) => {
@@ -361,7 +361,7 @@ pub fn worker_protocol_descriptor_json() -> String {
 /// to coexist in the same JavaScript runtime without sharing routes.
 #[wasm_bindgen(js_name = "initializeResumableOperationHost")]
 pub fn initialize_resumable_operation_host(worker_count: u16) -> String {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
     resumable_response((|| {
         let host = ResumableOperationHost::new(worker_count)?;
         let workers = host.workers().to_vec();
@@ -386,14 +386,14 @@ pub fn initialize_resumable_operation_host(worker_count: u16) -> String {
 
 #[wasm_bindgen(js_name = "disposeResumableOperationHost")]
 pub fn dispose_resumable_operation_host(host_id: u32) -> String {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(true) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
     let disposed = RESUMABLE_OPERATION_HOSTS.with(|cell| cell.borrow_mut().remove(&host_id));
     serde_json::json!({ "hostId": host_id, "disposed": disposed.is_some() }).to_string()
 }
 
 #[wasm_bindgen(js_name = "startResumableOperation")]
 pub fn start_resumable_operation(host_id: u32, request_json: &str) -> String {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
     resumable_response((|| {
         let request = serde_json::from_str::<ResumableRunRequest>(request_json)
             .map_err(resumable_deserialization_error)?;
@@ -403,7 +403,7 @@ pub fn start_resumable_operation(host_id: u32, request_json: &str) -> String {
 
 #[wasm_bindgen(js_name = "pollResumableOperation")]
 pub fn poll_resumable_operation(host_id: u32, operation_id: &str, max_packets: u32) -> String {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(true) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
     resumable_response((|| {
         let operation = parse_resumable_operation_id(operation_id)?;
         with_resumable_host_mut(host_id, |host| host.poll(operation, max_packets))
@@ -412,7 +412,7 @@ pub fn poll_resumable_operation(host_id: u32, operation_id: &str, max_packets: u
 
 #[wasm_bindgen(js_name = "acceptResumableOperationResult")]
 pub fn accept_resumable_operation_result(host_id: u32, result_json: &str) -> String {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(true) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
     resumable_response((|| {
         let result = serde_json::from_str::<OperationWorkResult>(result_json)
             .map_err(resumable_deserialization_error)?;
@@ -426,7 +426,7 @@ pub fn cancel_resumable_operation(
     operation_id: &str,
     reason: Option<String>,
 ) -> String {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(true) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
     resumable_response((|| {
         let operation = parse_resumable_operation_id(operation_id)?;
         with_resumable_host_mut(host_id, |host| host.cancel(operation, reason))
@@ -435,7 +435,7 @@ pub fn cancel_resumable_operation(
 
 #[wasm_bindgen(js_name = "replaceResumableOperationWorker")]
 pub fn replace_resumable_operation_worker(host_id: u32, slot: u32) -> String {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
     resumable_response((|| {
         if slot == 0 {
             return Err(ResumableOperationError::new(
@@ -452,7 +452,7 @@ pub fn replace_resumable_operation_worker(host_id: u32, slot: u32) -> String {
 /// Stateless helper-runtime entrypoint used by Node and dedicated workers.
 #[wasm_bindgen(js_name = "executeOperationWork")]
 pub fn execute_operation_work_json(packet_json: &str) -> String {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
     resumable_response((|| {
         let packet = serde_json::from_str::<OperationWorkPacket>(packet_json)
             .map_err(resumable_deserialization_error)?;
@@ -463,7 +463,7 @@ pub fn execute_operation_work_json(packet_json: &str) -> String {
 #[cfg(feature = "debug-control")]
 #[wasm_bindgen(js_name = "pauseResumableOperation")]
 pub fn pause_resumable_operation(host_id: u32, operation_id: &str, generation: u32) -> String {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(true) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
     resumable_response((|| {
         let operation = parse_resumable_operation_id(operation_id)?;
         with_resumable_host_mut(host_id, |host| {
@@ -485,7 +485,7 @@ pub fn acknowledge_resumable_operation_stop(
     worker_generation: u32,
     external_wait: bool,
 ) -> String {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(true) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
     resumable_response((|| {
         let operation = parse_resumable_operation_id(operation_id)?;
         let worker = WorkerAddress::new(
@@ -515,7 +515,7 @@ pub fn continue_resumable_operation(
     operation_id: &str,
     stop_generation: u32,
 ) -> String {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
     resumable_response((|| {
         let operation = parse_resumable_operation_id(operation_id)?;
         with_resumable_host_mut(host_id, |host| {
@@ -535,7 +535,7 @@ pub fn step_resumable_operation(
     current_stop_generation: u32,
     next_stop_generation: u32,
 ) -> String {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
     resumable_response((|| {
         let operation = parse_resumable_operation_id(operation_id)?;
         with_resumable_host_mut(host_id, |host| {
@@ -641,68 +641,78 @@ fn capability_serialize_error(error: serde_json::Error) -> String {
 }
 
 #[wasm_bindgen(js_name = "onParseEvent")]
-pub fn on_parse_event(callback: Function) {
-    crate::runtime_inventory::note_mutation();
+pub fn on_parse_event(callback: Function) -> Result<(), JsValue> {
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     PARSE_OBSERVER.with(|cell| *cell.borrow_mut() = Some(callback));
+    Ok(())
 }
 
 #[wasm_bindgen(js_name = "offParseEvent")]
-pub fn off_parse_event() {
-    crate::runtime_inventory::note_mutation();
+pub fn off_parse_event() -> Result<(), JsValue> {
+    let _native = match crate::runtime_admission::admit(true) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     PARSE_OBSERVER.with(|cell| *cell.borrow_mut() = None);
+    Ok(())
 }
 
 #[wasm_bindgen(js_name = "onValidate")]
-pub fn on_validate(callback: Function) {
-    crate::runtime_inventory::note_mutation();
+pub fn on_validate(callback: Function) -> Result<(), JsValue> {
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     VALIDATE_OBSERVER.with(|cell| *cell.borrow_mut() = Some(callback));
+    Ok(())
 }
 
 #[wasm_bindgen(js_name = "offValidate")]
-pub fn off_validate() {
-    crate::runtime_inventory::note_mutation();
+pub fn off_validate() -> Result<(), JsValue> {
+    let _native = match crate::runtime_admission::admit(true) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     VALIDATE_OBSERVER.with(|cell| *cell.borrow_mut() = None);
+    Ok(())
 }
 
 #[wasm_bindgen(js_name = "onTransform")]
-pub fn on_transform(callback: Function) {
-    crate::runtime_inventory::note_mutation();
+pub fn on_transform(callback: Function) -> Result<(), JsValue> {
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     TRANSFORM_OBSERVER.with(|cell| *cell.borrow_mut() = Some(callback));
+    Ok(())
 }
 
 #[wasm_bindgen(js_name = "offTransform")]
-pub fn off_transform() {
-    crate::runtime_inventory::note_mutation();
+pub fn off_transform() -> Result<(), JsValue> {
+    let _native = match crate::runtime_admission::admit(true) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     TRANSFORM_OBSERVER.with(|cell| *cell.borrow_mut() = None);
+    Ok(())
 }
 
 #[wasm_bindgen(js_name = "onResolveRead")]
-pub fn on_resolve_read(callback: Function) {
-    crate::runtime_inventory::note_mutation();
+pub fn on_resolve_read(callback: Function) -> Result<(), JsValue> {
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     RESOLVER_READ.with(|cell| *cell.borrow_mut() = Some(callback));
+    Ok(())
 }
 
 #[wasm_bindgen(js_name = "offResolveRead")]
-pub fn off_resolve_read() {
-    crate::runtime_inventory::note_mutation();
+pub fn off_resolve_read() -> Result<(), JsValue> {
+    let _native = match crate::runtime_admission::admit(true) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     RESOLVER_READ.with(|cell| *cell.borrow_mut() = None);
+    Ok(())
 }
 
 #[wasm_bindgen(js_name = "onResolveWrite")]
-pub fn on_resolve_write(callback: Function) {
-    crate::runtime_inventory::note_mutation();
+pub fn on_resolve_write(callback: Function) -> Result<(), JsValue> {
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     RESOLVER_WRITE.with(|cell| *cell.borrow_mut() = Some(callback));
+    Ok(())
 }
 
 #[wasm_bindgen(js_name = "offResolveWrite")]
-pub fn off_resolve_write() {
-    crate::runtime_inventory::note_mutation();
+pub fn off_resolve_write() -> Result<(), JsValue> {
+    let _native = match crate::runtime_admission::admit(true) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     RESOLVER_WRITE.with(|cell| *cell.borrow_mut() = None);
+    Ok(())
 }
 
 #[wasm_bindgen(js_name = "convertLegacyCustomElementTemplate")]
 pub fn convert_legacy_custom_element_template(source: &str) -> String {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
     let result = crate::legacy_custom_element::convert_template_source(source);
     serde_json::to_string(&result).unwrap_or_else(|error| {
         serde_json::json!({
@@ -718,7 +728,7 @@ pub fn convert_legacy_custom_element_template(source: &str) -> String {
 
 #[wasm_bindgen(js_name = "normalizeRunConfig")]
 pub fn normalize_run_config(json: &str) -> String {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
     let request = crate::run_config::RunConfigParseRequest {
         bytes: json.as_bytes().to_vec(),
         identity: crate::engine::FormatIdentity {
@@ -752,7 +762,7 @@ pub fn normalize_run_config(json: &str) -> String {
 /// input/output identity, resolver, scope, budget, or destination semantics.
 #[wasm_bindgen(js_name = "normalizeCommandRunPlanV1")]
 pub fn normalize_command_run_plan_v1(json: &str) -> String {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
     let request = match serde_json::from_str::<crate::run_config::NormalizedRunPlanRequest>(json) {
         Ok(request) => request,
         Err(error) => {
@@ -786,7 +796,7 @@ pub fn build_command_invocation_v1(
     environment_json: &str,
     resources_json: &str,
 ) -> String {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
     use crate::command_invocation::{
         CommandInvocationBuildResponseV1, CommandInvocationEnvironmentV1, CommandInvocationErrorV1,
         ParsedCommandInvocationV1,
@@ -825,7 +835,7 @@ pub fn build_command_invocation_v1(
 /// read so stdout never becomes a transactional command-service destination.
 #[wasm_bindgen(js_name = "projectCommandPresentationV1")]
 pub fn project_command_presentation_v1(plan_json: &str, result_json: &str) -> String {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
     let projected =
         serde_json::from_str::<crate::command_invocation::CommandPresentationPlanV1>(plan_json)
             .map_err(|error| format!("presentation plan is invalid: {error}"))
@@ -852,7 +862,7 @@ pub fn project_command_presentation_v1(plan_json: &str, result_json: &str) -> St
 
 #[wasm_bindgen(js_name = "parseInputSpecRecord")]
 pub fn parse_input_spec_record(record: &str) -> String {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
     match crate::run_config::parse_input_spec_record(record) {
         Ok(spec) => serde_json::to_string(&spec).unwrap_or_else(wasm_serialize_error),
         Err(error) => serde_json::json!({
@@ -867,7 +877,7 @@ pub fn parse_input_spec_record(record: &str) -> String {
 
 #[wasm_bindgen(js_name = "parseOutputSpecRecord")]
 pub fn parse_output_spec_record(record: &str) -> String {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
     match crate::run_config::parse_output_spec_record(record) {
         Ok(spec) => serde_json::to_string(&spec).unwrap_or_else(wasm_serialize_error),
         Err(error) => serde_json::json!({
@@ -1325,6 +1335,7 @@ pub fn resource_inventory_entries() -> Vec<crate::runtime_inventory::RegistryInv
         Entry::new("resumable-hosts", RESUMABLE_OPERATION_HOSTS.with(|s| s.borrow().len() as u64), 0),
         Entry::new("cem-documents", documents::inventory_count(), 0),
         Entry::new("xpath-programs", xpath_artifact::inventory_count(), 0),
+        Entry::new("native-entries", crate::runtime_admission::active_entries() as u64, 0),
         Entry::new("command-bridges", NativeActivity::active(), 0),
         Entry::new("memory-operations", crate::runtime_memory::runtime_budget().status(crate::runtime_memory::runtime_sample()).active_operations as u64, 0),
     ];

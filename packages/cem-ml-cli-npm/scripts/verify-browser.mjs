@@ -300,7 +300,12 @@ try {
         scope: 'managed-cli-only', replacementAllowed: false });
     const nativeInventory = await runFixture(page, 'command-native-inventory');
     assert.deepEqual(nativeInventory, { omitted: 'cem.command.embedding.invalid', blocked: 'cem.command.inventory.blocked',
-        live: 1, registries: 28, owners: 2, blockers: 0, current: true, copied: false, afterRelease: false, replacementAllowed: false });
+        live: 1, registries: 29, owners: 2, blockers: 0, current: true, copied: false, afterRelease: false, replacementAllowed: false });
+    const nativeClosure = await runFixture(page, 'command-native-closure');
+    assert.deepEqual(nativeClosure, { omitted: 'cem.command.embedding.invalid', blocked: 'cem.command.inventory.blocked',
+        live: 1, registries: 29, owners: 2, blockers: 0, current: true, copied: false, afterRelease: false, replacementAllowed: false,
+        denied: { document: 'cem.runtime.admission.closed', template: 'cem.runtime.admission.closed', command: 'cem.runtime.admission.closed', callbacks: 0 },
+        stale: 'cem.command.native.stale', hostCurrent: true, closed: true });
     const nativePressure = await runFixture(page, 'command-native-pressure');
     assert.equal(nativePressure.status, 'succeeded');
     assert.ok(nativePressure.artifacts > 1);

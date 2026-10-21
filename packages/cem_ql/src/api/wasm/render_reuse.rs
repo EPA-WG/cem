@@ -40,9 +40,10 @@ pub fn stats() -> String {
     })
 }
 #[wasm_bindgen(js_name = "resetRetainedRenderCache")]
-pub fn reset_export() {
-    cem_ml::runtime_inventory::note_mutation();
+pub fn reset_export() -> Result<(), JsValue> {
+    let _native = match cem_ml::runtime_admission::admit(true) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     reset();
+    Ok(())
 }
 
 pub(super) fn resource_inventory_entries() -> Vec<cem_ml::runtime_inventory::RegistryInventory> {

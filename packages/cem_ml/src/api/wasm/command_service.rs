@@ -83,7 +83,7 @@ pub fn execute_command_service_v1(
     progress: Option<Function>,
     host_configuration_json: Option<String>,
 ) -> Promise {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Promise::resolve(&JsValue::from_str(&crate::runtime_admission::refusal_json(error))) };
     let memory = match crate::runtime_memory::admit_input(
         request_json
             .len()
@@ -102,6 +102,7 @@ pub fn execute_command_service_v1(
     };
     let activity = crate::runtime_inventory::NativeActivity::begin();
     wasm_bindgen_futures::future_to_promise(async move {
+        let _native = _native;
         let _activity = activity;
         let _memory = memory;
         let result = command_service_response(
@@ -129,7 +130,7 @@ pub fn execute_command_service_v1(
 /// or already-completed request identities fail without mutating another run.
 #[wasm_bindgen(js_name = "cancelCommandServiceV1")]
 pub fn cancel_command_service_v1(request_id: String, reason: Option<String>) -> String {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(true) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
     let result = COMMAND_SERVICE_OPERATIONS.with(|registry| registry.cancel(&request_id, reason));
     match result {
         Ok(acknowledgement) => serde_json::to_string(&acknowledgement)
@@ -148,7 +149,7 @@ pub fn read_command_artifact_v1(
     offset: f64,
     max_bytes: f64,
 ) -> JsValue {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return artifact_read_response(crate::runtime_admission::refusal_json(error), None) };
     let result = artifact_wire_integer("handleId", handle_id, false)
         .and_then(|handle_id| {
             artifact_wire_integer("offset", offset, true)
@@ -177,7 +178,7 @@ pub fn read_command_artifact_v1(
 /// Idempotently dispose one request-owned artifact handle.
 #[wasm_bindgen(js_name = "disposeCommandArtifactV1")]
 pub fn dispose_command_artifact_v1(request_id: String, handle_id: f64) -> String {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(true) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
     let result = artifact_wire_integer("handleId", handle_id, false)
         .map(RetainedHandleId::from_raw)
         .and_then(|handle_id| {
@@ -195,7 +196,7 @@ pub fn dispose_command_artifact_v1(request_id: String, handle_id: f64) -> String
 /// Idempotently dispose every retained artifact for one request identity.
 #[wasm_bindgen(js_name = "disposeCommandArtifactsV1")]
 pub fn dispose_command_artifacts_v1(request_id: String) -> String {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(true) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
     let result = COMMAND_SERVICE_ARTIFACTS
         .with(|registry| registry.dispose_request(&request_id))
         .map_err(artifact_registry_error);

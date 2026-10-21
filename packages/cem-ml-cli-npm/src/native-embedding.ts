@@ -9,6 +9,25 @@ export interface CommandNativeInventory {
     readonly replacementAllowed: false;
 }
 
+/** Native confirmation at one closed, idle inventory revision; never a replacement permit. */
+export interface CommandNativeClosureValidation {
+    readonly schemaVersion: 1;
+    readonly closed: true;
+    readonly inventoryRevision: number;
+    readonly replacementAllowed: false;
+}
+
+export function parseCommandNativeClosure(value: unknown, revision: number): CommandNativeClosureValidation {
+    if (typeof value === 'string') {
+        if (value.length > 512) throw new CommandNativeEmbeddingError('cem.command.native.limit');
+        value = JSON.parse(value) as unknown;
+    }
+    if (!record(value) || Object.keys(value).length !== 4 || value.schemaVersion !== 1 ||
+        value.closed !== true || value.replacementAllowed !== false || !counter(value.inventoryRevision) || value.inventoryRevision < 1 ||
+        value.inventoryRevision !== revision) throw new CommandNativeEmbeddingError('cem.command.native.stale');
+    return Object.freeze({ schemaVersion: 1, closed: true, inventoryRevision: revision, replacementAllowed: false });
+}
+
 export interface CommandNativeEmbeddingOwnership {
     readonly kind: 'command-native-embedding';
 }

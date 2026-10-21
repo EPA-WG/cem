@@ -1,5 +1,5 @@
 import type { CommandNativeEmbeddingOwnership } from './native-embedding.js';
-export type { CommandNativeEmbeddingOwnership, CommandNativeInventory } from './native-embedding.js';
+export type { CommandNativeEmbeddingOwnership, CommandNativeInventory, CommandNativeClosureValidation } from './native-embedding.js';
 import { CommandNativeClientCheckpoint, type CommandNativeDrain } from './native-admission.js';
 export type { CommandNativeDrain } from './native-admission.js';
 import { Worker } from 'node:worker_threads';
@@ -303,15 +303,29 @@ export class NodeCommandServiceClient {
         this.#requireOpen(); this.#nativeCheckpoint.releaseEmbedding(lease);
     }
 
+    closeNativeAdmission(ownership: readonly CommandNativeEmbeddingOwnership[], timeoutMs = 5000): Promise<CommandNativeDrain> {
+        return this.#captureNative(timeoutMs, ownership, 'close');
+    }
+
+    revalidateNativeCheckpoint(proof: CommandNativeDrain, ownership: readonly CommandNativeEmbeddingOwnership[], timeoutMs = 5000): Promise<CommandNativeDrain> {
+        this.#nativeCheckpoint.requireCoordinated(proof);
+        return this.#captureNative(timeoutMs, ownership, proof);
+    }
+
     checkpointNative(timeoutMs = 5000, ownership?: readonly CommandNativeEmbeddingOwnership[]): Promise<CommandNativeDrain> {
+        return this.#captureNative(timeoutMs, ownership);
+    }
+
+    #captureNative(timeoutMs: number, ownership?: readonly CommandNativeEmbeddingOwnership[], coordination?: 'close' | CommandNativeDrain): Promise<CommandNativeDrain> {
         this.#requireOpen();
         return this.#nativeCheckpoint.capture(() => {
             const actionId = this.#nextAction();
             return this.#action<CommandNativeDrain>(actionId, {
                 type: 'cem-command-native-checkpoint', actionId, timeoutMs,
                 ...(ownership === undefined ? {} : { nativeInventory: true }),
+                ...(coordination === undefined ? {} : { nativeClosure: coordination === 'close' ? 'close' : coordination.nativeClosure?.inventoryRevision }),
             }).then(({ value }) => value);
-        }, timeoutMs, ownership);
+        }, timeoutMs, ownership, coordination);
     }
 
     isNativeCheckpointCurrent(proof: CommandNativeDrain): boolean {

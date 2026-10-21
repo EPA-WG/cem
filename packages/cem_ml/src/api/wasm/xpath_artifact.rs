@@ -38,7 +38,7 @@ pub fn retained_xpath_artifact(id: u32) -> Option<Arc<XPathExpressionAst>> {
 
 #[wasm_bindgen(js_name = "compileXPathArtifact")]
 pub fn compile_xpath_artifact(source: &str, source_uri: &str) -> Result<Vec<u8>, JsValue> {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     if source.len() > crate::validation::xpath::artifact::XPATH_ARTIFACT_MAX_BYTES {
         return Err(error(
             "cem.xpath.artifact_limit",
@@ -68,7 +68,7 @@ pub fn import_xpath_artifact(
     expected_source_hash: &str,
     invocation_host: &str,
 ) -> Result<String, JsValue> {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     if bytes.len() > crate::validation::xpath::artifact::XPATH_ARTIFACT_MAX_BYTES {
         return Err(error(
             "cem.xpath.artifact_limit",
@@ -113,7 +113,7 @@ pub fn import_xpath_artifact(
 
 #[wasm_bindgen(js_name = "disposeXPathArtifact")]
 pub fn dispose_xpath_artifact(id: u32) -> bool {
-    crate::runtime_inventory::note_mutation();
+    let _native = match crate::runtime_admission::admit(true) { Ok(permit) => permit, Err(_error) => return false };
     PROGRAMS.with(|programs| {
         let mut programs = programs.borrow_mut();
         if let Some((_, bytes)) = programs.entries.remove(&id) {

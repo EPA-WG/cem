@@ -16,6 +16,7 @@ import {
 globalThis.runCemMlBrowserFixture = async (scenario) => {
     if (scenario === 'command-host-configuration') return runHostConfigurationFixture();
     if (scenario === 'command-native-checkpoint') return runNativeCheckpointFixture();
+    if (scenario === 'command-native-closure') return runNativeInventoryFixture(true);
     if (scenario === 'command-native-inventory') return runNativeInventoryFixture();
     if (scenario === 'command-native-pressure') return runNativePressureFixture();
     if (scenario === 'command-service') return runCommandServiceFixture();
@@ -731,7 +732,7 @@ async function runNativePressureFixture() {
     } finally { await client?.close(); globalThis.Worker = NativeWorker; URL.revokeObjectURL(url); }
 }
 
-async function runNativeInventoryFixture() {
+async function runNativeInventoryFixture(coordinated = false) {
     const NativeWorker = globalThis.Worker;
     let physicalWorker;
     const workerSource = `
@@ -741,11 +742,21 @@ async function runNativeInventoryFixture() {
         const native = await import('${location.origin}/command-native/runtime.js');
         await native.default('${location.origin}/command-native/runtime.wasm');
         let document;
-        self.addEventListener('message', event => {
+        self.addEventListener('message', async event => {
             if (event.data.type !== 'fixture-native-inventory') return;
             event.stopImmediatePropagation();
             try {
-                if (event.data.retain) document = native.retainCemDocument(new TextEncoder().encode('<item/>'), 'application/xml', 'memory:raw-browser');
+                if (event.data.retain === 'reset') { native.resetRetainedRenderCache(); }
+                else if (event.data.retain === 'probe') {
+                    let document;
+                    try { native.retainCemDocument(new TextEncoder().encode('<item/>'), 'application/xml', 'memory:denied'); }
+                    catch (error) { document = String(error); }
+                    let callbacks = 0; const forbidden = () => { callbacks++; throw Error('unexpected callback'); };
+                    const command = JSON.parse(await native.executeCommandServiceV1('{}', '{}', forbidden, forbidden, forbidden, forbidden, forbidden));
+                    event.ports[0].postMessage({ document, template: JSON.parse(native.compileTemplate('{p | denied}', '{}')).error.code,
+                        command: command.error.code, callbacks }); return;
+                }
+                else if (event.data.retain) document = native.retainCemDocument(new TextEncoder().encode('<item/>'), 'application/xml', 'memory:raw-browser');
                 else native.disposeCemDocument(document);
                 event.ports[0].postMessage(JSON.parse(native.commandNativeResourceInventory()));
             } catch (error) { event.ports[0].postMessage({ error: String(error) }); }
@@ -774,16 +785,27 @@ async function runNativeInventoryFixture() {
             commitWrite: () => { throw Error('unexpected commit'); }, rollbackWrite: () => undefined,
         } });
         const a = client.claimNativeEmbedding(), b = client.claimNativeEmbedding();
-        const omitted = await client.checkpointNative(1000, [a]).then(() => null, error => error.code);
+        const capture = owners => coordinated ? client.closeNativeAdmission(owners, 1000) : client.checkpointNative(1000, owners);
+        const omitted = await capture([a]).then(() => null, error => error.code);
         const retained = await mutate(true);
-        const blocked = await client.checkpointNative(1000, [a, b]).then(() => null, error => error.code);
+        const blocked = await capture([a, b]).then(() => null, error => error.code);
+        const denied = coordinated ? await mutate('probe') : undefined;
         await mutate(false);
-        const proof = await client.checkpointNative(1000, [a, b]);
+        let proof = await capture([a, b]);
+        let stale, hostCurrent;
+        if (coordinated) {
+            proof = await client.revalidateNativeCheckpoint(proof, [a, b], 1000);
+            await mutate('reset');
+            hostCurrent = client.isNativeCheckpointCurrent(proof);
+            stale = await client.revalidateNativeCheckpoint(proof, [a, b], 1000).then(() => null, error => error.code);
+            proof = await capture([a, b]);
+        }
         const current = client.isNativeCheckpointCurrent(proof), copied = client.isNativeCheckpointCurrent({ ...proof });
         client.releaseNativeEmbedding(b);
         return { omitted, blocked, live: retained.registries.find(entry => entry.name === 'cem-documents').live,
             registries: proof.nativeInventory.registries.length, owners: proof.embeddingOwners,
             blockers: proof.nativeInventory.blockingResources, current, copied,
-            afterRelease: client.isNativeCheckpointCurrent(proof), replacementAllowed: proof.replacementAllowed };
+            afterRelease: client.isNativeCheckpointCurrent(proof), replacementAllowed: proof.replacementAllowed,
+            ...(coordinated ? { denied, stale, hostCurrent, closed: proof.nativeClosure.closed } : {}) };
     } finally { await client?.close(); globalThis.Worker = NativeWorker; URL.revokeObjectURL(url); }
 }

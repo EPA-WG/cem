@@ -1,6 +1,6 @@
 import type { CommandNativeEmbeddingOwnership } from './native-embedding.js';
 import type { CommandNativeDrain } from './native-admission.js';
-import { claimCommandNativeEmbedding, checkpointCommandNativeEmbedding } from './managed-native-runtime.js';
+import { closeCommandNativeEmbeddingAdmission, revalidateCommandNativeEmbedding, claimCommandNativeEmbedding, checkpointCommandNativeEmbedding } from './managed-native-runtime.js';
 import { commandNativeAdmission, commandNativeRuntime as runtime } from './managed-native-runtime.js';
 import type {
     CommandInvocationBuildResponseV1,
@@ -203,3 +203,11 @@ export {
     releaseCommandNativeEmbedding as releaseBrowserCommandNativeEmbedding,
     isCommandNativeInventoryCurrent as isBrowserCommandNativeInventoryCurrent,
 } from './managed-native-runtime.js';
+
+
+export async function closeBrowserCommandNativeAdmission(leases: readonly CommandNativeEmbeddingOwnership[], timeoutMs = 5000): Promise<CommandNativeDrain> {
+    await initializeCommandRuntime(); return closeCommandNativeEmbeddingAdmission(leases, timeoutMs);
+}
+export async function revalidateBrowserCommandNativeCheckpoint(proof: CommandNativeDrain, leases: readonly CommandNativeEmbeddingOwnership[], timeoutMs = 5000): Promise<CommandNativeDrain> {
+    await initializeCommandRuntime(); return revalidateCommandNativeEmbedding(proof, leases, timeoutMs);
+}

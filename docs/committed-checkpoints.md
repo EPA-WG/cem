@@ -276,7 +276,7 @@ modules remain outside managed admission. No witness authorizes replacement,
 replay, disposal of another owner's resources or rollback of newer drafts.
 
 The linked runtime now exports `commandNativeResourceInventory()`: a bounded,
-versioned counter-only census of all 28 retained resource/cache/operation roots
+versioned counter-only census of all 29 retained resource/cache/operation roots
 in the command/reference profile. Rust checks the exact manifest, including
 empty registries; missing, duplicate, unknown or unsafe counters refuse the
 report. Live documents, templates, reference sources/values/validation/execution/
@@ -315,10 +315,52 @@ released owner, managed activity or raw same-count mutation invalidates the
 original proof; copied/foreign records never become authority. Original leases
 are in-memory contracts and cannot be serialized as portable checkpoint state.
 
-These APIs cannot discover a raw JavaScript caller that never participates or
-close arbitrary generated exports. Coordinated closure, fresh generation
-admission and semantic resume remain prerequisites for replacement. Studio only
-receives shared runtime deployment assets; its command consumer stays declarative.
+Coordinated closure is a separate explicit operation. All original embedding
+leases are required by `await client.closeNativeAdmission([lease, ...], timeoutMs)`;
+legacy `checkpointNative` calls remain inventory-only. The coordinator closes the
+native gate before waiting for managed work, alongside monotonic host admission.
+Every ordinary generated WASM export checks a native RAII entry permit before
+parsing, callbacks or registry access. Permits enroll synchronously, including
+unpolled commands, and survive async callbacks. The twenty-ninth inventory root
+counts these native entries. Raw aliases cannot start new work after closure.
+Existing work can settle, and explicit disposal/cancellation/resource settlement,
+cache release and bounded recovery control calls remain available. Cleanup advances
+native revisions even when it leaves resource counts unchanged. Closure never
+restarts a worker, retries an operation or clears a saved project/draft.
+
+`await client.revalidateNativeCheckpoint(original, [lease, ...], timeoutMs)`
+requires the current original coordinated witness and complete current leases.
+The host validates original membership before dispatch and again after reply;
+its monotonic ownership revision proves that membership stayed unchanged across
+the native validation instant. Rust first refuses open/busy admission, collects
+the full original native inventory without JavaScript callbacks, then holds its
+admission lock while checking closed/idle state, zero live blockers and the exact
+original/current inventory revision. New ordinary entries are excluded; native
+cleanup mutations make the original revision stale. The `nativeClosure` record
+contains only schema version, closed status, inventory revision and false
+replacement authority. Copied/foreign witnesses, changed/released owners, stale
+or forged replies, pending callbacks, timeout revival and lost workers refuse
+confirmation. Failure leaves admission closed and cleanup available. After a
+cleanup mutation, obtain a new close witness rather than revalidating an old one.
+
+Main-thread `closeNodeCommandNativeAdmission` /
+`closeBrowserCommandNativeAdmission` and `revalidateNodeCommandNativeCheckpoint` /
+`revalidateBrowserCommandNativeCheckpoint` bind the same checks to the actual
+WASM memory. Main currentness also uses native validation for coordinated proofs.
+Worker synchronous currentness still covers parent activity/ownership only;
+the async revalidation endpoint checks otherwise invisible raw cleanup changes.
+It returns a new original witness; previous parent witnesses are superseded.
+
+This confirms joint native/ownership consistency at one validation instant.
+A later native cleanup can invalidate that instant. Replacement remains disabled:
+a future coordinator must consume fresh confirmation at the actual retirement
+boundary, preserve journals/portable checkpoints and resume under new runtime
+and semantic authority. Unregistered JavaScript callers, direct memory mutation,
+new module initialization and independent instances cannot be discovered or
+consented for through an owner flag or scalar receipt. An independently initialized
+heap is a new domain, never a reopening of the old closed one. Native Rust engine
+APIs outside these generated entrypoints are not implicitly enrolled. Studio only
+receives shared runtime assets and continues to use its declarative consumer.
 
 
 Every owner requires explicit whole-island privacy consent before serialization.

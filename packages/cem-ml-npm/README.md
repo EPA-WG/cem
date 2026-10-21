@@ -184,7 +184,7 @@ Managed command checkpoint witnesses always refuse replacement authority.
 ## Native resource inventory
 
 `commandNativeResourceInventory()` returns explicit counter-only control JSON
-for all 28 registries in the linked command/reference runtime. Live resources,
+for all 29 registries in the linked command/reference runtime. Live resources,
 callbacks, commands (including before first poll) and reservations block an
 inventory-backed acknowledgement. Rebuildable caches and terminal journals have
 separate discardable counts. Native revisions detect same-count mutations.
@@ -192,6 +192,28 @@ separate discardable counts. Native revisions detect same-count mutations.
 for trusted in-memory ownership bookkeeping; neither export grants replacement.
 
 Use the shared CLI embedding-lease APIs for complete opt-in owner consent.
-Unregistered raw callers remain unmanaged; coordinated raw admission closure,
-fresh census validation and semantic resume are still required before replacing
-a heap. See the [ownership contract](https://github.com/EPA-WG/cem/blob/develop/docs/committed-checkpoints.md#separate-command-heaps-and-the-unmanaged-boundary).
+Unregistered raw callers remain unmanaged. The coordinated closure API below
+adds native admission and fresh census validation; generation replacement and
+semantic resume are still required before replacing a heap. See the [ownership contract](https://github.com/EPA-WG/cem/blob/develop/docs/committed-checkpoints.md#separate-command-heaps-and-the-unmanaged-boundary).
+
+
+## Closing native admission
+
+`closeCommandNativeAdmission()` permanently closes ordinary entrypoints in that
+linked memory. Raw aliases follow the same native gate. Already admitted async
+commands retain their entry permits before the first poll and through callback
+waits. Disposal, cancellation, existing resource settlement, cache release and
+bounded checkpoint controls remain available and advance the inventory revision.
+The inventory now includes the native entry count as its twenty-ninth root.
+
+`validateCommandNativeClosure(expectedRevision)` refuses open/busy admission,
+live resources or stale/incomplete inventories. It checks a freshly collected
+inventory and the exact revision under the native admission lock and returns
+bounded control JSON. Busy entrypoints are refused before collection to avoid
+reentrant borrowing. No JavaScript callback runs during collection/validation.
+
+Use the CLI's coordinated ownership APIs to bind confirmation to complete current
+original embedding leases. A scalar native record is never ownership or permission
+to replace a heap; initialization and unregistered/direct-memory embedding remain
+unsupported replacement boundaries. The [checkpoint contract](https://github.com/EPA-WG/cem/blob/develop/docs/committed-checkpoints.md#separate-command-heaps-and-the-unmanaged-boundary)
+defines freshness, cleanup and the remaining replacement/resume work.

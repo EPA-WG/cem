@@ -19,7 +19,7 @@ struct ComponentHost {
 
 #[wasm_bindgen(js_name = "xsltStylesheetImports")]
 pub fn stylesheet_imports(source: &str, source_uri: &str) -> Result<String, JsValue> {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     crate::xslt::compiler::stylesheet_imports(source, source_uri)
         .map(|imports| json!(imports).to_string())
         .map_err(|diagnostics| {
@@ -36,7 +36,7 @@ pub fn retain_xslt_component(
     host_bindings_json: &str,
     control_policy_json: Option<String>,
 ) -> Result<String, JsValue> {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     if options_json.len() > crate::xslt::MAX_BUNDLE_BYTES || host_bindings_json.len() > 128 * 1024 {
         return Err(JsValue::from_str("XSLT component options exceed limits"));
     }
@@ -104,13 +104,13 @@ pub fn render_xslt_component(
     documents_json: &str,
     initial_document_id: Option<u32>,
 ) -> String {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return cem_ml::runtime_admission::refusal_json(error) };
     render_xslt_component_with_native_values(id, data_json, documents_json, initial_document_id, "[]", "", None, None, None)
 }
 
 #[wasm_bindgen(js_name = "renderXsltComponentWithNativeValues")]
 pub fn render_xslt_component_with_native_values(id: u32, data_json: &str, documents_json: &str, initial_document_id: Option<u32>, native_bindings_json: &str, limits_json: &str, element_reference_instance_id: Option<String>, element_reference_inputs_json: Option<String>, aria_reference_profile: Option<String>) -> String {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return cem_ml::runtime_admission::refusal_json(error) };
     let profile = match aria_reference_profile.as_deref().map(str::parse).transpose() {
         Ok(profile) => profile.unwrap_or_default(),
         Err(message) => return error_json("cem.element_reference.profile", message),
@@ -189,7 +189,7 @@ pub fn render_xslt_component_with_native_values(id: u32, data_json: &str, docume
 
 #[wasm_bindgen(js_name = "disposeXsltComponent")]
 pub fn dispose_xslt_component(id: u32) -> bool {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(true) { Ok(permit) => permit, Err(_error) => return false };
     COMPONENTS.with(|host| {
         let mut host = host.borrow_mut();
         if let Some(component) = host.entries.remove(&id) {
@@ -205,7 +205,7 @@ pub fn dispose_xslt_component(id: u32) -> bool {
 /// carry explicit diagnostic metadata; executable ASTs never cross as JSON.
 #[wasm_bindgen(js_name = "compileXsltBundle")]
 pub fn compile_xslt_bundle_bytes(source: &str, source_uri: &str) -> Result<Vec<u8>, JsValue> {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     compile_xslt_bundle(source, source_uri)
         .map(|compiled| compiled.bytes)
         .map_err(|diagnostics| {
@@ -222,7 +222,7 @@ pub fn compile_xslt_bundle_bytes(source: &str, source_uri: &str) -> Result<Vec<u
 /// the same bounded retention/disposal lifecycle as precompiled bundles.
 #[wasm_bindgen(js_name = "retainXsltStylesheet")]
 pub fn retain_xslt_stylesheet(source: &str, source_uri: &str) -> Result<String, JsValue> {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     let bytes = compile_xslt_bundle_bytes(source, source_uri)?;
     import_xslt_bundle(
         &bytes,
@@ -237,7 +237,7 @@ pub fn import_xslt_bundle(
     expected_content_hash: &str,
     expected_root_source_hash: &str,
 ) -> Result<String, JsValue> {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
     let hash = parse_hash(expected_content_hash).map_err(|e| JsValue::from_str(&e.to_string()))?;
     let source =
         parse_hash(expected_root_source_hash).map_err(|e| JsValue::from_str(&e.to_string()))?;
@@ -268,7 +268,7 @@ pub fn render_xslt_bundle(
     scalar_bindings_json: &str,
     document_bindings_json: &str,
 ) -> String {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return cem_ml::runtime_admission::refusal_json(error) };
     let Some(bundle) = BUNDLES.with(|host| host.borrow().get(bundle_id)) else {
         return error_json("cem.xslt.unknown_bundle", "XSLT bundle is not retained");
     };
@@ -322,7 +322,7 @@ pub fn render_xslt_bundle(
 
 #[wasm_bindgen(js_name = "disposeXsltBundle")]
 pub fn dispose_xslt_bundle(bundle_id: u32) -> bool {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(true) { Ok(permit) => permit, Err(_error) => return false };
     BUNDLES.with(|host| host.borrow_mut().dispose(bundle_id))
 }
 

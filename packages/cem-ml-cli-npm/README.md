@@ -286,5 +286,43 @@ and `claimBrowserCommandNativeEmbedding` families, keyed by actual WASM memory.
 
 This is snapshot evidence with `replacementAllowed: false`. Worker currentness
 covers parent activity/ownership; raw calls after acknowledgement require a fresh
-native check. Raw callers must opt in, and generated exports remain callable.
+native check. Raw callers must opt in. Inventory-only capture leaves ordinary
+generated exports open; coordinated closure below closes them in the native gate.
 See the [complete inventory and ownership contract](https://github.com/EPA-WG/cem/blob/develop/docs/committed-checkpoints.md#separate-command-heaps-and-the-unmanaged-boundary).
+
+
+## Coordinated native closure and revalidation
+
+Inventory-only checkpoints keep their existing behavior. Use coordinated closure
+when all embedding owners can consent to stopping new work in that memory:
+
+```js
+const owner = client.claimNativeEmbedding();
+const closed = await client.closeNativeAdmission([owner]);
+const confirmed = await client.revalidateNativeCheckpoint(closed, [owner]);
+console.log(confirmed.nativeClosure.closed); // true
+```
+
+Closure is permanent for that native generation. Every ordinary generated-WASM
+entrypoint checks the native gate, so a raw alias also refuses new work.
+Previously admitted commands remain enrolled through callbacks. Cleanup,
+cancellation, existing resource settlement and bounded checkpoint controls remain
+available. A retained root or raw pending command refuses acknowledgement; settle
+or dispose it explicitly, then request a fresh coordinated close witness.
+
+Revalidation requires the current original witness and every original owner lease.
+Native validation checks the fresh complete inventory and its exact revision under
+one admission lock; the host requires unchanged ownership across that call.
+Cleanup invalidates the native revision even when live counts stay zero. A copied,
+foreign, timed-out or owner-stale witness cannot be revalidated. Worker synchronous
+`isNativeCheckpointCurrent` observes host activity only; use the asynchronous
+revalidation endpoint for native freshness.
+
+Main-thread authoring provides `closeNodeCommandNativeAdmission` /
+`closeBrowserCommandNativeAdmission` and `revalidateNodeCommandNativeCheckpoint` /
+`revalidateBrowserCommandNativeCheckpoint`, with the same original-lease rules.
+Witnesses still have `replacementAllowed: false`. Native confirmation describes
+one validation instant; the future replacement coordinator must consume a fresh
+confirmation at retirement and resume under new generation authority. Unregistered
+embedders, direct memory writes and independent initialization remain outside the
+ownership contract. No command or resource writer is replayed.

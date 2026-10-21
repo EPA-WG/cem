@@ -90,7 +90,7 @@ fn with_owner(
 
 #[wasm_bindgen(js_name = "beginTemplateStylesheet")]
 pub fn begin(artifact_id: u32, options_json: &str) -> String {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return cem_ml::runtime_admission::refusal_json(error) };
     let _memory = match cem_ml::runtime_memory::admit_input(options_json.len()) {Ok(permit)=>permit,Err(refused)=>return error(refused.0)};
     if options_json.len() > cem_ml::import::MAX_DOCUMENT_BYTES {
         return error("stylesheet control exceeds byte limit");
@@ -138,7 +138,7 @@ pub fn deliver(
     final_url: &str,
     content_type: &str,
 ) -> String {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(true) { Ok(permit) => permit, Err(error) => return cem_ml::runtime_admission::refusal_json(error) };
     let _memory = match cem_ml::runtime_memory::admit_input(bytes.len()) {Ok(permit)=>permit,Err(refused)=>return error(refused.0)};
     with_owner(artifact_id, |owner| {
         progress(
@@ -165,7 +165,7 @@ pub fn fail(
     request_id: u32,
     message: &str,
 ) -> String {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(true) { Ok(permit) => permit, Err(error) => return cem_ml::runtime_admission::refusal_json(error) };
     with_owner(artifact_id, |owner| {
         progress(
             load_id,
@@ -176,7 +176,7 @@ pub fn fail(
 
 #[wasm_bindgen(js_name = "releaseTemplateStylesheets")]
 pub fn release(artifact_id: u32, consumer: &str, load_id: u32) -> String {
-    cem_ml::runtime_inventory::note_mutation();
+    let _native = match cem_ml::runtime_admission::admit(true) { Ok(permit) => permit, Err(error) => return cem_ml::runtime_admission::refusal_json(error) };
     with_owner(artifact_id, |owner| {
         Ok(
             json!({"status":"released", "count":if load_id == 0 { owner.release_stylesheet_consumer(consumer) } else { owner.release_stylesheet_generation(consumer, load_id) }})

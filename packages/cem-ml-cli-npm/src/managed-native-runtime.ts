@@ -1,4 +1,4 @@
-import { copyCommandNativeEmbeddingOwnership, CommandNativeEmbeddingOwners, parseCommandNativeInventory, type CommandNativeInventory, type CommandNativeEmbeddingOwnership } from './native-embedding.js';
+import { parseCommandNativeClosure, copyCommandNativeEmbeddingOwnership, CommandNativeEmbeddingOwners, parseCommandNativeInventory, type CommandNativeInventory, type CommandNativeEmbeddingOwnership } from './native-embedding.js';
 import type { CommandNativeDrain } from './native-admission.js';
 import * as native from '@epa-wg/cem-ml/wasm';
 import { CommandNativeAdmission, CommandNativeAdmissionError } from './native-admission.js';
@@ -110,7 +110,7 @@ const ownerRegistryKey = Symbol.for('cem.command.native-embedding-owners.v1');
 const ownerRealm = globalThis as typeof globalThis & { [ownerRegistryKey]?: WeakMap<object, CommandNativeEmbeddingOwners> };
 const ownerRegistry = ownerRealm[ownerRegistryKey] ??= new WeakMap<object, CommandNativeEmbeddingOwners>();
 const ownedProofs = new WeakMap<object, { readonly owners: CommandNativeEmbeddingOwners; readonly ack: object;
-    readonly drain: CommandNativeDrain; readonly nativeRevision: number }>();
+    readonly drain: CommandNativeDrain; readonly nativeRevision: number; readonly coordinated: boolean }>();
 
 function mainEmbeddingOwners(): CommandNativeEmbeddingOwners {
     const memory = native.commandNativeMemoryIdentity() as object;
@@ -128,26 +128,61 @@ export function claimCommandNativeEmbedding(): CommandNativeEmbeddingOwnership {
 export function releaseCommandNativeEmbedding(lease: CommandNativeEmbeddingOwnership): void { mainEmbeddingOwners().release(lease); }
 
 export async function checkpointCommandNativeEmbedding(
-    leases: readonly CommandNativeEmbeddingOwnership[], timeoutMs = 5000,
+    leases: readonly CommandNativeEmbeddingOwnership[], timeoutMs = 5000, coordination?: 'close' | CommandNativeDrain,
 ): Promise<CommandNativeDrain> {
     if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60000) throw new RangeError('Invalid command drain timeout');
     const owners = mainEmbeddingOwners();
+    const previous = coordination === undefined || coordination === 'close' ? undefined : ownedProofs.get(coordination);
+    if (coordination !== undefined && coordination !== 'close' && (previous === undefined || !previous.coordinated || previous.owners !== owners ||
+        !owners.current(previous.ack) || !commandNativeAdmission.current(previous.drain))) throw new CommandNativeAdmissionError('cem.command.native.stale');
     const snapshot = copyCommandNativeEmbeddingOwnership(leases);
     const ack = owners.acknowledge(snapshot);
     commandNativeAdmission.close();
+    if (coordination === 'close') closeCommandNativeAdmission();
     const drain = commandNativeAdmission.checkpoint(await commandNativeAdmission.drain(timeoutMs));
-    const inventory = readCommandNativeInventory();
+    const validated = coordination === undefined ? { nativeInventory: readCommandNativeInventory() } : validateCommandNativeClosure(previous?.nativeRevision);
+    const inventory = validated.nativeInventory;
     if (inventory.blockingResources !== 0 || !owners.current(ack) || !commandNativeAdmission.current(drain)) {
         throw new CommandNativeAdmissionError('cem.command.inventory.blocked', 'Native retained resources or embedding ownership still block the census acknowledgement');
     }
-    const proof: CommandNativeDrain = Object.freeze({ ...drain, nativeInventory: inventory, embeddingOwners: snapshot.length });
-    ownedProofs.set(proof, { owners, ack, drain, nativeRevision: inventory.revision });
+    const proof: CommandNativeDrain = Object.freeze({ ...drain, ...validated, embeddingOwners: snapshot.length });
+    ownedProofs.set(proof, { owners, ack, drain, nativeRevision: inventory.revision, coordinated: coordination !== undefined });
     return proof;
 }
 
 export function isCommandNativeInventoryCurrent(proof: CommandNativeDrain): boolean {
     const stored = ownedProofs.get(proof);
     if (stored === undefined || !stored.owners.current(stored.ack) || !commandNativeAdmission.current(stored.drain)) return false;
-    try { const inventory = readCommandNativeInventory(); return inventory.revision === stored.nativeRevision && inventory.blockingResources === 0; }
+    try {
+        const inventory = stored.coordinated ? validateCommandNativeClosure(stored.nativeRevision).nativeInventory : readCommandNativeInventory();
+        return inventory.revision === stored.nativeRevision && inventory.blockingResources === 0 && stored.owners.current(stored.ack) && commandNativeAdmission.current(stored.drain);
+    }
     catch { return false; }
+}
+
+
+/** Close ordinary raw exports in this linked memory before waiting for managed work. */
+export function closeCommandNativeAdmission(): void {
+    try { native.closeCommandNativeAdmission(); }
+    catch { commandNativeAdmission.invalidate(); throw new CommandNativeAdmissionError('cem.command.native.uncertain'); }
+}
+
+/** No asynchronous boundary or JavaScript callback occurs inside native validation. */
+export function validateCommandNativeClosure(expectedRevision?: number): Pick<CommandNativeDrain, 'nativeInventory' | 'nativeClosure'> & { nativeInventory: CommandNativeInventory } {
+    const inventory = readCommandNativeInventory();
+    if (inventory.blockingResources !== 0) throw new CommandNativeAdmissionError('cem.command.inventory.blocked');
+    const expected = expectedRevision ?? inventory.revision;
+    try {
+        const closure = parseCommandNativeClosure(native.validateCommandNativeClosure(expected), expected);
+        if (inventory.revision !== expected) throw new Error('stale');
+        return { nativeInventory: inventory, nativeClosure: closure };
+    } catch { throw new CommandNativeAdmissionError('cem.command.native.stale', 'Native admission or inventory changed before validation'); }
+}
+
+export function closeCommandNativeEmbeddingAdmission(leases: readonly CommandNativeEmbeddingOwnership[], timeoutMs = 5000): Promise<CommandNativeDrain> {
+    return checkpointCommandNativeEmbedding(leases, timeoutMs, 'close');
+}
+export function revalidateCommandNativeEmbedding(proof: CommandNativeDrain, leases: readonly CommandNativeEmbeddingOwnership[], timeoutMs = 5000): Promise<CommandNativeDrain> {
+    if (proof === undefined || proof === null) return Promise.reject(new CommandNativeAdmissionError('cem.command.native.stale'));
+    return checkpointCommandNativeEmbedding(leases, timeoutMs, proof);
 }

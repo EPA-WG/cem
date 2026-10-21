@@ -3,6 +3,8 @@ import {
     createNodeCommandHost,
     createNodeCommandService,
     createNodeCommandServiceClient,
+    closeNodeCommandNativeAdmission,
+    revalidateNodeCommandNativeCheckpoint,
     claimNodeCommandNativeEmbedding,
     checkpointNodeCommandNativeEmbedding,
     releaseNodeCommandNativeEmbedding,
@@ -12,6 +14,7 @@ import {
     type CommandInvocationV1,
     type CommandNativeEmbeddingOwnership,
     type CommandNativeInventory,
+    type CommandNativeClosureValidation,
     type CommandPresentationV1,
     type CommandServiceResultV1,
     type NodeCommandHostOptions,
@@ -59,10 +62,16 @@ async function compilePublicNodeCommandContract(): Promise<void> {
     const nativeCheckpoint = await client.checkpointNative(5000, [embedding]);
     const inventory: CommandNativeInventory | undefined = nativeCheckpoint.nativeInventory;
     const blockers: number | undefined = inventory?.blockingResources;
+    const coordinated = await client.closeNativeAdmission([embedding], 5000);
+    const confirmed = await client.revalidateNativeCheckpoint(coordinated, [embedding], 5000);
+    const closure: CommandNativeClosureValidation | undefined = confirmed.nativeClosure;
+    void closure;
     client.releaseNativeEmbedding(embedding);
     const mainEmbedding = await claimNodeCommandNativeEmbedding();
     const mainProof = await checkpointNodeCommandNativeEmbedding([mainEmbedding]);
     const mainCurrent: boolean = isNodeCommandNativeInventoryCurrent(mainProof);
+    const mainClosed = await closeNodeCommandNativeAdmission([mainEmbedding], 5000);
+    await revalidateNodeCommandNativeCheckpoint(mainClosed, [mainEmbedding], 5000);
     releaseNodeCommandNativeEmbedding(mainEmbedding);
     void [blockers, mainCurrent];
     const scope: 'managed-cli-only' = nativeCheckpoint.scope;

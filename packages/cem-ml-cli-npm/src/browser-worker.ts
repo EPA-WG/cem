@@ -1,5 +1,5 @@
 import { CommandNativeAdmissionError, isCommandNativeAdmissionError } from './native-admission.js';
-import { commandNativeAdmission, readCommandNativeInventory, commandNativeRuntime as runtime } from './managed-native-runtime.js';
+import { commandNativeAdmission, closeCommandNativeAdmission, validateCommandNativeClosure, readCommandNativeInventory, commandNativeRuntime as runtime } from './managed-native-runtime.js';
 
 import type {
     BrowserCommandActionResultMessage,
@@ -380,14 +380,18 @@ function executeManagedAction(message: Parameters<typeof executeCommandAction>[0
 }
 
 async function checkpointCommandNative(message: Record<string, unknown>): Promise<void> {
-    if (!isPositiveInteger(message.actionId) || !isPositiveInteger(message.timeoutMs) || message.timeoutMs > 60000 || Object.keys(message).length !== (message.nativeInventory === true ? 4 : 3)) {
+    if (!isPositiveInteger(message.actionId) || !isPositiveInteger(message.timeoutMs) || message.timeoutMs > 60000 || Object.keys(message).length !== (message.nativeInventory === true ? 4 : 3) + (message.nativeClosure === undefined ? 0 : 1) ||
+        (message.nativeClosure !== undefined && (message.nativeInventory !== true || (message.nativeClosure !== 'close' && !isPositiveInteger(message.nativeClosure))))) {
         throw new Error('Invalid managed command checkpoint request');
     }
     commandNativeAdmission.close();
     let result: unknown;
     try {
+        if (message.nativeClosure === 'close') closeCommandNativeAdmission();
         const drain = commandNativeAdmission.checkpoint(await commandNativeAdmission.drain(message.timeoutMs));
-        if (message.nativeInventory === true) {
+        if (message.nativeClosure !== undefined) {
+            result = { ...drain, ...validateCommandNativeClosure(message.nativeClosure === 'close' ? undefined : message.nativeClosure as number) };
+        } else if (message.nativeInventory === true) {
             const inventory = readCommandNativeInventory();
             if (inventory.blockingResources !== 0) throw new CommandNativeAdmissionError('cem.command.inventory.blocked', 'Native resources are retained outside the CLI ledger');
             result = { ...drain, nativeInventory: inventory };
