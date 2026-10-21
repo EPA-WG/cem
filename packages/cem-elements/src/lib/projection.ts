@@ -2131,6 +2131,7 @@ export function materializeRenderedTemplate(template: HTMLTemplateElement): Docu
         const text = renderedTextValues.get(source); if (text !== undefined) renderedTextValues.set(target, text);
         if (source.nodeType === 1 && target.nodeType === 1) {
             const original = source as Element, element = target as Element;
+            const identity = checkpointNodeIdentities.get(original); if (identity && checkpointRenderedNodeIdentity(original)) checkpointNodeIdentities.set(element, { ...identity });
             restoreNativeAttributeBindings(element, renderedNativeAttributeBindings(original));
             const attributes = renderedAttributeValues.get(original);
             if (attributes) renderedAttributeValues.set(element, new Map(attributes));
@@ -2663,8 +2664,7 @@ function materializeNode(node: RenderPlanNode, plan: RenderPlan, document: Docum
         new Map(node.attributes.map((attribute) => [attribute.name, attribute.value])),
     );
     syncNativeAttributes(element, node.attributes);
-    element.setAttribute(RENDER_NODE_ID_ATTR, node.renderNodeId);
-    (element as Element & { cemRenderNodeId?: string }).cemRenderNodeId = node.renderNodeId;
+    mirrorRenderIdentity(element, node.renderNodeId, plan.instanceId);
     element.setAttribute(TEMPLATE_ARTIFACT_ID_ATTR, plan.templateArtifactId);
     element.setAttribute(DATA_REVISION_ATTR, plan.dataRevision);
     if (node.sourceMapRef) {
@@ -3024,7 +3024,7 @@ function mergeRenderPlanNode(
         element,
         new Map(desired.attributes.map((attribute) => [attribute.name, attribute.value])),
     );
-    mirrorRenderIdentity(element, desired.renderNodeId);
+    mirrorRenderIdentity(element, desired.renderNodeId, context.plan.instanceId);
     const preserveElementAttribute = context.options.preserveElementAttribute;
     const preserveElementChildren = context.options.preserveElementChildren;
     const desiredElement =
@@ -3132,7 +3132,7 @@ function createRenderPlanElement(
         new Map(node.attributes.map((attribute) => [attribute.name, attribute.value])),
     );
     syncNativeAttributes(element, node.attributes);
-    mirrorRenderIdentity(element, node.renderNodeId);
+    mirrorRenderIdentity(element, node.renderNodeId, plan.instanceId);
     return element;
 }
 
@@ -3281,7 +3281,7 @@ function mergeNode(current: Node, desired: Node, options: RenderedFragmentMergeO
     const desiredElement = desired as Element;
     const desiredId = renderIdentity(desiredElement);
     if (desiredId) {
-        mirrorRenderIdentity(currentElement, desiredId);
+        mirrorRenderIdentity(currentElement, desiredId, checkpointNodeIdentities.get(desiredElement)?.instanceId);
     }
     syncAttributes(
         currentElement,
@@ -3699,6 +3699,15 @@ function findElementByRenderIdentity(node: Node, id: string, owner: Element | nu
     return null;
 }
 
+const checkpointNodeIdentities = new WeakMap<Element, { id: string; instanceId: string }>();
+/** Renderer-issued identity witness, including retained materialized projections. */
+export function checkpointRenderedNodeIdentity(element: Element, instanceId?: string): string | undefined {
+    const witness = checkpointNodeIdentities.get(element);
+    const id = witness && (instanceId === undefined || witness.instanceId === instanceId) ? witness.id : undefined;
+    return id && element.getAttribute(RENDER_NODE_ID_ATTR) === id
+        && (element as Element & { cemRenderNodeId?: string }).cemRenderNodeId === id ? id : undefined;
+}
+
 function renderIdentity(node: Node): string | null {
     if (node.nodeType !== 1) {
         return null;
@@ -3715,7 +3724,9 @@ function renderIdentity(node: Node): string | null {
     return null;
 }
 
-function mirrorRenderIdentity(element: Element, id: string): void {
+function mirrorRenderIdentity(element: Element, id: string, instanceId?: string): void {
+    if (instanceId) checkpointNodeIdentities.set(element, { id, instanceId });
+    else if (checkpointNodeIdentities.get(element)?.id !== id) checkpointNodeIdentities.delete(element);
     (element as Element & { cemRenderNodeId?: string }).cemRenderNodeId = id;
     if (element.getAttribute(RENDER_NODE_ID_ATTR) !== id) {
         element.setAttribute(RENDER_NODE_ID_ATTR, id);

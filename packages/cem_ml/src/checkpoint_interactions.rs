@@ -29,6 +29,12 @@ struct Input {
     source_uri: Option<String>,
     primary_source_id: u32,
     context: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_depth: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_work: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    unresolved: Option<String>,
     #[serde(default)]
     digest: Option<String>,
 }
@@ -245,6 +251,18 @@ impl Source {
         }
         let source_count = self.sources.len();
         for source in &mut self.sources {
+            // WASM uses a 32-bit usize. Keep explicit overrides (including defaults)
+            // distinct from inherited policy; these scalars grant no source crossing.
+            if [source.max_depth, source.max_work]
+                .into_iter()
+                .flatten()
+                .any(|bound| bound == 0 || bound > u32::MAX as u64)
+                || source.unresolved.as_deref().is_some_and(|value| {
+                    !matches!(value, "mandatory" | "warning" | "ignore" | "neutral")
+                })
+            {
+                return Err(fail);
+            }
             let decoded = STANDARD.decode(&source.base64).map_err(|_| fail)?;
             *bytes += decoded.len();
             if *bytes > 256 * 1024 {
@@ -256,7 +274,12 @@ impl Source {
             }
             match source.codec.as_str() {
                 "xml" => {
-                    if source_count != 1 || !self.bindings.is_empty() || !self.crossings.is_empty()
+                    if source_count != 1
+                        || !self.bindings.is_empty()
+                        || !self.crossings.is_empty()
+                        || source.max_depth.is_some()
+                        || source.max_work.is_some()
+                        || source.unresolved.is_some()
                     {
                         return Err(fail);
                     }

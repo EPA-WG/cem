@@ -45,6 +45,15 @@ presentation resets and relationships are freshly admitted on future resume.
 Failed local native sources can be captured without automatically retrying them.
 Portable opt-in native-session inputs are copied before asynchronous submission so caller
 mutations cannot change execution or captured source provenance.
+CEMB source checkpoints retain explicit depth/work and unresolved-reference
+policies, including explicit defaults, with native validation and fresh admission
+on resume. XML import policy overrides remain unsupported.
+Separate `CemElementRuntime` instances sharing one trusted checkpoint coordinator
+can capture provider/delegate, placement and geometry/focus endpoints together.
+Exact registered hosts and private renderer identities establish endpoint ownership;
+foreign domains, unregistered owners and stale publications block capture. This
+explicit domain membership does not discover physical WASM runtime generations
+or enable replacement/resume.
 
 
 Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>

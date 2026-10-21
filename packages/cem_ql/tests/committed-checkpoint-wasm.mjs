@@ -231,6 +231,34 @@ try {
     capsule.capability.state.body.projection.nativeArtifacts[0].contentHash = 'forged';
     assert.throws(()=>fresh.validateCheckpointRuntime(JSON.stringify(capsule)));
 } finally { wasm.disposeTemplate(capsuleTemplate.artifactId); }
+// Explicit source policy is portable intent, independently validated in a fresh module.
+const sourceHandle = wasm.parseReferenceSource(new TextEncoder().encode('{option @value=same | Original}'), 'text/cem-ml', 'memory:policies.cem', '');
+try {
+    const original = wasm.exportReferenceReloadBundle(sourceHandle, '').slice();
+    const policyState = { ...runtimeState, resources: [], references: { ...active.capability.state.source, rowCount: 1,
+        sources: [{ codec: 'cemb', base64: Buffer.from(original).toString('base64'), sourceUri: null,
+            primarySourceId: 1, context: true, maxDepth: 128, maxWork: 100000, unresolved: 'warning' }] } };
+    const saved = wasm.validateCheckpointRuntime(JSON.stringify(policyState));
+    const { wasm: fresh } = await load('custom-source-policies-and-endpoints');
+    assert.equal(fresh.validateCheckpointRuntime(saved), saved);
+    assert.deepEqual(Buffer.from(JSON.parse(saved).references.sources[0].base64, 'base64'), Buffer.from(original));
+    const reimported = fresh.importReferenceReloadBundle(original, 1, '');
+    fresh.disposeReferenceSource(reimported);
+    for (const [key, value] of [['maxDepth', 0], ['maxWork', 4294967296], ['unresolved', 'allow'], ['grant', true]]) {
+        const invalid = structuredClone(policyState); invalid.references.sources[0][key] = value;
+        assert.throws(() => fresh.validateCheckpointRuntime(JSON.stringify(invalid)));
+    }
+    const shared = structuredClone(candidate);
+    shared.receipt.owners.push({ instanceId: 'peer-runtime:surface', declarationIdentity: 'surface:1', dataRevision: '7', acceptedEventSequence: 0 });
+    shared.owners.push({ instanceId: 'peer-runtime:surface', island: '<template>surface</template>' });
+    shared.receipt.relationships = [{ id: 'cross-runtime:return', kind: 'placement', property: 'return-focus', disposition: 'reacquire',
+        requester: { instanceId: 'peer-runtime:surface', dataRevision: '7', nodeId: 'host' },
+        provider: { instanceId: 'editor', dataRevision: 'draft:2', nodeId: 'field.1' } }];
+    const expected = JSON.stringify(shared.receipt), sealed = wasm.sealCommittedCheckpoint(JSON.stringify(shared), expected);
+    assert.equal(fresh.sealCommittedCheckpoint(sealed, expected), sealed);
+    shared.receipt.relationships[0].provider.dataRevision = 'unpublished';
+    assert.throws(() => fresh.sealCommittedCheckpoint(JSON.stringify(shared), JSON.stringify(shared.receipt)));
+} finally { wasm.disposeReferenceSource(sourceHandle); }
 // Execution/resume is deliberately not performed by the transport store.
 store.invalidate(); assert.equal(store.current(), undefined);
 assert.ok(store.lastCommitted()); store.dispose(); assert.equal(store.lastCommitted(), undefined);

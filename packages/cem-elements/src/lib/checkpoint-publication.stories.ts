@@ -58,10 +58,10 @@ export default { title: 'CEM Elements/Checkpoint Publication', tags: ['test'] } 
 type Story = StoryObj;
 type Reader = NonNullable<Exclude<NonNullable<CemElementRuntimeOptions['retainedStylesheets']>, false>['read']>;
 const decode = (c: CemCheckpointPublicationCoordinator) => JSON.parse(new TextDecoder().decode(c.current()!.bytes)) as { receipt: { owners: { acceptedEventSequence: number }[] }; owners: { instanceId: string; island: string }[] };
-function fixture(root: HTMLElement, fallback: boolean, automatic = false, read?: Reader, options: Partial<CemElementRuntimeOptions> = {}, seal: CemCheckpointSealer = (candidate, receipt) => wasm.sealCommittedCheckpoint(candidate, receipt)) {
+function fixture(root: HTMLElement, fallback: boolean, automatic = false, read?: Reader, options: Partial<CemElementRuntimeOptions> = {}, seal: CemCheckpointSealer = (candidate, receipt) => wasm.sealCommittedCheckpoint(candidate, receipt), shared?: CemCheckpointPublicationCoordinator) {
     const document = root.ownerDocument;
     const suffix = crypto.randomUUID();
-    const coordinator = new CemCheckpointPublicationCoordinator({ runtimeId: `session-${suffix}`, generation: 1, policyStamp: 'whole-private-island:1',
+    const coordinator = shared ?? new CemCheckpointPublicationCoordinator({ runtimeId: `session-${suffix}`, generation: 1, policyStamp: 'whole-private-island:1',
         allowOwner: () => true, seal, automatic });
     const scope = createCemDeclarationScope({ document });
     const runtime = new CemElementRuntime({ ...options, declarationTag: `declaration-${suffix}`, declarationScope: scope, checkpointPublication: coordinator,
@@ -81,7 +81,7 @@ function fixture(root: HTMLElement, fallback: boolean, automatic = false, read?:
         container.append(instance);
         return instance;
     }
-    return { runtime, coordinator, scope, create, dispose() { root.replaceChildren(); scope.dispose(); coordinator.dispose(); } };
+    return { runtime, coordinator, scope, create, dispose() { root.replaceChildren(); scope.dispose(); if (!shared) coordinator.dispose(); } };
 }
 const source = '{attribute @name=label | Before}{slice @name=typed}{label | Draft {input @name=draft @slice=typed @slice-event=input @slice-value="$target.value"}}{p | {$label}}{output | {$typed}}';
 async function init() { await wasm.default({ module_or_path: new URL('../../../cem_ql/dist/wasm/cem_ql_bg.wasm', import.meta.url) }); }
@@ -986,7 +986,7 @@ export const SubmenuAndCompletedTaskCheckpointFallback: Story = {
     play: ({ canvasElement }) => submenuTaskCheckpointContract(canvasElement, true),
 };
 
-async function explicitSubmenuCheckpointContract(canvasElement: HTMLElement, fallback: boolean) {
+async function explicitSubmenuCheckpointContract(canvasElement: HTMLElement, fallback: boolean, crossRuntime = false) {
     await init(); const root = canvasElement.querySelector<HTMLElement>('section')!;
     root.setAttribute('interaction-scope', '');
     let duringSeal: (() => void) | undefined;
@@ -994,13 +994,20 @@ async function explicitSubmenuCheckpointContract(canvasElement: HTMLElement, fal
         duringSeal?.(); duringSeal = undefined;
         await Promise.resolve(); return wasm.sealCommittedCheckpoint(candidate, receipt);
     });
+    const peerRoot = root.appendChild(document.createElement('div'));
+    const peer = crossRuntime ? fixture(peerRoot, !fallback, false, undefined, {}, undefined, f.coordinator) : undefined;
+    const producer = peer ?? f;
     try {
-        const targets = await f.create('{div @interaction-name=bounds @style="position:relative;width:600px;height:260px" | {button @type=button @interaction-name=dock | Dock}{button @type=button @interaction-name=return | Return}{input @name=draft @value=Original}}');
-        await f.runtime.whenRenderSettled(targets);
+        const targets = await producer.create('{div @interaction-name=bounds @style="position:relative;width:600px;height:260px" | {button @type=button @interaction-name=dock | Dock}{button @type=button @interaction-name=return | Return}{input @name=draft @value=Original}}');
+        await producer.runtime.whenRenderSettled(targets);
         const dock = targets.querySelector<HTMLButtonElement>('button')!, returnTo = targets.querySelector<HTMLButtonElement>('button:nth-of-type(2)')!;
         const input = targets.querySelector('input')!;
+        expect(f.coordinator.endpoint(dock)?.instanceId).toBe(producer.runtime.readInstanceSnapshot(targets).instanceId);
+        const forged = dock.cloneNode(true) as HTMLButtonElement;
+        (forged as HTMLElement & { cemRenderNodeId?: string }).cemRenderNodeId = dock.getAttribute('data-cem-render-node-id')!;
+        targets.append(forged); expect(f.coordinator.endpoint(forged)).toBeUndefined(); forged.remove();
         input.focus(); input.value = 'Unsaved draft'; input.setSelectionRange(2, 8);
-        input.dispatchEvent(new InputEvent('input', { bubbles: true })); await f.runtime.whenRenderSettled(targets);
+        input.dispatchEvent(new InputEvent('input', { bubbles: true })); await producer.runtime.whenRenderSettled(targets);
         const menu = await f.create(declarationTemplate(menuDeclaration), 'cem-ml', root,
             '<button part="control" type="button">More</button>', 'composite-menu', { keyboard: 'menu', direction: 'column', boundary: '@bounds' });
         await f.runtime.whenRenderSettled(menu);
@@ -1072,10 +1079,17 @@ async function explicitSubmenuCheckpointContract(canvasElement: HTMLElement, fal
         duringSeal = () => submenu.setAttribute('anchor', '#missing-during-seal');
         await expect(f.coordinator.capture()).rejects.toThrow('stale'); expect(f.coordinator.lastCommitted()!.bytes).toEqual(good);
         submenu.setAttribute('anchor', '@dock'); await f.runtime.whenRenderSettled(submenu); await capture();
+        if (peer) {
+            const lastPeer = f.coordinator.lastCommitted()!.bytes;
+            duringSeal = () => { input.value = 'Peer input during seal'; input.dispatchEvent(new InputEvent('input', { bubbles: true })); };
+            await expect(f.coordinator.capture()).rejects.toThrow('stale');
+            expect(f.coordinator.lastCommitted()!.bytes).toEqual(lastPeer);
+            await producer.runtime.whenRenderSettled(targets); await capture();
+        }
         f.coordinator.setPolicy('revoked:submenu', () => false);
-        for (const host of [targets, menu, submenu]) { host.setAttribute('title', 'New policy'); await f.runtime.whenRenderSettled(host); }
+        for (const host of [targets, menu, submenu]) { host.setAttribute('title', 'New policy'); await (host === targets ? producer : f).runtime.whenRenderSettled(host); }
         await expect(f.coordinator.capture()).rejects.toThrow('privacy'); expect(f.coordinator.lastCommitted()).toBeUndefined();
-    } finally { f.dispose(); root.removeAttribute('interaction-scope'); }
+    } finally { peer?.dispose(); f.dispose(); root.removeAttribute('interaction-scope'); }
 }
 export const ExplicitSubmenuGeometryAndFocusCheckpoint: Story = {
     render: () => '<section aria-label="Explicit submenu worker checkpoint"></section>',
@@ -1210,7 +1224,7 @@ export const ExternalNativePublicationCheckpointFallback: Story = {
     play: ({ canvasElement }) => nativePublicationCheckpointContract(canvasElement, true),
 };
 
-async function externalProviderCheckpointContract(canvasElement: HTMLElement, fallback: boolean) {
+async function externalProviderCheckpointContract(canvasElement: HTMLElement, fallback: boolean, crossRuntime = false) {
     await init(); const root = canvasElement.querySelector<HTMLElement>('section')!;
     let host: HTMLElement | undefined, options: CemSuggestionsControllerOptions | undefined, publication: CemNativeSuggestionsPublication | undefined;
     let admitted = true, latest = 0, failed = false, delay: Promise<void> | undefined;
@@ -1227,9 +1241,12 @@ async function externalProviderCheckpointContract(canvasElement: HTMLElement, fa
                 revision: snapshot.dataRevision, current: () => admitted && instance.isConnected && current === publication })] : [];
         },
     });
+    const peerRoot = root.appendChild(document.createElement('div'));
+    const peer = crossRuntime ? fixture(peerRoot, !fallback, false, undefined, {}, undefined, f.coordinator) : undefined;
+    const editorRuntime = peer ?? f;
     try {
-        const field = await f.create(declarationTemplate(fieldDeclaration), 'cem-ml', root, undefined, 'form-control');
-        await f.runtime.whenRenderSettled(field); root.setAttribute('interaction-scope', ''); field.setAttribute('interaction-name', 'external-field');
+        const field = await editorRuntime.create(declarationTemplate(fieldDeclaration), 'cem-ml', root, undefined, 'form-control');
+        await editorRuntime.runtime.whenRenderSettled(field); root.setAttribute('interaction-scope', ''); field.setAttribute('interaction-name', 'external-field');
         const input = field.querySelector('input')!, provider = getCemEditorProvider(field)!;
         host = await f.create(declarationTemplate(suggestionsDeclaration), 'cem-ml', root, undefined, 'suggestions', { 'editor-for': '@external-field', filter: 'none', 'require-selection': '' });
         await f.runtime.whenRenderSettled(host); const listbox = host.querySelector<HTMLElement>('[part~=surface]')!;
@@ -1244,16 +1261,16 @@ async function externalProviderCheckpointContract(canvasElement: HTMLElement, fa
                 publication = await capturedSource.publishSuggestions({ query, queryRevision, filter: 'none' }, current);
                 f.runtime.refreshElementReferences(host!); await f.runtime.whenRenderSettled(host!);
                 const mapped = f.runtime.renderedSuggestionsFor(host!); if (!mapped) throw new Error('External native row publication missing');
-                const editor = placements.register({ producer: f.runtime.readInstanceSnapshot(field).instanceId, revision: String(revision), current,
+                const editor = placements.register({ producer: editorRuntime.runtime.readInstanceSnapshot(field).instanceId, revision: String(revision), current,
                     element: field, kind: 'editor' }); leases.push(editor);
                 const panel = placements.register({ producer: f.runtime.readInstanceSnapshot(host!).instanceId, revision: String(queryRevision), current,
                     element: listbox, kind: 'listbox' }); leases.push(panel);
                 placements.grant(f.runtime.readInstanceSnapshot(host!).instanceId, editor, ['editor-for']);
-                placements.grant(f.runtime.readInstanceSnapshot(field).instanceId, panel, ['aria-controls']);
+                placements.grant(editorRuntime.runtime.readInstanceSnapshot(field).instanceId, panel, ['aria-controls']);
                 const rows = mapped.rows.map(row => {
                     const placed = placements.register({ producer: f.runtime.readInstanceSnapshot(host!).instanceId, revision: String(queryRevision),
                         current: () => current() && mapped.current(), element: row.element, kind: 'row', row: row.native }); leases.push(placed);
-                    placements.grant(f.runtime.readInstanceSnapshot(field).instanceId, placed, ['aria-activedescendant']); return placed;
+                    placements.grant(editorRuntime.runtime.readInstanceSnapshot(field).instanceId, placed, ['aria-activedescendant']); return placed;
                 });
                 return placements.prepare(mapped.binding, editor, panel, rows);
             },
@@ -1289,7 +1306,7 @@ async function externalProviderCheckpointContract(canvasElement: HTMLElement, fa
         expect(readySuggestionsCheckpoint(host)?.committedIndex).toBe(-1); expect(input.value).toBe('same');
         admitted = false; await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
         expect(errors.every(error => error instanceof Error && error.message === 'External source temporarily unavailable')).toBe(true);
-    } finally { f.dispose(); placements.dispose(); for (const source of sources) await source.dispose(); }
+    } finally { peer?.dispose(); f.dispose(); placements.dispose(); for (const source of sources) await source.dispose(); }
 }
 export const ExternalProviderCheckpoint: Story = {
     render: () => '<section aria-label="External provider worker checkpoint"></section>',
@@ -1792,4 +1809,145 @@ export const NativeInvocationContextCheckpoint: Story = {
 export const NativeInvocationContextCheckpointFallback: Story = {
     render: () => '<section aria-label="Native invocation context fallback checkpoint"></section>',
     play: ({ canvasElement }) => nativeContextCheckpointContract(canvasElement, true),
+};
+
+export const CrossRuntimeGeometryAndFocusCheckpoint: Story = {
+    render: () => '<section aria-label="Cross runtime geometry and focus checkpoint"></section>',
+    play: async ({ canvasElement }) => { for (const fallback of [false, true]) await explicitSubmenuCheckpointContract(canvasElement, fallback, true); },
+};
+export const CrossRuntimeSuggestionsProviderCheckpoint: Story = {
+    render: () => '<section aria-label="Cross runtime suggestions provider checkpoint"></section>',
+    play: async ({ canvasElement }) => { for (const fallback of [false, true]) await externalProviderCheckpointContract(canvasElement, fallback, true); },
+};
+
+export const CrossRuntimeCustomSourcePlacement: Story = {
+    render: () => '<section aria-label="Cross runtime custom source placement checkpoint"></section>',
+    play: async ({ canvasElement }) => {
+        await init(); const root = canvasElement.querySelector('section')!;
+        for (const fallback of [false, true]) {
+            const placements = new CemElementPlacementCoordinator(document), references = elementReferenceFixtureInputs();
+            const f = fixture(root, fallback, false, undefined, { placementCoordinator: placements, elementReferenceInputs: () => references });
+            const peerRoot = root.appendChild(document.createElement('div'));
+            const peer = fixture(peerRoot, !fallback, false, undefined, { placementCoordinator: placements }, undefined, f.coordinator);
+            Object.assign(references.sources[0], { maxDepth: 128, maxWork: 100000, unresolved: 'warning' });
+            Object.assign(references.sources[1], { maxDepth: 32, maxWork: 700, unresolved: 'ignore' });
+            try {
+                const producer = await peer.create(`{dialog @id=checkpoint-target-${crypto.randomUUID()} | Target}`); await peer.runtime.whenRenderSettled(producer);
+                await f.coordinator.capture();
+                const target = producer.querySelector('dialog')!, receipt = f.coordinator.current()!.receipt.owners[0];
+                const lease = placements.register({ producer: receipt.instanceId, path: [0], revision: String(receipt.dataRevision), element: target,
+                    source: references.sources[1], select: 'input.children', currentRevision: () => producer.isConnected ? String(receipt.dataRevision) : undefined });
+                const consumer = await f.create(ELEMENT_REFERENCE_TEMPLATE.replace('{$destination}', '')); await f.runtime.whenRenderSettled(consumer);
+                const revoke = placements.grant(f.runtime.snapshotInstance(consumer).instanceId, lease, ['commandfor']);
+                f.runtime.refreshElementReferences(consumer); await f.runtime.whenRenderSettled(consumer);
+                expect(consumer.querySelector('button')?.getAttribute('commandfor')).toBe(target.id);
+                await f.coordinator.capture(); expect(f.coordinator.current()!.receipt.relationships).toHaveLength(1);
+                expect(decode(f.coordinator).owners.find(owner => owner.island.includes('cem-native-source/1'))!.island).toContain('cemb');
+                const saved = decode(f.coordinator).owners.find(owner => owner.island.includes('cem-native-source/1'))!.island;
+                expect(saved).toContain('maxDepth'); expect(saved).toContain('100000'); expect(saved).toContain('warning');
+                expect(f.coordinator.current()!.receipt.relationships![0].provider.instanceId).toBe(peer.runtime.readInstanceSnapshot(producer).instanceId);
+                const last = f.coordinator.lastCommitted()!.bytes;
+                producer.remove(); await expect(f.coordinator.capture()).rejects.toThrow();
+                expect(f.coordinator.lastCommitted()!.bytes).toEqual(last);
+                revoke(); lease.dispose(); consumer.remove();
+                const repaired = await f.create('{p | Portable owner after revocation}'); await f.runtime.whenRenderSettled(repaired);
+                await waitFor(async () => { await f.coordinator.capture(); });
+                const button = repaired.querySelector('p');
+                if (button) { button.setAttribute('data-cem-placement-ref-commandfor', ''); await expect(f.coordinator.capture()).rejects.toThrow(); }
+            } finally { peer.dispose(); f.dispose(); placements.dispose(); }
+        }
+    },
+};
+
+export const CrossRuntimeStandaloneDelegateOwnership: Story = {
+    render: () => '<section aria-label="Cross runtime standalone delegate ownership"></section>',
+    play: async ({ canvasElement }) => {
+        await init(); const root = canvasElement.querySelector('section')!;
+        for (const fallback of [false, true]) {
+            let ready = true, race = false;
+            const listeners = new Set<() => void>();
+            const f = fixture(root, fallback, false, undefined, {}, async (candidate, receipt) => {
+                const sealed = wasm.sealCommittedCheckpoint(candidate, receipt);
+                if (race) ready = false;
+                return sealed;
+            });
+            const peerRoot = root.appendChild(document.createElement('div'));
+            const peer = fixture(peerRoot, !fallback, false, undefined, {}, undefined, f.coordinator);
+            let controller: ReturnType<typeof connectCemManualListbox> | undefined;
+            try {
+                const field = await f.create(declarationTemplate(fieldDeclaration), 'cem-ml', root, undefined, 'form-control', { value: 'Unsaved draft' });
+                const host = await peer.create('{div @role=listbox @popover=manual | {div @role=option | Choice}}');
+                await f.runtime.whenRenderSettled(field); await peer.runtime.whenRenderSettled(host);
+                const panel = host.querySelector<HTMLElement>('[role=listbox]')!, input = field.querySelector('input')!;
+                const provider = getCemEditorProvider(field)!;
+                const lifecycle = { current: () => ready, ready: () => ready, subscribe: (listener: () => void) => { listeners.add(listener); return () => listeners.delete(listener); } };
+                controller = connectCemManualListbox(panel, { host, editorHost: field, lifecycle });
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                controller.disconnect();
+                controller = connectCemManualListbox(panel, { host, editorHost: field, lifecycle: { ...lifecycle, checkpoint: true } });
+                await waitFor(async () => { await f.coordinator.capture(); });
+                let saved = decode(f.coordinator); expect(saved.owners.some(owner => owner.island.includes('manualListbox'))).toBe(true);
+                expect(saved.owners.some(owner => owner.island.includes('reset-on-resume'))).toBe(true);
+                input.focus(); input.setSelectionRange(1, 5);
+                expect(controller.open()).toBe(true);
+                await waitFor(async () => { await f.coordinator.capture(); });
+                expect(document.activeElement).toBe(input); expect(input.value).toBe('Unsaved draft');
+                expect([input.selectionStart, input.selectionEnd]).toEqual([1, 5]);
+                const foreign = provider.lease({});
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); foreign.release();
+                await waitFor(async () => { await f.coordinator.capture(); });
+                controller.dismiss('fixture');
+                const pending = controller.prepare()!; expect(pending).toBeTruthy();
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); controller.dismiss('cancel');
+                await waitFor(async () => { await f.coordinator.capture(); });
+                const lastGood = f.coordinator.lastCommitted()!.bytes;
+                race = true;
+                await expect(f.coordinator.capture()).rejects.toThrow('stale');
+                expect(f.coordinator.lastCommitted()!.bytes).toEqual(lastGood);
+                race = false;
+                for (const listener of listeners) listener();
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                ready = true;
+                await waitFor(async () => { await f.coordinator.capture(); });
+                controller.disconnect(); controller = undefined;
+                await waitFor(async () => { await f.coordinator.capture(); });
+                saved = decode(f.coordinator); expect(saved.owners.some(owner => owner.island.includes('manualListbox'))).toBe(false);
+                expect(listeners.size).toBe(0);
+            } finally { controller?.disconnect(); peer.dispose(); f.dispose(); }
+        }
+    },
+};
+
+export const CrossRuntimeEndpointOwnershipBoundaries: Story = {
+    render: () => '<section aria-label="Cross runtime endpoint ownership boundaries"></section>',
+    play: async ({ canvasElement }) => {
+        await init(); const root = canvasElement.querySelector<HTMLElement>('section')!;
+        for (const fallback of [false, true]) {
+            const f = fixture(root, fallback);
+            const peerRoot = root.appendChild(document.createElement('div'));
+            const peer = fixture(peerRoot, !fallback, false, undefined, {}, undefined, f.coordinator);
+            const foreignRoot = root.appendChild(document.createElement('div'));
+            const foreign = fixture(foreignRoot, fallback);
+            try {
+                const parent = await f.create('{button @type=button | First}'); await f.runtime.whenRenderSettled(parent);
+                const other = await peer.create('{button @type=button | Second}'); await peer.runtime.whenRenderSettled(other);
+                const outsider = await foreign.create('{button @type=button | Foreign}', 'cem-ml', parent); await foreign.runtime.whenRenderSettled(outsider);
+                expect(f.coordinator.endpoint(outsider)).toBeUndefined();
+                expect(f.coordinator.endpoint(outsider.querySelector('button')!)).toBeUndefined();
+                expect(foreign.coordinator.endpoint(other)).toBeUndefined();
+                const button = parent.querySelector('button')!;
+                expect(f.coordinator.endpoint(button)?.instanceId).toBe(f.runtime.readInstanceSnapshot(parent).instanceId);
+                other.append(button); expect(f.coordinator.endpoint(button)).toBeUndefined(); parent.prepend(button);
+                const boundary = document.createElement('div'), inert = document.createElement('template');
+                inert.setAttribute('data-cem-island', 'instance'); boundary.append(inert); parent.append(boundary); boundary.append(button);
+                expect(f.coordinator.endpoint(button)).toBeUndefined(); parent.prepend(button); boundary.remove();
+                const before = f.coordinator.endpoint(other); expect(before?.nodeId).toBe('host');
+                peer.scope.dispose(); expect(f.coordinator.endpoint(other)).toBeUndefined();
+                expect(f.coordinator.endpoint(other.querySelector('button')!)).toBeUndefined();
+                expect(() => f.coordinator.register('duplicate-host', () => '<template/>', () => true, 0, () => [],
+                    { host: parent, resolve: () => ({ ...before!, instanceId: 'duplicate-host' }) })).toThrow('owners');
+                expect(f.coordinator.endpoint(parent)).toBeUndefined();
+            } finally { foreign.dispose(); peer.dispose(); f.dispose(); }
+        }
+    },
 };

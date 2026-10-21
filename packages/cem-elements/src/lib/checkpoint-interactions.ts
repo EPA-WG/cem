@@ -6,7 +6,7 @@ export type CheckpointEndpoint = CemCheckpointRelationship['provider'];
 export interface CheckpointSource {
     preparation?: CheckpointPreparation;
     version: 'cem-native-source/1'; revision: string; rowCount: number; select: string; resolve: boolean; requesting: number;
-    sources: { codec: 'xml' | 'cemb'; base64: string; sourceUri: string | null; primarySourceId: number; context: boolean; digest?: string | null }[];
+    sources: { codec: 'xml' | 'cemb'; base64: string; sourceUri: string | null; primarySourceId: number; context: boolean; maxDepth?: number; maxWork?: number; unresolved?: CemElementReferenceInputs['sources'][number]['unresolved']; digest?: string | null }[];
     bindings: { source: number; name: string; select: string }[];
     crossings: { from: number; to: number }[]; labels: { option: string | null; group: string | null }; disposition: 'reacquire';
 }
@@ -71,11 +71,20 @@ export interface CheckpointPopup { trigger: string; panel: string; scrollTop: nu
 // Exact invocation snapshots are private host evidence, never inferred from markup.
 const referenceSnapshots = new WeakSet<object>();
 import type { CemElementReferenceInputs } from './element-reference-inputs.js';
+/** Portable WASM-width scalar overrides. Omission means inherit, never reset. */
+export function checkpointSourcePolicy(source: { maxDepth?: number; maxWork?: number; unresolved?: string }):
+    Pick<CheckpointSource['sources'][number], 'maxDepth' | 'maxWork' | 'unresolved'> | undefined {
+    if ([source.maxDepth, source.maxWork].some(value => value !== undefined && (!Number.isSafeInteger(value) || value < 1 || value > 0xffffffff))
+        || source.unresolved !== undefined && !['mandatory', 'warning', 'ignore', 'neutral'].includes(source.unresolved)) return undefined;
+    return { ...(source.maxDepth === undefined ? {} : { maxDepth: source.maxDepth }),
+        ...(source.maxWork === undefined ? {} : { maxWork: source.maxWork }),
+        ...(source.unresolved === undefined ? {} : { unresolved: source.unresolved as CemElementReferenceInputs['sources'][number]['unresolved'] }) };
+}
 export function snapshotCheckpointReferences(input: CemElementReferenceInputs): CemElementReferenceInputs | undefined {
     if (input.sources.length > 64 || input.bindings.length > 256 || input.grants.length > 256
         || input.sources.reduce((sum, source) => sum + source.bundle.byteLength, 0) > 256 * 1024
         || input.bindings.some(binding => binding.name.length > 1024 || binding.select.length > 4096)
-        || input.sources.some(source => source.maxDepth !== undefined || source.maxWork !== undefined || source.unresolved !== undefined)) return undefined;
+        || input.sources.some(source => !checkpointSourcePolicy(source))) return undefined;
     const snapshot: CemElementReferenceInputs = Object.freeze({ ...input,
         sources: Object.freeze(input.sources.map(source => Object.freeze({ ...source, bundle: source.bundle.slice(0) }))),
         bindings: Object.freeze(input.bindings.map(binding => Object.freeze({ ...binding }))), grants: Object.freeze(input.grants.map(([from, to]) => Object.freeze([from, to] as const))) });
@@ -86,7 +95,8 @@ export function checkpointReferenceSource(input: CemElementReferenceInputs, revi
     const sources: CheckpointSource['sources'] = [];
     for (const source of input.sources) {
         const base64 = checkpointBase64(source.bundle); if (base64 === undefined) return undefined;
-        sources.push({ codec: 'cemb', base64, sourceUri: null, primarySourceId: source.primarySourceId, context: source.context });
+        const policy = checkpointSourcePolicy(source); if (!policy) return undefined;
+        sources.push({ codec: 'cemb', base64, sourceUri: null, primarySourceId: source.primarySourceId, context: source.context, ...policy });
     }
     return { version: 'cem-native-source/1', revision, rowCount: 0, select: 'input.children', resolve: false, requesting: input.requesting,
         sources, bindings: input.bindings.map(binding => ({ ...binding })), crossings: input.grants.map(([from, to]) => ({ from, to })),

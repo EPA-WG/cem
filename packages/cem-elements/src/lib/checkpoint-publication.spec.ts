@@ -245,3 +245,32 @@ describe('derived checkpoint dependencies', () => {
         b.remove(); await expect(c.capture()).rejects.toThrow('unavailable'); c.dispose();
     });
 });
+
+describe('dependent owner publication retry', () => {
+    it('retries settled acknowledgements after peer publication without skipping another owner or losing input sequences', async () => {
+        const c = new CemCheckpointPublicationCoordinator(options());
+        let refreshes = 0, peerChecks = 0;
+        const a = c.register('a', () => '<template>unsaved edit</template>', () => true, 0, () => [], {
+            host: {} as HTMLElement, resolve: () => undefined,
+            refresh: () => { refreshes++; queueMicrotask(() => a.published(metadata)); },
+        });
+        const b = c.register('b', () => '<template>peer</template>', () => { peerChecks++; return true; });
+        a.published(metadata); b.published({ ...metadata, instanceId: 'b' }); await c.capture();
+        c.relationship({ id: 'manual-peer', kind: 'placement', property: 'return-focus', disposition: 'reacquire',
+            requester: { instanceId: 'a', dataRevision: '1', nodeId: 'host' },
+            provider: { instanceId: 'b', dataRevision: '1', nodeId: 'host' } }, () => true,
+            { runtimeId: options().runtimeId, generation: 1, policyStamp: 'private:1' });
+        await c.capture();
+        const last = c.lastCommitted()!.bytes, checksBeforeInput = peerChecks; a.input();
+        await expect(c.capture()).rejects.toThrow('unavailable');
+        expect(refreshes).toBeGreaterThan(0); expect(peerChecks).toBeGreaterThan(checksBeforeInput);
+        expect(c.lastCommitted()!.bytes).toEqual(last);
+        await Promise.resolve(); await c.capture();
+        expect(read(c).receipt.owners.find((owner: { instanceId: string }) => owner.instanceId === 'a').acceptedEventSequence).toBe(1);
+        const beforeRevocation = refreshes;
+        c.setPolicy('private:2', () => true);
+        await expect(c.capture()).rejects.toThrow('unavailable'); await Promise.resolve();
+        expect(refreshes).toBe(beforeRevocation); expect(a.acknowledged).toBe(false);
+        a.remove(); b.remove(); c.dispose();
+    });
+});

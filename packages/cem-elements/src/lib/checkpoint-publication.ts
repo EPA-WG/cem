@@ -1,3 +1,4 @@
+import type { CheckpointEndpoint } from './checkpoint-interactions.js';
 import { CemCommittedCheckpointStore, type CemCheckpointOwnerReceipt, type CemCheckpointSealer, type CemCommitReceipt, type CemStoredCheckpoint, type CemCheckpointRelationship } from './committed-checkpoint.js';
 
 export interface CemCheckpointPublicationOptions {
@@ -21,10 +22,19 @@ export interface CemCheckpointPublicationOwner {
     published(receipt: Omit<CemCheckpointOwnerReceipt, 'acceptedEventSequence'>): void;
     remove(): void;
 }
+/** Explicit host registration, never inferred from attributes or instance IDs. */
+export interface CemCheckpointEndpointOwner {
+    host: HTMLElement;
+    resolve: (element: HTMLElement) => CheckpointEndpoint | undefined;
+    /** Retry an already-settled interaction after a peer finishes publication. */
+    refresh?: () => void;
+}
 interface Owner {
     id: string;
+    endpoint?: CemCheckpointEndpointOwner;
     sequence: number;
     receipt?: CemCheckpointOwnerReceipt;
+    publicationPolicy?: number;
     exportIsland: () => string | undefined | Promise<string | undefined>;
     current: () => boolean;
     dependencies: () => CemCheckpointRelationship[] | undefined;
@@ -37,6 +47,7 @@ const MAX_OWNERS = 256;
  * No restart, input interception, action retry or semantic resume authority. */
 export class CemCheckpointPublicationCoordinator {
     private store: CemCommittedCheckpointStore;
+    private readonly endpoints = new WeakMap<HTMLElement, Owner>();
     private readonly owners = new Map<string, Owner>();
     private readonly operations = new Map<string, CemCommitReceipt['operations'][number]>();
     private readonly retirement = new Set<string>();
@@ -67,14 +78,14 @@ export class CemCheckpointPublicationCoordinator {
 
     get lastError(): string | undefined { return this.error; }
 
-    register(id: string, exportIsland: () => string | undefined | Promise<string | undefined>, current: () => boolean = () => true, initialEventSequence = 0, dependencies: () => CemCheckpointRelationship[] | undefined = () => []): CemCheckpointPublicationOwner {
-        if (this.disposed || this.owners.has(id) || !id || this.owners.size >= MAX_OWNERS
+    register(id: string, exportIsland: () => string | undefined | Promise<string | undefined>, current: () => boolean = () => true, initialEventSequence = 0, dependencies: () => CemCheckpointRelationship[] | undefined = () => [], endpoint?: CemCheckpointEndpointOwner): CemCheckpointPublicationOwner {
+        if (this.disposed || this.owners.has(id) || endpoint && this.endpoints.has(endpoint.host) || !id || this.owners.size >= MAX_OWNERS
             || !Number.isSafeInteger(initialEventSequence) || initialEventSequence < 0) {
             // An unregistered owner must never disappear from the all-owner proof.
             this.blocked = true; this.invalidate(); throw new Error('cem.checkpoint.owners');
         }
-        const owner: Owner = { id, exportIsland, current, sequence: initialEventSequence, dependencies };
-        this.owners.set(id, owner); this.invalidate();
+        const owner: Owner = { id, exportIsland, current, sequence: initialEventSequence, dependencies, ...(endpoint ? { endpoint: { ...endpoint } } : {}) };
+        this.owners.set(id, owner); if (owner.endpoint) this.endpoints.set(owner.endpoint.host, owner); this.invalidate();
         const acknowledged = () => !this.disposed && this.owners.get(id) === owner && !!owner.receipt;
         const active = () => { if (this.disposed || this.owners.get(id) !== owner) throw new Error('cem.checkpoint.stale'); };
         return {
@@ -91,13 +102,32 @@ export class CemCheckpointPublicationCoordinator {
                 active();
                 if (receipt.instanceId !== id || !receipt.declarationIdentity || !receipt.dataRevision) throw new Error('cem.checkpoint.identity');
                 owner.receipt = { ...receipt, acceptedEventSequence: owner.sequence };
+                owner.publicationPolicy = this.policySequence;
                 this.invalidate(); this.schedule();
             },
             remove: () => {
                 if (this.owners.get(id) !== owner) return;
-                this.owners.delete(id); this.invalidate(); this.schedule();
+                this.owners.delete(id); if (owner.endpoint) this.endpoints.delete(owner.endpoint.host); this.invalidate(); this.schedule();
             },
         };
+    }
+
+    /** Resolve only through the nearest explicitly registered owner in this domain.
+     * Full current()/receipt checks belong to the publication barrier: resolving an
+     * owner's dependency while computing that same fingerprint must not recurse. */
+    endpoint(element: HTMLElement): CheckpointEndpoint | undefined {
+        if (this.disposed || this.blocked || !element.isConnected) return undefined;
+        for (let host: HTMLElement | null = element; host; host = host.parentElement) {
+            const owner = this.endpoints.get(host);
+            if (owner) {
+                if (this.owners.get(owner.id) !== owner) return undefined;
+                const endpoint = owner.endpoint?.resolve(element);
+                return endpoint?.instanceId === owner.id ? { ...endpoint } : undefined;
+            }
+            if (host.ownerDocument.defaultView?.customElements.get(host.localName)
+                || Array.from(host.children).some(child => child.localName === 'template' && child.getAttribute('data-cem-island') === 'instance')) return undefined;
+        }
+        return undefined;
     }
 
     /** Trusted host registration of a complete dependency intent. This does not
@@ -199,15 +229,24 @@ export class CemCheckpointPublicationCoordinator {
     private ready(): boolean {
         if (this.disposed || this.blocked || this.admissions.size || !this.owners.size) return false;
         for (const operation of this.operations.values()) if (!this.owners.has(operation.instanceId) && !this.retirement.has(operation.operationId)) return false;
+        let acknowledged = true;
+        for (const owner of this.owners.values()) {
+            // A capability may have settled while a peer was unpublished. Retry
+            // its acknowledgement without recursively evaluating endpoint owners
+            // or starting another render while that owner's work is in flight.
+            if (!owner.receipt) {
+                if (owner.publicationPolicy === this.policySequence) owner.endpoint?.refresh?.();
+                acknowledged = false;
+            }
+            else if (!owner.current()) acknowledged = false;
+        }
+        if (!acknowledged) { this.store.invalidate(); return false; }
         for (const relationship of this.relationships.values()) {
             if (relationship.policy !== this.policySequence || !relationship.current()) { this.store.invalidate(); return false; }
             for (const endpoint of [relationship.descriptor.requester, relationship.descriptor.provider]) {
                 const owner = this.owners.get(endpoint.instanceId);
                 if (!owner?.receipt || owner.receipt.dataRevision !== endpoint.dataRevision) { this.store.invalidate(); return false; }
             }
-        }
-        for (const owner of this.owners.values()) {
-            if (!owner.receipt || !owner.current()) { this.store.invalidate(); return false; }
         }
         const dependencies = this.dependencySnapshot();
         if (!dependencies) { this.store.invalidate(); return false; }
@@ -267,7 +306,9 @@ export class CemCheckpointPublicationCoordinator {
     current(): CemStoredCheckpoint | undefined { return this.ready() ? this.store.current() : undefined; }
     lastCommitted(): CemStoredCheckpoint | undefined { return this.store.lastCommitted(); }
     dispose(): void {
-        this.disposed = true; this.invalidate(); this.store.dispose(); this.owners.clear(); this.admissions.clear(); this.operations.clear(); this.retirement.clear(); this.relationships.clear();
+        this.disposed = true; this.invalidate(); this.store.dispose();
+        for (const owner of this.owners.values()) if (owner.endpoint) this.endpoints.delete(owner.endpoint.host);
+        this.owners.clear(); this.admissions.clear(); this.operations.clear(); this.retirement.clear(); this.relationships.clear();
     }
     private schedule(): void {
         if (!this.options.automatic || this.scheduled || this.capturing || this.disposed) return;

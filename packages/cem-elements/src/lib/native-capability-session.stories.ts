@@ -185,3 +185,44 @@ export const PreparationInputsAndNativeBindingsAreImmutable: Story = {
         }
     },
 };
+
+export const CustomSourcePoliciesCheckpoint: Story = {
+    render: () => '<section aria-label="Custom source policy checkpoint transport"></section>',
+    play: async () => {
+        await ready();
+        for (const fallback of [false, true]) {
+            const scope = createCemDeclarationScope({ document });
+            const host = cemProcessingHostForScope(scope, { workerScriptUrl,
+                ...(fallback ? { workerFactory: () => { throw new Error('custom policy fallback'); } } : {}) });
+            try {
+                const options = wasm.parseReferenceSource(new TextEncoder().encode('{option @value=same | First}{option @value=other | Second}'), 'text/cem-ml', 'memory:policy-options.cem', '');
+                let optionBundle: ArrayBuffer;
+                try { optionBundle = wasm.exportReferenceReloadBundle(options, '').slice().buffer as ArrayBuffer; }
+                finally { wasm.disposeReferenceSource(options); }
+                for (const unresolved of ['mandatory', 'warning', 'ignore', 'neutral'] as const) {
+                    const original = { ...input('Policies'), adapter: 'suggestions-v1' as const };
+                    original.sources.sources[1].bundle = optionBundle.slice(0);
+                    Object.assign(original.sources.sources[0], { maxDepth: 128, maxWork: 100000, unresolved });
+                    Object.assign(original.sources.sources[1], { maxDepth: 32, maxWork: 700, unresolved });
+                    const pending = CemNativeCapabilitySession.prepare(host, original, () => true, undefined, true);
+                    original.sources.sources[0].maxWork = 1;
+                    const session = await pending;
+                    try {
+                        const saved = session.checkpointSource()!;
+                        expect(saved.sources[0]).toMatchObject({ maxDepth: 128, maxWork: 100000, unresolved });
+                        expect(saved.sources[1]).toMatchObject({ maxDepth: 32, maxWork: 700, unresolved });
+                        const normalized = JSON.parse(wasm.validateCheckpointRuntime(JSON.stringify({ version: 'cem-checkpoint-runtime/1', capability: null,
+                            references: saved, resources: [], writers: [], writeDisposition: 'suppress-until-new-input' })));
+                        expect(normalized.references.sources[0].maxWork).toBe(100000);
+                        saved.sources[0].maxWork = 10; expect(session.checkpointSource()!.sources[0].maxWork).toBe(100000);
+                        expect(saved.crossings).toEqual([{ from: 0, to: 1 }]); expect(saved.disposition).toBe('reacquire');
+                    } finally { await session.release(); }
+                }
+                const denied = { ...input('Policies denied'), adapter: 'suggestions-v1' as const };
+                denied.sources.sources[1].bundle = optionBundle.slice(0);
+                Object.assign(denied.sources.sources[0], { maxDepth: 128, maxWork: 100000, unresolved: 'ignore' }); denied.sources.grants = [];
+                await expect(CemNativeCapabilitySession.prepare(host, denied, () => true, undefined, true)).rejects.toThrow();
+            } finally { scope.dispose(); }
+        }
+    },
+};

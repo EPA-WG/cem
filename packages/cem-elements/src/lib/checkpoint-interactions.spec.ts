@@ -17,11 +17,16 @@ describe('checkpoint source invocation snapshots', () => {
         expect(portable.crossings).toEqual([{ from: 0, to: 0 }]); expect(portable.disposition).toBe('reacquire');
         expect(JSON.stringify(portable)).not.toContain('placements'); expect(JSON.stringify(portable)).not.toContain('grants');
     });
-    it('refuses oversized sources and unaccounted traversal policy before copying', () => {
+    it('copies explicit traversal policy independently and refuses invalid portable bounds', () => {
         const oversized = input(); oversized.sources[0].bundle = new ArrayBuffer(256 * 1024 + 1);
         expect(snapshotCheckpointReferences(oversized)).toBeUndefined();
         const policy = input(); policy.sources[0].maxWork = 10;
-        expect(snapshotCheckpointReferences(policy)).toBeUndefined();
+        const snapshot = snapshotCheckpointReferences(policy)!;
+        policy.sources[0].maxWork = 30;
+        expect(checkpointReferenceSource(snapshot, '1')!.sources[0].maxWork).toBe(10);
+        for (const maxDepth of [0, -1, 1.5, 0x100000000, Infinity]) {
+            policy.sources[0].maxDepth = maxDepth; expect(snapshotCheckpointReferences(policy)).toBeUndefined();
+        }
     });
 });
 

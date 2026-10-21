@@ -1,4 +1,4 @@
-import { checkpointPreparation, checkpointBase64, type CheckpointSource } from './checkpoint-interactions.js';
+import { checkpointSourcePolicy, checkpointPreparation, checkpointBase64, type CheckpointSource } from './checkpoint-interactions.js';
 import type { CemElementReferenceInputs } from './element-reference-inputs.js';
 import type { NativeCemValue } from './native-values.js';
 import type { CemProcessingHost, CemProcessingNativeSessionInput, CemProcessingNativeSessionResult } from './internal/runtime-support/processing-host.js';
@@ -101,10 +101,9 @@ export class CemNativeCapabilitySession {
             const buffer = 'bytes' in source ? source.bytes : source.bundle;
             bytes += buffer.byteLength; if (bytes > 256 * 1024) return undefined;
             const base64 = checkpointBase64(buffer); if (base64 === undefined) return undefined;
+            const policy = 'bundle' in source ? checkpointSourcePolicy(source) : {}; if (!policy) return undefined;
             sources.push({ codec: 'bytes' in source ? 'xml' : 'cemb', base64, sourceUri: 'bytes' in source ? source.sourceUri : null,
-                primarySourceId: 'bytes' in source ? 1 : source.primarySourceId, context: 'bytes' in source ? true : source.context });
-            // Non-default source traversal contracts require their own portable limits.
-            if ('bundle' in source && (source.maxDepth !== undefined || source.maxWork !== undefined || source.unresolved !== undefined)) return undefined;
+                primarySourceId: 'bytes' in source ? 1 : source.primarySourceId, context: 'bytes' in source ? true : source.context, ...policy });
         }
         const preparation = checkpointPreparation(input); if (!preparation) return undefined;
         return { preparation, version: 'cem-native-source/1', revision: this.handle.sourceRevision, rowCount: this.suggestions.rows, select: input.select,

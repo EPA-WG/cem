@@ -159,7 +159,8 @@ placements and foreign ownership refuse the complete domain, including a frozen
 menu still visible after anchor loss. Closed panels may retain structurally
 eligible focus targets inside hidden output; current visibility and focus
 eligibility must be reacquired when reopening. Missing, ambiguous, disabled,
-inert, unowned or cross-runtime targets remain unsupported. Resume must acquire
+inert or unowned targets remain unsupported. Endpoints in another runtime require
+explicit membership in the same checkpoint coordinator domain. Resume must acquire
 fresh references, layout and focus authority; this capture contract does not
 implement automatic runtime replacement or restore old pixels.
 Selected/expanded values and tab selection remain in canonical
@@ -401,8 +402,16 @@ directed crossing **intent** with `reacquire` disposition. Crossings never grant
 authority on resume. Native validation imports XML normally, verifies/reloads
 CEMB source and lexical metadata, and normalizes original-byte SHA-256 digests.
 Source bodies share the aggregate 256 KiB resource ceiling; source count caps at
-64, binding/crossing and placement records at 256, and rows at 1,024. Custom
-source traversal policies, live/executable binding authority, nonportable control
+64, binding/crossing and placement records at 256, and rows at 1,024. CEMB sources
+retain optional `maxDepth`, `maxWork` and `unresolved` overrides independently for
+each source. Omission inherits the native policy; an explicit default remains
+explicit. Portable depth/work values must be positive integers no larger than
+4,294,967,295 (WASM usize width). The native validator accepts only `mandatory`,
+`warning`, `ignore` or `neutral` unresolved dispositions and rejects unknown
+fields. XML import has no source-policy override API, so XML envelopes with these
+fields remain unsupported. These values never widen a crossing grant: every
+source, scope policy and crossing must be freshly admitted on resume.
+Live/executable binding authority, nonportable control
 frames and unaccounted source ownership remain blocking. Preparation JSON and CEMV
 share the aggregate 256 KiB original-source budget, with at most 64 artifacts and
 256 additional bindings. CEMV validation also respects the retained effective
@@ -511,8 +520,32 @@ an unbounded tombstone set. Retirement supports bounded repeated operations; the
 be recorded. Retire before overflow: compaction cannot retroactively account for
 an unjournaled effect. Ordinary actions remain available when capture is refused.
 
+Separate `CemElementRuntime` instances can resolve checkpoint endpoints when the
+trusted host explicitly gives them the **same** publication coordinator. Each
+runtime registers its exact host and a private current-publication resolver.
+`coordinator.endpoint(element)` stops at the nearest registered owner; foreign,
+unregistered custom-element and data-island boundaries refuse lookup. A rendered
+target also requires the renderer's private node/instance witness, matching live
+markers and ownership. Copying markers, moving a node from another owner or
+reusing an instance ID supplies no authority. Removal/disposal releases the
+registration, and duplicate host/owner registration blocks the domain.
+
+This supports shared provider/delegate, placement, geometry and focus dependency
+receipts across worker/fallback clients. The all-owner barrier still checks every
+acknowledged revision, exact dependency graph, privacy admission and pending
+publication before and after asynchronous native validation/sealing. It never
+calls an owner's full fingerprint recursively during endpoint lookup. Missing
+acknowledgements request a settled interaction retry after peer publication;
+this neither restarts an in-flight render nor accepts an unpublished endpoint. A
+policy change disables that retry until a new owner publication; old frame
+acknowledgements cannot renew themselves across revocation. Policy
+revocation erases prior bytes; failed/stale seals keep the last-good checkpoint.
+No DOM node, callback, live native handle, provider lease or layout authority is
+serialized. Different coordinators remain separate even when their scalar domain
+names happen to match.
+
 Automatic capture is not enabled in Studio. Remaining unaccounted widget/source
-states and cross-runtime endpoints, physical runtime-domain discovery,
+states, endpoints outside an explicitly shared coordinator, physical runtime-domain discovery,
 memory-pressure admission drain, generation replacement, fresh-owner semantic
 resume, stale-message fencing and declarative recovery status remain follow-up
 work. The complete Studio long-session verifier must remain passing before

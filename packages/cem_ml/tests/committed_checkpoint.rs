@@ -248,3 +248,66 @@ fn relationship_contracts_require_complete_current_owners_and_fresh_authority() 
     excessive["receipt"]["relationships"] = json!(vec![relationship; 257]);
     assert!(check(&excessive).is_err());
 }
+
+#[test]
+fn shared_domain_cross_runtime_endpoints_require_complete_matching_owner_receipts() {
+    use cem_ml::committed_checkpoint::{Endpoint, Relationship};
+    let mut c = candidate();
+    c.receipt.owners.push(OwnerReceipt {
+        instance_id: "other-runtime:surface".into(),
+        declaration_identity: "dialog:1".into(),
+        data_revision: "7".into(),
+        accepted_event_sequence: 0,
+    });
+    c.owners.push(OwnerCheckpoint {
+        instance_id: "other-runtime:surface".into(),
+        island: "<template>dialog</template>".into(),
+    });
+    c.receipt.relationships.push(Relationship {
+        id: "return:1".into(),
+        kind: "placement".into(),
+        requester: Endpoint {
+            instance_id: "other-runtime:surface".into(),
+            data_revision: "7".into(),
+            node_id: "host".into(),
+        },
+        provider: Endpoint {
+            instance_id: "editor".into(),
+            data_revision: "draft:2".into(),
+            node_id: "field.1".into(),
+        },
+        property: "return-focus".into(),
+        disposition: "reacquire".into(),
+    });
+    let receipt = serde_json::to_string(&c.receipt).unwrap();
+    let saved = seal(&encoded(&c), &receipt).unwrap();
+    assert_eq!(seal(&saved, &receipt).unwrap(), saved);
+    let mut foreign_receipt = c.receipt.clone();
+    foreign_receipt.runtime_id = "foreign-domain".into();
+    assert!(seal(
+        &encoded(&c),
+        &serde_json::to_string(&foreign_receipt).unwrap()
+    )
+    .is_err());
+    for revision in ["foreign-domain:7", "unpublished:8"] {
+        let mut bad = c.clone();
+        bad.receipt.relationships[0].provider.data_revision = revision.into();
+        assert!(seal(
+            &encoded(&bad),
+            &serde_json::to_string(&bad.receipt).unwrap()
+        )
+        .is_err());
+    }
+    let mut bad = c.clone();
+    bad.receipt.owners.pop();
+    bad.owners.pop();
+    assert!(seal(
+        &encoded(&bad),
+        &serde_json::to_string(&bad.receipt).unwrap()
+    )
+    .is_err());
+    let mut bad: serde_json::Value = serde_json::from_str(&encoded(&c)).unwrap();
+    bad["receipt"]["relationships"][0]["provider"]["runtimeId"] =
+        serde_json::json!("forged-runtime");
+    assert!(seal(&bad.to_string(), &receipt).is_err());
+}

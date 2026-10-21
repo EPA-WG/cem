@@ -1101,3 +1101,85 @@ fn preparation_limits_cover_encoded_overhead_and_combined_native_bindings() {
     s["references"]["preparation"]["limits"]["maxBytes"] = json!(bytes.len() + second_bytes.len());
     assert!(validate(&s.to_string()).is_ok());
 }
+
+fn custom_source_policy_state() -> Value {
+    use cem_ml::{
+        ast::reload::{ReferenceReloadBundle, ReloadLimits, ReloadSource},
+        import::import_bytes_with_lexical_scopes,
+        schema::vocab::CompiledSchema,
+        source::SourceId,
+    };
+    let text = "{option @value=same | Original}";
+    let imported = import_bytes_with_lexical_scopes(
+        text.as_bytes(),
+        "text/cem-ml",
+        "memory:policies.cem",
+        CompiledSchema::cem_core(),
+    )
+    .unwrap();
+    let bundle = ReferenceReloadBundle::export(
+        &imported.captured,
+        vec![ReloadSource::new(
+            SourceId(1),
+            "memory:policies.cem",
+            text.as_bytes(),
+            true,
+        )],
+        ReloadLimits::default(),
+    )
+    .unwrap()
+    .encode(ReloadLimits::default())
+    .unwrap();
+    let mut s = native_inputs_state();
+    s["references"]["sources"][0] = json!({"codec":"cemb","base64":STANDARD.encode(bundle),"sourceUri":null,"primarySourceId":1,"context":true,"maxDepth":128,"maxWork":100000,"unresolved":"warning"});
+    s
+}
+#[test]
+fn custom_source_policies_preserve_explicit_values_and_unresolved_dispositions() {
+    let s = custom_source_policy_state();
+    let saved: Value = serde_json::from_str(&validate(&s.to_string()).unwrap()).unwrap();
+    for key in ["maxDepth", "maxWork", "unresolved"] {
+        assert_eq!(
+            saved["references"]["sources"][0][key],
+            s["references"]["sources"][0][key]
+        );
+    }
+    for disposition in ["mandatory", "warning", "ignore", "neutral"] {
+        let mut explicit = s.clone();
+        explicit["references"]["sources"][0]["maxDepth"] = json!(32);
+        explicit["references"]["sources"][0]["maxWork"] = json!(700);
+        explicit["references"]["sources"][0]["unresolved"] = json!(disposition);
+        assert!(validate(&explicit.to_string()).is_ok());
+    }
+    let mut inherited = s;
+    for key in ["maxDepth", "maxWork", "unresolved"] {
+        inherited["references"]["sources"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove(key);
+    }
+    let normalized: Value =
+        serde_json::from_str(&validate(&inherited.to_string()).unwrap()).unwrap();
+    assert!(normalized["references"]["sources"][0]
+        .get("maxDepth")
+        .is_none());
+}
+#[test]
+fn custom_source_policies_reject_invalid_bounds_unknown_authority_and_xml_overrides() {
+    let s = custom_source_policy_state();
+    for (key, value) in [
+        ("maxDepth", json!(0)),
+        ("maxWork", json!(-1)),
+        ("maxDepth", json!(1.5)),
+        ("maxWork", json!(4294967296u64)),
+        ("unresolved", json!("allow")),
+        ("grant", json!(true)),
+    ] {
+        let mut bad = s.clone();
+        bad["references"]["sources"][0][key] = value;
+        assert!(validate(&bad.to_string()).is_err(), "{key}");
+    }
+    let mut xml = native_inputs_state();
+    xml["references"]["sources"][0]["maxDepth"] = json!(32);
+    assert!(validate(&xml.to_string()).is_err());
+}
