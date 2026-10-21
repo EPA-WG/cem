@@ -1,4 +1,4 @@
-import * as runtime from '@epa-wg/cem-ml/wasm';
+import { commandNativeRuntime as runtime } from './managed-native-runtime.js';
 import runtimeMetadata from '@epa-wg/cem-ml/runtime.json' with { type: 'json' };
 
 import {

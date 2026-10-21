@@ -1,3 +1,5 @@
+import { CommandNativeClientCheckpoint, type CommandNativeDrain } from './native-admission.js';
+export type { CommandNativeDrain } from './native-admission.js';
 import { Worker } from 'node:worker_threads';
 
 import {
@@ -208,6 +210,7 @@ export class NodeCommandServiceClient {
     #nextExecutionId = 1;
     #nextActionId = 1;
     #closed = false;
+    #nativeCheckpoint = new CommandNativeClientCheckpoint(() => !this.#closed && this.#executions.size === 0 && this.#actions.size === 0);
 
     private constructor(
         worker: Worker,
@@ -267,6 +270,8 @@ export class NodeCommandServiceClient {
         options: NodeCommandServiceExecuteOptions = {},
     ): NodeCommandServiceHandle {
         this.#requireOpen();
+        this.#nativeCheckpoint.assertExecution();
+        this.#nativeCheckpoint.changed();
         const executionId = this.#nextExecutionId++;
         const handle = new NodeCommandServiceHandle(this, request.requestId, options);
         this.#executions.set(executionId, handle);
@@ -286,8 +291,24 @@ export class NodeCommandServiceClient {
         return handle;
     }
 
+    /** Closes this command heap's ordinary admission; never grants replacement. */
+    checkpointNative(timeoutMs = 5000): Promise<CommandNativeDrain> {
+        this.#requireOpen();
+        return this.#nativeCheckpoint.capture(() => {
+            const actionId = this.#nextAction();
+            return this.#action<CommandNativeDrain>(actionId, {
+                type: 'cem-command-native-checkpoint', actionId, timeoutMs,
+            }).then(({ value }) => value);
+        }, timeoutMs);
+    }
+
+    isNativeCheckpointCurrent(proof: CommandNativeDrain): boolean {
+        return this.#nativeCheckpoint.current(proof);
+    }
+
     async close(): Promise<void> {
         if (this.#closed) return;
+        this.#nativeCheckpoint.invalidate();
         this.#closed = true;
         this.#worker.off('message', this.#onMessage);
         try {
@@ -395,6 +416,8 @@ export class NodeCommandServiceClient {
     }
 
     #acceptResult(message: BrowserCommandResultMessage): void {
+        if (message.nativeAdmissionClosed === true) this.#nativeCheckpoint.close();
+        this.#nativeCheckpoint.changed();
         const handle = this.#executions.get(message.executionId);
         if (handle === undefined) throw new Error('Node command result targets an unknown execution');
         this.#executions.delete(message.executionId);
@@ -406,6 +429,8 @@ export class NodeCommandServiceClient {
     }
 
     #acceptAction(message: BrowserCommandActionResultMessage): void {
+        if (message.nativeAdmissionClosed === true) this.#nativeCheckpoint.close();
+        this.#nativeCheckpoint.changed();
         const pending = this.#actions.get(message.actionId);
         if (pending === undefined) throw new Error('Node command action result is unexpected');
         this.#actions.delete(message.actionId);
@@ -421,21 +446,24 @@ export class NodeCommandServiceClient {
     }
 
     async #serveCapability(message: BrowserCommandCapabilityRequest): Promise<void> {
-        const response: BrowserCommandCapabilityResponse = await this.#invokeCapability(message).then(
-            (value) => ({
-                type: 'cem-command-capability-response',
-                callbackId: message.callbackId,
-                ok: true,
-                value,
-            }),
-            (error: unknown) => ({
-                type: 'cem-command-capability-response',
-                callbackId: message.callbackId,
-                ok: false,
-                error: serializeError(error),
-            }),
-        );
-        if (!this.#closed) this.#worker.postMessage(response);
+        const retire = this.#nativeCheckpoint.callback();
+        try {
+            const response: BrowserCommandCapabilityResponse = await Promise.resolve().then(() => this.#invokeCapability(message)).then(
+                (value) => ({
+                    type: 'cem-command-capability-response',
+                    callbackId: message.callbackId,
+                    ok: true,
+                    value,
+                }),
+                (error: unknown) => ({
+                    type: 'cem-command-capability-response',
+                    callbackId: message.callbackId,
+                    ok: false,
+                    error: serializeError(error),
+                }),
+            );
+            if (!this.#closed) this.#worker.postMessage(response);
+        } finally { retire(); }
     }
 
     #invokeCapability(message: BrowserCommandCapabilityRequest): Promise<unknown> {
@@ -462,6 +490,7 @@ export class NodeCommandServiceClient {
 
     #nextAction(): number {
         this.#requireOpen();
+        this.#nativeCheckpoint.changed();
         return this.#nextActionId++;
     }
 
@@ -494,6 +523,7 @@ export class NodeCommandServiceClient {
 
     #failTransport(error: Error): void {
         if (this.#closed) return;
+        this.#nativeCheckpoint.invalidate();
         this.#closed = true;
         void this.#worker.terminate();
         this.#rejectPending(error);

@@ -239,3 +239,28 @@ invocation and dedicated-worker command execution for Studio.
 and returns its native `authorTransformConfigV1` JSON function for graph
 description and edits. Applications can use the CLI facade without importing
 the runtime package directly; validation and source writing remain native.
+
+## Native admission and checkpoint boundary
+
+CLI native calls share an admission adapter for their actual linked module;
+command workers, main-thread authoring and rendering keep separate heap coverage.
+Soft/hard native pressure or unavailable telemetry permanently closes fresh
+command work. Cancellation/disposal remain available, and waiting host callbacks
+stay enrolled until completion and terminal publication. Pressure never restarts
+or replays a command. Cached graph-author functions check admission on each call.
+
+`await client.checkpointNative()` explicitly closes ordinary command admission
+and waits for native work and host callbacks. Retained artifacts and resumable
+hosts refuse capture until disposed; release artifacts after copying any bytes
+you need. A failed capture leaves cleanup available. The default timeout is five
+seconds; positive integer options up to 60 seconds cannot extend the native or
+host five-second safety deadlines. Timeout permanently fences the adapter.
+`client.isNativeCheckpointCurrent(witness)` accepts only its current original
+witness; copying it, later work/cleanup, client closure or worker failure makes
+it unusable.
+
+Witnesses have `scope: "managed-cli-only"` and `replacementAllowed: false`.
+Raw `@epa-wg/cem-ml/wasm` calls and direct/generated WASM instantiation remain
+unmanaged. This API does not authorize heap replacement, preserve arbitrary raw
+native handles or replay external actions. See the
+[checkpoint contracts](https://github.com/EPA-WG/cem/blob/develop/docs/committed-checkpoints.md#separate-command-heaps-and-the-unmanaged-boundary).

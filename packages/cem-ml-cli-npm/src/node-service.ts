@@ -59,7 +59,9 @@ export class NodeCommandService {
         options: NodeCommandServiceExecuteOptions = {},
     ): NodeCommandServiceHandle {
         this.host.trackRequest(request);
-        const handle = this.client.execute(request, options);
+        let handle: NodeCommandServiceHandle;
+        try { handle = this.client.execute(request, options); }
+        catch (error) { void this.host.releaseRequest(request.requestId).catch(() => undefined); throw error; }
         void handle.result().then(
             () => void this.host.releaseRequest(request.requestId).catch(() => undefined),
             () => void this.host.releaseRequest(request.requestId).catch(() => undefined),

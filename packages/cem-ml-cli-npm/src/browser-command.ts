@@ -1,3 +1,5 @@
+import { CommandNativeClientCheckpoint, type CommandNativeDrain } from './native-admission.js';
+export type { CommandNativeDrain } from './native-admission.js';
 import runtimeMetadata from '@epa-wg/cem-ml/runtime.json' with { type: 'json' };
 
 import {
@@ -254,6 +256,7 @@ export class BrowserCommandServiceClient {
     #nextExecutionId = 1;
     #nextActionId = 1;
     #closed = false;
+    #nativeCheckpoint = new CommandNativeClientCheckpoint(() => !this.#closed && this.#executions.size === 0 && this.#actions.size === 0);
 
     private constructor(
         physicalWorker: Worker,
@@ -317,6 +320,8 @@ export class BrowserCommandServiceClient {
         options: BrowserCommandServiceExecuteOptions = {},
     ): BrowserCommandServiceHandle {
         this.#requireOpen();
+        this.#nativeCheckpoint.assertExecution();
+        this.#nativeCheckpoint.changed();
         const executionId = this.#nextExecutionId++;
         const handle = new BrowserCommandServiceHandle(this, executionId, request.requestId, options);
         this.#executions.set(executionId, handle);
@@ -336,8 +341,24 @@ export class BrowserCommandServiceClient {
         return handle;
     }
 
+    /** Closes this command heap's ordinary admission; never grants replacement. */
+    checkpointNative(timeoutMs = 5000): Promise<CommandNativeDrain> {
+        this.#requireOpen();
+        return this.#nativeCheckpoint.capture(() => {
+            const actionId = this.#nextAction();
+            return this.#action<CommandNativeDrain>(actionId, {
+                type: 'cem-command-native-checkpoint', actionId, timeoutMs,
+            }).then(({ value }) => value);
+        }, timeoutMs);
+    }
+
+    isNativeCheckpointCurrent(proof: CommandNativeDrain): boolean {
+        return this.#nativeCheckpoint.current(proof);
+    }
+
     async close(): Promise<void> {
         if (this.#closed) return;
+        this.#nativeCheckpoint.invalidate();
         this.#closed = true;
         this.#physicalWorker.removeEventListener('message', this.#onMessage);
         this.#physicalWorker.removeEventListener('error', this.#onError);
@@ -460,6 +481,8 @@ export class BrowserCommandServiceClient {
     }
 
     #acceptResult(message: BrowserCommandResultMessage): void {
+        if (message.nativeAdmissionClosed === true) this.#nativeCheckpoint.close();
+        this.#nativeCheckpoint.changed();
         const handle = this.#executions.get(message.executionId);
         if (handle === undefined) throw new Error('CEM-ML browser command result targets an unknown execution');
         this.#executions.delete(message.executionId);
@@ -471,6 +494,8 @@ export class BrowserCommandServiceClient {
     }
 
     #acceptAction(message: BrowserCommandActionResultMessage): void {
+        if (message.nativeAdmissionClosed === true) this.#nativeCheckpoint.close();
+        this.#nativeCheckpoint.changed();
         const pending = this.#actions.get(message.actionId);
         if (pending === undefined) throw new Error('CEM-ML browser command action result is unexpected');
         this.#actions.delete(message.actionId);
@@ -483,32 +508,35 @@ export class BrowserCommandServiceClient {
     }
 
     async #serveCapability(message: BrowserCommandCapabilityRequest): Promise<void> {
-        const response: BrowserCommandCapabilityResponse = await this.#invokeCapability(message).then(
-            (value) => ({
-                type: 'cem-command-capability-response',
-                callbackId: message.callbackId,
-                ok: true,
-                value,
-            }),
-            (error: unknown) => ({
-                type: 'cem-command-capability-response',
-                callbackId: message.callbackId,
-                ok: false,
-                error: serializeError(error),
-            }),
-        );
-        if (this.#closed) return;
+        const retire = this.#nativeCheckpoint.callback();
         try {
-            this.#physicalWorker.postMessage(response);
-        } catch (error) {
-            const cloneFailure: BrowserCommandCapabilityResponse = {
-                type: 'cem-command-capability-response',
-                callbackId: message.callbackId,
-                ok: false,
-                error: serializeError(error),
-            };
-            this.#physicalWorker.postMessage(cloneFailure);
-        }
+            const response: BrowserCommandCapabilityResponse = await Promise.resolve().then(() => this.#invokeCapability(message)).then(
+                (value) => ({
+                    type: 'cem-command-capability-response',
+                    callbackId: message.callbackId,
+                    ok: true,
+                    value,
+                }),
+                (error: unknown) => ({
+                    type: 'cem-command-capability-response',
+                    callbackId: message.callbackId,
+                    ok: false,
+                    error: serializeError(error),
+                }),
+            );
+            if (this.#closed) return;
+            try {
+                this.#physicalWorker.postMessage(response);
+            } catch (error) {
+                const cloneFailure: BrowserCommandCapabilityResponse = {
+                    type: 'cem-command-capability-response',
+                    callbackId: message.callbackId,
+                    ok: false,
+                    error: serializeError(error),
+                };
+                this.#physicalWorker.postMessage(cloneFailure);
+            }
+        } finally { retire(); }
     }
 
     #invokeCapability(message: BrowserCommandCapabilityRequest): Promise<unknown> {
@@ -535,6 +563,7 @@ export class BrowserCommandServiceClient {
 
     #nextAction(): number {
         this.#requireOpen();
+        this.#nativeCheckpoint.changed();
         return this.#nextActionId++;
     }
 
@@ -564,6 +593,7 @@ export class BrowserCommandServiceClient {
 
     #failTransport(error: Error, code: BrowserCommandWorkerFailure['code']): void {
         if (this.#closed) return;
+        this.#nativeCheckpoint.invalidate();
         this.#closed = true;
         this.#physicalWorker.terminate();
         try {

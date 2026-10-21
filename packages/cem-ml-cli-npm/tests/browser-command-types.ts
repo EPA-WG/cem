@@ -92,6 +92,11 @@ async function compilePublicBrowserCommandContract(): Promise<void> {
     const runtime: 'wasm-browser-worker' = client.capability.runtime;
     const workerRuntime: string = client.worker.runtimeInstanceId;
     unsubscribe();
+    const nativeCheckpoint = await client.checkpointNative(5000);
+    const scope: 'managed-cli-only' = nativeCheckpoint.scope;
+    const replacementAllowed: false = nativeCheckpoint.replacementAllowed;
+    const current: boolean = client.isNativeCheckpointCurrent(nativeCheckpoint);
+    void [scope, replacementAllowed, current];
     await client.close();
     void [request, resultFromThen, cancellation, disposedRequest, presentation, runtime, workerRuntime];
 }

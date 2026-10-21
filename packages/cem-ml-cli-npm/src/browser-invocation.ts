@@ -1,4 +1,4 @@
-import * as runtime from '@epa-wg/cem-ml/wasm';
+import { commandNativeAdmission, commandNativeRuntime as runtime } from './managed-native-runtime.js';
 import type {
     CommandInvocationBuildResponseV1,
     CommandInvocationEnvironmentV1,
@@ -62,42 +62,45 @@ export async function buildBrowserCommandInvocation(
     options: BrowserCommandInvocationOptions = {},
 ): Promise<CommandInvocationV1> {
     await initializeCommandRuntime();
-    const environment: CommandInvocationEnvironmentV1 = {
-        requestId: options.requestId ?? crypto.randomUUID(),
-        projectId: options.projectId ?? 'cem-ml-browser-cli',
-        projectRevision: options.projectRevision ?? 0,
-        resourceRevision: options.resourceRevision ?? 0,
-        cwd: options.cwd ?? '/',
-        resolverPolicyStamp: options.resolverPolicyStamp ?? 'browser-explicit-v1',
-        safetyPolicyStamp: options.safetyPolicyStamp ?? 'portable-v1',
-        budgetPolicyStamp: options.budgetPolicyStamp ?? 'common-default-v1',
-        stdoutIsTerminal: options.stdoutIsTerminal ?? false,
-    };
-    const resources: CommandUriMapV1<VirtualResourceV1> = {};
+    const retire = commandNativeAdmission.admit();
+    try {
+        const environment: CommandInvocationEnvironmentV1 = {
+            requestId: options.requestId ?? crypto.randomUUID(),
+            projectId: options.projectId ?? 'cem-ml-browser-cli',
+            projectRevision: options.projectRevision ?? 0,
+            resourceRevision: options.resourceRevision ?? 0,
+            cwd: options.cwd ?? '/',
+            resolverPolicyStamp: options.resolverPolicyStamp ?? 'browser-explicit-v1',
+            safetyPolicyStamp: options.safetyPolicyStamp ?? 'portable-v1',
+            budgetPolicyStamp: options.budgetPolicyStamp ?? 'common-default-v1',
+            stdoutIsTerminal: options.stdoutIsTerminal ?? false,
+        };
+        const resources: CommandUriMapV1<VirtualResourceV1> = {};
 
-    for (let pass = 0; pass < MAX_DISCOVERY_PASSES; pass += 1) {
-        const response = parseBuildResponse(
-            runtime.buildCommandInvocationV1(
-                JSON.stringify(parsed),
-                JSON.stringify(environment),
-                JSON.stringify(resources),
-            ),
-        );
-        if (response.state === 'ready') return response.invocation;
-        if (response.state === 'error') {
-            throw new BrowserCommandInvocationError(
-                response.error.code,
-                response.error.message,
-                response.error.exitCode,
+        for (let pass = 0; pass < MAX_DISCOVERY_PASSES; pass += 1) {
+            const response = parseBuildResponse(
+                runtime.buildCommandInvocationV1(
+                    JSON.stringify(parsed),
+                    JSON.stringify(environment),
+                    JSON.stringify(resources),
+                ),
             );
+            if (response.state === 'ready') return response.invocation;
+            if (response.state === 'error') {
+                throw new BrowserCommandInvocationError(
+                    response.error.code,
+                    response.error.message,
+                    response.error.exitCode,
+                );
+            }
+            await resolveRequirements(resolver, resources, response.requirements);
         }
-        await resolveRequirements(resolver, resources, response.requirements);
-    }
-    throw new BrowserCommandInvocationError(
-        'cem.browser_command.discovery_limit',
-        `command resource discovery exceeded ${MAX_DISCOVERY_PASSES} passes`,
-        7,
-    );
+        throw new BrowserCommandInvocationError(
+            'cem.browser_command.discovery_limit',
+            `command resource discovery exceeded ${MAX_DISCOVERY_PASSES} passes`,
+            7,
+        );
+    } finally { retire(); }
 }
 
 export function projectBrowserCommandPresentation(

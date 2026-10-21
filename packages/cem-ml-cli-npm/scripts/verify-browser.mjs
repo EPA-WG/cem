@@ -41,6 +41,22 @@ try {
 
     server = createServer((request, response) => {
         const pathname = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
+        if (pathname.startsWith('/command-native/')) {
+            const name = pathname.slice('/command-native/'.length);
+            const paths = {
+                'runtime.js': resolve(workspaceRoot, 'packages/cem-ml-npm/dist/wasm/browser/cem_ml.js'),
+                'runtime.wasm': resolve(workspaceRoot, 'packages/cem-ml-npm/dist/wasm/browser/cem_ml_bg.wasm'),
+                'browser-worker.js': resolve(projectRoot, 'dist/browser-worker.js'),
+                'managed-native-runtime.js': resolve(projectRoot, 'dist/managed-native-runtime.js'),
+                'native-admission.js': resolve(projectRoot, 'dist/native-admission.js'),
+            };
+            if (!Object.hasOwn(paths, name)) { response.writeHead(404).end(); return; }
+            let bytes = readFileSync(paths[name]);
+            if (name === 'managed-native-runtime.js') bytes = Buffer.from(bytes.toString().replaceAll('@epa-wg/cem-ml/wasm', './runtime.js'));
+            response.writeHead(200, { 'content-type': contentType(paths[name]) });
+            response.end(bytes);
+            return;
+        }
         if (pathname === '/') {
             response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
             response.end('<!doctype html><script type="module" src="/entry.js"></script>');
@@ -276,6 +292,21 @@ try {
         code: 'cem.browser_command.worker_unavailable',
         callbacks: 0,
     });
+
+    const nativeCheckpoint = await runFixture(page, 'command-native-checkpoint');
+    assert.deepEqual(nativeCheckpoint, { waited: true, refusal: 'cem.runtime.memory.closed', status: 'cancelled',
+        current: true, copied: false, foreign: false, independent: 'succeeded', afterClose: false,
+        scope: 'managed-cli-only', replacementAllowed: false });
+    const nativePressure = await runFixture(page, 'command-native-pressure');
+    assert.equal(nativePressure.status, 'succeeded');
+    assert.ok(nativePressure.artifacts > 1);
+    for (const key of ['rejection', 'earlyRefusal', 'read']) assert.equal(nativePressure[key], 'cem.runtime.memory.closed');
+    for (const key of ['retained', 'partial']) assert.equal(nativePressure[key], 'cem.command.checkpoint.blocked');
+    assert.equal(nativePressure.current, true);
+    assert.equal(nativePressure.afterCleanup, false);
+    assert.deepEqual(nativePressure.failures, []);
+    assert.equal(nativePressure.scope, 'managed-cli-only');
+    assert.equal(nativePressure.replacementAllowed, false);
 
     const parityReport = resolve(workspaceRoot, 'dist/reports/cem-ml-platform-parity.browser.json');
     mkdirSync(dirname(parityReport), { recursive: true });

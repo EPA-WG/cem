@@ -1,7 +1,8 @@
+import { isCommandNativeAdmissionError } from './native-admission.js';
 import { readFile } from 'node:fs/promises';
 import { parentPort, threadId, workerData } from 'node:worker_threads';
 
-import * as runtime from '@epa-wg/cem-ml/wasm';
+import { commandNativeAdmission, commandNativeRuntime as runtime } from './managed-native-runtime.js';
 
 import type {
     BrowserCommandActionResultMessage,
@@ -85,6 +86,10 @@ port.on('message', (message: unknown) => {
         port.close();
         return;
     }
+    if (isRecord(message) && message.type === 'cem-command-native-checkpoint') {
+        void checkpointCommandNative(message).catch(reportFailure);
+        return;
+    }
     if (isWorkRequest(message)) {
         const packet = message.packet;
         if (
@@ -94,7 +99,7 @@ port.on('message', (message: unknown) => {
             throw new Error('CEM-ML work packet targets a different worker generation');
         }
         const result = parseRuntimeResult(
-            (runtime as unknown as ResumableRuntime).executeOperationWork(JSON.stringify(packet)),
+            executeManagedWork(packet),
         );
         const response: WorkerWorkResultEnvelope = {
             workerProtocolVersion: protocol.workerProtocolVersion,
@@ -113,11 +118,11 @@ port.on('message', (message: unknown) => {
         return;
     }
     if (isCommandExecuteRequest(message)) {
-        void executeCommand(message).catch(reportFailure);
+        void executeTrackedCommand(message).catch(reportFailure);
         return;
     }
     if (isCommandActionRequest(message)) {
-        executeCommandAction(message);
+        executeManagedAction(message);
         return;
     }
     if (isCommandCapabilityResponse(message)) {
@@ -157,6 +162,7 @@ async function executeCommand(message: BrowserCommandExecuteRequest): Promise<vo
     );
     const result: BrowserCommandResultMessage = {
         type: 'cem-command-result',
+        ...(commandNativeAdmission.closure === undefined ? {} : { nativeAdmissionClosed: true as const }),
         executionId: message.executionId,
         result: JSON.parse(resultJson),
     };
@@ -180,6 +186,7 @@ function executeCommandAction(
         const bytes = read.bytes === undefined ? undefined : new Uint8Array(read.bytes);
         const response: BrowserCommandActionResultMessage = {
             type: 'cem-command-action-result',
+            ...(commandNativeAdmission.closure === undefined ? {} : { nativeAdmissionClosed: true as const }),
             actionId: message.actionId,
             result: JSON.parse(read.json),
             ...(bytes === undefined ? {} : { bytes }),
@@ -195,6 +202,7 @@ function executeCommandAction(
               : runtime.disposeCommandArtifactsV1(message.requestId);
     const response: BrowserCommandActionResultMessage = {
         type: 'cem-command-action-result',
+        ...(commandNativeAdmission.closure === undefined ? {} : { nativeAdmissionClosed: true as const }),
         actionId: message.actionId,
         result: JSON.parse(json),
     };
@@ -313,4 +321,47 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isPositiveInteger(value: unknown): value is number {
     return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+}
+
+function executeManagedWork(packet: WorkerWorkRequest['packet']): string {
+    try { return (runtime as unknown as ResumableRuntime).executeOperationWork(JSON.stringify(packet)); }
+    catch (error) {
+        if (!isCommandNativeAdmissionError(error)) throw error;
+        return JSON.stringify({ ...packet, status: 'failed', payload: { error: { code: error.code, message: error.message } } });
+    }
+}
+
+function executeManagedAction(message: Parameters<typeof executeCommandAction>[0]): void {
+    try { executeCommandAction(message); }
+    catch (error) {
+        if (!isCommandNativeAdmissionError(error)) throw error;
+        port.postMessage({ type: 'cem-command-action-result', actionId: message.actionId,
+            nativeAdmissionClosed: true, result: { error: { code: error.code, message: error.message } } });
+    }
+}
+
+async function checkpointCommandNative(message: Record<string, unknown>): Promise<void> {
+    if (!isPositiveInteger(message.actionId) || !isPositiveInteger(message.timeoutMs) || message.timeoutMs > 60000 || Object.keys(message).length !== 3) {
+        throw new Error('Invalid managed command checkpoint request');
+    }
+    commandNativeAdmission.close();
+    let result: unknown;
+    try { result = commandNativeAdmission.checkpoint(await commandNativeAdmission.drain(message.timeoutMs)); }
+    catch (error) {
+        if (!isCommandNativeAdmissionError(error)) throw error;
+        result = { error: { code: error.code, message: error.message } };
+    }
+    port.postMessage({ type: 'cem-command-action-result', actionId: message.actionId, nativeAdmissionClosed: true, result });
+}
+
+async function executeTrackedCommand(message: BrowserCommandExecuteRequest): Promise<void> {
+    let retire: (() => void) | undefined;
+    try {
+        retire = commandNativeAdmission.admit();
+        await executeCommand(message);
+    } catch (error) {
+        if (!isCommandNativeAdmissionError(error)) throw error;
+        port.postMessage({ type: 'cem-command-result', executionId: message.executionId,
+            nativeAdmissionClosed: true, result: { error: { code: error.code, message: error.message } } });
+    } finally { retire?.(); }
 }

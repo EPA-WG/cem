@@ -1,7 +1,7 @@
 import { availableParallelism } from 'node:os';
 import { Worker } from 'node:worker_threads';
 
-import * as runtime from '@epa-wg/cem-ml/wasm';
+import { commandNativeRuntime as runtime } from './managed-native-runtime.js';
 
 import {
     CemMlOperationHandle,

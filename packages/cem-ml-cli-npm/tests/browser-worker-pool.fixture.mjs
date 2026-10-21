@@ -15,6 +15,8 @@ import {
 
 globalThis.runCemMlBrowserFixture = async (scenario) => {
     if (scenario === 'command-host-configuration') return runHostConfigurationFixture();
+    if (scenario === 'command-native-checkpoint') return runNativeCheckpointFixture();
+    if (scenario === 'command-native-pressure') return runNativePressureFixture();
     if (scenario === 'command-service') return runCommandServiceFixture();
     if (scenario === 'command-all-operations') return runCommandAllOperationsFixture();
     if (scenario === 'command-cancellation') return runCommandCancellationFixture();
@@ -632,4 +634,98 @@ async function runHostConfigurationFixture() {
         const result = await distinct.execute(request, { hostConfiguration: null });
         return { rejected, before, callbacks, status: result.status };
     } finally { await original.close(); await distinct.close(); }
+}
+
+
+async function runNativeCheckpointFixture() {
+    let entered, resume;
+    const requested = new Promise(resolve => { entered = resolve; });
+    const client = await createBrowserCommandServiceClient({ host: versionCommandHost(({ project }) => new Promise(resolve => {
+        resume = () => resolve({ project, resourceVersions: {} }); entered();
+    })) });
+    const other = await createBrowserCommandServiceClient({ host: versionCommandHost() });
+    try {
+        const handle = client.execute(versionCommandRequest('browser-native-drain'));
+        await requested;
+        let acknowledged = false;
+        const capturing = client.checkpointNative().then(proof => { acknowledged = true; return proof; });
+        let refusal;
+        try { client.execute(versionCommandRequest('browser-native-refused')); } catch (error) { refusal = error.code; }
+        await handle.cancel('checkpoint fixture');
+        const waited = !acknowledged;
+        resume();
+        const result = await handle;
+        const proof = await capturing;
+        const current = client.isNativeCheckpointCurrent(proof);
+        const copied = client.isNativeCheckpointCurrent({ ...proof });
+        const foreign = other.isNativeCheckpointCurrent(proof);
+        const independent = (await other.execute(versionCommandRequest('browser-native-independent'))).status;
+        await client.close();
+        return { waited, refusal, status: result.status, current, copied, foreign, independent,
+            afterClose: client.isNativeCheckpointCurrent(proof), scope: proof.scope, replacementAllowed: proof.replacementAllowed };
+    } finally { resume?.(); await client.close(); await other.close(); }
+}
+
+async function runNativePressureFixture() {
+    const NativeWorker = globalThis.Worker;
+    let physicalWorker;
+    const workerSource = `
+        const buffered = [];
+        const buffer = event => { event.stopImmediatePropagation(); buffered.push(event); };
+        self.addEventListener('message', buffer);
+        const native = await import('${location.origin}/command-native/runtime.js');
+        await native.default('${location.origin}/command-native/runtime.wasm');
+        self.addEventListener('message', event => {
+            if (event.data.type !== 'fixture-native-pressure') return;
+            event.stopImmediatePropagation();
+            try {
+                const status = JSON.parse(native.runtimeMemoryStatus());
+                native.configureRuntimeMemoryBudget(JSON.stringify({ ...status.config, softLimitBytes: 1 }));
+                event.ports[0].postMessage({ ok: true });
+            } catch (error) { event.ports[0].postMessage({ error: String(error) }); }
+        });
+        await import('${location.origin}/command-native/browser-worker.js');
+        self.removeEventListener('message', buffer);
+        for (const event of buffered) self.dispatchEvent(new MessageEvent('message', { data: event.data, ports: event.ports }));
+    `;
+    const url = URL.createObjectURL(new Blob([workerSource], { type: 'text/javascript' }));
+    globalThis.Worker = class extends NativeWorker {
+        constructor(_source, options) { super(url, options); physicalWorker = () => this; }
+    };
+    const writes = new Map();
+    const bytes = new TextEncoder().encode('.card { color: red; }');
+    const version = { revision: 1, sha256: await sha256(bytes) };
+    const request = parseCommandRequest(version);
+    const failures = [];
+    let client;
+    try {
+        client = await createBrowserCommandServiceClient({ onWorkerFailure: failure => failures.push(failure), host: {
+            currentRevision: ({ project }) => ({ project, resourceVersions: request.resourceVersions }),
+            readResource: () => ({ version, bytes: [...bytes], identity: { contentType: 'text/css', schema: 'https://cem.dev/ns/data/css/1', defaultNamespace: null, namespaces: {}, baseUri: null } }),
+            prepareWrite: request => { const token = request.uri; writes.set(token, request); return { token }; },
+            commitWrite: token => ({ uri: writes.get(token).uri }), rollbackWrite: () => undefined,
+        } });
+        const handle = client.execute(request);
+        const result = await handle;
+        if (result.status !== 'succeeded') throw Error(JSON.stringify(result.diagnostics));
+        const channel = new MessageChannel();
+        await new Promise((resolve, reject) => {
+            const timer = setTimeout(() => reject(Error('pressure fixture timeout')), 5000);
+            channel.port1.onmessage = event => { clearTimeout(timer); if (event.data.ok) resolve(); else reject(Error(event.data.error)); };
+            physicalWorker().postMessage({ type: 'fixture-native-pressure' }, [channel.port2]);
+        }).finally(() => { channel.port1.close(); channel.port2.close(); });
+        const rejection = await client.execute(versionCommandRequest('browser-pressure-refused')).result().then(() => null, error => error.code);
+        let earlyRefusal;
+        try { client.execute(versionCommandRequest('browser-pressure-early')); } catch (error) { earlyRefusal = error.code; }
+        const retained = await client.checkpointNative().then(() => null, error => error.code);
+        const read = await handle.readArtifact(result.artifacts.items[0], { maxBytes: 16 }).then(() => null, error => error.code);
+        await handle.disposeArtifact(result.artifacts.items[0]);
+        const partial = await client.checkpointNative().then(() => null, error => error.code);
+        await handle.dispose();
+        const proof = await client.checkpointNative();
+        const current = client.isNativeCheckpointCurrent(proof);
+        await handle.dispose();
+        return { status: result.status, artifacts: result.artifacts.originalCount, rejection, earlyRefusal, retained, read, partial,
+            current, afterCleanup: client.isNativeCheckpointCurrent(proof), failures, scope: proof.scope, replacementAllowed: proof.replacementAllowed };
+    } finally { await client?.close(); globalThis.Worker = NativeWorker; URL.revokeObjectURL(url); }
 }

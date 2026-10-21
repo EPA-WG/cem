@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import * as runtime from '@epa-wg/cem-ml/wasm';
+import { commandNativeAdmission, commandNativeRuntime as runtime } from './managed-native-runtime.js';
 import type {
     CommandInvocationBuildResponseV1,
     CommandInvocationEnvironmentV1,
@@ -47,42 +47,45 @@ export async function buildNodeCommandInvocation(
     host: NodeCommandHost,
     options: NodeCommandInvocationOptions = {},
 ): Promise<CommandInvocationV1> {
-    const environment: CommandInvocationEnvironmentV1 = {
-        requestId: options.requestId ?? randomUUID(),
-        projectId: options.projectId ?? 'cem-ml-node-cli',
-        projectRevision: options.projectRevision ?? 0,
-        resourceRevision: options.resourceRevision ?? 0,
-        cwd: options.cwd ?? host.cwd,
-        resolverPolicyStamp: options.resolverPolicyStamp ?? 'node-file-https-stream-v1',
-        safetyPolicyStamp: options.safetyPolicyStamp ?? 'portable-v1',
-        budgetPolicyStamp: options.budgetPolicyStamp ?? 'common-default-v1',
-        stdoutIsTerminal: options.stdoutIsTerminal ?? false,
-    };
-    const resources: CommandUriMapV1<VirtualResourceV1> = {};
+    const retire = commandNativeAdmission.admit();
+    try {
+        const environment: CommandInvocationEnvironmentV1 = {
+            requestId: options.requestId ?? randomUUID(),
+            projectId: options.projectId ?? 'cem-ml-node-cli',
+            projectRevision: options.projectRevision ?? 0,
+            resourceRevision: options.resourceRevision ?? 0,
+            cwd: options.cwd ?? host.cwd,
+            resolverPolicyStamp: options.resolverPolicyStamp ?? 'node-file-https-stream-v1',
+            safetyPolicyStamp: options.safetyPolicyStamp ?? 'portable-v1',
+            budgetPolicyStamp: options.budgetPolicyStamp ?? 'common-default-v1',
+            stdoutIsTerminal: options.stdoutIsTerminal ?? false,
+        };
+        const resources: CommandUriMapV1<VirtualResourceV1> = {};
 
-    for (let pass = 0; pass < MAX_DISCOVERY_PASSES; pass += 1) {
-        const response = parseBuildResponse(
-            runtime.buildCommandInvocationV1(
-                JSON.stringify(parsed),
-                JSON.stringify(environment),
-                JSON.stringify(resources),
-            ),
-        );
-        if (response.state === 'ready') return response.invocation;
-        if (response.state === 'error') {
-            throw new NodeCommandInvocationError(
-                response.error.code,
-                response.error.message,
-                response.error.exitCode,
+        for (let pass = 0; pass < MAX_DISCOVERY_PASSES; pass += 1) {
+            const response = parseBuildResponse(
+                runtime.buildCommandInvocationV1(
+                    JSON.stringify(parsed),
+                    JSON.stringify(environment),
+                    JSON.stringify(resources),
+                ),
             );
+            if (response.state === 'ready') return response.invocation;
+            if (response.state === 'error') {
+                throw new NodeCommandInvocationError(
+                    response.error.code,
+                    response.error.message,
+                    response.error.exitCode,
+                );
+            }
+            await resolveRequirements(host, resources, response.requirements);
         }
-        await resolveRequirements(host, resources, response.requirements);
-    }
-    throw new NodeCommandInvocationError(
-        'cem.node_command.discovery_limit',
-        `command resource discovery exceeded ${MAX_DISCOVERY_PASSES} passes`,
-        7,
-    );
+        throw new NodeCommandInvocationError(
+            'cem.node_command.discovery_limit',
+            `command resource discovery exceeded ${MAX_DISCOVERY_PASSES} passes`,
+            7,
+        );
+    } finally { retire(); }
 }
 
 export function projectNodeCommandPresentation(

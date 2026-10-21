@@ -1,4 +1,5 @@
-import * as runtime from '@epa-wg/cem-ml/wasm';
+import { isCommandNativeAdmissionError } from './native-admission.js';
+import { commandNativeAdmission, commandNativeRuntime as runtime } from './managed-native-runtime.js';
 
 import type {
     BrowserCommandActionResultMessage,
@@ -39,16 +40,21 @@ workerScope.addEventListener('message', (event: MessageEvent<unknown>) => {
         workerScope.close();
         return;
     }
+    if (lifecycle === 'ready' && isRecord(event.data) && event.data.type === 'cem-command-native-checkpoint') {
+        const message = event.data;
+        void checkpointCommandNative(message).catch(reportFailure);
+        return;
+    }
     if (lifecycle === 'ready' && isWorkRequest(event.data)) {
         executeWork(event.data);
         return;
     }
     if (lifecycle === 'ready' && isCommandExecuteRequest(event.data)) {
-        void executeCommand(event.data).catch(reportFailure);
+        void executeTrackedCommand(event.data).catch(reportFailure);
         return;
     }
     if (lifecycle === 'ready' && isCommandActionRequest(event.data)) {
-        executeCommandAction(event.data);
+        executeManagedAction(event.data);
         return;
     }
     if (lifecycle === 'ready' && isCommandCapabilityResponse(event.data)) {
@@ -117,7 +123,7 @@ function executeWork(message: WorkerWorkRequest): void {
         throw new Error('CEM-ML work packet targets a different browser worker generation');
     }
     const result = parseRuntimeResult(
-        (runtime as unknown as ResumableRuntime).executeOperationWork(JSON.stringify(packet)),
+        executeManagedWork(packet),
     );
     const response: WorkerWorkResultEnvelope = {
         workerProtocolVersion: protocol.workerProtocolVersion,
@@ -168,6 +174,7 @@ async function executeCommand(message: BrowserCommandExecuteRequest): Promise<vo
     );
     const result: BrowserCommandResultMessage = {
         type: 'cem-command-result',
+        ...(commandNativeAdmission.closure === undefined ? {} : { nativeAdmissionClosed: true as const }),
         executionId: message.executionId,
         result: JSON.parse(resultJson),
     };
@@ -191,6 +198,7 @@ function executeCommandAction(
         const bytes = read.bytes === undefined ? undefined : new Uint8Array(read.bytes);
         const response: BrowserCommandActionResultMessage = {
             type: 'cem-command-action-result',
+            ...(commandNativeAdmission.closure === undefined ? {} : { nativeAdmissionClosed: true as const }),
             actionId: message.actionId,
             result: JSON.parse(read.json),
             ...(bytes === undefined ? {} : { bytes }),
@@ -206,6 +214,7 @@ function executeCommandAction(
               : runtime.disposeCommandArtifactsV1(message.requestId);
     const response: BrowserCommandActionResultMessage = {
         type: 'cem-command-action-result',
+        ...(commandNativeAdmission.closure === undefined ? {} : { nativeAdmissionClosed: true as const }),
         actionId: message.actionId,
         result: JSON.parse(json),
     };
@@ -351,4 +360,47 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isPositiveInteger(value: unknown): value is number {
     return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+}
+
+function executeManagedWork(packet: WorkerWorkRequest['packet']): string {
+    try { return (runtime as unknown as ResumableRuntime).executeOperationWork(JSON.stringify(packet)); }
+    catch (error) {
+        if (!isCommandNativeAdmissionError(error)) throw error;
+        return JSON.stringify({ ...packet, status: 'failed', payload: { error: { code: error.code, message: error.message } } });
+    }
+}
+
+function executeManagedAction(message: Parameters<typeof executeCommandAction>[0]): void {
+    try { executeCommandAction(message); }
+    catch (error) {
+        if (!isCommandNativeAdmissionError(error)) throw error;
+        workerScope.postMessage({ type: 'cem-command-action-result', actionId: message.actionId,
+            nativeAdmissionClosed: true, result: { error: { code: error.code, message: error.message } } });
+    }
+}
+
+async function checkpointCommandNative(message: Record<string, unknown>): Promise<void> {
+    if (!isPositiveInteger(message.actionId) || !isPositiveInteger(message.timeoutMs) || message.timeoutMs > 60000 || Object.keys(message).length !== 3) {
+        throw new Error('Invalid managed command checkpoint request');
+    }
+    commandNativeAdmission.close();
+    let result: unknown;
+    try { result = commandNativeAdmission.checkpoint(await commandNativeAdmission.drain(message.timeoutMs)); }
+    catch (error) {
+        if (!isCommandNativeAdmissionError(error)) throw error;
+        result = { error: { code: error.code, message: error.message } };
+    }
+    workerScope.postMessage({ type: 'cem-command-action-result', actionId: message.actionId, nativeAdmissionClosed: true, result });
+}
+
+async function executeTrackedCommand(message: BrowserCommandExecuteRequest): Promise<void> {
+    let retire: (() => void) | undefined;
+    try {
+        retire = commandNativeAdmission.admit();
+        await executeCommand(message);
+    } catch (error) {
+        if (!isCommandNativeAdmissionError(error)) throw error;
+        workerScope.postMessage({ type: 'cem-command-result', executionId: message.executionId,
+            nativeAdmissionClosed: true, result: { error: { code: error.code, message: error.message } } });
+    } finally { retire?.(); }
 }

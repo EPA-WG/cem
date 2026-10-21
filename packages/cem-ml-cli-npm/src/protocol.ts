@@ -190,12 +190,19 @@ export interface BrowserCommandCapabilityResponse {
 }
 
 export type BrowserCommandWorkerRequest =
+    | CommandNativeCheckpointRequest
     | BrowserCommandExecuteRequest
     | BrowserCommandCancelRequest
     | BrowserCommandArtifactReadRequest
     | BrowserCommandArtifactDisposeRequest
     | BrowserCommandArtifactsDisposeRequest
     | BrowserCommandCapabilityResponse;
+
+export interface CommandNativeCheckpointRequest {
+    readonly type: 'cem-command-native-checkpoint';
+    readonly actionId: number;
+    readonly timeoutMs: number;
+}
 
 export interface BrowserCommandProgressMessage {
     readonly type: 'cem-command-progress';
@@ -205,12 +212,14 @@ export interface BrowserCommandProgressMessage {
 
 export interface BrowserCommandResultMessage {
     readonly type: 'cem-command-result';
+    readonly nativeAdmissionClosed?: true;
     readonly executionId: number;
     readonly result: unknown;
 }
 
 export interface BrowserCommandActionResultMessage {
     readonly type: 'cem-command-action-result';
+    readonly nativeAdmissionClosed?: true;
     readonly actionId: number;
     readonly result: unknown;
     readonly bytes?: Uint8Array;

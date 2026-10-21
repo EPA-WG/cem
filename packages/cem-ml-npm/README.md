@@ -169,3 +169,13 @@ The uncached Nx `sign` target records unsigned-local state by default. In a
 protected release job, provide `CEM_ML_GITHUB_ATTESTATION_BUNDLE` (and set
 `CEM_ML_RELEASE_SIGNING=required`) so it verifies the packed tarball with `gh`,
 copies the bundle, and marks the signing record publication-ready.
+
+## Unmanaged embedding boundary
+
+This package exposes raw generated WASM. Calling these exports, retaining native
+reference handles, reinitializing a module or instantiating it directly does not
+enroll that heap in the managed `cem-elements` rendering or `cem-ml-cli` command
+checkpoint domains. Native memory budgets still apply, but idle command/render
+adapters are not proof of complete raw-heap ownership. Embedders must explicitly
+account for every client/resource, or keep raw heaps outside replacement.
+Managed command checkpoint witnesses always refuse replacement authority.

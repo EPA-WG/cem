@@ -31,6 +31,10 @@ for (const path of [
     'command.d.ts',
     'generated/command-schema.js',
     'generated/command-schema.d.ts',
+    'managed-native-runtime.js',
+    'managed-native-runtime.d.ts',
+    'native-admission.js',
+    'native-admission.d.ts',
     'node.js',
     'node.d.ts',
     'node-command.js',
@@ -64,7 +68,11 @@ for (const host of ['browser', 'node']) {
     assert.match(hostSource, /command\.js/);
 }
 const workerSource = readFileSync(resolve(projectRoot, 'dist/node-worker.js'), 'utf8');
-assert.match(workerSource, /@epa-wg\/cem-ml\/wasm/);
+assert.match(workerSource, /managed-native-runtime\.js/);
+const managedNativeSource = readFileSync(resolve(projectRoot, 'dist/managed-native-runtime.js'), 'utf8');
+const nativeAdmissionSource = readFileSync(resolve(projectRoot, 'dist/native-admission.js'), 'utf8');
+assert.match(managedNativeSource, /@epa-wg\/cem-ml\/wasm/);
+assert.match(managedNativeSource, /native-admission\.js/);
 assert.doesNotMatch(workerSource, /cem_ml_bg\.wasm/);
 const browserSource = readFileSync(resolve(projectRoot, 'dist/browser.js'), 'utf8');
 const browserCommandSource = readFileSync(resolve(projectRoot, 'dist/browser-command.js'), 'utf8');
@@ -73,7 +81,7 @@ const browserWorkerSource = readFileSync(resolve(projectRoot, 'dist/browser-work
 assert.match(browserSource, /new Worker\(new URL\('\.\/browser-worker\.js'/);
 assert.match(browserSource, /hardwareConcurrency/);
 assert.match(browserWorkerSource, /browserWorkerCapabilityManifest/);
-const browserClosure = `${browserSource}\n${browserCommandSource}\n${browserInvocationSource}\n${browserWorkerSource}`;
+const browserClosure = `${browserSource}\n${browserCommandSource}\n${browserInvocationSource}\n${browserWorkerSource}\n${managedNativeSource}\n${nativeAdmissionSource}`;
 assert.doesNotMatch(browserClosure, /SharedArrayBuffer/);
 assert.doesNotMatch(browserClosure, /node:/);
 

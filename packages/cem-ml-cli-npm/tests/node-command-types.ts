@@ -49,6 +49,11 @@ async function compilePublicNodeCommandContract(): Promise<void> {
         result,
     );
     await handle.dispose();
+    const nativeCheckpoint = await client.checkpointNative(5000);
+    const scope: 'managed-cli-only' = nativeCheckpoint.scope;
+    const replacementAllowed: false = nativeCheckpoint.replacementAllowed;
+    const current: boolean = client.isNativeCheckpointCurrent(nativeCheckpoint);
+    void [scope, replacementAllowed, current];
     await client.close();
 
     const service = await createNodeCommandService({ host, hostConfiguration: { schemaPackageReplacementGrants: [] } });

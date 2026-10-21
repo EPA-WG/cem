@@ -225,10 +225,65 @@ rollback of newer edits.
 
 This is shared `cem-elements` lifecycle infrastructure. Studio and declarative
 components contain no recovery behavior or JavaScript workaround. Separate
-command-service/native heaps and generated-WASM bypasses still need their own
-closed adapters; neither a successful drain nor physical coverage grants
+command-service heaps have their own managed CLI adapters (below); generated-WASM
+bypasses remain an explicit unmanaged boundary; neither a successful drain nor physical coverage grants
 whole-application replacement permission. Coordinated replacement, semantic
 resume and declarative recovery status remain subsequent work.
+
+### Separate command heaps and the unmanaged boundary
+
+`@epa-wg/cem-ml-cli` owns a separate admission ledger for each linked native
+module singleton, including command authoring, browser/Node worker execution,
+main-thread fallback and resumable-operation host calls. The exact generated
+telemetry function identifies its module; CLI adapters referring to that same
+function share their ledger in the realm. Each worker owns its own ledger.
+No render-domain label, matching command ID or render checkpoint can cover one
+of these heaps. All shipped CLI native calls pass through an explicit method
+contract; another generated export cannot silently become a managed call.
+
+The adapter samples bounded native telemetry before/after calls and permanently
+refuses fresh work after soft/hard pressure or unavailable telemetry. It keeps
+async discovery and native command callbacks enrolled through completion, and
+command workers remain enrolled until their terminal result is posted. Commands
+already waiting on host capabilities can settle or be canceled; pressure does
+not terminate the worker, retry the command, or fall back to another heap.
+Cancellation, disposal and the existing operation-settlement paths remain
+available. Fresh execution, artifact reads and native graph-author functions
+refuse with `cem.runtime.memory.closed`. Returned graph authors retain the guard
+on every invocation. Retained artifact counts and resumable hosts block capture
+until native disposal acknowledges them; a partial artifact disposal cannot
+cover the remaining handles. No live command handle or callback is serialized.
+Uncertain native outcomes/cleanup and bounded ledger overflow refuse capture.
+
+Browser/Node command-service clients expose `checkpointNative(timeoutMs)` as an
+explicit monotonic close-and-drain operation, defaulting to five seconds. Native
+work automatically has a five-second pressure deadline; explicit waits accept
+positive safe integers up to 60 seconds without extending that deadline. Host
+acknowledgements are also bounded to five seconds. At most 16 waiters and 256
+simultaneous managed native calls are retained. A timeout permanently fences the
+adapter, including late replies. Local drain witnesses bind to the original
+ledger/revision. A surviving command client issues a frozen, original host
+witness only after worker acknowledgement and all its executions, actions and
+host capabilities settle. `isNativeCheckpointCurrent(witness)` rejects copies,
+foreign clients, later cleanup, transport failure and closed clients. It cannot
+resurrect worker evidence by copying a receipt. A refused retained-state capture
+leaves cleanup available; callers may dispose artifacts and request a new witness.
+
+Every command witness explicitly states `scope: "managed-cli-only"` and
+`replacementAllowed: false`. This records an adapter boundary, **not complete
+physical-heap coverage**. Trusted embedders can still import raw
+`@epa-wg/cem-ml/wasm` exports, instantiate generated WASM directly, use `initSync`,
+retain reference resources through a raw alias or supply another native runtime.
+Such calls are unmanaged and cannot be discovered from CLI work counts. They
+must be separately enrolled with closed native resource/client contracts, or
+isolated in an explicitly unmanaged heap that is excluded from replacement.
+Authoritative inventories of all native registries and fresh-generation
+re-admission are still required before replacing any of these heaps. Neither a
+managed CLI witness nor a render receipt authorizes whole-process replacement,
+replay, disposal of someone else's resources, or rollback of newer drafts.
+This step adds shared CLI host/runtime infrastructure and deployment assets;
+Studio continues to use its declarative command consumer unchanged.
+
 
 Every owner requires explicit whole-island privacy consent before serialization.
 The exporter writes the canonical inert data-island template, including existing
@@ -680,7 +735,7 @@ names happen to match.
 
 Automatic capture is not enabled in Studio. Remaining unaccounted widget/source
 states, endpoints outside an explicitly shared coordinator, unmanaged native runtime/client adapters,
-memory-pressure admission drain, generation replacement, fresh-owner semantic
+whole-heap replacement admission, generation replacement, fresh-owner semantic
 resume, stale-message fencing and declarative recovery status remain follow-up
 work. The complete Studio long-session verifier must remain passing before
 replacement is enabled. Saved project revisions and unsaved editor state remain
