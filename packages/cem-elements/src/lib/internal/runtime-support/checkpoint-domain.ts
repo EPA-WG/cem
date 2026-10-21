@@ -11,6 +11,7 @@ interface Client {
     listeners: Set<() => void>;
     requiredOwners?: (sources: ReadonlySet<string>) => readonly string[] | undefined;
     settled?: () => boolean;
+    retirementCleanup?: () => void;
 }
 const clients = new WeakMap<CemCheckpointNativeClient, Client>();
 const LIMIT = 256;
@@ -46,6 +47,7 @@ export class CemNativeCheckpointDomain {
     private pressureSampler?: () => { softPressure: boolean; hardPressure: boolean };
     private readonly pressureListeners = new Set<(reason: CemNativePressureReason) => void>();
     private deadline?: ReturnType<typeof setTimeout>;
+    private cleanupOwners?: ReadonlySet<CemCheckpointNativeClient>;
 
     constructor(private readonly mode: 'worker' | 'main-thread') {}
 
@@ -194,7 +196,10 @@ export class CemNativeCheckpointDomain {
         else this.resources.set(`${kind}:${id}`, undefined);
         this.changed();
     }
-    release(kind: string, id: number): void { if (this.resources.delete(`${kind}:${id}`)) this.changed(); }
+    release(kind: string, id: number): void {
+        const key = `${kind}:${id}`, owner = this.resources.get(key);
+        if (this.resources.delete(key) && !(owner && this.cleanupOwners?.has(owner))) this.changed();
+    }
     adopt(kind: string, id: number, token: CemCheckpointNativeClient): void {
         const key = `${kind}:${id}`;
         if (clients.get(token)?.domain === this && this.resources.has(key) && this.resources.get(key) === undefined) {
@@ -228,6 +233,34 @@ export class CemNativeCheckpointDomain {
     retirementEndpoint(endpoint: NativeRenderingRetirementEndpoint): void {
         if (this.mode !== 'worker' || retirementEndpoints.has(this)) throw new Error('cem.runtime.retirement.unsupported');
         retirementEndpoints.set(this, endpoint);
+    }
+
+    ownedRetirementEndpoint(endpoint: NativeFallbackRetirementEndpoint): void {
+        if (this.mode !== 'main-thread' || !this.nativeIdentity || !this.alive || fallbackRetirementEndpoints.has(this))
+            throw new Error('cem.runtime.retirement.unsupported');
+        fallbackRetirementEndpoints.set(this, endpoint);
+    }
+    hasRetirementCleanups(bindings: ReadonlyMap<CemCheckpointNativeClient, readonly string[]>): boolean {
+        return !!this.members.size && [...this.members].every(client => bindings.has(client.token) && !!client.retirementCleanup);
+    }
+    /** Quiet only the exact covered resource deletions. Membership, input,
+     * ownership, work and arbitrary changes retain ordinary invalidation. */
+    retireOwnedResources(bindings: ReadonlyMap<CemCheckpointNativeClient, readonly string[]>, current: () => boolean, ledgerCurrent: () => boolean, commit: (current: () => boolean) => void): void {
+        if (this.cleanupOwners || !this.hasRetirementCleanups(bindings) || !current()) throw new Error('cem.runtime.retirement.cleanup');
+        this.cleanupOwners = new Set(bindings.keys());
+        try {
+            for (const client of this.members) {
+                if (!ledgerCurrent()) throw new Error('cem.runtime.retirement.stale');
+                const cleanup = client.retirementCleanup;
+                if (!cleanup || cleanup() !== undefined) throw new Error('cem.runtime.retirement.cleanup');
+            }
+            if (this.resources.size || !ledgerCurrent()) throw new Error('cem.runtime.retirement.stale');
+            // Host freshness callbacks run after cleanup only under the native
+            // freeze: even raw cleanup aliases cannot race that last check.
+            commit(() => !this.resources.size && ledgerCurrent() && current() && ledgerCurrent());
+            this.nativeIdentity = undefined; this.pressureSampler = undefined;
+            this.revoke();
+        } finally { this.cleanupOwners = undefined; }
     }
 
     issuedIdentity(): string { return this.runtimeId; }
@@ -273,6 +306,11 @@ export function nativeCheckpointRequirements(token: CemCheckpointNativeClient, r
     const client = clients.get(token);
     if (!client || client.requiredOwners) throw new Error('cem.checkpoint.native-client');
     client.requiredOwners = requiredOwners;
+}
+export function nativeCheckpointRetirementCleanup(token: CemCheckpointNativeClient, cleanup: () => void): void {
+    const client = clients.get(token);
+    if (!client || client.retirementCleanup) throw new Error('cem.checkpoint.native-client');
+    client.retirementCleanup = cleanup;
 }
 export function nativeCheckpointDrainRequirements(token: CemCheckpointNativeClient, settled: () => boolean): void {
     const client = clients.get(token);
@@ -386,6 +424,13 @@ interface NativeRenderingRetirementEndpoint {
     abort(): Promise<void>;
     terminate(): void;
 }
+interface NativeFallbackRetirementEndpoint {
+    close(): Promise<void>;
+    authorize(consent: object | undefined): () => boolean;
+    commit(current: () => boolean): void;
+}
+const fallbackRetirementEndpoints = new WeakMap<CemNativeCheckpointDomain, NativeFallbackRetirementEndpoint>();
+const fallbackClosedConsents = new WeakMap<CemNativeDrain, { consent: object | undefined; current: () => boolean }>();
 const retirementEndpoints = new WeakMap<CemNativeCheckpointDomain, NativeRenderingRetirementEndpoint>();
 const retirementFlights = new WeakSet<CemNativeCheckpointDomain>();
 export interface CemRetiredRenderingGeneration { readonly checkpoint: Uint8Array; readonly replacementAllowed: false }
@@ -399,38 +444,50 @@ async function retirementDeadline<T>(operation: () => Promise<T>, timeoutMs: num
 function retirementTimeout(timeoutMs: number): void {
     if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 5000) throw new Error('cem.runtime.retirement.timeout-config');
 }
-/** Explicit trusted host lifecycle control. Main-thread memory is shared with
- * native helpers/raw aliases and has no exclusive physical disposal boundary. */
-export async function closeNativeRenderingGeneration(client: CemCheckpointNativeClient, timeoutMs = 5000): Promise<CemNativeDrain> {
+/** Explicit trusted host lifecycle control. Legacy fallback has no exclusive
+ * disposal boundary; owned fallback requires original embedding consent. */
+export async function closeNativeRenderingGeneration(client: CemCheckpointNativeClient, timeoutMs = 5000, consent?: object): Promise<CemNativeDrain> {
     retirementTimeout(timeoutMs);
-    const domain = clients.get(client)?.domain, endpoint = domain && retirementEndpoints.get(domain);
+    const domain = clients.get(client)?.domain, fallback = domain && fallbackRetirementEndpoints.get(domain);
+    const endpoint = fallback ?? (domain && retirementEndpoints.get(domain));
     if (!domain || !endpoint) throw new Error('cem.runtime.retirement.unsupported');
     if (retirementFlights.has(domain)) throw new Error('cem.runtime.retirement.pending');
+    const consentCurrent = fallback?.authorize(consent);
     retirementFlights.add(domain);
     terminalRenderingGenerations.add(domain);
     try {
         domain.closeAdmission('soft-pressure');
         await domain.drain({ timeoutMs });
+        if (consentCurrent && !consentCurrent()) throw new Error('cem.runtime.generation.ownership-stale');
         await retirementDeadline(() => endpoint.close(), timeoutMs);
-        return await domain.drain({ timeoutMs });
+        const proof = await domain.drain({ timeoutMs });
+        if (consentCurrent) {
+            if (!consentCurrent()) throw new Error('cem.runtime.generation.ownership-stale');
+            fallbackClosedConsents.set(proof, { consent, current: consentCurrent });
+        }
+        return proof;
     } catch (error) { domain.revoke(); throw error; }
     finally { retirementFlights.delete(domain); }
 }
-/** One exact physical worker only. Multiple heaps need a future coordinated
- * replacement transaction; a scalar receipt never authorizes their disposal. */
+/** One exact worker or owned fallback. Multiple heaps need a coordinated
+ * transaction; scalar receipts never authorize native disposal. */
 export async function retireNativeRenderingGeneration(
     ownerBindings: ReadonlyMap<CemCheckpointNativeClient, readonly string[]>,
     sourceWitnesses: readonly CemCheckpointNativeSourceProof[], proof: CemNativeDrain,
-    handoff: CemCheckpointRetirementHandoff, timeoutMs = 5000,
+    handoff: CemCheckpointRetirementHandoff, timeoutMs = 5000, consent?: object,
 ): Promise<CemRetiredRenderingGeneration> {
     retirementTimeout(timeoutMs);
-    const domain = drainProofs.get(proof), endpoint = domain && retirementEndpoints.get(domain);
-    if (!domain || !endpoint) throw new Error('cem.runtime.retirement.coverage');
+    const domain = drainProofs.get(proof), fallback = domain && fallbackRetirementEndpoints.get(domain);
+    const endpoint = domain && retirementEndpoints.get(domain);
+    if (!domain || !endpoint && !fallback) throw new Error('cem.runtime.retirement.coverage');
+    const closedConsent = fallback && fallbackClosedConsents.get(proof);
+    if (fallback && (!closedConsent || closedConsent.consent !== consent || !closedConsent.current())) throw new Error('cem.runtime.generation.ownership');
     if (retirementFlights.has(domain)) throw new Error('cem.runtime.retirement.pending');
     const bindings = new Map([...ownerBindings].map(([client, owners]) => [client, [...owners]]));
     const sources = [...sourceWitnesses];
-    const current = () => nativeCheckpointClosedCoverage(bindings, sources, [proof])?.length === 1;
+    const current = () => (!closedConsent || closedConsent.current()) && nativeCheckpointClosedCoverage(bindings, sources, [proof])?.length === 1;
     if (!current()) throw new Error('cem.runtime.retirement.coverage');
+    if (fallback && !domain.hasRetirementCleanups(bindings)) throw new Error('cem.runtime.retirement.cleanup');
     retirementFlights.add(domain);
     let preparing = false;
     try {
@@ -441,6 +498,13 @@ export async function retireNativeRenderingGeneration(
         const checkpoint = new Uint8Array(bytes);
         if (handoff.current() !== true || !current()) throw new Error('cem.runtime.retirement.stale');
         preparing = true; terminalRenderingGenerations.add(domain);
+        if (fallback) {
+            const started = performance.now();
+            domain.retireOwnedResources(bindings, () => handoff.current() === true && current(),
+                () => performance.now() - started < timeoutMs && domain.drainCurrent(proof) && !!closedConsent?.current(), check => fallback.commit(check));
+            return Object.freeze({ checkpoint, replacementAllowed: false });
+        }
+        if (!endpoint) throw new Error('cem.runtime.retirement.unsupported');
         const confirmation = await retirementDeadline(() => endpoint.prepare(), timeoutMs);
         if (!confirmation || typeof confirmation !== 'object') throw new Error('cem.runtime.retirement.confirmation');
         const record = confirmation as Record<string, unknown>;
@@ -456,7 +520,7 @@ export async function retireNativeRenderingGeneration(
             // Owned native roots may already have been released. Preserve host
             // checkpoint/DOM, revoke old handles, and never select fallback/replay.
             domain.revoke();
-            try { await retirementDeadline(() => endpoint.abort(), timeoutMs); } catch { /* Uncertain cleanup remains fenced. */ }
+            try { if (endpoint) await retirementDeadline(() => endpoint.abort(), timeoutMs); } catch { /* Uncertain cleanup remains fenced. */ }
         }
         throw error;
     } finally { retirementFlights.delete(domain); }

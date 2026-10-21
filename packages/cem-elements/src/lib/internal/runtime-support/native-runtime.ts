@@ -4,6 +4,7 @@ import * as legacy from '../../../../../cem_ql/dist/wasm/cem_ql.js';
 import type { CemQlWasmGeneration } from '../../../../../cem_ql/dist/wasm/cem_ql_factory.js';
 import { cemMainThreadCheckpointDomain as domain } from './checkpoint-domain.js';
 
+export interface CemFallbackRetirementConsent { readonly kind: 'cem-fallback-retirement-consent' }
 export interface CemFallbackWasmOwnership { readonly kind: 'cem-fallback-wasm-ownership' }
 export interface CemDisposedFallbackGeneration { readonly runtimeId: string; readonly releasedOwnedReferences: true; readonly replacementAllowed: false }
 export interface CemOwnedFallbackGeneration {
@@ -11,6 +12,7 @@ export interface CemOwnedFallbackGeneration {
     ready(): Promise<void>;
     claimOwnership(): CemFallbackWasmOwnership;
     releaseOwnership(ownership: CemFallbackWasmOwnership): void;
+    retirementConsent(ownership: readonly CemFallbackWasmOwnership[]): CemFallbackRetirementConsent;
     /** Only after every managed host/helper and resource has been released.
      * This releases owned references, without claiming synchronous browser GC. */
     disposeEmpty(ownership: readonly CemFallbackWasmOwnership[], timeoutMs?: number): Promise<CemDisposedFallbackGeneration>;
@@ -26,6 +28,7 @@ export function isolateCemFallbackGeneration(): CemOwnedFallbackGeneration {
     const selected = owned;
     return Object.freeze({ runtimeId: domain.issuedIdentity(), ready: () => initializeNativeRuntime(),
         claimOwnership: () => selected.claim(), releaseOwnership: (lease: CemFallbackWasmOwnership) => selected.release(lease),
+        retirementConsent: (leases: readonly CemFallbackWasmOwnership[]) => selected.consent(leases),
         disposeEmpty: (leases: readonly CemFallbackWasmOwnership[], timeoutMs?: number) => selected.disposeEmpty(leases, timeoutMs) });
 }
 export function nativeRuntimeUsable(): boolean { return !owned || owned.usable(); }
@@ -42,9 +45,10 @@ class OwnedFallback {
     private failed = false;
     private disposing = false;
     private revision = 0;
+    private readonly consents = new WeakMap<object, number>();
     private readonly owners = new Set<CemFallbackWasmOwnership>();
 
-    usable(): boolean { return !this.disposed && !this.failed; }
+    usable(): boolean { return !this.disposed && !this.failed && !!domain.identity(); }
     initialize(): Promise<void> {
         if (!this.usable()) return Promise.reject(new Error('cem.runtime.generation.retired'));
         // eslint-disable-next-line @nx/enforce-module-boundaries -- lazy generated factory; the package build rewrites this to its vendored copy.
@@ -55,7 +59,25 @@ class OwnedFallback {
             if (!memory) throw new Error('cem.runtime.generation.identity');
             domain.bindNativeRuntime(memory);
             if (!domain.ownsNativeRuntime(memory)) throw new Error('cem.runtime.generation.identity');
+            this.installRetirementEndpoint();
         }).catch(error => { this.failed = true; domain.revoke(); throw error; });
+    }
+    /** A separate callback scope never captures initialization's memory/module locals. */
+    private installRetirementEndpoint(): void {
+        domain.ownedRetirementEndpoint({
+            close: async () => { this.requireReady().call('closeCommandNativeAdmission', []); },
+            authorize: token => {
+                const revision = typeof token === 'object' && token !== null ? this.consents.get(token) : undefined;
+                if (revision === undefined || revision !== this.revision || !this.usable()) throw new Error('cem.runtime.generation.ownership');
+                return () => this.usable() && revision === this.revision;
+            },
+            commit: current => {
+                if (this.disposing) throw new Error('cem.runtime.generation.pending');
+                this.disposing = true;
+                try { this.requireReady().dispose(current); this.released(); }
+                finally { this.disposing = false; }
+            },
+        });
     }
     private requireReady(): CemQlWasmGeneration {
         if (!this.usable()) throw new Error('cem.runtime.generation.retired');
@@ -78,32 +100,47 @@ class OwnedFallback {
         if (!Number.isSafeInteger(++this.revision)) { this.failed = true; domain.revoke(); }
         domain.changed();
     }
+    private ownershipRevision(leases: readonly CemFallbackWasmOwnership[]): number {
+        const revision = this.revision;
+        if (!Array.isArray(leases)) throw new Error('cem.runtime.generation.ownership');
+        const count = Object.getOwnPropertyDescriptor(leases, 'length')?.value;
+        if (!Number.isSafeInteger(count) || count < 1 || count > 256 || count !== this.owners.size) throw new Error('cem.runtime.generation.ownership');
+        const seen = new Set<CemFallbackWasmOwnership>();
+        for (let index = 0; index < count; index++) {
+            // Read own data slots only: caller methods, iterators and
+            // accessors cannot substitute consent or run during admission.
+            const slot = Object.getOwnPropertyDescriptor(leases, String(index));
+            if (!slot || !('value' in slot) || !this.owners.has(slot.value) || seen.has(slot.value)) throw new Error('cem.runtime.generation.ownership');
+            seen.add(slot.value);
+        }
+        if (revision !== this.revision) throw new Error('cem.runtime.generation.ownership-stale');
+        return revision;
+    }
+    consent(leases: readonly CemFallbackWasmOwnership[]): CemFallbackRetirementConsent {
+        this.requireReady();
+        if (this.disposing || domain.pressureReason()) throw new Error('cem.runtime.generation.ownership');
+        this.disposing = true;
+        try {
+            const revision = this.ownershipRevision(leases);
+            const token = Object.freeze({ kind: 'cem-fallback-retirement-consent' as const });
+            this.consents.set(token, revision); return token;
+        } finally { this.disposing = false; }
+    }
+    private released(): void { this.disposed = true; this.native = undefined; this.initialization = undefined; this.owners.clear(); }
     async disposeEmpty(leases: readonly CemFallbackWasmOwnership[], timeoutMs = 5000): Promise<CemDisposedFallbackGeneration> {
         if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 5000) throw new Error('cem.runtime.generation.timeout-config');
         const native = this.requireReady();
         if (this.disposing) throw new Error('cem.runtime.generation.pending');
         this.disposing = true;
         try {
-            const revision = this.revision;
-            if (!Array.isArray(leases)) throw new Error('cem.runtime.generation.ownership');
-            const count = Object.getOwnPropertyDescriptor(leases, 'length')?.value;
-            if (!Number.isSafeInteger(count) || count < 1 || count > 256 || count !== this.owners.size) throw new Error('cem.runtime.generation.ownership');
-            const seen = new Set<CemFallbackWasmOwnership>();
-            for (let index = 0; index < count; index++) {
-                // Read own data slots only: caller methods, iterators and
-                // accessors cannot substitute consent or run during admission.
-                const slot = Object.getOwnPropertyDescriptor(leases, String(index));
-                if (!slot || !('value' in slot) || !this.owners.has(slot.value) || seen.has(slot.value)) throw new Error('cem.runtime.generation.ownership');
-                seen.add(slot.value);
-            }
-            if (revision !== this.revision) throw new Error('cem.runtime.generation.ownership-stale');
+            const revision = this.ownershipRevision(leases);
             if (!domain.emptyForNativeDisposal()) throw new Error('cem.runtime.generation.peers');
             domain.closeAdmission('soft-pressure');
             const proof = await domain.drain({ timeoutMs });
             if (revision !== this.revision) throw new Error('cem.runtime.generation.ownership-stale');
             domain.releaseEmptyNative(proof, () => { native.dispose(() => revision === this.revision
                 && domain.emptyForNativeDisposal() && domain.drainCurrent(proof)); });
-            this.disposed = true; this.native = undefined; this.initialization = undefined; this.owners.clear();
+            this.released();
             return Object.freeze({ runtimeId: domain.issuedIdentity(), releasedOwnedReferences: true, replacementAllowed: false });
         } finally { this.disposing = false; }
     }

@@ -1,5 +1,5 @@
 import { CemNativeCheckpointDomain, cemWorkerCheckpointDomain, cemMainThreadCheckpointDomain, nativeCheckpointAdmission, nativeCheckpointRequirements, nativeCheckpointChanged, nativeCheckpointRefuse, nativeCheckpointIdentity, nativeCheckpointGeneration, nativeCheckpointFailureFence, nativeCheckpointWitnessSource, type CemCheckpointNativeClient } from './checkpoint-domain.js';
-import { nativeCheckpointRetirementStarted, nativeCheckpointSubscribe, nativeCheckpointAssertAdmission, nativeCheckpointDrainRequirements } from './checkpoint-domain.js';
+import { nativeCheckpointRetirementCleanup, nativeCheckpointRetirementStarted, nativeCheckpointSubscribe, nativeCheckpointAssertAdmission, nativeCheckpointDrainRequirements } from './checkpoint-domain.js';
 import {
     onCemDeclarationScopeDispose,
     type CemDeclarationScope,
@@ -596,6 +596,12 @@ class RootCemProcessingHost implements CemProcessingHost {
         this.sequence = this.lease.sequence;
         this.checkpointClient = this.lease.checkpointClient;
         this.engine = new CemProcessingEngine({ checkpointClient: this.checkpointClient });
+        nativeCheckpointRetirementCleanup(this.checkpointClient, () => {
+            if (this.mode !== 'main-thread' || this.disposed || this.generationRetired || this.hostJobs.size
+                || this.nativeSessionJobs.size || this.stylesheetJobs.size || this.pendingStylesheetLoads.size)
+                throw new Error('cem.runtime.retirement.cleanup');
+            this.engine.dispose({ reason: 'runtime-disposed' });
+        });
         this.stopGeneration = nativeCheckpointSubscribe(this.checkpointClient, () => {
             if (!this.generationRetired && !nativeCheckpointIdentity(this.checkpointClient)) { this.generationRetired = true; this.revokeNativeAuthority(); }
         });

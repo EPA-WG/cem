@@ -1,3 +1,4 @@
+import type { CemFallbackRetirementConsent } from './internal/runtime-support/native-runtime.js';
 import { closeNativeRenderingGeneration, retireNativeRenderingGeneration, type CemNativeDrain, nativeCheckpointIdentity, nativeCheckpointValidSourceProof, nativeCheckpointSubscribe, nativeCheckpointSnapshot, type CemCheckpointNativeClient, type CemCheckpointNativeSourceProof } from './internal/runtime-support/checkpoint-domain.js';
 import type { CheckpointEndpoint } from './checkpoint-interactions.js';
 import { CemCommittedCheckpointStore, type CemCheckpointOwnerReceipt, type CemCheckpointSealer, type CemCommitReceipt, type CemStoredCheckpoint, type CemCheckpointRelationship } from './committed-checkpoint.js';
@@ -362,17 +363,18 @@ export class CemCheckpointPublicationCoordinator {
         } });
     }
     /** Close one complete physical rendering generation, then capture again
-     * before retirement. Multi-heap transactions and fallback disposal refuse. */
-    async closeRenderingGeneration(timeoutMs = 5000): Promise<CemNativeDrain> {
+     * before retirement. Owned fallback also requires the original consent token;
+     * multi-heap transactions and legacy fallback remain unsupported. */
+    async closeRenderingGeneration(timeoutMs = 5000, consent?: CemFallbackRetirementConsent): Promise<CemNativeDrain> {
         const coverage = this.renderingCoverage();
         const client = coverage.bindings.keys().next().value;
         if (!client) throw new Error('cem.runtime.retirement.coverage');
-        return closeNativeRenderingGeneration(client, timeoutMs);
+        return closeNativeRenderingGeneration(client, timeoutMs, consent);
     }
 
-    async retireRenderingGeneration(proof: CemNativeDrain, timeoutMs = 5000): Promise<import('./internal/runtime-support/checkpoint-domain.js').CemRetiredRenderingGeneration> {
+    async retireRenderingGeneration(proof: CemNativeDrain, timeoutMs = 5000, consent?: CemFallbackRetirementConsent): Promise<import('./internal/runtime-support/checkpoint-domain.js').CemRetiredRenderingGeneration> {
         const coverage = this.renderingCoverage();
-        return retireNativeRenderingGeneration(coverage.bindings, coverage.sources, proof, this.handoff(), timeoutMs);
+        return retireNativeRenderingGeneration(coverage.bindings, coverage.sources, proof, this.handoff(), timeoutMs, consent);
     }
 
     private renderingCoverage() {

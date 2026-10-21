@@ -6,7 +6,7 @@ vi.mock('../../../../../cem_ql/dist/wasm/cem_ql_factory.js', () => ({ createCemQ
     return { initialize: mocks.initialize, memory: () => dead ? undefined : memory,
         call: mocks.call, dispose: (current?: () => boolean) => { mocks.dispose(); if (current && !current()) throw new Error('ownership-stale'); dead = true; } };
 } }));
-beforeEach(() => { vi.resetModules(); vi.clearAllMocks(); mocks.initialize.mockResolvedValue(undefined); mocks.call.mockReturnValue('owned'); });
+beforeEach(() => { vi.resetModules(); vi.resetAllMocks(); mocks.initialize.mockResolvedValue(undefined); mocks.call.mockReturnValue('owned'); });
 async function selected() {
     const api = await import('./native-runtime.js'), domains = await import('./checkpoint-domain.js');
     const generation = api.isolateCemFallbackGeneration(); await generation.ready();
@@ -15,7 +15,7 @@ async function selected() {
 describe('owned fallback generation and embedding consent', () => {
     it('selects once before use, keeps generated exports private and fences saved aliases after empty disposal', async () => {
         const { api, generation, lease } = await selected(); const alias = api.cemQlVersion;
-        expect(Object.keys(generation).sort()).toEqual(['claimOwnership', 'disposeEmpty', 'ready', 'releaseOwnership', 'runtimeId'].sort());
+        expect(Object.keys(generation).sort()).toEqual(['claimOwnership', 'disposeEmpty', 'ready', 'releaseOwnership', 'retirementConsent', 'runtimeId'].sort());
         expect(alias()).toBe('owned'); expect(mocks.legacy).not.toHaveBeenCalled();
         expect(() => api.isolateCemFallbackGeneration()).toThrow('already-selected');
         const disposed = await generation.disposeEmpty([lease]);
@@ -101,5 +101,98 @@ describe('owned fallback generation and embedding consent', () => {
     it('does not switch a legacy generation after its functions have been used', async () => {
         const api = await import('./native-runtime.js'); expect(api.cemQlVersion()).toBe('legacy');
         expect(() => api.isolateCemFallbackGeneration()).toThrow('already-selected'); expect(mocks.initialize).not.toHaveBeenCalled();
+    });
+});
+
+
+describe('active owned fallback retirement', () => {
+    async function active() {
+        const state = await selected(), d = state.domains, domain = d.cemMainThreadCheckpointDomain;
+        const client = domain.client(); domain.retain('template', 7); domain.adopt('template', 7, client);
+        const cleanup = vi.fn(() => domain.release('template', 7));
+        d.nativeCheckpointRetirementCleanup(client, cleanup);
+        const consent = state.generation.retirementConsent([state.lease]);
+        return { ...state, domain, client, cleanup, consent, bindings: new Map([[client, ['editor']]]) };
+    }
+    const handoff = () => ({ current: () => true, retain: () => new Uint8Array([4, 8]) });
+    it('refuses primitive consent even before any embedding lease has been claimed', async () => {
+        const api = await import('./native-runtime.js'), d = await import('./checkpoint-domain.js');
+        const generation = api.isolateCemFallbackGeneration(); await generation.ready();
+        const domain = d.cemMainThreadCheckpointDomain, client = domain.client();
+        d.nativeCheckpointRetirementCleanup(client, () => undefined);
+        for (const token of [0, -0, false, '', null, undefined, { kind: 'cem-fallback-retirement-consent' }]) {
+            await expect(d.closeNativeRenderingGeneration(client, 5000, token as object)).rejects.toThrow('ownership');
+            expect(domain.pressureReason()).toBeUndefined();
+        }
+        expect(mocks.dispose).not.toHaveBeenCalled();
+    });
+    it('requires original closed consent and releases covered resources without invalidating the current handoff', async () => {
+        const { api, domains: d, generation, client, cleanup, consent, bindings } = await active();
+        await expect(d.closeNativeRenderingGeneration(client, 5000, { ...consent })).rejects.toThrow('ownership');
+        const proof = await d.closeNativeRenderingGeneration(client, 5000, consent);
+        const copy = generation.retirementConsent;
+        expect(() => copy([])).toThrow();
+        await expect(d.retireNativeRenderingGeneration(bindings, [], proof, handoff(), 5000, { ...consent })).rejects.toThrow('ownership');
+        expect(cleanup).not.toHaveBeenCalled();
+        const bytes = new Uint8Array([4, 8]);
+        const retired = await d.retireNativeRenderingGeneration(bindings, [], proof, { current: () => true, retain: () => bytes }, 5000, consent);
+        bytes[0] = 9; expect([...retired.checkpoint]).toEqual([4, 8]);
+        expect(cleanup).toHaveBeenCalledOnce(); expect(mocks.dispose).toHaveBeenCalledOnce();
+        expect(retired.replacementAllowed).toBe(false); expect(api.nativeRuntimeUsable()).toBe(false);
+        expect(() => api.cemQlVersion()).toThrow('retired');
+    });
+    it('performs post-cleanup handoff callbacks only while the native permit is held', async () => {
+        const { domains: d, domain, client, cleanup, consent, bindings } = await active();
+        let cleaned = false, frozen = false;
+        cleanup.mockImplementation(() => { domain.release('template', 7); cleaned = true; });
+        mocks.dispose.mockImplementationOnce(() => { frozen = true; });
+        const proof = await d.closeNativeRenderingGeneration(client, 5000, consent);
+        await d.retireNativeRenderingGeneration(bindings, [], proof, {
+            current: () => { if (cleaned && !frozen) throw new Error('callback before native freeze'); return true; },
+            retain: () => new Uint8Array([1]),
+        }, 5000, consent);
+        expect(frozen).toBe(true);
+    });
+    it.each(['cleanup', 'freeze'])('refuses an expired synchronous %s deadline without releasing references', async phase => {
+        const { api, domain, domains: d, client, cleanup, consent, bindings } = await active();
+        let now = 0; const clock = vi.spyOn(performance, 'now').mockImplementation(() => now);
+        let frozen = false;
+        try {
+            cleanup.mockImplementation(() => { domain.release('template', 7); if (phase === 'cleanup') now = 10; });
+            mocks.dispose.mockImplementationOnce(() => { frozen = true; });
+            const proof = await d.closeNativeRenderingGeneration(client, 5, consent);
+            await expect(d.retireNativeRenderingGeneration(bindings, [], proof, {
+                current: () => { if (phase === 'freeze' && frozen) now = 10; return true; }, retain: () => new Uint8Array([1]),
+            }, 5, consent)).rejects.toThrow();
+            expect(api.nativeRuntimeUsable()).toBe(false);
+        } finally { clock.mockRestore(); }
+    });
+    it('refuses omitted peers, unregistered cleanup, copied drain and stale embedding consent before cleanup', async () => {
+        const { domain, domains: d, generation, lease, client, cleanup, consent, bindings } = await active();
+        const peer = domain.client();
+        const proof = await d.closeNativeRenderingGeneration(client, 5000, consent);
+        await expect(d.retireNativeRenderingGeneration(bindings, [], proof, handoff(), 5000, consent)).rejects.toThrow('coverage');
+        const all = new Map([...bindings, [peer, ['peer']]]);
+        await expect(d.retireNativeRenderingGeneration(all, [], proof, handoff(), 5000, consent)).rejects.toThrow('cleanup');
+        await expect(d.retireNativeRenderingGeneration(all, [], { ...proof }, handoff(), 5000, consent)).rejects.toThrow('coverage');
+        generation.releaseOwnership(lease);
+        await expect(d.retireNativeRenderingGeneration(all, [], proof, handoff(), 5000, consent)).rejects.toThrow();
+        expect(cleanup).not.toHaveBeenCalled(); expect(mocks.dispose).not.toHaveBeenCalled();
+    });
+    it.each(['input', 'ledger', 'native', 'freeze'])('fences failed %s preparation without releasing references or handoff bytes', async change => {
+        const { api, domain, domains: d, generation, lease, client, cleanup, consent, bindings } = await active();
+        let current = true; const bytes = new Uint8Array([6]);
+        cleanup.mockImplementation(() => {
+            domain.release('template', 7);
+            if (change === 'input') current = false;
+            if (change === 'ledger') domain.changed();
+        });
+        if (change === 'native') mocks.dispose.mockImplementationOnce(() => { throw new Error('native root'); });
+        if (change === 'freeze') mocks.dispose.mockImplementationOnce(() => generation.releaseOwnership(lease));
+        const proof = await d.closeNativeRenderingGeneration(client, 5000, consent);
+        await expect(d.retireNativeRenderingGeneration(bindings, [], proof, { current: () => current, retain: () => bytes }, 5000, consent)).rejects.toThrow();
+        expect([...bytes]).toEqual([6]); expect(api.nativeRuntimeUsable()).toBe(false);
+        expect(d.nativeCheckpointDrainCurrent(proof)).toBe(false);
+        expect(() => api.cemQlVersion()).toThrow('retired');
     });
 });

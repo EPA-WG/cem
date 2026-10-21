@@ -2394,3 +2394,119 @@ export const OwnedFallbackGenerationAndOwnership: Story = {
         } finally { stop(); frame.remove(); }
     },
 };
+
+async function isolatedActiveFallback(base: string, load: (url: string) => Promise<any>, scenario: string): Promise<string> {
+    const support = new URL('lib/internal/runtime-support/', base).href;
+    const binding = await load(`${support}native-runtime.js`), generation = binding.isolateCemFallbackGeneration();
+    await generation.ready(); const owner = generation.claimOwnership(), extra = generation.claimOwnership();
+    const [{ CemElementRuntime }, { createCemDeclarationScope }, { CemCheckpointPublicationCoordinator }, hosts, legacy] = await Promise.all([
+        load(new URL('lib/cem-elements.js', base).href), load(new URL('lib/declaration-scope.js', base).href),
+        load(new URL('lib/checkpoint-publication.js', base).href), load(`${support}processing-host-runtime.js`), load(`${support}vendor/cem_ql.js`),
+    ]);
+    const check = (condition: unknown, message: string) => { if (!condition) throw new Error(message); };
+    const refuses = async (operation: () => unknown | Promise<unknown>, code?: string) => {
+        let failed = false; try { await operation(); } catch (error) { failed = !code || String(error).includes(code); }
+        check(failed, `expected refusal: ${code ?? scenario}`);
+    };
+    await legacy.default();
+    const legacyTemplate = JSON.parse(legacy.compileTemplate('{p | Independent legacy heap}', '[]')).artifactId;
+    const scope = createCemDeclarationScope({ document }), workerFactory = () => { throw new Error('owned active fallback'); };
+    const coordinator = new CemCheckpointPublicationCoordinator({ runtimeId: crypto.randomUUID(), generation: 1, policyStamp: 'private',
+        allowOwner: () => true, seal: (candidate: string, receipt: string) => legacy.sealCommittedCheckpoint(candidate, receipt) });
+    const runtime = new CemElementRuntime({ declarationScope: scope, declarationTag: `declaration-${crypto.randomUUID()}`,
+        checkpointPublication: coordinator, processingWorkerFactory: workerFactory,
+        httpResourcePolicy: { allowCrossOrigin: true }, loadHttpResource: async (request: { resolvedUrl: string }) => ({
+            response: { url: request.resolvedUrl, status: 200, statusText: 'OK', ok: true, redirected: false,
+                headers: { 'content-type': 'application/xml' }, contentType: 'application/xml' },
+            body: (async function* () { yield new TextEncoder().encode('<catalog><entry>Owned portable source</entry></catalog>'); })(),
+        }) });
+    const host = hosts.cemProcessingHostForScope(scope, { workerScriptUrl: `${support}processing-worker.js`, workerFactory });
+    const peerScope = createCemDeclarationScope({ document });
+    const peerRuntime = new CemElementRuntime({ declarationScope: peerScope, declarationTag: `declaration-${crypto.randomUUID()}`,
+        checkpointPublication: coordinator, processingWorkerFactory: workerFactory });
+    try {
+        const peerDeclaration = document.createElement('div'), peerTemplate = document.createElement('template'), peerTag = `peer-${crypto.randomUUID()}`;
+        peerDeclaration.setAttribute('tag', peerTag); peerTemplate.type = 'text/cem-ml'; peerTemplate.textContent = '{p | Another covered fallback owner}';
+        peerDeclaration.append(peerTemplate); document.body.append(peerDeclaration); peerRuntime.registerDeclaration(peerDeclaration);
+        await peerRuntime.whenDeclarationSettled(peerDeclaration);
+        const peer = document.createElement(peerTag); document.body.append(peer); await peerRuntime.whenRenderSettled(peer);
+        const declaration = document.createElement('div'), template = document.createElement('template'), tag = `active-${crypto.randomUUID()}`;
+        declaration.setAttribute('tag', tag); template.type = 'text/cem-ml';
+        template.textContent = '{style | ``` :scope { color: inherit; } ```}{http-request @slice=remote @url="https://example.test/active.xml" @content-type="application/xml"}'
+            + '{p | {$datadom.slices.remote.state}}{slice @name=typed}{label | Draft {input @name=draft @slice=typed @slice-event=input @slice-value="$target.value"}}{output | {$typed}}';
+        declaration.append(template); document.body.append(declaration); runtime.registerDeclaration(declaration); await runtime.whenDeclarationSettled(declaration);
+        const instance = document.createElement(tag); document.body.append(instance); await runtime.whenRenderSettled(instance);
+        const input = instance.querySelector('input')!; input.focus(); input.value = 'Owned Amsterdam draft'; input.setSelectionRange(2, 9); input.dispatchEvent(new Event('input', { bubbles: true }));
+        await runtime.whenRenderSettled(instance);
+        for (let attempt = 0; ; attempt++) {
+            try { await coordinator.capture(); break; }
+            catch (error) { if (attempt >= 100) throw error; await new Promise(resolve => setTimeout(resolve, 10)); }
+        }
+        check(instance.textContent?.includes('loaded'), 'HTTP source did not settle');
+        check(coordinator.lastCommitted().receipt.owners.length === 2 && host.mode === 'main-thread', 'fallback peer was not covered');
+        const styles = [...document.querySelectorAll('style')];
+        check(styles.length > 0, 'native stylesheet was not installed');
+        const consent = generation.retirementConsent([owner, extra]);
+        await refuses(() => coordinator.closeRenderingGeneration(5000, { ...consent }), 'ownership');
+        if (scenario === 'unmanaged') binding.compileTemplate('{p | Unmanaged owned root}', '[]');
+        const proof = await coordinator.closeRenderingGeneration(5000, consent);
+        await coordinator.capture();
+        const bytes = coordinator.lastCommitted().bytes, before = [...bytes].join(',');
+        if (scenario === 'ownership') generation.releaseOwnership(extra);
+        if (scenario === 'input') {
+            input.value = 'Newer unsaved owned draft'; input.dispatchEvent(new Event('input', { bubbles: true }));
+            await runtime.whenRenderSettled(instance); input.focus(); input.setSelectionRange(2, 9);
+        }
+        if (scenario === 'success') {
+            const id = coordinator.lastCommitted().receipt.owners[0].instanceId;
+            const operation = coordinator.operation(id); await coordinator.capture();
+            await refuses(() => coordinator.retireRenderingGeneration(proof, 5000, consent), 'operations.unknown');
+            check(binding.nativeRuntimeUsable(), 'unknown outcome released the generation');
+            operation.acknowledge(); await coordinator.capture();
+            const current = coordinator.lastCommitted().bytes;
+            const retired = await coordinator.retireRenderingGeneration(proof, 5000, consent);
+            check([...retired.checkpoint].join(',') === [...current].join(',') && !retired.replacementAllowed, 'checkpoint/journal bytes were lost');
+            check(new TextDecoder().decode(retired.checkpoint).includes('reimport-and-read-again'), 'portable HTTP source policy was omitted');
+            check(!binding.nativeRuntimeUsable() && !coordinator.current(), 'retired fallback still has authority');
+            check(coordinator.lastCommitted(), 'retirement discarded last-good host bytes');
+            await refuses(() => binding.cemQlVersion(), 'retired');
+            await refuses(() => generation.ready(), 'retired');
+        } else {
+            await refuses(() => coordinator.retireRenderingGeneration(proof, 5000, consent));
+            check([...coordinator.lastCommitted().bytes].join(',') === before, 'failure replaced host checkpoint bytes');
+            check(binding.nativeRuntimeUsable() === (scenario !== 'unmanaged'), 'incorrect failure fencing');
+        }
+        check(styles.every(style => style.isConnected), 'retirement removed installed stylesheets');
+        check(input.isConnected && document.activeElement === input && input.selectionStart === 2 && input.selectionEnd === 9, 'retirement lost DOM/focus/selection');
+        check(input.value === (scenario === 'input' ? 'Newer unsaved owned draft' : 'Owned Amsterdam draft'), 'retirement lost edits');
+        check(legacy.disposeTemplate(legacyTemplate), 'owned retirement affected legacy memory');
+        const fresh = JSON.parse(legacy.compileTemplate('{p | Legacy remains open}', '[]')).artifactId; legacy.disposeTemplate(fresh);
+        return `${scenario} active fallback passed`;
+    } finally { scope.dispose(); peerScope.dispose(); coordinator.dispose(); document.body.replaceChildren(); }
+}
+
+export const ActiveFallbackRetirement: Story = {
+    render: () => '<section aria-label="Active fallback retirement"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section')!, base = new URL('../../dist/', import.meta.url).href;
+        for (const scenario of ['success', 'unmanaged', 'ownership', 'input']) {
+            const frame = document.createElement('iframe'), id = crypto.randomUUID(); frame.title = 'Isolated active fallback retirement'; root.append(frame);
+            let stop = () => undefined;
+            try {
+                const completed = new Promise<string>((resolve, reject) => {
+                    const timer = setTimeout(() => reject(new Error(`active fallback timed out: ${scenario}`)), 15000);
+                    const receive = (event: MessageEvent) => {
+                        if (event.source !== frame.contentWindow || event.data?.id !== id) return;
+                        clearTimeout(timer); if (event.data.error) reject(new Error(event.data.error)); else resolve(event.data.result);
+                    };
+                    window.addEventListener('message', receive); stop = () => { clearTimeout(timer); window.removeEventListener('message', receive); };
+                });
+                const hook = import.meta.env.MODE === 'test' ? 'globalThis.__vitest_browser_runner__ = { wrapDynamicImport: f => f() };' : '';
+                frame.srcdoc = `<script type="module">${hook}(${isolatedActiveFallback.toString()})(${JSON.stringify(base)}, url => import(url), ${JSON.stringify(scenario)})
+                    .then(result => parent.postMessage({ id: ${JSON.stringify(id)}, result }, '*'),
+                        error => parent.postMessage({ id: ${JSON.stringify(id)}, error: error.stack || String(error) }, '*'));</script>`;
+                expect(await completed).toBe(`${scenario} active fallback passed`);
+            } finally { stop(); frame.remove(); }
+        }
+    },
+};

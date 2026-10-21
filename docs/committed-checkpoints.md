@@ -970,14 +970,14 @@ wait. Timeout, worker loss, malformed confirmation or late completion cannot
 revive retirement authority or replay actions. Normal explicit scope disposal
 continues to tear down its worker and releases pool ownership.
 
-Main-thread/fallback clients share one actual WASM memory with standalone native
+Default legacy main-thread/fallback clients share one WASM memory with standalone native
 helpers and possible raw aliases. The default legacy module loader has no exclusive
 memory disposal or fresh-module ownership boundary. Physical fallback retirement
 therefore rejects with `cem.runtime.retirement.unsupported` before changing
 admission or checkpoint state. It does not claim that revoking a handle frees
 that memory. Multi-generation publication domains similarly refuse a partial
 transaction before closing either heap. Coordinated multi-heap replacement,
-active fallback retirement and semantic resume remain explicit next work; this API does
+semantic resume remain explicit next work; this API does
 not enable automatic recovery in Studio. All behavior stays in shared
 `cem-elements` runtime support; components and Studio UI remain declarative.
 
@@ -1025,8 +1025,71 @@ instance. This reports release of owned references, not synchronous browser
 collection or an RSS reduction; externally retained raw references are outside
 that claim. Initialization failures are terminal for that selected instance.
 
-This is an empty-generation disposal boundary. The publication coordinator still
-refuses fallback retirement with active owners; checkpoint/journal handoff and
-terminal cleanup must be integrated with complete embedding consent before that
-path can be enabled. Replacement, resume, automatic recovery and Studio status
-remain subsequent work. The default legacy fallback behavior is unchanged.
+Empty disposal requires every managed client/resource to be released first.
+Active retirement uses the additional checkpoint/journal transaction below.
+Replacement, resume, automatic recovery and Studio status remain subsequent
+work. The default legacy fallback behavior is unchanged.
+
+
+### Active owned fallback retirement and checkpoint handoff
+
+An owned fallback can retire active processing hosts/scopes through the same
+publication coordinator used for worker retirement. Complete embedding consent
+must be issued before closing admission and passed unchanged to both calls:
+
+```ts
+// After isolateCemFallbackGeneration(), ready(), and ownership claims:
+const consent = fallback.retirementConsent([owner]);
+// Every participating host, published owner and retained source belongs to
+// this coordinator; include every embedding lease in retirementConsent().
+const drain = await publication.closeRenderingGeneration(5000, consent);
+await publication.capture();
+const retired = await publication.retireRenderingGeneration(drain, 5000, consent);
+// retired.checkpoint is an independent host copy; replacementAllowed is false.
+```
+
+The opaque consent token binds the selected actual memory and current original
+ownership set. Copies, foreign tokens, changed ownership and a different consent
+for an original closed drain refuse retirement. Consent array validation keeps
+the same bounded own-data-slot policy as empty disposal. No token can authorize
+another heap. Default legacy fallback remains unsupported before changing
+admission, checkpoint state or native owners; worker call signatures remain
+compatible without a consent argument.
+
+Closure drains admitted native work and stylesheet I/O before closing ordinary
+native entrypoints. Capture must then acknowledge the current complete owner,
+client and retained-source set. Unknown external-operation outcomes refuse
+handoff; acknowledging terminal outcomes requires another capture. Retirement
+retains independent bounded checkpoint/journal bytes before any terminal cleanup.
+Every covered client must have the original shared processing-host cleanup
+adapter; omitted peers, missing adapters, copied drains or stale sources refuse
+preparation.
+
+Fallback cleanup is synchronous. The domain permits only covered native resource
+deletions without changing the original host coverage revision. Membership,
+input, ownership, fresh work and unrelated ledger mutations keep their usual
+invalidation. Processing engines release their owned templates, documents,
+sessions, XPath libraries and native stylesheet leases; source/owner metadata
+stays available solely for final freshness validation. Existing light-DOM
+stylesheet installations and edited controls are retained.
+
+After cleanup, the private factory uses the existing complete native census and
+original zero-root freeze permit. Post-cleanup host freshness callbacks run only
+while that native freeze is held, so raw cleanup cannot race the last check.
+Original consent, drain coverage, sources and checkpoint/journal currentness are
+checked again before owned references are dropped. The positive preparation
+deadline is at most five seconds and is rechecked after synchronous cleanup and
+final callbacks. It refuses late commit authority; it cannot preempt synchronous
+JavaScript or native CPU work.
+
+Success clears factory and domain memory/telemetry references, invalidates old
+native handles and preserves independent checkpoint bytes, styles, edited values,
+focus and selection. Callback installation uses a separate scope from native
+initialization so endpoint closures do not retain its memory/module locals.
+Release still reports owned references, not synchronous browser GC or an RSS
+bound. Preparation failure fences the managed generation, preserves last-good
+host bytes and edited DOM, and never selects fallback or replays actions. A heap
+blocked by unmanaged roots can remain quarantined until realm destruction;
+failure does not claim that its memory was released. Earlier refusal before
+cleanup retains closed admission and ordinary cleanup ownership. No replacement,
+semantic resume or automatic Studio recovery is enabled by this transaction.

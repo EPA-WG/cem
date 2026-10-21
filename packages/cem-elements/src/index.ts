@@ -52,4 +52,4 @@ export type { CemCheckpointRelationship } from './lib/committed-checkpoint.js';
 
 export type { CemNativeDrain, CemRetiredRenderingGeneration } from './lib/internal/runtime-support/checkpoint-domain.js';
 
-export { isolateCemFallbackGeneration, type CemOwnedFallbackGeneration, type CemFallbackWasmOwnership, type CemDisposedFallbackGeneration } from './lib/internal/runtime-support/native-runtime.js';
+export { isolateCemFallbackGeneration, type CemOwnedFallbackGeneration, type CemFallbackWasmOwnership, type CemFallbackRetirementConsent, type CemDisposedFallbackGeneration } from './lib/internal/runtime-support/native-runtime.js';
