@@ -1,4 +1,5 @@
 import { nativeCheckpointSnapshot, nativeCheckpointIdentity, nativeCheckpointSourceProof, nativeCheckpointSubscribe } from './checkpoint-domain.js';
+import { nativeCheckpointDrain, nativeCheckpointDrainCurrent } from './checkpoint-domain.js';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('./cem-ql-render.js', () => ({
@@ -53,6 +54,7 @@ import {
     cemProcessingFailureDiagnostics,
     createCemProcessingFailureEnvelope,
     createCemProcessingReadyEnvelope,
+    createCemProcessingPressureEnvelope,
     createCemProcessingSuccessEnvelope,
     createCemProcessingTextSource,
     type CemProcessingRequestEnvelope,
@@ -62,6 +64,50 @@ import {
 import type { CemProcessingSchedulingTraceEvent } from './processing-scheduler.js';
 
 describe('Phase 3B processing-host runtime', () => {
+    it('keeps stylesheet I/O in a pressure drain and permits explicit release after closure', async () => {
+        class StylesheetWorker extends ControlledProcessingWorker {
+            override postMessage(request: CemProcessingRequestEnvelope): void {
+                if (request.operation === 'stylesheet') {
+                    this.requests.push(request);
+                    const response = request.payload.action === 'begin'
+                        ? { status: 'pending' as const, loadId: 'load', request: { id: 1, url: 'https://example.test/pending.css', contentType: null, integrity: null } }
+                        : { status: 'released' as const, count: 1 };
+                    queueMicrotask(() => this.emit('message', createCemProcessingSuccessEnvelope(request, response)));
+                } else super.postMessage(request);
+            }
+        }
+        const worker = new StylesheetWorker(), scope = createCemDeclarationScope({ document: {} as Document });
+        const host = cemProcessingHostForScope(scope, { workerScriptUrl: new URL('https://example.test/pressure.js'),
+            workerFactory: () => worker as unknown as Worker });
+        const job = host.compile(compileInput('stylesheet')); await flushMicrotasks(); worker.respondNext(); const { artifact } = await job.result;
+        // Begin performs the normal preflight, which the controlled worker holds.
+        const load = host.stylesheet({ ...stylesheetBegin, artifact, consumer: 'menu' });
+        await flushMicrotasks(); worker.respondNext(); await load.result;
+        worker.pressure(); let settled = false;
+        const drained = nativeCheckpointDrain(host.checkpointClient!).then(proof => { settled = true; return proof; });
+        await flushMicrotasks(); expect(settled).toBe(false);
+        await host.stylesheet({ action: 'release', artifact, consumer: 'menu' }).result;
+        expect(nativeCheckpointDrainCurrent(await drained)).toBe(true);
+        await host.dispose({ reason: 'runtime-disposed' }).result; scope.dispose();
+    });
+    it('pressure-closes every pooled root without fallback or replay and drains queued jobs', async () => {
+        const worker = new ControlledProcessingWorker(), document = {} as Document;
+        const a = createCemDeclarationScope({ document }), b = createCemDeclarationScope({ document });
+        const options = { workerScriptUrl: new URL('https://example.test/pressure.js'),
+            workerFactory: () => worker as unknown as Worker, poolPolicy: { workerCount: 1, maxWorkers: 1, queueSize: 8 } };
+        const first = cemProcessingHostForScope(a, options), second = cemProcessingHostForScope(b, options);
+        const running = first.compile(compileInput('active')), queued = second.compile(compileInput('queued'));
+        await flushMicrotasks(); worker.pressure();
+        const drained = nativeCheckpointDrain(first.checkpointClient!);
+        await expect(second.compile(compileInput('refused')).result).rejects.toThrow('cem.runtime.memory.closed');
+        expect(worker.requests).toHaveLength(1);
+        worker.respondNext(); await running.result; await flushMicrotasks(); worker.respondNext(); await queued.result;
+        const proof = await drained; expect(nativeCheckpointDrainCurrent(proof)).toBe(true);
+        expect(first.mode).toBe('worker'); expect(second.mode).toBe('worker'); expect(worker.terminated).toBe(false);
+        await first.dispose({ reason: 'runtime-disposed' }).result;
+        expect(nativeCheckpointDrainCurrent(proof)).toBe(false);
+        await second.dispose({ reason: 'runtime-disposed' }).result; a.dispose(); b.dispose();
+    });
     it('shares a bounded worker slot across roots with FIFO-per-root fair dispatch and deterministic traces', async () => {
         const worker = new ControlledProcessingWorker();
         const workerFactory: CemProcessingWorkerFactory = vi.fn(() => worker as unknown as Worker);
@@ -246,6 +292,12 @@ class ControlledProcessingWorker {
 
     terminate(): void {
         this.terminated = true;
+    }
+
+    pressure(): void {
+        for (const listener of this.listeners.get('message') ?? []) {
+            listener({ data: createCemProcessingPressureEnvelope('soft-pressure') } as MessageEvent<unknown>);
+        }
     }
 
     protected emit(type: string, data: CemProcessingResponseEnvelope | ReturnType<typeof createCemProcessingReadyEnvelope>): void {

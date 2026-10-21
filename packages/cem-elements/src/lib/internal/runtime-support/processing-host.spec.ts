@@ -11,6 +11,7 @@ import {
     cemProcessingHostOwnerScope,
     createCemProcessingTextSource,
     createCemProcessingReadyEnvelope,
+    createCemProcessingPressureEnvelope,
     createCemProcessingRequestEnvelope,
     createCemProcessingSuccessEnvelope,
     decideCemProcessingWorkerFailure,
@@ -28,6 +29,13 @@ const REVISION: RenderRevision = {
 };
 
 describe('Phase 3A processing-host contract', () => {
+    it('accepts only bounded monotonic native pressure signals', () => {
+        const signal = createCemProcessingPressureEnvelope('soft-pressure');
+        expect(() => assertCemProcessingEnvelope(structuredClone(signal))).not.toThrow();
+        expect(() => assertCemProcessingEnvelope({ ...signal, reason: 'resume' })).toThrow('pressure signal');
+        expect(() => assertCemProcessingEnvelope({ ...signal, replacement: true })).toThrow('pressure signal');
+        expect(() => assertCemProcessingEnvelope({ ...signal, protocolVersion: 'cem-processing-host-v24' })).toThrow('unsupported');
+    });
     it('retries native preparation but never restores live view or label handles after worker loss', () => {
         expect(decideCemProcessingWorkerFailure({ phase: 'execution', operation: 'native-session', action: 'prepare' })).toHaveProperty('action', 'retry-main-thread');
         for (const action of ['view', 'render'] as const) {

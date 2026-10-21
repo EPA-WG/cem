@@ -8,6 +8,7 @@ vi.mock('./cem-ql-render.js', () => ({
     ensureRuntimeReady: mocks.ready, cemMlTemplateArtifactPayloadKey: mocks.hash,
 }));
 import { CemXPathFunctionLibraries, identifyXPathFunctionLibrary } from './xpath-function-library.js';
+import { cemMainThreadCheckpointDomain, nativeCheckpointDrain, nativeCheckpointDrainCurrent } from './checkpoint-domain.js';
 
 beforeEach(() => {
     vi.resetAllMocks();
@@ -85,5 +86,25 @@ describe('independently retained XPath library dependencies', () => {
         await expect(cache.acquire(dependency)).rejects.toThrow('count exceeds limit');
         cache.dispose();
         expect(mocks.dispose).toHaveBeenCalledTimes(64);
+    });
+    it('refuses cached acquisition after pressure and drains a pending direct acquisition through disposal', async () => {
+        const cache = new CemXPathFunctionLibraries(), held = new CemXPathFunctionLibraries(), dependency = await source();
+        const lease = await cache.acquire(dependency), client = cemMainThreadCheckpointDomain.client();
+        let resume!: () => void;
+        mocks.ready.mockImplementationOnce(() => new Promise<void>(resolve => { resume = resolve; }));
+        const pending = held.acquire(dependency);
+        const terminal = pending.then(() => 'ready', () => 'disposed');
+        try {
+            await vi.waitFor(() => expect(resume).toBeTypeOf('function'));
+            cemMainThreadCheckpointDomain.closeAdmission('soft-pressure');
+            await expect(cache.acquire(dependency)).rejects.toThrow('cem.runtime.memory.closed');
+            let complete = false;
+            const drain = nativeCheckpointDrain(client).then(proof => { complete = true; return proof; });
+            await Promise.resolve(); await Promise.resolve(); expect(complete).toBe(false);
+            held.dispose(); resume(); await terminal;
+            expect(nativeCheckpointDrainCurrent(await drain)).toBe(true);
+        } finally {
+            held.dispose(); resume?.(); await terminal; lease.release(); cache.dispose(); cemMainThreadCheckpointDomain.remove(client);
+        }
     });
 });

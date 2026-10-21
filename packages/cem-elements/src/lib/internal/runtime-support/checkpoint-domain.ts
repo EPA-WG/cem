@@ -9,6 +9,7 @@ interface Client {
     pending: number;
     listeners: Set<() => void>;
     requiredOwners?: (sources: ReadonlySet<string>) => readonly string[] | undefined;
+    settled?: () => boolean;
 }
 const clients = new WeakMap<CemCheckpointNativeClient, Client>();
 const LIMIT = 256;
@@ -21,6 +22,14 @@ const physicalEnvironment = globalThis as typeof globalThis & {
 };
 const physicalOwners = physicalEnvironment[PHYSICAL_OWNERS] ??= new WeakMap();
 
+export type CemNativePressureReason = 'soft-pressure' | 'hard-pressure' | 'telemetry-unavailable';
+export class CemNativeAdmissionClosedError extends Error {
+    constructor() { super('cem.runtime.memory.closed'); this.name = 'CemNativeAdmissionClosedError'; }
+}
+export interface CemNativeDrain { readonly runtimeId: string; readonly revision: number }
+const drainProofs = new WeakMap<CemNativeDrain, CemNativeCheckpointDomain>();
+interface DrainWaiter { check(): void; fail(reason: string): void }
+
 export class CemNativeCheckpointDomain {
     private readonly runtimeId = crypto.randomUUID();
     private readonly members = new Set<Client>();
@@ -29,12 +38,21 @@ export class CemNativeCheckpointDomain {
     private alive = true;
     private nativeIdentity?: object;
     private overflow = false;
+    private pressure?: CemNativePressureReason;
+    private timedOut = false;
+    private readonly drains = new Set<DrainWaiter>();
+    private pressureSampler?: () => { softPressure: boolean; hardPressure: boolean };
+    private readonly pressureListeners = new Set<(reason: CemNativePressureReason) => void>();
+    private deadline?: ReturnType<typeof setTimeout>;
 
     constructor(private readonly mode: 'worker' | 'main-thread') {}
 
-    client(): CemCheckpointNativeClient {
+    /** A transient helper enrolls its pending lease in the same mutation as
+     * its client, and retires both together after its finally block. */
+    client(cleanup = false, work = false): CemCheckpointNativeClient {
+        this.assertAdmission(cleanup);
         const token = Object.freeze({ clientId: crypto.randomUUID() });
-        const client: Client = { token, domain: this, pending: 0, listeners: new Set() };
+        const client: Client = { token, domain: this, pending: work ? 1 : 0, listeners: new Set() };
         clients.set(token, client);
         if (this.members.size >= LIMIT) this.overflow = true; else this.members.add(client);
         this.changed();
@@ -44,6 +62,8 @@ export class CemNativeCheckpointDomain {
     move(token: CemCheckpointNativeClient): void {
         const client = clients.get(token);
         if (!client || client.domain === this) return;
+        this.assertAdmission();
+        if (client.domain.alive && client.domain.pressure) throw new CemNativeAdmissionClosedError();
         client.domain.members.delete(client); client.domain.changed();
         client.domain = this;
         if (this.members.size >= LIMIT) this.overflow = true; else this.members.add(client);
@@ -70,6 +90,84 @@ export class CemNativeCheckpointDomain {
     }
     revoke(): void { this.alive = false; this.changed(); }
 
+    /** Trusted native telemetry only; authored data never supplies this sampler. */
+    sampleWith(sampler: () => { softPressure: boolean; hardPressure: boolean }): void {
+        this.pressureSampler = sampler; this.samplePressure();
+    }
+    samplePressure(): void {
+        if (!this.pressureSampler || this.pressure) return;
+        try {
+            const sample = this.pressureSampler();
+            if (typeof sample.softPressure !== 'boolean' || typeof sample.hardPressure !== 'boolean') throw new Error('invalid native telemetry');
+            if (sample.hardPressure || sample.softPressure) this.closeAdmission(sample.hardPressure ? 'hard-pressure' : 'soft-pressure');
+        } catch { this.closeAdmission('telemetry-unavailable'); }
+    }
+    closeAdmission(reason: CemNativePressureReason): void {
+        if (this.pressure) return;
+        this.pressure = reason;
+        for (const listener of this.pressureListeners) { try { listener(reason); } catch { /* Closure must reach every client. */ } }
+        this.pressureListeners.clear(); this.changed();
+    }
+    onPressure(listener: (reason: CemNativePressureReason) => void): () => void {
+        if (this.pressure) listener(this.pressure); else this.pressureListeners.add(listener);
+        return () => { this.pressureListeners.delete(listener); };
+    }
+    pressureReason(): CemNativePressureReason | undefined { return this.pressure; }
+    assertAdmission(cleanup = false): void {
+        this.samplePressure();
+        if (!cleanup && this.pressure) throw new CemNativeAdmissionClosedError();
+    }
+    private settled(): boolean {
+        for (const client of this.members) {
+            try { if (client.pending || client.settled && !client.settled()) return false; }
+            catch { return false; }
+        }
+        return true;
+    }
+    drain({ timeoutMs = 5000, signal }: { timeoutMs?: number; signal?: AbortSignal } = {}): Promise<CemNativeDrain> {
+        if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60000) return Promise.reject(new Error('cem.runtime.drain.timeout-config'));
+        if (!this.pressure || !this.alive || this.overflow || this.timedOut || signal?.aborted || this.drains.size >= 16) return Promise.reject(new Error('cem.runtime.drain.unavailable'));
+        return new Promise((resolve, reject) => {
+            let queued = false, done = false;
+            const finish = (reason?: string) => {
+                if (done) return; done = true;
+                clearTimeout(timer); signal?.removeEventListener('abort', abort); this.drains.delete(waiter);
+                if (reason) reject(new Error(reason));
+                else {
+                    const proof = Object.freeze({ runtimeId: this.runtimeId, revision: this.revision });
+                    drainProofs.set(proof, this); resolve(proof);
+                }
+            };
+            const waiter: DrainWaiter = {
+                check: () => {
+                    if (!this.alive || this.overflow || this.timedOut) finish('cem.runtime.drain.unavailable');
+                    else if (!queued && !done && this.settled()) {
+                        queued = true;
+                        // Cleanup commonly releases a work lease and retires its
+                        // transient client in the same stack. Observe both.
+                        queueMicrotask(() => {
+                            queued = false;
+                            if (!this.alive || this.overflow || this.timedOut) finish('cem.runtime.drain.unavailable');
+                            else if (this.settled()) finish();
+                        });
+                    }
+                },
+                fail: finish,
+            };
+            const abort = () => finish('cem.runtime.drain.aborted');
+            const timer = setTimeout(() => {
+                this.timedOut = true;
+                for (const pending of [...this.drains]) pending.fail('cem.runtime.drain.timeout');
+                this.changed();
+            }, timeoutMs);
+            this.drains.add(waiter); signal?.addEventListener('abort', abort, { once: true }); waiter.check();
+        });
+    }
+    drainCurrent(proof: CemNativeDrain): boolean {
+        return drainProofs.get(proof) === this && proof.revision === this.revision && !!this.pressure
+            && this.alive && !this.overflow && !this.timedOut && this.settled();
+    }
+
     /** Retained support work begins unowned. Only its processing engine may
      * adopt it after successful preparation; direct callers remain a blocker. */
     retain(kind: string, id: number): void {
@@ -91,7 +189,7 @@ export class CemNativeCheckpointDomain {
     }
 
     snapshot(bindings: ReadonlyMap<CemCheckpointNativeClient, readonly string[]>, sources: ReadonlyMap<CemCheckpointNativeClient, ReadonlySet<string>>): CemCheckpointNativeRuntime | undefined {
-        if (!this.alive || this.overflow || !this.members.size) return undefined;
+        if (!this.alive || this.overflow || this.timedOut || !this.members.size || !this.settled()) return undefined;
         for (const token of this.resources.values()) if (!token || !bindings.has(token)) return undefined;
         const records = [];
         for (const client of this.members) {
@@ -113,9 +211,17 @@ export class CemNativeCheckpointDomain {
 
     changed(): void {
         if (!Number.isSafeInteger(++this.revision)) this.overflow = true;
+        if (this.pressure && this.alive && !this.timedOut && !this.settled()) {
+            this.deadline ??= setTimeout(() => {
+                this.deadline = undefined; this.timedOut = true;
+                for (const pending of [...this.drains]) pending.fail('cem.runtime.drain.timeout');
+                this.changed();
+            }, 5000);
+        } else { clearTimeout(this.deadline); this.deadline = undefined; }
         for (const client of this.members) for (const listener of client.listeners) {
             try { listener(); } catch { /* Observers cannot change native work or suppress peer invalidation. */ }
         }
+        for (const waiter of [...this.drains]) waiter.check();
     }
 }
 
@@ -144,11 +250,53 @@ export function nativeCheckpointRequirements(token: CemCheckpointNativeClient, r
     if (!client || client.requiredOwners) throw new Error('cem.checkpoint.native-client');
     client.requiredOwners = requiredOwners;
 }
+export function nativeCheckpointDrainRequirements(token: CemCheckpointNativeClient, settled: () => boolean): void {
+    const client = clients.get(token);
+    if (!client || client.settled) throw new Error('cem.checkpoint.native-client');
+    client.settled = settled;
+}
+export function nativeCheckpointAssertAdmission(token: CemCheckpointNativeClient, cleanup = false): void {
+    const client = clients.get(token);
+    if (!client) throw new Error('cem.checkpoint.native-client');
+    client.domain.assertAdmission(cleanup);
+}
+export function nativeCheckpointDrain(token: CemCheckpointNativeClient, options?: { timeoutMs?: number; signal?: AbortSignal }): Promise<CemNativeDrain> {
+    return clients.get(token)?.domain.drain(options) ?? Promise.reject(new Error('cem.runtime.drain.unavailable'));
+}
+export function nativeCheckpointDrainCurrent(proof: CemNativeDrain): boolean { return drainProofs.get(proof)?.drainCurrent(proof) ?? false; }
+/** Independently recheck private drain witnesses and complete client/resource
+ * coverage. This is evidence for a future replacement gate, never authority to
+ * terminate a runtime or to roll an owner back to old checkpoint bytes. */
+export function nativeCheckpointClosedCoverage(
+    bindings: ReadonlyMap<CemCheckpointNativeClient, readonly string[]>,
+    sourceWitnesses: readonly CemCheckpointNativeSourceProof[],
+    proofs: readonly CemNativeDrain[],
+): CemCheckpointNativeRuntime[] | undefined {
+    const domains = new Set([...bindings.keys()].map(token => clients.get(token)?.domain));
+    if (!domains.size || domains.has(undefined) || proofs.length !== domains.size) return undefined;
+    const proven = new Set<CemNativeCheckpointDomain>();
+    for (const proof of proofs) {
+        const domain = drainProofs.get(proof);
+        if (!domain || proven.has(domain) || !domains.has(domain) || !domain.drainCurrent(proof)) return undefined;
+        proven.add(domain);
+    }
+    const sources = new Map<CemCheckpointNativeClient, Set<string>>();
+    for (const witness of sourceWitnesses) {
+        try {
+            if (!nativeCheckpointValidSourceProof(witness) || !witness.current() || !bindings.has(witness.client)) return undefined;
+        } catch { return undefined; }
+        const resources = sources.get(witness.client) ?? new Set<string>();
+        resources.add(witness.resource); sources.set(witness.client, resources);
+    }
+    const snapshot = nativeCheckpointSnapshot(bindings, sources);
+    return proofs.every(nativeCheckpointDrainCurrent) ? snapshot : undefined;
+}
 export function nativeCheckpointRefuse(token: CemCheckpointNativeClient): void { clients.get(token)?.domain.revoke(); }
 export function nativeCheckpointChanged(token: CemCheckpointNativeClient): void { clients.get(token)?.domain.changed(); }
-export function nativeCheckpointAdmission(token: CemCheckpointNativeClient): () => void {
+export function nativeCheckpointAdmission(token: CemCheckpointNativeClient, cleanup = false): () => void {
     const client = clients.get(token);
-    if (!client) return () => undefined;
+    if (!client) throw new Error('cem.checkpoint.native-client');
+    nativeCheckpointAssertAdmission(token, cleanup);
     client.pending++;
     if (client.pending > LIMIT) client.domain.revoke(); else client.domain.changed();
     let released = false;
@@ -197,10 +345,10 @@ export function cemWorkerCheckpointDomain(worker: object): CemNativeCheckpointDo
 
 /** Standalone support calls are native clients too. They may finish normally,
  * but cannot be omitted from an in-flight generation coverage receipt. */
-export function nativeCheckpointWork<Args extends unknown[], Result>(operation: (...args: Args) => Promise<Result>): (...args: Args) => Promise<Result> {
+export function nativeCheckpointWork<Args extends unknown[], Result>(operation: (...args: Args) => Promise<Result>, cleanup = false): (...args: Args) => Promise<Result> {
     return async (...args) => {
-        const client = cemMainThreadCheckpointDomain.client();
-        try { return await operation(...args); }
-        finally { cemMainThreadCheckpointDomain.remove(client); }
+        const client = cemMainThreadCheckpointDomain.client(cleanup, true);
+        try { nativeCheckpointAssertAdmission(client, cleanup); return await operation(...args); }
+        finally { cemMainThreadCheckpointDomain.samplePressure(); cemMainThreadCheckpointDomain.remove(client); }
     };
 }

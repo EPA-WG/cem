@@ -1,4 +1,5 @@
 import type { CemNativeSessionHandle, CemNativeSessionSources, CemNativeSessionImport, CemNativeSuggestionsConfig } from '../../native-capability-session.js';
+import { CemNativeAdmissionClosedError, type CemNativePressureReason } from './checkpoint-domain.js';
 import type { CemElementReferenceInputs, CemElementPlacementUse } from '../../element-reference-inputs.js';
 import type { CemModuleUrlContextWire } from './module-url-resolution.js';
 import type { NativeCemAttributeBinding, NativeCemSliceBinding, NativeCemValue, CemValueArtifactLimits } from "../../native-values.js";
@@ -19,7 +20,7 @@ import {
 } from '../../declaration-scope.js';
 
 /** @internal Phase 3A worker/main-thread protocol. Not a public package export. */
-export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v24' as const;
+export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v25' as const;
 
 export const CEM_PROCESSING_HOST_CAPABILITIES = [
     'compile',
@@ -52,6 +53,7 @@ export class CemProcessingDiagnosticError extends Error {
 }
 
 export function cemProcessingFailureDiagnostics(error: unknown): Array<CemProcessingDiagnostic | CemProcessingStylesheetDiagnostic> {
+    if (error instanceof CemNativeAdmissionClosedError) return [{ code: 'cem.runtime.memory.closed', severity: 'error', message: error.message }];
     if (error instanceof CemProcessingDiagnosticError) return error.diagnostics;
     return [{ code: 'cem.processing_host.execution_failed', severity: 'error',
         message: error instanceof Error ? error.message : 'the CEM processing job failed' }];
@@ -452,9 +454,20 @@ export interface CemProcessingReadyEnvelope {
     capabilities: typeof CEM_PROCESSING_HOST_CAPABILITIES;
 }
 
+/** A monotonic refusal signal from the actual worker, never replacement authority. */
+export interface CemProcessingPressureEnvelope {
+    protocolVersion: typeof CEM_PROCESSING_HOST_PROTOCOL_VERSION;
+    direction: 'pressure';
+    reason: CemNativePressureReason;
+}
+export function createCemProcessingPressureEnvelope(reason: CemNativePressureReason): CemProcessingPressureEnvelope {
+    return { protocolVersion: CEM_PROCESSING_HOST_PROTOCOL_VERSION, direction: 'pressure', reason };
+}
+
 export type CemProcessingEnvelope =
     | CemProcessingRequestEnvelope
     | CemProcessingResponseEnvelope
+    | CemProcessingPressureEnvelope
     | CemProcessingReadyEnvelope;
 
 /** Host-owned positive safe-integer IDs. Response IDs echo their request ID. */
@@ -572,6 +585,13 @@ export function assertCemProcessingEnvelope(envelope: unknown): asserts envelope
     const candidate = envelope as Record<string, unknown>;
     if (candidate.protocolVersion !== CEM_PROCESSING_HOST_PROTOCOL_VERSION) {
         throw new TypeError(`unsupported CEM processing-host protocol ${String(candidate.protocolVersion)}`);
+    }
+    if (candidate.direction === 'pressure') {
+        if (!['soft-pressure', 'hard-pressure', 'telemetry-unavailable'].includes(candidate.reason as string)
+            || Object.keys(candidate).some(key => !['protocolVersion', 'direction', 'reason'].includes(key))) {
+            throw new TypeError('invalid CEM processing-host pressure signal');
+        }
+        return;
     }
     if (candidate.direction !== 'request' && candidate.direction !== 'response' && candidate.direction !== 'ready') {
         throw new TypeError(`unsupported CEM processing-host envelope direction ${String(candidate.direction)}`);

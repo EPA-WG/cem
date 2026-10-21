@@ -1,4 +1,5 @@
 import { CemNativeCheckpointDomain, cemWorkerCheckpointDomain, cemMainThreadCheckpointDomain, nativeCheckpointAdmission, nativeCheckpointRequirements, nativeCheckpointChanged, nativeCheckpointRefuse, nativeCheckpointIdentity, nativeCheckpointGeneration, nativeCheckpointFailureFence, nativeCheckpointWitnessSource, type CemCheckpointNativeClient } from './checkpoint-domain.js';
+import { nativeCheckpointAssertAdmission, nativeCheckpointDrainRequirements } from './checkpoint-domain.js';
 import {
     onCemDeclarationScopeDispose,
     type CemDeclarationScope,
@@ -118,6 +119,11 @@ class CemProcessingWorkerTransport {
         try {
             assertCemProcessingEnvelope(event.data);
             const envelope = event.data;
+            if (envelope.direction === 'pressure') {
+                if (!this.readySettled) throw new TypeError('pressure signal before worker readiness');
+                this.checkpointDomain.closeAdmission(envelope.reason);
+                return;
+            }
             if (envelope.direction === 'ready') {
                 if (this.readySettled || envelope.mode !== 'worker') {
                     throw new TypeError('the CEM processing worker sent an invalid ready transition');
@@ -556,6 +562,7 @@ class RootCemProcessingHost implements CemProcessingHost {
                 || [...this.documentInputs.keys()].some(key => !sources.has(`document:${key}`))) return undefined;
             return [...this.checkpointInstances.keys()];
         });
+        nativeCheckpointDrainRequirements(this.checkpointClient, () => !this.pendingStylesheetLoads.size);
         this.stopNativeOwnerLoss = this.lease.onFailure(() => { this.workerFailed = true; this.revokeNativeAuthority(); });
         try {
             this.initialReady = this.lease.ready.catch((error) => this.selectFallback(error).ready);
@@ -627,6 +634,7 @@ class RootCemProcessingHost implements CemProcessingHost {
 
     nativeSession(input: CemProcessingNativeSessionInput): CemProcessingJob<CemProcessingNativeSessionResult> {
         if (this.disposed) return this.disposedJob();
+        const refused = this.admissionRefusal<CemProcessingNativeSessionResult>(input.action === 'release' || input.action === 'release-suggestions'); if (refused) return refused;
         const failCleanup = nativeCheckpointFailureFence(this.checkpointClient);
         input = structuredClone(input);
         const publicHandle = { ...input.handle };
@@ -673,11 +681,13 @@ class RootCemProcessingHost implements CemProcessingHost {
 
     value(input: CemProcessingValueInput): CemProcessingJob<CemProcessingValueResult> {
         if (this.disposed) return this.disposedJob();
+        const refused = this.admissionRefusal<CemProcessingValueResult>(); if (refused) return refused;
         return this.submit('value', input);
     }
 
     stylesheet(input: CemProcessingStylesheetInput): CemProcessingJob<CemProcessingStylesheetResult> {
         if (this.disposed) return this.disposedJob();
+        const refused = this.admissionRefusal<CemProcessingStylesheetResult>(input.action !== 'begin'); if (refused) return refused;
         input = { ...input, consumer: JSON.stringify([this.stylesheetOwner, input.consumer]) };
         const key = JSON.stringify([input.artifact, input.consumer]);
         if (input.action !== 'release') this.stylesheetConsumers.set(key, { artifact: input.artifact, consumer: input.consumer });
@@ -713,6 +723,7 @@ class RootCemProcessingHost implements CemProcessingHost {
 
     document(input: CemProcessingDocumentInput): CemProcessingJob<CemProcessingDocumentResult> {
         if (this.disposed) return this.disposedJob();
+        const refused = this.admissionRefusal<CemProcessingDocumentResult>(input.action === 'release'); if (refused) return refused;
         const failCleanup = nativeCheckpointFailureFence(this.checkpointClient);
         input = structuredClone(input);
         const key = JSON.stringify(input.handle);
@@ -735,12 +746,14 @@ class RootCemProcessingHost implements CemProcessingHost {
 
     compile(input: CemProcessingCompileInput): CemProcessingJob<CemProcessingCompileResult> {
         if (this.disposed) return this.disposedJob();
+        const refused = this.admissionRefusal<CemProcessingCompileResult>(); if (refused) return refused;
         this.compileInputs.set(compileInputKey(input.scopePolicyStamp, input.templateArtifactId), input);
         return this.submit('compile', input);
     }
 
     renderDiff(input: CemProcessingRenderDiffInput): CemProcessingJob<CemProcessingRenderDiffResult> {
         if (this.disposed) return this.disposedJob();
+        const refused = this.admissionRefusal<CemProcessingRenderDiffResult>(); if (refused) return refused;
         // Direct host render clients must also be represented in coverage.
         if (!this.checkpointInstances.has(input.revision.instanceId)) {
             if (this.checkpointInstances.size >= 256) nativeCheckpointRefuse(this.checkpointClient);
@@ -784,7 +797,7 @@ class RootCemProcessingHost implements CemProcessingHost {
             return { jobId, result: Promise.resolve({ disposed: true }) };
         }
         this.disposed = true;
-        const releaseCheckpoint = nativeCheckpointAdmission(this.checkpointClient);
+        const releaseCheckpoint = nativeCheckpointAdmission(this.checkpointClient, true);
         this.stopNativeOwnerLoss(); this.revokeNativeAuthority(); this.nativeAuthorityListeners.clear();
         this.removeDisposeListener?.();
         const request = createCemProcessingRequestEnvelope(this.sequence, 'dispose', input);
@@ -827,6 +840,12 @@ class RootCemProcessingHost implements CemProcessingHost {
         return { jobId: this.sequence.next(), result: Promise.reject(new Error('the CEM processing host is disposed')) };
     }
 
+    private admissionRefusal<Result>(cleanup = false): CemProcessingJob<Result> | undefined {
+        try { nativeCheckpointAssertAdmission(this.checkpointClient, cleanup); }
+        catch (error) { return { jobId: this.sequence.next(), result: Promise.reject(error) }; }
+        return undefined;
+    }
+
     private submit<TOperation extends CemProcessingOperation>(
         operation: TOperation,
         payload: Parameters<typeof createCemProcessingRequestEnvelope<TOperation>>[2],
@@ -836,7 +855,13 @@ class RootCemProcessingHost implements CemProcessingHost {
         let execution: { generation: string | undefined; mode: 'worker' | 'main-thread' } | undefined;
         const entering = () => { execution = { generation: nativeCheckpointGeneration(this.checkpointClient), mode: this.mode }; };
         const request = createCemProcessingRequestEnvelope(this.sequence, operation, payload);
-        const releaseCheckpoint = nativeCheckpointAdmission(this.checkpointClient);
+        const cleanup = operation === 'cancel' || operation === 'dispose'
+            || (operation === 'stylesheet' && (payload as CemProcessingStylesheetInput).action !== 'begin')
+            || operation === 'native-session' && ['release', 'release-suggestions'].includes((payload as CemProcessingNativeSessionInput).action)
+            || operation === 'document' && (payload as CemProcessingDocumentInput).action === 'release';
+        let releaseCheckpoint: () => void;
+        try { releaseCheckpoint = nativeCheckpointAdmission(this.checkpointClient, cleanup); }
+        catch (error) { return { jobId: request.jobId, result: Promise.reject(error), nativeCurrent: () => false }; }
         const scopePolicyStamp = requestScopePolicyStamp(request, this.jobPolicies);
         this.jobs.start(request.jobId);
         this.jobPolicies.set(request.jobId, scopePolicyStamp);

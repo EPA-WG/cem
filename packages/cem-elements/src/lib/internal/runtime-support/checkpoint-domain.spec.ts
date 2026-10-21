@@ -1,6 +1,129 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { CemNativeCheckpointDomain, nativeCheckpointAdmission, nativeCheckpointIdentity, nativeCheckpointSnapshot, nativeCheckpointRequirements, nativeCheckpointWitnessSource, nativeCheckpointSourceProof, nativeCheckpointFailureFence, nativeCheckpointWork, cemMainThreadCheckpointDomain, cemWorkerCheckpointDomain } from './checkpoint-domain.js';
 import { CemCheckpointPublicationCoordinator } from '../../checkpoint-publication.js';
+import { nativeCheckpointDrain, nativeCheckpointDrainCurrent, nativeCheckpointDrainRequirements, nativeCheckpointClosedCoverage, nativeCheckpointSubscribe } from './checkpoint-domain.js';
+
+describe('pressure admission and bounded draining', () => {
+    it('starts the bounded drain deadline on pressure even without a waiting caller', async () => {
+        vi.useFakeTimers();
+        try {
+            const domain = new CemNativeCheckpointDomain('worker'), client = domain.client();
+            const finish = nativeCheckpointAdmission(client); domain.closeAdmission('soft-pressure');
+            await vi.advanceTimersByTimeAsync(5001); finish();
+            await expect(nativeCheckpointDrain(client)).rejects.toThrow('unavailable');
+            expect(nativeCheckpointSnapshot(new Map([[client, ['a']]]))).toBeUndefined();
+        } finally { vi.useRealTimers(); }
+    });
+    it('closes the whole physical generation and drains existing work without buffering new work', async () => {
+        const domain = new CemNativeCheckpointDomain('worker'), a = domain.client(), b = domain.client();
+        const finish = nativeCheckpointAdmission(a);
+        domain.closeAdmission('soft-pressure');
+        expect(() => nativeCheckpointAdmission(b)).toThrow('cem.runtime.memory.closed');
+        expect(() => domain.client()).toThrow('cem.runtime.memory.closed');
+        let drained = false;
+        const draining = nativeCheckpointDrain(b).then(proof => { drained = true; return proof; });
+        await Promise.resolve(); expect(drained).toBe(false);
+        finish(); finish(); const proof = await draining;
+        expect(nativeCheckpointDrainCurrent(proof)).toBe(true);
+        expect(nativeCheckpointDrainCurrent({ ...proof })).toBe(false);
+        expect(nativeCheckpointSnapshot(new Map([[a, ['a']], [b, ['b']]]))).toBeDefined();
+        const cleanup = nativeCheckpointAdmission(a, true);
+        expect(nativeCheckpointDrainCurrent(proof)).toBe(false);
+        cleanup(); expect(nativeCheckpointDrainCurrent(proof)).toBe(false);
+        expect(nativeCheckpointDrainCurrent(await nativeCheckpointDrain(a))).toBe(true);
+    });
+    it('keeps host I/O in the drain even between native jobs', async () => {
+        const domain = new CemNativeCheckpointDomain('worker'), client = domain.client();
+        let pending = true; nativeCheckpointDrainRequirements(client, () => !pending);
+        domain.closeAdmission('hard-pressure');
+        let settled = false; const draining = nativeCheckpointDrain(client).then(() => { settled = true; });
+        await Promise.resolve(); expect(settled).toBe(false);
+        pending = false; domain.changed(); await draining; expect(settled).toBe(true);
+    });
+    it('fails closed at timeout, keeps work enrolled and never revives on late completion', async () => {
+        const domain = new CemNativeCheckpointDomain('worker'), client = domain.client(), finish = nativeCheckpointAdmission(client);
+        domain.closeAdmission('soft-pressure');
+        await expect(nativeCheckpointDrain(client, { timeoutMs: 1 })).rejects.toThrow('cem.runtime.drain.timeout');
+        finish(); await expect(nativeCheckpointDrain(client)).rejects.toThrow('unavailable');
+        expect(nativeCheckpointSnapshot(new Map([[client, ['a']]]))).toBeUndefined();
+        expect(() => nativeCheckpointAdmission(client)).toThrow('closed');
+        const cleanup = nativeCheckpointAdmission(client, true); cleanup();
+    });
+    it('cancels only the waiter and refuses revoked, open or invalid drain requests', async () => {
+        const domain = new CemNativeCheckpointDomain('worker'), client = domain.client(), finish = nativeCheckpointAdmission(client);
+        await expect(nativeCheckpointDrain(client)).rejects.toThrow('unavailable');
+        domain.closeAdmission('soft-pressure');
+        await expect(nativeCheckpointDrain(client, { timeoutMs: Infinity })).rejects.toThrow('timeout-config');
+        const controller = new AbortController();
+        const canceled = nativeCheckpointDrain(client, { signal: controller.signal }); controller.abort();
+        await expect(canceled).rejects.toThrow('aborted');
+        const revoked = nativeCheckpointDrain(client); domain.revoke();
+        await expect(revoked).rejects.toThrow('unavailable'); finish();
+    });
+    it('does not permit moving clients out of a pressure-closed live heap or into a closed heap', () => {
+        const a = new CemNativeCheckpointDomain('worker'), b = new CemNativeCheckpointDomain('main-thread');
+        const client = a.client(); a.closeAdmission('soft-pressure');
+        expect(() => b.move(client)).toThrow('closed');
+        a.revoke(); b.move(client); expect(nativeCheckpointIdentity(client)).toBe(b.identity());
+        b.closeAdmission('hard-pressure');
+        const c = new CemNativeCheckpointDomain('worker'), peer = c.client();
+        expect(() => b.move(peer)).toThrow('closed');
+    });
+    it('samples native pressure before admission and never reopens after lower telemetry', () => {
+        const domain = new CemNativeCheckpointDomain('main-thread'), client = domain.client();
+        let pressure = false; domain.sampleWith(() => ({ softPressure: pressure, hardPressure: false }));
+        pressure = true; domain.samplePressure(); pressure = false; domain.samplePressure();
+        expect(domain.pressureReason()).toBe('soft-pressure');
+        expect(() => nativeCheckpointAdmission(client)).toThrow('closed');
+        const unknown = new CemNativeCheckpointDomain('worker'); unknown.sampleWith(() => { throw new Error('lost'); });
+        expect(unknown.pressureReason()).toBe('telemetry-unavailable');
+    });
+    it('rechecks complete client/resource coverage independently of successful drain evidence', async () => {
+        const a = new CemNativeCheckpointDomain('worker'), b = new CemNativeCheckpointDomain('main-thread');
+        const first = a.client(), omitted = a.client(), second = b.client();
+        a.closeAdmission('soft-pressure'); b.closeAdmission('hard-pressure');
+        const proofs = await Promise.all([nativeCheckpointDrain(first), nativeCheckpointDrain(second)]);
+        const bindings = new Map([[first, ['editor']], [second, ['source']]]);
+        expect(nativeCheckpointClosedCoverage(bindings, [], proofs)).toBeUndefined();
+        bindings.set(omitted, ['other']);
+        expect(nativeCheckpointClosedCoverage(bindings, [], proofs)).toHaveLength(2);
+        expect(nativeCheckpointClosedCoverage(bindings, [], [proofs[0], proofs[0]])).toBeUndefined();
+        expect(nativeCheckpointClosedCoverage(bindings, [], proofs.map(proof => ({ ...proof })))).toBeUndefined();
+        a.retain('unknown', 1);
+        const fresh = await Promise.all([nativeCheckpointDrain(first), nativeCheckpointDrain(second)]);
+        expect(nativeCheckpointClosedCoverage(bindings, [], fresh)).toBeUndefined();
+        a.release('unknown', 1);
+        const cleanup = nativeCheckpointAdmission(first, true);
+        expect(nativeCheckpointClosedCoverage(bindings, [], fresh)).toBeUndefined(); cleanup();
+    });
+    it('preserves last-good bytes on a timed-out pressure drain without admitting rollback', async () => {
+        const domain = new CemNativeCheckpointDomain('worker'), client = domain.client();
+        const coordinator = new CemCheckpointPublicationCoordinator({ runtimeId: 'logical', generation: 1, policyStamp: 'private',
+            allowOwner: () => true, seal: text => text });
+        const owner = coordinator.register('a', () => '<template/>', () => true, 0, () => [],
+            { host: {} as HTMLElement, nativeClient: client, resolve: () => undefined });
+        owner.published({ instanceId: 'a', declarationIdentity: 'source', dataRevision: '1' });
+        await coordinator.capture(); const lastGood = coordinator.lastCommitted()!.bytes;
+        const finish = nativeCheckpointAdmission(client); domain.closeAdmission('soft-pressure');
+        await expect(nativeCheckpointDrain(client, { timeoutMs: 1 })).rejects.toThrow('timeout');
+        finish(); expect(coordinator.current()).toBeUndefined();
+        await expect(coordinator.capture()).rejects.toThrow('unavailable');
+        expect(coordinator.lastCommitted()!.bytes).toEqual(lastGood);
+        coordinator.dispose(); domain.remove(client);
+    });
+    it('requires original current native source witnesses when verifying closed coverage', async () => {
+        const domain = new CemNativeCheckpointDomain('worker'), client = domain.client(), source = {};
+        let current = true;
+        nativeCheckpointRequirements(client, sources => sources.has('session:1') ? [] : undefined);
+        nativeCheckpointWitnessSource(source, client, 'session:1', () => current);
+        const witness = nativeCheckpointSourceProof(source)!, bindings = new Map([[client, ['editor']]]);
+        domain.closeAdmission('soft-pressure'); const proof = await nativeCheckpointDrain(client);
+        expect(nativeCheckpointClosedCoverage(bindings, [], [proof])).toBeUndefined();
+        expect(nativeCheckpointClosedCoverage(bindings, [{ ...witness }], [proof])).toBeUndefined();
+        expect(nativeCheckpointClosedCoverage(bindings, [witness], [proof])).toHaveLength(1);
+        current = false; expect(nativeCheckpointClosedCoverage(bindings, [witness], [proof])).toBeUndefined();
+    });
+});
 
 describe('physical checkpoint domains', () => {
     it('requires every actual client, rejects structural tokens and fences pending work', () => {
@@ -103,10 +226,15 @@ describe('physical checkpoint domains', () => {
     });
     it('tracks standalone asynchronous native helpers until completion and failure', async () => {
         const client = cemMainThreadCheckpointDomain.client(), bindings = new Map([[client, ['editor']]]);
+        let mutations = 0;
+        const stop = nativeCheckpointSubscribe(client, () => { mutations++; });
         let finish!: () => void;
         const work = nativeCheckpointWork(() => new Promise<void>(resolve => { finish = resolve; }));
         const pending = work(); expect(nativeCheckpointSnapshot(bindings)).toBeUndefined();
+        expect(mutations).toBe(1);
         finish(); await pending; expect(nativeCheckpointSnapshot(bindings)).toBeDefined();
+        expect(mutations).toBe(2);
+        stop();
         await expect(nativeCheckpointWork(async () => { throw new Error('refused'); })()).rejects.toThrow('refused');
         expect(nativeCheckpointSnapshot(bindings)).toBeDefined(); cemMainThreadCheckpointDomain.remove(client);
     });

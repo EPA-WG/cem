@@ -24,6 +24,7 @@ import { DEFAULT_CEM_VALUE_ARTIFACT_LIMITS, type NativeCemAttributeBinding, type
 // eslint-disable-next-line @nx/enforce-module-boundaries -- generated WASM bindings are the Phase 3A internal runtime boundary.
 import initCemQlWasm, {
     cemQlVersion,
+    runtimeMemoryStatus,
     validateCheckpointControls,
     validateCheckpointRuntime,
     compileTemplate,
@@ -144,7 +145,8 @@ export function releaseRetainedTemplateStylesheets(artifactId: number, consumer:
     return stylesheetResult(releaseTemplateStylesheets(artifactId, consumer, loadId));
 }
 
-export const processRetainedTemplateStylesheet = nativeCheckpointWork(processRetainedTemplateStylesheetOperation);
+export const processRetainedTemplateStylesheet = (...args: Parameters<typeof processRetainedTemplateStylesheetOperation>) =>
+    nativeCheckpointWork(processRetainedTemplateStylesheetOperation, args[1].action !== 'begin')(...args);
 async function processRetainedTemplateStylesheetOperation(
     artifactId: number, input: CemProcessingStylesheetInput, consumer: string,
     declarationIdentity: string, loadId = 0
@@ -491,6 +493,12 @@ export function ensureRuntimeReady(): Promise<void> {
             .then(native => {
                 cemMainThreadCheckpointDomain.bindNativeRuntime(native.memory);
                 ready = true;
+                cemMainThreadCheckpointDomain.sampleWith(() => {
+                    const telemetry = runtimeMemoryStatus();
+                    if (telemetry.length > 2048) throw new Error('Native memory telemetry exceeds bounds');
+                    // Explicit native telemetry DTO, never a CEM-tree handoff.
+                    return JSON.parse(telemetry) as { softPressure: boolean; hardPressure: boolean };
+                });
             });
     }
     return initPromise;
@@ -983,7 +991,8 @@ async function prepareRetainedNativeSessionOperation(input: Extract<CemProcessin
 }
 
 export function releaseRetainedNativeSession(id: number): void { disposeNativeCapabilitySession(id); cemMainThreadCheckpointDomain.release('session', id); }
-export const processRetainedSuggestionsPublication = nativeCheckpointWork(processRetainedSuggestionsPublicationOperation);
+export const processRetainedSuggestionsPublication = (...args: Parameters<typeof processRetainedSuggestionsPublicationOperation>) =>
+    nativeCheckpointWork(processRetainedSuggestionsPublicationOperation, args[1].action === 'release-suggestions')(...args);
 async function processRetainedSuggestionsPublicationOperation(id: number, input: Extract<CemProcessingNativeSessionInput,
     { action: 'publish-suggestions' | 'publish-datalist' | 'release-suggestions' | 'render-suggestions-frame' | 'suggestions-rows' }>): Promise<CemProcessingNativeSessionResult> {
     if (input.action === 'publish-datalist') {
@@ -1012,6 +1021,7 @@ async function processRetainedSuggestionsPublicationOperation(id: number, input:
     } finally { disposeRetainedCemMlTemplate(template.artifactId); }
 }
 export function exportRetainedNativeSessionView(id: number, input: Extract<CemProcessingNativeSessionInput, { action: 'view' }>): CemProcessingNativeSessionResult {
+    cemMainThreadCheckpointDomain.assertAdmission();
     const result = JSON.parse(nativeSessionCall(() => input.suggestions ? exportNativeSuggestionsView(id, JSON.stringify(input.suggestions), input.expression, input.index)
         : exportNativeCapabilityView(id, input.expression, input.index))) as { length: number; artifactId: number | null; contentHash: string | null };
     const artifact = result.artifactId == null ? undefined : takeRenderValueArtifact(result.artifactId).slice().buffer as ArrayBuffer;

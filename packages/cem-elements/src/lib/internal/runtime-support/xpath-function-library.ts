@@ -1,4 +1,4 @@
-import { cemMainThreadCheckpointDomain, type CemCheckpointNativeClient } from './checkpoint-domain.js';
+import { cemMainThreadCheckpointDomain, nativeCheckpointWork, type CemCheckpointNativeClient } from './checkpoint-domain.js';
 // Explicit executable dependency transport; never part of render data.
 // eslint-disable-next-line @nx/enforce-module-boundaries -- generated shared WASM control plane.
 import { retainCemtXPathFunctions, disposeCemtXPathFunctions } from '../../../../../cem_ql/dist/wasm/cem_ql.js';
@@ -58,6 +58,10 @@ export class CemXPathFunctionLibraries {
     private ownsCheckpointClient = false;
 
     async acquire(source: CemXPathFunctionLibrarySource, checkpointClient?: CemCheckpointNativeClient): Promise<CemXPathFunctionLibraryLease> {
+        return nativeCheckpointWork(() => this.acquireOperation(source, checkpointClient))();
+    }
+
+    private async acquireOperation(source: CemXPathFunctionLibrarySource, checkpointClient?: CemCheckpointNativeClient): Promise<CemXPathFunctionLibraryLease> {
         if (this.disposed) throw new Error('XPath library cache is disposed');
         if (!this.checkpointClient) {
             this.checkpointClient = checkpointClient ?? cemMainThreadCheckpointDomain.client();

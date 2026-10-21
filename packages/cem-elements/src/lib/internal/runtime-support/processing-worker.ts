@@ -1,12 +1,14 @@
 /// <reference lib="webworker" />
 
 import { CemProcessingEngine } from './processing-engine.js';
+import { cemMainThreadCheckpointDomain } from './checkpoint-domain.js';
 import {
     CemProcessingCancellationRegistry,
     cemProcessingFailureDiagnostics,
     assertCemProcessingEnvelope,
     createCemProcessingFailureEnvelope,
     createCemProcessingReadyEnvelope,
+    createCemProcessingPressureEnvelope,
     createCemProcessingSuccessEnvelope,
     type CemProcessingDiagnostic,
     type CemProcessingRequestEnvelope,
@@ -21,6 +23,7 @@ workerScope.addEventListener('message', (event: MessageEvent<unknown>) => {
 });
 
 workerScope.postMessage(createCemProcessingReadyEnvelope('worker'));
+cemMainThreadCheckpointDomain.onPressure(reason => workerScope.postMessage(createCemProcessingPressureEnvelope(reason)));
 
 async function handleMessage(message: unknown): Promise<void> {
     let request: CemProcessingRequestEnvelope;

@@ -2084,3 +2084,141 @@ export const SourceWorkerGenerationLossPreservesFallback: Story = {
         } finally { await session?.release(); await host.dispose({}).result; scope.dispose(); peer.dispose(); }
     },
 };
+
+/** Packaged runtime in a disposable realm: sticky pressure must never poison
+ * the runner's shared fallback module or any user's saved workspace. */
+async function isolatedNativePressure(base: string, fallback: boolean, load: (url: string) => Promise<any>): Promise<string> {
+    const support = new URL('lib/internal/runtime-support/', base).href;
+    const [{ CemElementRuntime }, { createCemDeclarationScope }, { CemCheckpointPublicationCoordinator }, native, domains, hosts] = await Promise.all([
+        load(new URL('lib/cem-elements.js', base).href),
+        load(new URL('lib/declaration-scope.js', base).href),
+        load(new URL('lib/checkpoint-publication.js', base).href),
+        load(`${support}vendor/cem_ql.js`),
+        load(`${support}checkpoint-domain.js`),
+        load(`${support}processing-host-runtime.js`),
+    ]);
+    const check = (condition: unknown, message: string) => { if (!condition) throw new Error(message); };
+    await native.default();
+    const original = JSON.parse(native.runtimeMemoryStatus()).config;
+    let worker: Worker | undefined, blob: string | undefined;
+    // Only this trusted fixture configures the worker's native budget. Normal
+    // production requests and authored CEM data cannot configure native heaps.
+    const workerFactory = () => {
+        if (fallback) throw new Error('isolated pressure fallback');
+        blob = URL.createObjectURL(new Blob([`
+            import * as native from ${JSON.stringify(`${support}vendor/cem_ql.js`)};
+            await native.default();
+            self.addEventListener('message', event => {
+                if (!event.data.fixturePressure) return;
+                native.configureRuntimeMemoryBudget(JSON.stringify({ ...JSON.parse(native.runtimeMemoryStatus()).config, softLimitBytes: 1 }));
+                event.data.port.postMessage('configured');
+            });
+            await import(${JSON.stringify(`${support}processing-worker.js`)});
+        `], { type: 'text/javascript' }));
+        worker = new Worker(blob, { type: 'module' }); return worker;
+    };
+    const scope = createCemDeclarationScope({ document });
+    const coordinator = new CemCheckpointPublicationCoordinator({ runtimeId: crypto.randomUUID(), generation: 1,
+        policyStamp: 'private', allowOwner: () => true, seal: (candidate: string, receipt: string) => native.sealCommittedCheckpoint(candidate, receipt) });
+    const runtime = new CemElementRuntime({ declarationScope: scope, declarationTag: `declaration-${crypto.randomUUID()}`,
+        checkpointPublication: coordinator, processingWorkerFactory: workerFactory,
+        processingPoolPolicy: { workerCount: 1, maxWorkers: 1, queueSize: 32 } });
+    const host = hosts.cemProcessingHostForScope(scope, { workerScriptUrl: `${support}processing-worker.js`, workerFactory,
+        poolPolicy: { workerCount: 1, maxWorkers: 1, queueSize: 32 } });
+    try {
+        const declaration = document.createElement('div'), template = document.createElement('template');
+        const tag = `pressure-${crypto.randomUUID()}`; declaration.setAttribute('tag', tag);
+        template.type = 'text/cem-ml';
+        template.textContent = '{slice @name=typed}{label | Draft {input @name=draft @slice=typed @slice-event=input @slice-value="$target.value"}}{output | {$typed}}';
+        declaration.append(template); document.body.append(declaration); runtime.registerDeclaration(declaration);
+        await runtime.whenDeclarationSettled(declaration);
+        const instance = document.createElement(tag); document.body.append(instance); await runtime.whenRenderSettled(instance);
+        const input = instance.querySelector('input')!; input.focus(); input.value = 'Preserve Amsterdam draft';
+        input.setSelectionRange(4, 12); input.dispatchEvent(new Event('input', { bubbles: true }));
+        await runtime.whenRenderSettled(instance);
+        for (let i = 0; ; i++) {
+            try { await coordinator.capture(); break; }
+            catch (error) { if (i >= 100) throw error; await new Promise(resolve => setTimeout(resolve, 10)); }
+        }
+        const lastGood = [...coordinator.lastCommitted().bytes].join(',');
+        const before = document.activeElement;
+        const sessionHandle = { instanceId: runtime.readInstanceSnapshot(instance).instanceId, sessionKey: 'pressure-source',
+            scopePolicyStamp: 'pressure', sourceRevision: '1' };
+        await host.nativeSession({ action: 'prepare', handle: sessionHandle, data: {}, select: 'input.children',
+            sources: { kind: 'cem-native-session-import-v1', bytes: new TextEncoder().encode('<data/>').buffer,
+                sourceUri: 'https://example.test/source.xml', contentType: 'application/xml' },
+            limits: { maxBytes: 256 * 1024, maxValues: 1024, maxDepth: 64 } }).result;
+        if (fallback) native.configureRuntimeMemoryBudget(JSON.stringify({ ...original, softLimitBytes: 1 }));
+        else {
+            const channel = new MessageChannel();
+            await new Promise<void>((resolve, reject) => {
+                const timer = setTimeout(() => reject(new Error('worker pressure setup timeout')), 5000);
+                channel.port1.onmessage = () => { clearTimeout(timer); channel.port1.close(); resolve(); };
+                worker!.postMessage({ fixturePressure: true, port: channel.port2 }, [channel.port2]);
+            });
+        }
+        let refused = false;
+        try { await host.value({ action: 'import', bytes: new TextEncoder().encode('{}').buffer, contentType: 'application/json',
+            sourceUri: 'https://example.test/pressure.json', scopePolicyStamp: 'pressure', limits: { maxBytes: 1024, maxValues: 32, maxDepth: 8 } }).result; }
+        catch (error) { refused = String(error).includes('cem.runtime.memory.closed'); }
+        check(refused, 'new native work was not refused');
+        const incomplete = await domains.nativeCheckpointDrain(host.checkpointClient);
+        const bindings = new Map([[host.checkpointClient, [runtime.readInstanceSnapshot(instance).instanceId]]]);
+        check(!domains.nativeCheckpointClosedCoverage(bindings, [], [incomplete]), 'unknown source session disappeared from coverage');
+        await host.nativeSession({ action: 'release', handle: sessionHandle }).result;
+        check(!domains.nativeCheckpointDrainCurrent(incomplete), 'cleanup did not fence earlier drain');
+        const proof = await domains.nativeCheckpointDrain(host.checkpointClient);
+        check(domains.nativeCheckpointDrainCurrent(proof), 'closed generation did not drain');
+        check(domains.nativeCheckpointClosedCoverage(bindings, [], [proof])?.length === 1, 'closed client coverage was incomplete');
+        check(!domains.nativeCheckpointClosedCoverage(bindings, [], [{ ...proof }]), 'copied drain proof was accepted');
+        check(host.mode === (fallback ? 'main-thread' : 'worker'), 'pressure replayed work in fallback');
+        check(input.isConnected && input.value === 'Preserve Amsterdam draft' && document.activeElement === before, 'pressure lost edits or focus');
+        check(input.selectionStart === 4 && input.selectionEnd === 12, 'pressure lost selection');
+        check([...coordinator.lastCommitted().bytes].join(',') === lastGood, 'pressure overwrote last-good bytes');
+        await coordinator.capture();
+        check(coordinator.current(), 'complete closed runtime cannot checkpoint');
+        const closedBytes = [...coordinator.lastCommitted().bytes].join(',');
+        input.value = 'New edit after closure'; input.dispatchEvent(new Event('input', { bubbles: true }));
+        await runtime.whenRenderSettled(instance);
+        check(input.isConnected && input.value === 'New edit after closure', 'refused rendering lost a newer edit');
+        check(!coordinator.current(), 'native drain authorized rollback over newer edits');
+        let stale = false;
+        try { await coordinator.capture(); } catch { stale = true; }
+        check(stale && [...coordinator.lastCommitted().bytes].join(',') === closedBytes, 'dirty pressure state replaced last-good bytes');
+        await host.dispose({ reason: 'runtime-disposed' }).result;
+        check(!domains.nativeCheckpointDrainCurrent(proof), 'disposed generation retained drain authority');
+        return fallback ? 'fallback pressure passed' : 'worker pressure passed';
+    } finally {
+        document.body.replaceChildren(); scope.dispose(); coordinator.dispose();
+        if (worker) worker.terminate(); if (blob) URL.revokeObjectURL(blob);
+    }
+}
+
+export const NativePressureClosureAndDrain: Story = {
+    render: () => '<section aria-label="Native pressure closure"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section')!;
+        const base = new URL('../../dist/', import.meta.url).href;
+        for (const fallback of [false, true]) {
+            const frame = document.createElement('iframe'), id = crypto.randomUUID();
+            frame.title = 'Isolated native pressure fixture'; root.append(frame);
+            let stop = () => undefined;
+            try {
+                const completed = new Promise<string>((resolve, reject) => {
+                    const timer = setTimeout(() => reject(new Error('isolated pressure fixture timed out')), 15000);
+                    const receive = (event: MessageEvent) => {
+                        if (event.source !== frame.contentWindow || event.data?.id !== id) return;
+                        clearTimeout(timer);
+                        if (event.data.error) reject(new Error(event.data.error)); else resolve(event.data.result);
+                    };
+                    window.addEventListener('message', receive);
+                    stop = () => { clearTimeout(timer); window.removeEventListener('message', receive); };
+                });
+                frame.srcdoc = `<script type="module">(${isolatedNativePressure.toString()})(${JSON.stringify(base)}, ${fallback}, url => import(url))
+                    .then(result => parent.postMessage({ id: ${JSON.stringify(id)}, result }, '*'),
+                        error => parent.postMessage({ id: ${JSON.stringify(id)}, error: error.stack || String(error) }, '*'));</script>`;
+                expect(await completed).toBe(fallback ? 'fallback pressure passed' : 'worker pressure passed');
+            } finally { stop(); frame.remove(); }
+        }
+    },
+};

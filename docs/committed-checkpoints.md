@@ -162,10 +162,73 @@ These registrations cover the framework's shared native entrypoints. Separately
 instantiated native command runtimes are different heaps and require their own
 adapters before replacement. Embedders bypassing the framework through generated
 WASM exports are outside this closed client boundary and must not use its receipt
-to authorize replacement. Pressure-triggered admission closure/drain/timeouts,
-verified replacement admission and semantic resume remain separate work. Neither
+to authorize replacement. Verified replacement admission and semantic resume
+remain separate work. Neither
 a physical coverage receipt nor a native seal grants permission to restart,
 restore native handles or replay actions.
+
+### Pressure closure and bounded native draining
+
+Shared runtime support samples the native `runtimeMemoryStatus()` telemetry DTO
+before and after asynchronous native support work, after initializing the actual
+WASM memory. Soft pressure, hard pressure or unavailable/malformed telemetry
+closes ordinary admission for that physical generation. The worker sends a
+versioned, bounded pressure notification to its surviving host; every pooled
+root closes together. Shared fallback hosts close together through their actual
+module domain. This is a monotonic refusal signal, with no replacement authority.
+No authored input can configure the sampler or reopen admission. Lower telemetry
+or changing the native budget does not reopen the same generation.
+
+Fresh host requests fail with `cem.runtime.memory.closed` before registering
+source/stylesheet owners or copying input into the host queues. Standalone
+native helpers also refuse before invoking their operation; refusal between
+client enrollment and work admission still retires the transient client. Direct
+XPath-library acquisition/reuse holds the same work lease, including acquisition
+that outlives cache disposal. Synchronous native source views and XSLT
+construction also check closure. Admitted queued and
+running jobs remain enrolled until they settle, including cancellation,
+superseded work, preflights and cleanup. Already queued jobs can complete or
+receive a native pressure refusal; they are never retried in fallback because
+of pressure. Session/publication/document release, stylesheet delivery/failure
+for retained loads, disposal and cancellation remain available. These paths
+retain their ordinary native ownership, byte bounds and memory-budget checks;
+cleanup permission cannot start a new load or restore authority. A pending host
+stylesheet fetch remains in the drain between native requests, until its native
+completion or explicit release is acknowledged.
+
+Pressure starts a five-second drain deadline whenever work remains, even without
+a waiting caller. Once work settles the deadline is cleared; later cleanup
+invalidates previous drain evidence and receives a new bounded deadline.
+Internal `nativeCheckpointDrain(client, { timeoutMs, signal })` waits without
+buffering input or canceling the actual work. Its timeout is a positive safe
+integer up to 60 seconds, defaulting to five seconds; the generation's automatic
+five-second deadline still applies. At most 16 concurrent waiters are retained.
+Canceling a waiter removes its timer/listener without reopening admission or
+canceling peers. A timeout permanently fences that generation's checkpoint
+coverage. Late replies still finish cleanup but cannot restore drain evidence.
+Revocation, disposal and generation changes also fence old evidence. Browser
+timers run when the event loop can service them; they cannot interrupt a blocked
+synchronous WASM call or guarantee prevention of an allocation trap.
+
+Drain results are private, frozen witnesses bound to the exact generation and
+mutation revision. Structural/serialized copies have no authority. A result
+means work has settled, not that every retained owner is portable. Internal
+`nativeCheckpointClosedCoverage` separately verifies current original witnesses
+for every involved physical domain and repeats complete client, resource,
+source-capsule and owner requirements. Missing clients, unknown retained resources,
+duplicate/copied proofs, new cleanup, host I/O and stale revisions refuse the
+whole result. Owner publication/privacy/currentness and native sealing must
+still pass the coordinator's independent checks. A complete closed generation
+can seal a fresh checkpoint within native recovery headroom. A failed/timed-out
+drain preserves last-good bytes without making them current or authorizing
+rollback of newer edits.
+
+This is shared `cem-elements` lifecycle infrastructure. Studio and declarative
+components contain no recovery behavior or JavaScript workaround. Separate
+command-service/native heaps and generated-WASM bypasses still need their own
+closed adapters; neither a successful drain nor physical coverage grants
+whole-application replacement permission. Coordinated replacement, semantic
+resume and declarative recovery status remain subsequent work.
 
 Every owner requires explicit whole-island privacy consent before serialization.
 The exporter writes the canonical inert data-island template, including existing

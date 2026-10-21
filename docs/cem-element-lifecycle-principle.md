@@ -416,5 +416,13 @@ native sessions only through their private current witnesses. Disposal, binding
 revocation and in-flight frame completion retire ownership at their actual
 lifecycle boundaries. Coverage mutation fences asynchronous seals; it never
 turns last-good bytes into authority to roll back edits or restart a runtime.
+Native memory pressure closes ordinary admission for the affected physical
+generation. Admitted work, host stylesheet I/O and cleanup retain their leases
+until completion. Bounded drain deadlines, cancellation and privately issued
+generation/revision witnesses fence late or copied evidence; timeout never
+authorizes termination, partial coverage, replay or rollback. Native release and
+bounded checkpoint control/sealing paths remain available under their existing
+memory and ownership checks. Separate command heaps and unmanaged exports need
+independent closed boundaries before coordinated replacement.
 Physical coverage and its remaining admission/resume fences are specified in
 [Committed checkpoints](committed-checkpoints.md#physical-runtime-generations-and-native-clients).

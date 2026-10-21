@@ -131,7 +131,7 @@ export class CemProcessingEngine {
     }
 
     async nativeSession(input: CemProcessingNativeSessionInput): Promise<CemProcessingNativeSessionResult> {
-        return nativeCheckpointWork(() => this.nativeSessionOperation(input))();
+        return nativeCheckpointWork(() => this.nativeSessionOperation(input), input.action === 'release' || input.action === 'release-suggestions')();
     }
 
     private async nativeSessionOperation(input: CemProcessingNativeSessionInput): Promise<CemProcessingNativeSessionResult> {
@@ -231,7 +231,7 @@ export class CemProcessingEngine {
     }
 
     async document(input: CemProcessingDocumentInput): Promise<CemProcessingDocumentResult> {
-        return nativeCheckpointWork(() => this.documentOperation(input))();
+        return nativeCheckpointWork(() => this.documentOperation(input), input.action === 'release')();
     }
 
     private async documentOperation(input: CemProcessingDocumentInput): Promise<CemProcessingDocumentResult> {
@@ -399,7 +399,7 @@ export class CemProcessingEngine {
     }
 
     async stylesheet(input: CemProcessingStylesheetInput): Promise<CemProcessingStylesheetResult> {
-        return nativeCheckpointWork(() => this.stylesheetOperation(input))();
+        return nativeCheckpointWork(() => this.stylesheetOperation(input), input.action !== 'begin')();
     }
 
     private async stylesheetOperation(input: CemProcessingStylesheetInput): Promise<CemProcessingStylesheetResult> {
