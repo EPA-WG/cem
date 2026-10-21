@@ -1,7 +1,6 @@
 import { cemMainThreadCheckpointDomain, nativeCheckpointWork, type CemCheckpointNativeClient } from './checkpoint-domain.js';
 // Explicit executable dependency transport; never part of render data.
-// eslint-disable-next-line @nx/enforce-module-boundaries -- generated shared WASM control plane.
-import { retainCemtXPathFunctions, disposeCemtXPathFunctions } from '../../../../../cem_ql/dist/wasm/cem_ql.js';
+import { retainCemtXPathFunctions, disposeCemtXPathFunctions } from './native-runtime.js';
 import { cemMlTemplateArtifactPayloadKey, ensureRuntimeReady } from './cem-ql-render.js';
 
 function releaseXPathFunctions(id: number): void {

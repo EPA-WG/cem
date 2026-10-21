@@ -1,0 +1,41 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import * as legacy from '../dist/wasm/cem_ql.js';
+import { createCemQlWasmGeneration } from '../dist/wasm/cem_ql_factory.js';
+const bytes = await readFile(new URL('../dist/wasm/cem_ql_bg.wasm', import.meta.url));
+const first = createCemQlWasmGeneration(), second = createCemQlWasmGeneration();
+const initial = first.initialize(bytes);
+assert.throws(() => first.dispose(), /unavailable/);
+await Promise.all([initial, first.initialize(bytes), second.initialize(bytes)]);
+await legacy.default({ module_or_path: bytes });
+assert.notEqual(first.memory(), second.memory());
+assert.notEqual(first.memory(), legacy.commandNativeMemoryIdentity());
+const compile = runtime => JSON.parse(runtime.call('compileTemplate', ['{p | Owned source}', '[]'])).artifactId;
+const a = compile(first), b = compile(second), raw = JSON.parse(legacy.compileTemplate('{p | Legacy source}', '[]')).artifactId;
+assert.ok(a && b && raw);
+assert.throws(() => first.dispose(), /resources|inventory|retirement/);
+// A refused disposal leaves cleanup available under permanently closed admission.
+assert.equal(first.call('disposeTemplate', [a]), true);
+const savedAlias = (...args) => first.call('runtimeMemoryStatus', args);
+assert.throws(() => first.dispose(() => false), /ownership-stale/);
+assert.ok(first.memory());
+assert.equal(JSON.parse(first.call('commandNativeResourceInventory', [])).registries.find(entry => entry.name === 'native-entries').live, 0);
+const confirmation = first.dispose();
+assert.equal(confirmation.frozen, true); assert.equal(confirmation.replacementAllowed, false);
+assert.equal(first.memory(), undefined);
+assert.throws(() => savedAlias(), /retired/);
+await assert.rejects(first.initialize(bytes), /retired/);
+assert.throws(() => first.call('initSync', [bytes]), /retired/);
+assert.equal(second.call('disposeTemplate', [b]), true);
+assert.equal(legacy.disposeTemplate(raw), true);
+assert.ok(compile(second));
+assert.ok(JSON.parse(legacy.compileTemplate('{p | Still legacy}', '[]')).artifactId);
+// A later independent factory cannot retarget old function aliases.
+const third = createCemQlWasmGeneration(); await third.initialize(bytes);
+assert.notEqual(third.memory(), second.memory()); assert.throws(savedAlias, /retired/);
+third.dispose();
+const failed = createCemQlWasmGeneration();
+await assert.rejects(failed.initialize(new Uint8Array()), /WebAssembly|wasm|buffer/);
+assert.equal(failed.memory(), undefined); await assert.rejects(failed.initialize(bytes), /retired/);
+if (global.gc) { global.gc(); await new Promise(resolve => setTimeout(resolve, 20)); }
+console.log('Owned WASM generations: distinct memories, native-root refusal, closed cleanup, private reference release, stale alias/initializer fencing and legacy independence passed.');

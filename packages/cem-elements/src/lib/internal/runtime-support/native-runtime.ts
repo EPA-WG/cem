@@ -1,0 +1,180 @@
+// eslint-disable-next-line @nx/enforce-module-boundaries -- generated native bindings are vendored by the package build.
+import * as legacy from '../../../../../cem_ql/dist/wasm/cem_ql.js';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- generated owned-factory contract is vendored with its bindings.
+import type { CemQlWasmGeneration } from '../../../../../cem_ql/dist/wasm/cem_ql_factory.js';
+import { cemMainThreadCheckpointDomain as domain } from './checkpoint-domain.js';
+
+export interface CemFallbackWasmOwnership { readonly kind: 'cem-fallback-wasm-ownership' }
+export interface CemDisposedFallbackGeneration { readonly runtimeId: string; readonly releasedOwnedReferences: true; readonly replacementAllowed: false }
+export interface CemOwnedFallbackGeneration {
+    readonly runtimeId: string;
+    ready(): Promise<void>;
+    claimOwnership(): CemFallbackWasmOwnership;
+    releaseOwnership(ownership: CemFallbackWasmOwnership): void;
+    /** Only after every managed host/helper and resource has been released.
+     * This releases owned references, without claiming synchronous browser GC. */
+    disposeEmpty(ownership: readonly CemFallbackWasmOwnership[], timeoutMs?: number): Promise<CemDisposedFallbackGeneration>;
+}
+let started = false;
+let legacyInitialization: Promise<void> | undefined;
+let owned: OwnedFallback | undefined;
+
+/** Explicit pre-initialization opt-in; aliases never switch a live heap. */
+export function isolateCemFallbackGeneration(): CemOwnedFallbackGeneration {
+    if (started || owned) throw new Error('cem.runtime.generation.already-selected');
+    owned = new OwnedFallback();
+    const selected = owned;
+    return Object.freeze({ runtimeId: domain.issuedIdentity(), ready: () => initializeNativeRuntime(),
+        claimOwnership: () => selected.claim(), releaseOwnership: (lease: CemFallbackWasmOwnership) => selected.release(lease),
+        disposeEmpty: (leases: readonly CemFallbackWasmOwnership[], timeoutMs?: number) => selected.disposeEmpty(leases, timeoutMs) });
+}
+export function nativeRuntimeUsable(): boolean { return !owned || owned.usable(); }
+export default function initializeNativeRuntime(): Promise<void> {
+    started = true;
+    if (owned) return owned.initialize();
+    return legacyInitialization ??= legacy.default().then(native => { domain.bindNativeRuntime(native.memory); });
+}
+
+class OwnedFallback {
+    private native?: CemQlWasmGeneration;
+    private initialization?: Promise<void>;
+    private disposed = false;
+    private failed = false;
+    private disposing = false;
+    private revision = 0;
+    private readonly owners = new Set<CemFallbackWasmOwnership>();
+
+    usable(): boolean { return !this.disposed && !this.failed; }
+    initialize(): Promise<void> {
+        if (!this.usable()) return Promise.reject(new Error('cem.runtime.generation.retired'));
+        // eslint-disable-next-line @nx/enforce-module-boundaries -- lazy generated factory; the package build rewrites this to its vendored copy.
+        return this.initialization ??= import('../../../../../cem_ql/dist/wasm/cem_ql_factory.js').then(async module => {
+            this.native = module.createCemQlWasmGeneration();
+            await this.native.initialize();
+            const memory = this.native.memory();
+            if (!memory) throw new Error('cem.runtime.generation.identity');
+            domain.bindNativeRuntime(memory);
+            if (!domain.ownsNativeRuntime(memory)) throw new Error('cem.runtime.generation.identity');
+        }).catch(error => { this.failed = true; domain.revoke(); throw error; });
+    }
+    private requireReady(): CemQlWasmGeneration {
+        if (!this.usable()) throw new Error('cem.runtime.generation.retired');
+        if (!this.native || !domain.ownsNativeRuntime(this.native.memory())) throw new Error('cem.runtime.generation.unavailable');
+        return this.native;
+    }
+    call(name: string, args: unknown[]): unknown { return this.requireReady().call(name, args); }
+    claim(): CemFallbackWasmOwnership {
+        this.requireReady();
+        if (domain.pressureReason() || this.owners.size >= 256) throw new Error('cem.runtime.generation.ownership');
+        const lease = Object.freeze({ kind: 'cem-fallback-wasm-ownership' as const });
+        this.owners.add(lease); this.changed(); return lease;
+    }
+    release(lease: CemFallbackWasmOwnership): void {
+        this.requireReady();
+        if (!this.owners.delete(lease)) throw new Error('cem.runtime.generation.ownership');
+        this.changed();
+    }
+    private changed(): void {
+        if (!Number.isSafeInteger(++this.revision)) { this.failed = true; domain.revoke(); }
+        domain.changed();
+    }
+    async disposeEmpty(leases: readonly CemFallbackWasmOwnership[], timeoutMs = 5000): Promise<CemDisposedFallbackGeneration> {
+        if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 5000) throw new Error('cem.runtime.generation.timeout-config');
+        const native = this.requireReady();
+        if (this.disposing) throw new Error('cem.runtime.generation.pending');
+        this.disposing = true;
+        try {
+            const revision = this.revision;
+            if (!Array.isArray(leases)) throw new Error('cem.runtime.generation.ownership');
+            const count = Object.getOwnPropertyDescriptor(leases, 'length')?.value;
+            if (!Number.isSafeInteger(count) || count < 1 || count > 256 || count !== this.owners.size) throw new Error('cem.runtime.generation.ownership');
+            const seen = new Set<CemFallbackWasmOwnership>();
+            for (let index = 0; index < count; index++) {
+                // Read own data slots only: caller methods, iterators and
+                // accessors cannot substitute consent or run during admission.
+                const slot = Object.getOwnPropertyDescriptor(leases, String(index));
+                if (!slot || !('value' in slot) || !this.owners.has(slot.value) || seen.has(slot.value)) throw new Error('cem.runtime.generation.ownership');
+                seen.add(slot.value);
+            }
+            if (revision !== this.revision) throw new Error('cem.runtime.generation.ownership-stale');
+            if (!domain.emptyForNativeDisposal()) throw new Error('cem.runtime.generation.peers');
+            domain.closeAdmission('soft-pressure');
+            const proof = await domain.drain({ timeoutMs });
+            if (revision !== this.revision) throw new Error('cem.runtime.generation.ownership-stale');
+            domain.releaseEmptyNative(proof, () => { native.dispose(() => revision === this.revision
+                && domain.emptyForNativeDisposal() && domain.drainCurrent(proof)); });
+            this.disposed = true; this.native = undefined; this.initialization = undefined; this.owners.clear();
+            return Object.freeze({ runtimeId: domain.issuedIdentity(), releasedOwnedReferences: true, replacementAllowed: false });
+        } finally { this.disposing = false; }
+    }
+}
+function bind<K extends keyof typeof legacy>(name: K): typeof legacy[K] {
+    return ((...args: unknown[]) => {
+        started = true;
+        if (owned) return owned.call(name, args);
+        const operation = legacy[name];
+        if (typeof operation !== 'function') throw new Error('cem.runtime.generation.entrypoint');
+        return Reflect.apply(operation, undefined, args);
+    }) as unknown as typeof legacy[K];
+}
+
+export const closeCommandNativeAdmission = bind('closeCommandNativeAdmission');
+export const commandNativeResourceInventory = bind('commandNativeResourceInventory');
+export const prepareCommandNativeRetirement = bind('prepareCommandNativeRetirement');
+export const cemQlVersion = bind('cemQlVersion');
+export const runtimeMemoryStatus = bind('runtimeMemoryStatus');
+export const validateCheckpointControls = bind('validateCheckpointControls');
+export const validateCheckpointRuntime = bind('validateCheckpointRuntime');
+export const compileTemplate = bind('compileTemplate');
+export const adoptDomStylesheets = bind('adoptDomStylesheets');
+export const adoptInstanceStylesheets = bind('adoptInstanceStylesheets');
+export const beginTemplateStylesheet = bind('beginTemplateStylesheet');
+export const deliverTemplateStylesheet = bind('deliverTemplateStylesheet');
+export const failTemplateStylesheet = bind('failTemplateStylesheet');
+export const releaseTemplateStylesheets = bind('releaseTemplateStylesheets');
+export const compileTemplateArtifact = bind('compileTemplateArtifact');
+export const compileTemplateModuleClosure = bind('compileTemplateModuleClosure');
+export const convertLegacyCustomElementTemplate = bind('convertLegacyCustomElementTemplate');
+export const disposeTemplate = bind('disposeTemplate');
+export const importTemplateArtifact = bind('importTemplateArtifact');
+export const renderTemplateWithNativeValues = bind('renderTemplateWithNativeValues');
+export const renderTemplateWithNativeValuesAndAdmission = bind('renderTemplateWithNativeValuesAndAdmission');
+export const importCemDocumentValue = bind('importCemDocumentValue');
+export const exportCemJsonValue = bind('exportCemJsonValue');
+export const importNativeValueArtifact = bind('importNativeValueArtifact');
+export const importReferenceReloadBundle = bind('importReferenceReloadBundle');
+export const parseReferenceSource = bind('parseReferenceSource');
+export const prepareNativeCapabilitySession = bind('prepareNativeCapabilitySession');
+export const prepareNativeDatalist = bind('prepareNativeDatalist');
+export const publishNativeDatalist = bind('publishNativeDatalist');
+export const nativeCapabilitySessionLength = bind('nativeCapabilitySessionLength');
+export const nativeSuggestionRowControls = bind('nativeSuggestionRowControls');
+export const exportNativeCapabilityView = bind('exportNativeCapabilityView');
+export const renderNativeCapabilityTemplate = bind('renderNativeCapabilityTemplate');
+export const disposeNativeCapabilitySession = bind('disposeNativeCapabilitySession');
+export const prepareNativeSuggestions = bind('prepareNativeSuggestions');
+export const configureNativeSuggestionLabels = bind('configureNativeSuggestionLabels');
+export const exportNativeSuggestionsView = bind('exportNativeSuggestionsView');
+export const renderNativeSuggestionTemplate = bind('renderNativeSuggestionTemplate');
+export const publishNativeSuggestions = bind('publishNativeSuggestions');
+export const releaseNativeSuggestions = bind('releaseNativeSuggestions');
+export const renderNativeSuggestionsFrame = bind('renderNativeSuggestionsFrame');
+export const disposeReferenceSource = bind('disposeReferenceSource');
+export const disposeNativeValueArtifact = bind('disposeNativeValueArtifact');
+export const takeRenderValueArtifact = bind('takeRenderValueArtifact');
+export const retainCemDocument = bind('retainCemDocument');
+export const disposeCemDocument = bind('disposeCemDocument');
+export const renderTemplateSource = bind('renderTemplateSource');
+export const resolveModuleUrl = bind('resolveModuleUrl');
+export const resolveNavigationLinks = bind('resolveNavigationLinks');
+export const resolveResourceBase = bind('resolveResourceBase');
+export const remapArtifactCss = bind('remapArtifactCss');
+export const templateArtifactPayloadKey = bind('templateArtifactPayloadKey');
+export const templateModuleImports = bind('templateModuleImports');
+export const retainXsltComponent = bind('retainXsltComponent');
+export const renderXsltComponentWithNativeValues = bind('renderXsltComponentWithNativeValues');
+export const disposeXsltComponent = bind('disposeXsltComponent');
+export const xsltStylesheetImports = bind('xsltStylesheetImports');
+export const evaluateQuerySource = bind('evaluateQuerySource');
+export const retainCemtXPathFunctions = bind('retainCemtXPathFunctions');
+export const disposeCemtXPathFunctions = bind('disposeCemtXPathFunctions');

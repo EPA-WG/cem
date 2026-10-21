@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { cemQlWasmFactory, cemQlWasmFactoryTypes } from './cem-ql-wasm-factory.mjs';
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -57,6 +58,10 @@ run('wasm-bindgen', [
 // compatible by declaring its ambient library in the generated artifact.
 const declarations = resolve(repoRoot, outDir, 'cem_ql.d.ts');
 writeFileSync(declarations, `/// <reference lib="esnext.disposable" />\n${readFileSync(declarations, 'utf8')}`);
+
+// A separate lexical factory leaves the legacy module ABI unchanged.
+writeFileSync(resolve(repoRoot, outDir, 'cem_ql_factory.js'), cemQlWasmFactory(readFileSync(resolve(repoRoot, outDir, 'cem_ql.js'), 'utf8')));
+writeFileSync(resolve(repoRoot, outDir, 'cem_ql_factory.d.ts'), cemQlWasmFactoryTypes);
 
 // wasm-bindgen `--target web` emits ESM, but the out dir has no package.json, so
 // Node/TypeScript `nodenext` resolution would infer CommonJS from the repo root and

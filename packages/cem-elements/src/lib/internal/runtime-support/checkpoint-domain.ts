@@ -91,6 +91,21 @@ export class CemNativeCheckpointDomain {
         if (this.nativeIdentity && this.nativeIdentity !== identity) this.revoke();
         else this.nativeIdentity = identity;
     }
+    ownsNativeRuntime(identity: object | undefined): boolean {
+        return !!identity && this.nativeIdentity === identity && this.alive && !this.overflow;
+    }
+    emptyForNativeDisposal(): boolean {
+        return this.alive && !this.overflow && !this.timedOut && !!this.nativeIdentity && !this.members.size && !this.resources.size;
+    }
+    /** The release callback is the private native factory's synchronous census /
+     * freeze / reference-release control. No user callbacks or async gap. */
+    releaseEmptyNative(proof: CemNativeDrain, release: () => void): void {
+        if (!this.emptyForNativeDisposal() || !this.drainCurrent(proof)) throw new Error('cem.runtime.generation.peers');
+        release();
+        terminalRenderingGenerations.add(this);
+        this.nativeIdentity = undefined; this.pressureSampler = undefined;
+        this.revoke();
+    }
     revoke(): void { this.alive = false; this.changed(); }
 
     /** Trusted native telemetry only; authored data never supplies this sampler. */

@@ -2303,3 +2303,94 @@ export const SharedRenderingRetirement: Story = {
         }
     },
 };
+
+/** An owned main-thread instance in a disposable realm, independent of the
+ * runner's legacy native clients and of any user's workspace storage. */
+async function isolatedOwnedFallback(base: string, load: (url: string) => Promise<any>): Promise<string> {
+    const support = new URL('lib/internal/runtime-support/', base).href;
+    const binding = await load(`${support}native-runtime.js`), generation = binding.isolateCemFallbackGeneration();
+    await generation.ready(); const owner = generation.claimOwnership();
+    const [{ CemElementRuntime }, { createCemDeclarationScope }, hosts, render, query, xpath, legacy] = await Promise.all([
+        load(new URL('lib/cem-elements.js', base).href), load(new URL('lib/declaration-scope.js', base).href),
+        load(`${support}processing-host-runtime.js`), load(`${support}cem-ql-render.js`), load(`${support}cem-ql-query.js`),
+        load(`${support}xpath-function-library.js`), load(`${support}vendor/cem_ql.js`),
+    ]);
+    const check = (condition: unknown, message: string) => { if (!condition) throw new Error(message); };
+    const refuses = async (operation: () => unknown | Promise<unknown>, code: string) => {
+        let failed = false; try { await operation(); } catch (error) { failed = String(error).includes(code); }
+        check(failed, `expected refusal: ${code}`);
+    };
+    await legacy.default();
+    const legacyTemplate = JSON.parse(legacy.compileTemplate('{p | Legacy heap remains independent}', '[]')).artifactId;
+    const count = (inventory: string, name: string) => JSON.parse(inventory).registries.find((entry: { name: string }) => entry.name === name).live;
+    check(count(legacy.commandNativeResourceInventory(), 'templates') === 1, 'legacy template missing');
+    await render.ensureRuntimeReady();
+    check(count(render.renderingNativeResourceInventory(), 'templates') === 0, 'owned helper used the legacy heap');
+    const result = await query.evaluateCemQlQuery('1 + 1'); check(result.items[0].value === 2, 'owned query failed');
+    const libraries = new xpath.CemXPathFunctionLibraries();
+    const library = await xpath.identifyXPathFunctionLibrary(`@doc cem-ml 1
+@ns t = "https://cem.dev/ns/transform/cem/1"
+@default t
+{module | {function @name=value.text @visibility=public @returns=string |
+{param @name=node @type=any @required=true}
+{body | {xpath @context=node @sequence-type="xs:string" | {expression | string(.)}}}}}`, 'https://example.test/owned.cemt', 'owned');
+    const libraryLease = await libraries.acquire(library);
+    check(count(render.renderingNativeResourceInventory(), 'xpath-companions') === 1, 'XPath helper was not in the owned generation');
+    check(count(legacy.commandNativeResourceInventory(), 'xpath-companions') === 0, 'XPath helper changed the legacy generation');
+    await refuses(() => generation.disposeEmpty([owner]), 'peers'); libraryLease.release(); libraries.dispose();
+    const scope = createCemDeclarationScope({ document });
+    const workerFactory = () => { throw new Error('owned fallback fixture'); };
+    const runtime = new CemElementRuntime({ declarationScope: scope, declarationTag: `declaration-${crypto.randomUUID()}`, processingWorkerFactory: workerFactory });
+    const host = hosts.cemProcessingHostForScope(scope, { workerScriptUrl: `${support}processing-worker.js`, workerFactory });
+    try {
+        const declaration = document.createElement('div'), template = document.createElement('template'), tag = `owned-${crypto.randomUUID()}`;
+        declaration.setAttribute('tag', tag); template.type = 'text/cem-ml';
+        template.textContent = '{label | Draft {input @value="Preserve owned draft"}}'; declaration.append(template);
+        document.body.append(declaration); runtime.registerDeclaration(declaration); await runtime.whenDeclarationSettled(declaration);
+        const instance = document.createElement(tag); document.body.append(instance); await runtime.whenRenderSettled(instance);
+        const input = instance.querySelector('input')!; input.value = 'Edited owned fallback'; input.focus(); input.setSelectionRange(1, 6);
+        check(host.mode === 'main-thread', 'fixture did not use fallback');
+        check(count(render.renderingNativeResourceInventory(), 'templates') > 0, 'render helper used another heap');
+        await refuses(() => generation.disposeEmpty([owner]), 'peers');
+        scope.dispose(); await host.dispose({ reason: 'runtime-disposed' }).result;
+        const extra = generation.claimOwnership();
+        await refuses(() => generation.disposeEmpty([{ ...owner }, extra]), 'ownership'); generation.releaseOwnership(extra);
+        const alias = binding.cemQlVersion;
+        const disposed = await generation.disposeEmpty([owner]);
+        check(disposed.releasedOwnedReferences && !disposed.replacementAllowed, 'owned disposal did not finish');
+        await refuses(() => alias(), 'retired'); await refuses(() => render.ensureRuntimeReady(), 'retired');
+        check(!render.isRuntimeReady(), 'disposed readiness was retained');
+        check(input.isConnected && input.value === 'Edited owned fallback' && document.activeElement === input, 'disposal replaced edited DOM or focus');
+        check(input.selectionStart === 1 && input.selectionEnd === 6, 'disposal lost selection');
+        check(legacy.disposeTemplate(legacyTemplate), 'owned disposal touched the legacy heap');
+        const fresh = JSON.parse(legacy.compileTemplate('{p | Legacy still works}', '[]')).artifactId;
+        check(fresh > 0, 'owned disposal closed the legacy heap'); legacy.disposeTemplate(fresh);
+        return 'owned fallback generation passed';
+    } finally { scope.dispose(); document.body.replaceChildren(); }
+}
+
+export const OwnedFallbackGenerationAndOwnership: Story = {
+    render: () => '<section aria-label="Owned fallback generation"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section')!, frame = document.createElement('iframe'), id = crypto.randomUUID();
+        frame.title = 'Isolated owned fallback fixture'; root.append(frame);
+        const base = new URL('../../dist/', import.meta.url).href; let stop = () => undefined;
+        try {
+            const completed = new Promise<string>((resolve, reject) => {
+                const timer = setTimeout(() => reject(new Error('owned fallback fixture timed out')), 15000);
+                const receive = (event: MessageEvent) => {
+                    if (event.source !== frame.contentWindow || event.data?.id !== id) return;
+                    clearTimeout(timer); if (event.data.error) reject(new Error(event.data.error)); else resolve(event.data.result);
+                };
+                window.addEventListener('message', receive); stop = () => { clearTimeout(timer); window.removeEventListener('message', receive); };
+            });
+            // Vitest instruments lazy imports in served modules, including
+            // modules loaded by this otherwise independent iframe realm.
+            const importHook = import.meta.env.MODE === 'test' ? 'globalThis.__vitest_browser_runner__ = { wrapDynamicImport: f => f() };' : '';
+            frame.srcdoc = `<script type="module">${importHook}(${isolatedOwnedFallback.toString()})(${JSON.stringify(base)}, url => import(url))
+                .then(result => parent.postMessage({ id: ${JSON.stringify(id)}, result }, '*'),
+                    error => parent.postMessage({ id: ${JSON.stringify(id)}, error: error.stack || String(error) }, '*'));</script>`;
+            expect(await completed).toBe('owned fallback generation passed');
+        } finally { stop(); frame.remove(); }
+    },
+};

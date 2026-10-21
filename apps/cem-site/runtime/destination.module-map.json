@@ -447,6 +447,14 @@
         "@epa-wg/cem-elements/dist/lib/checkpoint-interactions.js": {
             "path": "./assets/cem-elements/lib/checkpoint-interactions.js",
             "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/native-runtime": {
+            "path": "./assets/cem-elements/lib/internal/runtime-support/native-runtime.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/cem-ql-factory": {
+            "path": "./assets/cem-elements/lib/internal/runtime-support/vendor/cem_ql_factory.js",
+            "contentType": "text/javascript"
         }
     }
 }

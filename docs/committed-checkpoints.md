@@ -971,12 +971,62 @@ revive retirement authority or replay actions. Normal explicit scope disposal
 continues to tear down its worker and releases pool ownership.
 
 Main-thread/fallback clients share one actual WASM memory with standalone native
-helpers and possible raw aliases. The current module loader has no exclusive
+helpers and possible raw aliases. The default legacy module loader has no exclusive
 memory disposal or fresh-module ownership boundary. Physical fallback retirement
 therefore rejects with `cem.runtime.retirement.unsupported` before changing
 admission or checkpoint state. It does not claim that revoking a handle frees
 that memory. Multi-generation publication domains similarly refuse a partial
 transaction before closing either heap. Coordinated multi-heap replacement,
-fallback isolation and semantic resume remain explicit next work; this API does
+active fallback retirement and semantic resume remain explicit next work; this API does
 not enable automatic recovery in Studio. All behavior stays in shared
 `cem-elements` runtime support; components and Studio UI remain declarative.
+
+
+### Opt-in owned fallback generation
+
+Before the first shared native call in a realm, an embedding can select an
+isolated main-thread fallback:
+
+```ts
+import { isolateCemFallbackGeneration } from '@epa-wg/cem-elements';
+
+const fallback = isolateCemFallbackGeneration();
+await fallback.ready();
+const owner = fallback.claimOwnership();
+// Use the normal shared CEM render/query/XPath helpers.
+// Dispose every managed host, helper, library and retained resource first.
+const disposed = await fallback.disposeEmpty([owner]);
+// disposed.releasedOwnedReferences === true
+// disposed.replacementAllowed === false
+```
+
+The generated factory gives each instance private wasm-bindgen bindings,
+finalizers, views and WASM memory. Shared render/query/XPath entrypoints use the
+selected instance; raw legacy bindings retain their independent memory. Selection
+is permanent for this realm and must precede any shared native use. No existing
+alias is retargeted, and a retired or failed instance cannot be initialized again.
+The public controller exposes no raw memory, module or native permit.
+
+Each embedding claims an original ownership lease. Empty disposal requires all
+current original leases exactly once; copied, foreign, released, omitted or
+repeated leases refuse admission. Consent reads bounded own data slots without
+calling array methods, iterators or accessors; reentrant disposal and ownership
+changes during property inspection also refuse admission. Ownership changes
+during draining or native preparation cancel release. All managed clients and resources must already be
+gone. Closure then drains with a positive timeout of at most five seconds and
+uses the existing full native inventory and original zero-root freeze permit.
+An unmanaged native root still refuses disposal. Refusal after closure leaves
+ordinary admission closed while permitting cleanup and a fresh disposal attempt.
+
+Successful disposal drops the factory's WASM exports, instance/module and cached
+views, plus the host domain's memory and telemetry references. Saved call aliases
+and initializers remain fenced. Late finalizers cannot call the discarded
+instance. This reports release of owned references, not synchronous browser
+collection or an RSS reduction; externally retained raw references are outside
+that claim. Initialization failures are terminal for that selected instance.
+
+This is an empty-generation disposal boundary. The publication coordinator still
+refuses fallback retirement with active owners; checkpoint/journal handoff and
+terminal cleanup must be integrated with complete embedding consent before that
+path can be enabled. Replacement, resume, automatic recovery and Studio status
+remain subsequent work. The default legacy fallback behavior is unchanged.

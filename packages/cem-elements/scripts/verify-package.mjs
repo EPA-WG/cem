@@ -13,7 +13,7 @@ const wasmSourceRoot = resolve(workspaceRoot, 'packages/cem_ql/dist/wasm');
 const vendorRelativeRoot = 'dist/lib/internal/runtime-support/vendor';
 const vendorRoot = resolve(packageRoot, vendorRelativeRoot);
 const packageJson = JSON.parse(readFileSync(resolve(packageRoot, 'package.json'), 'utf8'));
-const runtimeFiles = ['cem_ql.js', 'cem_ql.d.ts', 'cem_ql_bg.wasm', 'UNICODE-LICENSE.txt'];
+const runtimeFiles = ['cem_ql.js', 'cem_ql.d.ts', 'cem_ql_factory.js', 'cem_ql_factory.d.ts', 'cem_ql_bg.wasm', 'UNICODE-LICENSE.txt'];
 
 if (!readFileSync(resolve(wasmSourceRoot, 'UNICODE-LICENSE.txt')).equals(
     readFileSync(resolve(workspaceRoot, 'packages/cem_ql/src/suggestions/UNICODE-LICENSE.txt')),
@@ -33,13 +33,23 @@ for (const file of runtimeFiles) {
     }
 }
 
-for (const file of ['cem-ql-query.js', 'cem-ql-render.js']) {
+for (const file of ['cem-ql-query.js', 'cem-ql-render.js', 'xpath-function-library.js']) {
     const output = readFileSync(resolve(packageRoot, 'dist/lib/internal/runtime-support', file), 'utf8');
-    if (!output.includes("from './vendor/cem_ql.js'")) {
+    if (!output.includes("from './native-runtime.js'")) {
         throw new Error(`built ${file} must import the package-owned CEM-QL runtime`);
     }
     if (output.includes('cem_ql/dist/wasm')) {
         throw new Error(`built ${file} must not retain a workspace-relative CEM-QL import`);
+    }
+}
+
+for (const file of ['native-runtime.js', 'native-runtime.d.ts']) {
+    const output = readFileSync(resolve(packageRoot, 'dist/lib/internal/runtime-support', file), 'utf8');
+    if (!output.includes("from './vendor/cem_ql.js'") || output.includes('cem_ql/dist/wasm')) {
+        throw new Error(`built ${file} must use only package-owned native bindings`);
+    }
+    if (file.endsWith('.js') && !output.includes("import('./vendor/cem_ql_factory.js')")) {
+        throw new Error('owned fallback factory must resolve inside the published package');
     }
 }
 
@@ -60,6 +70,8 @@ try {
         'dist/lib/internal/runtime-support/processing-host.js',
         'dist/lib/internal/runtime-support/processing-host-runtime.js',
         'dist/lib/internal/runtime-support/processing-worker.js',
+        'dist/lib/internal/runtime-support/native-runtime.js',
+        'dist/lib/internal/runtime-support/native-runtime.d.ts',
         'dist/lib/legacy-xslt/template-language.js',
         ...runtimeFiles.map((file) => `${vendorRelativeRoot}/${file}`),
     ];
@@ -98,7 +110,7 @@ try {
         [
             '--input-type=module',
             '--eval',
-            "const runtime = await import('@epa-wg/cem-elements'); if (runtime.cemElements() !== '@epa-wg/cem-elements') process.exit(1);",
+            "const runtime = await import('@epa-wg/cem-elements'); if (runtime.cemElements() !== '@epa-wg/cem-elements' || typeof runtime.isolateCemFallbackGeneration !== 'function') process.exit(1);",
         ],
         { cwd: consumerRoot, encoding: 'utf8' },
     );

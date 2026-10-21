@@ -15,7 +15,7 @@ const workspaceRoot = resolve(packageRoot, '../..');
 const wasmSourceRoot = resolve(workspaceRoot, 'packages/cem_ql/dist/wasm');
 const runtimeSupportRoot = resolve(packageRoot, 'dist/lib/internal/runtime-support');
 const vendorRoot = resolve(runtimeSupportRoot, 'vendor');
-const runtimeFiles = ['cem_ql.js', 'cem_ql.d.ts', 'cem_ql_bg.wasm', 'UNICODE-LICENSE.txt'];
+const runtimeFiles = ['cem_ql.js', 'cem_ql.d.ts', 'cem_ql_factory.js', 'cem_ql_factory.d.ts', 'cem_ql_bg.wasm', 'UNICODE-LICENSE.txt'];
 const workspaceImport = '../../../../../cem_ql/dist/wasm/cem_ql.js';
 const packageImport = './vendor/cem_ql.js';
 
@@ -26,10 +26,10 @@ for (const file of runtimeFiles) {
     copyFileSync(resolve(wasmSourceRoot, file), resolve(vendorRoot, file));
 }
 
-for (const file of ['cem-ql-query.js', 'cem-ql-render.js', 'xpath-function-library.js']) {
+for (const file of ['native-runtime.js', 'native-runtime.d.ts']) {
     const outputPath = resolve(runtimeSupportRoot, file);
     const output = readFileSync(outputPath, 'utf8');
-    const packaged = output.replaceAll(workspaceImport, packageImport);
+    const packaged = output.replaceAll(workspaceImport, packageImport).replaceAll('../../../../../cem_ql/dist/wasm/cem_ql_factory.js', './vendor/cem_ql_factory.js');
     if (!packaged.includes(packageImport)) {
         throw new Error(`${file} must import the package-owned CEM-QL runtime`);
     }

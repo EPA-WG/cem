@@ -5,8 +5,7 @@ import { nativeCheckpointWork } from './checkpoint-domain.js';
  * but returns typed query items instead of light-DOM render-plan nodes.
  */
 
-// eslint-disable-next-line @nx/enforce-module-boundaries -- generated WASM bindings are the Phase 3A internal runtime boundary.
-import { evaluateQuerySource } from '../../../../../cem_ql/dist/wasm/cem_ql.js';
+import { evaluateQuerySource } from './native-runtime.js';
 import { assertProcessingBoundaryValue, type SourceMapRef } from '../../projection.js';
 import { ensureRuntimeReady, type RuntimeSupportDiagnostic } from './cem-ql-render.js';
 

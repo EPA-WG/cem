@@ -177,6 +177,11 @@ async function loadRuntimeContract(runtime, outputs) {
             return { specifier, source: source.path, target: destination.path,
                 contentType: source.contentType, moduleImports: source.moduleImports ?? {} };
         }));
+    for (const specifier of ['@epa-wg/cem-elements/native-runtime', '@epa-wg/cem-elements/cem-ql-factory']) {
+        if (!declarations.some(asset => asset.specifier === specifier && asset.contentType === 'text/javascript')) {
+            throw new Error(`${runtime.id} runtime must ship ${specifier}`);
+        }
+    }
     if (runtime.id === 'interactive') {
         if (
             declarations.filter(({ contentType }) => contentType === 'application/wasm').length !== 1 ||

@@ -21,7 +21,7 @@ import { DEFAULT_CEM_VALUE_ARTIFACT_LIMITS, type NativeCemAttributeBinding, type
  * only after the processing host selects its deterministic fallback (design §4.3).
  */
 
-// eslint-disable-next-line @nx/enforce-module-boundaries -- generated WASM bindings are the Phase 3A internal runtime boundary.
+import { nativeRuntimeUsable } from './native-runtime.js';
 import initCemQlWasm, {
     closeCommandNativeAdmission, commandNativeResourceInventory, prepareCommandNativeRetirement,
     cemQlVersion,
@@ -78,7 +78,7 @@ import initCemQlWasm, {
     renderXsltComponentWithNativeValues,
     disposeXsltComponent,
     xsltStylesheetImports,
-} from '../../../../../cem_ql/dist/wasm/cem_ql.js';
+} from './native-runtime.js';
 import {
     edgeContentAddress,
     assertProcessingBoundaryValue,
@@ -488,11 +488,11 @@ async function resolveRenderPlanLinksOperation(nodes: RenderPlanNode[], sourceUr
  * repeatedly; concurrent callers share one initialization promise.
  */
 export function ensureRuntimeReady(): Promise<void> {
+    if (!nativeRuntimeUsable()) return Promise.reject(new Error('cem.runtime.generation.retired'));
     if (!initPromise) {
         initPromise = Promise.resolve()
             .then(() => initCemQlWasm())
-            .then(native => {
-                cemMainThreadCheckpointDomain.bindNativeRuntime(native.memory);
+            .then(() => {
                 ready = true;
                 cemMainThreadCheckpointDomain.sampleWith(() => {
                     const telemetry = runtimeMemoryStatus();
@@ -507,7 +507,7 @@ export function ensureRuntimeReady(): Promise<void> {
 
 /** Synchronous readiness probe so callers can choose a fallback before awaiting. */
 export function isRuntimeReady(): boolean {
-    return ready;
+    return ready && nativeRuntimeUsable();
 }
 
 /** The `cem_ql` engine version; only meaningful after {@link ensureRuntimeReady}. */

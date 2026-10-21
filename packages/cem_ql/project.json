@@ -116,7 +116,8 @@
                 "{projectRoot}/src/**/*",
                 "{projectRoot}/Cargo.toml",
                 "rustDependencies",
-                "{workspaceRoot}/tools/scripts/build-cem-ql-wasm.mjs"
+                "{workspaceRoot}/tools/scripts/build-cem-ql-wasm.mjs",
+                "{workspaceRoot}/tools/scripts/cem-ql-wasm-factory.mjs"
             ],
             "outputs": ["{workspaceRoot}/dist/target/cem_ql/wasm32-unknown-unknown", "{projectRoot}/dist/wasm"]
         },

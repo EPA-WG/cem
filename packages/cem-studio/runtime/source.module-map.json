@@ -808,6 +808,14 @@
         "@epa-wg/cem-ml-cli/native-embedding": {
             "path": "../../../node_modules/@epa-wg/cem-ml-cli/dist/native-embedding.js",
             "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/native-runtime": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/internal/runtime-support/native-runtime.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/cem-ql-factory": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_factory.js",
+            "contentType": "text/javascript"
         }
     }
 }
