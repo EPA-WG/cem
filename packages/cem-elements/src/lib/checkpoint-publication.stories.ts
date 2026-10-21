@@ -1,3 +1,6 @@
+import { connectCemNativeSurface } from './native-surface.js';
+import type { NativeCemValue } from './native-values.js';
+import { importNativeCemAttributes } from './native-values.js';
 import { checkpointPopupGeometry, createCemSurfaceGeometryLease, releasePopupGeometry } from './popup-controller.js';
 import { connectCemStandaloneDatalist } from './standalone-datalist.js';
 import { CemSurfaceBody } from './surface-body.js';
@@ -1121,7 +1124,7 @@ export const TypedSubmenuGeometryAndFocusCheckpointFallback: Story = {
     play: ({ canvasElement }) => typedSubmenuCheckpointContract(canvasElement, true),
 };
 
-async function externalCheckpointSource(fallback: boolean, portable = true, captured?: CheckpointSource, datalist = false) {
+async function externalCheckpointSource(fallback: boolean, portable = true, captured?: CheckpointSource, datalist = false, withInputs = false) {
     const scope = createCemDeclarationScope({ document });
     const owner = cemProcessingHostForScope(scope, { workerScriptUrl: new URL('./internal/runtime-support/processing-worker.ts', import.meta.url),
         ...(fallback ? { workerFactory: () => { throw new Error('external source fallback'); } } : {}) });
@@ -1133,15 +1136,25 @@ async function externalCheckpointSource(fallback: boolean, portable = true, capt
             bindings: [], crossings: [], labels: { option: null, group: null }, disposition: 'reacquire' }; }
         finally { wasm.disposeReferenceSource(id); }
     }
+    const preparation = source.preparation;
+    const nativeAttributes = preparation ? importNativeCemAttributes({ kind: 'cem-native-attributes-v1', artifacts: preparation.nativeBindings.artifacts,
+        attributes: preparation.nativeBindings.bindings.filter(b => b.target === 'attribute').map(({name,artifact,index}) => ({name,artifact,index})) })
+        : withInputs ? [{name:'native-count',value:nativeCheckpointFixtureValue()}] : [];
+    const nativeSlices = preparation ? preparation.nativeBindings.bindings.filter(b => b.target === 'slice').map(b => ({
+        name:b.name, attribute:b.attribute, value:importNativeCemAttributes({kind:'cem-native-attributes-v1',artifacts:preparation.nativeBindings.artifacts,
+            attributes:[{name:b.name,artifact:b.artifact,index:b.index}]})[0].value }))
+        : withInputs ? [{name:'count',attribute:'native-count',value:nativeAttributes[0].value}, {name:'raw',value:nativeAttributes[0].value}] : [];
     const session = await CemNativeCapabilitySession.prepare(owner, { action: 'prepare', adapter: datalist ? 'native-datalist-v1' : 'suggestions-v1',
         handle: { sessionKey: crypto.randomUUID(), instanceId: 'external-source', scopePolicyStamp: 'external-policy', sourceRevision: source.revision },
         sources: { kind: 'cem-native-session-sources-v1', requesting: source.requesting,
             sources: source.sources.map(input => ({ bundle: Uint8Array.from(atob(input.base64), c => c.charCodeAt(0)).buffer, primarySourceId: input.primarySourceId, context: input.context })),
             bindings: source.bindings, grants: source.crossings.map(route => [route.from, route.to] as const) },
-        data: {}, select: source.select, resolve: source.resolve, limits: { maxBytes: 256 * 1024, maxValues: 1024, maxDepth: 64 } }, () => true, undefined, portable);
+        data: preparation ? JSON.parse(preparation.dataJson) : withInputs ? {datadom:{slices:{caption:'Original é😀',enabled:true}}} : {},
+        nativeAttributes, nativeSlices, select: source.select, resolve: source.resolve,
+        limits: preparation?.limits ?? { maxBytes: 256 * 1024, maxValues: 1024, maxDepth: 64 } }, () => true, undefined, portable);
     return { scope, session, async dispose() { await session.release(); scope.dispose(); } };
 }
-async function nativePublicationCheckpointContract(canvasElement: HTMLElement, fallback: boolean) {
+async function nativePublicationCheckpointContract(canvasElement: HTMLElement, fallback: boolean, withInputs = false) {
     await init(); const root = canvasElement.querySelector<HTMLElement>('section')!;
     let admitted = true, publication: CemNativeSuggestionsPublication | undefined, sealFence: (() => void) | undefined;
     const sources: Awaited<ReturnType<typeof externalCheckpointSource>>[] = [];
@@ -1151,7 +1164,7 @@ async function nativePublicationCheckpointContract(canvasElement: HTMLElement, f
             current: () => admitted && publication === current && instance.isConnected })] : [];
     } }, async (candidate, receipt) => { const sealed = wasm.sealCommittedCheckpoint(candidate, receipt); sealFence?.(); sealFence = undefined; await Promise.resolve(); return sealed; });
     try {
-        const source = await externalCheckpointSource(fallback); sources.push(source);
+        const source = await externalCheckpointSource(fallback, true, undefined, false, withInputs); sources.push(source);
         publication = await source.session.publishSuggestions({ query: 'same', queryRevision: 1, filter: 'none' }, () => admitted);
         const frame = await f.create('{cem:for-each @select="datadom.slices.suggestions.children" @as=row | {span @role=option @suggestion-row={#row} | {$row.dom:attribute("label").value}}}');
         await f.runtime.whenRenderSettled(frame);
@@ -1160,6 +1173,12 @@ async function nativePublicationCheckpointContract(canvasElement: HTMLElement, f
         expect(saved).toContain('nativePublication'); expect(saved).toContain('cemb'); expect(saved).not.toContain('sessionKey');
         const mapped = f.runtime.renderedSuggestionsFor(frame)!; expect(mapped.rows).toHaveLength(2);
         const copy = await externalCheckpointSource(fallback, true, source.session.checkpointSource()); sources.push(copy);
+        if (withInputs) {
+            expect(saved).toContain('cem-native-bindings/1'); expect(saved).toContain('Original é😀');
+            expect(copy.session.checkpointSource()?.preparation).toEqual(source.session.checkpointSource()?.preparation);
+            const view = await copy.session.render('{span | {$datadom.slices.count}}');
+            expect(JSON.stringify(view.nodes)).toContain('42');
+        }
         const copiedPublication = await copy.session.publishSuggestions({ query: 'same', queryRevision: 1, filter: 'none' }, () => true);
         const binding = copiedPublication.bind({ instanceId: 'fresh', scopePolicyStamp: 'fresh', revision: '1', current: () => true });
         try { const rows = await binding.rows(); expect(rows.map(row => row.value)).toEqual(['same', 'same']); expect(rows[1].source).not.toBe(mapped.rows[1].native.source); }
@@ -1707,4 +1726,70 @@ export const StandaloneDatalistOwnership: Story = {
 export const StandaloneDatalistOwnershipFallback: Story = {
     render: () => '<section aria-label="Standalone datalist fallback checkpoint ownership"></section>',
     play: ({ canvasElement }) => standaloneDatalistCheckpointContract(canvasElement, true),
+};
+
+function nativeCheckpointFixtureValue(): NativeCemValue {
+    const compiled = JSON.parse(wasm.compileTemplate('{div @native-count={42}}', '[]'));
+    try {
+        const plan = JSON.parse(wasm.renderTemplateWithNativeValues(compiled.artifactId, 0, '{}', '[]', '[]', '', 'native-context-fixture', undefined, undefined));
+        expect(plan.diagnostics).toEqual([]);
+        return {kind:'cem-native-value-v1',artifact:wasm.takeRenderValueArtifact(plan.nativeValueArtifactId).slice().buffer,
+            contentHash:plan.nativeValueContentHash,index:plan.nodes[0].attributes[0].nativeValueIndex};
+    } finally { wasm.disposeTemplate(compiled.artifactId); }
+}
+export const NativePreparationAndBindingsCheckpoint: Story = {
+    render: () => '<section aria-label="Native preparation and bindings worker checkpoint"></section>',
+    play: ({ canvasElement }) => nativePublicationCheckpointContract(canvasElement, false, true),
+};
+export const NativePreparationAndBindingsCheckpointFallback: Story = {
+    render: () => '<section aria-label="Native preparation and bindings fallback checkpoint"></section>',
+    play: ({ canvasElement }) => nativePublicationCheckpointContract(canvasElement, true, true),
+};
+async function nativeContextCheckpointContract(canvasElement: HTMLElement, fallback: boolean) {
+    await init(); const root = canvasElement.querySelector<HTMLElement>('section')!;
+    let fence: (() => void) | undefined;
+    const f = fixture(root, fallback, false, undefined, {}, async (candidate, receipt) => {
+        const sealed = wasm.sealCommittedCheckpoint(candidate, receipt); fence?.(); fence = undefined; await Promise.resolve(); return sealed;
+    });
+    try {
+        const host = await f.create('{dialog @part=surface @aria-label=Context | {input @value=Original}{button | Close}}', 'cem-ml', root, undefined, 'native-surface');
+        await f.runtime.whenRenderSettled(host);
+        const dialog = host.querySelector('dialog')!, input = dialog.querySelector('input')!;
+        const controller = connectCemNativeSurface(dialog, {host});
+        const context = nativeCheckpointFixtureValue();
+        const originalBytes = context.artifact.slice(0), originalIndex = context.index;
+        expect(controller.open({context,contextKey:'item:42'})).toBe(true);
+        await waitFor(() => expect(dialog.open).toBe(true));
+        input.focus(); input.value = 'Unsaved é'; input.setSelectionRange(1,4);
+        const capture = () => waitFor(async () => { await f.coordinator.capture(); });
+        await capture();
+        const saved = decode(f.coordinator).owners[0].island;
+        expect(saved).toContain('contentHash'); expect(saved).toContain('item:42'); expect(saved).toContain('Unsaved é'); expect(saved).not.toContain('sessionKey');
+        expect(document.activeElement).toBe(input); expect([input.selectionStart,input.selectionEnd]).toEqual([1,4]);
+        const last = f.coordinator.lastCommitted()!.bytes;
+        context.index = 999;
+        await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); expect(f.coordinator.lastCommitted()!.bytes).toEqual(last);
+        context.index = originalIndex; await capture();
+        new Uint8Array(context.artifact)[0] ^= 1;
+        await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+        new Uint8Array(context.artifact).set(new Uint8Array(originalBytes)); await capture();
+        const beforeRace = f.coordinator.lastCommitted()!.bytes;
+        fence = () => { context.index = 999; };
+        await expect(f.coordinator.capture()).rejects.toThrow('stale'); expect(f.coordinator.lastCommitted()!.bytes).toEqual(beforeRace);
+        context.index = originalIndex; await capture();
+        expect(input.value).toBe('Unsaved é'); expect(document.activeElement).toBe(input);
+        dialog.close(); await capture();
+        expect(decode(f.coordinator).owners[0].island).not.toContain('item:42');
+        const keeper = await f.create('{p | Remaining owner}'); await f.runtime.whenRenderSettled(keeper);
+        host.remove(); await capture(); expect(f.coordinator.current()!.receipt.owners).toHaveLength(1);
+        expect(decode(f.coordinator).owners[0].island).not.toContain('item:42');
+    } finally { f.dispose(); }
+}
+export const NativeInvocationContextCheckpoint: Story = {
+    render: () => '<section aria-label="Native invocation context worker checkpoint"></section>',
+    play: ({ canvasElement }) => nativeContextCheckpointContract(canvasElement, false),
+};
+export const NativeInvocationContextCheckpointFallback: Story = {
+    render: () => '<section aria-label="Native invocation context fallback checkpoint"></section>',
+    play: ({ canvasElement }) => nativeContextCheckpointContract(canvasElement, true),
 };

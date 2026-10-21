@@ -1,7 +1,6 @@
 //! Explicit renderer checkpoint transport with opaque native value bytes, never
 //! an evaluation AST, authored input, live DOM serialization or native authority.
-use crate::value::artifact::{CemValueArtifactLimits, CemValueGraph};
-use base64::{engine::general_purpose::STANDARD, Engine};
+use crate::checkpoint_values::{sensitive, NativeArtifact};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 #[derive(Serialize, Deserialize)]
@@ -63,79 +62,10 @@ struct Attribute {
     native_value: Option<NativeValue>,
 }
 #[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct NativeArtifact {
-    content_hash: String,
-    base64: String,
-}
-#[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct NativeValue {
     artifact: usize,
     index: usize,
-}
-fn sensitive(name: &str, value: &str) -> bool {
-    name.eq_ignore_ascii_case("type")
-        && ["password", "file"]
-            .iter()
-            .any(|s| value.eq_ignore_ascii_case(s))
-        || name.eq_ignore_ascii_case("autocomplete")
-            && value.split_whitespace().any(|v| {
-                ["current-password", "new-password", "one-time-code"]
-                    .iter()
-                    .any(|s| v.eq_ignore_ascii_case(s))
-            })
-}
-impl NativeArtifact {
-    fn decode(&self, bytes: &mut usize) -> Result<CemValueGraph, &'static str> {
-        let fail = "cem.checkpoint.runtime.projection.native";
-        let decoded = STANDARD.decode(&self.base64).map_err(|_| fail)?;
-        *bytes = bytes.saturating_add(decoded.len());
-        if *bytes > 256 * 1024
-            || crate::content_cache::ContentHash::from_blake3(&decoded).header_value()
-                != self.content_hash
-        {
-            return Err(fail);
-        }
-        let graph = CemValueGraph::decode(
-            &decoded,
-            &CemValueArtifactLimits {
-                max_bytes: 256 * 1024,
-                max_values: 4096,
-                max_depth: 64,
-            },
-        )
-        .map_err(|_| fail)?;
-        if graph.accounted_bytes() > 256 * 1024 {
-            return Err(fail);
-        }
-        for (id, record) in graph.records.iter().enumerate() {
-            if record.kind == "attribute"
-                && (record.name.eq_ignore_ascii_case("type")
-                    || record.name.eq_ignore_ascii_case("autocomplete"))
-                && sensitive(
-                    &record.name,
-                    &graph
-                        .string_value(id as u32, 256 * 1024)
-                        .map_err(|_| fail)?,
-                )
-            {
-                return Err(fail);
-            }
-            if record
-                .provenance
-                .as_ref()
-                .and_then(|p| p.source_uri.as_ref())
-                .is_some_and(|uri| {
-                    url::Url::parse(uri)
-                        .is_ok_and(|url| !url.username().is_empty() || url.password().is_some())
-                })
-            {
-                return Err(fail);
-            }
-        }
-        Ok(graph)
-    }
 }
 fn identity(s: &str) -> bool {
     !s.is_empty() && s.len() <= 1024 && !s.chars().any(char::is_control)

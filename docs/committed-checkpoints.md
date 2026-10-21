@@ -180,8 +180,18 @@ initialization and restore visibility without redelivering opening/closing actio
 Completed menu-to-dialog handoffs use the dialog invocation’s source, logical
 parent and return destination endpoints after the menu relay has committed.
 Resume restores state without invoking the command or reusing the old relay.
+Open surfaces can capture a materialized native invocation `context` as an opaque
+CEMV artifact/content-hash/root-index capsule. Checkpoint-enabled shared surfaces
+retain a private bounded byte witness when invocation preparation is admitted.
+Capture compares both metadata and actual bytes; caller metadata replacement or
+in-place corruption blocks the complete domain. A stale asynchronous seal retains
+the last-good checkpoint. Closing, failed preparation and disposal release the
+witness. Native code validates context capsules with the same typed/provenance,
+privacy and aggregate byte guards as retained renderer capsules. This preserves
+context values for fresh admission; it carries no native handle or execution grant.
+
 Preparation, closing/exit work, pointer or activation-key gestures, queued activations,
-active tooltip interest/timers, native context handles, external geometry and
+active tooltip interest/timers, opaque/live native contexts, external geometry and
 unsupported deferred-body projections still block capture. A gesture settles after
 native activation dispatch; disposal removes its listeners and pending timer.
 Deferred native dialog bodies retain a native-validated `body` contract: current
@@ -374,17 +384,30 @@ separate work.
 
 `CemNativeCapabilitySession.prepare(..., signal, true)` explicitly opts a trusted
 host source into capture; declarative local suggestions select this only when
-checkpoint publication is enabled. Only original bounded XML or explicit CEMB
-reload bundles with empty scalar input and no additional native slice/attribute
-bindings are currently portable. The `cem-native-source/1` envelope retains
+checkpoint publication is enabled. Original bounded XML or explicit CEMB reload
+bundles can retain nonempty preparation control frames and additional materialized
+native attribute/slice bindings. The optional `preparation` record preserves the
+exact `dataJson` bytes of the existing explicitly named native-session control-frame
+JSON boundary, effective native value limits, and a `cem-native-bindings/1` table.
+JavaScript checks bounded scalar/control serialization and transports opaque CEMV;
+native code reimports control-frame JSON through the common document importer and
+validates binary integrity/hash, typed graphs, provenance, root indices, attribute
+names and optional slice wrappers. Raw slices retain their selected value without
+inventing a wrapper. Artifact pools reject duplicate/unreferenced artifacts and
+duplicate target/name bindings. Explicit `resolve=false` and execution's default
+`resolve=true` are preserved. The `cem-native-source/1` envelope retains
 source revision, row count, selection, label selectors, source/binding graph and
 directed crossing **intent** with `reacquire` disposition. Crossings never grant
 authority on resume. Native validation imports XML normally, verifies/reloads
 CEMB source and lexical metadata, and normalizes original-byte SHA-256 digests.
 Source bodies share the aggregate 256 KiB resource ceiling; source count caps at
 64, binding/crossing and placement records at 256, and rows at 1,024. Custom
-source traversal policies, nonempty input data, additional native bindings and
-unaccounted source ownership remain blocking.
+source traversal policies, live/executable binding authority, nonportable control
+frames and unaccounted source ownership remain blocking. Preparation JSON and CEMV
+share the aggregate 256 KiB original-source budget, with at most 64 artifacts and
+256 additional bindings. CEMV validation also respects the retained effective
+limits, including encoded binary overhead and the combined additional-binding byte
+payload; capture does not relax them.
 
 Source invocation snapshots copy original bytes and metadata before native
 processing, including before asynchronous native-session submission. Execution
@@ -543,3 +566,11 @@ focus, reject metadata replacement and in-place byte corruption, preserve
 last-good bytes during stale async seals and dispose/rematerialize normally.
 The real-WASM probe reimports renderer-produced capsules into an independent
 module and verifies typed integer/boolean values at the explicit JSON export boundary.
+
+Native context/preparation evidence covers original control-frame bytes, effective
+limits, shared attribute and wrapped/raw slice artifacts, native privacy/integrity
+and aggregate bounds, and independent-WASM validation/import. Worker/fallback
+plays verify immutable asynchronous submission copies, actual rendering from a
+fresh native session, returned-record isolation, changed/corrupted context refusal,
+last-good bytes through stale seals, preserved edits/caret/focus, revocation and
+normal close/disposal. Assertions for unsupported owners remain intact.

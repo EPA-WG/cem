@@ -18,6 +18,8 @@ pub struct Source {
     crossings: Vec<Crossing>,
     labels: Labels,
     disposition: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    preparation: Option<crate::checkpoint_values::Preparation>,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -219,6 +221,9 @@ impl Source {
         {
             return Err(fail);
         }
+        if let Some(preparation) = &self.preparation {
+            preparation.validate(bytes)?;
+        }
         let mut names = BTreeSet::new();
         for binding in &self.bindings {
             if binding.source >= self.sources.len()
@@ -384,6 +389,8 @@ struct Invocation {
     logical_parent: Option<Endpoint>,
     command: Option<String>,
     context_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    context: Option<crate::checkpoint_values::Capsule>,
     input_kind: String,
     pointer: Option<Rect>,
     selection: Option<Rect>,
@@ -422,6 +429,9 @@ impl Surface {
             return Err(fail);
         }
         if let Some(i) = &self.invocation {
+            if let Some(context) = &i.context {
+                context.validate(bytes)?;
+            }
             if !matches!(
                 i.input_kind.as_str(),
                 "pointer" | "keyboard" | "programmatic"

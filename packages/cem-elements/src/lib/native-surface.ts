@@ -1,3 +1,5 @@
+import { checkpointNativeCapsule, snapshotCheckpointNativeValue, sameCheckpointNativeValue } from './checkpoint-interactions.js';
+import type { NativeCemValue } from './native-values.js';
 import type { CheckpointSurface, CheckpointEndpoint } from './checkpoint-interactions.js';
 import { captureCemMenuTaskRelay, type CemMenuTaskRelay } from './menu-task-relay.js';
 import { getCemActionInvocation } from './action-command-capability.js';
@@ -19,6 +21,8 @@ export interface CemSurfacePreparation {
 }
 export interface CemNativeSurfaceOptions {
     host?: HTMLElement;
+    /** Opt-in bounded private context witness for committed checkpoint capture. */
+    checkpoint?: boolean;
     /** Shared host preparation; application data stays in its native lifecycle. */
     prepareBody?(preparation: CemSurfacePreparation): void | Promise<void>;
 }
@@ -59,6 +63,7 @@ class NativeSurface implements CemNativeSurfaceController {
     private descriptionId?: string;
     private readonly describedSources = new Map<HTMLElement, string>();
     private invocation?: CemSurfaceInvocation;
+    private checkpointContext?: NativeCemValue;
     private relay?: CemMenuTaskRelay;
     private activation?: { source: HTMLElement; invocation: CemSurfaceInvocation };
     private phase = 'closed';
@@ -222,7 +227,9 @@ class NativeSurface implements CemNativeSurfaceController {
         const entry = this.kind() === 'dialog' && active instanceof HTMLElement && !this.owner.contains(active)
             && active !== this.owner.ownerDocument.body ? active : undefined;
         this.invocation = retainInvocation({ ...invocation, logicalParent: invocation.logicalParent ?? relay?.logicalParent,
-            returnDestination: invocation.returnDestination ?? relay?.returnDestination ?? invocation.source ?? entry }); this.closeReason = 'native'; this.restore = false;
+            returnDestination: invocation.returnDestination ?? relay?.returnDestination ?? invocation.source ?? entry });
+        this.checkpointContext = this.preparationOptions.checkpoint && this.invocation.context ? snapshotCheckpointNativeValue(this.invocation.context) : undefined;
+        this.closeReason = 'native'; this.restore = false;
         if (!visible(this.owner)) { this.focusWithin = false; this.phase = 'preparing'; this.sessionId = `cem-native-session-${++sessions}`; }
         this.prepared = true; this.reflect(); return true;
     }
@@ -267,11 +274,11 @@ class NativeSurface implements CemNativeSurfaceController {
         } catch { if (generation === this.generation && !this.disposed) this.failed(); return false; }
     }
     private cancelPreparation(): void {
-        this.invalidatePreparation(); this.prepared = false; this.phase = 'closed'; this.invocation = undefined;
+        this.invalidatePreparation(); this.prepared = false; this.phase = 'closed'; this.invocation = undefined; this.checkpointContext = undefined;
         this.closeNested(); this.body.close(); this.reflect();
     }
     private failed(): void {
-        this.invalidatePreparation(); this.prepared = false; this.phase = 'closed'; this.invocation = undefined;
+        this.invalidatePreparation(); this.prepared = false; this.phase = 'closed'; this.invocation = undefined; this.checkpointContext = undefined;
         this.body.close(); this.reflect(); reportInteractionReference(this.host, 'interaction-open-failed', 'open');
     }
     private show(): boolean {
@@ -357,9 +364,12 @@ class NativeSurface implements CemNativeSurfaceController {
             || this.preparation || this.prepared || this.timer || this.activation || this.relay || this.releaseBusy
             || this.restore || this.tooltipPointer || this.tooltipAutomatic || this.tooltipDismissed || this.describedSources.size
             || [...this.tooltipSources.values()].some(source => source.focused || source.pointer || source.touch)
-            || this.invocation?.context || this.host.hasAttribute('anchor') || this.host.hasAttribute('boundary')
+            || this.host.hasAttribute('anchor') || this.host.hasAttribute('boundary')
             || this.phase === 'open' && (this.kind() !== 'dialog' || !visible(this.owner)) || this.phase === 'closed' && visible(this.owner)) return undefined;
         const invocation = this.phase === 'open' ? this.invocation : undefined;
+        const context = invocation?.context && this.checkpointContext && sameCheckpointNativeValue(invocation.context, this.checkpointContext)
+            ? checkpointNativeCapsule(this.checkpointContext) : undefined;
+        if (invocation?.context && !context) return undefined;
         if ((invocation?.command?.length ?? 0) > 4096 || (invocation?.contextKey?.length ?? 0) > 4096
             || nativeDialog(this.owner) && this.owner.returnValue.length > 65536 || this.closeReason.length > 1024) return undefined;
         const source = invocation?.source ? resolve(invocation.source) : null;
@@ -368,7 +378,7 @@ class NativeSurface implements CemNativeSurfaceController {
         if (source === undefined || returnDestination === undefined || logicalParent === undefined) return undefined;
         return { phase: this.phase as 'open' | 'closed', state: { ...(body ? { body } : {}), returnValue: nativeDialog(this.owner) ? this.owner.returnValue : null,
             modal: this.owner.matches(':modal'), focusWithin: this.focusWithin, closeReason: this.closeReason, disposition: 'reacquire',
-            invocation: invocation ? { source, returnDestination, logicalParent, command: invocation.command ?? null, contextKey: invocation.contextKey ?? null,
+            invocation: invocation ? { source, returnDestination, logicalParent, command: invocation.command ?? null, contextKey: invocation.contextKey ?? null, ...(context ? { context } : {}),
                 inputKind: invocation.inputKind ?? 'programmatic', pointer: invocation.geometry?.pointer ? { ...invocation.geometry.pointer } : null,
                 selection: invocation.geometry?.selection ? { ...invocation.geometry.selection } : null } : null } };
     }
@@ -405,7 +415,7 @@ class NativeSurface implements CemNativeSurfaceController {
             const generation = ++this.generation;
             this.emit('cem-close', false, this.closeReason);
             if (generation !== this.generation || visible(this.owner)) return;
-            this.invocation = undefined; this.restore = false;
+            this.invocation = undefined; this.checkpointContext = undefined; this.restore = false;
             const finish = () => {
                 if (this.disposed || generation !== this.generation || visible(this.owner)) return;
                 this.body.close(); this.phase = 'closed'; this.reflect();
@@ -413,7 +423,7 @@ class NativeSurface implements CemNativeSurfaceController {
             const exits = surfaceExitAnimations(this.owner);
             if (exits.length) void Promise.all(exits).then(finish); else finish();
         } else if (!open && !this.preparation && this.phase !== 'closing') {
-            this.prepared = false; this.phase = 'closed'; this.invocation = undefined; this.reflect();
+            this.prepared = false; this.phase = 'closed'; this.invocation = undefined; this.checkpointContext = undefined; this.reflect();
         } else if (open) { this.phase = 'open'; this.prepared = false; this.reflect(); }
     }
     private closeNested(): void {
@@ -570,7 +580,7 @@ class NativeSurface implements CemNativeSurfaceController {
         this.controls.disconnect();
         for (const state of this.tooltipSources.values()) state.abort.abort(); this.tooltipSources.clear();
         for (const source of this.describedSources.keys()) this.forgetDescription(source);
-        this.describedSources.clear(); this.invocation = undefined; this.activation = undefined; controllers.delete(this.owner);
+        this.describedSources.clear(); this.invocation = undefined; this.checkpointContext = undefined; this.activation = undefined; controllers.delete(this.owner);
         if (returnOnRemoval) restoreSurfaceFocus(this.host, returnTo);
     }
 }
@@ -590,7 +600,7 @@ export const CEM_NATIVE_SURFACE_CAPABILITY: CemProducedElementBehavior = {
         const current = providerControllers.get(host);
         if (candidates.length !== 1) { current?.disconnect(); providerControllers.delete(host); reportInteractionReference(host, 'interaction-surface-ambiguous', 'surface'); return; }
         const owner = candidates[0];
-        if (current?.owner !== owner) { current?.disconnect(); providerControllers.set(host, connectCemNativeSurface(owner, { host, prepareBody: ({ signal }) => context.runtime.prepareSurfaceBody(host, owner, signal) })); }
+        if (current?.owner !== owner) { current?.disconnect(); providerControllers.set(host, connectCemNativeSurface(owner, { host, checkpoint: context.runtime.checkpointCaptureEnabled, prepareBody: ({ signal }) => context.runtime.prepareSurfaceBody(host, owner, signal) })); }
         reportInteractionReference(host, undefined, 'surface');
         if (!defaultsInitialized.has(host)) { defaultsInitialized.add(host); if (!context.resumed && host.hasAttribute('default-open')) providerControllers.get(host)?.open(); }
     },

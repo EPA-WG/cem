@@ -147,3 +147,41 @@ export const WorkerLossRequiresFreshSourceAuthority: Story = {
         } finally { await original.release().catch(() => undefined); await host.dispose({ reason: 'runtime-disposed' }).result; scope.dispose(); }
     },
 };
+
+export const PreparationInputsAndNativeBindingsAreImmutable: Story = {
+    render: () => '<section aria-label="Native preparation input checkpoint transport"></section>',
+    play: async () => {
+        await ready();
+        for (const fallback of [false,true]) {
+            const scope = createCemDeclarationScope({document});
+            const host = cemProcessingHostForScope(scope,{workerScriptUrl,...(fallback ? {workerFactory:()=>{throw new Error('input fixture fallback');}} : {})});
+            const compiled = JSON.parse(wasm.compileTemplate('{div @count={42}}','[]'));
+            let session: CemNativeCapabilitySession | undefined;
+            try {
+                const plan = JSON.parse(wasm.renderTemplateWithNativeValues(compiled.artifactId,0,'{}','[]','[]','','native-preparation',undefined,undefined));
+                const artifact = wasm.takeRenderValueArtifact(plan.nativeValueArtifactId).slice().buffer as ArrayBuffer;
+                const native = {kind:'cem-native-value-v1' as const,artifact,contentHash:plan.nativeValueContentHash,index:plan.nodes[0].attributes[0].nativeValueIndex};
+                const data = {datadom:{slices:{caption:'Original é😀'}}};
+                const preparing = CemNativeCapabilitySession.prepare(host,{action:'prepare',adapter:'suggestions-v1',handle:handle(10),
+                    sources:{kind:'cem-native-session-import-v1',bytes:new TextEncoder().encode('<option value="same">Original</option>').buffer,contentType:'application/xml',sourceUri:'memory:input-options.xml'},
+                    data,select:'input.children',limits:DEFAULT_CEM_VALUE_ARTIFACT_LIMITS,
+                    nativeAttributes:[{name:'count',value:native}],nativeSlices:[{name:'answer',attribute:'count',value:native},{name:'raw',value:native}]},()=>true,undefined,true);
+                data.datadom.slices.caption = 'Caller mutation'; new Uint8Array(artifact).fill(0); native.index = 999;
+                session = await preparing;
+                const saved = session.checkpointSource()!;
+                expect(saved.resolve).toBe(true);
+                expect(saved.preparation?.dataJson).toContain('Original é😀');
+                expect(saved.preparation?.nativeBindings.artifacts).toHaveLength(1);
+                expect(saved.preparation?.nativeBindings.bindings.map(b=>b.target)).toEqual(['attribute','slice','slice']);
+                const rendered = await session.render('{span | {$datadom.slices.caption}|{$datadom.slices.answer}}',0);
+                expect(JSON.stringify(rendered.nodes)).toContain('Original é😀'); expect(JSON.stringify(rendered.nodes)).toContain('42');
+                saved.preparation!.dataJson = '{}'; saved.preparation!.nativeBindings.artifacts[0].base64 = 'forged';
+                expect(session.checkpointSource()?.preparation?.dataJson).toContain('Original é😀');
+                expect(session.checkpointSource()?.preparation?.nativeBindings.artifacts[0].base64).not.toBe('forged');
+                const state = {version:'cem-checkpoint-runtime/1',capability:null,references:session.checkpointSource(),resources:[],writers:[],writeDisposition:'suppress-until-new-input'};
+                expect(wasm.validateCheckpointRuntime(JSON.stringify(state))).toContain('cem-native-bindings/1');
+                await session.release(); expect(session.checkpointSource()).toBeUndefined();
+            } finally { await session?.release(); wasm.disposeTemplate(compiled.artifactId); scope.dispose(); }
+        }
+    },
+};

@@ -904,3 +904,200 @@ fn retained_native_capsules_share_artifacts_and_enforce_privacy_and_aggregate_li
     bad["capability"]["state"]["body"]["projection"]["nativeArtifacts"][0] = json!({"contentHash":cem_ml::content_cache::ContentHash::from_blake3(&corrupt).header_value(),"base64":STANDARD.encode(corrupt)});
     assert!(validate(&bad.to_string()).is_err());
 }
+
+fn native_inputs_state() -> Value {
+    let p = native_projection_state();
+    let artifact = p["capability"]["state"]["body"]["projection"]["nativeArtifacts"][0].clone();
+    let mut s = state();
+    s["capability"] = json!({"kind":"native-surface","phase":"open","defaultsInitialized":true,"state":{"returnValue":"","modal":false,"focusWithin":true,"closeReason":"native","disposition":"reacquire",
+        "invocation":{"source":null,"returnDestination":null,"logicalParent":null,"command":"edit","contextKey":"row:1","inputKind":"programmatic","pointer":null,"selection":null,"context":{"artifact":artifact,"index":0}}}});
+    s["references"] = json!({"version":"cem-native-source/1","revision":"prepare:1","rowCount":0,"select":"input.children","resolve":true,"requesting":0,
+        "sources":[{"codec":"xml","base64":STANDARD.encode("<option value='same'/>"),"sourceUri":"memory:options.xml","primarySourceId":1,"context":true}],
+        "bindings":[],"crossings":[],"labels":{"option":null,"group":null},"disposition":"reacquire",
+        "preparation":{"dataJson":"{\"datadom\":{\"slices\":{\"query\":\"é😀\",\"enabled\":true}}}","limits":{"maxBytes":16777216,"maxValues":100000,"maxDepth":128},
+        "nativeBindings":{"version":"cem-native-bindings/1","artifacts":[artifact],"bindings":[
+            {"target":"attribute","name":"native-options","artifact":0,"index":0},
+            {"target":"slice","name":"options","artifact":0,"index":0,"attribute":"native-options"},
+            {"target":"slice","name":"raw","artifact":0,"index":0}]}}});
+    s
+}
+#[test]
+fn native_context_and_preparation_inputs_preserve_original_capsules_and_control_frames() {
+    let s = native_inputs_state();
+    let normalized = validate(&s.to_string()).unwrap();
+    let saved: Value = serde_json::from_str(&normalized).unwrap();
+    assert_eq!(saved["capability"], s["capability"]);
+    assert_eq!(
+        saved["references"]["preparation"],
+        s["references"]["preparation"]
+    );
+    assert_eq!(validate(&normalized).unwrap(), normalized);
+    let original = saved["references"]["preparation"]["dataJson"]
+        .as_str()
+        .unwrap();
+    let mut documents = cem_ml::import::documents::CemDocuments::default();
+    documents
+        .retain(
+            original.as_bytes(),
+            "application/json",
+            "memory:checkpoint-preparation.json",
+        )
+        .unwrap();
+}
+#[test]
+fn native_context_and_preparation_inputs_refuse_incomplete_or_authoritative_records() {
+    let s = native_inputs_state();
+    for (path, value) in [
+        ("/capability/state/invocation/context/index", json!(99)),
+        (
+            "/capability/state/invocation/context/artifact/contentHash",
+            json!("forged"),
+        ),
+        ("/capability/state/invocation/context/handle", json!(7)),
+        ("/references/preparation/dataJson", json!("[]")),
+        ("/references/preparation/dataJson", json!("{invalid")),
+        ("/references/preparation/limits/maxDepth", json!(0)),
+        ("/references/preparation/limits/maxBytes", json!(16777217)),
+        (
+            "/references/preparation/nativeBindings/bindings/0/name",
+            json!("wrong"),
+        ),
+        (
+            "/references/preparation/nativeBindings/bindings/0/attribute",
+            json!("native-options"),
+        ),
+        (
+            "/references/preparation/nativeBindings/bindings/1/attribute",
+            json!("wrong"),
+        ),
+        (
+            "/references/preparation/nativeBindings/bindings/1/target",
+            json!("live"),
+        ),
+        (
+            "/references/preparation/nativeBindings/bindings/1/artifact",
+            json!(1),
+        ),
+        ("/references/preparation/nativeBindings/grants", json!([])),
+    ] {
+        let mut bad = s.clone();
+        // Insert both existing and forbidden fields through their parent object.
+        let (parent, key) = path.rsplit_once('/').unwrap();
+        bad.pointer_mut(parent)
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .insert(key.into(), value);
+        assert!(validate(&bad.to_string()).is_err(), "{path}");
+    }
+    let mut bad = s.clone();
+    let b = bad["references"]["preparation"]["nativeBindings"]["bindings"][0].clone();
+    bad["references"]["preparation"]["nativeBindings"]["bindings"]
+        .as_array_mut()
+        .unwrap()
+        .push(b);
+    assert!(validate(&bad.to_string()).is_err());
+    let mut bad = s.clone();
+    let a = bad["references"]["preparation"]["nativeBindings"]["artifacts"][0].clone();
+    bad["references"]["preparation"]["nativeBindings"]["artifacts"]
+        .as_array_mut()
+        .unwrap()
+        .push(a);
+    assert!(validate(&bad.to_string()).is_err());
+    let mut bad = s;
+    bad["references"]["preparation"]["dataJson"] =
+        json!(format!("{{\"data\":\"{}\"}}", "x".repeat(256 * 1024)));
+    assert!(validate(&bad.to_string()).is_err());
+}
+
+#[test]
+fn native_input_capsules_enforce_privacy_effective_limits_and_shared_resource_budget() {
+    use cem_ml::value::artifact::{CemValueGraph, CemValueProvenance, CemValueRecord};
+    let s = native_inputs_state();
+    for key in ["maxBytes", "maxValues"] {
+        let mut bad = s.clone();
+        bad["references"]["preparation"]["limits"][key] = json!(1);
+        assert!(validate(&bad.to_string()).is_err(), "{key}");
+    }
+    let mut graph = CemValueGraph {
+        roots: vec![0],
+        records: vec![
+            CemValueRecord {
+                kind: "attribute".into(),
+                name: "type".into(),
+                native_content: true,
+                values: vec![1],
+                ..Default::default()
+            },
+            CemValueRecord {
+                lexical: "password".into(),
+                ..Default::default()
+            },
+        ],
+    };
+    for credential_uri in [false, true] {
+        if credential_uri {
+            graph.records[0].name = "native-options".into();
+            graph.records[1].lexical = "safe".into();
+            graph.records[1].provenance = Some(CemValueProvenance {
+                source_uri: Some("https://user:secret@example.test/source".into()),
+                ..Default::default()
+            });
+        }
+        let bytes = graph.encode(&Default::default()).unwrap();
+        let artifact = json!({"base64":STANDARD.encode(&bytes),"contentHash":cem_ml::content_cache::ContentHash::from_blake3(&bytes).header_value()});
+        for path in [
+            "/capability/state/invocation/context/artifact",
+            "/references/preparation/nativeBindings/artifacts/0",
+        ] {
+            let mut bad = s.clone();
+            *bad.pointer_mut(path).unwrap() = artifact.clone();
+            assert!(
+                validate(&bad.to_string()).is_err(),
+                "{path} credential={credential_uri}"
+            );
+        }
+    }
+    let mut aggregate = s;
+    aggregate["references"]["preparation"]["dataJson"] =
+        json!(format!("{{\"caption\":\"{}\"}}", "x".repeat(145_000)));
+    aggregate["resources"] = json!([{ "name":"data", "kind":"http", "disposition":"reimport-and-read-again", "revision":1, "cursor":0, "live":false, "state":"loaded", "url":"https://example.test/source.xml", "method":"GET",
+        "document":{"base64":STANDARD.encode(format!("<root>{}</root>","x".repeat(140_000))),"contentType":"application/xml","sourceUri":"https://example.test/source.xml","digest":null}}]);
+    assert!(validate(&aggregate.to_string()).is_err());
+}
+
+#[test]
+fn preparation_limits_cover_encoded_overhead_and_combined_native_bindings() {
+    let mut s = native_inputs_state();
+    s["capability"] = Value::Null;
+    s["references"]["preparation"]["dataJson"] = json!("{}");
+    let encoded = s["references"]["preparation"]["nativeBindings"]["artifacts"][0]["base64"]
+        .as_str()
+        .unwrap();
+    let bytes = STANDARD.decode(encoded).unwrap();
+    let graph =
+        cem_ml::value::artifact::CemValueGraph::decode(&bytes, &Default::default()).unwrap();
+    // A payload can fit its graph's logical content but exceed the encoded limit.
+    let limits = cem_ml::value::artifact::CemValueArtifactLimits {
+        max_bytes: bytes.len() - 1,
+        max_values: 4096,
+        max_depth: 64,
+    };
+    assert!(graph.validate(&limits).is_ok());
+    s["references"]["preparation"]["limits"]["maxBytes"] = json!(bytes.len() - 1);
+    assert!(validate(&s.to_string()).is_err());
+    let mut second = graph;
+    second.records[1].lexical = "43".into();
+    let second_bytes = second.encode(&Default::default()).unwrap();
+    let second_artifact = json!({"base64":STANDARD.encode(&second_bytes),"contentHash":cem_ml::content_cache::ContentHash::from_blake3(&second_bytes).header_value()});
+    s["references"]["preparation"]["nativeBindings"]["artifacts"]
+        .as_array_mut()
+        .unwrap()
+        .push(second_artifact);
+    s["references"]["preparation"]["nativeBindings"]["bindings"][2]["artifact"] = json!(1);
+    s["references"]["preparation"]["limits"]["maxBytes"] =
+        json!(bytes.len() + second_bytes.len() - 1);
+    assert!(validate(&s.to_string()).is_err());
+    s["references"]["preparation"]["limits"]["maxBytes"] = json!(bytes.len() + second_bytes.len());
+    assert!(validate(&s.to_string()).is_ok());
+}

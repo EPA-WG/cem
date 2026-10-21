@@ -1,4 +1,4 @@
-import { checkpointBase64, type CheckpointSource } from './checkpoint-interactions.js';
+import { checkpointPreparation, checkpointBase64, type CheckpointSource } from './checkpoint-interactions.js';
 import type { CemElementReferenceInputs } from './element-reference-inputs.js';
 import type { NativeCemValue } from './native-values.js';
 import type { CemProcessingHost, CemProcessingNativeSessionInput, CemProcessingNativeSessionResult } from './internal/runtime-support/processing-host.js';
@@ -66,9 +66,12 @@ export class CemNativeCapabilitySession {
         const metadataBounded = input.sources.kind === 'cem-native-session-import-v1' ? input.sources.sourceUri.length <= 4096
             : input.sources.bindings.length <= 256 && input.sources.grants.length <= 256
                 && input.sources.bindings.every(binding => binding.name.length <= 1024 && binding.select.length <= 4096);
+        const preparation = checkpoint ? checkpointPreparation(input) : undefined;
+        const preparationBytes = preparation ? new TextEncoder().encode(preparation.dataJson).byteLength
+            + preparation.nativeBindings.artifacts.reduce((sum, artifact) => sum + atob(artifact.base64).length, 0) : 0;
         if (checkpoint && metadataBounded && input.select.length <= 4096 && handle.sourceRevision.length <= 1024
-            && Object.values(input.labelTemplates ?? {}).every(value => value.length <= 4096) && sourceInputs.length <= 64 && sourceInputs.reduce((sum, bytes) => sum + bytes.byteLength, 0) <= 256 * 1024
-            && !Object.keys(input.data).length && !input.nativeAttributes?.length && !input.nativeSlices?.length) checkpointInput = structuredClone(input);
+            && Object.values(input.labelTemplates ?? {}).every(value => value.length <= 4096) && sourceInputs.length <= 64 && sourceInputs.reduce((sum, bytes) => sum + bytes.byteLength, preparationBytes) <= 256 * 1024
+            && preparation) checkpointInput = structuredClone(input);
         const job = host.nativeSession({ ...(checkpointInput ? structuredClone(checkpointInput) : input), handle });
         const cancel = () => { void host.cancel({ targetJobId: job.jobId, reason: 'superseded' }).result.catch(() => undefined); };
         signal?.addEventListener('abort', cancel, { once: true });
@@ -103,8 +106,9 @@ export class CemNativeCapabilitySession {
             // Non-default source traversal contracts require their own portable limits.
             if ('bundle' in source && (source.maxDepth !== undefined || source.maxWork !== undefined || source.unresolved !== undefined)) return undefined;
         }
-        return { version: 'cem-native-source/1', revision: this.handle.sourceRevision, rowCount: this.suggestions.rows, select: input.select,
-            resolve: input.resolve ?? false, requesting: imported ? 0 : (original as CemNativeSessionSources).requesting, sources,
+        const preparation = checkpointPreparation(input); if (!preparation) return undefined;
+        return { preparation, version: 'cem-native-source/1', revision: this.handle.sourceRevision, rowCount: this.suggestions.rows, select: input.select,
+            resolve: input.resolve ?? true, requesting: imported ? 0 : (original as CemNativeSessionSources).requesting, sources,
             bindings: imported ? [] : (original as CemNativeSessionSources).bindings.map(binding => ({ ...binding })),
             crossings: imported ? [] : (original as CemNativeSessionSources).grants.map(([from, to]) => ({ from, to })),
             labels: { option: input.labelTemplates?.option ?? null, group: input.labelTemplates?.group ?? null }, disposition: 'reacquire' };

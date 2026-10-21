@@ -207,6 +207,27 @@ try {
     assert.equal(fresh.exportCemJsonValue(artifact, plan.nodes[0].attributes.find(a=>a.name==='native-count').nativeValueIndex, 'native-count', ''), '42');
     assert.equal(fresh.exportCemJsonValue(artifact, plan.nodes[0].attributes.find(a=>a.name==='native-flag').nativeValueIndex, 'native-flag', ''), 'false');
     assert.equal(fresh.disposeNativeValueArtifact(id), true);
+    const countIndex = plan.nodes[0].attributes.find(a=>a.name==='native-count').nativeValueIndex;
+    const nativeArtifact = {contentHash:plan.nativeValueContentHash,base64:Buffer.from(artifact).toString('base64')};
+    const inputs = { ...runtimeState, resources: [], references: { ...active.capability.state.source,
+        preparation:{dataJson:'{"datadom":{"slices":{"caption":"é😀","enabled":true}}}',limits:{maxBytes:262144,maxValues:4096,maxDepth:64},
+            nativeBindings:{version:'cem-native-bindings/1',artifacts:[nativeArtifact],bindings:[
+                {target:'attribute',name:'native-count',artifact:0,index:countIndex},
+                {target:'slice',name:'count',attribute:'native-count',artifact:0,index:countIndex},
+                {target:'slice',name:'raw',artifact:0,index:countIndex}]}}},
+        capability:{kind:'native-surface',phase:'open',defaultsInitialized:true,state:{returnValue:'',modal:false,focusWithin:true,closeReason:'native',disposition:'reacquire',
+            invocation:{source:null,returnDestination:null,logicalParent:null,command:'edit',contextKey:'row:42',inputKind:'programmatic',pointer:null,selection:null,
+                context:{artifact:nativeArtifact,index:countIndex}}}}};
+    const inputSaved = wasm.validateCheckpointRuntime(JSON.stringify(inputs));
+    const {wasm: inputGeneration} = await load('native-context-and-preparation');
+    assert.equal(inputGeneration.validateCheckpointRuntime(inputSaved),inputSaved);
+    const opaque = JSON.parse(inputSaved).capability.state.invocation.context;
+    assert.equal(inputGeneration.exportCemJsonValue(Buffer.from(opaque.artifact.base64,'base64'),opaque.index,'native-count',''),'42');
+    inputs.references.preparation.limits.maxBytes=artifact.byteLength-1;
+    assert.throws(()=>inputGeneration.validateCheckpointRuntime(JSON.stringify(inputs)));
+    inputs.references.preparation.limits.maxBytes=262144;
+    inputs.references.preparation.nativeBindings.bindings[1].attribute='wrong';
+    assert.throws(()=>inputGeneration.validateCheckpointRuntime(JSON.stringify(inputs)));
     capsule.capability.state.body.projection.nativeArtifacts[0].contentHash = 'forged';
     assert.throws(()=>fresh.validateCheckpointRuntime(JSON.stringify(capsule)));
 } finally { wasm.disposeTemplate(capsuleTemplate.artifactId); }

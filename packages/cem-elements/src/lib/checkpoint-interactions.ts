@@ -1,7 +1,10 @@
+import { checkpointScalarPortable } from './checkpoint-controls.js';
+import type { CemValueArtifactLimits, NativeCemAttributeBinding, NativeCemSliceBinding, NativeCemValue } from './native-values.js';
 import type { CemCheckpointRelationship } from './committed-checkpoint.js';
 /** Named scalar lifecycle contracts. Original source bytes enter native import. */
 export type CheckpointEndpoint = CemCheckpointRelationship['provider'];
 export interface CheckpointSource {
+    preparation?: CheckpointPreparation;
     version: 'cem-native-source/1'; revision: string; rowCount: number; select: string; resolve: boolean; requesting: number;
     sources: { codec: 'xml' | 'cemb'; base64: string; sourceUri: string | null; primarySourceId: number; context: boolean; digest?: string | null }[];
     bindings: { source: number; name: string; select: string }[];
@@ -53,7 +56,7 @@ export interface CheckpointSurface {
     body?: CheckpointDeferredBody;
     returnValue: string | null; modal: boolean; focusWithin: boolean; closeReason: string; disposition: 'reacquire';
     invocation: null | { source: CheckpointEndpoint | null; returnDestination: CheckpointEndpoint | null; logicalParent: CheckpointEndpoint | null;
-        command: string | null; contextKey: string | null; inputKind: 'pointer' | 'keyboard' | 'programmatic';
+        command: string | null; contextKey: string | null; context?: CheckpointNativeCapsule; inputKind: 'pointer' | 'keyboard' | 'programmatic';
         pointer: { left: number; right: number; top: number; bottom: number } | null;
         selection: { left: number; right: number; top: number; bottom: number } | null };
 }
@@ -117,4 +120,69 @@ export interface CheckpointStandaloneDatalist {
     editor: CheckpointEndpoint; target: CheckpointEndpoint; providerRevision: number;
     claim: 'attached' | 'unavailable'; source: CheckpointSource;
     presentation: 'reset-on-resume'; disposition: 'reacquire';
+}
+
+/** Explicit native-session control frame and opaque values, never native authority. */
+export interface CheckpointNativeCapsule { artifact: { contentHash: string; base64: string }; index: number }
+export interface CheckpointNativeBindings {
+    version: 'cem-native-bindings/1'; artifacts: CheckpointNativeCapsule['artifact'][];
+    bindings: { target: 'attribute' | 'slice'; name: string; artifact: number; index: number; attribute?: string }[];
+}
+export interface CheckpointPreparation { dataJson: string; limits: CemValueArtifactLimits; nativeBindings: CheckpointNativeBindings }
+function portableNativeValue(value: NativeCemValue): boolean {
+    if (!value || typeof value !== 'object' || Reflect.ownKeys(value).length !== 4) return false;
+    for (const key of ['kind', 'artifact', 'contentHash', 'index']) {
+        const property = Object.getOwnPropertyDescriptor(value, key);
+        if (!property || !Object.hasOwn(property, 'value') || !property.enumerable) return false;
+    }
+    if (value.kind !== 'cem-native-value-v1' || !(value.artifact instanceof ArrayBuffer) || value.artifact.byteLength > 256 * 1024
+        || typeof value.contentHash !== 'string' || value.contentHash.length > 128 || !Number.isSafeInteger(value.index) || value.index < 0
+        || Reflect.ownKeys(value).some(key => !['kind', 'artifact', 'contentHash', 'index'].includes(key as string))) return false;
+    return true;
+}
+export function snapshotCheckpointNativeValue(value: NativeCemValue): NativeCemValue | undefined {
+    if (!portableNativeValue(value)) return undefined;
+    return Object.freeze({ kind: value.kind, artifact: value.artifact.slice(0), contentHash: value.contentHash, index: value.index });
+}
+export function sameCheckpointNativeValue(value: NativeCemValue, snapshot: NativeCemValue): boolean {
+    const witness = new Uint8Array(snapshot.artifact);
+    return portableNativeValue(value) && value.kind === snapshot.kind && value.index === snapshot.index && value.contentHash === snapshot.contentHash
+        && value.artifact.byteLength === snapshot.artifact.byteLength && new Uint8Array(value.artifact).every((byte, i) => byte === witness[i]);
+}
+export function checkpointNativeCapsule(value: NativeCemValue): CheckpointNativeCapsule | undefined {
+    const snapshot = snapshotCheckpointNativeValue(value); if (!snapshot) return undefined;
+    const base64 = checkpointBase64(snapshot.artifact);
+    return base64 === undefined ? undefined : { artifact: { contentHash: snapshot.contentHash, base64 }, index: snapshot.index };
+}
+export function checkpointNativeBindings(attributes: readonly NativeCemAttributeBinding[] = [], slices: readonly NativeCemSliceBinding[] = []): CheckpointNativeBindings | undefined {
+    if (attributes.length + slices.length > 256) return undefined;
+    const artifacts: CheckpointNativeBindings['artifacts'] = [], bindings: CheckpointNativeBindings['bindings'] = [];
+    const buffers = new Map<ArrayBuffer, number>();
+    let bytes = 0;
+    for (const [target, values] of [['attribute', attributes], ['slice', slices]] as const) for (const binding of values) {
+        if (!binding.name || binding.name.length > 1024) return undefined;
+        const attribute = target === 'slice' ? (binding as NativeCemSliceBinding).attribute : undefined;
+        if (attribute !== undefined && (!attribute || attribute.length > 1024)) return undefined;
+        const value = binding.value; if (!portableNativeValue(value)) return undefined;
+        let artifact = buffers.get(value.artifact);
+        if (artifact === undefined) {
+            bytes += value.artifact.byteLength; if (bytes > 256 * 1024) return undefined;
+            const capsule = checkpointNativeCapsule(value); if (!capsule) return undefined;
+            artifact = artifacts.findIndex(item => item.contentHash === capsule.artifact.contentHash && item.base64 === capsule.artifact.base64);
+            if (artifact < 0) {
+                if (artifacts.length >= 64) return undefined;
+                artifact = artifacts.length; artifacts.push(capsule.artifact);
+            }
+            buffers.set(value.artifact, artifact);
+        } else if (artifacts[artifact].contentHash !== value.contentHash) return undefined;
+        bindings.push({ target, name: binding.name, artifact, index: value.index, ...(attribute === undefined ? {} : { attribute }) });
+    }
+    return { version: 'cem-native-bindings/1', artifacts, bindings };
+}
+export function checkpointPreparation(input: { data: Record<string, unknown>; limits: CemValueArtifactLimits;
+    nativeAttributes?: readonly NativeCemAttributeBinding[]; nativeSlices?: readonly NativeCemSliceBinding[] }): CheckpointPreparation | undefined {
+    if (!checkpointScalarPortable(input.data)) return undefined;
+    const dataJson = JSON.stringify(input.data); if (new TextEncoder().encode(dataJson).byteLength > 256 * 1024) return undefined;
+    const nativeBindings = checkpointNativeBindings(input.nativeAttributes, input.nativeSlices);
+    return nativeBindings ? { dataJson, limits: { maxBytes: input.limits.maxBytes, maxValues: input.limits.maxValues, maxDepth: input.limits.maxDepth }, nativeBindings } : undefined;
 }
