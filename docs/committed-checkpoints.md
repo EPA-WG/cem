@@ -918,9 +918,8 @@ Native artifact disposal tombstones disappear with that heap only after this
 handoff. They are old-handle idempotence history, not portable external-effect
 outcomes; old handles never transfer to a new generation. The existing host
 journal travels inside the checkpoint. No command or external action is retried.
-The returned metadata still says `replacementAllowed: false`. Physical retirement
-of shared rendering workers/fallback memories, automatic replacement and semantic
-resume remain future work. Raw initialization/direct memory writes, unregistered
+The returned metadata still says `replacementAllowed: false`. Shared rendering-worker retirement is described below. Physical retirement of
+shared fallback memories, automatic replacement and semantic resume remain future work. Raw initialization/direct memory writes, unregistered
 embeddings and direct transport-control injection remain unsupported boundaries.
 Studio and component UI stay declarative; this opt-in capability lives entirely
 in shared runtime support and is not automatically enabled for Studio.
@@ -928,3 +927,56 @@ in shared runtime support and is not automatically enabled for Studio.
 The prepared retirement permit remains visible as one live `native-entries`
 root until abort or physical worker termination; a held barrier never produces
 a misleading empty resource census.
+
+
+### Shared rendering workers and the fallback disposal boundary
+
+The opt-in publication coordinator now provides a single-generation lifecycle:
+
+```ts
+const drain = await publication.closeRenderingGeneration();
+await publication.capture();
+const retired = await publication.retireRenderingGeneration(drain);
+// retired.checkpoint owns portable bytes outside the terminated WASM worker.
+// retired.replacementAllowed remains false.
+```
+
+Closure first stops host admission across the actual pooled worker and drains
+queued work, native callbacks and stylesheet I/O. It then closes ordinary native
+entrypoints in that exact linked memory. Capture must run again after closure;
+an earlier checkpoint is not current authority. Every pooled client, published
+owner and original retained-source witness must be covered by the same current
+private drain. Copied receipts, omitted peers/sources and cleanup mutations
+refuse preparation. Unknown external outcomes refuse checkpoint handoff.
+
+Retirement retains an independent host byte copy (at most 1 MiB), then performs
+terminal cleanup of the rendering engine's owned sessions, documents, templates,
+XPath libraries and stylesheet leases. The existing complete native census and
+original RAII permit are reused: unmanaged retained native roots still refuse
+the zero-blocker freeze. The worker keeps the permit privately; only bounded
+control metadata crosses the transport. The final current checkpoint/source/
+owner check and exact worker termination share one host turn. Old native
+handles lose authority synchronously. Existing light DOM, form edits, focus,
+selection and host checkpoint/journal bytes stay available.
+
+Unlike command-worker preparation, rendering preparation may already have
+released owned resources when a native blocker or newer input is discovered.
+A failed preparation therefore fences the old managed generation permanently;
+it never tries to reconstruct those handles or select fallback. The host
+checkpoint remains exportable, while its old receipt cannot resume anything.
+Abort drops an original held permit when possible and leaves native cleanup
+under closed admission. Preparation and abort each have a maximum five-second
+wait. Timeout, worker loss, malformed confirmation or late completion cannot
+revive retirement authority or replay actions. Normal explicit scope disposal
+continues to tear down its worker and releases pool ownership.
+
+Main-thread/fallback clients share one actual WASM memory with standalone native
+helpers and possible raw aliases. The current module loader has no exclusive
+memory disposal or fresh-module ownership boundary. Physical fallback retirement
+therefore rejects with `cem.runtime.retirement.unsupported` before changing
+admission or checkpoint state. It does not claim that revoking a handle frees
+that memory. Multi-generation publication domains similarly refuse a partial
+transaction before closing either heap. Coordinated multi-heap replacement,
+fallback isolation and semantic resume remain explicit next work; this API does
+not enable automatic recovery in Studio. All behavior stays in shared
+`cem-elements` runtime support; components and Studio UI remain declarative.

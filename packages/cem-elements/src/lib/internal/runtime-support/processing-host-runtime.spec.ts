@@ -1,5 +1,5 @@
 import { nativeCheckpointSnapshot, nativeCheckpointIdentity, nativeCheckpointSourceProof, nativeCheckpointSubscribe } from './checkpoint-domain.js';
-import { nativeCheckpointDrain, nativeCheckpointDrainCurrent } from './checkpoint-domain.js';
+import { closeNativeRenderingGeneration, retireNativeRenderingGeneration, nativeCheckpointDrain, nativeCheckpointDrainCurrent } from './checkpoint-domain.js';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('./cem-ql-render.js', () => ({
@@ -50,6 +50,7 @@ import { createCemDeclarationScope } from '../../declaration-scope.js';
 import { CemProcessingEngine } from './processing-engine.js';
 import { cemProcessingHostForScope } from './processing-host-runtime.js';
 import {
+    CEM_RENDERING_RETIREMENT_PROTOCOL, isCemRenderingRetirementControl, type CemRenderingRetirementControl,
     CemProcessingDiagnosticError,
     cemProcessingFailureDiagnostics,
     createCemProcessingFailureEnvelope,
@@ -300,7 +301,7 @@ class ControlledProcessingWorker {
         }
     }
 
-    protected emit(type: string, data: CemProcessingResponseEnvelope | ReturnType<typeof createCemProcessingReadyEnvelope>): void {
+    protected emit(type: string, data: CemProcessingResponseEnvelope | ReturnType<typeof createCemProcessingReadyEnvelope> | CemRenderingRetirementControl): void {
         for (const listener of this.listeners.get(type) ?? []) {
             listener({ data } as MessageEvent<unknown>);
         }
@@ -777,4 +778,65 @@ it('rejects a prepared native result when its worker generation is lost before a
     worker.readySession();
     await expect(job.result).rejects.toThrow('generation changed');
     stop(); await host.dispose({}).result; scope.dispose();
+});
+
+
+it('retires every pooled root without fallback, repeated cleanup or stale native authority', async () => {
+    class RetirementWorker extends ControlledProcessingWorker {
+        preparations = 0;
+        override postMessage(request: CemProcessingRequestEnvelope | CemRenderingRetirementControl): void {
+            if (!isCemRenderingRetirementControl(request)) { super.postMessage(request); return; }
+            if (request.action === 'prepare') this.preparations++;
+            queueMicrotask(() => this.emit('message', { protocol: CEM_RENDERING_RETIREMENT_PROTOCOL,
+                direction: 'response', id: request.id, action: request.action, ok: true,
+                ...(request.action === 'prepare' ? { confirmation: { schemaVersion: 1, frozen: true, inventoryRevision: 3,
+                    frozenRevision: 4, replacementAllowed: false } } : {}) }));
+        }
+    }
+    const worker = new RetirementWorker(), document = {} as Document;
+    const a = createCemDeclarationScope({ document }), b = createCemDeclarationScope({ document });
+    const options = { workerScriptUrl: new URL('https://example.test/retirement.js'), workerFactory: () => worker as unknown as Worker,
+        poolPolicy: { workerCount: 1, maxWorkers: 1, queueSize: 8 } };
+    const first = cemProcessingHostForScope(a, options), second = cemProcessingHostForScope(b, options);
+    await Promise.all([first.ready, second.ready]);
+    const lost = vi.fn(); first.onNativeAuthorityLost!(lost); second.onNativeAuthorityLost!(lost);
+    const proof = await closeNativeRenderingGeneration(first.checkpointClient!);
+    const handoff = { current: () => true, retain: () => new Uint8Array([1]) };
+    await expect(retireNativeRenderingGeneration(new Map([[first.checkpointClient!, ['a']]]), [], proof, handoff)).rejects.toThrow('coverage');
+    expect(worker.preparations).toBe(0);
+    await retireNativeRenderingGeneration(new Map([[first.checkpointClient!, ['a']], [second.checkpointClient!, ['b']]]), [], proof, handoff);
+    expect(worker.preparations).toBe(1); expect(worker.terminated).toBe(true); expect(lost).toHaveBeenCalledTimes(2);
+    expect(first.mode).toBe('worker'); expect(second.mode).toBe('worker');
+    await expect(first.compile(compileInput('retired')).result).rejects.toThrow('retired');
+    await Promise.all([first.dispose({ reason: 'runtime-disposed' }).result, second.dispose({ reason: 'runtime-disposed' }).result]);
+    expect(worker.requests).toHaveLength(0); a.dispose(); b.dispose();
+});
+
+
+it('fences retirement on actual worker loss and never moves the closed root to fallback', async () => {
+    class LostRetirementWorker extends ControlledProcessingWorker {
+        private failure?: (event: MessageEvent<unknown>) => void;
+        override addEventListener(type: string, listener: (event: MessageEvent<unknown>) => void): void {
+            if (type === 'error') this.failure = listener;
+            super.addEventListener(type, listener);
+        }
+        override postMessage(request: CemProcessingRequestEnvelope | CemRenderingRetirementControl): void {
+            if (!isCemRenderingRetirementControl(request)) { super.postMessage(request); return; }
+            queueMicrotask(() => {
+                if (request.action === 'prepare') this.failure?.({ preventDefault() { return undefined; }, error: new Error('lost rendering worker') } as unknown as MessageEvent<unknown>);
+                else this.emit('message', { protocol: CEM_RENDERING_RETIREMENT_PROTOCOL, direction: 'response', id: request.id, action: request.action, ok: true });
+            });
+        }
+    }
+    const worker = new LostRetirementWorker(), scope = createCemDeclarationScope({ document: {} as Document });
+    const host = cemProcessingHostForScope(scope, { workerScriptUrl: new URL('https://example.test/loss.js'), workerFactory: () => worker as unknown as Worker });
+    await host.ready;
+    const proof = await closeNativeRenderingGeneration(host.checkpointClient!), bytes = new Uint8Array([7]);
+    await expect(retireNativeRenderingGeneration(new Map([[host.checkpointClient!, ['a']]]), [], proof,
+        { current: () => true, retain: () => bytes })).rejects.toThrow('lost rendering worker');
+    expect([...bytes]).toEqual([7]); expect(host.mode).toBe('worker'); expect(worker.requests).toHaveLength(0);
+    expect(nativeCheckpointDrainCurrent(proof)).toBe(false);
+    await expect(host.cancel({ targetJobId: 1 }).result).rejects.toThrow('retired');
+    expect(host.mode).toBe('worker');
+    await host.dispose({ reason: 'runtime-disposed' }).result; scope.dispose();
 });

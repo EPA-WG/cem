@@ -49,3 +49,5 @@ export { registerCemArtifactTree, mountCemArtifactPreview, type CemPreviewArtifa
 export { CemCheckpointPublicationCoordinator, type CemCheckpointPublicationOptions, type CemCheckpointEndpointOwner, type CemCheckpointPublicationOwner, type CemCheckpointJournalAuthority, type CemCheckpointOperation } from './lib/checkpoint-publication.js';
 
 export type { CemCheckpointRelationship } from './lib/committed-checkpoint.js';
+
+export type { CemNativeDrain, CemRetiredRenderingGeneration } from './lib/internal/runtime-support/checkpoint-domain.js';

@@ -1,4 +1,4 @@
-import { nativeCheckpointIdentity, nativeCheckpointValidSourceProof, nativeCheckpointSubscribe, nativeCheckpointSnapshot, type CemCheckpointNativeClient, type CemCheckpointNativeSourceProof } from './internal/runtime-support/checkpoint-domain.js';
+import { closeNativeRenderingGeneration, retireNativeRenderingGeneration, type CemNativeDrain, nativeCheckpointIdentity, nativeCheckpointValidSourceProof, nativeCheckpointSubscribe, nativeCheckpointSnapshot, type CemCheckpointNativeClient, type CemCheckpointNativeSourceProof } from './internal/runtime-support/checkpoint-domain.js';
 import type { CheckpointEndpoint } from './checkpoint-interactions.js';
 import { CemCommittedCheckpointStore, type CemCheckpointOwnerReceipt, type CemCheckpointSealer, type CemCommitReceipt, type CemStoredCheckpoint, type CemCheckpointRelationship } from './committed-checkpoint.js';
 
@@ -361,6 +361,47 @@ export class CemCheckpointPublicationCoordinator {
             return handoff.retain();
         } });
     }
+    /** Close one complete physical rendering generation, then capture again
+     * before retirement. Multi-heap transactions and fallback disposal refuse. */
+    async closeRenderingGeneration(timeoutMs = 5000): Promise<CemNativeDrain> {
+        const coverage = this.renderingCoverage();
+        const client = coverage.bindings.keys().next().value;
+        if (!client) throw new Error('cem.runtime.retirement.coverage');
+        return closeNativeRenderingGeneration(client, timeoutMs);
+    }
+
+    async retireRenderingGeneration(proof: CemNativeDrain, timeoutMs = 5000): Promise<import('./internal/runtime-support/checkpoint-domain.js').CemRetiredRenderingGeneration> {
+        const coverage = this.renderingCoverage();
+        return retireNativeRenderingGeneration(coverage.bindings, coverage.sources, proof, this.handoff(), timeoutMs);
+    }
+
+    private renderingCoverage() {
+        if (this.disposed || this.blocked || !this.owners.size) throw new Error('cem.runtime.retirement.coverage');
+        const bindings = new Map<CemCheckpointNativeClient, string[]>();
+        const sources: CemCheckpointNativeSourceProof[] = [];
+        const generations = new Set<string>();
+        for (const owner of this.owners.values()) {
+            const client = owner.endpoint?.nativeClient;
+            const generation = client && nativeCheckpointIdentity(client);
+            if (!client || !generation) throw new Error('cem.runtime.retirement.coverage');
+            generations.add(generation);
+            const owners = bindings.get(client) ?? []; owners.push(owner.id); bindings.set(client, owners);
+            const proofs = owner.endpoint?.nativeSources?.();
+            if (owner.endpoint?.nativeSources && !proofs) throw new Error('cem.runtime.retirement.coverage');
+            for (const source of proofs ?? []) {
+                sources.push(source);
+                const owners = bindings.get(source.client) ?? [];
+                if (!owners.includes(owner.id)) owners.push(owner.id);
+                bindings.set(source.client, owners);
+                const identity = nativeCheckpointIdentity(source.client);
+                if (!identity) throw new Error('cem.runtime.retirement.coverage');
+                generations.add(identity);
+            }
+        }
+        if (generations.size !== 1) throw new Error('cem.runtime.retirement.multiple-generations');
+        return { bindings, sources };
+    }
+
     lastCommitted(): CemStoredCheckpoint | undefined { return this.store.lastCommitted(); }
     dispose(): void {
         this.disposed = true; this.invalidate(); this.store.dispose();

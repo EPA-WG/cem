@@ -1,8 +1,10 @@
 /// <reference lib="webworker" />
 
+import { ensureRuntimeReady, closeRenderingNativeAdmission, renderingNativeResourceInventory, prepareRenderingNativeRetirement } from './cem-ql-render.js';
 import { CemProcessingEngine } from './processing-engine.js';
 import { cemMainThreadCheckpointDomain } from './checkpoint-domain.js';
 import {
+    CEM_RENDERING_RETIREMENT_PROTOCOL, isCemRenderingRetirementControl, type CemRenderingRetirementControl,
     CemProcessingCancellationRegistry,
     cemProcessingFailureDiagnostics,
     assertCemProcessingEnvelope,
@@ -17,9 +19,16 @@ import {
 const workerScope = self as unknown as DedicatedWorkerGlobalScope;
 const engine = new CemProcessingEngine();
 const jobs = new CemProcessingCancellationRegistry();
+let activeRequests = 0;
+let nativeClosed = false;
+let permit: ReturnType<typeof prepareRenderingNativeRetirement> | undefined;
+let preparing = false;
+let prepared = false;
+
 
 workerScope.addEventListener('message', (event: MessageEvent<unknown>) => {
-    void handleMessage(event.data);
+    if (isCemRenderingRetirementControl(event.data) && event.data.direction === 'request') void retirementControl(event.data);
+    else void handleMessage(event.data);
 });
 
 workerScope.postMessage(createCemProcessingReadyEnvelope('worker'));
@@ -37,6 +46,7 @@ async function handleMessage(message: unknown): Promise<void> {
         return;
     }
 
+    activeRequests++;
     try {
         if (request.operation === 'cancel') {
             workerScope.postMessage(createCemProcessingSuccessEnvelope(request, {
@@ -110,6 +120,7 @@ async function handleMessage(message: unknown): Promise<void> {
                 : createCemProcessingFailureEnvelope(request, 'failure', cemProcessingFailureDiagnostics(error))
         );
     } finally {
+        activeRequests--;
         if (request.operation !== 'cancel') {
             jobs.finish(request.jobId);
         }
@@ -122,4 +133,37 @@ function cancelledDiagnostic(): CemProcessingDiagnostic {
         severity: 'info',
         message: 'the CEM processing job was cancelled',
     };
+}
+
+
+async function retirementControl(request: CemRenderingRetirementControl): Promise<void> {
+    try {
+        if (preparing || activeRequests) throw new Error('cem.runtime.retirement.busy');
+        let confirmation: unknown;
+        if (request.action === 'close') {
+            preparing = true;
+            try { await ensureRuntimeReady(); closeRenderingNativeAdmission(); nativeClosed = true; }
+            finally { preparing = false; }
+        } else if (request.action === 'prepare') {
+            if (!nativeClosed || prepared) throw new Error('cem.runtime.retirement.unavailable');
+            prepared = true;
+            engine.dispose({ reason: 'runtime-disposed' });
+            // The existing complete linked native census refuses unmanaged roots
+            // even after every managed render resource has been released.
+            const inventory = renderingNativeResourceInventory();
+            if (inventory.length > 65536) throw new Error('cem.runtime.retirement.inventory');
+            const revision = JSON.parse(inventory).revision;
+            permit = prepareRenderingNativeRetirement(revision);
+            const text = permit.confirmation();
+            if (text.length > 512) throw new Error('cem.runtime.retirement.confirmation');
+            confirmation = JSON.parse(text);
+        } else {
+            permit?.free(); permit = undefined;
+        }
+        workerScope.postMessage({ protocol: CEM_RENDERING_RETIREMENT_PROTOCOL, direction: 'response',
+            id: request.id, action: request.action, ok: true, ...(confirmation ? { confirmation } : {}) });
+    } catch (error) {
+        workerScope.postMessage({ protocol: CEM_RENDERING_RETIREMENT_PROTOCOL, direction: 'response',
+            id: request.id, action: request.action, ok: false, error: String(error).slice(0, 512) });
+    }
 }

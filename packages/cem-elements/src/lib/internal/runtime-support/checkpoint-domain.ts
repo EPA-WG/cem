@@ -1,3 +1,4 @@
+import type { CemCheckpointRetirementHandoff } from '../../committed-checkpoint.js';
 import type { CemCheckpointNativeRuntime } from '../../committed-checkpoint.js';
 
 /** Private lifecycle witnesses. Neither serialized IDs nor structural copies
@@ -28,6 +29,7 @@ export class CemNativeAdmissionClosedError extends Error {
 }
 export interface CemNativeDrain { readonly runtimeId: string; readonly revision: number }
 const drainProofs = new WeakMap<CemNativeDrain, CemNativeCheckpointDomain>();
+const terminalRenderingGenerations = new WeakSet<CemNativeCheckpointDomain>();
 interface DrainWaiter { check(): void; fail(reason: string): void }
 
 export class CemNativeCheckpointDomain {
@@ -62,6 +64,7 @@ export class CemNativeCheckpointDomain {
     move(token: CemCheckpointNativeClient): void {
         const client = clients.get(token);
         if (!client || client.domain === this) return;
+        if (terminalRenderingGenerations.has(client.domain)) throw new Error('cem.runtime.generation.retired');
         this.assertAdmission();
         if (client.domain.alive && client.domain.pressure) throw new CemNativeAdmissionClosedError();
         client.domain.members.delete(client); client.domain.changed();
@@ -114,6 +117,7 @@ export class CemNativeCheckpointDomain {
     }
     pressureReason(): CemNativePressureReason | undefined { return this.pressure; }
     assertAdmission(cleanup = false): void {
+        if (!this.alive && terminalRenderingGenerations.has(this) && !cleanup) throw new Error('cem.runtime.generation.retired');
         this.samplePressure();
         if (!cleanup && this.pressure) throw new CemNativeAdmissionClosedError();
     }
@@ -204,6 +208,11 @@ export class CemNativeCheckpointDomain {
         }
         return { runtimeId: this.runtimeId, generation: 1, mode: this.mode, revision: this.revision,
             clients: records.sort((a, b) => a.clientId.localeCompare(b.clientId)) };
+    }
+
+    retirementEndpoint(endpoint: NativeRenderingRetirementEndpoint): void {
+        if (this.mode !== 'worker' || retirementEndpoints.has(this)) throw new Error('cem.runtime.retirement.unsupported');
+        retirementEndpoints.set(this, endpoint);
     }
 
     issuedIdentity(): string { return this.runtimeId; }
@@ -351,4 +360,94 @@ export function nativeCheckpointWork<Args extends unknown[], Result>(operation: 
         try { nativeCheckpointAssertAdmission(client, cleanup); return await operation(...args); }
         finally { cemMainThreadCheckpointDomain.samplePressure(); cemMainThreadCheckpointDomain.remove(client); }
     };
+}
+
+
+interface NativeRenderingRetirementEndpoint {
+    close(): Promise<void>;
+    /** Terminal cleanup of owned roots precedes the existing native zero-root
+     * permit. Failure fences the generation; it never rolls native state back. */
+    prepare(): Promise<unknown>;
+    abort(): Promise<void>;
+    terminate(): void;
+}
+const retirementEndpoints = new WeakMap<CemNativeCheckpointDomain, NativeRenderingRetirementEndpoint>();
+const retirementFlights = new WeakSet<CemNativeCheckpointDomain>();
+export interface CemRetiredRenderingGeneration { readonly checkpoint: Uint8Array; readonly replacementAllowed: false }
+
+async function retirementDeadline<T>(operation: () => Promise<T>, timeoutMs: number): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try { return await Promise.race([operation(), new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error('cem.runtime.retirement.timeout')), timeoutMs);
+    })]); } finally { clearTimeout(timer); }
+}
+function retirementTimeout(timeoutMs: number): void {
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 5000) throw new Error('cem.runtime.retirement.timeout-config');
+}
+/** Explicit trusted host lifecycle control. Main-thread memory is shared with
+ * native helpers/raw aliases and has no exclusive physical disposal boundary. */
+export async function closeNativeRenderingGeneration(client: CemCheckpointNativeClient, timeoutMs = 5000): Promise<CemNativeDrain> {
+    retirementTimeout(timeoutMs);
+    const domain = clients.get(client)?.domain, endpoint = domain && retirementEndpoints.get(domain);
+    if (!domain || !endpoint) throw new Error('cem.runtime.retirement.unsupported');
+    if (retirementFlights.has(domain)) throw new Error('cem.runtime.retirement.pending');
+    retirementFlights.add(domain);
+    terminalRenderingGenerations.add(domain);
+    try {
+        domain.closeAdmission('soft-pressure');
+        await domain.drain({ timeoutMs });
+        await retirementDeadline(() => endpoint.close(), timeoutMs);
+        return await domain.drain({ timeoutMs });
+    } catch (error) { domain.revoke(); throw error; }
+    finally { retirementFlights.delete(domain); }
+}
+/** One exact physical worker only. Multiple heaps need a future coordinated
+ * replacement transaction; a scalar receipt never authorizes their disposal. */
+export async function retireNativeRenderingGeneration(
+    ownerBindings: ReadonlyMap<CemCheckpointNativeClient, readonly string[]>,
+    sourceWitnesses: readonly CemCheckpointNativeSourceProof[], proof: CemNativeDrain,
+    handoff: CemCheckpointRetirementHandoff, timeoutMs = 5000,
+): Promise<CemRetiredRenderingGeneration> {
+    retirementTimeout(timeoutMs);
+    const domain = drainProofs.get(proof), endpoint = domain && retirementEndpoints.get(domain);
+    if (!domain || !endpoint) throw new Error('cem.runtime.retirement.coverage');
+    if (retirementFlights.has(domain)) throw new Error('cem.runtime.retirement.pending');
+    const bindings = new Map([...ownerBindings].map(([client, owners]) => [client, [...owners]]));
+    const sources = [...sourceWitnesses];
+    const current = () => nativeCheckpointClosedCoverage(bindings, sources, [proof])?.length === 1;
+    if (!current()) throw new Error('cem.runtime.retirement.coverage');
+    retirementFlights.add(domain);
+    let preparing = false;
+    try {
+        if (handoff.current() !== true || !current()) throw new Error('cem.runtime.retirement.stale');
+        const bytes = handoff.retain();
+        if (!(bytes instanceof Uint8Array) || bytes.byteLength < 1 || bytes.byteLength > 1024 * 1024 || !(bytes.buffer instanceof ArrayBuffer))
+            throw new Error('cem.runtime.retirement.handoff');
+        const checkpoint = new Uint8Array(bytes);
+        if (handoff.current() !== true || !current()) throw new Error('cem.runtime.retirement.stale');
+        preparing = true; terminalRenderingGenerations.add(domain);
+        const confirmation = await retirementDeadline(() => endpoint.prepare(), timeoutMs);
+        if (!confirmation || typeof confirmation !== 'object') throw new Error('cem.runtime.retirement.confirmation');
+        const record = confirmation as Record<string, unknown>;
+        if (Object.keys(record).length !== 5 || record.schemaVersion !== 1 || record.frozen !== true || record.replacementAllowed !== false
+            || !Number.isSafeInteger(record.inventoryRevision) || (record.inventoryRevision as number) < 1
+            || !Number.isSafeInteger(record.frozenRevision) || (record.frozenRevision as number) <= (record.inventoryRevision as number))
+            throw new Error('cem.runtime.retirement.confirmation');
+        if (handoff.current() !== true || !current()) throw new Error('cem.runtime.retirement.stale');
+        endpoint.terminate(); domain.revoke();
+        return Object.freeze({ checkpoint, replacementAllowed: false });
+    } catch (error) {
+        if (preparing) {
+            // Owned native roots may already have been released. Preserve host
+            // checkpoint/DOM, revoke old handles, and never select fallback/replay.
+            domain.revoke();
+            try { await retirementDeadline(() => endpoint.abort(), timeoutMs); } catch { /* Uncertain cleanup remains fenced. */ }
+        }
+        throw error;
+    } finally { retirementFlights.delete(domain); }
+}
+
+export function nativeCheckpointRetirementStarted(client: CemCheckpointNativeClient): boolean {
+    const domain = clients.get(client)?.domain;
+    return !!domain && terminalRenderingGenerations.has(domain);
 }

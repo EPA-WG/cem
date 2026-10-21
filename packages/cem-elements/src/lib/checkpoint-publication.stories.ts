@@ -2087,7 +2087,7 @@ export const SourceWorkerGenerationLossPreservesFallback: Story = {
 
 /** Packaged runtime in a disposable realm: sticky pressure must never poison
  * the runner's shared fallback module or any user's saved workspace. */
-async function isolatedNativePressure(base: string, fallback: boolean, load: (url: string) => Promise<any>): Promise<string> {
+async function isolatedNativePressure(base: string, fallback: boolean, load: (url: string) => Promise<any>, retirement?: 'success' | 'unmanaged' | 'stale'): Promise<string> {
     const support = new URL('lib/internal/runtime-support/', base).href;
     const [{ CemElementRuntime }, { createCemDeclarationScope }, { CemCheckpointPublicationCoordinator }, native, domains, hosts] = await Promise.all([
         load(new URL('lib/cem-elements.js', base).href),
@@ -2101,6 +2101,7 @@ async function isolatedNativePressure(base: string, fallback: boolean, load: (ur
     await native.default();
     const original = JSON.parse(native.runtimeMemoryStatus()).config;
     let worker: Worker | undefined, blob: string | undefined;
+    let terminated = 0; let invalidate: (() => void) | undefined;
     // Only this trusted fixture configures the worker's native budget. Normal
     // production requests and authored CEM data cannot configure native heaps.
     const workerFactory = () => {
@@ -2108,6 +2109,7 @@ async function isolatedNativePressure(base: string, fallback: boolean, load: (ur
         blob = URL.createObjectURL(new Blob([`
             import * as native from ${JSON.stringify(`${support}vendor/cem_ql.js`)};
             await native.default();
+            ${retirement === 'unmanaged' ? "native.compileTemplate('{p | unmanaged}', '[]');" : ''}
             self.addEventListener('message', event => {
                 if (!event.data.fixturePressure) return;
                 native.configureRuntimeMemoryBudget(JSON.stringify({ ...JSON.parse(native.runtimeMemoryStatus()).config, softLimitBytes: 1 }));
@@ -2115,13 +2117,26 @@ async function isolatedNativePressure(base: string, fallback: boolean, load: (ur
             });
             await import(${JSON.stringify(`${support}processing-worker.js`)});
         `], { type: 'text/javascript' }));
-        worker = new Worker(blob, { type: 'module' }); return worker;
+        worker = new Worker(blob, { type: 'module' });
+        const terminate = worker.terminate.bind(worker);
+        worker.terminate = () => { terminated++; terminate(); };
+        worker.addEventListener('message', event => {
+            if (retirement === 'stale' && event.data?.protocol === 'cem-rendering-retirement-v1'
+                && event.data.direction === 'response' && event.data.action === 'prepare' && event.data.ok) invalidate?.();
+        });
+        return worker;
     };
     const scope = createCemDeclarationScope({ document });
     const coordinator = new CemCheckpointPublicationCoordinator({ runtimeId: crypto.randomUUID(), generation: 1,
         policyStamp: 'private', allowOwner: () => true, seal: (candidate: string, receipt: string) => native.sealCommittedCheckpoint(candidate, receipt) });
     const runtime = new CemElementRuntime({ declarationScope: scope, declarationTag: `declaration-${crypto.randomUUID()}`,
         checkpointPublication: coordinator, processingWorkerFactory: workerFactory,
+        httpResourcePolicy: { allowCrossOrigin: true },
+        loadHttpResource: async (request: { resolvedUrl: string }) => ({
+            response: { url: request.resolvedUrl, status: 200, statusText: 'OK', ok: true, redirected: false,
+                headers: { 'content-type': 'application/xml' }, contentType: 'application/xml' },
+            body: (async function* () { yield new TextEncoder().encode('<catalog><entry>Portable source</entry></catalog>'); })(),
+        }),
         processingPoolPolicy: { workerCount: 1, maxWorkers: 1, queueSize: 32 } });
     const host = hosts.cemProcessingHostForScope(scope, { workerScriptUrl: `${support}processing-worker.js`, workerFactory,
         poolPolicy: { workerCount: 1, maxWorkers: 1, queueSize: 32 } });
@@ -2129,7 +2144,8 @@ async function isolatedNativePressure(base: string, fallback: boolean, load: (ur
         const declaration = document.createElement('div'), template = document.createElement('template');
         const tag = `pressure-${crypto.randomUUID()}`; declaration.setAttribute('tag', tag);
         template.type = 'text/cem-ml';
-        template.textContent = '{slice @name=typed}{label | Draft {input @name=draft @slice=typed @slice-event=input @slice-value="$target.value"}}{output | {$typed}}';
+        template.textContent = (retirement ? '{http-request @slice=remote @url="https://example.test/retirement.xml" @content-type="application/xml"}{p | {$datadom.slices.remote.state}}' : '')
+            + '{slice @name=typed}{label | Draft {input @name=draft @slice=typed @slice-event=input @slice-value="$target.value"}}{output | {$typed}}';
         declaration.append(template); document.body.append(declaration); runtime.registerDeclaration(declaration);
         await runtime.whenDeclarationSettled(declaration);
         const instance = document.createElement(tag); document.body.append(instance); await runtime.whenRenderSettled(instance);
@@ -2142,6 +2158,41 @@ async function isolatedNativePressure(base: string, fallback: boolean, load: (ur
         }
         const lastGood = [...coordinator.lastCommitted().bytes].join(',');
         const before = document.activeElement;
+        if (retirement) {
+            if (fallback) {
+                let refused = false;
+                try { await coordinator.closeRenderingGeneration(); } catch (error) { refused = String(error).includes('unsupported'); }
+                check(refused, 'shared fallback memory acquired physical retirement authority');
+                check(coordinator.current(), 'unsupported fallback retirement invalidated a good checkpoint');
+                return 'fallback retirement refused';
+            }
+            const proof = await coordinator.closeRenderingGeneration();
+            await coordinator.capture();
+            const sealed = [...coordinator.lastCommitted().bytes].join(',');
+            invalidate = () => { input.value = 'New input during retirement'; input.dispatchEvent(new Event('input', { bubbles: true })); };
+            let result: any, error: unknown;
+            try { result = await coordinator.retireRenderingGeneration(proof); } catch (caught) { error = caught; }
+            if (retirement === 'success') {
+                check(!error && result && !result.replacementAllowed, `worker retirement failed: ${String(error)}`);
+                check([...result.checkpoint].join(',') === sealed, 'retired bytes differ from the current complete checkpoint');
+                check(new TextDecoder().decode(result.checkpoint).includes('reimport-and-read-again'), 'retirement omitted the retained document source contract');
+                check(terminated === 1, 'physical rendering worker was not terminated exactly once');
+            } else {
+                check(error && terminated === 0, 'unmanaged roots or newer input authorized physical retirement');
+                check([...coordinator.lastCommitted().bytes].join(',') === sealed, 'failed retirement lost the host checkpoint');
+            }
+            check(!domains.nativeCheckpointDrainCurrent(proof), 'old generation retained drain authority');
+            check(host.mode === 'worker', 'retirement selected fallback');
+            check(input.isConnected && document.activeElement === before, 'retirement replaced edited DOM or focus');
+            check(input.value === (retirement === 'stale' ? 'New input during retirement' : 'Preserve Amsterdam draft'), 'retirement lost edited control value');
+            if (retirement !== 'stale') check(input.selectionStart === 4 && input.selectionEnd === 12, 'retirement lost selection');
+            let refused = false;
+            try { await host.value({ action: 'import', bytes: new TextEncoder().encode('{}').buffer, contentType: 'application/json',
+                sourceUri: 'https://example.test/retired.json', scopePolicyStamp: 'retired', limits: { maxBytes: 1024, maxValues: 32, maxDepth: 8 } }).result; }
+            catch (error) { refused = String(error).includes('retired'); }
+            check(refused, 'retired handles admitted new native work');
+            return `${retirement} retirement passed`;
+        }
         const sessionHandle = { instanceId: runtime.readInstanceSnapshot(instance).instanceId, sessionKey: 'pressure-source',
             scopePolicyStamp: 'pressure', sourceRevision: '1' };
         await host.nativeSession({ action: 'prepare', handle: sessionHandle, data: {}, select: 'input.children',
@@ -2218,6 +2269,36 @@ export const NativePressureClosureAndDrain: Story = {
                     .then(result => parent.postMessage({ id: ${JSON.stringify(id)}, result }, '*'),
                         error => parent.postMessage({ id: ${JSON.stringify(id)}, error: error.stack || String(error) }, '*'));</script>`;
                 expect(await completed).toBe(fallback ? 'fallback pressure passed' : 'worker pressure passed');
+            } finally { stop(); frame.remove(); }
+        }
+    },
+};
+
+
+export const SharedRenderingRetirement: Story = {
+    render: () => '<section aria-label="Shared rendering retirement"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section')!;
+        const base = new URL('../../dist/', import.meta.url).href;
+        for (const [fallback, mode] of [[false, 'success'], [false, 'unmanaged'], [false, 'stale'], [true, 'success']] as const) {
+            const frame = document.createElement('iframe'), id = crypto.randomUUID();
+            frame.title = 'Isolated rendering retirement fixture'; root.append(frame);
+            let stop = () => undefined;
+            try {
+                const completed = new Promise<string>((resolve, reject) => {
+                    const timer = setTimeout(() => reject(new Error('isolated rendering retirement timed out')), 15000);
+                    const receive = (event: MessageEvent) => {
+                        if (event.source !== frame.contentWindow || event.data?.id !== id) return;
+                        clearTimeout(timer);
+                        if (event.data.error) reject(new Error(event.data.error)); else resolve(event.data.result);
+                    };
+                    window.addEventListener('message', receive);
+                    stop = () => { clearTimeout(timer); window.removeEventListener('message', receive); };
+                });
+                frame.srcdoc = `<script type="module">(${isolatedNativePressure.toString()})(${JSON.stringify(base)}, ${fallback}, url => import(url), ${JSON.stringify(mode)})
+                    .then(result => parent.postMessage({ id: ${JSON.stringify(id)}, result }, '*'),
+                        error => parent.postMessage({ id: ${JSON.stringify(id)}, error: error.stack || String(error) }, '*'));</script>`;
+                expect(await completed).toBe(fallback ? 'fallback retirement refused' : `${mode} retirement passed`);
             } finally { stop(); frame.remove(); }
         }
     },

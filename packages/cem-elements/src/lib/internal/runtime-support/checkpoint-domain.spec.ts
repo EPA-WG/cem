@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { CemNativeCheckpointDomain, nativeCheckpointAdmission, nativeCheckpointIdentity, nativeCheckpointSnapshot, nativeCheckpointRequirements, nativeCheckpointWitnessSource, nativeCheckpointSourceProof, nativeCheckpointFailureFence, nativeCheckpointWork, cemMainThreadCheckpointDomain, cemWorkerCheckpointDomain } from './checkpoint-domain.js';
 import { CemCheckpointPublicationCoordinator } from '../../checkpoint-publication.js';
-import { nativeCheckpointDrain, nativeCheckpointDrainCurrent, nativeCheckpointDrainRequirements, nativeCheckpointClosedCoverage, nativeCheckpointSubscribe } from './checkpoint-domain.js';
+import { closeNativeRenderingGeneration, retireNativeRenderingGeneration, nativeCheckpointDrain, nativeCheckpointDrainCurrent, nativeCheckpointDrainRequirements, nativeCheckpointClosedCoverage, nativeCheckpointSubscribe } from './checkpoint-domain.js';
 
 describe('pressure admission and bounded draining', () => {
     it('starts the bounded drain deadline on pressure even without a waiting caller', async () => {
@@ -262,4 +262,89 @@ describe('physical checkpoint domains', () => {
         fallback.remove(client); fallback.remove(peer);
     });
 
+});
+
+
+describe('shared rendering retirement', () => {
+    it('requires every original client and source before physical preparation', async () => {
+        const domain = new CemNativeCheckpointDomain('worker'), a = domain.client(), b = domain.client();
+        const prepare = vi.fn(async () => ({ schemaVersion: 1, frozen: true, inventoryRevision: 7, frozenRevision: 8, replacementAllowed: false })), terminate = vi.fn();
+        domain.retirementEndpoint({ close: async () => undefined, prepare, abort: async () => undefined, terminate });
+        const proof = await closeNativeRenderingGeneration(a);
+        const handoff = { current: () => true, retain: () => new Uint8Array([1, 2]) };
+        await expect(retireNativeRenderingGeneration(new Map([[a, ['a']]]), [], proof, handoff)).rejects.toThrow('coverage');
+        await expect(retireNativeRenderingGeneration(new Map([[a, ['a']], [b, ['b']]]), [], { ...proof }, handoff)).rejects.toThrow('coverage');
+        const source = {}; nativeCheckpointWitnessSource(source, b, 'session:source', () => true);
+        nativeCheckpointRequirements(b, sources => sources.has('session:source') ? ['b'] : undefined);
+        await expect(retireNativeRenderingGeneration(new Map([[a, ['a']], [b, ['b']]]), [], proof, handoff)).rejects.toThrow('coverage');
+        expect(prepare).not.toHaveBeenCalled(); expect(terminate).not.toHaveBeenCalled();
+        await retireNativeRenderingGeneration(new Map([[a, ['a']], [b, ['b']]]), [nativeCheckpointSourceProof(source)!], proof, handoff);
+        expect(prepare).toHaveBeenCalledOnce(); expect(terminate).toHaveBeenCalledOnce();
+    });
+    it('retains independent bytes and terminates only after a native freeze and final currentness check', async () => {
+        const domain = new CemNativeCheckpointDomain('worker'), a = domain.client();
+        const terminate = vi.fn(), bytes = new Uint8Array([3, 4]);
+        domain.retirementEndpoint({ close: async () => undefined, prepare: async () => ({ schemaVersion: 1, frozen: true,
+            inventoryRevision: 7, frozenRevision: 8, replacementAllowed: false }), abort: async () => undefined, terminate });
+        const proof = await closeNativeRenderingGeneration(a);
+        const retired = await retireNativeRenderingGeneration(new Map([[a, ['a']]]), [], proof, { current: () => true, retain: () => bytes });
+        bytes[0] = 9; expect([...retired.checkpoint]).toEqual([3, 4]); expect(retired.replacementAllowed).toBe(false);
+        expect(terminate).toHaveBeenCalledOnce(); expect(nativeCheckpointIdentity(a)).toBeUndefined();
+        expect(() => nativeCheckpointAdmission(a)).toThrow('retired');
+    });
+    it('cancels physical retirement on changed handoff or ownership and fences the disposed generation', async () => {
+        for (const change of ['handoff', 'owner', 'malformed']) {
+            const domain = new CemNativeCheckpointDomain('worker'), a = domain.client(); let current = true;
+            const abort = vi.fn(async () => undefined), terminate = vi.fn();
+            domain.retirementEndpoint({ close: async () => undefined, prepare: async () => {
+                if (change === 'handoff') current = false;
+                if (change === 'owner') domain.changed();
+                return { schemaVersion: 1, frozen: change !== 'malformed', inventoryRevision: 7, frozenRevision: 8, replacementAllowed: false };
+            }, abort, terminate });
+            const proof = await closeNativeRenderingGeneration(a);
+            await expect(retireNativeRenderingGeneration(new Map([[a, ['a']]]), [], proof, { current: () => current, retain: () => new Uint8Array([1]) })).rejects.toThrow();
+            expect(abort).toHaveBeenCalledOnce(); expect(terminate).not.toHaveBeenCalled();
+            expect(nativeCheckpointIdentity(a)).toBeUndefined();
+        }
+    });
+    it('never migrates a failed explicit closure into another fallback generation', async () => {
+        const domain = new CemNativeCheckpointDomain('worker'), a = domain.client();
+        domain.retirementEndpoint({ close: async () => { throw new Error('lost closure'); }, prepare: vi.fn(), abort: vi.fn(), terminate: vi.fn() });
+        await expect(closeNativeRenderingGeneration(a)).rejects.toThrow('lost closure');
+        const fallback = new CemNativeCheckpointDomain('main-thread');
+        expect(() => fallback.move(a)).toThrow('retired'); expect(fallback.identity()).toBeDefined();
+        expect(nativeCheckpointIdentity(a)).toBeUndefined();
+    });
+    it('bounds preparation and abort, preserves last-good bytes, and never revives timed-out authority', async () => {
+        vi.useFakeTimers();
+        try {
+            const domain = new CemNativeCheckpointDomain('worker'), a = domain.client();
+            const terminate = vi.fn(), bytes = new Uint8Array([8]);
+            domain.retirementEndpoint({ close: async () => undefined, prepare: () => new Promise(() => undefined),
+                abort: () => new Promise(() => undefined), terminate });
+            const proof = await closeNativeRenderingGeneration(a);
+            const retired = retireNativeRenderingGeneration(new Map([[a, ['a']]]), [], proof, { current: () => true, retain: () => bytes }, 10);
+            const rejected = expect(retired).rejects.toThrow('timeout');
+            await vi.advanceTimersByTimeAsync(21); await rejected;
+            expect([...bytes]).toEqual([8]); expect(terminate).not.toHaveBeenCalled();
+            expect(nativeCheckpointDrainCurrent(proof)).toBe(false);
+            expect(() => nativeCheckpointAdmission(a)).toThrow('retired');
+        } finally { vi.useRealTimers(); }
+    });
+    it('refuses non-owned or oversized handoff storage before native cleanup', async () => {
+        const domain = new CemNativeCheckpointDomain('worker'), a = domain.client();
+        const prepare = vi.fn(async () => undefined);
+        domain.retirementEndpoint({ close: async () => undefined, prepare, abort: async () => undefined, terminate: vi.fn() });
+        const proof = await closeNativeRenderingGeneration(a);
+        for (const bytes of [new Uint8Array(), new Uint8Array(1024 * 1024 + 1), new Uint8Array(new SharedArrayBuffer(1))]) {
+            await expect(retireNativeRenderingGeneration(new Map([[a, ['a']]]), [], proof, { current: () => true, retain: () => bytes })).rejects.toThrow('handoff');
+        }
+        expect(prepare).not.toHaveBeenCalled(); expect(nativeCheckpointDrainCurrent(proof)).toBe(true); domain.revoke();
+    });
+    it('refuses physical fallback retirement before touching admission, bytes or owners', async () => {
+        const domain = new CemNativeCheckpointDomain('main-thread'), a = domain.client();
+        await expect(closeNativeRenderingGeneration(a)).rejects.toThrow('unsupported');
+        expect(domain.pressureReason()).toBeUndefined(); expect(nativeCheckpointIdentity(a)).toBeDefined();
+        domain.remove(a);
+    });
 });

@@ -23,6 +23,7 @@ import { DEFAULT_CEM_VALUE_ARTIFACT_LIMITS, type NativeCemAttributeBinding, type
 
 // eslint-disable-next-line @nx/enforce-module-boundaries -- generated WASM bindings are the Phase 3A internal runtime boundary.
 import initCemQlWasm, {
+    closeCommandNativeAdmission, commandNativeResourceInventory, prepareCommandNativeRetirement,
     cemQlVersion,
     runtimeMemoryStatus,
     validateCheckpointControls,
@@ -1340,4 +1341,13 @@ async function processNativeCemValueOperation(input: import('./processing-host.j
             contentHash: edgeContentAddress('sanitized-snapshot', artifact).digest } };
     }
     return { text: exportCemJsonValue(new Uint8Array(input.value.artifact), input.value.index, input.attribute ?? '', limits) ?? null };
+}
+
+// Trusted lifecycle controls share this exact module instance with rendering.
+export function closeRenderingNativeAdmission(): void { closeCommandNativeAdmission(); }
+export function renderingNativeResourceInventory(): string { return commandNativeResourceInventory(); }
+// Keep the generated owned class private; package declarations must not import
+// the workspace's raw-WASM path. The worker still retains the original object.
+export function prepareRenderingNativeRetirement(revision: number): { confirmation(): string; free(): void } {
+    return prepareCommandNativeRetirement(revision);
 }

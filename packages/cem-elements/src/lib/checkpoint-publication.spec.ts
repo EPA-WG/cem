@@ -1,3 +1,4 @@
+import { CemNativeCheckpointDomain } from './internal/runtime-support/checkpoint-domain.js';
 import { describe, expect, it } from 'vitest';
 import { CemCheckpointPublicationCoordinator } from './checkpoint-publication.js';
 
@@ -286,4 +287,44 @@ it('hands off only current publications and terminal journals, fencing input and
     const bytes = handoff.retain(); expect(bytes.length).toBeGreaterThan(0);
     owner.input(); expect(handoff.current()).toBe(false); expect(() => handoff.retain()).toThrow('stale');
     expect(c.lastCommitted()).toBeDefined(); c.dispose();
+});
+
+
+describe('publication-backed rendering retirement', () => {
+    it('requires the current complete sealed owner set and terminal journal before native cleanup', async () => {
+        const domain = new CemNativeCheckpointDomain('worker'), client = domain.client();
+        let preparations = 0, terminations = 0;
+        domain.retirementEndpoint({ close: async () => undefined, prepare: async () => {
+            preparations++; return { schemaVersion: 1, frozen: true, inventoryRevision: 10, frozenRevision: 11, replacementAllowed: false };
+        }, abort: async () => undefined, terminate: () => { terminations++; } });
+        const c = new CemCheckpointPublicationCoordinator(options());
+        const a = c.register('a', () => '<template>unsaved</template>', () => true, 0, () => [],
+            { host: {} as HTMLElement, nativeClient: client, resolve: () => undefined });
+        a.published(metadata); await c.capture();
+        const proof = await c.closeRenderingGeneration();
+        await expect(c.retireRenderingGeneration(proof)).rejects.toThrow();
+        await c.capture();
+        const unknown = c.operation('a'); await c.capture();
+        await expect(c.retireRenderingGeneration(proof)).rejects.toThrow('operations.unknown');
+        expect(preparations).toBe(0); expect(terminations).toBe(0);
+        unknown.acknowledge(); await c.capture();
+        const bytes = c.lastCommitted()!.bytes;
+        const retired = await c.retireRenderingGeneration(proof);
+        expect(retired.checkpoint).toEqual(bytes); expect(preparations).toBe(1); expect(terminations).toBe(1);
+        expect(c.current()).toBeUndefined(); expect(c.lastCommitted()!.bytes).toEqual(bytes); c.dispose();
+    });
+    it('refuses multi-heap and logical-only owners before closing either heap', async () => {
+        const c = new CemCheckpointPublicationCoordinator(options());
+        c.register('logical', () => '<template/>').published({ ...metadata, instanceId: 'logical' });
+        await expect(c.closeRenderingGeneration()).rejects.toThrow('coverage'); c.dispose();
+        const d = new CemCheckpointPublicationCoordinator(options());
+        const first = new CemNativeCheckpointDomain('worker'), second = new CemNativeCheckpointDomain('worker');
+        const a = first.client(), b = second.client();
+        for (const [id, client] of [['a', a], ['b', b]] as const)
+            d.register(id, () => '<template/>', () => true, 0, () => [],
+                { host: {} as HTMLElement, nativeClient: client, resolve: () => undefined }).published({ ...metadata, instanceId: id });
+        await expect(d.closeRenderingGeneration()).rejects.toThrow('multiple-generations');
+        expect(first.pressureReason()).toBeUndefined(); expect(second.pressureReason()).toBeUndefined();
+        d.dispose(); first.remove(a); second.remove(b);
+    });
 });
