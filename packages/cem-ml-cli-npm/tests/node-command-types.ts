@@ -3,9 +3,15 @@ import {
     createNodeCommandHost,
     createNodeCommandService,
     createNodeCommandServiceClient,
+    claimNodeCommandNativeEmbedding,
+    checkpointNodeCommandNativeEmbedding,
+    releaseNodeCommandNativeEmbedding,
+    isNodeCommandNativeInventoryCurrent,
     parseCemMlCommand,
     projectNodeCommandPresentation,
     type CommandInvocationV1,
+    type CommandNativeEmbeddingOwnership,
+    type CommandNativeInventory,
     type CommandPresentationV1,
     type CommandServiceResultV1,
     type NodeCommandHostOptions,
@@ -49,7 +55,16 @@ async function compilePublicNodeCommandContract(): Promise<void> {
         result,
     );
     await handle.dispose();
-    const nativeCheckpoint = await client.checkpointNative(5000);
+    const embedding: CommandNativeEmbeddingOwnership = client.claimNativeEmbedding();
+    const nativeCheckpoint = await client.checkpointNative(5000, [embedding]);
+    const inventory: CommandNativeInventory | undefined = nativeCheckpoint.nativeInventory;
+    const blockers: number | undefined = inventory?.blockingResources;
+    client.releaseNativeEmbedding(embedding);
+    const mainEmbedding = await claimNodeCommandNativeEmbedding();
+    const mainProof = await checkpointNodeCommandNativeEmbedding([mainEmbedding]);
+    const mainCurrent: boolean = isNodeCommandNativeInventoryCurrent(mainProof);
+    releaseNodeCommandNativeEmbedding(mainEmbedding);
+    void [blockers, mainCurrent];
     const scope: 'managed-cli-only' = nativeCheckpoint.scope;
     const replacementAllowed: false = nativeCheckpoint.replacementAllowed;
     const current: boolean = client.isNativeCheckpointCurrent(nativeCheckpoint);

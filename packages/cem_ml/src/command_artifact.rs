@@ -206,6 +206,12 @@ impl Default for CommandServiceArtifactRegistryV1 {
 }
 
 impl CommandServiceArtifactRegistryV1 {
+    pub fn inventory_counts(&self) -> (u64, u64) {
+        let requests = self.requests.lock().expect("poisoned command-service artifact registry");
+        (requests.values().map(|s| s.retained.len() as u64).sum(),
+         requests.len() as u64 + requests.values().map(|s| s.disposed.len() as u64).sum::<u64>())
+    }
+
     pub fn with_limits(limits: CommandServiceLimitsV1) -> Self {
         Self {
             requests: Arc::new(Mutex::new(BTreeMap::new())),
@@ -221,6 +227,7 @@ impl CommandServiceArtifactRegistryV1 {
         request_id: &str,
     ) -> Result<(), CommandServiceArtifactRegistryErrorV1> {
         validate_request_id(request_id)?;
+        crate::runtime_inventory::note_mutation();
         let mut requests = self
             .requests
             .lock()
@@ -282,6 +289,7 @@ impl CommandServiceArtifactRegistryV1 {
             }
         }
 
+        crate::runtime_inventory::note_mutation();
         let mut requests = self
             .requests
             .lock()
@@ -365,6 +373,7 @@ impl CommandServiceArtifactRegistryV1 {
         handle_id: RetainedHandleId,
     ) -> Result<CommandServiceArtifactDisposeAckV1, CommandServiceArtifactRegistryErrorV1> {
         validate_request_id(request_id)?;
+        crate::runtime_inventory::note_mutation();
         let mut requests = self
             .requests
             .lock()
@@ -420,6 +429,7 @@ impl CommandServiceArtifactRegistryV1 {
         request_id: &str,
     ) -> Result<CommandServiceArtifactDisposeAckV1, CommandServiceArtifactRegistryErrorV1> {
         validate_request_id(request_id)?;
+        crate::runtime_inventory::note_mutation();
         let mut requests = self
             .requests
             .lock()

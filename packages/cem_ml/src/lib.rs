@@ -48,6 +48,7 @@ pub mod resource_base;
 pub mod observability;
 pub mod operation_control;
 pub mod runtime_memory;
+pub mod runtime_inventory;
 pub mod committed_checkpoint;
 pub mod checkpoint_control_state;
 pub mod checkpoint_runtime_state;

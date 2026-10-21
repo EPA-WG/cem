@@ -1,3 +1,4 @@
+import { copyCommandNativeEmbeddingOwnership, CommandNativeEmbeddingOwners, parseCommandNativeInventory, type CommandNativeInventory, type CommandNativeEmbeddingOwnership } from './native-embedding.js';
 /** Managed CLI admission only. This is never whole-heap replacement authority. */
 export type CommandNativeClosure = 'soft-pressure' | 'hard-pressure' | 'telemetry-unavailable' | 'checkpoint';
 
@@ -23,6 +24,8 @@ export interface CommandNativeDrain {
     readonly revision: number;
     readonly scope: 'managed-cli-only';
     readonly replacementAllowed: false;
+    readonly nativeInventory?: CommandNativeInventory;
+    readonly embeddingOwners?: number;
 }
 
 const proofs = new WeakMap<object, { readonly domain: CommandNativeAdmission; readonly revision: number }>();
@@ -103,6 +106,8 @@ export class CommandNativeAdmission {
         this.#changed();
     }
 
+    touch(): void { this.#changed(); }
+
     invalidate(): void { this.#failed = true; this.#changed(); }
 
     async drain(timeoutMs = 5000): Promise<CommandNativeDrain> {
@@ -159,23 +164,32 @@ export class CommandNativeClientCheckpoint {
     #callbacks = 0;
     #waiters = 0;
     #idle: () => boolean;
+    #owners: CommandNativeEmbeddingOwners;
+    #ownershipAck: object | undefined;
 
-    constructor(idle: () => boolean) { this.#idle = idle; }
+    constructor(idle: () => boolean, identity: object = {}) {
+        this.#idle = idle;
+        this.#owners = new CommandNativeEmbeddingOwners(identity, () => identity, () => this.changed());
+    }
+    claimEmbedding(): CommandNativeEmbeddingOwnership { return this.#owners.claim(); }
+    releaseEmbedding(lease: CommandNativeEmbeddingOwnership): void { this.#owners.release(lease); }
     changed(): void { this.#revision++; this.#proof = undefined; }
     close(): void { this.#closed = true; this.changed(); }
-    invalidate(): void { this.#uncertain = true; this.close(); }
+    invalidate(): void { this.#uncertain = true; this.#owners.revoke(); this.close(); }
     assertExecution(): void { if (this.#closed) throw new CommandNativeAdmissionError(); }
     callback(): () => void {
         this.#callbacks++; this.changed();
         return () => { this.#callbacks--; this.changed(); };
     }
     current(proof: CommandNativeDrain): boolean {
-        return this.#proof !== undefined && proof === this.#proof && !this.#uncertain && this.#closed && this.#callbacks === 0 && this.#idle();
+        return this.#proof !== undefined && proof === this.#proof && !this.#uncertain && this.#closed && this.#callbacks === 0 && this.#idle() && (this.#ownershipAck === undefined || this.#owners.current(this.#ownershipAck));
     }
-    async capture(send: () => Promise<unknown>, timeoutMs = 5000): Promise<CommandNativeDrain> {
+    async capture(send: () => Promise<unknown>, timeoutMs = 5000, ownership?: readonly CommandNativeEmbeddingOwnership[]): Promise<CommandNativeDrain> {
         if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60000) throw new RangeError('Invalid command drain timeout');
         if (this.#uncertain) throw new CommandNativeAdmissionError('cem.command.checkpoint.blocked', 'Command checkpoint ownership is uncertain');
         if (this.#waiters >= MAX_WAITERS) throw new CommandNativeAdmissionError('cem.command.checkpoint.limit', 'Too many checkpoint requests');
+        const ownershipSnapshot = ownership === undefined ? undefined : copyCommandNativeEmbeddingOwnership(ownership);
+        const ownershipAck = ownershipSnapshot === undefined ? undefined : this.#owners.acknowledge(ownershipSnapshot);
         this.close();
         this.#waiters++;
         let timer: ReturnType<typeof setTimeout> | undefined;
@@ -187,13 +201,17 @@ export class CommandNativeClientCheckpoint {
                 }, Math.min(timeoutMs, 5000));
             })]);
             const reply = value as Partial<CommandNativeDrain> | null;
-            if (this.#uncertain || this.#callbacks !== 0 || !this.#idle() || reply?.scope !== 'managed-cli-only' || reply.replacementAllowed !== false || !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 0 || Object.keys(reply).length !== 3) {
+            if (this.#uncertain || this.#callbacks !== 0 || !this.#idle() || (ownershipAck !== undefined && !this.#owners.current(ownershipAck)) || reply?.scope !== 'managed-cli-only' || reply.replacementAllowed !== false || !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 0 || Object.keys(reply).length !== (ownershipAck === undefined ? 3 : 4)) {
                 throw new CommandNativeAdmissionError('cem.command.checkpoint.blocked', 'Command checkpoint acknowledgement is incomplete');
             }
             // Never trust a transferable/copyable worker receipt as authority.
             // Only this original object is current for this client and activity.
+            const nativeInventory = ownershipAck === undefined ? undefined : parseCommandNativeInventory(reply.nativeInventory);
+            if (nativeInventory !== undefined && nativeInventory.blockingResources !== 0) throw new CommandNativeAdmissionError('cem.command.inventory.blocked', 'Native resources are still retained');
             const revision = this.#revision;
-            this.#proof = Object.freeze({ revision, scope: 'managed-cli-only', replacementAllowed: false });
+            this.#ownershipAck = ownershipAck;
+            this.#proof = Object.freeze({ revision, scope: 'managed-cli-only', replacementAllowed: false,
+                ...(nativeInventory === undefined ? {} : { nativeInventory, embeddingOwners: ownershipSnapshot?.length ?? 0 }) });
             return this.#proof;
         } finally { clearTimeout(timer); this.#waiters--; }
     }

@@ -179,3 +179,19 @@ checkpoint domains. Native memory budgets still apply, but idle command/render
 adapters are not proof of complete raw-heap ownership. Embedders must explicitly
 account for every client/resource, or keep raw heaps outside replacement.
 Managed command checkpoint witnesses always refuse replacement authority.
+
+
+## Native resource inventory
+
+`commandNativeResourceInventory()` returns explicit counter-only control JSON
+for all 28 registries in the linked command/reference runtime. Live resources,
+callbacks, commands (including before first poll) and reservations block an
+inventory-backed acknowledgement. Rebuildable caches and terminal journals have
+separate discardable counts. Native revisions detect same-count mutations.
+`commandNativeMemoryIdentity()` exposes the actual `WebAssembly.Memory` identity
+for trusted in-memory ownership bookkeeping; neither export grants replacement.
+
+Use the shared CLI embedding-lease APIs for complete opt-in owner consent.
+Unregistered raw callers remain unmanaged; coordinated raw admission closure,
+fresh census validation and semantic resume are still required before replacing
+a heap. See the [ownership contract](https://github.com/EPA-WG/cem/blob/develop/docs/committed-checkpoints.md#separate-command-heaps-and-the-unmanaged-boundary).

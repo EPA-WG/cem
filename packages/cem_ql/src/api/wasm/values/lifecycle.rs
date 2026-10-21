@@ -10,6 +10,7 @@ thread_local! {
 }
 #[wasm_bindgen(js_name = "startReferenceResourceExecution")]
 pub fn start(session_id: u32) -> Result<u32, JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     let execution = VALIDATIONS.with(|sessions| {
         sessions
             .borrow()
@@ -24,6 +25,7 @@ pub fn start(session_id: u32) -> Result<u32, JsValue> {
 }
 #[wasm_bindgen(js_name = "advanceReferenceResourceExecution")]
 pub fn advance(id: u32) -> Result<String, JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     EXECUTIONS.with(|runs| {
         let progress = runs
             .borrow_mut()
@@ -42,6 +44,7 @@ pub fn complete(
     content_type: &str,
     final_uri: &str,
 ) -> Result<String, JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     if bytes.len() > cem_ml::ast::reload::ReloadLimits::default().max_bytes {
         return Err(validation_error("Resource byte limit exceeded"));
     }
@@ -66,6 +69,7 @@ pub fn complete(
 }
 #[wasm_bindgen(js_name = "failReferenceResource")]
 pub fn fail_resource(id: u32, request_id: u32, reason: &str) -> Result<(), JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     EXECUTIONS.with(|runs| {
         runs.borrow_mut()
             .get_mut(&id)
@@ -90,6 +94,7 @@ pub fn context(
     ready: bool,
     bindings_json: &str,
 ) -> Result<(), JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     let context = validation_context(ready, bindings_json)?;
     EXECUTIONS.with(|runs| {
         runs.borrow_mut()
@@ -101,6 +106,7 @@ pub fn context(
 }
 #[wasm_bindgen(js_name = "allowReferenceResourceCrossing")]
 pub fn crossing(id: u32, from: u32, to: u32) -> Result<(), JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     EXECUTIONS.with(|runs| {
         runs.borrow_mut()
             .get_mut(&id)
@@ -111,6 +117,7 @@ pub fn crossing(id: u32, from: u32, to: u32) -> Result<(), JsValue> {
 }
 #[wasm_bindgen(js_name = "cancelReferenceResourceExecution")]
 pub fn cancel(id: u32) -> Result<(), JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     EXECUTIONS.with(|runs| {
         runs.borrow_mut()
             .get_mut(&id)
@@ -121,10 +128,12 @@ pub fn cancel(id: u32) -> Result<(), JsValue> {
 }
 #[wasm_bindgen(js_name = "disposeReferenceResourceExecution")]
 pub fn dispose_execution(id: u32) -> bool {
+    cem_ml::runtime_inventory::note_mutation();
     EXECUTIONS.with(|runs| runs.borrow_mut().remove(&id).is_some())
 }
 #[wasm_bindgen(js_name = "prepareReferenceQuerySnapshot")]
 pub fn snapshot(session_id: u32) -> Result<u32, JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     let snapshot = VALIDATIONS.with(|sessions| {
         sessions
             .borrow()
@@ -144,10 +153,12 @@ fn retained_snapshot(id: u32) -> Result<Arc<ReferenceQuerySnapshot>, JsValue> {
 }
 #[wasm_bindgen(js_name = "inspectReferenceQuerySnapshot")]
 pub fn inspect_snapshot(id: u32) -> Result<String, JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     serde_json::to_string(retained_snapshot(id)?.report()).map_err(validation_error)
 }
 #[wasm_bindgen(js_name = "queryReferenceQuerySnapshot")]
 pub fn query_snapshot(id: u32, expression: &str, query_uri: &str) -> Result<u32, JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     let snapshot = retained_snapshot(id)?;
     let context = crate::api::StandaloneExpressionContext {
         source_uri: Some(query_uri.into()),
@@ -174,6 +185,7 @@ pub fn query_snapshot(id: u32, expression: &str, query_uri: &str) -> Result<u32,
 }
 #[wasm_bindgen(js_name = "disposeReferenceQuerySnapshot")]
 pub fn dispose_snapshot(id: u32) -> bool {
+    cem_ml::runtime_inventory::note_mutation();
     SNAPSHOTS.with(|snapshots| snapshots.borrow_mut().remove(&id).is_some())
 }
 fn occurrence(value_id: u32, index: u32) -> Result<crate::eval::Item, JsValue> {
@@ -196,6 +208,7 @@ pub fn occurrence_context(
     ready: bool,
     bindings: &str,
 ) -> Result<(), JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     let value = occurrence(value_id, index)?;
     let context = validation_context(ready, bindings)?;
     VALIDATIONS.with(|sessions| {
@@ -214,6 +227,7 @@ pub fn clear_occurrence_context(
     value_id: u32,
     index: u32,
 ) -> Result<(), JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     let value = occurrence(value_id, index)?;
     VALIDATIONS.with(|sessions| {
         sessions
@@ -233,6 +247,7 @@ pub fn resource_occurrence_context(
     ready: bool,
     bindings: &str,
 ) -> Result<(), JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     let value = occurrence(value_id, index)?;
     let context = validation_context(ready, bindings)?;
     EXECUTIONS.with(|runs| {
@@ -250,6 +265,7 @@ pub fn clear_resource_occurrence_context(
     value_id: u32,
     index: u32,
 ) -> Result<(), JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     let value = occurrence(value_id, index)?;
     EXECUTIONS.with(|runs| {
         runs.borrow_mut()
@@ -261,6 +277,7 @@ pub fn clear_resource_occurrence_context(
 }
 #[wasm_bindgen(js_name = "prepareReferenceResourceQuerySnapshot")]
 pub fn resource_snapshot(id: u32, source: u32) -> Result<u32, JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     let snapshot = EXECUTIONS.with(|runs| {
         runs.borrow()
             .get(&id)
@@ -274,6 +291,7 @@ pub fn resource_snapshot(id: u32, source: u32) -> Result<u32, JsValue> {
 }
 #[wasm_bindgen(js_name = "prepareReferenceResourceNamespaces")]
 pub fn resource_names(id: u32, source: u32) -> Result<String, JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     EXECUTIONS.with(|runs| {
         let report = runs
             .borrow_mut()
@@ -301,6 +319,7 @@ pub fn complete_with_exports(
     uri: &str,
     exports_json: &str,
 ) -> Result<String, JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     if exports_json.len() > 128 * 1024
         || bytes.len() > cem_ml::ast::reload::ReloadLimits::default().max_bytes
     {
@@ -375,4 +394,9 @@ pub fn complete_with_exports(
         ),
         None => Ok("null".into()),
     }
+}
+
+pub(super) fn resource_inventory_entries() -> Vec<cem_ml::runtime_inventory::RegistryInventory> {
+    use cem_ml::runtime_inventory::RegistryInventory as Entry;
+    vec![Entry::new("reference-executions", EXECUTIONS.with(|s| s.borrow().len() as u64), 0), Entry::new("reference-snapshots", SNAPSHOTS.with(|s| s.borrow().len() as u64), 0)]
 }

@@ -579,6 +579,8 @@ pub struct XsltBundleHost {
     entries: BTreeMap<u32, (Arc<XsltBundle>, usize)>,
 }
 impl XsltBundleHost {
+    pub fn inventory_count(&self) -> usize { self.entries.len() }
+
     pub fn import(
         &mut self,
         bytes: &[u8],

@@ -270,19 +270,55 @@ resurrect worker evidence by copying a receipt. A refused retained-state capture
 leaves cleanup available; callers may dispose artifacts and request a new witness.
 
 Every command witness explicitly states `scope: "managed-cli-only"` and
-`replacementAllowed: false`. This records an adapter boundary, **not complete
-physical-heap coverage**. Trusted embedders can still import raw
-`@epa-wg/cem-ml/wasm` exports, instantiate generated WASM directly, use `initSync`,
-retain reference resources through a raw alias or supply another native runtime.
-Such calls are unmanaged and cannot be discovered from CLI work counts. They
-must be separately enrolled with closed native resource/client contracts, or
-isolated in an explicitly unmanaged heap that is excluded from replacement.
-Authoritative inventories of all native registries and fresh-generation
-re-admission are still required before replacing any of these heaps. Neither a
-managed CLI witness nor a render receipt authorizes whole-process replacement,
-replay, disposal of someone else's resources, or rollback of newer drafts.
-This step adds shared CLI host/runtime infrastructure and deployment assets;
-Studio continues to use its declarative command consumer unchanged.
+`replacementAllowed: false`. A render receipt cannot cover a command heap.
+Raw `@epa-wg/cem-ml/wasm` calls, initializers and independently instantiated
+modules remain outside managed admission. No witness authorizes replacement,
+replay, disposal of another owner's resources or rollback of newer drafts.
+
+The linked runtime now exports `commandNativeResourceInventory()`: a bounded,
+versioned counter-only census of all 28 retained resource/cache/operation roots
+in the command/reference profile. Rust checks the exact manifest, including
+empty registries; missing, duplicate, unknown or unsafe counters refuse the
+report. Live documents, templates, reference sources/values/validation/execution/
+snapshots, capability sessions, XPath/XSLT handles, callbacks, resumable hosts,
+render output, active commands and memory reservations block acknowledgement.
+Rebuildable cache entries and terminal artifact request/disposal journals remain
+visible as discardable counts. Live cache leases still block. No AST, source
+content, callback, native ID or live authority crosses this control boundary.
+Journal retirement/reuse policy still belongs to the replacement coordinator.
+
+Native mutable registry access and exported operations advance a safe-integer
+revision, including same-count changes behind retained references; exhaustion
+refuses the census. Read-only census/status/identity calls do not advance it.
+The async command bridge enrolls its activity and memory reservation synchronously
+before its first poll, holding both across every host callback wait. Consequently
+an empty CLI ledger cannot hide a raw pending command or retained resource.
+
+Embedding participation is explicit. `client.claimNativeEmbedding()` returns
+an original private lease tied to the actual Worker object. Pass **every live
+original lease** to `await client.checkpointNative(5000, [lease, ...])` to request
+an inventory-backed acknowledgement. Omitted, duplicate, copied, foreign or
+released leases refuse before closure; ownership changes during capture fence
+the reply. Up to 256 owners are supported, and release/worker termination revoke
+evidence. The optional `nativeInventory` and `embeddingOwners` fields describe
+that acknowledged snapshot; the default call retains its previous managed-only
+behavior. Worker `isNativeCheckpointCurrent` checks parent ownership/activity,
+not unobservable later raw worker calls. A replacement coordinator must request
+and atomically revalidate a fresh native revision under closed raw admission.
+
+Main-thread authoring exposes the corresponding
+`claimNodeCommandNativeEmbedding` / `claimBrowserCommandNativeEmbedding`,
+`checkpoint…`, `release…` and `is…InventoryCurrent` functions. Their shared weak
+registry keys ownership by the actual `WebAssembly.Memory`, not a caller label.
+Main-thread currentness re-reads the native census revision. A new memory,
+released owner, managed activity or raw same-count mutation invalidates the
+original proof; copied/foreign records never become authority. Original leases
+are in-memory contracts and cannot be serialized as portable checkpoint state.
+
+These APIs cannot discover a raw JavaScript caller that never participates or
+close arbitrary generated exports. Coordinated closure, fresh generation
+admission and semantic resume remain prerequisites for replacement. Studio only
+receives shared runtime deployment assets; its command consumer stays declarative.
 
 
 Every owner requires explicit whole-island privacy consent before serialization.

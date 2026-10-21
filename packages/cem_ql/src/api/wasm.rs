@@ -4,7 +4,7 @@
 //! browser transport deliberately small: JSON strings cross the JS/WASM edge,
 //! and compiled templates live behind opaque handles in WASM memory.
 
-use std::cell::RefCell;
+use cem_ml::runtime_inventory::NativeRegistry as RefCell;
 
 use serde_json::{json, Value};
 use wasm_bindgen::prelude::*;
@@ -70,6 +70,7 @@ pub fn wasm_template_compilation_cache_stats() -> String {
 }
 #[wasm_bindgen(js_name = "resetTemplateCompilationCache")]
 pub fn wasm_reset_template_compilation_cache() -> String {
+    cem_ml::runtime_inventory::note_mutation();
     COMPILATION_CACHE.with(|cell| match cell.borrow_mut().reset() {
         Ok(()) => "{}".into(),
         Err(error) => error_json(error.code, error.message),
@@ -93,6 +94,7 @@ pub fn wasm_version() -> String {
 
 #[wasm_bindgen(js_name = "compileTemplate")]
 pub fn wasm_compile_template(source: &str, host_bindings_json: &str) -> String {
+    cem_ml::runtime_inventory::note_mutation();
     let _memory = match cem_ml::runtime_memory::admit_input(source.len().saturating_add(host_bindings_json.len())) { Ok(permit) => permit, Err(error) => return error_json(error.0, "WASM memory admission refused; recovery headroom is reserved") };
     let host_bindings = match parse_host_bindings(host_bindings_json) {
         Ok(bindings) => bindings,
@@ -121,6 +123,7 @@ pub fn wasm_compile_template(source: &str, host_bindings_json: &str) -> String {
 /// artifact registry. The control payload contains source strings, never an AST.
 #[wasm_bindgen(js_name = "adoptDomStylesheets")]
 pub fn wasm_adopt_dom_stylesheets(source_json: &str) -> String {
+    cem_ml::runtime_inventory::note_mutation();
     let _memory = match cem_ml::runtime_memory::admit_input(source_json.len()) { Ok(permit) => permit, Err(error) => return error_json(error.0, "WASM memory admission refused; recovery headroom is reserved") };
     let sources = match stylesheet_sources(source_json) {
         Ok(sources) => sources,
@@ -137,6 +140,7 @@ pub fn wasm_adopt_dom_stylesheets(source_json: &str) -> String {
 /// Retain inert payload CSS under its persisted instance identity.
 #[wasm_bindgen(js_name = "adoptInstanceStylesheets")]
 pub fn wasm_adopt_instance_stylesheets(source_json: &str, instance_identity: &str) -> String {
+    cem_ml::runtime_inventory::note_mutation();
     let _memory = match cem_ml::runtime_memory::admit_input(source_json.len()) { Ok(permit) => permit, Err(error) => return error_json(error.0, "WASM memory admission refused; recovery headroom is reserved") };
     let sources = match stylesheet_sources(source_json) {
         Ok(sources) => sources,
@@ -170,6 +174,7 @@ fn stylesheet_sources(
 /// the immutable module closure through its scope-aware URL resolver.
 #[wasm_bindgen(js_name = "templateModuleImports")]
 pub fn wasm_template_module_imports(source: &str, uri: &str) -> String {
+    cem_ml::runtime_inventory::note_mutation();
     let _memory = match cem_ml::runtime_memory::admit_input(source.len()) { Ok(permit) => permit, Err(error) => return error_json(error.0, "WASM memory admission refused; recovery headroom is reserved") };
     let parsed = cem_ml::transform_template::parse_cem_native_template_module_options(
         cem_ml::transform_template::TransformTemplateModuleParseRequest {
@@ -206,6 +211,7 @@ pub fn wasm_compile_template_module_closure(
     closure_json: &str,
     host_bindings_json: &str,
 ) -> String {
+    cem_ml::runtime_inventory::note_mutation();
     let _memory = match cem_ml::runtime_memory::admit_input(source.len().saturating_add(closure_json.len()).saturating_add(host_bindings_json.len())) { Ok(permit) => permit, Err(error) => return error_json(error.0, "WASM memory admission refused; recovery headroom is reserved") };
     let host_bindings = match parse_host_bindings(host_bindings_json) {
         Ok(bindings) => bindings,
@@ -260,6 +266,7 @@ pub fn wasm_compile_template_artifact(
     host_bindings_json: &str,
     source_map_mode: &str,
 ) -> Result<Vec<u8>, JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     let _memory = cem_ml::runtime_memory::admit_input(source.len().saturating_add(host_bindings_json.len())).map_err(|error|JsValue::from_str(error.0))?;
     let host_bindings =
         parse_host_bindings(host_bindings_json).map_err(|message| JsValue::from_str(&message))?;
@@ -274,6 +281,7 @@ pub fn wasm_compile_template_artifact(
 /// Return the portable registry lookup key without compiling the template.
 #[wasm_bindgen(js_name = "templateArtifactPayloadKey")]
 pub fn wasm_template_artifact_payload_key(source: &str, source_map_mode: &str) -> String {
+    cem_ml::runtime_inventory::note_mutation();
     let source_map_mode = match parse_source_map_mode(source_map_mode) {
         Ok(mode) => mode,
         Err(message) => return artifact_error_json("cem.ql.wasm.invalid_source_map_mode", message),
@@ -298,6 +306,7 @@ pub fn wasm_import_template_artifact(
     host_bindings_json: &str,
     source_map_mode: &str,
 ) -> String {
+    cem_ml::runtime_inventory::note_mutation();
     let _memory = match cem_ml::runtime_memory::admit_input(bytes.len().saturating_add(source.len()).saturating_add(host_bindings_json.len())) { Ok(permit) => permit, Err(error) => return error_json(error.0, "WASM memory admission refused; recovery headroom is reserved") };
     let host_bindings = match parse_host_bindings(host_bindings_json) {
         Ok(bindings) => bindings,
@@ -346,6 +355,7 @@ pub fn wasm_import_template_artifact(
 
 #[wasm_bindgen(js_name = "renderTemplate")]
 pub fn wasm_render_template(artifact_id: u32, data_json: &str) -> String {
+    cem_ml::runtime_inventory::note_mutation();
     let _memory = match cem_ml::runtime_memory::admit_input(data_json.len()) { Ok(permit) => permit, Err(error) => return error_json(error.0, "WASM memory admission refused; recovery headroom is reserved") };
     let mut data = match parse_template_data(data_json) {
         Ok(data) => data,
@@ -369,6 +379,7 @@ pub fn wasm_render_template(artifact_id: u32, data_json: &str) -> String {
 
 #[wasm_bindgen(js_name = "renderTemplateSource")]
 pub fn wasm_render_template_source(source: &str, data_json: &str) -> String {
+    cem_ml::runtime_inventory::note_mutation();
     let _memory = match cem_ml::runtime_memory::admit_input(source.len().saturating_add(data_json.len())) { Ok(permit) => permit, Err(error) => return error_json(error.0, "WASM memory admission refused; recovery headroom is reserved") };
     let data = match parse_template_data(data_json) {
         Ok(data) => data,
@@ -386,12 +397,14 @@ pub fn wasm_render_template_source(source: &str, data_json: &str) -> String {
 
 #[wasm_bindgen(js_name = "evaluateQuerySource")]
 pub fn wasm_evaluate_query_source(source: &str, bindings_json: &str) -> String {
+    cem_ml::runtime_inventory::note_mutation();
     let _memory = match cem_ml::runtime_memory::admit_input(source.len().saturating_add(bindings_json.len())) { Ok(permit) => permit, Err(error) => return error_json(error.0, "WASM memory admission refused; recovery headroom is reserved") };
     evaluate_query_source_json(source, bindings_json)
 }
 
 #[wasm_bindgen(js_name = "disposeTemplate")]
 pub fn wasm_dispose_template(artifact_id: u32) -> bool {
+    cem_ml::runtime_inventory::note_mutation();
     ARTIFACTS.with(|cell| {
         let mut artifacts = cell.borrow_mut();
         let Some(slot) = artifact_id
@@ -664,4 +677,33 @@ fn artifact_error_json(code: &str, message: impl Into<String>) -> String {
         }]
     })
     .to_string()
+}
+
+
+/// All retained reference roots and reconstructible caches in this linked module.
+pub fn resource_inventory_entries() -> Vec<cem_ml::runtime_inventory::RegistryInventory> {
+    use cem_ml::runtime_inventory::RegistryInventory as Entry;
+    let mut entries = vec![Entry::new("templates", ARTIFACTS.with(|s| s.borrow().iter().filter(|a| a.is_some()).count() as u64), 0),
+        COMPILATION_CACHE.with(|s| { let stats = s.borrow().stats(); Entry::new("template-cache", stats.live_leases as u64, stats.resident_entries as u64) })];
+    entries.extend(render_reuse::resource_inventory_entries());
+    entries.extend(xpath_functions::resource_inventory_entries());
+    entries.extend(xslt_bundle::resource_inventory_entries());
+    entries.extend(values::resource_inventory_entries());
+    entries
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen::prelude::wasm_bindgen(js_name = "commandNativeResourceInventory")]
+pub fn command_native_resource_inventory() -> Result<String, wasm_bindgen::JsValue> {
+    let mut entries = cem_ml::api::wasm::resource_inventory_entries();
+    entries.extend(resource_inventory_entries());
+    let inventory = cem_ml::runtime_inventory::RuntimeResourceInventory::collect(entries)
+        .map_err(wasm_bindgen::JsValue::from_str)?;
+    serde_json::to_string(&inventory).map_err(|_| wasm_bindgen::JsValue::from_str("cem.runtime.inventory.serialization"))
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen::prelude::wasm_bindgen(js_name = "commandNativeMemoryIdentity")]
+pub fn command_native_memory_identity() -> wasm_bindgen::JsValue {
+    wasm_bindgen::memory()
 }

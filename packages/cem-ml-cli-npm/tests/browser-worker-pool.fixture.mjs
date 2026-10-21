@@ -16,6 +16,7 @@ import {
 globalThis.runCemMlBrowserFixture = async (scenario) => {
     if (scenario === 'command-host-configuration') return runHostConfigurationFixture();
     if (scenario === 'command-native-checkpoint') return runNativeCheckpointFixture();
+    if (scenario === 'command-native-inventory') return runNativeInventoryFixture();
     if (scenario === 'command-native-pressure') return runNativePressureFixture();
     if (scenario === 'command-service') return runCommandServiceFixture();
     if (scenario === 'command-all-operations') return runCommandAllOperationsFixture();
@@ -727,5 +728,62 @@ async function runNativePressureFixture() {
         await handle.dispose();
         return { status: result.status, artifacts: result.artifacts.originalCount, rejection, earlyRefusal, retained, read, partial,
             current, afterCleanup: client.isNativeCheckpointCurrent(proof), failures, scope: proof.scope, replacementAllowed: proof.replacementAllowed };
+    } finally { await client?.close(); globalThis.Worker = NativeWorker; URL.revokeObjectURL(url); }
+}
+
+async function runNativeInventoryFixture() {
+    const NativeWorker = globalThis.Worker;
+    let physicalWorker;
+    const workerSource = `
+        const buffered = [];
+        const buffer = event => { event.stopImmediatePropagation(); buffered.push(event); };
+        self.addEventListener('message', buffer);
+        const native = await import('${location.origin}/command-native/runtime.js');
+        await native.default('${location.origin}/command-native/runtime.wasm');
+        let document;
+        self.addEventListener('message', event => {
+            if (event.data.type !== 'fixture-native-inventory') return;
+            event.stopImmediatePropagation();
+            try {
+                if (event.data.retain) document = native.retainCemDocument(new TextEncoder().encode('<item/>'), 'application/xml', 'memory:raw-browser');
+                else native.disposeCemDocument(document);
+                event.ports[0].postMessage(JSON.parse(native.commandNativeResourceInventory()));
+            } catch (error) { event.ports[0].postMessage({ error: String(error) }); }
+        });
+        await import('${location.origin}/command-native/browser-worker.js');
+        self.removeEventListener('message', buffer);
+        for (const event of buffered) self.dispatchEvent(new MessageEvent('message', { data: event.data, ports: event.ports }));
+    `;
+    const url = URL.createObjectURL(new Blob([workerSource], { type: 'text/javascript' }));
+    globalThis.Worker = class extends NativeWorker {
+        constructor(_source, options) { super(url, options); physicalWorker = () => this; }
+    };
+    const mutate = retain => {
+        const channel = new MessageChannel();
+        return new Promise((resolve, reject) => {
+            const timer = setTimeout(() => reject(Error('inventory fixture timeout')), 5000);
+            channel.port1.onmessage = event => { clearTimeout(timer); if (event.data.error) reject(Error(event.data.error)); else resolve(event.data); };
+            physicalWorker().postMessage({ type: 'fixture-native-inventory', retain }, [channel.port2]);
+        }).finally(() => { channel.port1.close(); channel.port2.close(); });
+    };
+    let client;
+    try {
+        client = await createBrowserCommandServiceClient({ host: {
+            currentRevision: ({ project }) => ({ project, resourceVersions: {} }),
+            readResource: () => { throw Error('unexpected read'); }, prepareWrite: () => { throw Error('unexpected write'); },
+            commitWrite: () => { throw Error('unexpected commit'); }, rollbackWrite: () => undefined,
+        } });
+        const a = client.claimNativeEmbedding(), b = client.claimNativeEmbedding();
+        const omitted = await client.checkpointNative(1000, [a]).then(() => null, error => error.code);
+        const retained = await mutate(true);
+        const blocked = await client.checkpointNative(1000, [a, b]).then(() => null, error => error.code);
+        await mutate(false);
+        const proof = await client.checkpointNative(1000, [a, b]);
+        const current = client.isNativeCheckpointCurrent(proof), copied = client.isNativeCheckpointCurrent({ ...proof });
+        client.releaseNativeEmbedding(b);
+        return { omitted, blocked, live: retained.registries.find(entry => entry.name === 'cem-documents').live,
+            registries: proof.nativeInventory.registries.length, owners: proof.embeddingOwners,
+            blockers: proof.nativeInventory.blockingResources, current, copied,
+            afterRelease: client.isNativeCheckpointCurrent(proof), replacementAllowed: proof.replacementAllowed };
     } finally { await client?.close(); globalThis.Worker = NativeWorker; URL.revokeObjectURL(url); }
 }

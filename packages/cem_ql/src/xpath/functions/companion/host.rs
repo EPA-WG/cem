@@ -13,6 +13,8 @@ pub struct CemtXPathCompanions {
 }
 
 impl CemtXPathCompanions {
+    pub fn inventory_count(&self) -> usize { self.entries.len() }
+
     pub fn import(
         &mut self,
         bytes: &[u8],

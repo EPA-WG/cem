@@ -35,6 +35,8 @@ for (const path of [
     'managed-native-runtime.d.ts',
     'native-admission.js',
     'native-admission.d.ts',
+    'native-embedding.js',
+    'native-embedding.d.ts',
     'node.js',
     'node.d.ts',
     'node-command.js',
@@ -81,7 +83,8 @@ const browserWorkerSource = readFileSync(resolve(projectRoot, 'dist/browser-work
 assert.match(browserSource, /new Worker\(new URL\('\.\/browser-worker\.js'/);
 assert.match(browserSource, /hardwareConcurrency/);
 assert.match(browserWorkerSource, /browserWorkerCapabilityManifest/);
-const browserClosure = `${browserSource}\n${browserCommandSource}\n${browserInvocationSource}\n${browserWorkerSource}\n${managedNativeSource}\n${nativeAdmissionSource}`;
+const nativeEmbeddingSource = readFileSync(resolve(projectRoot, 'dist/native-embedding.js'), 'utf8');
+const browserClosure = `${browserSource}\n${browserCommandSource}\n${browserInvocationSource}\n${browserWorkerSource}\n${managedNativeSource}\n${nativeAdmissionSource}\n${nativeEmbeddingSource}`;
 assert.doesNotMatch(browserClosure, /SharedArrayBuffer/);
 assert.doesNotMatch(browserClosure, /node:/);
 

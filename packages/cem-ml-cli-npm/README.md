@@ -264,3 +264,27 @@ Raw `@epa-wg/cem-ml/wasm` calls and direct/generated WASM instantiation remain
 unmanaged. This API does not authorize heap replacement, preserve arbitrary raw
 native handles or replay external actions. See the
 [checkpoint contracts](https://github.com/EPA-WG/cem/blob/develop/docs/committed-checkpoints.md#separate-command-heaps-and-the-unmanaged-boundary).
+
+
+## Native inventories and embedding ownership
+
+For an explicit native census, claim a lease for each embedding owner, then pass
+all originals to the checkpoint call:
+
+```js
+const owner = client.claimNativeEmbedding();
+const witness = await client.checkpointNative(5000, [owner]);
+console.log(witness.nativeInventory.blockingResources); // 0 after acknowledgement
+client.releaseNativeEmbedding(owner); // invalidates the witness
+```
+
+The Rust census includes raw retained resources and pending commands that the
+CLI ledger cannot see. Dispose live resources explicitly before retrying;
+refusal keeps cleanup available. Copies, foreign leases and partial owner sets
+are rejected. Main-thread authoring has equivalent `claimNodeCommandNativeEmbedding`
+and `claimBrowserCommandNativeEmbedding` families, keyed by actual WASM memory.
+
+This is snapshot evidence with `replacementAllowed: false`. Worker currentness
+covers parent activity/ownership; raw calls after acknowledgement require a fresh
+native check. Raw callers must opt in, and generated exports remain callable.
+See the [complete inventory and ownership contract](https://github.com/EPA-WG/cem/blob/develop/docs/committed-checkpoints.md#separate-command-heaps-and-the-unmanaged-boundary).

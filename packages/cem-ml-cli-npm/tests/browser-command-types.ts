@@ -1,12 +1,18 @@
 import {
     buildBrowserCommandInvocation,
     createBrowserCommandServiceClient,
+    claimBrowserCommandNativeEmbedding,
+    checkpointBrowserCommandNativeEmbedding,
+    releaseBrowserCommandNativeEmbedding,
+    isBrowserCommandNativeInventoryCurrent,
     parseCemMlCommand,
     projectBrowserCommandPresentation,
     type BrowserCommandArtifactReadOptions,
     type BrowserCommandServiceExecuteOptions,
     type CommandArtifactHandleV1,
     type CommandInvocationV1,
+    type CommandNativeEmbeddingOwnership,
+    type CommandNativeInventory,
     type CommandPresentationV1,
     type CommandResolvedResourceV1,
     type CommandResolvedWriteV1,
@@ -92,7 +98,16 @@ async function compilePublicBrowserCommandContract(): Promise<void> {
     const runtime: 'wasm-browser-worker' = client.capability.runtime;
     const workerRuntime: string = client.worker.runtimeInstanceId;
     unsubscribe();
-    const nativeCheckpoint = await client.checkpointNative(5000);
+    const embedding: CommandNativeEmbeddingOwnership = client.claimNativeEmbedding();
+    const nativeCheckpoint = await client.checkpointNative(5000, [embedding]);
+    const inventory: CommandNativeInventory | undefined = nativeCheckpoint.nativeInventory;
+    const blockers: number | undefined = inventory?.blockingResources;
+    client.releaseNativeEmbedding(embedding);
+    const mainEmbedding = await claimBrowserCommandNativeEmbedding();
+    const mainProof = await checkpointBrowserCommandNativeEmbedding([mainEmbedding]);
+    const mainCurrent: boolean = isBrowserCommandNativeInventoryCurrent(mainProof);
+    releaseBrowserCommandNativeEmbedding(mainEmbedding);
+    void [blockers, mainCurrent];
     const scope: 'managed-cli-only' = nativeCheckpoint.scope;
     const replacementAllowed: false = nativeCheckpoint.replacementAllowed;
     const current: boolean = client.isNativeCheckpointCurrent(nativeCheckpoint);

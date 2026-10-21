@@ -200,6 +200,7 @@ export type BrowserCommandWorkerRequest =
 
 export interface CommandNativeCheckpointRequest {
     readonly type: 'cem-command-native-checkpoint';
+    readonly nativeInventory?: true;
     readonly actionId: number;
     readonly timeoutMs: number;
 }

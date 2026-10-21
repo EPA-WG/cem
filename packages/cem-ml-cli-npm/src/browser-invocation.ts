@@ -1,3 +1,6 @@
+import type { CommandNativeEmbeddingOwnership } from './native-embedding.js';
+import type { CommandNativeDrain } from './native-admission.js';
+import { claimCommandNativeEmbedding, checkpointCommandNativeEmbedding } from './managed-native-runtime.js';
 import { commandNativeAdmission, commandNativeRuntime as runtime } from './managed-native-runtime.js';
 import type {
     CommandInvocationBuildResponseV1,
@@ -185,3 +188,18 @@ function errorCode(error: unknown, fallback: string): string {
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
+
+
+/** Explicit ownership of the main-thread authoring heap, separate from command workers. */
+export async function claimBrowserCommandNativeEmbedding(): Promise<CommandNativeEmbeddingOwnership> {
+    await initializeCommandRuntime(); return claimCommandNativeEmbedding();
+}
+export async function checkpointBrowserCommandNativeEmbedding(
+    leases: readonly CommandNativeEmbeddingOwnership[], timeoutMs = 5000,
+): Promise<CommandNativeDrain> {
+    await initializeCommandRuntime(); return checkpointCommandNativeEmbedding(leases, timeoutMs);
+}
+export {
+    releaseCommandNativeEmbedding as releaseBrowserCommandNativeEmbedding,
+    isCommandNativeInventoryCurrent as isBrowserCommandNativeInventoryCurrent,
+} from './managed-native-runtime.js';

@@ -1,3 +1,5 @@
+import { copyCommandNativeEmbeddingOwnership, CommandNativeEmbeddingOwners, parseCommandNativeInventory, type CommandNativeInventory, type CommandNativeEmbeddingOwnership } from './native-embedding.js';
+import type { CommandNativeDrain } from './native-admission.js';
 import * as native from '@epa-wg/cem-ml/wasm';
 import { CommandNativeAdmission, CommandNativeAdmissionError } from './native-admission.js';
 
@@ -93,4 +95,59 @@ function trackResources(method: string, args: unknown[], value: unknown): void {
             commandNativeAdmission.release(`request:${args[0]}`, result.disposedCount as number);
         }
     }
+}
+
+/** Census is a bounded Rust control DTO, independent of the managed CLI ledger. */
+export function readCommandNativeInventory(): CommandNativeInventory {
+    try { return parseCommandNativeInventory(native.commandNativeResourceInventory()); }
+    catch (error) {
+        commandNativeAdmission.invalidate();
+        throw new CommandNativeAdmissionError('cem.command.inventory.uncertain', error instanceof Error ? error.message : 'Native census failed');
+    }
+}
+
+const ownerRegistryKey = Symbol.for('cem.command.native-embedding-owners.v1');
+const ownerRealm = globalThis as typeof globalThis & { [ownerRegistryKey]?: WeakMap<object, CommandNativeEmbeddingOwners> };
+const ownerRegistry = ownerRealm[ownerRegistryKey] ??= new WeakMap<object, CommandNativeEmbeddingOwners>();
+const ownedProofs = new WeakMap<object, { readonly owners: CommandNativeEmbeddingOwners; readonly ack: object;
+    readonly drain: CommandNativeDrain; readonly nativeRevision: number }>();
+
+function mainEmbeddingOwners(): CommandNativeEmbeddingOwners {
+    const memory = native.commandNativeMemoryIdentity() as object;
+    if (!(memory instanceof WebAssembly.Memory)) throw new CommandNativeAdmissionError('cem.command.embedding.generation');
+    let owners = ownerRegistry.get(memory);
+    if (owners === undefined) {
+        owners = new CommandNativeEmbeddingOwners(memory, () => native.commandNativeMemoryIdentity() as object,
+            () => commandNativeAdmission.touch());
+        ownerRegistry.set(memory, owners);
+    }
+    return owners;
+}
+
+export function claimCommandNativeEmbedding(): CommandNativeEmbeddingOwnership { return mainEmbeddingOwners().claim(); }
+export function releaseCommandNativeEmbedding(lease: CommandNativeEmbeddingOwnership): void { mainEmbeddingOwners().release(lease); }
+
+export async function checkpointCommandNativeEmbedding(
+    leases: readonly CommandNativeEmbeddingOwnership[], timeoutMs = 5000,
+): Promise<CommandNativeDrain> {
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60000) throw new RangeError('Invalid command drain timeout');
+    const owners = mainEmbeddingOwners();
+    const snapshot = copyCommandNativeEmbeddingOwnership(leases);
+    const ack = owners.acknowledge(snapshot);
+    commandNativeAdmission.close();
+    const drain = commandNativeAdmission.checkpoint(await commandNativeAdmission.drain(timeoutMs));
+    const inventory = readCommandNativeInventory();
+    if (inventory.blockingResources !== 0 || !owners.current(ack) || !commandNativeAdmission.current(drain)) {
+        throw new CommandNativeAdmissionError('cem.command.inventory.blocked', 'Native retained resources or embedding ownership still block the census acknowledgement');
+    }
+    const proof: CommandNativeDrain = Object.freeze({ ...drain, nativeInventory: inventory, embeddingOwners: snapshot.length });
+    ownedProofs.set(proof, { owners, ack, drain, nativeRevision: inventory.revision });
+    return proof;
+}
+
+export function isCommandNativeInventoryCurrent(proof: CommandNativeDrain): boolean {
+    const stored = ownedProofs.get(proof);
+    if (stored === undefined || !stored.owners.current(stored.ack) || !commandNativeAdmission.current(stored.drain)) return false;
+    try { const inventory = readCommandNativeInventory(); return inventory.revision === stored.nativeRevision && inventory.blockingResources === 0; }
+    catch { return false; }
 }

@@ -71,8 +71,8 @@ pub fn register_command_runtime_factory(
 /// semantics by returning or throwing a value. `host_configuration_json` is
 /// trusted embedding-host setup, separate from request/config data. It applies
 /// only to this execution; omission supplies no replacement grants.
-#[wasm_bindgen(js_name = "executeCommandServiceV1")]
-pub async fn execute_command_service_v1(
+#[wasm_bindgen(js_name = "executeCommandServiceV1", unchecked_return_type = "Promise<string>")]
+pub fn execute_command_service_v1(
     request_json: String,
     capability_request_json: String,
     current_revision: Function,
@@ -82,27 +82,46 @@ pub async fn execute_command_service_v1(
     rollback_write: Function,
     progress: Option<Function>,
     host_configuration_json: Option<String>,
-) -> String {
-    let _memory = match crate::runtime_memory::admit_input(request_json.len().saturating_add(capability_request_json.len()).saturating_add(host_configuration_json.as_ref().map_or(0,String::len))) {
+) -> Promise {
+    crate::runtime_inventory::note_mutation();
+    let memory = match crate::runtime_memory::admit_input(
+        request_json
+            .len()
+            .saturating_add(capability_request_json.len())
+            .saturating_add(host_configuration_json.as_ref().map_or(0, String::len)),
+    ) {
         Ok(permit) => permit,
-        Err(error) => return command_service_response(Err(WasmCommandServiceError {code:error.0.into(),message:"WASM memory admission refused before command acceptance".into()})),
+        Err(error) => {
+            return Promise::resolve(&JsValue::from_str(&command_service_response(Err(
+                WasmCommandServiceError {
+                    code: error.0.into(),
+                    message: "WASM memory admission refused before command acceptance".into(),
+                },
+            ))))
+        }
     };
-    command_service_response(
-        execute_command_service(
-            &request_json,
-            &capability_request_json,
-            JsCommandServiceCallbacks {
-                current_revision,
-                read_resource,
-                prepare_write,
-                commit_write,
-                rollback_write,
-            },
-            progress,
-            host_configuration_json.as_deref(),
-        )
-        .await,
-    )
+    let activity = crate::runtime_inventory::NativeActivity::begin();
+    wasm_bindgen_futures::future_to_promise(async move {
+        let _activity = activity;
+        let _memory = memory;
+        let result = command_service_response(
+            execute_command_service(
+                &request_json,
+                &capability_request_json,
+                JsCommandServiceCallbacks {
+                    current_revision,
+                    read_resource,
+                    prepare_write,
+                    commit_write,
+                    rollback_write,
+                },
+                progress,
+                host_configuration_json.as_deref(),
+            )
+            .await,
+        );
+        Ok(JsValue::from_str(&result))
+    })
 }
 
 /// Cooperatively cancel one active command-service request. Browser and Node
@@ -110,6 +129,7 @@ pub async fn execute_command_service_v1(
 /// or already-completed request identities fail without mutating another run.
 #[wasm_bindgen(js_name = "cancelCommandServiceV1")]
 pub fn cancel_command_service_v1(request_id: String, reason: Option<String>) -> String {
+    crate::runtime_inventory::note_mutation();
     let result = COMMAND_SERVICE_OPERATIONS.with(|registry| registry.cancel(&request_id, reason));
     match result {
         Ok(acknowledgement) => serde_json::to_string(&acknowledgement)
@@ -128,6 +148,7 @@ pub fn read_command_artifact_v1(
     offset: f64,
     max_bytes: f64,
 ) -> JsValue {
+    crate::runtime_inventory::note_mutation();
     let result = artifact_wire_integer("handleId", handle_id, false)
         .and_then(|handle_id| {
             artifact_wire_integer("offset", offset, true)
@@ -156,6 +177,7 @@ pub fn read_command_artifact_v1(
 /// Idempotently dispose one request-owned artifact handle.
 #[wasm_bindgen(js_name = "disposeCommandArtifactV1")]
 pub fn dispose_command_artifact_v1(request_id: String, handle_id: f64) -> String {
+    crate::runtime_inventory::note_mutation();
     let result = artifact_wire_integer("handleId", handle_id, false)
         .map(RetainedHandleId::from_raw)
         .and_then(|handle_id| {
@@ -173,6 +195,7 @@ pub fn dispose_command_artifact_v1(request_id: String, handle_id: f64) -> String
 /// Idempotently dispose every retained artifact for one request identity.
 #[wasm_bindgen(js_name = "disposeCommandArtifactsV1")]
 pub fn dispose_command_artifacts_v1(request_id: String) -> String {
+    crate::runtime_inventory::note_mutation();
     let result = COMMAND_SERVICE_ARTIFACTS
         .with(|registry| registry.dispose_request(&request_id))
         .map_err(artifact_registry_error);
@@ -733,4 +756,12 @@ fn command_service_control_serialize_error(error: serde_json::Error) -> String {
         }
     })
     .to_string()
+}
+
+
+pub(super) fn resource_inventory_entries() -> Vec<crate::runtime_inventory::RegistryInventory> {
+    use crate::runtime_inventory::RegistryInventory as Entry;
+    let (live, history) = COMMAND_SERVICE_ARTIFACTS.with(|s| s.inventory_counts());
+    vec![Entry::new("command-operations", COMMAND_SERVICE_OPERATIONS.with(|s| s.inventory_count() as u64), 0),
+        Entry::new("command-artifacts", live, 0), Entry::new("command-artifact-journal", 0, history)]
 }

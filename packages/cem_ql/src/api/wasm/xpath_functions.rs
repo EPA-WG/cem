@@ -13,6 +13,7 @@ thread_local! {
 /// bytes stay binary/native and do not pass through the JSON metadata response.
 #[wasm_bindgen(js_name = "retainCemtXPathFunctions")]
 pub fn retain_cemt_xpath_functions(source: &str, source_uri: &str) -> Result<String, JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     let bytes = compile_cemt_xpath_functions(source, source_uri)?;
     import_cemt_xpath_functions(
         &bytes,
@@ -23,6 +24,7 @@ pub fn retain_cemt_xpath_functions(source: &str, source_uri: &str) -> Result<Str
 
 #[wasm_bindgen(js_name = "compileCemtXPathFunctions")]
 pub fn compile_cemt_xpath_functions(source: &str, source_uri: &str) -> Result<Vec<u8>, JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     let library = CemtXPathFunctions::compile(source, source_uri).map_err(|diagnostics| {
         JsValue::from_str(
             &diagnostics
@@ -43,6 +45,7 @@ pub fn import_cemt_xpath_functions(
     expected_content_hash: &str,
     expected_source_hash: &str,
 ) -> Result<String, JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     let content_hash =
         parse_hash(expected_content_hash).map_err(|e| JsValue::from_str(&e.to_string()))?;
     let source_hash =
@@ -60,6 +63,7 @@ pub fn import_cemt_xpath_functions(
 
 #[wasm_bindgen(js_name = "disposeCemtXPathFunctions")]
 pub fn dispose_cemt_xpath_functions(companion_id: u32) -> bool {
+    cem_ml::runtime_inventory::note_mutation();
     COMPANIONS.with(|host| host.borrow_mut().dispose(companion_id))
 }
 
@@ -71,6 +75,7 @@ pub fn render_template_with_xpath_functions(
     companion_id: u32,
     data_json: &str,
 ) -> String {
+    cem_ml::runtime_inventory::note_mutation();
     render_template_with_cem_documents(artifact_id, companion_id, data_json, "[]")
 }
 
@@ -89,6 +94,7 @@ pub fn render_template_with_cem_documents(
     data_json: &str,
     bindings_json: &str,
 ) -> String {
+    cem_ml::runtime_inventory::note_mutation();
     render_template_with_native_values(artifact_id, companion_id, data_json, bindings_json, "[]", "", None, None, None)
 }
 
@@ -96,6 +102,7 @@ pub fn render_template_with_cem_documents(
 pub fn render_template_with_native_values(
     artifact_id: u32, companion_id: u32, data_json: &str, bindings_json: &str, native_bindings_json: &str, limits_json: &str, element_reference_instance_id: Option<String>, element_reference_inputs_json: Option<String>, aria_reference_profile: Option<String>,
 ) -> String {
+    cem_ml::runtime_inventory::note_mutation();
     render_native_values_internal(artifact_id, companion_id, data_json, bindings_json, native_bindings_json, limits_json, element_reference_instance_id, element_reference_inputs_json, aria_reference_profile, None)
 }
 
@@ -103,6 +110,7 @@ pub fn render_template_with_native_values(
 pub fn render_template_with_native_values_and_admission(
     artifact_id: u32, companion_id: u32, data_json: &str, bindings_json: &str, native_bindings_json: &str, limits_json: &str, element_reference_instance_id: Option<String>, element_reference_inputs_json: Option<String>, aria_reference_profile: Option<String>, admission_json: &str,
 ) -> String {
+    cem_ml::runtime_inventory::note_mutation();
     if admission_json.len() > 20_000 { return error_json("cem.render.context", "Render admission exceeds bounds"); }
     let context = match serde_json::from_str(admission_json) {
         Ok(context) => context, Err(error) => return error_json("cem.render.context", error.to_string()),
@@ -192,4 +200,9 @@ fn render_native_values_internal(
             plan_json_for_elements(&render_compiled_template(artifact.artifact(), &data), &limits, element_reference_instance_id.as_deref(), execution, profile, data.bindings.get("suggestions").and_then(|s| s.items.first()).and_then(crate::suggestions::SuggestionsView::from_root).as_ref()).to_string()
         }
     })
+}
+
+pub(super) fn resource_inventory_entries() -> Vec<cem_ml::runtime_inventory::RegistryInventory> {
+    use cem_ml::runtime_inventory::RegistryInventory as Entry;
+    vec![Entry::new("xpath-companions", COMPANIONS.with(|s| s.borrow().inventory_count() as u64), 0)]
 }

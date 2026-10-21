@@ -1,3 +1,5 @@
+import type { CommandNativeEmbeddingOwnership } from './native-embedding.js';
+export type { CommandNativeEmbeddingOwnership, CommandNativeInventory } from './native-embedding.js';
 import { CommandNativeClientCheckpoint, type CommandNativeDrain } from './native-admission.js';
 export type { CommandNativeDrain } from './native-admission.js';
 import runtimeMetadata from '@epa-wg/cem-ml/runtime.json' with { type: 'json' };
@@ -256,7 +258,7 @@ export class BrowserCommandServiceClient {
     #nextExecutionId = 1;
     #nextActionId = 1;
     #closed = false;
-    #nativeCheckpoint = new CommandNativeClientCheckpoint(() => !this.#closed && this.#executions.size === 0 && this.#actions.size === 0);
+    #nativeCheckpoint: CommandNativeClientCheckpoint;
 
     private constructor(
         physicalWorker: Worker,
@@ -266,6 +268,7 @@ export class BrowserCommandServiceClient {
         onWorkerFailure: ((failure: BrowserCommandWorkerFailure) => void) | undefined,
     ) {
         this.#physicalWorker = physicalWorker;
+        this.#nativeCheckpoint = new CommandNativeClientCheckpoint(() => !this.#closed && this.#executions.size === 0 && this.#actions.size === 0, physicalWorker);
         this.#host = host;
         this.#hostConfigurationJson = hostConfigurationJson;
         this.#onWorkerFailure = onWorkerFailure;
@@ -342,14 +345,23 @@ export class BrowserCommandServiceClient {
     }
 
     /** Closes this command heap's ordinary admission; never grants replacement. */
-    checkpointNative(timeoutMs = 5000): Promise<CommandNativeDrain> {
+    claimNativeEmbedding(): CommandNativeEmbeddingOwnership {
+        this.#requireOpen(); return this.#nativeCheckpoint.claimEmbedding();
+    }
+
+    releaseNativeEmbedding(lease: CommandNativeEmbeddingOwnership): void {
+        this.#requireOpen(); this.#nativeCheckpoint.releaseEmbedding(lease);
+    }
+
+    checkpointNative(timeoutMs = 5000, ownership?: readonly CommandNativeEmbeddingOwnership[]): Promise<CommandNativeDrain> {
         this.#requireOpen();
         return this.#nativeCheckpoint.capture(() => {
             const actionId = this.#nextAction();
             return this.#action<CommandNativeDrain>(actionId, {
                 type: 'cem-command-native-checkpoint', actionId, timeoutMs,
+                ...(ownership === undefined ? {} : { nativeInventory: true }),
             }).then(({ value }) => value);
-        }, timeoutMs);
+        }, timeoutMs, ownership);
     }
 
     isNativeCheckpointCurrent(proof: CommandNativeDrain): boolean {

@@ -49,6 +49,7 @@ try {
                 'browser-worker.js': resolve(projectRoot, 'dist/browser-worker.js'),
                 'managed-native-runtime.js': resolve(projectRoot, 'dist/managed-native-runtime.js'),
                 'native-admission.js': resolve(projectRoot, 'dist/native-admission.js'),
+                'native-embedding.js': resolve(projectRoot, 'dist/native-embedding.js'),
             };
             if (!Object.hasOwn(paths, name)) { response.writeHead(404).end(); return; }
             let bytes = readFileSync(paths[name]);
@@ -297,6 +298,9 @@ try {
     assert.deepEqual(nativeCheckpoint, { waited: true, refusal: 'cem.runtime.memory.closed', status: 'cancelled',
         current: true, copied: false, foreign: false, independent: 'succeeded', afterClose: false,
         scope: 'managed-cli-only', replacementAllowed: false });
+    const nativeInventory = await runFixture(page, 'command-native-inventory');
+    assert.deepEqual(nativeInventory, { omitted: 'cem.command.embedding.invalid', blocked: 'cem.command.inventory.blocked',
+        live: 1, registries: 28, owners: 2, blockers: 0, current: true, copied: false, afterRelease: false, replacementAllowed: false });
     const nativePressure = await runFixture(page, 'command-native-pressure');
     assert.equal(nativePressure.status, 'succeeded');
     assert.ok(nativePressure.artifacts > 1);

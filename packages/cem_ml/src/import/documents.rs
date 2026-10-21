@@ -10,6 +10,8 @@ pub struct CemDocuments {
 }
 
 impl CemDocuments {
+    pub fn inventory_count(&self) -> usize { self.entries.len() }
+
     pub fn retain(&mut self, bytes: &[u8], content_type: &str, uri: &str) -> Result<u32, String> {
         if self.entries.len() >= 64 || bytes.len() > MAX_DOCUMENT_BYTES.saturating_sub(self.bytes) {
             return Err("CEM retained-document limit exceeded.".into());

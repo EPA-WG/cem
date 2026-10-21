@@ -35,6 +35,7 @@ fn next_id() -> Result<u32, String> {
 
 #[wasm_bindgen(js_name = "importNativeValueArtifact")]
 pub fn import(bytes: &[u8], limits_json: &str) -> Result<u32, JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     let _memory = cem_ml::runtime_memory::admit_input(bytes.len()).map_err(|error|JsValue::from_str(error.0))?;
     let limits: CemValueArtifactLimits =
         serde_json::from_str(limits_json).map_err(|e| JsValue::from_str(&e.to_string()))?;
@@ -46,11 +47,13 @@ pub fn import(bytes: &[u8], limits_json: &str) -> Result<u32, JsValue> {
 
 #[wasm_bindgen(js_name = "disposeNativeValueArtifact")]
 pub fn dispose(id: u32) -> bool {
+    cem_ml::runtime_inventory::note_mutation();
     INPUTS.with(|inputs| inputs.borrow_mut().remove(&id).is_some())
 }
 
 #[wasm_bindgen(js_name = "takeRenderValueArtifact")]
 pub fn take(id: u32) -> Result<Vec<u8>, JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     OUTPUT.with(|output| {
         let mut output = output.borrow_mut();
         if output.as_ref().is_some_and(|(retained, _)| *retained == id) {
@@ -180,6 +183,7 @@ pub(super) fn clear_output() { OUTPUT.with(|output| output.borrow_mut().take());
 
 #[wasm_bindgen(js_name = "importCemDocumentValue")]
 pub fn import_document(bytes: &[u8], content_type: &str, uri: &str, limits_json: &str) -> Result<Vec<u8>, JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     let _memory = cem_ml::runtime_memory::admit_input(bytes.len()).map_err(|error|JsValue::from_str(error.0))?;
     let limits = limits(limits_json).map_err(|e| JsValue::from_str(&e))?;
     crate::api::native_values::import_document(bytes, content_type, uri, &limits).map_err(|e| JsValue::from_str(&e))
@@ -187,6 +191,7 @@ pub fn import_document(bytes: &[u8], content_type: &str, uri: &str, limits_json:
 
 #[wasm_bindgen(js_name = "exportCemJsonValue")]
 pub fn export_json(bytes: &[u8], index: usize, attribute: &str, limits_json: &str) -> Result<Option<String>, JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     let limits = limits(limits_json).map_err(|e| JsValue::from_str(&e))?;
     crate::api::native_values::export_json(bytes, index, (!attribute.is_empty()).then_some(attribute), &limits).map_err(|e| JsValue::from_str(&e))
 }
@@ -236,6 +241,7 @@ pub fn parse_reference_source(
     uri: &str,
     limits_json: &str,
 ) -> Result<u32, JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     let _memory = cem_ml::runtime_memory::admit_input(bytes.len()).map_err(|error|transport_error(error.0, "MemoryPressure", "WASM memory admission refused", None))?;
     let source =
         RetainedReferenceSource::parse(bytes, content_type, uri, reload_limits(limits_json)?)
@@ -248,6 +254,7 @@ pub fn import_reference_bundle(
     primary_source_id: u32,
     limits_json: &str,
 ) -> Result<u32, JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     let _memory = cem_ml::runtime_memory::admit_input(bytes.len()).map_err(|error|transport_error(error.0, "MemoryPressure", "WASM memory admission refused", None))?;
     let source =
         RetainedReferenceSource::reload(bytes, primary_source_id, reload_limits(limits_json)?)
@@ -256,24 +263,28 @@ pub fn import_reference_bundle(
 }
 #[wasm_bindgen(js_name = "exportReferenceReloadBundle")]
 pub fn export_reference_bundle(id: u32, limits_json: &str) -> Result<Vec<u8>, JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     retained_source(id)?
         .export_bundle(reload_limits(limits_json)?)
         .map_err(|e| transport_error("cem.reference.reload_export", e.kind_name(), &e, None))
 }
 #[wasm_bindgen(js_name = "inspectReferenceSource")]
 pub fn inspect_reference_source(id: u32) -> Result<String, JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     let source = retained_source(id)?;
     Ok(json!({ "sourceUri": source.ingress().source().source_uri(), "primarySourceId": source.ingress().primary_source().0,
         "lexicalReady": source.require_lexical().is_ok(), "pendingDependency": source.require_lexical().err().map(|e| format!("{e:?}")) }).to_string())
 }
 #[wasm_bindgen(js_name = "disposeReferenceSource")]
 pub fn dispose_reference_source(id: u32) -> bool {
+    cem_ml::runtime_inventory::note_mutation();
     SOURCES.with(|sources| sources.borrow_mut().remove(&id).is_some())
 }
 
 /// Inert native query ingress. No runtime grant or reference evaluator is inferred.
 #[wasm_bindgen(js_name = "queryReferenceSource")]
 pub fn query_reference_source(id: u32, expression: &str, query_uri: &str) -> Result<u32, JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     let source = retained_source(id)?;
     let context = crate::api::StandaloneExpressionContext {
         source_uri: Some(query_uri.into()),
@@ -303,6 +314,7 @@ pub fn query_reference_source(id: u32, expression: &str, query_uri: &str) -> Res
 }
 #[wasm_bindgen(js_name = "exportNativeValueArtifact")]
 pub fn export_native_value(id: u32, limits_json: &str) -> Result<Vec<u8>, JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     let limits = limits(limits_json)
         .map_err(|e| transport_error("cem.value.limits", "InvalidLimits", e, None))?;
     INPUTS.with(|inputs| {
@@ -338,6 +350,7 @@ fn validation_error(message: impl ToString) -> JsValue {
 }
 #[wasm_bindgen(js_name = "attachReferenceReloadBundle")]
 pub fn attach_reference_bundle(id: u32, bytes: &[u8], limits_json: &str) -> Result<(), JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     let limits = reload_limits(limits_json)?;
     SOURCES.with(|sources| {
         let mut sources = sources.borrow_mut();
@@ -350,6 +363,7 @@ pub fn attach_reference_bundle(id: u32, bytes: &[u8], limits_json: &str) -> Resu
 }
 #[wasm_bindgen(js_name = "beginReferenceValidationSession")]
 pub fn begin_reference_validation(source_id: u32, schema_id: u32) -> Result<u32, JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     let session = crate::api::reference_lifecycle::ReferenceValidationSession::new(
         retained_source(source_id)?,
         retained_source(schema_id)?,
@@ -363,6 +377,7 @@ pub fn register_reference_validation_source(
     session_id: u32,
     source_id: u32,
 ) -> Result<u32, JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     let source = retained_source(source_id)?;
     VALIDATIONS.with(|sessions| {
         let mut sessions = sessions.borrow_mut();
@@ -385,6 +400,7 @@ pub fn set_reference_validation_context(
     ready: bool,
     bindings_json: &str,
 ) -> Result<(), JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     let context = validation_context(ready, bindings_json)?;
     VALIDATIONS.with(|sessions| {
         sessions
@@ -402,6 +418,7 @@ pub fn set_reference_validation_policy(
     max_depth: u32,
     max_work: u32,
 ) -> Result<(), JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     let limits = cem_ml::schema::reference_traversal::ReferenceTraversalLimits {
         max_depth: max_depth as usize,
         max_work: max_work as usize,
@@ -422,6 +439,7 @@ pub fn allow_reference_validation_crossing(
     from: u32,
     to: u32,
 ) -> Result<(), JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     VALIDATIONS.with(|sessions| {
         sessions
             .borrow_mut()
@@ -433,6 +451,7 @@ pub fn allow_reference_validation_crossing(
 }
 #[wasm_bindgen(js_name = "runReferenceValidationSession")]
 pub fn run_reference_validation(session_id: u32) -> Result<String, JsValue> {
+    cem_ml::runtime_inventory::note_mutation();
     VALIDATIONS.with(|sessions| {
         let sessions = sessions.borrow();
         let report = sessions
@@ -446,6 +465,7 @@ pub fn run_reference_validation(session_id: u32) -> Result<String, JsValue> {
 }
 #[wasm_bindgen(js_name = "disposeReferenceValidationSession")]
 pub fn dispose_reference_validation(session_id: u32) -> bool {
+    cem_ml::runtime_inventory::note_mutation();
     VALIDATIONS.with(|sessions| sessions.borrow_mut().remove(&session_id).is_some())
 }
 
@@ -488,3 +508,12 @@ mod element_references;
 pub(super) use element_references::prepare as prepare_element_references;
 
 mod capability_sessions;
+
+pub(super) fn resource_inventory_entries() -> Vec<cem_ml::runtime_inventory::RegistryInventory> {
+    use cem_ml::runtime_inventory::RegistryInventory as Entry;
+    let mut entries = vec![Entry::new("native-values", INPUTS.with(|s| s.borrow().len() as u64), 0),
+ Entry::new("reference-sources", SOURCES.with(|s| s.borrow().len() as u64), 0),
+ Entry::new("reference-validations", VALIDATIONS.with(|s| s.borrow().len() as u64), 0),
+ Entry::new("render-output", OUTPUT.with(|s| s.borrow().is_some() as u64), 0)];
+ entries.extend(lifecycle::resource_inventory_entries()); entries.extend(capability_sessions::resource_inventory_entries()); entries
+}

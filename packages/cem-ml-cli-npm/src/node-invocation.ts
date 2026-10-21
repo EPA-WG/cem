@@ -152,3 +152,11 @@ function errorCode(error: unknown, fallback: string): string {
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
+
+
+export {
+    claimCommandNativeEmbedding as claimNodeCommandNativeEmbedding,
+    releaseCommandNativeEmbedding as releaseNodeCommandNativeEmbedding,
+    checkpointCommandNativeEmbedding as checkpointNodeCommandNativeEmbedding,
+    isCommandNativeInventoryCurrent as isNodeCommandNativeInventoryCurrent,
+} from './managed-native-runtime.js';

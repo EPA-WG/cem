@@ -41,5 +41,11 @@ pub fn stats() -> String {
 }
 #[wasm_bindgen(js_name = "resetRetainedRenderCache")]
 pub fn reset_export() {
+    cem_ml::runtime_inventory::note_mutation();
     reset();
+}
+
+pub(super) fn resource_inventory_entries() -> Vec<cem_ml::runtime_inventory::RegistryInventory> {
+    use cem_ml::runtime_inventory::RegistryInventory as Entry;
+    RENDERS.with(|s| { let stats = s.borrow().stats(); vec![Entry::new("render-cache", stats.live_leases as u64, stats.resident_entries as u64)] })
 }

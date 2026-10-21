@@ -804,6 +804,10 @@
             "moduleImports": {
                 "@epa-wg/cem-ml/wasm": "@epa-wg/cem-ml/wasm"
             }
+        },
+        "@epa-wg/cem-ml-cli/native-embedding": {
+            "path": "./assets/@epa-wg/cem-ml-cli/dist/native-embedding.js",
+            "contentType": "text/javascript"
         }
     }
 }

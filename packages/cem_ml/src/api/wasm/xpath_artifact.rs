@@ -8,7 +8,8 @@ use crate::{
         XPathInvocationHost, XPathSourceRequest, XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI,
     },
 };
-use std::{cell::RefCell, collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
+use crate::runtime_inventory::NativeRegistry as RefCell;
 use wasm_bindgen::prelude::*;
 
 const MAX_PROGRAMS: usize = 64;
@@ -37,6 +38,7 @@ pub fn retained_xpath_artifact(id: u32) -> Option<Arc<XPathExpressionAst>> {
 
 #[wasm_bindgen(js_name = "compileXPathArtifact")]
 pub fn compile_xpath_artifact(source: &str, source_uri: &str) -> Result<Vec<u8>, JsValue> {
+    crate::runtime_inventory::note_mutation();
     if source.len() > crate::validation::xpath::artifact::XPATH_ARTIFACT_MAX_BYTES {
         return Err(error(
             "cem.xpath.artifact_limit",
@@ -66,6 +68,7 @@ pub fn import_xpath_artifact(
     expected_source_hash: &str,
     invocation_host: &str,
 ) -> Result<String, JsValue> {
+    crate::runtime_inventory::note_mutation();
     if bytes.len() > crate::validation::xpath::artifact::XPATH_ARTIFACT_MAX_BYTES {
         return Err(error(
             "cem.xpath.artifact_limit",
@@ -110,6 +113,7 @@ pub fn import_xpath_artifact(
 
 #[wasm_bindgen(js_name = "disposeXPathArtifact")]
 pub fn dispose_xpath_artifact(id: u32) -> bool {
+    crate::runtime_inventory::note_mutation();
     PROGRAMS.with(|programs| {
         let mut programs = programs.borrow_mut();
         if let Some((_, bytes)) = programs.entries.remove(&id) {
@@ -148,3 +152,5 @@ fn parse_hash(value: &str) -> Result<ContentHash, JsValue> {
 fn error(code: &str, message: &str) -> JsValue {
     JsValue::from_str(&format!("{code}: {message}"))
 }
+
+pub(super) fn inventory_count() -> u64 { PROGRAMS.with(|s| s.borrow().entries.len() as u64) }

@@ -7,6 +7,7 @@ pub fn status() -> String {
 }
 #[wasm_bindgen(js_name = "configureRuntimeMemoryBudget")]
 pub fn configure(config_json: &str) -> Result<String, JsValue> {
+    crate::runtime_inventory::note_mutation();
     if config_json.len() > 512 {
         return Err(JsValue::from_str("cem.runtime.memory.config"));
     }
@@ -22,6 +23,7 @@ pub fn configure(config_json: &str) -> Result<String, JsValue> {
 /// semantic parsing/rendering or operation-control bypass occurs on this path.
 #[wasm_bindgen(js_name = "sealCommittedCheckpoint")]
 pub fn seal_checkpoint(candidate: &str, receipt: &str) -> Result<String, JsValue> {
+    crate::runtime_inventory::note_mutation();
     use crate::committed_checkpoint::{seal, MAX_CHECKPOINT_BYTES};
     if candidate.len() > MAX_CHECKPOINT_BYTES || receipt.len() > MAX_CHECKPOINT_BYTES {
         return Err(JsValue::from_str("cem.checkpoint.limit"));
@@ -36,6 +38,7 @@ pub fn seal_checkpoint(candidate: &str, receipt: &str) -> Result<String, JsValue
 /// Bounded browser control serialization admission in each linked runtime.
 #[wasm_bindgen(js_name = "validateCheckpointControls")]
 pub fn validate_checkpoint_controls(input: &str) -> Result<String, JsValue> {
+    crate::runtime_inventory::note_mutation();
     use crate::checkpoint_control_state::{validate, MAX_BYTES};
     if input.len() > MAX_BYTES {
         return Err(JsValue::from_str("cem.checkpoint.controls.limit"));
@@ -49,6 +52,7 @@ pub fn validate_checkpoint_controls(input: &str) -> Result<String, JsValue> {
 /// Native admission for capability/resource checkpoint control metadata and bytes.
 #[wasm_bindgen(js_name = "validateCheckpointRuntime")]
 pub fn validate_checkpoint_runtime(input: &str) -> Result<String, JsValue> {
+    crate::runtime_inventory::note_mutation();
     use crate::checkpoint_runtime_state::{validate, MAX_BYTES};
     if input.len() > MAX_BYTES {
         return Err(JsValue::from_str("cem.checkpoint.runtime.limit"));

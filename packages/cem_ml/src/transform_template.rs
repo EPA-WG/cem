@@ -57,7 +57,7 @@ use crate::validation::xpath::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::any::Any;
-use std::cell::RefCell;
+use crate::runtime_inventory::NativeRegistry as RefCell;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -42119,4 +42119,11 @@ mod tests {
             identity.content_type.as_deref() == Some("text/cem-ml")
         }
     }
+}
+
+
+/// Reconstructible parse caches retain no callbacks or external resource leases.
+pub fn parse_cache_inventory_counts() -> (u64, u64) {
+    (CEMT_FUNCTION_CALL_ARG_CACHE.with(|s| s.borrow().len() as u64),
+     CEMT_OBJECT_LITERAL_CACHE.with(|s| s.borrow().len() as u64))
 }

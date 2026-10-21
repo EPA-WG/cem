@@ -164,6 +164,10 @@ pub struct CommandServiceOperationRegistryV1 {
 }
 
 impl CommandServiceOperationRegistryV1 {
+    pub fn inventory_count(&self) -> usize {
+        self.active.lock().expect("poisoned command-service registry").len()
+    }
+
     pub fn register(
         &self,
         request_id: &str,
@@ -179,6 +183,7 @@ impl CommandServiceOperationRegistryV1 {
             });
         }
         let operation_id = control.operation_id();
+        crate::runtime_inventory::note_mutation();
         active.insert(
             request_id.to_owned(),
             ActiveCommandServiceOperationV1 {
@@ -208,6 +213,7 @@ impl CommandServiceOperationRegistryV1 {
             }
         })?;
         drop(active);
+        crate::runtime_inventory::note_mutation();
         let disposition = operation
             .control
             .cancel_root(reason, None)
@@ -231,6 +237,7 @@ impl CommandServiceOperationRegistryV1 {
             .get(request_id)
             .is_some_and(|operation| operation.operation_id == operation_id)
         {
+            crate::runtime_inventory::note_mutation();
             active.remove(request_id);
         }
     }
