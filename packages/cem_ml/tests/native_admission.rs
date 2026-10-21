@@ -103,6 +103,8 @@ fn entry_limit_and_every_generated_export_have_explicit_native_contracts() {
         "commandNativeMemoryIdentity",
         "closeCommandNativeAdmission",
         "validateCommandNativeClosure",
+        "prepareCommandNativeRetirement",
+        "confirmation",
     ];
     let exports = regex::Regex::new(r#"(?s)#\[(?:wasm_bindgen|wasm_bindgen::prelude::wasm_bindgen)\([^\]]*js_name\s*=\s*"([^"]+)"[^\]]*\)\]\s*(?:#\[[^\]]*\]\s*)*pub fn [^{]+\{"#).unwrap();
     let all = regex::Regex::new(r#"(?s)#\[(?:wasm_bindgen|wasm_bindgen::prelude::wasm_bindgen)(?:\([^\]]*\))?\]\s*(?:#\[[^\]]*\]\s*)*pub fn"#).unwrap();
@@ -140,4 +142,69 @@ fn entry_limit_and_every_generated_export_have_explicit_native_contracts() {
         }
     }
     assert!(total > 130);
+}
+
+#[test]
+fn retirement_freezes_cleanup_until_the_original_permit_is_dropped() {
+    let _serial = SERIAL.lock().unwrap();
+    let gate = NativeAdmission::default();
+    let snapshot = inventory();
+    assert!(gate
+        .prepare_retirement(&snapshot, snapshot.revision)
+        .is_err());
+    gate.close().unwrap();
+    let old = inventory();
+    drop(gate.admit(true).unwrap());
+    assert!(gate.prepare_retirement(&old, old.revision).is_err());
+    // Failed preparation leaves cleanup available.
+    drop(gate.admit(true).unwrap());
+    let current = inventory();
+    let permit = gate.prepare_retirement(&current, current.revision).unwrap();
+    assert_eq!(permit.inventory_revision(), current.revision);
+    assert!(permit.frozen_revision() > current.revision);
+    assert_eq!(
+        gate.active_entries(),
+        1,
+        "the retirement permit remains a native root"
+    );
+    assert!(gate.admit(true).is_err());
+    assert!(gate.admit(false).is_err());
+    assert!(gate.ensure_idle_closed().is_err());
+    assert!(gate
+        .prepare_retirement(&inventory(), inventory_revision())
+        .is_err());
+    gate.close().unwrap();
+    assert_eq!(inventory_revision(), permit.frozen_revision());
+    drop(permit);
+    assert_eq!(gate.active_entries(), 0);
+    assert!(gate.admit(false).is_err());
+    drop(gate.admit(true).unwrap());
+    assert!(gate.prepare_retirement(&current, current.revision).is_err());
+    let current = inventory();
+    let permit = gate.prepare_retirement(&current, current.revision).unwrap();
+    drop(permit);
+}
+
+#[test]
+fn retirement_refuses_live_entries_and_incomplete_resource_handoffs() {
+    let _serial = SERIAL.lock().unwrap();
+    let gate = NativeAdmission::default();
+    gate.close().unwrap();
+    let work = gate.admit(true).unwrap();
+    assert!(gate
+        .prepare_retirement(&inventory(), inventory_revision())
+        .is_err());
+    drop(work);
+    for kind in 0..3 {
+        let mut snapshot = inventory();
+        match kind {
+            0 => snapshot.complete = false,
+            1 => snapshot.blocking_resources = 1,
+            _ => snapshot.replacement_allowed = true,
+        }
+        assert!(gate
+            .prepare_retirement(&snapshot, snapshot.revision)
+            .is_err());
+        drop(gate.admit(true).unwrap());
+    }
 }

@@ -16,6 +16,7 @@ import {
 globalThis.runCemMlBrowserFixture = async (scenario) => {
     if (scenario === 'command-host-configuration') return runHostConfigurationFixture();
     if (scenario === 'command-native-checkpoint') return runNativeCheckpointFixture();
+    if (scenario === 'command-native-retirement') return runNativeInventoryFixture('retirement');
     if (scenario === 'command-native-closure') return runNativeInventoryFixture(true);
     if (scenario === 'command-native-inventory') return runNativeInventoryFixture();
     if (scenario === 'command-native-pressure') return runNativePressureFixture();
@@ -741,11 +742,22 @@ async function runNativeInventoryFixture(coordinated = false) {
         self.addEventListener('message', buffer);
         const native = await import('${location.origin}/command-native/runtime.js');
         await native.default('${location.origin}/command-native/runtime.wasm');
-        let document;
+        let document, freezePort;
+        const post = self.postMessage.bind(self);
+        self.postMessage = (...args) => {
+            if (args[0]?.result?.frozen === true && freezePort) {
+                let refusal; try { native.resetRetainedRenderCache(); } catch (error) { refusal = String(error); }
+                const inventory = JSON.parse(native.commandNativeResourceInventory());
+                freezePort.postMessage({ refusal, live: inventory.registries.find(entry => entry.name === 'native-entries').live, revision: inventory.revision,
+                    frozenRevision: args[0].result.frozenRevision }); freezePort.close(); freezePort = undefined;
+            }
+            return post(...args);
+        };
         self.addEventListener('message', async event => {
             if (event.data.type !== 'fixture-native-inventory') return;
             event.stopImmediatePropagation();
             try {
+                if (event.data.retain === 'freeze-probe') { freezePort = event.ports[0]; return; }
                 if (event.data.retain === 'reset') { native.resetRetainedRenderCache(); }
                 else if (event.data.retain === 'probe') {
                     let document;
@@ -792,6 +804,23 @@ async function runNativeInventoryFixture(coordinated = false) {
         const denied = coordinated ? await mutate('probe') : undefined;
         await mutate(false);
         let proof = await capture([a, b]);
+        if (coordinated === 'retirement') {
+            const handoff = () => ({ current: () => true,
+                retain: () => new TextEncoder().encode('sealed draft and terminal journal') });
+            await mutate('reset');
+            const stale = await client.retireNativeGeneration(proof, [a, b], handoff()).then(() => null, error => error.code);
+            proof = await capture([a, b]);
+            let checks = 0; const changed = handoff(); changed.current = () => ++checks < 3;
+            const cancelled = await client.retireNativeGeneration(proof, [a, b], changed).then(() => null, error => error.code);
+            await mutate('reset'); // original permit was dropped; cleanup works again
+            proof = await capture([a, b]);
+            const probe = mutate('freeze-probe');
+            const retired = await client.retireNativeGeneration(proof, [a, b], handoff());
+            const frozen = await probe;
+            let closed; try { client.claimNativeEmbedding(); } catch (error) { closed = error.code; }
+            return { stale, cancelled, frozen: frozen.refusal, permit: frozen.live, unchanged: frozen.revision === frozen.frozenRevision,
+                checkpoint: new TextDecoder().decode(retired.checkpoint), replacementAllowed: retired.replacementAllowed, closed };
+        }
         let stale, hostCurrent;
         if (coordinated) {
             proof = await client.revalidateNativeCheckpoint(proof, [a, b], 1000);

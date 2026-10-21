@@ -274,3 +274,16 @@ describe('dependent owner publication retry', () => {
         a.remove(); b.remove(); c.dispose();
     });
 });
+
+
+it('hands off only current publications and terminal journals, fencing input and policy changes', async () => {
+    const c = new CemCheckpointPublicationCoordinator(options());
+    const owner = c.register('a', () => '<template>unsaved draft</template>'); owner.published(metadata);
+    const operation = c.operation('a'); await c.capture();
+    expect(() => c.handoff()).toThrow('operations.unknown');
+    operation.acknowledge(); await c.capture();
+    const handoff = c.handoff(); expect(handoff.current()).toBe(true);
+    const bytes = handoff.retain(); expect(bytes.length).toBeGreaterThan(0);
+    owner.input(); expect(handoff.current()).toBe(false); expect(() => handoff.retain()).toThrow('stale');
+    expect(c.lastCommitted()).toBeDefined(); c.dispose();
+});

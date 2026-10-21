@@ -306,6 +306,10 @@ try {
         live: 1, registries: 29, owners: 2, blockers: 0, current: true, copied: false, afterRelease: false, replacementAllowed: false,
         denied: { document: 'cem.runtime.admission.closed', template: 'cem.runtime.admission.closed', command: 'cem.runtime.admission.closed', callbacks: 0 },
         stale: 'cem.command.native.stale', hostCurrent: true, closed: true });
+    const nativeRetirement = await runFixture(page, 'command-native-retirement');
+    assert.deepEqual(nativeRetirement, { stale: 'cem.command.retirement.stale', cancelled: 'cem.command.retirement.stale',
+        frozen: 'cem.runtime.retirement.pending', permit: 1, unchanged: true, checkpoint: 'sealed draft and terminal journal',
+        replacementAllowed: false, closed: 'cem.browser_command.client_closed' });
     const nativePressure = await runFixture(page, 'command-native-pressure');
     assert.equal(nativePressure.status, 'succeeded');
     assert.ok(nativePressure.artifacts > 1);

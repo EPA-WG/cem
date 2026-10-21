@@ -732,3 +732,36 @@ pub fn validate_command_native_closure(expected_revision: f64) -> Result<String,
     let proof = cem_ml::runtime_admission::validate(&inventory, expected_revision as u64).map_err(JsValue::from_str)?;
     serde_json::to_string(&proof).map_err(|_| JsValue::from_str("cem.runtime.admission.serialization"))
 }
+
+/// Original native barrier, privately retained by the owning worker transport.
+/// Its generated free() drops the permit and restores cleanup after abort.
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen::prelude::wasm_bindgen]
+pub struct CommandNativeRetirement {
+    permit: cem_ml::runtime_admission::NativeRetirementPermit<'static>,
+}
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen::prelude::wasm_bindgen]
+impl CommandNativeRetirement {
+    #[wasm_bindgen::prelude::wasm_bindgen(js_name = "confirmation")]
+    pub fn confirmation(&self) -> String {
+        serde_json::json!({ "schemaVersion": 1, "frozen": true,
+            "inventoryRevision": self.permit.inventory_revision(),
+            "frozenRevision": self.permit.frozen_revision(),
+            "replacementAllowed": false }).to_string()
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen::prelude::wasm_bindgen(js_name = "prepareCommandNativeRetirement")]
+pub fn prepare_command_native_retirement(expected_revision: f64) -> Result<CommandNativeRetirement, JsValue> {
+    if !expected_revision.is_finite() || expected_revision < 1.0 || expected_revision.fract() != 0.0 || expected_revision > 9007199254740991.0 {
+        return Err(JsValue::from_str("cem.runtime.admission.revision"));
+    }
+    cem_ml::runtime_admission::ensure_idle_closed().map_err(JsValue::from_str)?;
+    let mut entries = cem_ml::api::wasm::resource_inventory_entries();
+    entries.extend(resource_inventory_entries());
+    let inventory = cem_ml::runtime_inventory::RuntimeResourceInventory::collect(entries).map_err(JsValue::from_str)?;
+    let permit = cem_ml::runtime_admission::prepare_retirement(&inventory, expected_revision as u64).map_err(JsValue::from_str)?;
+    Ok(CommandNativeRetirement { permit })
+}

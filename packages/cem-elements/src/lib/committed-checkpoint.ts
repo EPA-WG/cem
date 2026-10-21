@@ -40,6 +40,12 @@ export interface CemStoredCheckpoint {
     bytes: Uint8Array;
     receipt: CemCommitReceipt;
 }
+/** Trusted host capability. A serialized receipt or old byte export is insufficient.
+ * The native transport retains an independent copy before preparing retirement. */
+export interface CemCheckpointRetirementHandoff {
+    current(): boolean;
+    retain(): Uint8Array;
+}
 const MAX_BYTES = 1024 * 1024;
 
 export class CemCommittedCheckpointStore {
@@ -52,6 +58,7 @@ export class CemCommittedCheckpointStore {
     private sequence = 0;
     private epoch = 0;
     private pending = false;
+    private storedRevision = 0;
     private disposed = false;
 
     constructor(private readonly runtimeId: string) {}
@@ -107,6 +114,7 @@ export class CemCommittedCheckpointStore {
             this.slot = next;
             this.length = result.written;
             this.committed = receipt;
+            this.storedRevision++;
         } finally {
             this.pending = false;
         }
@@ -121,6 +129,25 @@ export class CemCommittedCheckpointStore {
 
     current(): CemStoredCheckpoint | undefined {
         return this.acknowledged === this.committed ? this.lastCommitted() : undefined;
+    }
+
+    /** Current native-sealed bytes already include the external-operation journal.
+     * Unknown effects require explicit reconciliation before generation retirement. */
+    handoff(): CemCheckpointRetirementHandoff {
+        const revision = this.storedRevision;
+        const epoch = this.epoch;
+        const current = () => !this.disposed && !this.pending && this.length > 0
+            && this.acknowledged !== undefined && this.acknowledged === this.committed
+            && this.epoch === epoch && this.storedRevision === revision;
+        if (!current()) throw new Error('cem.checkpoint.stale');
+        const receipt = JSON.parse(this.committed!) as CemCommitReceipt;
+        if (receipt.operations.some(operation => operation.outcome !== 'acknowledged' && operation.outcome !== 'not-applied')) {
+            throw new Error('cem.checkpoint.operations.unknown');
+        }
+        return Object.freeze({ current, retain: () => {
+            if (!current()) throw new Error('cem.checkpoint.stale');
+            return this.slots[this.slot].slice(0, this.length);
+        } });
     }
 
     /** Erase session-private state on host/session disposal. */

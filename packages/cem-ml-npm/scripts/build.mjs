@@ -252,7 +252,10 @@ function installCommandDeclarations(outputRoot) {
     'export function readCommandArtifactV1(request_id: string, handle_id: number, offset: number, max_bytes: number): any;',
     'export function readCommandArtifactV1(request_id: string, handle_id: number, offset: number, max_bytes: number): CommandArtifactReadWireResponseV1;',
   );
-  const commandImports = `import type {
+  // wasm-bindgen emits Symbol.dispose on owned Rust classes. Declare that
+  // ambient library explicitly so ES2022 consumers need no target/lib override.
+  const commandImports = `/// <reference lib="esnext.disposable" />
+import type {
   CommandArtifactReadWireResponseV1,
   CommandCommitWriteJsonCallbackV1,
   CommandPrepareWriteJsonCallbackV1,

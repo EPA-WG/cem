@@ -109,7 +109,16 @@ async function compilePublicBrowserCommandContract(): Promise<void> {
     const confirmed = await client.revalidateNativeCheckpoint(coordinated, [embedding], 5000);
     const closure: CommandNativeClosureValidation | undefined = confirmed.nativeClosure;
     void closure;
-    client.releaseNativeEmbedding(embedding);
+    const handoff: import('../dist/native-embedding.js').CommandNativeRetirementHandoff = {
+        current: () => true, retain: () => new Uint8Array([1]),
+    };
+    const retired: import('../dist/native-embedding.js').CommandNativeRetiredGeneration =
+        await client.retireNativeGeneration(confirmed, [embedding], handoff, 5000);
+    const checkpointBytes: Uint8Array = retired.checkpoint;
+    const noReplacement: false = retired.replacementAllowed;
+    void [checkpointBytes, noReplacement];
+
+
     const mainEmbedding = await claimBrowserCommandNativeEmbedding();
     const mainProof = await checkpointBrowserCommandNativeEmbedding([mainEmbedding]);
     const mainCurrent: boolean = isBrowserCommandNativeInventoryCurrent(mainProof);

@@ -54,7 +54,7 @@
             "executor": "nx:run-commands",
             "dependsOn": ["build"],
             "options": {
-                "command": "node --test tests/native-closure.test.mjs tests/native-inventory.test.mjs tests/native-admission.test.mjs tests/command-schema.test.mjs tests/command-all-operations.test.mjs tests/node-command-service.test.mjs tests/node-worker-pool.test.mjs",
+                "command": "node --test tests/native-retirement.test.mjs tests/native-closure.test.mjs tests/native-inventory.test.mjs tests/native-admission.test.mjs tests/command-schema.test.mjs tests/command-all-operations.test.mjs tests/node-command-service.test.mjs tests/node-worker-pool.test.mjs",
                 "cwd": "{projectRoot}"
             },
             "inputs": [

@@ -118,3 +118,25 @@ export class CommandNativeEmbeddingOwners {
 
 function record(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
 function counter(value: unknown): value is number { return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0; }
+
+/** A trusted host lifecycle adapter, never authored data or a serialized receipt.
+ * retain() supplies independent native-sealed bytes including the terminal journal.
+ * current() must fence edits, policy, publication and journal changes. */
+export interface CommandNativeRetirementHandoff {
+    retain(): Uint8Array;
+    current(): boolean;
+}
+export interface CommandNativeRetiredGeneration {
+    /** Host-owned checkpoint and journal; never a view into the retired heap. */
+    readonly checkpoint: Uint8Array;
+    readonly replacementAllowed: false;
+}
+export function parseCommandNativeRetirement(value: unknown, revision: number): void {
+    if (typeof value === 'string') {
+        if (value.length > 512) throw new CommandNativeEmbeddingError('cem.command.native.limit');
+        value = JSON.parse(value) as unknown;
+    }
+    if (!record(value) || Object.keys(value).length !== 5 || value.schemaVersion !== 1 || value.frozen !== true ||
+        value.inventoryRevision !== revision || !counter(value.frozenRevision) || value.frozenRevision <= revision ||
+        value.replacementAllowed !== false) throw new CommandNativeEmbeddingError('cem.command.retirement.stale');
+}

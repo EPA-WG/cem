@@ -190,6 +190,7 @@ export interface BrowserCommandCapabilityResponse {
 }
 
 export type BrowserCommandWorkerRequest =
+    | CommandNativeRetirementRequest
     | CommandNativeCheckpointRequest
     | BrowserCommandExecuteRequest
     | BrowserCommandCancelRequest
@@ -197,6 +198,13 @@ export type BrowserCommandWorkerRequest =
     | BrowserCommandArtifactDisposeRequest
     | BrowserCommandArtifactsDisposeRequest
     | BrowserCommandCapabilityResponse;
+
+export interface CommandNativeRetirementRequest {
+    readonly type: 'cem-command-native-retirement';
+    readonly actionId: number;
+    readonly preparationId: number;
+    readonly expectedRevision?: number;
+}
 
 export interface CommandNativeCheckpointRequest {
     readonly type: 'cem-command-native-checkpoint';

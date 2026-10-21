@@ -1,5 +1,5 @@
-import type { CommandNativeEmbeddingOwnership } from './native-embedding.js';
-export type { CommandNativeEmbeddingOwnership, CommandNativeInventory, CommandNativeClosureValidation } from './native-embedding.js';
+import type { CommandNativeRetirementHandoff, CommandNativeRetiredGeneration, CommandNativeEmbeddingOwnership } from './native-embedding.js';
+export type { CommandNativeEmbeddingOwnership, CommandNativeInventory, CommandNativeClosureValidation, CommandNativeRetirementHandoff, CommandNativeRetiredGeneration } from './native-embedding.js';
 import { CommandNativeClientCheckpoint, type CommandNativeDrain } from './native-admission.js';
 export type { CommandNativeDrain } from './native-admission.js';
 import runtimeMetadata from '@epa-wg/cem-ml/runtime.json' with { type: 'json' };
@@ -257,6 +257,7 @@ export class BrowserCommandServiceClient {
     #actions = new Map<number, PendingAction>();
     #nextExecutionId = 1;
     #nextActionId = 1;
+    #retirementActions = new Set<number>();
     #closed = false;
     #nativeCheckpoint: CommandNativeClientCheckpoint;
 
@@ -376,6 +377,24 @@ export class BrowserCommandServiceClient {
                 ...(coordination === undefined ? {} : { nativeClosure: coordination === 'close' ? 'close' : coordination.nativeClosure?.inventoryRevision }),
             }).then(({ value }) => value);
         }, timeoutMs, ownership, coordination);
+    }
+
+    /** Explicit retirement only; no replacement, resume or action replay. */
+    retireNativeGeneration(proof: CommandNativeDrain, ownership: readonly CommandNativeEmbeddingOwnership[],
+        handoff: CommandNativeRetirementHandoff, timeoutMs = 5000,
+    ): Promise<CommandNativeRetiredGeneration> {
+        this.#requireOpen();
+        let preparationId: number;
+        const send = (expectedRevision?: number) => {
+            this.#requireOpen();
+            const actionId = this.#nextActionId++;
+            preparationId ??= actionId;
+            this.#retirementActions.add(actionId);
+            return this.#action<unknown>(actionId, { type: 'cem-command-native-retirement', actionId, preparationId,
+                ...(expectedRevision === undefined ? {} : { expectedRevision }) }).then(({ value }) => value);
+        };
+        return this.#nativeCheckpoint.retire(proof, ownership, handoff,
+            () => send(proof.nativeClosure?.inventoryRevision), () => send(), () => this.close(), timeoutMs);
     }
 
     isNativeCheckpointCurrent(proof: CommandNativeDrain): boolean {
@@ -520,8 +539,10 @@ export class BrowserCommandServiceClient {
     }
 
     #acceptAction(message: BrowserCommandActionResultMessage): void {
-        if (message.nativeAdmissionClosed === true) this.#nativeCheckpoint.close();
-        this.#nativeCheckpoint.changed();
+        if (!this.#retirementActions.delete(message.actionId)) {
+            if (message.nativeAdmissionClosed === true) this.#nativeCheckpoint.close();
+            this.#nativeCheckpoint.changed();
+        }
         const pending = this.#actions.get(message.actionId);
         if (pending === undefined) throw new Error('CEM-ML browser command action result is unexpected');
         this.#actions.delete(message.actionId);

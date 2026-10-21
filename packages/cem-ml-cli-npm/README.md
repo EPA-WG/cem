@@ -322,7 +322,61 @@ Main-thread authoring provides `closeNodeCommandNativeAdmission` /
 `closeBrowserCommandNativeAdmission` and `revalidateNodeCommandNativeCheckpoint` /
 `revalidateBrowserCommandNativeCheckpoint`, with the same original-lease rules.
 Witnesses still have `replacementAllowed: false`. Native confirmation describes
-one validation instant; the future replacement coordinator must consume a fresh
-confirmation at retirement and resume under new generation authority. Unregistered
+one validation instant; explicit retirement below consumes a new native barrier.
+Semantic resume still requires new generation authority. Unregistered
 embedders, direct memory writes and independent initialization remain outside the
 ownership contract. No command or resource writer is replayed.
+
+
+## Retiring a command worker with checkpoint handoff
+
+Retirement is explicit on browser and Node command-service clients. A trusted host
+supplies its current native-sealed checkpoint and terminal external-operation
+journal through a lifecycle adapter. For a shared `cem-elements` publication
+coordinator, use its `handoff()` directly:
+
+```js
+// Capture after all owners publish and pending operations settle or reconcile.
+await publications.capture();
+const handoff = publications.handoff();
+const closed = await client.closeNativeAdmission(allOriginalEmbeddingLeases);
+const retired = await client.retireNativeGeneration(
+    closed, allOriginalEmbeddingLeases, handoff,
+);
+// Independent host bytes, including the journal, survive worker termination.
+const checkpoint = retired.checkpoint;
+```
+
+The adapter's `retain()` returns native-sealed bytes; `current()` must reject
+new edits, publications, policy changes and journal changes. This is trusted
+host code, never an authored callback, receipt flag or serialized checkpoint
+label. The CLI transports opaque bytes, bounded to 1 MiB, and does not parse or
+validate an application AST. The host must cover all affected owners and heaps;
+a rendering checkpoint does not establish command-heap coverage.
+
+The client checks the original coordinated witness and all original embedding
+leases, retains an independent byte copy, then asks the worker to freeze its
+exact native inventory revision. Stale raw cleanup cancels preparation. Only the
+original native RAII permit can reopen cleanup; its copyable confirmation cannot.
+While frozen, every mutating entrypoint, including cleanup, refuses work. Final
+handoff and ownership checks and transport termination run in one host turn.
+Successful retirement revokes old ownership and returns the retained bytes.
+
+A changed handoff/owner, refusal, timeout or worker loss never starts replacement
+or retries an operation. An aborted preparation drops its native permit, restores
+cleanup under closed admission and invalidates the previous witness. Unknown
+external effects must be reconciled under current policy before handoff. Native
+artifact-disposal tombstones are discarded only with the retired heap, rather
+than imported into another generation. The existing host journal remains in the
+checkpoint; no external writer or command is replayed. Callers retain last-good
+bytes after failure, but they cannot authorize rollback of newer edits.
+
+The returned record retains `replacementAllowed: false`. Main-thread memories
+are not physically retired by this API. Automatic replacement/resume, rendering
+worker retirement and declarative recovery status remain separate work. Raw
+initialization, direct memory mutation, unregistered embeddings and direct
+transport-control injection remain unsupported retirement boundaries.
+
+The prepared retirement permit remains visible as one live `native-entries`
+root until abort or physical worker termination; a held barrier never produces
+a misleading empty resource census.

@@ -186,3 +186,20 @@ export function revalidateCommandNativeEmbedding(proof: CommandNativeDrain, leas
     if (proof === undefined || proof === null) return Promise.reject(new CommandNativeAdmissionError('cem.command.native.stale'));
     return checkpointCommandNativeEmbedding(leases, timeoutMs, proof);
 }
+
+// The original generated object owns a non-cloneable native RAII permit. Its
+// scalar confirmation never allows another alias to release the barrier.
+let retirement: { id: number; permit: native.CommandNativeRetirement } | undefined;
+export function prepareCommandNativeRetirement(revision: number, id: number): unknown {
+    if (retirement !== undefined) throw new CommandNativeAdmissionError('cem.command.retirement.pending');
+    try {
+        const permit = native.prepareCommandNativeRetirement(revision);
+        retirement = { id, permit };
+        return JSON.parse(permit.confirmation()) as unknown;
+    } catch { throw new CommandNativeAdmissionError('cem.command.retirement.stale'); }
+}
+export function abortCommandNativeRetirement(id: number): void {
+    if (retirement === undefined) return;
+    if (retirement.id !== id) throw new CommandNativeAdmissionError('cem.command.retirement.stale');
+    retirement.permit.free(); retirement = undefined;
+}

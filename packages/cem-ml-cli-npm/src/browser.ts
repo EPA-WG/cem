@@ -1,4 +1,4 @@
-export type { CommandNativeEmbeddingOwnership, CommandNativeInventory, CommandNativeClosureValidation } from './native-embedding.js';
+export type { CommandNativeEmbeddingOwnership, CommandNativeInventory, CommandNativeClosureValidation, CommandNativeRetirementHandoff, CommandNativeRetiredGeneration } from './native-embedding.js';
 export type { CommandNativeDrain } from './native-admission.js';
 import { commandNativeRuntime as runtime } from './managed-native-runtime.js';
 import runtimeMetadata from '@epa-wg/cem-ml/runtime.json' with { type: 'json' };

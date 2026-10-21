@@ -2,7 +2,7 @@ import { CommandNativeAdmissionError, isCommandNativeAdmissionError } from './na
 import { readFile } from 'node:fs/promises';
 import { parentPort, threadId, workerData } from 'node:worker_threads';
 
-import { commandNativeAdmission, closeCommandNativeAdmission, validateCommandNativeClosure, readCommandNativeInventory, commandNativeRuntime as runtime } from './managed-native-runtime.js';
+import { prepareCommandNativeRetirement, abortCommandNativeRetirement, commandNativeAdmission, closeCommandNativeAdmission, validateCommandNativeClosure, readCommandNativeInventory, commandNativeRuntime as runtime } from './managed-native-runtime.js';
 
 import type {
     BrowserCommandActionResultMessage,
@@ -85,6 +85,9 @@ port.on('message', (message: unknown) => {
     if (isRecord(message) && message.type === 'cem-worker-close') {
         port.close();
         return;
+    }
+    if (isRecord(message) && message.type === 'cem-command-native-retirement') {
+        retireCommandNative(message); return;
     }
     if (isRecord(message) && message.type === 'cem-command-native-checkpoint') {
         void checkpointCommandNative(message).catch(reportFailure);
@@ -375,4 +378,26 @@ async function executeTrackedCommand(message: BrowserCommandExecuteRequest): Pro
         port.postMessage({ type: 'cem-command-result', executionId: message.executionId,
             nativeAdmissionClosed: true, result: { error: { code: error.code, message: error.message } } });
     } finally { retire?.(); }
+}
+
+function retireCommandNative(message: Record<string, unknown>): void {
+    if (!isPositiveInteger(message.actionId) || !isPositiveInteger(message.preparationId) ||
+        Object.keys(message).length !== (message.expectedRevision === undefined ? 3 : 4) ||
+        (message.expectedRevision !== undefined && !isPositiveInteger(message.expectedRevision))) {
+        throw new Error('Invalid native retirement request');
+    }
+    let result: unknown;
+    try {
+        if (message.expectedRevision === undefined) {
+            abortCommandNativeRetirement(message.preparationId); result = { aborted: true };
+        } else {
+            // No await or callback between managed closure and the native barrier.
+            commandNativeAdmission.close();
+            result = prepareCommandNativeRetirement(message.expectedRevision, message.preparationId);
+        }
+    } catch (error) {
+        if (!isCommandNativeAdmissionError(error)) throw error;
+        result = { error: { code: error.code, message: error.message } };
+    }
+    port.postMessage({ type: 'cem-command-action-result', actionId: message.actionId, result });
 }

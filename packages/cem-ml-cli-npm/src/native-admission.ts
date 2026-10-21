@@ -1,4 +1,4 @@
-import { parseCommandNativeClosure, type CommandNativeClosureValidation, copyCommandNativeEmbeddingOwnership, CommandNativeEmbeddingOwners, parseCommandNativeInventory, type CommandNativeInventory, type CommandNativeEmbeddingOwnership } from './native-embedding.js';
+import { parseCommandNativeRetirement, type CommandNativeRetirementHandoff, type CommandNativeRetiredGeneration, parseCommandNativeClosure, type CommandNativeClosureValidation, copyCommandNativeEmbeddingOwnership, CommandNativeEmbeddingOwners, parseCommandNativeInventory, type CommandNativeInventory, type CommandNativeEmbeddingOwnership } from './native-embedding.js';
 /** Managed CLI admission only. This is never whole-heap replacement authority. */
 export type CommandNativeClosure = 'soft-pressure' | 'hard-pressure' | 'telemetry-unavailable' | 'checkpoint';
 
@@ -159,6 +159,7 @@ export class CommandNativeAdmission {
 /** Host-side witness tied to the owning transport object and current activity. */
 export class CommandNativeClientCheckpoint {
     #closed = false;
+    #retiring = false;
     #uncertain = false;
     #proof: CommandNativeDrain | undefined;
     #revision = 0;
@@ -188,8 +189,59 @@ export class CommandNativeClientCheckpoint {
     requireCoordinated(proof: CommandNativeDrain): void {
         if (!this.current(proof) || proof.nativeClosure === undefined) throw new CommandNativeAdmissionError('cem.command.native.stale', 'A current original coordinated witness is required');
     }
+    /** Retain host bytes first. The final synchronous ownership/handoff check
+     * and transport termination share one host turn while native cleanup is frozen. */
+    async retire(proof: CommandNativeDrain, ownership: readonly CommandNativeEmbeddingOwnership[],
+        handoff: CommandNativeRetirementHandoff, prepare: () => Promise<unknown>,
+        abort: () => Promise<unknown>, terminate: () => Promise<void>, timeoutMs = 5000,
+    ): Promise<CommandNativeRetiredGeneration> {
+        if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 5000) throw new RangeError('Invalid retirement timeout');
+        this.requireCoordinated(proof);
+        if (this.#retiring) throw new CommandNativeAdmissionError('cem.command.retirement.pending');
+        const ack = this.#owners.acknowledge(copyCommandNativeEmbeddingOwnership(ownership));
+        const current = () => this.current(proof) && this.#owners.current(ack);
+        this.#retiring = true;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        let terminating = false;
+        let abortTimer: ReturnType<typeof setTimeout> | undefined;
+        let preparing = false;
+        try {
+            if (handoff.current() !== true || !current()) throw new CommandNativeAdmissionError('cem.command.retirement.stale');
+            const bytes = handoff.retain();
+            if (!(bytes instanceof Uint8Array) || bytes.byteLength < 1 || bytes.byteLength > 1024 * 1024 || !(bytes.buffer instanceof ArrayBuffer)) {
+                throw new CommandNativeAdmissionError('cem.command.retirement.handoff');
+            }
+            const checkpoint = new Uint8Array(bytes);
+            if (handoff.current() !== true || !current()) throw new CommandNativeAdmissionError('cem.command.retirement.stale');
+            preparing = true;
+            const confirmation = await Promise.race([prepare(), new Promise<never>((_resolve, reject) => {
+                timer = setTimeout(() => { this.invalidate(); reject(new CommandNativeAdmissionError('cem.command.retirement.timeout')); }, timeoutMs);
+            })]);
+            parseCommandNativeRetirement(confirmation, proof.nativeClosure?.inventoryRevision ?? -1);
+            // Trusted adapter callbacks run before the final original-owner check;
+            // a reentrant input/owner mutation cancels retirement as well.
+            if (handoff.current() !== true || !current()) throw new CommandNativeAdmissionError('cem.command.retirement.stale');
+            terminating = true;
+            const completion = terminate();
+            this.invalidate();
+            await completion;
+            return Object.freeze({ checkpoint, replacementAllowed: false });
+        } catch (error) {
+            if (preparing && !terminating) {
+                // Abort is ordered after prepare on the same transport. Lost or
+                // timed-out cleanup can never revive a retirement witness.
+                this.changed();
+                try { await Promise.race([abort(), new Promise<never>((_resolve, reject) => {
+                    abortTimer = setTimeout(() => reject(new Error('abort timeout')), timeoutMs);
+                })]); } catch { this.invalidate(); }
+            }
+            throw error;
+        } finally { clearTimeout(timer); clearTimeout(abortTimer); this.#retiring = false; }
+    }
+
     async capture(send: () => Promise<unknown>, timeoutMs = 5000, ownership?: readonly CommandNativeEmbeddingOwnership[], coordination?: 'close' | CommandNativeDrain): Promise<CommandNativeDrain> {
         if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60000) throw new RangeError('Invalid command drain timeout');
+        if (this.#retiring) throw new CommandNativeAdmissionError('cem.command.retirement.pending');
         if (this.#uncertain) throw new CommandNativeAdmissionError('cem.command.checkpoint.blocked', 'Command checkpoint ownership is uncertain');
         if (this.#waiters >= MAX_WAITERS) throw new CommandNativeAdmissionError('cem.command.checkpoint.limit', 'Too many checkpoint requests');
         if (coordination !== undefined && coordination !== 'close') this.requireCoordinated(coordination);

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -52,6 +52,11 @@ run('wasm-bindgen', [
     '--remove-name-section',
     '--remove-producers-section',
 ]);
+
+// Owned wasm-bindgen classes expose Symbol.dispose; keep ES2022 consumers
+// compatible by declaring its ambient library in the generated artifact.
+const declarations = resolve(repoRoot, outDir, 'cem_ql.d.ts');
+writeFileSync(declarations, `/// <reference lib="esnext.disposable" />\n${readFileSync(declarations, 'utf8')}`);
 
 // wasm-bindgen `--target web` emits ESM, but the out dir has no package.json, so
 // Node/TypeScript `nodenext` resolution would infer CommonJS from the repo root and

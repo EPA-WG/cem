@@ -350,6 +350,17 @@ export class CemCheckpointPublicationCoordinator {
     }
 
     current(): CemStoredCheckpoint | undefined { return this.ready() ? this.store.current() : undefined; }
+    /** Shared lifecycle adapter; no app-local event interception or state serializer. */
+    handoff(): import('./committed-checkpoint.js').CemCheckpointRetirementHandoff {
+        if (this.capturing || !this.ready()) throw new Error('cem.checkpoint.unavailable');
+        const epoch = this.epoch;
+        const handoff = this.store.handoff();
+        const current = () => !this.capturing && epoch === this.epoch && this.ready() && handoff.current();
+        return Object.freeze({ current, retain: () => {
+            if (!current()) throw new Error('cem.checkpoint.stale');
+            return handoff.retain();
+        } });
+    }
     lastCommitted(): CemStoredCheckpoint | undefined { return this.store.lastCommitted(); }
     dispose(): void {
         this.disposed = true; this.invalidate(); this.store.dispose();

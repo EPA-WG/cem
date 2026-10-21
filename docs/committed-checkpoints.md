@@ -874,3 +874,57 @@ plays verify immutable asynchronous submission copies, actual rendering from a
 fresh native session, returned-record isolation, changed/corrupted context refusal,
 last-good bytes through stale seals, preserved edits/caret/focus, revocation and
 normal close/disposal. Assertions for unsupported owners remain intact.
+
+
+### Generation retirement and checkpoint/journal handoff
+
+The shared `CemCheckpointPublicationCoordinator.handoff()` binds host transfer to
+current all-owner publications, policy, native coverage and the existing sealed
+checkpoint store. The store returns owned byte copies only while its exact
+successful capture remains current. Pending/replaced captures, input, policy,
+ownership or disposal invalidate the handoff. Unknown operation outcomes refuse
+handoff until explicit current-policy reconciliation; terminal outcomes remain
+in the native-sealed bytes. Last-good exports survive a refusal and never grant
+rollback authority. No new event journal or AST serializer is introduced.
+
+A browser/Node command-service client's `retireNativeGeneration(originalProof,
+allOriginalEmbeddingLeases, handoff, timeoutMs)` accepts this trusted host adapter.
+The host must cover every affected owner and heap separately; passing a rendering
+handoff does not cover a command heap. The command heap must have zero live
+resources and callbacks. The client retains an independent opaque byte copy,
+bounded to 1 MiB, before native preparation. Adapter callbacks are trusted host
+lifecycle code, not authored expressions, serialized receipts or checkpoint IDs.
+
+Native preparation validates a fresh complete census at the exact original
+confirmed revision and freezes every mutating entrypoint, including cleanup.
+Stale cleanup before preparation cancels retirement. The worker privately retains
+an original non-cloneable Rust RAII permit; its bounded scalar confirmation is
+not a release or replacement permit. Raw cleanup during preparation refuses
+without changing the confirmed frozen revision. Only disposal of that original
+permit aborts the barrier and reopens cleanup under permanently closed ordinary
+admission. No serialized revision can reopen it.
+
+After acknowledgement, final host handoff and original-owner checks and the
+termination request share one synchronous host turn. Native mutation stays
+frozen until the exact worker is gone. Successful retirement revokes old client
+ownership and returns retained checkpoint/journal bytes. Changed publications,
+owner joins/leaves, copied/foreign evidence, native changes, malformed replies,
+timeouts and worker loss cannot authorize termination. Preparation and abort
+waits each have a maximum five-second bound; uncertain or late completion cannot
+revive a witness. Failed preparation leaves the worker available for cleanup;
+failed abort fences the client and leaves its native barrier conservative.
+
+Native artifact disposal tombstones disappear with that heap only after this
+handoff. They are old-handle idempotence history, not portable external-effect
+outcomes; old handles never transfer to a new generation. The existing host
+journal travels inside the checkpoint. No command or external action is retried.
+The returned metadata still says `replacementAllowed: false`. Physical retirement
+of shared rendering workers/fallback memories, automatic replacement and semantic
+resume remain future work. Raw initialization/direct memory writes, unregistered
+embeddings and direct transport-control injection remain unsupported boundaries.
+Studio and component UI stay declarative; this opt-in capability lives entirely
+in shared runtime support and is not automatically enabled for Studio.
+
+The prepared retirement permit remains visible as one live `native-entries`
+root until abort or physical worker termination; a held barrier never produces
+a misleading empty resource census.

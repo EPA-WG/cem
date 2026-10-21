@@ -58,3 +58,29 @@ describe('host-owned committed checkpoints', () => {
         store.dispose(); expect(() => store.acknowledge(receipt(2, 2))).toThrow();
     });
 });
+
+
+describe('checkpoint retirement handoff', () => {
+    it('refuses unknown outcomes and retains independent current checkpoint bytes', async () => {
+        const store = new CemCommittedCheckpointStore('runtime'); store.acknowledge(receipt());
+        await store.capture('unknown action', seal);
+        expect(() => store.handoff()).toThrow('operations.unknown');
+        const ack = receipt(2); ack.operations[0].outcome = 'acknowledged';
+        store.acknowledge(ack); await store.capture('portable checkpoint and terminal journal', seal);
+        const handoff = store.handoff(); const retained = handoff.retain(); retained.fill(0);
+        expect(new TextDecoder().decode(handoff.retain())).toBe('portable checkpoint and terminal journal');
+        store.invalidate(); expect(handoff.current()).toBe(false);
+        expect(() => handoff.retain()).toThrow('stale');
+        expect(text(store)).toBe('portable checkpoint and terminal journal');
+    });
+    it('fences recapture, pending capture and disposal without dropping last good bytes', async () => {
+        const store = new CemCommittedCheckpointStore('runtime'); const ack = receipt(); ack.operations = [];
+        store.acknowledge(ack); await store.capture('good', seal);
+        const handoff = store.handoff();
+        let finish!: (text: string) => void;
+        const pending = store.capture('next', () => new Promise(resolve => { finish = resolve; }));
+        expect(handoff.current()).toBe(false); expect(() => store.handoff()).toThrow();
+        finish('next'); await pending; expect(handoff.current()).toBe(false);
+        const next = store.handoff(); store.dispose(); expect(next.current()).toBe(false);
+    });
+});

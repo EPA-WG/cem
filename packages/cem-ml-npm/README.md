@@ -217,3 +217,25 @@ original embedding leases. A scalar native record is never ownership or permissi
 to replace a heap; initialization and unregistered/direct-memory embedding remain
 unsupported replacement boundaries. The [checkpoint contract](https://github.com/EPA-WG/cem/blob/develop/docs/committed-checkpoints.md#separate-command-heaps-and-the-unmanaged-boundary)
 defines freshness, cleanup and the remaining replacement/resume work.
+
+
+## Native retirement barrier
+
+`prepareCommandNativeRetirement(expectedRevision)` checks a fresh complete idle
+closed inventory under the admission lock. It returns an original generated
+`CommandNativeRetirement` object holding a Rust RAII permit. While retained,
+ordinary work and cleanup both refuse with `cem.runtime.retirement.pending`.
+Its bounded `confirmation()` is evidence only; a copied scalar record cannot
+release the barrier. Calling `free()` on the original object aborts preparation,
+advances the inventory revision and restores cleanup under closed admission.
+
+The shared CLI worker lifecycle privately holds this object while checking
+current original embedding ownership and host checkpoint/journal handoff, then
+terminates that exact worker. Do not manually free a permit while its generation
+is being retired. Raw callers must opt into the complete ownership contract;
+this low-level object alone grants no permission to terminate, replace or resume
+a heap. Direct memory mutation and initialization remain unsupported boundaries.
+
+The prepared retirement permit remains visible as one live `native-entries`
+root until abort or physical worker termination; a held barrier never produces
+a misleading empty resource census.

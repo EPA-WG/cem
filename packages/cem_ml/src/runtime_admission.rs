@@ -1,4 +1,4 @@
-//! Monotonic native entrypoint closure. Observation and cleanup stay available.
+//! Monotonic native closure, with an original-permit retirement barrier.
 use crate::runtime_inventory::{inventory_revision, note_mutation, RuntimeResourceInventory};
 use serde::Serialize;
 use std::sync::Mutex;
@@ -11,6 +11,7 @@ const MAX_ENTRIES: usize = 256;
 struct State {
     closed: bool,
     active: usize,
+    frozen: bool,
 }
 #[derive(Default)]
 pub struct NativeAdmission {
@@ -33,6 +34,9 @@ pub struct NativeClosureValidation {
 impl NativeAdmission {
     pub fn admit(&self, cleanup: bool) -> Result<NativeEntry<'_>, &'static str> {
         let mut state = self.state.lock().map_err(|_| UNCERTAIN)?;
+        if state.frozen {
+            return Err("cem.runtime.retirement.pending");
+        }
         if state.closed && !cleanup {
             return Err(CLOSED);
         }
@@ -52,17 +56,47 @@ impl NativeAdmission {
         Ok(())
     }
     pub fn active_entries(&self) -> usize {
-        self.state.lock().map_or(usize::MAX, |state| state.active)
+        self.state
+            .lock()
+            .map_or(usize::MAX, |state| state.active + usize::from(state.frozen))
     }
     pub fn ensure_idle_closed(&self) -> Result<(), &'static str> {
         let state = self.state.lock().map_err(|_| UNCERTAIN)?;
         if !state.closed {
             return Err("cem.runtime.admission.open");
         }
-        if state.active != 0 {
+        if state.frozen || state.active != 0 {
             return Err("cem.runtime.admission.stale");
         }
         Ok(())
+    }
+    /// Freeze every mutating entrypoint, including cleanup, at the confirmed
+    /// census revision. Only the original RAII permit can reopen cleanup.
+    /// The permit is not serializable or cloneable, and grants no replacement.
+    pub fn prepare_retirement<'a>(
+        &'a self,
+        inventory: &RuntimeResourceInventory,
+        expected: u64,
+    ) -> Result<NativeRetirementPermit<'a>, &'static str> {
+        let mut state = self.state.lock().map_err(|_| UNCERTAIN)?;
+        if !state.closed
+            || state.frozen
+            || state.active != 0
+            || !inventory.complete
+            || inventory.blocking_resources != 0
+            || inventory.replacement_allowed
+            || inventory.revision != expected
+            || inventory_revision() != expected
+        {
+            return Err("cem.runtime.retirement.stale");
+        }
+        state.frozen = true;
+        note_mutation();
+        Ok(NativeRetirementPermit {
+            gate: self,
+            inventory_revision: expected,
+            frozen_revision: inventory_revision(),
+        })
     }
     /// The native lock excludes new admitted entries while the original census
     /// and revision are checked. WASM registry collection performs no JS calls.
@@ -75,7 +109,8 @@ impl NativeAdmission {
         if !state.closed {
             return Err("cem.runtime.admission.open");
         }
-        if state.active != 0
+        if state.frozen
+            || state.active != 0
             || !inventory.complete
             || inventory.blocking_resources != 0
             || inventory.replacement_allowed
@@ -101,10 +136,36 @@ impl Drop for NativeEntry<'_> {
     }
 }
 
+/// Held privately by the generation transport, never reconstructed from a DTO.
+/// Dropping a failed preparation invalidates the old confirmation and restores
+/// cleanup under the still-closed ordinary admission gate.
+pub struct NativeRetirementPermit<'a> {
+    gate: &'a NativeAdmission,
+    inventory_revision: u64,
+    frozen_revision: u64,
+}
+impl NativeRetirementPermit<'_> {
+    pub fn inventory_revision(&self) -> u64 {
+        self.inventory_revision
+    }
+    pub fn frozen_revision(&self) -> u64 {
+        self.frozen_revision
+    }
+}
+impl Drop for NativeRetirementPermit<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut state) = self.gate.state.lock() {
+            state.frozen = false;
+            note_mutation();
+        }
+    }
+}
+
 static GATE: NativeAdmission = NativeAdmission {
     state: Mutex::new(State {
         closed: false,
         active: 0,
+        frozen: false,
     }),
 };
 pub fn admit(cleanup: bool) -> Result<NativeEntry<'static>, &'static str> {
@@ -131,4 +192,11 @@ pub fn refusal_json(code: &str) -> String {
 
 pub fn ensure_idle_closed() -> Result<(), &'static str> {
     GATE.ensure_idle_closed()
+}
+
+pub fn prepare_retirement(
+    inventory: &RuntimeResourceInventory,
+    expected: u64,
+) -> Result<NativeRetirementPermit<'static>, &'static str> {
+    GATE.prepare_retirement(inventory, expected)
 }
