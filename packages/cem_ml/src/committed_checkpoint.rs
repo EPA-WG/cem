@@ -28,6 +28,72 @@ pub struct CommitReceipt {
     /// Inert host-described dependencies. Fresh grants/leases are mandatory.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub relationships: Vec<Relationship>,
+    /// Capture-time coverage, never live authority or permission to restart.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub native_runtimes: Vec<NativeRuntime>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct NativeRuntime {
+    pub runtime_id: String,
+    pub generation: u64,
+    pub mode: String,
+    pub revision: u64,
+    pub clients: Vec<NativeClient>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct NativeClient {
+    pub client_id: String,
+    pub owners: Vec<String>,
+}
+fn valid_native_runtimes(receipt: &CommitReceipt) -> bool {
+    if receipt.native_runtimes.is_empty() {
+        return true;
+    }
+    if receipt.native_runtimes.len() > 256 {
+        return false;
+    }
+    let mut domains = BTreeSet::new();
+    let mut clients = BTreeSet::new();
+    let mut owners = BTreeSet::new();
+    for runtime in &receipt.native_runtimes {
+        if !identity(&runtime.runtime_id)
+            || !domains.insert(&runtime.runtime_id)
+            || runtime.generation == 0
+            || runtime.generation > MAX_SAFE_INTEGER
+            || runtime.revision == 0
+            || runtime.revision > MAX_SAFE_INTEGER
+            || !matches!(runtime.mode.as_str(), "worker" | "main-thread")
+            || runtime.clients.is_empty()
+            || runtime.clients.len() > 256
+        {
+            return false;
+        }
+        for client in &runtime.clients {
+            if !identity(&client.client_id)
+                || !clients.insert(&client.client_id)
+                || clients.len() > 256
+                || client.owners.is_empty()
+                || client.owners.len() > 256
+            {
+                return false;
+            }
+            let mut client_owners = BTreeSet::new();
+            for owner in &client.owners {
+                if !client_owners.insert(owner)
+                    || !receipt
+                        .owners
+                        .iter()
+                        .any(|candidate| &candidate.instance_id == owner)
+                {
+                    return false;
+                }
+                owners.insert(owner);
+            }
+        }
+    }
+    owners.len() == receipt.owners.len()
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -134,7 +200,7 @@ fn valid_receipt(receipt: &CommitReceipt) -> bool {
     {
         return false;
     }
-    if !valid_relationships(receipt) {
+    if !valid_relationships(receipt) || !valid_native_runtimes(receipt) {
         return false;
     }
     let mut owners = BTreeSet::new();

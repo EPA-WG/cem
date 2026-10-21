@@ -1,3 +1,4 @@
+import { cemMainThreadCheckpointDomain, nativeCheckpointWork, type CemCheckpointNativeClient } from './checkpoint-domain.js';
 import { resolveAriaReferenceProfile, type CemAriaReferenceProfile } from '../../aria-reference-profile.js';
 import { assertElementReferenceInputs, type CemElementReferenceInputs, type CemElementPlacementUse } from '../../element-reference-inputs.js';
 import { CemProcessingDiagnosticError, type CemProcessingRenderReuse, type CemProcessingDiagnostic, type CemProcessingStylesheetInput, type CemProcessingStylesheetResult, type CemProcessingNativeSessionInput, type CemProcessingNativeSessionResult } from './processing-host.js';
@@ -122,7 +123,8 @@ export interface CemDomStylesheetSource extends CemQlStylesheetArtifact {
 }
 
 /** Retain native CSS owners from a named authored source batch; never a CSS AST. */
-export async function retainStylesheetSources(sourceJson: string, instanceIdentity?: string): Promise<RetainedCemMlTemplate> {
+export const retainStylesheetSources = nativeCheckpointWork(retainStylesheetSourcesOperation);
+async function retainStylesheetSourcesOperation(sourceJson: string, instanceIdentity?: string): Promise<RetainedCemMlTemplate> {
     await ensureRuntimeReady();
     const result = JSON.parse(instanceIdentity === undefined ? adoptDomStylesheets(sourceJson)
         : adoptInstanceStylesheets(sourceJson, instanceIdentity)) as {
@@ -131,16 +133,19 @@ export async function retainStylesheetSources(sourceJson: string, instanceIdenti
     if (!Number.isSafeInteger(result.artifactId) || (result.artifactId ?? 0) < 1) {
         throw new Error(result.diagnostics?.[0]?.message ?? 'stylesheet adoption did not retain an artifact');
     }
+    cemMainThreadCheckpointDomain.retain('template', result.artifactId as number);
     return { artifactId: result.artifactId as number,
         stylesheets: (result.stylesheets ?? []).map(mapStylesheet), moduleMap: null,
         diagnostics: (result.diagnostics ?? []).map(mapDiagnostic) };
 }
 
 export function releaseRetainedTemplateStylesheets(artifactId: number, consumer: string, loadId = 0): CemProcessingStylesheetResult<number> {
+    cemMainThreadCheckpointDomain.changed();
     return stylesheetResult(releaseTemplateStylesheets(artifactId, consumer, loadId));
 }
 
-export async function processRetainedTemplateStylesheet(
+export const processRetainedTemplateStylesheet = nativeCheckpointWork(processRetainedTemplateStylesheetOperation);
+async function processRetainedTemplateStylesheetOperation(
     artifactId: number, input: CemProcessingStylesheetInput, consumer: string,
     declarationIdentity: string, loadId = 0
 ): Promise<CemProcessingStylesheetResult<number>> {
@@ -228,13 +233,23 @@ export class RetainedXsltComponent {
     readonly stylesheets: CemQlStylesheetArtifact[];
     readonly diagnostics: RuntimeSupportDiagnostic[];
     private disposed = false;
+    private checkpointClient = cemMainThreadCheckpointDomain.client();
+    private ownsCheckpointClient = true;
+    bindCheckpointClient(client: CemCheckpointNativeClient): void {
+        const id = xsltResidents.get(this);
+        if (id !== undefined) cemMainThreadCheckpointDomain.transfer('xslt', id, this.checkpointClient, client);
+        if (this.ownsCheckpointClient) cemMainThreadCheckpointDomain.remove(this.checkpointClient);
+        this.checkpointClient = client; this.ownsCheckpointClient = false;
+    }
 
     constructor(private readonly source: string, private readonly uri: string,
         private readonly optionsJson: string, private readonly hostBindingsJson: string,
         private readonly controlPolicyJson?: string) {
-        const compiled = this.ensureNative();
-        this.stylesheets = (compiled.stylesheets ?? []).map(mapStylesheet);
-        this.diagnostics = (compiled.diagnostics ?? []).map(mapDiagnostic);
+        try {
+            const compiled = this.ensureNative();
+            this.stylesheets = (compiled.stylesheets ?? []).map(mapStylesheet);
+            this.diagnostics = (compiled.diagnostics ?? []).map(mapDiagnostic);
+        } catch (error) { cemMainThreadCheckpointDomain.remove(this.checkpointClient); throw error; }
     }
 
     private ensureNative(): { artifactId: number; stylesheets?: WasmStylesheetArtifact[]; diagnostics?: WasmDiagnostic[] } {
@@ -250,6 +265,7 @@ export class RetainedXsltComponent {
             if (!oldest) return false;
             xsltResidents.delete(oldest[0]);
             disposeXsltComponent(oldest[1]);
+            cemMainThreadCheckpointDomain.release('xslt', oldest[1]);
             return true;
         };
         if (xsltResidents.size >= 16) evict();
@@ -259,6 +275,8 @@ export class RetainedXsltComponent {
                     artifactId: number; stylesheets?: WasmStylesheetArtifact[]; diagnostics?: WasmDiagnostic[];
                 };
                 xsltResidents.set(this, compiled.artifactId);
+                cemMainThreadCheckpointDomain.retain('xslt', compiled.artifactId);
+                if (this.checkpointClient) cemMainThreadCheckpointDomain.adopt('xslt', compiled.artifactId, this.checkpointClient);
                 return compiled;
             } catch (error) {
                 // Native byte capacity may be reached before the handle bound.
@@ -270,6 +288,9 @@ export class RetainedXsltComponent {
     }
 
     async render(data: Record<string, unknown>, options: CemQlRenderOptions & { documents?: { slice: string; documentId: number }[] }): Promise<CemQlRenderResult> {
+        return nativeCheckpointWork(() => this.renderOperation(data, options))();
+    }
+    private async renderOperation(data: Record<string, unknown>, options: CemQlRenderOptions & { documents?: { slice: string; documentId: number }[] }): Promise<CemQlRenderResult> {
         assertProcessingBoundaryValue(data, 'XSLT component control data');
         await ensureRuntimeReady();
         const { artifactId } = this.ensureNative();
@@ -280,13 +301,15 @@ export class RetainedXsltComponent {
 
     dispose(): void {
         const id = xsltResidents.get(this);
-        if (id !== undefined) disposeXsltComponent(id);
+        if (id !== undefined) { disposeXsltComponent(id); cemMainThreadCheckpointDomain.release('xslt', id); }
         xsltResidents.delete(this);
         this.disposed = true;
+        if (this.ownsCheckpointClient) cemMainThreadCheckpointDomain.remove(this.checkpointClient);
     }
 }
 
-export async function retainXsltComponentSource(source: string, uri: string, options: CemXsltComponentOptions,
+export const retainXsltComponentSource = nativeCheckpointWork(retainXsltComponentSourceOperation);
+async function retainXsltComponentSourceOperation(source: string, uri: string, options: CemXsltComponentOptions,
     hostBindings: readonly string[], controlPolicy?: CemControlInputPolicy): Promise<RetainedXsltComponent> {
     const optionsJson = JSON.stringify(options);
     const hostBindingsJson = JSON.stringify(hostBindings);
@@ -296,7 +319,8 @@ export async function retainXsltComponentSource(source: string, uri: string, opt
 }
 
 /** Host URL resolution over typed authoring import/include edges. */
-export async function preflightXsltModules(source: string, loader: CemMlTemplateModuleLoader): Promise<NonNullable<CemXsltComponentOptions['modules']>> {
+export const preflightXsltModules = nativeCheckpointWork(preflightXsltModulesOperation);
+async function preflightXsltModulesOperation(source: string, loader: CemMlTemplateModuleLoader): Promise<NonNullable<CemXsltComponentOptions['modules']>> {
     await ensureRuntimeReady();
     const root = absoluteModuleUrl(loader.rootUrl, 'root stylesheet');
     const modules: NonNullable<CemXsltComponentOptions['modules']> = [];
@@ -417,13 +441,15 @@ export async function validatePortableCheckpointRuntime(state: string): Promise<
 }
 
 /** Validate scalar XML Base metadata through the shared native URL boundary. */
-export async function resolveDeclarationResourceBase(documentUrl: string, bases: string[]): Promise<string> {
+export const resolveDeclarationResourceBase = nativeCheckpointWork(resolveDeclarationResourceBaseOperation);
+async function resolveDeclarationResourceBaseOperation(documentUrl: string, bases: string[]): Promise<string> {
     await ensureRuntimeReady();
     return resolveResourceBaseWasm(documentUrl, JSON.stringify(bases));
 }
 
 /** Resolve authored navigation attributes before slot insertion and patch comparison. */
-export async function resolveRenderPlanLinks(nodes: RenderPlanNode[], sourceUrl?: string | null): Promise<RenderPlanNode[]> {
+export const resolveRenderPlanLinks = nativeCheckpointWork(resolveRenderPlanLinksOperation);
+async function resolveRenderPlanLinksOperation(nodes: RenderPlanNode[], sourceUrl?: string | null): Promise<RenderPlanNode[]> {
     if (sourceUrl == null) return nodes;
     const hrefs: string[] = [];
     const collect = (nodes: RenderPlanNode[]): void => {
@@ -462,7 +488,8 @@ export function ensureRuntimeReady(): Promise<void> {
     if (!initPromise) {
         initPromise = Promise.resolve()
             .then(() => initCemQlWasm())
-            .then(() => {
+            .then(native => {
+                cemMainThreadCheckpointDomain.bindNativeRuntime(native.memory);
                 ready = true;
             });
     }
@@ -480,7 +507,8 @@ export function runtimeVersion(): string {
 }
 
 /** Original CSS source and scalar URL replacements cross this explicit boundary. */
-export async function remapCemArtifactCss(source: string, inline: boolean, replacements?: Record<string, string>): Promise<{
+export const remapCemArtifactCss = nativeCheckpointWork(remapCemArtifactCssOperation);
+async function remapCemArtifactCssOperation(source: string, inline: boolean, replacements?: Record<string, string>): Promise<{
     resources: { specifier: string; import: boolean }[]; css: string;
 }> {
     await ensureRuntimeReady();
@@ -491,7 +519,8 @@ export async function remapCemArtifactCss(source: string, inline: boolean, repla
  * Resolve one immutable module-context request through the Rust-owned resolver
  * compiled into the shared CEM-QL WASM runtime.
  */
-export async function resolveCemModuleUrl(request: unknown): Promise<unknown> {
+export const resolveCemModuleUrl = nativeCheckpointWork(resolveCemModuleUrlOperation);
+async function resolveCemModuleUrlOperation(request: unknown): Promise<unknown> {
     await ensureRuntimeReady();
     return JSON.parse(resolveModuleUrlWasm(JSON.stringify(request))) as unknown;
 }
@@ -503,7 +532,8 @@ export async function resolveCemModuleUrl(request: unknown): Promise<unknown> {
  * dropped here: host bindings are unknown at declaration time, so every `{$x}` would
  * otherwise report `unknown_variable`. Those surface at render instead. Awaits WASM init.
  */
-export async function compileCemMlTemplate(source: string): Promise<CemMlTemplateCompileResult> {
+export const compileCemMlTemplate = nativeCheckpointWork(compileCemMlTemplateOperation);
+async function compileCemMlTemplateOperation(source: string): Promise<CemMlTemplateCompileResult> {
     await ensureRuntimeReady();
     const result = JSON.parse(compileTemplate(source, '[]')) as {
         artifactId?: number;
@@ -529,7 +559,8 @@ export async function compileCemMlTemplate(source: string): Promise<CemMlTemplat
 }
 
 /** Compute the portable registry key without compiling the template. */
-export async function cemMlTemplateArtifactPayloadKey(
+export const cemMlTemplateArtifactPayloadKey = nativeCheckpointWork(cemMlTemplateArtifactPayloadKeyOperation);
+async function cemMlTemplateArtifactPayloadKeyOperation(
     source: string,
     sourceMapMode: 'dev' | 'prod'
 ): Promise<CemMlTemplateArtifactPayloadKey> {
@@ -549,7 +580,8 @@ export async function cemMlTemplateArtifactPayloadKey(
 }
 
 /** Build portable binary template IR for build pipelines and registry write-through. */
-export async function compileCemMlTemplateArtifact(
+export const compileCemMlTemplateArtifact = nativeCheckpointWork(compileCemMlTemplateArtifactOperation);
+async function compileCemMlTemplateArtifactOperation(
     source: string,
     hostBindings: readonly string[] = [],
     sourceMapMode: 'dev' | 'prod' = 'dev'
@@ -559,7 +591,8 @@ export async function compileCemMlTemplateArtifact(
 }
 
 /** Retain a source-compiled template for compile-once/render-many execution. */
-export async function retainCemMlTemplateSource(
+export const retainCemMlTemplateSource = nativeCheckpointWork(retainCemMlTemplateSourceOperation);
+async function retainCemMlTemplateSourceOperation(
     source: string,
     hostBindings: readonly string[] = []
 ): Promise<RetainedCemMlTemplate> {
@@ -573,6 +606,7 @@ export async function retainCemMlTemplateSource(
     if (!Number.isSafeInteger(result.artifactId) || (result.artifactId ?? 0) < 1) {
         throw new Error(result.diagnostics?.[0]?.message ?? 'CEM template compilation did not retain an artifact');
     }
+    cemMainThreadCheckpointDomain.retain('template', result.artifactId as number);
     return {
         artifactId: result.artifactId as number,
         stylesheets: (result.stylesheets ?? []).map(mapStylesheet),
@@ -585,7 +619,8 @@ export async function retainCemMlTemplateSource(
  * Resolve, load, hash, and inspect the complete static CEMT import graph. I/O and URL policy stay
  * in the host; the returned immutable closure is the same JSON boundary consumed by WASM and SSR.
  */
-export async function preflightCemMlTemplateModules(
+export const preflightCemMlTemplateModules = nativeCheckpointWork(preflightCemMlTemplateModulesOperation);
+async function preflightCemMlTemplateModulesOperation(
     source: string,
     loader: CemMlTemplateModuleLoader,
     hostBindings: readonly string[] = []
@@ -673,7 +708,8 @@ export async function preflightCemMlTemplateModules(
 }
 
 /** Compile and retain a resolver-preflighted CEMT module closure. */
-export async function retainCemMlTemplateModuleClosure(
+export const retainCemMlTemplateModuleClosure = nativeCheckpointWork(retainCemMlTemplateModuleClosureOperation);
+async function retainCemMlTemplateModuleClosureOperation(
     source: string,
     closure: CemMlTemplateModuleClosure,
     hostBindings: readonly string[] = []
@@ -690,6 +726,7 @@ export async function retainCemMlTemplateModuleClosure(
     if (!Number.isSafeInteger(result.artifactId) || (result.artifactId ?? 0) < 1) {
         throw new Error(result.diagnostics?.[0]?.message ?? 'CEM template module closure did not retain an artifact');
     }
+    cemMainThreadCheckpointDomain.retain('template', result.artifactId as number);
     return {
         artifactId: result.artifactId as number,
         stylesheets: (result.stylesheets ?? []).map(mapStylesheet),
@@ -699,7 +736,8 @@ export async function retainCemMlTemplateModuleClosure(
 }
 
 /** Validate binary identity against the active source/context and retain it. */
-export async function retainCemMlTemplateArtifact(
+export const retainCemMlTemplateArtifact = nativeCheckpointWork(retainCemMlTemplateArtifactOperation);
+async function retainCemMlTemplateArtifactOperation(
     bytes: ArrayBuffer,
     expectedContentHash: string,
     source: string,
@@ -727,6 +765,7 @@ export async function retainCemMlTemplateArtifact(
             diagnostic?.message ?? 'CEM template artifact import failed'
         }`);
     }
+    cemMainThreadCheckpointDomain.retain('template', result.artifactId as number);
     return {
         artifactId: result.artifactId as number,
         stylesheets: (result.stylesheets ?? []).map(mapStylesheet),
@@ -738,7 +777,9 @@ export async function retainCemMlTemplateArtifact(
 }
 
 export function disposeRetainedCemMlTemplate(artifactId: number): boolean {
-    return disposeTemplate(artifactId);
+    const disposed = disposeTemplate(artifactId);
+    cemMainThreadCheckpointDomain.release('template', artifactId);
+    return disposed;
 }
 
 export interface LegacyConvertResult {
@@ -752,7 +793,8 @@ export interface LegacyConvertResult {
  * engine (`cem_ml::legacy_custom_element`, exposed on the cem_ql WASM module). This is the single
  * legacy compiler shared by the browser runtime, CLI, and tests. Awaits WASM init on first use.
  */
-export async function convertLegacyTemplate(source: string): Promise<LegacyConvertResult> {
+export const convertLegacyTemplate = nativeCheckpointWork(convertLegacyTemplateOperation);
+async function convertLegacyTemplateOperation(source: string): Promise<LegacyConvertResult> {
     await ensureRuntimeReady();
     const result = JSON.parse(convertLegacyCustomElementTemplate(source)) as {
         source?: string;
@@ -775,7 +817,8 @@ export async function convertLegacyTemplate(source: string): Promise<LegacyConve
  * `cem_ql` WASM render boundary, returning a serializable render plan plus
  * diagnostics. Awaits WASM initialization on first use.
  */
-export async function renderCemMlTemplate(
+export const renderCemMlTemplate = nativeCheckpointWork(renderCemMlTemplateOperation);
+async function renderCemMlTemplateOperation(
     source: string,
     data: Record<string, unknown>,
     options: CemQlRenderOptions = {}
@@ -822,7 +865,8 @@ async function fetchModuleSource(resolvedUrl: string): Promise<string> {
 }
 
 /** Render already-compiled template IR without parsing source again. */
-export async function renderRetainedCemMlTemplate(
+export const renderRetainedCemMlTemplate = nativeCheckpointWork(renderRetainedCemMlTemplateOperation);
+async function renderRetainedCemMlTemplateOperation(
     artifactId: number,
     data: Record<string, unknown>,
     // A host-local capability belongs only to the explicit retained render path.
@@ -902,7 +946,8 @@ function nativeSessionCall<T>(call: () => T): T {
         throw new Error(error, { cause: error });
     }
 }
-export async function prepareRetainedNativeSession(input: Extract<CemProcessingNativeSessionInput, { action: 'prepare' }>): Promise<{ id: number; length: number; suggestions?: Extract<CemProcessingNativeSessionResult, { status: 'ready' }>['suggestions'] }> {
+export const prepareRetainedNativeSession = nativeCheckpointWork(prepareRetainedNativeSessionOperation);
+async function prepareRetainedNativeSessionOperation(input: Extract<CemProcessingNativeSessionInput, { action: 'prepare' }>): Promise<{ id: number; length: number; suggestions?: Extract<CemProcessingNativeSessionResult, { status: 'ready' }>['suggestions'] }> {
     assertProcessingBoundaryValue(input.data, 'native session control frame');
     await ensureRuntimeReady();
     const options: CemQlRenderOptions = { nativeAttributes: input.nativeAttributes, nativeSlices: input.nativeSlices, nativeValueLimits: input.limits };
@@ -917,7 +962,9 @@ export async function prepareRetainedNativeSession(input: Extract<CemProcessingN
                 const prepared = input.adapter ? JSON.parse(nativeSessionCall(() => input.adapter === 'native-datalist-v1' ? prepareNativeDatalist(id) : prepareNativeSuggestions(id))) as { identity: string; rows: number; groups: number; diagnostics: { code: string; message: string; severity: 'warning'; sourceMap: unknown }[] } : undefined;
                 const suggestions = prepared ? { ...prepared, diagnostics: prepared.diagnostics.map(d => ({ code: d.code, message: d.message, severity: d.severity,
                     sourceMapRef: { fidelity: 'author-byte-exact', frame: `native-source:${JSON.stringify(d.sourceMap)}` } as SourceMapRef })) } : undefined;
-                return { id, length: nativeSessionCall(() => nativeCapabilitySessionLength(id)), ...(suggestions ? { suggestions } : {}) };
+                const length = nativeSessionCall(() => nativeCapabilitySessionLength(id));
+                cemMainThreadCheckpointDomain.retain('session', id);
+                return { id, length, ...(suggestions ? { suggestions } : {}) };
             } catch (error) { disposeNativeCapabilitySession(id); throw error; }
         }));
     if (input.sources.kind === 'cem-native-session-import-v1') {
@@ -935,8 +982,9 @@ export async function prepareRetainedNativeSession(input: Extract<CemProcessingN
     return withElementReferences(options, prepare, true);
 }
 
-export function releaseRetainedNativeSession(id: number): void { disposeNativeCapabilitySession(id); }
-export async function processRetainedSuggestionsPublication(id: number, input: Extract<CemProcessingNativeSessionInput,
+export function releaseRetainedNativeSession(id: number): void { disposeNativeCapabilitySession(id); cemMainThreadCheckpointDomain.release('session', id); }
+export const processRetainedSuggestionsPublication = nativeCheckpointWork(processRetainedSuggestionsPublicationOperation);
+async function processRetainedSuggestionsPublicationOperation(id: number, input: Extract<CemProcessingNativeSessionInput,
     { action: 'publish-suggestions' | 'publish-datalist' | 'release-suggestions' | 'render-suggestions-frame' | 'suggestions-rows' }>): Promise<CemProcessingNativeSessionResult> {
     if (input.action === 'publish-datalist') {
         nativeSessionCall(() => publishNativeDatalist(id, input.publication, JSON.stringify(input.controls)));
@@ -970,7 +1018,8 @@ export function exportRetainedNativeSessionView(id: number, input: Extract<CemPr
     return { status: 'view', handle: input.handle, values: artifact ? Array.from({ length: result.length }, (_, index) => ({
         kind: 'cem-native-value-v1' as const, artifact, contentHash: result.contentHash as string, index })) : [] };
 }
-export async function renderRetainedNativeSessionLabel(id: number, input: Extract<CemProcessingNativeSessionInput, { action: 'render' }>): Promise<CemProcessingNativeSessionResult> {
+export const renderRetainedNativeSessionLabel = nativeCheckpointWork(renderRetainedNativeSessionLabelOperation);
+async function renderRetainedNativeSessionLabelOperation(id: number, input: Extract<CemProcessingNativeSessionInput, { action: 'render' }>): Promise<CemProcessingNativeSessionResult> {
     const template = await retainCemMlTemplateSource(input.template, input.suggestions ? ['input', 'suggestion', 'group', 'suggestions'] : ['input']);
     try {
         const result = mapWasmRenderPlan(nativeSessionCall(() => input.suggestions ? renderNativeSuggestionTemplate(id, template.artifactId, JSON.stringify(input.suggestions), input.index, input.groupLabel === true)
@@ -1048,7 +1097,8 @@ function mapWasmRenderPlan(planJson: string, options: CemQlRenderOptions): CemQl
  * return a serializable light-DOM render plan, and optionally produce patch frames.
  * DOM materialization/application remains the caller's main-thread UI-adapter work.
  */
-export async function processCemMlTemplate(
+export const processCemMlTemplate = nativeCheckpointWork(processCemMlTemplateOperation);
+async function processCemMlTemplateOperation(
     input: CemMlTemplateProcessingInput
 ): Promise<CemMlTemplateProcessingResult> {
     if (input.identity.ariaReferenceProfile !== undefined || input.elementReferenceInputs || input.moduleClosure || input.nativeAttributes?.length || input.nativeSlices?.length || input.nativeValueLimits) {
@@ -1100,7 +1150,8 @@ export async function processCemMlTemplate(
 }
 
 /** Processing path for a validated, retained component-template artifact. */
-export async function processRetainedCemMlTemplate(
+export const processRetainedCemMlTemplate = nativeCheckpointWork(processRetainedCemMlTemplateOperation);
+async function processRetainedCemMlTemplateOperation(
     artifactId: number,
     input: CemMlTemplateProcessingInput & { xslt?: RetainedXsltComponent; xpathCompanionId?: number; documents?: { slice: string; documentId: number }[] }
 ): Promise<CemMlTemplateProcessingResult> {
@@ -1256,16 +1307,21 @@ function coerceSeverity(severity: string | undefined): RuntimeSupportDiagnostic[
 }
 
 /** Byte ingress into cem-ml. The response document never enters JavaScript. */
-export async function retainLoadedCemDocument(bytes: ArrayBuffer, contentType: string, uri: string): Promise<number> {
+export const retainLoadedCemDocument = nativeCheckpointWork(retainLoadedCemDocumentOperation);
+async function retainLoadedCemDocumentOperation(bytes: ArrayBuffer, contentType: string, uri: string): Promise<number> {
     await ensureRuntimeReady();
-    return retainCemDocument(new Uint8Array(bytes), contentType, uri);
+    const id = retainCemDocument(new Uint8Array(bytes), contentType, uri);
+    cemMainThreadCheckpointDomain.retain('document', id);
+    return id;
 }
 export function disposeLoadedCemDocument(id: number): void {
     disposeCemDocument(id);
+    cemMainThreadCheckpointDomain.release('document', id);
 }
 
 /** Opaque bytes in/out; native CEM-ML owns all format semantics. */
-export async function processNativeCemValue(input: import('./processing-host.js').CemProcessingValueInput): Promise<import('./processing-host.js').CemProcessingValueResult> {
+export const processNativeCemValue = nativeCheckpointWork(processNativeCemValueOperation);
+async function processNativeCemValueOperation(input: import('./processing-host.js').CemProcessingValueInput): Promise<import('./processing-host.js').CemProcessingValueResult> {
     await ensureRuntimeReady();
     const limits = JSON.stringify(input.limits);
     if (input.action === 'import') {

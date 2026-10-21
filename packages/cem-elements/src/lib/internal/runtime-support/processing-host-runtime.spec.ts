@@ -1,3 +1,4 @@
+import { nativeCheckpointSnapshot, nativeCheckpointIdentity, nativeCheckpointSourceProof, nativeCheckpointSubscribe } from './checkpoint-domain.js';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('./cem-ql-render.js', () => ({
@@ -619,4 +620,109 @@ it('reacquires stylesheet source after bounded worker artifact eviction', async 
         expect(worker.requests.slice(-2).map(request => request.operation)).toEqual(['compile', 'stylesheet']);
         await host.stylesheet({ action: 'release', artifact: first.artifact, consumer: stylesheetBegin.consumer }).result;
     } finally { await host.dispose({ reason: 'runtime-disposed' }).result; }
+});
+
+
+it('accounts for actual pooled clients and host-only queued work before checkpoint coverage', async () => {
+    let worker = new ControlledProcessingWorker();
+    const document = {} as Document;
+    const options = { workerScriptUrl: new URL('https://example.test/worker.js'), workerFactory: () => worker as unknown as Worker,
+        poolPolicy: { workerCount: 1, maxWorkers: 1, queueSize: 8 } };
+    const root = createCemDeclarationScope({ document }), peerRoot = createCemDeclarationScope({ document });
+    const host = cemProcessingHostForScope(root, options), peer = cemProcessingHostForScope(peerRoot, options);
+    const bindings = new Map([[host.checkpointClient!, ['editor']]]);
+    expect(nativeCheckpointSnapshot(bindings)).toBeUndefined();
+    bindings.set(peer.checkpointClient!, ['peer']);
+    const initial = nativeCheckpointSnapshot(bindings)!;
+    expect(initial).toHaveLength(1); expect(initial[0].clients).toHaveLength(2);
+    const job = peer.compile(compileInput('host-only'));
+    expect(nativeCheckpointSnapshot(bindings)).toBeUndefined();
+    await flushMicrotasks(); worker.respondNext(); await job.result;
+    expect(nativeCheckpointSnapshot(bindings)![0].revision).toBeGreaterThan(initial[0].revision);
+    const release = host.checkpointInstance!('not-enrolled');
+    expect(nativeCheckpointSnapshot(bindings)).toBeUndefined(); release();
+    expect(nativeCheckpointSnapshot(bindings)).toBeDefined();
+    const generation = nativeCheckpointIdentity(host.checkpointClient!);
+    await peer.dispose({}).result; bindings.delete(peer.checkpointClient!);
+    expect(nativeCheckpointSnapshot(bindings)![0].clients).toHaveLength(1);
+    await host.dispose({}).result; expect(nativeCheckpointSnapshot(bindings)).toBeUndefined();
+    worker = new ControlledProcessingWorker();
+    const replacement = cemProcessingHostForScope(createCemDeclarationScope({ document }), options);
+    expect(nativeCheckpointIdentity(replacement.checkpointClient!)).not.toBe(generation);
+    await replacement.dispose({}).result;
+});
+
+
+it('requires exact retained-document capsules even for a published instance and revokes uncertain cleanup', async () => {
+    class FailedReleaseWorker extends ControlledProcessingWorker {
+        override postMessage(request: CemProcessingRequestEnvelope): void {
+            super.postMessage(request);
+            if (request.operation === 'document' && request.payload.action === 'release') queueMicrotask(() =>
+                this.emit('message', createCemProcessingFailureEnvelope(request, 'failure', [
+                    { code: 'fixture.cleanup', severity: 'error', message: 'cleanup failed' },
+                ])));
+        }
+    }
+    const worker = new FailedReleaseWorker();
+    const scope = createCemDeclarationScope({ document: {} as Document });
+    const host = cemProcessingHostForScope(scope, { workerScriptUrl: new URL('https://example.test/worker.js'), workerFactory: () => worker as unknown as Worker });
+    const handle = { documentKey: 'doc', instanceId: 'editor', scopePolicyStamp: 'policy' };
+    const input = { action: 'retain' as const, handle: { ...handle }, bytes: new TextEncoder().encode('{}').buffer,
+        contentType: 'application/json', sourceUri: 'https://example.test/doc.json' };
+    const pending = host.document(input); input.handle.instanceId = 'mutated-after-admission';
+    await flushMicrotasks(); worker.respondDocument(); await pending.result;
+    expect(worker.requests[0].payload).toMatchObject({ handle });
+    const bindings = new Map([[host.checkpointClient!, ['editor']]]);
+    expect(nativeCheckpointSnapshot(bindings)).toBeUndefined();
+    const capsule = {}; host.witnessCheckpointDocument!(handle, capsule);
+    const proof = nativeCheckpointSourceProof(capsule)!;
+    expect(proof.current()).toBe(true);
+    expect(nativeCheckpointSnapshot(bindings, new Map([[proof.client, new Set([proof.resource])]]))).toBeDefined();
+    await expect(host.document({ action: 'release', handle }).result).rejects.toThrow('cleanup failed');
+    expect(nativeCheckpointIdentity(host.checkpointClient!)).toBeUndefined();
+    expect(proof.current()).toBe(false);
+    await host.dispose({}).result; scope.dispose();
+});
+
+
+it('keeps a host-only stylesheet load in coverage while it waits for host I/O', async () => {
+    const worker = new StylesheetProcessingWorker(), scope = createCemDeclarationScope({ document: {} as Document });
+    const host = cemProcessingHostForScope(scope, { workerScriptUrl: new URL('https://example.test/worker.js'), workerFactory: () => worker as unknown as Worker });
+    const { artifact } = await host.compile(compileInput('host-css')).result;
+    const bindings = new Map([[host.checkpointClient!, ['view']]]);
+    expect(nativeCheckpointSnapshot(bindings)).toBeDefined();
+    const load = await host.stylesheet({ ...stylesheetBegin, artifact }).result;
+    expect(load.status).toBe('pending');
+    expect(nativeCheckpointSnapshot(bindings)).toBeUndefined();
+    await host.stylesheet({ action: 'release', artifact, consumer: stylesheetBegin.consumer }).result;
+    expect(nativeCheckpointSnapshot(bindings)).toBeDefined();
+    await host.dispose({}).result; scope.dispose();
+});
+
+
+it('rejects a prepared native result when its worker generation is lost before acknowledgement', async () => {
+    class LostBeforeAcknowledgement extends ControlledProcessingWorker {
+        private failure?: (event: MessageEvent<unknown>) => void;
+        override addEventListener(type: string, listener: (event: MessageEvent<unknown>) => void): void {
+            if (type === 'error') this.failure = listener;
+            super.addEventListener(type, listener);
+        }
+        readySession(): void {
+            const request = this.requests.find(request => request.operation === 'native-session');
+            if (!request || request.operation !== 'native-session') throw new Error('missing native preparation');
+            this.emit('message', createCemProcessingSuccessEnvelope(request, { status: 'ready', handle: request.payload.handle, length: 1 }));
+        }
+        lose(): void { this.failure?.({ preventDefault() { return undefined; }, error: new Error('lost native generation') } as unknown as MessageEvent<unknown>); }
+    }
+    const worker = new LostBeforeAcknowledgement(), scope = createCemDeclarationScope({ document: {} as Document });
+    const host = cemProcessingHostForScope(scope, { workerScriptUrl: new URL('https://example.test/worker.js'), workerFactory: () => worker as unknown as Worker });
+    const job = host.nativeSession({ action: 'prepare', handle: { sessionKey: 'race', instanceId: 'source', sourceRevision: '1', scopePolicyStamp: 'policy' },
+        sources: { kind: 'cem-native-session-sources-v1', requesting: 0, sources: [], bindings: [], grants: [] }, data: {}, select: 'input',
+        limits: { maxBytes: 1000, maxValues: 100, maxDepth: 10 } });
+    await flushMicrotasks();
+    let responding = true;
+    const stop = nativeCheckpointSubscribe(host.checkpointClient!, () => { if (responding) { responding = false; worker.lose(); } });
+    worker.readySession();
+    await expect(job.result).rejects.toThrow('generation changed');
+    stop(); await host.dispose({}).result; scope.dispose();
 });

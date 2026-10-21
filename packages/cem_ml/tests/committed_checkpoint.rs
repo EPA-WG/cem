@@ -11,6 +11,7 @@ fn receipt() -> CommitReceipt {
         policy_stamp: "private-session".into(),
         operations: vec![],
         relationships: vec![],
+        native_runtimes: vec![],
         owners: vec![OwnerReceipt {
             instance_id: "editor".into(),
             declaration_identity: "source:1".into(),
@@ -310,4 +311,59 @@ fn shared_domain_cross_runtime_endpoints_require_complete_matching_owner_receipt
     bad["receipt"]["relationships"][0]["provider"]["runtimeId"] =
         serde_json::json!("forged-runtime");
     assert!(seal(&bad.to_string(), &receipt).is_err());
+}
+
+#[test]
+fn physical_runtime_client_coverage_is_complete_bounded_and_inert() {
+    let mut candidate = serde_json::to_value(candidate()).unwrap();
+    candidate["receipt"]["nativeRuntimes"] = serde_json::json!([{
+        "runtimeId":"worker-actual-generation", "generation":1, "mode":"worker", "revision":4,
+        "clients":[{"clientId":"root-native-client","owners":["editor"]}]
+    }]);
+    let seal_value =
+        |value: &serde_json::Value| seal(&value.to_string(), &value["receipt"].to_string());
+    assert!(seal_value(&candidate).is_ok());
+    let mut shared = candidate.clone();
+    shared["receipt"]["nativeRuntimes"].as_array_mut().unwrap().push(serde_json::json!({
+        "runtimeId":"external-source-generation", "generation":1, "mode":"main-thread", "revision":2,
+        "clients":[{"clientId":"external-native-source","owners":["editor"]}]
+    }));
+    assert!(seal_value(&shared).is_ok());
+    for field in ["generation", "revision"] {
+        let mut bad = candidate.clone();
+        bad["receipt"]["nativeRuntimes"][0][field] = serde_json::json!(9_007_199_254_740_992_u64);
+        assert!(seal_value(&bad).is_err());
+    }
+    for owners in [
+        serde_json::json!([]),
+        serde_json::json!(["foreign"]),
+        serde_json::json!(["editor", "editor"]),
+    ] {
+        let mut bad = candidate.clone();
+        bad["receipt"]["nativeRuntimes"][0]["clients"][0]["owners"] = owners;
+        assert!(seal_value(&bad).is_err());
+    }
+    let mut bad = candidate.clone();
+    bad["receipt"]["nativeRuntimes"][0]["mode"] = serde_json::json!("other");
+    assert!(seal_value(&bad).is_err());
+    let mut bad = candidate.clone();
+    bad["receipt"]["nativeRuntimes"][0]["pointer"] = serde_json::json!(1);
+    assert!(seal_value(&bad).is_err());
+    let mut bad = candidate.clone();
+    let runtime = bad["receipt"]["nativeRuntimes"][0].clone();
+    bad["receipt"]["nativeRuntimes"]
+        .as_array_mut()
+        .unwrap()
+        .push(runtime);
+    assert!(seal_value(&bad).is_err());
+    let mut bad = candidate.clone();
+    let client = bad["receipt"]["nativeRuntimes"][0]["clients"][0].clone();
+    bad["receipt"]["nativeRuntimes"][0]["clients"]
+        .as_array_mut()
+        .unwrap()
+        .push(client);
+    assert!(seal_value(&bad).is_err());
+    let mut stale = candidate.clone();
+    stale["receipt"]["nativeRuntimes"][0]["runtimeId"] = serde_json::json!("old");
+    assert!(seal(&stale.to_string(), &candidate["receipt"].to_string()).is_err());
 }

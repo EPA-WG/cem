@@ -16,6 +16,14 @@ export interface CemCheckpointRelationship {
     property: string;
     disposition: 'reacquire';
 }
+/** Inert capture-time coverage, never permission to restart or restore. */
+export interface CemCheckpointNativeRuntime {
+    runtimeId: string;
+    generation: number;
+    mode: 'worker' | 'main-thread';
+    revision: number;
+    clients: { clientId: string; owners: string[] }[];
+}
 export interface CemCommitReceipt {
     runtimeId: string;
     generation: number;
@@ -23,6 +31,7 @@ export interface CemCommitReceipt {
     policyStamp: string;
     owners: CemCheckpointOwnerReceipt[];
     relationships?: CemCheckpointRelationship[];
+    nativeRuntimes?: CemCheckpointNativeRuntime[];
     operations: { instanceId: string; operationId: string; outcome: 'acknowledged' | 'unknown' | 'not-applied' }[];
 }
 export type CemCheckpointSealer = (candidate: string, receipt: string) => string | Promise<string>;

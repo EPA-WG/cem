@@ -407,3 +407,14 @@ source/configuration repair; capture performs no retry. Native session capture
 copies original inputs before asynchronous submission. All source interpretation
 and lifecycle-envelope validation remain native. Exact supported states and
 remaining fences are in [Committed checkpoints](committed-checkpoints.md).
+
+
+Managed checkpoint coverage follows actual shared Worker/fallback generations and
+all their native clients. An opted-out consumer or host-only job cannot disappear
+from an opted-in owner's coverage. Source capsules may account for external
+native sessions only through their private current witnesses. Disposal, binding
+revocation and in-flight frame completion retire ownership at their actual
+lifecycle boundaries. Coverage mutation fences asynchronous seals; it never
+turns last-good bytes into authority to roll back edits or restart a runtime.
+Physical coverage and its remaining admission/resume fences are specified in
+[Committed checkpoints](committed-checkpoints.md#physical-runtime-generations-and-native-clients).

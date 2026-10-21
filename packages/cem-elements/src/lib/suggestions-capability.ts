@@ -151,7 +151,7 @@ function localInputs(instance: HTMLElement, state: State): CemSuggestionsControl
         }) : undefined;
 
     const abort = new AbortController(), coordinator = new CemSuggestionsPlacementCoordinator(instance.getRootNode() as Document | ShadowRoot, environment.limits);
-    let session: Promise<CemNativeCapabilitySession> | undefined, publication: CemNativeSuggestionsPublication | undefined;
+    let session: Promise<CemNativeCapabilitySession> | undefined, settledSession: CemNativeCapabilitySession | undefined, publication: CemNativeSuggestionsPublication | undefined;
     let released = false;
     let latest = 0, leases: CemSuggestionsPlacementLease[] = [], stopOwner: (() => void) | undefined;
     const queue = () => { queueMicrotask(() => synchronize(instance, state)); };
@@ -162,7 +162,12 @@ function localInputs(instance: HTMLElement, state: State): CemSuggestionsControl
     for (const label of sourceLabels) { sourceObserver.observe(label, { attributes: true }); sourceObserver.observe(label.content, { childList: true, subtree: true, attributes: true, characterData: true }); }
     const local: LocalState = { template, sourceTemplate, sourceLabels, provider, abort,
         options: { editorHost, listbox,
-            checkpointSource: () => checkpointSource && local.options.current?.() ? structuredClone(checkpointSource) : undefined,
+            checkpointSource: () => {
+                if (!checkpointSource || !local.options.current?.()) return undefined;
+                // Once preparation exists, the retained native session must be
+                // covered by its exact capsule, including inactive source intent.
+                return settledSession ? settledSession.checkpointSourceIntent() : session ? undefined : structuredClone(checkpointSource);
+            },
             current: () => {
                 let sameNamespaces = false;
                 try { sameNamespaces = namespaces === localSuggestionsNamespaceStamp(capturedSources, environment.limits); } catch { /* invalid capture revokes this source revision */ }
@@ -200,7 +205,7 @@ function localInputs(instance: HTMLElement, state: State): CemSuggestionsControl
                         },
                     }, () => local.options.current?.() === true, abort.signal, runtime.checkpointCaptureEnabled);
                 }
-                const source = await session;
+                const source = await session; settledSession = source;
                 if (!queryCurrent()) throw new Error('Local suggestions preparation was superseded');
                 const filter = instance.getAttribute('filter') ?? 'contains';
                 if (!['contains', 'prefix', 'none'].includes(filter)) throw new Error('Local sources require a local filter mode');

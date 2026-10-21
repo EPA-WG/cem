@@ -45,7 +45,7 @@ vi.mock('./cem-ql-render.js', () => {
             diagnostics: [],
         };
     }),
-    retainXsltComponentSource: vi.fn(async () => ({ stylesheets: [], diagnostics: [], dispose: vi.fn(), render: vi.fn() })),
+    retainXsltComponentSource: vi.fn(async () => ({ stylesheets: [], diagnostics: [], dispose: vi.fn(), render: vi.fn(), bindCheckpointClient: vi.fn() })),
     prepareRetainedNativeSession: vi.fn(async () => ({ id: 701, length: 2 })),
     releaseRetainedNativeSession: vi.fn(),
     exportRetainedNativeSessionView: vi.fn((_id, input) => ({ status: 'view', handle: input.handle, values: [] })),

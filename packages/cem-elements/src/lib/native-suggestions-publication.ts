@@ -95,7 +95,7 @@ export function isCemNativeSuggestionsBinding(value: unknown): value is CemNativ
 export function createCemNativeSuggestionsPublication(config: Readonly<CemNativePublicationConfig>, current: () => boolean,
     run: (input: Frame) => Promise<CemProcessingNativeSessionResult>, releaseOwner: () => Promise<void>, publication: string,
     runComponent: (frame: CemNativeSuggestionsComponentFrame) => Promise<CemProcessingRenderDiffResult>,
-    sourceForHandle: (handle: string, index: number) => CemNativeSuggestionSource, checkpointSource?: () => CheckpointSource | undefined): CemNativeSuggestionsPublication {
+    sourceForHandle: (handle: string, index: number) => CemNativeSuggestionSource, checkpointSource?: () => CheckpointSource | undefined, nativeConsumer?: (instanceId: string) => (() => void) | undefined): CemNativeSuggestionsPublication {
     let released = false, expired = false;
     const publicationListeners = new Set<() => void>();
     const notify = (listeners: Set<() => void>) => { for (const listener of [...listeners]) { try { listener(); } catch { /* Revocation must reach every lease. */ } } };
@@ -112,10 +112,11 @@ export function createCemNativeSuggestionsPublication(config: Readonly<CemNative
             if (!consumer || typeof consumer.current !== 'function' || [consumer.instanceId, consumer.scopePolicyStamp, consumer.revision]
                 .some(value => typeof value !== 'string' || !value || value.length > 1024) || !consumer.current()) throw new TypeError('Invalid admitted native consumer');
             const state = { consumer: Object.freeze({ ...consumer }), released: false, expired: false };
+            const releaseNativeConsumer = nativeConsumer?.(consumer.instanceId);
             const listeners = new Set<() => void>();
             const results = new WeakMap<CemProcessingRenderDiffResult, readonly { handle: string; renderNodeId: string }[]>();
             const rowHandles = new WeakMap<CemNativeSuggestionRow, string>();
-            const revoke = () => { if (state.expired) return; state.expired = true; notify(listeners); };
+            const revoke = () => { if (state.expired) return; state.expired = true; releaseNativeConsumer?.(); notify(listeners); };
             publicationListeners.add(revoke);
             const admitted = (receiver: object) => {
                 if (leases.get(receiver) !== state) throw new TypeError('A copied native binding has no consumer authority');
@@ -147,10 +148,13 @@ export function createCemNativeSuggestionsPublication(config: Readonly<CemNative
                         throw new TypeError('Native component frame differs from its admitted consumer');
                     }
                     assertProcessingBoundaryValue(frame, 'native component control frame');
-                    const result = await runComponent(structuredClone(frame));
-                    if (!admitted(this)) throw new Error('Native consumer result was superseded');
-                    results.set(result, Object.freeze((result.suggestionPlacements ?? []).map(p => Object.freeze({ ...p }))));
-                    return result;
+                    const releaseWork = nativeConsumer?.(state.consumer.instanceId);
+                    try {
+                        const result = await runComponent(structuredClone(frame));
+                        if (!admitted(this)) throw new Error('Native consumer result was superseded');
+                        results.set(result, Object.freeze((result.suggestionPlacements ?? []).map(p => Object.freeze({ ...p }))));
+                        return result;
+                    } finally { releaseWork?.(); }
                 },
                 async rows() {
                     if (!admitted(this)) throw new Error('Native consumer binding is no longer current');
@@ -195,7 +199,7 @@ export function createCemNativeSuggestionsPublication(config: Readonly<CemNative
                 release() {
                     if (leases.get(this) !== state) throw new TypeError('A copied native binding has no consumer authority');
                     if (state.released) return;
-                    state.released = true; publicationListeners.delete(revoke); notify(listeners); listeners.clear();
+                    state.released = true; releaseNativeConsumer?.(); publicationListeners.delete(revoke); notify(listeners); listeners.clear();
                 },
                 toJSON: nonportable,
             });

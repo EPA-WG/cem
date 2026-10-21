@@ -15,6 +15,7 @@ const load = async generation => {
     return { wasm, native };
 };
 const receipt = { runtimeId: 'runtime-a', generation: 1, commitSequence: 3, policyStamp: 'session-only',
+    nativeRuntimes: [{ runtimeId: 'physical-worker-a', generation: 1, mode: 'worker', revision: 7, clients: [{ clientId: 'client-a', owners: ['editor'] }] }],
     owners: [{ instanceId: 'editor', declarationIdentity: 'source:1', dataRevision: 'draft:2', acceptedEventSequence: 2 }],
     operations: [{ instanceId: 'editor', operationId: 'save:2', outcome: 'unknown' }] };
 const candidate = { version: 'cem-committed-checkpoint/1', receipt,
@@ -251,6 +252,7 @@ try {
     const shared = structuredClone(candidate);
     shared.receipt.owners.push({ instanceId: 'peer-runtime:surface', declarationIdentity: 'surface:1', dataRevision: '7', acceptedEventSequence: 0 });
     shared.owners.push({ instanceId: 'peer-runtime:surface', island: '<template>surface</template>' });
+    shared.receipt.nativeRuntimes.push({ runtimeId: 'physical-fallback', generation: 1, mode: 'main-thread', revision: 2, clients: [{ clientId: 'client-b', owners: ['peer-runtime:surface'] }] });
     shared.receipt.relationships = [{ id: 'cross-runtime:return', kind: 'placement', property: 'return-focus', disposition: 'reacquire',
         requester: { instanceId: 'peer-runtime:surface', dataRevision: '7', nodeId: 'host' },
         provider: { instanceId: 'editor', dataRevision: 'draft:2', nodeId: 'field.1' } }];
@@ -259,6 +261,17 @@ try {
     shared.receipt.relationships[0].provider.dataRevision = 'unpublished';
     assert.throws(() => fresh.sealCommittedCheckpoint(JSON.stringify(shared), JSON.stringify(shared.receipt)));
 } finally { wasm.disposeReferenceSource(sourceHandle); }
+for (const edit of [
+    value => { value.receipt.nativeRuntimes[0].clients[0].owners = []; },
+    value => { value.receipt.nativeRuntimes[0].clients[0].owners.push('editor'); },
+    value => { value.receipt.nativeRuntimes[0].clients[0].owners = ['foreign']; },
+    value => { value.receipt.nativeRuntimes[0].generation = 0; },
+    value => { value.receipt.nativeRuntimes[0].revision = Number.MAX_SAFE_INTEGER + 1; },
+    value => { value.receipt.nativeRuntimes[0].pointer = 1; },
+]) {
+    const invalid = structuredClone(candidate); edit(invalid);
+    assert.throws(() => wasm.sealCommittedCheckpoint(JSON.stringify(invalid), JSON.stringify(invalid.receipt)));
+}
 // Execution/resume is deliberately not performed by the transport store.
 store.invalidate(); assert.equal(store.current(), undefined);
 assert.ok(store.lastCommitted()); store.dispose(); assert.equal(store.lastCommitted(), undefined);

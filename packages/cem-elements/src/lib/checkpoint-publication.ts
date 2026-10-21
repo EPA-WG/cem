@@ -1,9 +1,10 @@
+import { nativeCheckpointIdentity, nativeCheckpointValidSourceProof, nativeCheckpointSubscribe, nativeCheckpointSnapshot, type CemCheckpointNativeClient, type CemCheckpointNativeSourceProof } from './internal/runtime-support/checkpoint-domain.js';
 import type { CheckpointEndpoint } from './checkpoint-interactions.js';
 import { CemCommittedCheckpointStore, type CemCheckpointOwnerReceipt, type CemCheckpointSealer, type CemCommitReceipt, type CemStoredCheckpoint, type CemCheckpointRelationship } from './committed-checkpoint.js';
 
 export interface CemCheckpointPublicationOptions {
-    /** Trusted host session/domain identity. All clients of a replaceable runtime
-     * must share this coordinator; this API never discovers a WASM heap. */
+    /** Logical host/session identity. Physical runtime coverage is issued by the
+     * shared processing hosts independently of these caller-supplied labels. */
     runtimeId: string;
     generation: number;
     policyStamp: string;
@@ -25,6 +26,8 @@ export interface CemCheckpointPublicationOwner {
 /** Explicit host registration, never inferred from attributes or instance IDs. */
 export interface CemCheckpointEndpointOwner {
     host: HTMLElement;
+    nativeClient?: CemCheckpointNativeClient;
+    nativeSources?: () => readonly CemCheckpointNativeSourceProof[] | undefined;
     resolve: (element: HTMLElement) => CheckpointEndpoint | undefined;
     /** Retry an already-settled interaction after a peer finishes publication. */
     refresh?: () => void;
@@ -35,6 +38,8 @@ interface Owner {
     sequence: number;
     receipt?: CemCheckpointOwnerReceipt;
     publicationPolicy?: number;
+    publicationRuntime?: string;
+    stopNative?: () => void;
     exportIsland: () => string | undefined | Promise<string | undefined>;
     current: () => boolean;
     dependencies: () => CemCheckpointRelationship[] | undefined;
@@ -47,6 +52,7 @@ const MAX_OWNERS = 256;
  * No restart, input interception, action retry or semantic resume authority. */
 export class CemCheckpointPublicationCoordinator {
     private store: CemCommittedCheckpointStore;
+    private readonly sourceClients = new Map<CemCheckpointNativeClient, () => void>();
     private readonly endpoints = new WeakMap<HTMLElement, Owner>();
     private readonly owners = new Map<string, Owner>();
     private readonly operations = new Map<string, CemCommitReceipt['operations'][number]>();
@@ -85,6 +91,10 @@ export class CemCheckpointPublicationCoordinator {
             this.blocked = true; this.invalidate(); throw new Error('cem.checkpoint.owners');
         }
         const owner: Owner = { id, exportIsland, current, sequence: initialEventSequence, dependencies, ...(endpoint ? { endpoint: { ...endpoint } } : {}) };
+        if (owner.endpoint?.nativeClient) {
+            try { owner.stopNative = nativeCheckpointSubscribe(owner.endpoint.nativeClient, () => { this.invalidate(); this.schedule(); }); }
+            catch { this.blocked = true; this.invalidate(); throw new Error('cem.checkpoint.native-client'); }
+        }
         this.owners.set(id, owner); if (owner.endpoint) this.endpoints.set(owner.endpoint.host, owner); this.invalidate();
         const acknowledged = () => !this.disposed && this.owners.get(id) === owner && !!owner.receipt;
         const active = () => { if (this.disposed || this.owners.get(id) !== owner) throw new Error('cem.checkpoint.stale'); };
@@ -103,11 +113,12 @@ export class CemCheckpointPublicationCoordinator {
                 if (receipt.instanceId !== id || !receipt.declarationIdentity || !receipt.dataRevision) throw new Error('cem.checkpoint.identity');
                 owner.receipt = { ...receipt, acceptedEventSequence: owner.sequence };
                 owner.publicationPolicy = this.policySequence;
+                owner.publicationRuntime = owner.endpoint?.nativeClient ? nativeCheckpointIdentity(owner.endpoint.nativeClient) : undefined;
                 this.invalidate(); this.schedule();
             },
             remove: () => {
                 if (this.owners.get(id) !== owner) return;
-                this.owners.delete(id); if (owner.endpoint) this.endpoints.delete(owner.endpoint.host); this.invalidate(); this.schedule();
+                owner.stopNative?.(); this.owners.delete(id); if (owner.endpoint) this.endpoints.delete(owner.endpoint.host); this.invalidate(); this.schedule();
             },
         };
     }
@@ -214,6 +225,37 @@ export class CemCheckpointPublicationCoordinator {
     }
 
     private invalidate(): void { this.epoch++; this.store.invalidate(); }
+    private nativeSnapshot() {
+        const bindings = new Map<CemCheckpointNativeClient, string[]>();
+        const sources = new Map<CemCheckpointNativeClient, Set<string>>();
+        let managed = false;
+        for (const owner of this.owners.values()) {
+            const client = owner.endpoint?.nativeClient;
+            if (!client) continue;
+            managed = true;
+            if (!owner.publicationRuntime || owner.publicationRuntime !== nativeCheckpointIdentity(client)) return undefined;
+            const owners = bindings.get(client) ?? []; if (!owners.includes(owner.id)) owners.push(owner.id); bindings.set(client, owners);
+            const proofs = owner.endpoint?.nativeSources?.();
+            if (owner.endpoint?.nativeSources && !proofs) return undefined;
+            for (const proof of proofs ?? []) {
+                if (!nativeCheckpointValidSourceProof(proof) || !proof.current()) return undefined;
+                const nativeOwners = bindings.get(proof.client) ?? [];
+                if (!nativeOwners.includes(owner.id)) nativeOwners.push(owner.id);
+                bindings.set(proof.client, nativeOwners);
+                const resources = sources.get(proof.client) ?? new Set<string>(); resources.add(proof.resource); sources.set(proof.client, resources);
+            }
+        }
+        // Logical-only callers retain transport compatibility. Once a managed
+        // client participates, every owner and every physical peer must be covered.
+        if (!managed) return [];
+        if ([...this.owners.values()].some(owner => !owner.endpoint?.nativeClient)) return undefined;
+        for (const [client, stop] of this.sourceClients) if (!sources.has(client)) { stop(); this.sourceClients.delete(client); }
+        for (const client of sources.keys()) if (!this.sourceClients.has(client)) {
+            try { this.sourceClients.set(client, nativeCheckpointSubscribe(client, () => { this.invalidate(); this.schedule(); })); }
+            catch { return undefined; }
+        }
+        return nativeCheckpointSnapshot(bindings, sources);
+    }
     private dependencySnapshot(): CemCheckpointRelationship[] | undefined {
         const dependencies = [...this.relationships.values()].map(record => record.descriptor);
         for (const owner of this.owners.values()) {
@@ -249,8 +291,9 @@ export class CemCheckpointPublicationCoordinator {
             }
         }
         const dependencies = this.dependencySnapshot();
-        if (!dependencies) { this.store.invalidate(); return false; }
-        const identity = JSON.stringify(dependencies);
+        const native = this.nativeSnapshot();
+        if (!dependencies || !native) { this.store.invalidate(); return false; }
+        const identity = JSON.stringify([dependencies, native]);
         if (this.dependencyIdentity !== identity) { this.dependencyIdentity = identity; this.invalidate(); }
         return true;
     }
@@ -265,10 +308,13 @@ export class CemCheckpointPublicationCoordinator {
             const retired = [...this.retirement];
             const dependencies = this.dependencySnapshot();
             if (!dependencies) throw new Error('cem.checkpoint.unavailable');
-            const dependencyIdentity = JSON.stringify(dependencies);
-            const dependenciesCurrent = () => JSON.stringify(this.dependencySnapshot()) === dependencyIdentity;
+            const native = this.nativeSnapshot();
+            if (!native) throw new Error('cem.checkpoint.unavailable');
+            const dependencyIdentity = JSON.stringify([dependencies, native]);
+            const dependenciesCurrent = () => JSON.stringify([this.dependencySnapshot(), this.nativeSnapshot()]) === dependencyIdentity;
             const receipt: CemCommitReceipt = { runtimeId: this.options.runtimeId, generation: this.options.generation,
                 commitSequence: ++this.sequence, policyStamp: this.policyStamp,
+                ...(native.length ? { nativeRuntimes: native } : {}),
                 owners: sources.map(owner => ({ ...owner.receipt! })),
                 ...(dependencies.length ? { relationships: dependencies.map(descriptor => ({ ...descriptor, requester: { ...descriptor.requester }, provider: { ...descriptor.provider } })) } : {}), operations: [...this.operations.values()].filter(record => !this.retirement.has(record.operationId)).map(record => ({ ...record })) };
             const owners = [];
@@ -307,7 +353,8 @@ export class CemCheckpointPublicationCoordinator {
     lastCommitted(): CemStoredCheckpoint | undefined { return this.store.lastCommitted(); }
     dispose(): void {
         this.disposed = true; this.invalidate(); this.store.dispose();
-        for (const owner of this.owners.values()) if (owner.endpoint) this.endpoints.delete(owner.endpoint.host);
+        for (const stop of this.sourceClients.values()) stop(); this.sourceClients.clear();
+        for (const owner of this.owners.values()) { owner.stopNative?.(); if (owner.endpoint) this.endpoints.delete(owner.endpoint.host); }
         this.owners.clear(); this.admissions.clear(); this.operations.clear(); this.retirement.clear(); this.relationships.clear();
     }
     private schedule(): void {

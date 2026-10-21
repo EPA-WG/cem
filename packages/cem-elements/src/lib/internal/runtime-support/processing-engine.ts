@@ -1,3 +1,4 @@
+import { cemMainThreadCheckpointDomain, nativeCheckpointWork, type CemCheckpointNativeClient } from './checkpoint-domain.js';
 import { resolveAriaReferenceProfile } from '../../aria-reference-profile.js';
 import { CemXPathFunctionLibraries, type CemXPathFunctionLibraryLease } from './xpath-function-library.js';
 import {
@@ -81,6 +82,7 @@ interface CachedTemplateCompilation {
 }
 
 export interface CemProcessingEngineOptions {
+    checkpointClient?: CemCheckpointNativeClient;
     maxArtifactEntries?: number;
     maxRenderPlanEntries?: number;
     maxNativeSessionEntries?: number;
@@ -112,8 +114,12 @@ export class CemProcessingEngine {
     private readonly nativeSessionKeys = new Set<string>();
     private readonly maxNativeSessionEntries: number;
     private disposed = false;
+    private checkpointClient?: CemCheckpointNativeClient;
+    private readonly ownsCheckpointClient: boolean;
 
     constructor(options: CemProcessingEngineOptions = {}) {
+        this.checkpointClient = options.checkpointClient;
+        this.ownsCheckpointClient = !options.checkpointClient;
         const maxArtifactEntries = options.maxArtifactEntries ?? DEFAULT_ARTIFACT_CACHE_ENTRIES;
         this.maxNativeSessionEntries = options.maxNativeSessionEntries ?? 64;
         if (!Number.isSafeInteger(this.maxNativeSessionEntries) || this.maxNativeSessionEntries < 1) throw new RangeError('Invalid native session capacity');
@@ -125,6 +131,10 @@ export class CemProcessingEngine {
     }
 
     async nativeSession(input: CemProcessingNativeSessionInput): Promise<CemProcessingNativeSessionResult> {
+        return nativeCheckpointWork(() => this.nativeSessionOperation(input))();
+    }
+
+    private async nativeSessionOperation(input: CemProcessingNativeSessionInput): Promise<CemProcessingNativeSessionResult> {
         this.assertActive();
         const handle = input.handle;
         if (!handle || typeof handle.sessionKey !== 'string' || !handle.sessionKey || handle.sessionKey.length > 1024
@@ -158,6 +168,7 @@ export class CemProcessingEngine {
                 throw new Error('Native session preparation was superseded or released');
             }
             this.nativeSessionOperations.delete(key);
+            cemMainThreadCheckpointDomain.adopt('session', session.id, this.checkpointClient!);
             this.nativeSessions.set(key, { handle, id: session.id, limits: input.limits, adapter: input.adapter, publications: new Map(), publicationKeys: new Set(), publicationKeyBytes: 0 });
             return { status: 'ready', handle, length: session.length, ...(session.suggestions ? { suggestions: session.suggestions } : {}) };
         }
@@ -209,6 +220,10 @@ export class CemProcessingEngine {
     }
 
     async value(input: CemProcessingValueInput): Promise<CemProcessingValueResult> {
+        return nativeCheckpointWork(() => this.valueOperation(input))();
+    }
+
+    private async valueOperation(input: CemProcessingValueInput): Promise<CemProcessingValueResult> {
         this.assertActive();
         const result = await processNativeCemValue(input);
         this.assertActive();
@@ -216,6 +231,10 @@ export class CemProcessingEngine {
     }
 
     async document(input: CemProcessingDocumentInput): Promise<CemProcessingDocumentResult> {
+        return nativeCheckpointWork(() => this.documentOperation(input))();
+    }
+
+    private async documentOperation(input: CemProcessingDocumentInput): Promise<CemProcessingDocumentResult> {
         this.assertActive();
         const key = JSON.stringify(input.handle);
         if (input.action === 'release') {
@@ -247,11 +266,16 @@ export class CemProcessingEngine {
             throw new Error('CEM document import was superseded or released');
         }
         this.documentOperations.delete(key);
+        cemMainThreadCheckpointDomain.adopt('document', id, this.checkpointClient!);
         this.documents.set(key, { input, id });
         return { handle: input.handle, retained: true };
     }
 
     async compile(input: CemProcessingCompileInput): Promise<CemProcessingCompileResult> {
+        return nativeCheckpointWork(() => this.compileOperation(input))();
+    }
+
+    private async compileOperation(input: CemProcessingCompileInput): Promise<CemProcessingCompileResult> {
         this.assertActive();
         const key = retainedArtifactKey(input.scopePolicyStamp, input.templateArtifactId);
         if (input.language !== 'cem-ml') return this.compileCurrent(input, key);
@@ -317,11 +341,13 @@ export class CemProcessingEngine {
         let compilation = nativeChecked ? undefined : this.compiledArtifacts.get(handle.cacheKey);
         if (!compilation) {
             const xpathLibrary = input.xpathFunctionLibrary
-                ? await this.xpathLibraries.acquire(input.xpathFunctionLibrary) : undefined;
+                ? await this.xpathLibraries.acquire(input.xpathFunctionLibrary, this.checkpointClient) : undefined;
             let loaded: CachedTemplateCompilation | undefined;
             try {
                 this.assertCompilationCurrent(artifactKey, operation);
                 loaded = await this.compileOrImportTemplate(input, source);
+                if (loaded.xslt) loaded.xslt.bindCheckpointClient(this.checkpointClient!);
+                else cemMainThreadCheckpointDomain.adopt('template', loaded.wasmArtifactId, this.checkpointClient!);
                 this.assertCompilationCurrent(artifactKey, operation);
                 // A concurrent compile may have retained the same identity while
                 // this request awaited WASM. Reuse it and release the extra lease.
@@ -373,6 +399,10 @@ export class CemProcessingEngine {
     }
 
     async stylesheet(input: CemProcessingStylesheetInput): Promise<CemProcessingStylesheetResult> {
+        return nativeCheckpointWork(() => this.stylesheetOperation(input))();
+    }
+
+    private async stylesheetOperation(input: CemProcessingStylesheetInput): Promise<CemProcessingStylesheetResult> {
         this.assertActive();
         const key = retainedArtifactKey(input.artifact.scopePolicyStamp, input.artifact.artifactId);
         const artifact = this.artifacts.get(key);
@@ -407,6 +437,10 @@ export class CemProcessingEngine {
     }
 
     async renderDiff(input: CemProcessingRenderDiffInput): Promise<CemProcessingRenderDiffResult> {
+        return nativeCheckpointWork(() => this.renderDiffOperation(input))();
+    }
+
+    private async renderDiffOperation(input: CemProcessingRenderDiffInput): Promise<CemProcessingRenderDiffResult> {
         this.assertActive();
         const artifact = this.artifacts.get(
             retainedArtifactKey(input.artifact.scopePolicyStamp, input.artifact.artifactId)
@@ -548,6 +582,7 @@ export class CemProcessingEngine {
         this.compiledArtifacts.clear();
         this.renderPlans.clear();
         this.disposed = true;
+        if (this.ownsCheckpointClient && this.checkpointClient) cemMainThreadCheckpointDomain.remove(this.checkpointClient);
         return { disposed: true };
     }
 
@@ -571,6 +606,7 @@ export class CemProcessingEngine {
         if (this.disposed) {
             throw new Error('the CEM processing engine is disposed');
         }
+        this.checkpointClient ??= cemMainThreadCheckpointDomain.client();
     }
 
     private async compileOrImportTemplate(

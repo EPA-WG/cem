@@ -92,9 +92,80 @@ publication, membership or policy changes fence an in-flight seal before host
 bytes replace the last-good slot. `coordinator.current()` probes every owner;
 `lastCommitted()` exports older work without authorizing rollback. Additional
 host work outside the instance render path must hold `coordinator.admit()` until
-its finally block. The host must account for every client of any runtime it later
-intends to replace: this registry does not discover physical WASM heaps, worker
-pool lanes or unrelated clients, and supplies no replacement authority.
+its finally block unless it already uses the shared processing host/support
+boundary, which now tracks native work automatically. `whenRenderSettled()` waits
+for that view; checkpoint availability additionally requires all native clients
+to settle. Physical coverage below supplies no replacement authority.
+
+
+### Physical runtime generations and native clients
+
+Managed publications carry optional `receipt.nativeRuntimes` coverage. The top-level
+`runtimeId`/`generation` remain logical host-session labels. Physical identities
+are privately issued for actual Worker objects and the initialized fallback
+`WebAssembly.Memory`. A fresh domain has an immutable generation `1` and a fresh
+opaque runtime ID; another native object cannot reuse it. A realm-wide weak
+physical-owner fence revokes both ledgers if separate framework copies attempt
+to claim the same Worker/memory, rather than accepting partial coverage. Pooled roots on the same
+Worker share coverage, as do all fallback roots using the same WASM module graph,
+across documents and worker pools. Worker failure revokes its generation
+synchronously. Selecting fallback moves the exact client into the shared fallback
+domain and requires a fresh owner publication; old publications cannot relabel
+themselves as fallback. Recreating a worker issues a different physical identity. Native results and
+retained session leases pin their actual execution generation, including the
+acknowledgement boundary. Failed cleanup stays attached to the old heap; confirmed
+worker destruction retires committed old models without invalidating the healthy
+fallback generation.
+
+Every shared processing host registers a native client, including hosts with no
+CemElementRuntime/checkpoint opt-in. All live native consumers and retained
+HTTP documents/sessions must be represented through exact private capsule
+witnesses; claiming an existing instance ID is insufficient. Queued and running compile,
+render, stylesheet, value, document, session and cancellation jobs hold admission
+until completion, including preflights, superseded jobs and cleanup. A stylesheet
+load waiting for host I/O continues blocking after its initial request returns. Disposal
+keeps its client enrolled until outstanding work and native releases settle;
+repeated disposal observes the same completion. Cleanup intent stays registered
+until native release acknowledges it; releases queued before disposal are swept
+by disposal when they could not dispatch. Actual uncertain cleanup revokes
+coverage for that generation. Standalone asynchronous render,
+query, conversion, source and URL helpers also hold transient native clients.
+Direct retained templates, documents, sessions, XPath libraries and XSLT wrappers
+remain blockers until released or adopted by their exact managed owner. Evicted
+XSLT wrappers retain their client until disposal. No omitted client, resource or
+unpublished consumer is treated as empty portable state.
+
+External suggestions/datalist sessions join coverage through a private witness
+attached to their complete original source capsule. A copied scalar record cannot
+enroll the host or cover another session. Inert source intent and retained proofs
+still require their normal current-state/native validation. Once a local session
+has been prepared, inactive intent exports that session's exact capsule witness
+rather than substituting unrelated XML intent. One island may account
+for its renderer and one or more source clients, including clients on different
+physical runtimes. Current owner inspection caches only the private source witnesses; ordinary
+owner/fingerprint and witness-current checks still run throughout capture.
+Binding release/revocation retires the corresponding consumer;
+a separate work lease survives an in-flight frame until it settles. Unused source
+copies and idle standalone hosts require disposal before a shared fallback domain
+can be complete.
+
+Coverage contains only runtime ID, generation, mode, mutation revision, client IDs
+and associated owner IDs. Native sealing bounds all collections/counters, checks
+unique runtime/client identities and complete owner coverage, and rejects foreign,
+duplicate, stale or authority-bearing records. Every asynchronous export/seal
+rechecks the private registry and exact coverage revision. A failed or stale seal
+preserves last-good bytes; policy revocation erases them. Limits refuse the whole
+domain while ordinary rendering continues. Logical-only transport receipts remain
+compatible but provide no physical-generation coverage.
+
+These registrations cover the framework's shared native entrypoints. Separately
+instantiated native command runtimes are different heaps and require their own
+adapters before replacement. Embedders bypassing the framework through generated
+WASM exports are outside this closed client boundary and must not use its receipt
+to authorize replacement. Pressure-triggered admission closure/drain/timeouts,
+verified replacement admission and semantic resume remain separate work. Neither
+a physical coverage receipt nor a native seal grants permission to restart,
+restore native handles or replay actions.
 
 Every owner requires explicit whole-island privacy consent before serialization.
 The exporter writes the canonical inert data-island template, including existing
@@ -545,7 +616,7 @@ serialized. Different coordinators remain separate even when their scalar domain
 names happen to match.
 
 Automatic capture is not enabled in Studio. Remaining unaccounted widget/source
-states, endpoints outside an explicitly shared coordinator, physical runtime-domain discovery,
+states, endpoints outside an explicitly shared coordinator, unmanaged native runtime/client adapters,
 memory-pressure admission drain, generation replacement, fresh-owner semantic
 resume, stale-message fencing and declarative recovery status remain follow-up
 work. The complete Studio long-session verifier must remain passing before

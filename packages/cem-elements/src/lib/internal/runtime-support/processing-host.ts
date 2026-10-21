@@ -610,6 +610,8 @@ export function cemProcessingHostOwnerScope(scope: CemDeclarationScope): CemDecl
 }
 
 export interface CemProcessingJob<TResult> {
+    /** Host-issued execution witness; never serialized or supplied by authored data. */
+    readonly nativeCurrent?: () => boolean;
     readonly jobId: CemProcessingJobId;
     readonly result: Promise<TResult>;
 }
@@ -619,9 +621,15 @@ export interface CemProcessingJob<TResult> {
  * A provider MUST return one host per {@link cemProcessingHostOwnerScope} identity.
  */
 export interface CemProcessingHost {
+    /** Privately issued physical runtime client; absent on unmanaged hosts. */
+    readonly checkpointClient?: import('./checkpoint-domain.js').CemCheckpointNativeClient;
     readonly mode: CemProcessingHostMode;
     readonly ownerScope: CemDeclarationScope;
     readonly ready: Promise<CemProcessingReadyEnvelope>;
+    /** Track all live native consumers, including consumers without checkpoint opt-in. */
+    checkpointInstance?(instanceId: string): () => void;
+    witnessCheckpointDocument?(handle: CemProcessingDocumentHandle, source: object): void;
+    witnessCheckpointSource?(handle: CemProcessingNativeSessionInput['handle'], source: object): void;
     /** Synchronous revocation of transient native authority after owner loss/disposal. */
     onNativeAuthorityLost?(invalidate: () => void): () => void;
     value(input: CemProcessingValueInput): CemProcessingJob<CemProcessingValueResult>;

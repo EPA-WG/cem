@@ -1,3 +1,4 @@
+import { retainCemMlTemplateSource, disposeRetainedCemMlTemplate } from './internal/runtime-support/cem-ql-render.js';
 import { connectCemNativeSurface } from './native-surface.js';
 import type { NativeCemValue } from './native-values.js';
 import { importNativeCemAttributes } from './native-values.js';
@@ -6,7 +7,7 @@ import { connectCemStandaloneDatalist } from './standalone-datalist.js';
 import { CemSurfaceBody } from './surface-body.js';
 import { applyRenderPlanToRange, checkpointRenderedDatalistOrigin, checkpointRenderedTemplateProjection, renderedNativeAttributeBindings, restoreNativeAttributeBindings, type RenderPlan } from './projection.js';
 import { connectCemManualListbox } from './manual-listbox.js';
-import type { CemCheckpointSealer } from './committed-checkpoint.js';
+import type { CemCheckpointSealer, CemCommitReceipt } from './committed-checkpoint.js';
 import type { CheckpointSource } from './checkpoint-interactions.js';
 import type { CemNativeSuggestionsPublication } from './native-suggestions-publication.js';
 import type { CemSuggestionsControllerOptions } from './suggestions-controller.js';
@@ -57,7 +58,7 @@ import * as wasm from '../../../cem_ql/dist/wasm/cem_ql.js';
 export default { title: 'CEM Elements/Checkpoint Publication', tags: ['test'] } satisfies Meta;
 type Story = StoryObj;
 type Reader = NonNullable<Exclude<NonNullable<CemElementRuntimeOptions['retainedStylesheets']>, false>['read']>;
-const decode = (c: CemCheckpointPublicationCoordinator) => JSON.parse(new TextDecoder().decode(c.current()!.bytes)) as { receipt: { owners: { acceptedEventSequence: number }[] }; owners: { instanceId: string; island: string }[] };
+const decode = (c: CemCheckpointPublicationCoordinator) => JSON.parse(new TextDecoder().decode(c.current()!.bytes)) as { receipt: CemCommitReceipt; owners: { instanceId: string; island: string }[] };
 function fixture(root: HTMLElement, fallback: boolean, automatic = false, read?: Reader, options: Partial<CemElementRuntimeOptions> = {}, seal: CemCheckpointSealer = (candidate, receipt) => wasm.sealCommittedCheckpoint(candidate, receipt), shared?: CemCheckpointPublicationCoordinator) {
     const document = root.ownerDocument;
     const suffix = crypto.randomUUID();
@@ -95,7 +96,7 @@ export const AllOwnerPublicationAndImmediateInput: Story = {
                 const parent = await f.create(source); await f.runtime.whenRenderSettled(parent);
                 const child = await f.create('{p | Nested owner}', 'cem-ml', parent);
                 await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
-                await f.runtime.whenRenderSettled(child); await f.coordinator.capture();
+                await f.runtime.whenRenderSettled(child); await waitFor(async () => f.coordinator.capture());
                 expect(decode(f.coordinator).owners).toHaveLength(2);
                 const initial = f.coordinator.lastCommitted()!.bytes;
                 const input = parent.querySelector('input')!;
@@ -103,7 +104,7 @@ export const AllOwnerPublicationAndImmediateInput: Story = {
                 expect(f.coordinator.current()).toBeUndefined();
                 expect(f.coordinator.lastCommitted()!.bytes).toEqual(initial);
                 await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
-                await f.runtime.whenRenderSettled(parent); await f.coordinator.capture();
+                await f.runtime.whenRenderSettled(parent); await waitFor(async () => f.coordinator.capture());
                 const saved = decode(f.coordinator);
                 expect(saved.owners.some(owner => owner.island.includes('Unsaved é draft'))).toBe(true);
                 expect(saved.owners.every(owner => owner.island.startsWith('<template') && owner.island.includes('cem-island:context-root'))).toBe(true);
@@ -113,11 +114,11 @@ export const AllOwnerPublicationAndImmediateInput: Story = {
                 expect(f.coordinator.current()).toBeUndefined();
                 container.append(parent); await f.runtime.whenRenderSettled(parent);
                 if (child.isConnected) await f.runtime.whenRenderSettled(child);
-                await f.coordinator.capture();
+                await waitFor(async () => f.coordinator.capture());
                 expect(decode(f.coordinator).receipt.owners.some(owner => owner.acceptedEventSequence === ordinal)).toBe(true);
                 parent.setAttribute('label', 'Mutated before observer delivery');
                 expect(f.coordinator.current()).toBeUndefined();
-                await f.runtime.whenRenderSettled(parent); await f.coordinator.capture();
+                await f.runtime.whenRenderSettled(parent); await waitFor(async () => f.coordinator.capture());
                 expect(parent.querySelector('p')!.textContent).toBe('Mutated before observer delivery');
                 expect(parent.querySelector('input')).toBe(input); expect(input.value).toBe('Unsaved é draft');
                 // Parent reconciliation can remove an un-authored child; the
@@ -128,12 +129,12 @@ export const AllOwnerPublicationAndImmediateInput: Story = {
                 f.runtime.snapshotInstance(parent);
                 expect(f.coordinator.current()).toBeUndefined();
                 expect(f.coordinator.lastCommitted()!.bytes).toEqual(beforeProbe);
-                await f.runtime.whenRenderSettled(parent); await f.coordinator.capture();
+                await f.runtime.whenRenderSettled(parent); await waitFor(async () => f.coordinator.capture());
                 f.coordinator.setPolicy('private:revoked', () => false);
                 expect(f.coordinator.lastCommitted()).toBeUndefined();
                 parent.setAttribute('label', 'New policy'); await f.runtime.whenRenderSettled(parent);
                 if (child.isConnected) { child.setAttribute('title', 'New policy'); await f.runtime.whenRenderSettled(child); }
-                await expect(f.coordinator.capture()).rejects.toThrow('privacy');
+                await waitFor(async () => expect(f.coordinator.capture()).rejects.toThrow('privacy'));
             } finally { f.dispose(); }
         }
     },
@@ -188,7 +189,7 @@ export const UnsupportedOwnersBlockTheWholeDomain: Story = {
             const f = fixture(root, fallback);
             try {
                 const plain = await f.create('{p | Portable owner}'); await f.runtime.whenRenderSettled(plain);
-                await f.coordinator.capture(); const good = f.coordinator.lastCommitted()!.bytes;
+                await waitFor(async () => f.coordinator.capture()); const good = f.coordinator.lastCommitted()!.bytes;
                 const unsupported = await f.create('{label | Private control {input @name=draft @type=password}}');
                 await f.runtime.whenRenderSettled(unsupported);
                 const input = unsupported.querySelector('input')!; input.value = 'Keep this edit';
@@ -197,16 +198,16 @@ export const UnsupportedOwnersBlockTheWholeDomain: Story = {
                 await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
                 expect(input.value).toBe('Keep this edit'); expect(f.coordinator.current()).toBeUndefined();
                 expect(f.coordinator.lastCommitted()!.bytes).toEqual(good);
-                unsupported.remove(); await f.coordinator.capture();
+                unsupported.remove(); await waitFor(async () => f.coordinator.capture());
                 for (const attributes of ['@type=file', '@type=PASSWORD', '@autocomplete=CURRENT-PASSWORD']) {
                     const secret = await f.create(`{input ${attributes}}`); await f.runtime.whenRenderSettled(secret);
                     await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
-                    secret.remove(); await f.coordinator.capture();
+                    secret.remove(); await waitFor(async () => f.coordinator.capture());
                 }
                 expect(decode(f.coordinator).owners).toHaveLength(1);
                 const action = await f.create('{button @host-command=save | Save}'); await f.runtime.whenRenderSettled(action);
                 await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
-                action.remove(); await f.coordinator.capture();
+                action.remove(); await waitFor(async () => f.coordinator.capture());
                 // Overflow blocks capture but must not break normal rendering.
                 expect(() => f.coordinator.register(decode(f.coordinator).owners[0].instanceId, () => '<template/>')).toThrow('owners');
                 plain.setAttribute('title', 'Still renders'); await f.runtime.whenRenderSettled(plain);
@@ -228,7 +229,7 @@ export const CrossDocumentTemplateTraversalLimits: Story = {
         const f = fixture(body, true);
         try {
             const instance = await f.create('<p>Other document</p>', 'dom', body, '<template><b>Nested inert content</b></template>');
-            await f.runtime.whenRenderSettled(instance); await f.coordinator.capture();
+            await f.runtime.whenRenderSettled(instance); await waitFor(async () => f.coordinator.capture());
             expect(decode(f.coordinator).owners[0].island).toContain('Nested inert content');
             const deep = '<template>' + '<div>'.repeat(70) + 'Bounded content' + '</div>'.repeat(70) + '</template>';
             const oversized = await f.create('<p>Deep template owner</p>', 'dom', body, deep);
@@ -247,7 +248,7 @@ export const CompleteNativeControlEditsAndProperties: Story = {
             const f = fixture(root, fallback);
             try {
                 const instance = await f.create('{input @aria-label=Draft}{input @type=checkbox}{textarea}{select @multiple=true | {option @value=a | A}{option @value=b | B}}');
-                await f.runtime.whenRenderSettled(instance); await f.coordinator.capture();
+                await f.runtime.whenRenderSettled(instance); await waitFor(async () => f.coordinator.capture());
                 const input = instance.querySelector('input')!, check = instance.querySelector<HTMLInputElement>('input[type=checkbox]')!;
                 input.value = 'Unsaved é😀'; input.setSelectionRange(1, 4, 'backward'); input.readOnly = true;
                 check.checked = false; check.indeterminate = true; check.disabled = true;
@@ -260,7 +261,7 @@ export const CompleteNativeControlEditsAndProperties: Story = {
                 await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
                 input.readOnly = false; instance.querySelector('textarea')!.readOnly = true;
                 expect(f.coordinator.current()).toBeUndefined();
-                await f.runtime.whenRenderSettled(instance); await f.coordinator.capture();
+                await f.runtime.whenRenderSettled(instance); await waitFor(async () => f.coordinator.capture());
                 const island = decode(f.coordinator).owners[0].island;
                 expect(island).toContain('cem-checkpoint-controls/1'); expect(island).toContain('Unsaved é😀');
                 expect(island).toContain('version="1.0.0-checkpoint.1"');
@@ -275,7 +276,7 @@ export const CompleteNativeControlEditsAndProperties: Story = {
                 input.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
                 await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
                 input.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
-                await f.runtime.whenRenderSettled(instance); await f.coordinator.capture();
+                await f.runtime.whenRenderSettled(instance); await waitFor(async () => f.coordinator.capture());
                 // An exported checkpoint cannot silently enter ordinary HTML hydration.
                 const copy = document.createElement(instance.localName); copy.innerHTML = decode(f.coordinator).owners[0].island; root.append(copy);
                 await f.runtime.whenRenderSettled(copy);
@@ -299,13 +300,13 @@ export const SharedSourceEditorPortableState: Story = {
                 await f.runtime.whenRenderSettled(instance);
                 (instance as HTMLElement & { value: string }).value = 'Draft é😀\n';
                 await f.runtime.whenRenderSettled(instance);
-                await f.coordinator.capture();
+                await waitFor(async () => f.coordinator.capture());
                 expect(decode(f.coordinator).owners[0].island).toContain('Draft é😀');
                 const control = instance.querySelector<HTMLElement>('[contenteditable]')!;
                 control.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
                 await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
                 control.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
-                await f.runtime.whenRenderSettled(instance); await f.coordinator.capture();
+                await f.runtime.whenRenderSettled(instance); await waitFor(async () => f.coordinator.capture());
                 expect((instance as HTMLElement & { value: string }).value).toBe('Draft é😀\n');
             } finally { f.dispose(); }
         }
@@ -325,26 +326,26 @@ export const HostCommandJournalRecordsOutcomesWithoutReplay: Story = {
                     commands: { save: () => { calls++; return new Promise<void>(resolve => { release = resolve; }); },
                         fail: () => { calls++; throw new Error('Uncertain external outcome'); },
                         reject: async () => { calls++; throw new Error('Rejected external outcome'); } } });
-                await view.whenSettled(); await f.coordinator.capture();
-                instance.querySelector<HTMLButtonElement>('button')!.click(); await view.whenSettled(); await f.coordinator.capture();
+                await view.whenSettled(); await waitFor(async () => f.coordinator.capture());
+                instance.querySelector<HTMLButtonElement>('button')!.click(); await view.whenSettled(); await waitFor(async () => f.coordinator.capture());
                 const receipts = () => JSON.parse(new TextDecoder().decode(f.coordinator.current()!.bytes)).receipt.operations as { outcome: string; operationId: string }[];
                 expect(receipts().map(item => item.outcome)).toEqual(['unknown']);
-                release(); await Promise.resolve(); await f.coordinator.capture();
+                release(); await Promise.resolve(); await waitFor(async () => f.coordinator.capture());
                 expect(receipts().map(item => item.outcome)).toEqual(['acknowledged']);
-                instance.querySelectorAll<HTMLButtonElement>('button')[1].click(); await view.whenSettled(); await f.coordinator.capture();
+                instance.querySelectorAll<HTMLButtonElement>('button')[1].click(); await view.whenSettled(); await waitFor(async () => f.coordinator.capture());
                 expect(receipts().map(item => item.outcome)).toEqual(['acknowledged', 'unknown']);
                 expect(receipts().every(item => !item.operationId.includes('save') && !item.operationId.includes('fail'))).toBe(true);
                 expect(calls).toBe(2); expect(view.errors).toHaveLength(1);
-                await f.coordinator.capture(); expect(calls).toBe(2);
+                await waitFor(async () => f.coordinator.capture()); expect(calls).toBe(2);
                 instance.querySelectorAll<HTMLButtonElement>('button')[2].click();
-                await Promise.resolve(); await view.whenSettled(); await f.coordinator.capture();
+                await Promise.resolve(); await view.whenSettled(); await waitFor(async () => f.coordinator.capture());
                 expect(receipts().map(item => item.outcome)).toEqual(['acknowledged', 'unknown', 'unknown']);
                 expect(calls).toBe(3); expect(view.errors).toHaveLength(2);
-                instance.querySelector<HTMLButtonElement>('button')!.click(); await view.whenSettled(); await f.coordinator.capture();
+                instance.querySelector<HTMLButtonElement>('button')!.click(); await view.whenSettled(); await waitFor(async () => f.coordinator.capture());
                 expect(receipts().map(item => item.outcome)).toEqual(['acknowledged', 'unknown', 'unknown', 'unknown']);
                 view.dispose(); expect(f.coordinator.current()).toBeUndefined(); release(); await Promise.resolve();
                 const releaseAuthority = f.runtime.registerCheckpointCommands(instance);
-                await f.runtime.whenRenderSettled(instance); await f.coordinator.capture();
+                await f.runtime.whenRenderSettled(instance); await waitFor(async () => f.coordinator.capture());
                 expect(receipts().map(item => item.outcome)).toEqual(['acknowledged', 'unknown', 'unknown', 'unknown']);
                 expect(calls).toBe(4); releaseAuthority();
             } finally { view?.dispose(); f.dispose(); }
@@ -360,14 +361,14 @@ export const PinnedReadOnlyResourcesAndAmbientRefusal: Story = {
             const storageKey = `checkpoint-write-${crypto.randomUUID()}`;
             try {
                 const pinned = await f.create('{location-element @slice=page @href="https://example.test/docs?theme=light" @live=false}{p | Fixed URL}');
-                await f.runtime.whenRenderSettled(pinned); await f.coordinator.capture();
+                await f.runtime.whenRenderSettled(pinned); await waitFor(async () => f.coordinator.capture());
                 const island = decode(f.coordinator).owners[0].island;
                 expect(island).toContain('https://example.test/docs'); expect(island).toContain('read-again');
                 expect(island).not.toContain('AbortController');
                 const ambient = await f.create('{location-element @slice=current @live=true}{p | Ambient URL}');
-                await f.runtime.whenRenderSettled(ambient); await f.coordinator.capture();
+                await f.runtime.whenRenderSettled(ambient); await waitFor(async () => f.coordinator.capture());
                 expect(decode(f.coordinator).owners.some(owner => owner.island.includes('read-and-subscribe'))).toBe(true);
-                ambient.remove(); await f.coordinator.capture();
+                ambient.remove(); await waitFor(async () => f.coordinator.capture());
                 const effectOutcomes: string[] = [];
                 const operation = f.coordinator.operation.bind(f.coordinator);
                 f.coordinator.operation = (instanceId) => {
@@ -378,7 +379,7 @@ export const PinnedReadOnlyResourcesAndAmbientRefusal: Story = {
                 await f.runtime.whenRenderSettled(writer); expect(localStorage.getItem(storageKey)).toBe('recorded');
                 expect(effectOutcomes.length).toBeGreaterThanOrEqual(2);
                 expect(effectOutcomes).toEqual(Array.from({ length: effectOutcomes.length / 2 }, () => ['unknown', 'acknowledged']).flat());
-                await f.coordinator.capture();
+                await waitFor(async () => f.coordinator.capture());
                 const receipt = f.coordinator.current()!.receipt;
                 expect(receipt.operations.every(record => record.outcome === 'acknowledged')).toBe(true);
                 writer.remove();
@@ -388,13 +389,13 @@ export const PinnedReadOnlyResourcesAndAmbientRefusal: Story = {
                 expect(f.coordinator.lastCommitted()).toBeDefined();
                 expect(localStorage.getItem(storageKey)).toBe('recorded');
                 f.coordinator.retireOperations(receipt.operations.map(record => record.operationId), receipt);
-                await f.coordinator.capture(); expect(f.coordinator.current()!.receipt.operations).toHaveLength(0);
+                await waitFor(async () => f.coordinator.capture()); expect(f.coordinator.current()!.receipt.operations).toHaveLength(0);
             } finally { localStorage.removeItem(storageKey); f.dispose(); }
             const g = fixture(root, fallback);
             const previousUrl = root.ownerDocument.location.href;
             try {
                 const base = await g.create('{p | Before rejected URL effect}');
-                await g.runtime.whenRenderSettled(base); await g.coordinator.capture();
+                await g.runtime.whenRenderSettled(base); await waitFor(async () => g.coordinator.capture());
                 const effectOutcomes: string[] = [];
                 const operation = g.coordinator.operation.bind(g.coordinator);
                 g.coordinator.operation = (instanceId) => {
@@ -406,7 +407,7 @@ export const PinnedReadOnlyResourcesAndAmbientRefusal: Story = {
                 expect(root.ownerDocument.location.href).toBe(previousUrl);
                 expect(g.runtime.diagnosticsFor(writer).some(item => item.code === 'cem-element.location_write_failed')).toBe(true);
                 expect(effectOutcomes).toEqual(['unknown']);
-                await g.coordinator.capture();
+                await waitFor(async () => g.coordinator.capture());
                 const receipt = g.coordinator.current()!.receipt;
                 expect(receipt.operations.map(record => record.outcome)).toEqual(['unknown']);
                 expect(decode(g.coordinator).owners.some(owner => owner.island.includes('suppress-until-new-input'))).toBe(true);
@@ -414,7 +415,7 @@ export const PinnedReadOnlyResourcesAndAmbientRefusal: Story = {
                 expect(g.coordinator.lastCommitted()).toBeDefined();
                 g.coordinator.reconcileOperation(receipt.operations[0].operationId, 'not-applied', receipt);
                 g.coordinator.retireOperations([receipt.operations[0].operationId], receipt);
-                await g.coordinator.capture(); expect(g.coordinator.current()!.receipt.operations).toHaveLength(0);
+                await waitFor(async () => g.coordinator.capture()); expect(g.coordinator.current()!.receipt.operations).toHaveLength(0);
             } finally { g.dispose(); }
         }
     },
@@ -441,22 +442,22 @@ export const SharedFormAndCheckableCapabilityState: Story = {
                 control.value = 'Unsaved é😀'; control.setSelectionRange(1, 5, 'backward');
                 control.dispatchEvent(new InputEvent('input', { bubbles: true }));
                 (field as HTMLElement & { setCustomValidity(message: string): void }).setCustomValidity('Review draft');
-                await f.runtime.whenRenderSettled(field); await f.coordinator.capture();
+                await f.runtime.whenRenderSettled(field); await waitFor(async () => f.coordinator.capture());
                 const saved = decode(f.coordinator).owners[0].island;
                 expect(saved).toContain('Unsaved é😀'); expect(saved).toContain('Review draft'); expect(saved).toContain('form-control');
                 expect(new FormData(form).get('draft')).toBe('Unsaved é😀');
                 const lease = getCemEditorProvider(field)!.lease({});
                 await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); lease.release();
-                await f.runtime.whenRenderSettled(field); await f.coordinator.capture();
+                await f.runtime.whenRenderSettled(field); await waitFor(async () => f.coordinator.capture());
                 control.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
                 await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
                 control.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
-                await f.runtime.whenRenderSettled(field); await f.coordinator.capture();
+                await f.runtime.whenRenderSettled(field); await waitFor(async () => f.coordinator.capture());
                 const check = await f.create(declarationTemplate(checkboxDeclaration), 'cem-ml', form, undefined, 'checkable-control');
                 check.setAttribute('indeterminate', ''); await f.runtime.whenRenderSettled(check);
                 const checkbox = check.querySelector<HTMLInputElement>('input')!;
                 checkbox.checked = false; checkbox.indeterminate = true;
-                await f.coordinator.capture();
+                await waitFor(async () => f.coordinator.capture());
                 expect(decode(f.coordinator).owners.some(owner => owner.island.includes('checkable-control'))).toBe(true);
                 expect(checkbox.checked).toBe(false); expect(checkbox.indeterminate).toBe(true);
             } finally { f.dispose(); }
@@ -487,7 +488,7 @@ export const HttpDocumentsAndPendingResourceRefusal: Story = {
                 const instance = await f.create('{http-request @slice=remote @url="https://example.test/source.xml" @content-type="application/xml"}{p | {$datadom.slices.remote.state}}');
                 await waitFor(() => expect(reads).toBe(1));
                 await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); release();
-                await f.runtime.whenRenderSettled(instance); await f.coordinator.capture();
+                await f.runtime.whenRenderSettled(instance); await waitFor(async () => f.coordinator.capture());
                 const saved = decode(f.coordinator).owners[0].island;
                 expect(saved).toContain('reimport-and-read-again'); expect(saved).not.toContain('documentKey');
                 const content = islandContent(saved);
@@ -497,16 +498,16 @@ export const HttpDocumentsAndPendingResourceRefusal: Story = {
                 expect(content.querySelector('[name=digest]')!.textContent).toMatch(/^[a-f0-9]{64}$/);
                 const native = wasm.retainCemDocument(bytes, 'application/xml', 'https://example.test/source.xml');
                 expect(native).toBeGreaterThan(0); expect(wasm.disposeCemDocument(native)).toBe(true);
-                await f.coordinator.capture(); expect(reads).toBe(1);
+                await waitFor(async () => f.coordinator.capture()); expect(reads).toBe(1);
                 const large = await f.create('{http-request @slice=large @url="https://example.test/large.txt" @content-type="text/plain"}{p | {$datadom.slices.large.state}}');
                 await f.runtime.whenRenderSettled(large); await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); large.remove();
                 const credential = await f.create(`<http-request slice="secret" url="https://example.test/secret.xml" header-authorization="fixture-secret"></http-request><p>Credential owner</p>`, 'dom');
                 await f.runtime.whenRenderSettled(credential); expect(credentialRead).toBe(true); await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
-                credential.remove(); await f.coordinator.capture(); expect(reads).toBe(3);
+                credential.remove(); await waitFor(async () => f.coordinator.capture()); expect(reads).toBe(3);
                 const failed = await f.create('{http-request @slice=failed @url="https://example.test/failed.xml"}{p | {$datadom.slices.failed.state}}');
-                await f.runtime.whenRenderSettled(failed); await f.coordinator.capture();
+                await f.runtime.whenRenderSettled(failed); await waitFor(async () => f.coordinator.capture());
                 expect(decode(f.coordinator).owners.some(owner => owner.island.includes('Fixture read failure'))).toBe(true);
-                await f.coordinator.capture(); expect(reads).toBe(4);
+                await waitFor(async () => f.coordinator.capture()); expect(reads).toBe(4);
             } finally { f.dispose(); }
         }
     },
@@ -531,20 +532,20 @@ export const LiveRepositoryStorageAndLocationState: Story = {
             const href = root.ownerDocument.location.href;
             try {
                 const instance = await f.create(`{repository-query @slice=projects @repository=checkpoint-tests @operation=list @live=true @cursor=0}{storage-status @slice=status @repository=checkpoint-tests @live=true @cursor=0}{local-storage @slice=draft @key="${key}" @type=json @live=true}{location-element @slice=page @live=true}{p | {$datadom.slices.projects.data.label}}`);
-                await waitFor(async () => { await f.runtime.whenRenderSettled(instance); await f.coordinator.capture(); });
+                await waitFor(async () => { await f.runtime.whenRenderSettled(instance); await waitFor(async () => f.coordinator.capture()); });
                 let saved = decode(f.coordinator).owners[0].island;
                 expect(saved).toContain('Original é'); expect(saved).toContain('cem-native-slices-v1');
                 expect(saved).toContain('repository-query'); expect(saved).toContain('storage-status'); expect(saved).toContain('read-and-subscribe');
                 revision++; for (const notify of subscribers) notify({ protocolVersion: 1, repository: 'checkpoint-tests', cursor: revision, repositoryRevision: revision });
                 expect(f.coordinator.current()).toBeUndefined();
-                await waitFor(async () => { await f.runtime.whenRenderSettled(instance); await f.coordinator.capture(); });
+                await waitFor(async () => { await f.runtime.whenRenderSettled(instance); await waitFor(async () => f.coordinator.capture()); });
                 expect(queries).toBe(2);
                 localStorage.setItem(key, '{"label":"Changed é"}'); expect(f.coordinator.current()).toBeUndefined();
-                await waitFor(async () => { await f.runtime.whenRenderSettled(instance); await f.coordinator.capture(); });
+                await waitFor(async () => { await f.runtime.whenRenderSettled(instance); await waitFor(async () => f.coordinator.capture()); });
                 saved = decode(f.coordinator).owners[0].island; expect(saved).toContain('Changed é');
                 root.ownerDocument.defaultView!.history.replaceState({}, '', `${href.split('#')[0]}#checkpoint-live`);
                 expect(f.coordinator.current()).toBeUndefined();
-                await waitFor(async () => { await f.runtime.whenRenderSettled(instance); await f.coordinator.capture(); });
+                await waitFor(async () => { await f.runtime.whenRenderSettled(instance); await waitFor(async () => f.coordinator.capture()); });
                 expect(decode(f.coordinator).owners[0].island).toContain('#checkpoint-live');
                 expect(executions).toBe(0); expect(subscribers.size).toBe(2);
                 instance.remove(); expect(subscribers.size).toBe(0); expect(releases).toBe(2);
@@ -577,20 +578,20 @@ export const FormAssociatedChoiceState: Story = {
                 await f.runtime.whenRenderSettled(select);
                 (select as HTMLElement & { value: string }).value = 'b';
                 await f.runtime.whenRenderSettled(select); select.querySelector<HTMLButtonElement>('[role=combobox]')!.click();
-                await f.runtime.whenRenderSettled(select); await f.coordinator.capture();
+                await f.runtime.whenRenderSettled(select); await waitFor(async () => f.coordinator.capture());
                 let saved = decode(f.coordinator).owners[0].island;
                 expect(saved).toContain('choice-select'); expect(saved).toContain('previewSelection'); expect(saved).toContain('Beta');
                 const editor = await f.create(declarationTemplate(autocompleteDeclaration), 'cem-ml', root, payload, 'editable-choice');
                 await f.runtime.whenRenderSettled(editor);
                 const input = editor.querySelector<HTMLInputElement>('input')!;
                 input.value = 'Unsaved choice é'; input.dispatchEvent(new InputEvent('input', { bubbles: true }));
-                await f.runtime.whenRenderSettled(editor); await f.coordinator.capture();
+                await f.runtime.whenRenderSettled(editor); await waitFor(async () => f.coordinator.capture());
                 saved = decode(f.coordinator).owners.find(owner => owner.island.includes('editable-choice'))!.island;
                 expect(saved).toContain('Unsaved choice é'); expect(saved).toContain('defaultDisplayValue');
                 input.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
                 await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
                 input.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
-                await f.runtime.whenRenderSettled(editor); await f.coordinator.capture();
+                await f.runtime.whenRenderSettled(editor); await waitFor(async () => f.coordinator.capture());
                 expect(input.value).toBe('Unsaved choice é');
             } finally { f.dispose(); }
         }
@@ -604,7 +605,7 @@ export const NonFormWidgetContracts: Story = {
         await init(); const root = canvasElement.querySelector('section')!;
         for (const fallback of [false, true]) {
             const f = fixture(root, fallback);
-            const capture = async () => { await f.coordinator.capture(); return decode(f.coordinator); };
+            const capture = async () => { await waitFor(async () => f.coordinator.capture()); return decode(f.coordinator); };
             try {
                 const tree = await f.create(declarationTemplate(treeDeclaration), 'cem-ml', root,
                     '<cem-tree-item value="docs" label="Documentation"><cem-tree-item value="readme" label="Readme"></cem-tree-item></cem-tree-item><cem-tree-item value="source" label="Source"></cem-tree-item>',
@@ -643,13 +644,13 @@ export const SettledSurfacesAndTransientSessionRefusal: Story = {
             const f = fixture(root, fallback);
             try {
                 const popup = await f.create(declarationTemplate(dropdownDeclaration), 'cem-ml', root, '<p>Popup content</p>', 'popup', { open: 'false' });
-                await f.runtime.whenRenderSettled(popup); await f.coordinator.capture();
+                await f.runtime.whenRenderSettled(popup); await waitFor(async () => f.coordinator.capture());
                 expect(decode(f.coordinator).owners[0].island).toContain('popup');
                 popup.setAttribute('open', 'true'); await f.runtime.whenRenderSettled(popup);
-                await f.coordinator.capture(); expect(decode(f.coordinator).owners[0].island).toContain('reacquire');
-                popup.setAttribute('open', 'false'); await f.runtime.whenRenderSettled(popup); await f.coordinator.capture();
+                await waitFor(async () => f.coordinator.capture()); expect(decode(f.coordinator).owners[0].island).toContain('reacquire');
+                popup.setAttribute('open', 'false'); await f.runtime.whenRenderSettled(popup); await waitFor(async () => f.coordinator.capture());
                 const surface = await f.create(declarationTemplate(dialogDeclaration), 'cem-ml', root, '<p>Dialog content</p>', 'native-surface');
-                await f.runtime.whenRenderSettled(surface); await f.coordinator.capture();
+                await f.runtime.whenRenderSettled(surface); await waitFor(async () => f.coordinator.capture());
                 expect(decode(f.coordinator).owners.find(owner => owner.island.includes('native-surface'))!.island).toContain('defaultsInitialized');
                 const dialog = surface.querySelector('dialog')!; dialog.showModal();
                 await f.runtime.whenRenderSettled(surface); await waitFor(async () => { await f.coordinator.capture(); });
@@ -657,10 +658,10 @@ export const SettledSurfacesAndTransientSessionRefusal: Story = {
                 dialog.close('complete'); await f.runtime.whenRenderSettled(surface);
                 await waitFor(async () => { await f.coordinator.capture(); });
                 expect(decode(f.coordinator).owners.find(owner => owner.island.includes('native-surface'))!.island).toContain('complete');
-                dialog.returnValue = ''; await waitFor(async () => { await f.runtime.whenRenderSettled(surface); await f.coordinator.capture(); });
+                dialog.returnValue = ''; await waitFor(async () => { await f.runtime.whenRenderSettled(surface); await waitFor(async () => f.coordinator.capture()); });
                 // A menu without an open submenu carries only roving focus/typeahead.
                 const menu = await f.create(declarationTemplate(menuDeclaration), 'cem-ml', root, '<button type="button">First</button><button type="button">Second</button>', 'composite-menu');
-                await f.runtime.whenRenderSettled(menu); await f.coordinator.capture();
+                await f.runtime.whenRenderSettled(menu); await waitFor(async () => f.coordinator.capture());
                 expect(decode(f.coordinator).owners.find(owner => owner.island.includes('composite-menu'))!.island).toContain('activeNode');
             } finally { f.dispose(); }
         }
@@ -787,7 +788,7 @@ export const CommittedPlacementCaptureAndRevocation: Story = {
             const f = fixture(root, fallback, false, undefined, { placementCoordinator: placements, elementReferenceInputs: () => references });
             try {
                 const producer = await f.create(`{dialog @id=checkpoint-target-${crypto.randomUUID()} | Target}`); await f.runtime.whenRenderSettled(producer);
-                await f.coordinator.capture();
+                await waitFor(async () => f.coordinator.capture());
                 const target = producer.querySelector('dialog')!, receipt = f.coordinator.current()!.receipt.owners[0];
                 const lease = placements.register({ producer: receipt.instanceId, path: [0], revision: String(receipt.dataRevision), element: target,
                     source: references.sources[1], select: 'input.children', currentRevision: () => producer.isConnected ? String(receipt.dataRevision) : undefined });
@@ -795,7 +796,7 @@ export const CommittedPlacementCaptureAndRevocation: Story = {
                 const revoke = placements.grant(f.runtime.snapshotInstance(consumer).instanceId, lease, ['commandfor']);
                 f.runtime.refreshElementReferences(consumer); await f.runtime.whenRenderSettled(consumer);
                 expect(consumer.querySelector('button')?.getAttribute('commandfor')).toBe(target.id);
-                await f.coordinator.capture(); expect(f.coordinator.current()!.receipt.relationships).toHaveLength(1);
+                await waitFor(async () => f.coordinator.capture()); expect(f.coordinator.current()!.receipt.relationships).toHaveLength(1);
                 expect(decode(f.coordinator).owners.find(owner => owner.island.includes('cem-native-source/1'))!.island).toContain('cemb');
                 const last = f.coordinator.lastCommitted()!.bytes;
                 producer.remove(); await expect(f.coordinator.capture()).rejects.toThrow();
@@ -1088,7 +1089,7 @@ async function explicitSubmenuCheckpointContract(canvasElement: HTMLElement, fal
         }
         f.coordinator.setPolicy('revoked:submenu', () => false);
         for (const host of [targets, menu, submenu]) { host.setAttribute('title', 'New policy'); await (host === targets ? producer : f).runtime.whenRenderSettled(host); }
-        await expect(f.coordinator.capture()).rejects.toThrow('privacy'); expect(f.coordinator.lastCommitted()).toBeUndefined();
+        await waitFor(async () => expect(f.coordinator.capture()).rejects.toThrow('privacy')); expect(f.coordinator.lastCommitted()).toBeUndefined();
     } finally { peer?.dispose(); f.dispose(); root.removeAttribute('interaction-scope'); }
 }
 export const ExplicitSubmenuGeometryAndFocusCheckpoint: Story = {
@@ -1166,7 +1167,7 @@ async function externalCheckpointSource(fallback: boolean, portable = true, capt
         data: preparation ? JSON.parse(preparation.dataJson) : withInputs ? {datadom:{slices:{caption:'Original é😀',enabled:true}}} : {},
         nativeAttributes, nativeSlices, select: source.select, resolve: source.resolve,
         limits: preparation?.limits ?? { maxBytes: 256 * 1024, maxValues: 1024, maxDepth: 64 } }, () => true, undefined, portable);
-    return { scope, session, async dispose() { await session.release(); scope.dispose(); } };
+    return { scope, session, async dispose() { await session.release(); await owner.dispose({ reason: 'scope-disposed' }).result; scope.dispose(); } };
 }
 async function nativePublicationCheckpointContract(canvasElement: HTMLElement, fallback: boolean, withInputs = false) {
     await init(); const root = canvasElement.querySelector<HTMLElement>('section')!;
@@ -1196,7 +1197,7 @@ async function nativePublicationCheckpointContract(canvasElement: HTMLElement, f
         const copiedPublication = await copy.session.publishSuggestions({ query: 'same', queryRevision: 1, filter: 'none' }, () => true);
         const binding = copiedPublication.bind({ instanceId: 'fresh', scopePolicyStamp: 'fresh', revision: '1', current: () => true });
         try { const rows = await binding.rows(); expect(rows.map(row => row.value)).toEqual(['same', 'same']); expect(rows[1].source).not.toBe(mapped.rows[1].native.source); }
-        finally { binding.release(); await copiedPublication.release(); }
+        finally { binding.release(); await copiedPublication.release(); await copy.dispose(); }
         const row = mapped.rows[0].element, nodeId = row.getAttribute('data-cem-render-node-id')!;
         row.setAttribute('data-cem-render-node-id', 'forged'); await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
         row.setAttribute('data-cem-render-node-id', nodeId); await capture();
@@ -1204,7 +1205,7 @@ async function nativePublicationCheckpointContract(canvasElement: HTMLElement, f
         sealFence = () => { admitted = false; };
         await expect(f.coordinator.capture()).rejects.toThrow('cem.checkpoint.stale');
         await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); expect(f.coordinator.lastCommitted()!.bytes).toEqual(last);
-        await source.session.release();
+        await source.dispose();
         const replacement = await externalCheckpointSource(fallback); sources.push(replacement); admitted = true;
         publication = await replacement.session.publishSuggestions({ query: '', queryRevision: 2, filter: 'none' }, () => admitted);
         f.runtime.refreshElementReferences(frame); await f.runtime.whenRenderSettled(frame); await capture();
@@ -1301,6 +1302,7 @@ async function externalProviderCheckpointContract(canvasElement: HTMLElement, fa
         const last = f.coordinator.lastCommitted()!.bytes;
         await source.session.release(); await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
         expect(f.coordinator.lastCommitted()!.bytes).toEqual(last);
+        await source.dispose();
         source = await externalCheckpointSource(fallback); sources.push(source);
         await cemSuggestionsControllerFor(host)!.refresh(); await ready(); await capture();
         expect(readySuggestionsCheckpoint(host)?.committedIndex).toBe(-1); expect(input.value).toBe('same');
@@ -1710,13 +1712,13 @@ async function standaloneDatalistCheckpointContract(canvasElement: HTMLElement, 
         try {
             const output = await copiedBinding.render('{datalist | {cem:for-each @select=suggestions.children @as=row | {option @value={row.dom:attribute("value").value} @label={row.dom:attribute("label").value}}}}', {});
             expect(output.diagnostics).toEqual([]); expect(JSON.stringify(output.nodes)).toContain('Another');
-        } finally { copiedBinding.release(); await copiedPublication.release(); }
+        } finally { copiedBinding.release(); await copiedPublication.release(); await copied.dispose(); }
         const last = f.coordinator.lastCommitted()!.bytes; race = true;
         await expect(f.coordinator.capture()).rejects.toThrow('stale'); expect(f.coordinator.lastCommitted()!.bytes).toEqual(last);
         race = false; await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
         ready = true; for (const listener of listeners) listener();
         // A revoked native binding never revives: replace source/frame and reacquire its exact target owner.
-        attachment.disconnect(); attachment = undefined; await source.session.release();
+        attachment.disconnect(); attachment = undefined; await source.dispose();
         source = await externalCheckpointSource(fallback, true, undefined, true); sources.push(source);
         publication = await source.session.publishDatalist({}, () => true);
         f.runtime.refreshElementReferences(host); await f.runtime.whenRenderSettled(host);
@@ -1733,7 +1735,7 @@ async function standaloneDatalistCheckpointContract(canvasElement: HTMLElement, 
         publication = await opaque.session.publishDatalist({}, () => true); f.runtime.refreshElementReferences(host); await f.runtime.whenRenderSettled(host);
         attachment = connectCemStandaloneDatalist({ runtime: f.runtime, host, editorHost: field, target: host.querySelector('datalist')!, lifecycle: { ...lifecycle, checkpoint: true } });
         await waitFor(() => expect(input.list?.options.length).toBe(2)); await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
-        attachment.disconnect(); attachment = undefined; host.remove(); await capture();
+        attachment.disconnect(); attachment = undefined; host.remove(); for (const source of sources) await source.dispose(); await capture();
     } finally { attachment?.disconnect(); f.dispose(); for (const source of sources) await source.dispose(); }
 }
 export const StandaloneDatalistOwnership: Story = {
@@ -1833,7 +1835,7 @@ export const CrossRuntimeCustomSourcePlacement: Story = {
             Object.assign(references.sources[1], { maxDepth: 32, maxWork: 700, unresolved: 'ignore' });
             try {
                 const producer = await peer.create(`{dialog @id=checkpoint-target-${crypto.randomUUID()} | Target}`); await peer.runtime.whenRenderSettled(producer);
-                await f.coordinator.capture();
+                await waitFor(async () => f.coordinator.capture());
                 const target = producer.querySelector('dialog')!, receipt = f.coordinator.current()!.receipt.owners[0];
                 const lease = placements.register({ producer: receipt.instanceId, path: [0], revision: String(receipt.dataRevision), element: target,
                     source: references.sources[1], select: 'input.children', currentRevision: () => producer.isConnected ? String(receipt.dataRevision) : undefined });
@@ -1841,7 +1843,7 @@ export const CrossRuntimeCustomSourcePlacement: Story = {
                 const revoke = placements.grant(f.runtime.snapshotInstance(consumer).instanceId, lease, ['commandfor']);
                 f.runtime.refreshElementReferences(consumer); await f.runtime.whenRenderSettled(consumer);
                 expect(consumer.querySelector('button')?.getAttribute('commandfor')).toBe(target.id);
-                await f.coordinator.capture(); expect(f.coordinator.current()!.receipt.relationships).toHaveLength(1);
+                await waitFor(async () => f.coordinator.capture()); expect(f.coordinator.current()!.receipt.relationships).toHaveLength(1);
                 expect(decode(f.coordinator).owners.find(owner => owner.island.includes('cem-native-source/1'))!.island).toContain('cemb');
                 const saved = decode(f.coordinator).owners.find(owner => owner.island.includes('cem-native-source/1'))!.island;
                 expect(saved).toContain('maxDepth'); expect(saved).toContain('100000'); expect(saved).toContain('warning');
@@ -1949,5 +1951,136 @@ export const CrossRuntimeEndpointOwnershipBoundaries: Story = {
                 expect(f.coordinator.endpoint(parent)).toBeUndefined();
             } finally { foreign.dispose(); peer.dispose(); f.dispose(); }
         }
+    },
+};
+
+
+export const PhysicalRuntimeClientCoverage: Story = {
+    render: () => '<section aria-label="Physical runtime coverage"></section>',
+    play: async ({ canvasElement }) => {
+        await init(); const root = canvasElement.querySelector('section')!;
+        for (const fallback of [false, true]) {
+            const workerFactory = ({ scriptUrl, name, type }: { scriptUrl: string | URL; name: string; type: 'module' }) => new Worker(scriptUrl, { name, type });
+            const f = fixture(root, fallback, false, undefined, { processingWorkerFactory: workerFactory,
+                processingPoolPolicy: { workerCount: 1, maxWorkers: 1, queueSize: 32 } });
+            const options = { workerScriptUrl: new URL('./internal/runtime-support/processing-worker.js', import.meta.url),
+                workerFactory: fallback ? () => { throw new Error('standalone fallback'); } : workerFactory,
+                poolPolicy: { workerCount: 1, maxWorkers: 1, queueSize: 32 } };
+            let peer: ReturnType<typeof cemProcessingHostForScope> | undefined;
+            const peerScope = createCemDeclarationScope({ document });
+            try {
+                const instance = await f.create(source); await f.runtime.whenRenderSettled(instance);
+                await waitFor(async () => f.coordinator.capture());
+                const first = decode(f.coordinator).receipt.nativeRuntimes!;
+                expect(first).toHaveLength(1); expect(first[0].mode).toBe(fallback ? 'main-thread' : 'worker');
+                expect(first[0].clients).toHaveLength(1);
+                peer = cemProcessingHostForScope(peerScope, options); await peer.ready;
+                expect(f.coordinator.current()).toBeUndefined();
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                await peer.dispose({ reason: 'runtime-disposed' }).result;
+                await waitFor(async () => f.coordinator.capture());
+                const host = cemProcessingHostForScope(f.scope, options);
+                // A second renderer using this same host must not disappear merely
+                // because it did not opt in to checkpoint publication.
+                const unmanaged = new CemElementRuntime({ declarationScope: f.scope, processingWorkerFactory: workerFactory });
+                const unmanagedTag = `unmanaged-${crypto.randomUUID()}`;
+                const declaration = document.createElement('div'); declaration.setAttribute('tag', unmanagedTag);
+                const template = document.createElement('template'); template.type = 'text/cem-ml'; template.textContent = '{p | Unpublished native owner}';
+                declaration.append(template); root.append(declaration); unmanaged.registerDeclaration(declaration);
+                await unmanaged.whenDeclarationSettled(declaration);
+                const outsider = document.createElement(unmanagedTag); root.append(outsider); await unmanaged.whenRenderSettled(outsider);
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                outsider.remove(); declaration.remove();
+                await waitFor(async () => f.coordinator.capture());
+                const lastGood = f.coordinator.lastCommitted()!.bytes;
+                // Stateless host work still invalidates current coverage synchronously.
+                const work = host.value({ action: 'import', bytes: new TextEncoder().encode('{"a":1}').buffer,
+                    contentType: 'application/json', sourceUri: 'https://example.test/host-only.json',
+                    scopePolicyStamp: 'host-only', limits: { maxBytes: 256 * 1024, maxValues: 1024, maxDepth: 64 } });
+                expect(f.coordinator.current()).toBeUndefined(); expect(f.coordinator.lastCommitted()!.bytes).toEqual(lastGood);
+                await work.result; await waitFor(async () => f.coordinator.capture());
+                const handle = { instanceId: f.runtime.readInstanceSnapshot(instance).instanceId, documentKey: 'host-only', scopePolicyStamp: 'host-only' };
+                await host.document({ action: 'retain', handle, bytes: new TextEncoder().encode('{"a":1}').buffer,
+                    contentType: 'application/json', sourceUri: 'https://example.test/host-only.json' }).result;
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                await host.document({ action: 'release', handle }).result;
+                await waitFor(async () => f.coordinator.capture());
+                const sessionHandle = { instanceId: handle.instanceId, sessionKey: 'host-only-session', scopePolicyStamp: 'host-only', sourceRevision: '1' };
+                await host.nativeSession({ action: 'prepare', handle: sessionHandle, data: {}, select: 'input.children',
+                    sources: { kind: 'cem-native-session-import-v1', bytes: new TextEncoder().encode('<data/>').buffer,
+                        sourceUri: 'https://example.test/host-only.xml', contentType: 'application/xml' },
+                    limits: { maxBytes: 256 * 1024, maxValues: 1024, maxDepth: 64 } }).result;
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                await host.nativeSession({ action: 'release', handle: sessionHandle }).result;
+                await waitFor(async () => f.coordinator.capture());
+                if (fallback) {
+                    const direct = await retainCemMlTemplateSource('{p | Direct native client}');
+                    try { await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); }
+                    finally { disposeRetainedCemMlTemplate(direct.artifactId); }
+                    await waitFor(async () => f.coordinator.capture());
+                }
+                expect(decode(f.coordinator).receipt.nativeRuntimes![0].runtimeId).toBe(first[0].runtimeId);
+                expect(decode(f.coordinator).receipt.nativeRuntimes![0].revision).toBeGreaterThan(first[0].revision);
+            } finally { if (peer) await peer.dispose({}).result; peerScope.dispose(); f.dispose(); }
+        }
+    },
+};
+
+export const PhysicalWorkerGenerationLoss: Story = {
+    render: () => '<section aria-label="Physical generation loss"></section>',
+    play: async ({ canvasElement }) => {
+        await init(); const root = canvasElement.querySelector('section')!;
+        let worker!: Worker;
+        const f = fixture(root, false, false, undefined, { processingWorkerFactory: ({ scriptUrl, name, type }) => {
+            worker = new Worker(scriptUrl, { name, type }); return worker;
+        } });
+        try {
+            const instance = await f.create(source); await f.runtime.whenRenderSettled(instance);
+            await waitFor(async () => f.coordinator.capture());
+            const before = decode(f.coordinator).receipt.nativeRuntimes![0];
+            const lastGood = f.coordinator.lastCommitted()!.bytes;
+            worker.dispatchEvent(new ErrorEvent('error', { message: 'fixture generation lost', cancelable: true }));
+            expect(f.coordinator.current()).toBeUndefined(); expect(f.coordinator.lastCommitted()!.bytes).toEqual(lastGood);
+            const host = cemProcessingHostForScope(f.scope, { workerScriptUrl: new URL('./internal/runtime-support/processing-worker.js', import.meta.url) });
+            await host.value({ action: 'import', bytes: new TextEncoder().encode('1').buffer, contentType: 'application/json',
+                sourceUri: 'https://example.test/value.json', scopePolicyStamp: 'host-only', limits: { maxBytes: 256 * 1024, maxValues: 1024, maxDepth: 64 } }).result;
+            expect(host.mode).toBe('main-thread');
+            await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+            instance.setAttribute('label', 'Fresh fallback publication'); await f.runtime.whenRenderSettled(instance);
+            await waitFor(async () => f.coordinator.capture());
+            const after = decode(f.coordinator).receipt.nativeRuntimes![0];
+            expect(after.runtimeId).not.toBe(before.runtimeId); expect(after.mode).toBe('main-thread');
+        } finally { f.dispose(); }
+    },
+};
+
+
+export const SourceWorkerGenerationLossPreservesFallback: Story = {
+    render: () => '<section aria-label="Source worker generation cleanup"></section>',
+    play: async ({ canvasElement }) => {
+        await init(); const root = canvasElement.querySelector('section')!;
+        const peer = fixture(root, true), scope = createCemDeclarationScope({ document });
+        let worker!: Worker;
+        const host = cemProcessingHostForScope(scope, { workerScriptUrl: new URL('./internal/runtime-support/processing-worker.js', import.meta.url),
+            workerFactory: ({ scriptUrl, name, type }) => { worker = new Worker(scriptUrl, { name, type }); return worker; } });
+        const input = () => ({ action: 'prepare' as const, handle: { sessionKey: crypto.randomUUID(), instanceId: 'source', sourceRevision: '1', scopePolicyStamp: 'policy' },
+            sources: { kind: 'cem-native-session-import-v1' as const, bytes: new TextEncoder().encode('<data><item/></data>').buffer,
+                contentType: 'application/xml' as const, sourceUri: 'https://example.test/source.xml' }, data: {}, select: 'input.children',
+            limits: { maxBytes: 256 * 1024, maxValues: 1024, maxDepth: 64 } });
+        let session: CemNativeCapabilitySession | undefined;
+        try {
+            const view = await peer.create(source); await peer.runtime.whenRenderSettled(view);
+            session = await CemNativeCapabilitySession.prepare(host, input(), () => true);
+            expect(session.valid).toBe(true); await waitFor(async () => peer.coordinator.capture());
+            worker.dispatchEvent(new ErrorEvent('error', { message: 'source generation lost', cancelable: true }));
+            await session.release(); expect(session.valid).toBe(false); expect(host.mode).toBe('main-thread');
+            await expect(host.nativeSession({ action: 'view', handle: session.handle, expression: 'input' }).result).rejects.toThrow('fresh session');
+            await expect(peer.coordinator.capture()).rejects.toThrow('unavailable');
+            session = await CemNativeCapabilitySession.prepare(host, input(), () => true);
+            expect(session.valid).toBe(true); await session.release();
+            await host.dispose({}).result; scope.dispose();
+            await waitFor(async () => peer.coordinator.capture());
+            expect(peer.coordinator.current()!.receipt.nativeRuntimes![0].mode).toBe('main-thread');
+        } finally { await session?.release(); await host.dispose({}).result; scope.dispose(); peer.dispose(); }
     },
 };

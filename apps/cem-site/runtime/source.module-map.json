@@ -76,6 +76,10 @@
             "path": "../../../packages/cem-elements/dist/lib/internal/runtime-support/processing-host.js",
             "contentType": "text/javascript"
         },
+        "@epa-wg/cem-elements/checkpoint-domain": {
+            "path": "../../../packages/cem-elements/dist/lib/internal/runtime-support/checkpoint-domain.js",
+            "contentType": "text/javascript"
+        },
         "@epa-wg/cem-elements/processing-host-runtime": {
             "path": "../../../packages/cem-elements/dist/lib/internal/runtime-support/processing-host-runtime.js",
             "contentType": "text/javascript"

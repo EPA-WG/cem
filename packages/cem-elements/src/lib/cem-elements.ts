@@ -1,3 +1,4 @@
+import { nativeCheckpointSourceProof, type CemCheckpointNativeSourceProof } from './internal/runtime-support/checkpoint-domain.js';
 import { hasCemStandaloneDatalistCheckpoint, cemStandaloneDatalistCheckpoint } from './standalone-datalist.js';
 import { hasCemManualListboxCheckpoint, cemManualListboxCheckpoint } from './manual-listbox.js';
 import { snapshotCheckpointReferences, checkpointReferenceSource, type CheckpointEndpoint, type CheckpointNativePublication } from './checkpoint-interactions.js';
@@ -1830,6 +1831,8 @@ export class CemElementRuntime {
     private readonly declarationSettled = new WeakMap<object, Promise<void>>();
     /** Dedupes the async engine lowering of a legacy-xslt declaration across its instances. */
     private readonly legacyConversions = new WeakMap<CompiledDeclaration, Promise<void>>();
+    private readonly checkpointNativeSources = new WeakMap<HTMLElement, readonly CemCheckpointNativeSourceProof[]>();
+    private readonly checkpointNativeInstances = new WeakMap<HTMLElement, () => void>();
     private readonly processingArtifacts = new WeakMap<CompiledDeclaration, Promise<CemProcessingCompileResult>>();
     private readonly processingRenderPlans = new WeakMap<HTMLElement, CemProcessingRenderPlanHandle>();
     private readonly processingRenderJobs = new WeakMap<HTMLElement, ActiveProcessingRenderJob>();
@@ -2925,6 +2928,7 @@ export class CemElementRuntime {
     }
 
     private checkpointRuntimeState(instance: HTMLElement, compiled: CompiledDeclaration, state: InstanceState, documents = false): CemCheckpointRuntimeState | undefined {
+        this.checkpointNativeSources.delete(instance);
         let capability: CemCheckpointRuntimeState['capability'] = null;
         if (compiled.behavior === CEM_PLAINTEXT_EDITOR_CAPABILITY) capability = cemPlaintextEditorCheckpoint(instance) ?? null;
         else if (compiled.behavior === CEM_FORM_CONTROL_CAPABILITY) capability = cemFormControlCheckpoint(instance, consumer => {
@@ -2975,8 +2979,13 @@ export class CemElementRuntime {
                 if (documents) for (const byte of new Uint8Array(source.bytes)) binary += String.fromCharCode(byte);
                 document = { base64: documents ? btoa(binary) : '', contentType: source.contentType, sourceUri: source.sourceUri, digest: null };
             }
-            resources.push({ name, kind: 'http', disposition: 'reimport-and-read-again', revision: active.revision, cursor: 0,
-                live: false, state: envelope.state, url: envelope.request.resolvedUrl, method: envelope.request.method, ...(document ? { document } : {}) });
+            const resource: CemCheckpointRuntimeState['resources'][number] = { name, kind: 'http', disposition: 'reimport-and-read-again', revision: active.revision, cursor: 0,
+                live: false, state: envelope.state, url: envelope.request.resolvedUrl, method: envelope.request.method, ...(document ? { document } : {}) };
+            if (active.document && document) {
+                active.host?.witnessCheckpointDocument?.(active.document, resource);
+                if (active.host?.checkpointClient && !nativeCheckpointSourceProof(resource)) return undefined;
+            }
+            resources.push(resource);
         }
         for (const [kind, entries] of [['repository-query', state.repositoryQueryResources], ['storage-status', state.storageStatusResources]] as const) {
             for (const [name, active] of Object.entries(entries)) {
@@ -3026,6 +3035,11 @@ export class CemElementRuntime {
         const prepared = this.placementInputs.get(instance);
         const references = prepared && checkpointReferenceSource(prepared.inputs, String(this.dataRevisions.get(instance)));
         if (prepared && (!references || prepared.token !== this.checkpointPublishedTokens.get(instance)) || this.referenceInputControllers.has(instance)) return undefined;
+        const suggestions = capability?.kind === 'suggestions' ? capability.state : undefined;
+        this.checkpointNativeSources.set(instance, [...resources, nativePublication?.source, standaloneDatalist?.source, suggestions?.source,
+            suggestions && 'proof' in suggestions ? suggestions.proof?.source : undefined].flatMap(source => {
+            const proof = nativeCheckpointSourceProof(source); return proof ? [proof] : [];
+        }));
         return { version: 'cem-checkpoint-runtime/1', capability, ...(manualListbox ? { manualListbox } : {}), ...(standaloneDatalist ? { standaloneDatalist } : {}), ...(nativePublication ? { nativePublication } : {}), ...(references ? { references } : {}), ...(placements.length ? { placements } : {}), ...(focus ? { focus } : {}), resources, writers, writeDisposition: 'suppress-until-new-input' };
     }
 
@@ -3177,7 +3191,7 @@ export class CemElementRuntime {
             state.observer?.takeRecords();
             units = 0; length = 0; visit(island, 0);
             return island.outerHTML;
-        }, current, this.checkpointEventSequences.get(instance) ?? 0, () => this.checkpointDependencies(instance), { host: instance, resolve: element => this.checkpointOwnedEndpoint(instance, compiled, element), refresh: () => this.checkpointInteractionSettled(instance) }); }
+        }, current, this.checkpointEventSequences.get(instance) ?? 0, () => this.checkpointDependencies(instance), { host: instance, nativeClient: this.processingHost(compiled).checkpointClient, nativeSources: () => this.checkpointNativeSources.get(instance), resolve: element => this.checkpointOwnedEndpoint(instance, compiled, element), refresh: () => this.checkpointInteractionSettled(instance) }); }
         catch { return; /* Coordinator is blocked; ordinary owner lifecycle continues. */ }
         const published = owner.published;
         owner.published = receipt => {
@@ -3246,6 +3260,15 @@ export class CemElementRuntime {
     private connectProducedInstance(instance: HTMLElement, compiled: CompiledDeclaration): void {
         this.installDeclarationStylesheets(compiled);
         const island = this.ensureDataIsland(instance);
+        if (!this.checkpointNativeInstances.has(instance) && (compiled.mode !== 'dom' || this.checkpointPublication)) {
+            const release = this.processingHost(compiled).checkpointInstance?.(this.instanceId(instance));
+            if (release) {
+                let stopScope = () => undefined as void;
+                const remove = () => { release(); stopScope(); this.checkpointNativeInstances.delete(instance); };
+                stopScope = onCemDeclarationScopeDispose(compiled.declarationScope, remove);
+                this.checkpointNativeInstances.set(instance, remove);
+            }
+        }
         this.connectCheckpointOwner(instance, compiled);
         this.ensureModuleUrlContext(instance, compiled);
         if (this.frozenSerializedInstances.has(instance)) {
@@ -3306,6 +3329,8 @@ export class CemElementRuntime {
     }
 
     private disconnectProducedInstance(instance: HTMLElement): void {
+        this.checkpointNativeSources.delete(instance);
+        this.checkpointNativeInstances.get(instance)?.();
         this.checkpointOwners.get(instance)?.detach();
         this.checkpointOwners.delete(instance);
         this.checkpointPublishedTokens.delete(instance);

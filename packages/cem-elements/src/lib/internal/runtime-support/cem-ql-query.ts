@@ -1,3 +1,4 @@
+import { nativeCheckpointWork } from './checkpoint-domain.js';
 /**
  * Host runtime-support boundary for direct CEM-QL query evaluation through the
  * `cem_ql` WASM module. This is intentionally parallel to `cem-ql-render.ts`,
@@ -109,7 +110,8 @@ export interface CemQlResourceBinding {
  * arrays remain CEM-QL array items; use `cemQlStream(...)` when a binding must
  * be a CEM-QL stream for set/pipeline rows.
  */
-export async function evaluateCemQlQuery(
+export const evaluateCemQlQuery = nativeCheckpointWork(evaluateCemQlQueryOperation);
+async function evaluateCemQlQueryOperation(
     source: string,
     bindings: CemQlQueryBindings = {}
 ): Promise<CemQlQueryResult> {

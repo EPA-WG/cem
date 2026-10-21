@@ -1,7 +1,13 @@
+import { cemMainThreadCheckpointDomain, type CemCheckpointNativeClient } from './checkpoint-domain.js';
 // Explicit executable dependency transport; never part of render data.
 // eslint-disable-next-line @nx/enforce-module-boundaries -- generated shared WASM control plane.
 import { retainCemtXPathFunctions, disposeCemtXPathFunctions } from '../../../../../cem_ql/dist/wasm/cem_ql.js';
 import { cemMlTemplateArtifactPayloadKey, ensureRuntimeReady } from './cem-ql-render.js';
+
+function releaseXPathFunctions(id: number): void {
+    disposeCemtXPathFunctions(id);
+    cemMainThreadCheckpointDomain.release('xpath', id);
+}
 
 export interface CemXPathFunctionLibrarySource {
     kind: 'cemt-xpath-function-library';
@@ -46,10 +52,18 @@ interface LibraryEntry {
 /** Independent, reference-counted library cache owned by one processing host. */
 export class CemXPathFunctionLibraries {
     private readonly entries = new Map<string, LibraryEntry>();
+    private readonly pending = new Set<Promise<unknown>>();
     private disposed = false;
+    private checkpointClient?: CemCheckpointNativeClient;
+    private ownsCheckpointClient = false;
 
-    async acquire(source: CemXPathFunctionLibrarySource): Promise<CemXPathFunctionLibraryLease> {
+    async acquire(source: CemXPathFunctionLibrarySource, checkpointClient?: CemCheckpointNativeClient): Promise<CemXPathFunctionLibraryLease> {
         if (this.disposed) throw new Error('XPath library cache is disposed');
+        if (!this.checkpointClient) {
+            this.checkpointClient = checkpointClient ?? cemMainThreadCheckpointDomain.client();
+            this.ownsCheckpointClient = !checkpointClient;
+        }
+        checkpointClient = this.checkpointClient;
         // Include bytes as well as the claimed hash: a forged reuse request must
         // pass validation rather than borrowing another request's capability.
         const key = JSON.stringify([source.kind, source.uri, source.sourceHash,
@@ -60,15 +74,21 @@ export class CemXPathFunctionLibraries {
             const created: LibraryEntry = { references: 0, pending: Promise.resolve(0) };
             created.pending = this.retain(source).then((id) => {
                 if (this.disposed) {
-                    disposeCemtXPathFunctions(id);
+                    releaseXPathFunctions(id);
                     throw new Error('XPath library cache is disposed');
                 }
+                if (checkpointClient) cemMainThreadCheckpointDomain.adopt('xpath', id, checkpointClient);
                 created.companionId = id;
                 return id;
             }).catch((error: unknown) => {
                 this.entries.delete(key);
                 throw error;
             });
+            created.pending = created.pending.finally(() => {
+                this.pending.delete(created.pending);
+                this.releaseDisposedCheckpointClient();
+            });
+            this.pending.add(created.pending);
             this.entries.set(key, created);
             entry = created;
         }
@@ -80,7 +100,7 @@ export class CemXPathFunctionLibraries {
             released = true;
             if (--entry.references === 0 && this.entries.get(key) === entry) {
                 this.entries.delete(key);
-                disposeCemtXPathFunctions(companionId);
+                releaseXPathFunctions(companionId);
             }
         } };
     }
@@ -88,9 +108,16 @@ export class CemXPathFunctionLibraries {
     dispose(): void {
         this.disposed = true;
         for (const entry of this.entries.values()) {
-            if (entry.companionId !== undefined) disposeCemtXPathFunctions(entry.companionId);
+            if (entry.companionId !== undefined) releaseXPathFunctions(entry.companionId);
         }
         this.entries.clear();
+        this.releaseDisposedCheckpointClient();
+    }
+
+    private releaseDisposedCheckpointClient(): void {
+        if (this.disposed && !this.pending.size && this.ownsCheckpointClient && this.checkpointClient) {
+            cemMainThreadCheckpointDomain.remove(this.checkpointClient);
+        }
     }
 
     private async retain(source: CemXPathFunctionLibrarySource): Promise<number> {
@@ -112,9 +139,10 @@ export class CemXPathFunctionLibraries {
         if (!Number.isSafeInteger(result.companionId) || result.companionId < 1) {
             throw new Error('XPath function library did not retain a companion');
         }
+        cemMainThreadCheckpointDomain.retain('xpath', result.companionId);
         if (result.contentType !== 'application/vnd.cem.cemt-xpath-functions+cem-bin'
             || result.formatVersion !== 'cemt-xpath-functions/1' || result.sourceHash !== source.sourceHash) {
-            disposeCemtXPathFunctions(result.companionId);
+            releaseXPathFunctions(result.companionId);
             throw new Error('XPath function companion identity mismatch');
         }
         return result.companionId;

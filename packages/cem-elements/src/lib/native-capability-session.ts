@@ -1,3 +1,4 @@
+import { nativeCheckpointGeneration, nativeCheckpointSourceProof } from './internal/runtime-support/checkpoint-domain.js';
 import { checkpointSourcePolicy, checkpointPreparation, checkpointBase64, type CheckpointSource } from './checkpoint-interactions.js';
 import type { CemElementReferenceInputs } from './element-reference-inputs.js';
 import type { NativeCemValue } from './native-values.js';
@@ -48,12 +49,14 @@ export class CemNativeCapabilitySession {
     private readonly sourceExpiryListeners = new Set<() => void>();
     private readonly rowSources = new Map<string, CemNativeSuggestionSource>();
     private readonly ownerMode: CemProcessingHost['mode'];
+    private readonly ownerGeneration?: string;
     private readonly abort = () => { void this.release().catch(() => undefined); };
     private constructor(private readonly host: CemProcessingHost, readonly handle: CemNativeSessionHandle,
         readonly length: number, private readonly current: () => boolean, private readonly signal?: AbortSignal,
         readonly suggestions?: Extract<CemProcessingNativeSessionResult, { status: 'ready' }>['suggestions']) {
         Object.freeze(handle);
         this.ownerMode = host.mode;
+        this.ownerGeneration = host.checkpointClient && nativeCheckpointGeneration(host.checkpointClient);
         this.stopOwnerLoss = host.onNativeAuthorityLost?.(() => { this.ownerLost = true; void this.release().catch(() => undefined); }) ?? (() => undefined);
         signal?.addEventListener('abort', this.abort, { once: true });
     }
@@ -78,6 +81,7 @@ export class CemNativeCapabilitySession {
         try {
             if (signal?.aborted) cancel();
             const result = await job.result;
+            if (host.checkpointClient && job.nativeCurrent?.() !== true) throw new Error('Native capability execution generation changed; reacquire source');
             if (result.status !== 'ready' || !current() || signal?.aborted) {
                 await host.nativeSession({ action: 'release', handle }).result;
                 throw new Error('Native capability preparation was superseded');
@@ -86,7 +90,7 @@ export class CemNativeCapabilitySession {
             session.checkpointInput = checkpointInput;
             return session;
         } catch (error) {
-            await host.nativeSession({ action: 'release', handle }).result.catch(() => undefined);
+            if (!host.checkpointClient || job.nativeCurrent?.() === true) await host.nativeSession({ action: 'release', handle }).result.catch(() => undefined);
             throw error;
         } finally { signal?.removeEventListener('abort', cancel); }
     }
@@ -106,18 +110,23 @@ export class CemNativeCapabilitySession {
                 primarySourceId: 'bytes' in source ? 1 : source.primarySourceId, context: 'bytes' in source ? true : source.context, ...policy });
         }
         const preparation = checkpointPreparation(input); if (!preparation) return undefined;
-        return { preparation, version: 'cem-native-source/1', revision: this.handle.sourceRevision, rowCount: this.suggestions.rows, select: input.select,
+        const captured: CheckpointSource = { preparation, version: 'cem-native-source/1', revision: this.handle.sourceRevision, rowCount: this.suggestions.rows, select: input.select,
             resolve: input.resolve ?? true, requesting: imported ? 0 : (original as CemNativeSessionSources).requesting, sources,
             bindings: imported ? [] : (original as CemNativeSessionSources).bindings.map(binding => ({ ...binding })),
             crossings: imported ? [] : (original as CemNativeSessionSources).grants.map(([from, to]) => ({ from, to })),
             labels: { option: input.labelTemplates?.option ?? null, group: input.labelTemplates?.group ?? null }, disposition: 'reacquire' };
+        this.host.witnessCheckpointSource?.(this.handle, captured);
+        return this.host.checkpointClient && !nativeCheckpointSourceProof(captured) ? undefined : captured;
     }
     /** Original source intent for an inactive host-admitted consumer, never old rows or leases. */
     checkpointSourceIntent(): CheckpointSource | undefined {
         const source = this.checkpointSource();
-        return source ? { ...source, rowCount: 0 } : undefined;
+        if (!source) return undefined;
+        const intent = { ...source, rowCount: 0 };
+        this.host.witnessCheckpointSource?.(this.handle, intent);
+        return intent;
     }
-    get valid(): boolean { return !this.released && !this.host.ownerScope.disposed && this.host.mode === this.ownerMode && this.current(); }
+    get valid(): boolean { return !this.released && !this.ownerLost && (!this.host.checkpointClient || !!this.ownerGeneration && this.ownerGeneration === nativeCheckpointGeneration(this.host.checkpointClient)) && !this.host.ownerScope.disposed && this.host.mode === this.ownerMode && this.current(); }
     async view(expression: string, index?: number, suggestions?: CemNativeSuggestionsConfig): Promise<CemNativeSessionView> {
         const result = await this.run({ action: 'view', handle: this.handle, expression, index, suggestions });
         if (result.status !== 'view') throw new Error('Invalid native capability view reply');
@@ -178,7 +187,7 @@ export class CemNativeCapabilitySession {
                         this.rowSources.set(handle, source);
                     }
                     return source;
-                }, () => this.checkpointSource());
+                }, () => this.checkpointSource(), instanceId => this.host.checkpointInstance?.(instanceId));
             this.publications.add(admitted);
             return admitted;
         } catch (error) {
