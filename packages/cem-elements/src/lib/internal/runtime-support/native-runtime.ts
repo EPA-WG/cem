@@ -8,6 +8,19 @@ import type { CemNativeGenerationCandidate, CemNativeGenerationParticipant } fro
 
 export type CemFallbackNativeEntrypoint = typeof sharedEntrypoints[number];
 export type CemFallbackNativeCleanup = typeof cleanupEntrypoints[number];
+/** Explicit shared-runtime binding, never an authored template value. */
+export interface CemQlNativeBindingContext {
+    readonly domain: CemNativeCheckpointDomain;
+    readonly native: Pick<typeof legacy, CemFallbackNativeEntrypoint>;
+    initialize(): Promise<void>;
+    usable(): boolean;
+    onDispose?(cleanup: () => void): () => void;
+}
+const freshBindings = new WeakMap<object, CemQlNativeBindingContext>();
+/** Only an original freshly allocated facade can yield bindings. */
+export function freshFallbackNativeBindings(runtime: object): CemQlNativeBindingContext | undefined {
+    return freshBindings.get(runtime);
+}
 export interface CemFreshFallbackGeneration {
     readonly kind: 'cem-fallback';
     readonly runtimeId: string;
@@ -67,6 +80,7 @@ class OwnedFallback {
     private revision = 0;
     private readonly consents = new WeakMap<object, number>();
     private readonly owners = new Set<CemFallbackWasmOwnership>();
+    private readonly allocationCleanup = new Set<() => void>();
 
     usable(): boolean { return !this.disposed && !this.failed && !!this.domain.identity(); }
     initialize(signal?: AbortSignal): Promise<void> {
@@ -121,6 +135,15 @@ class OwnedFallback {
             releaseOwnership: (lease: CemFallbackWasmOwnership) => { assert(); next.release(lease); },
             retirementConsent: (leases: readonly CemFallbackWasmOwnership[]) => { assert(); return next.consent(leases); },
             generationParticipant: () => { assert(); return next.participant(); } });
+        const native = Object.fromEntries(sharedEntrypoints.map(name => [name, (...args: unknown[]) =>
+            (cleanupEntrypoints as readonly string[]).includes(name)
+                ? runtime.release(name as CemFallbackNativeCleanup, args) : runtime.invoke(name, args)])) as CemQlNativeBindingContext['native'];
+        freshBindings.set(runtime, Object.freeze({ domain: next.domain, native: Object.freeze(native),
+            initialize: async () => { assert(); await next.initialize(); }, usable: () => admitted() && next.usable(),
+            onDispose: (cleanup: () => void) => {
+                assert(); if (next.allocationCleanup.size >= 256) throw new Error('cem.runtime.allocation.owners');
+                next.allocationCleanup.add(cleanup); return () => { next.allocationCleanup.delete(cleanup); };
+            } }));
         return { identity, runtimeId: runtime.runtimeId, runtime,
             current: () => {
                 if (!next.usable()) return false;
@@ -130,7 +153,11 @@ class OwnedFallback {
                 return status.softPressure === false && status.hardPressure === false;
             },
             discard: () => {
-                try { next.native?.dispose(); } finally { next.failed = true; next.native = undefined; next.initialization = undefined; next.domain.discardAllocatedIdentity(); }
+                try {
+                    for (const cleanup of next.allocationCleanup) { try { cleanup(); } catch { /* Quarantine even if a consumer cleanup fails. */ } }
+                    next.allocationCleanup.clear();
+                    next.native?.dispose();
+                } finally { next.failed = true; next.native = undefined; next.initialization = undefined; next.domain.discardAllocatedIdentity(); }
             } };
     }
     private requireReady(): CemQlWasmGeneration {
@@ -180,7 +207,7 @@ class OwnedFallback {
             this.consents.set(token, revision); return token;
         } finally { this.disposing = false; }
     }
-    private released(): void { this.disposed = true; this.native = undefined; this.initialization = undefined; this.owners.clear(); }
+    private released(): void { this.disposed = true; this.native = undefined; this.initialization = undefined; this.owners.clear(); this.allocationCleanup.clear(); }
     async disposeEmpty(leases: readonly CemFallbackWasmOwnership[], timeoutMs = 5000): Promise<CemDisposedFallbackGeneration> {
         if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 5000) throw new Error('cem.runtime.generation.timeout-config');
         const native = this.requireReady();

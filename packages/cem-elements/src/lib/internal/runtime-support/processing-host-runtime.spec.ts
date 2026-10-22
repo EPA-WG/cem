@@ -295,6 +295,12 @@ class ControlledProcessingWorker {
         this.terminated = true;
     }
 
+    fail(): void {
+        for (const listener of this.listeners.get('error') ?? []) listener({
+            preventDefault() { return undefined; }, error: new Error('lost fresh worker'),
+        } as unknown as MessageEvent<unknown>);
+    }
+
     pressure(): void {
         for (const listener of this.listeners.get('message') ?? []) {
             listener({ data: createCemProcessingPressureEnvelope('soft-pressure') } as MessageEvent<unknown>);
@@ -841,7 +847,7 @@ it('fences retirement on actual worker loss and never moves the closed root to f
     await host.dispose({ reason: 'runtime-disposed' }).result; scope.dispose();
 });
 
-it('rejects an in-flight request when the complete fresh rendering group is revoked', async () => {
+it.each(['revoke', 'worker-loss'])('fences generation-bound fresh roots without fallback on %s', async scenario => {
     class FreshWorker extends ControlledProcessingWorker {
         override postMessage(request: CemProcessingRequestEnvelope | CemRenderingRetirementControl): void {
             if (!isCemRenderingRetirementControl(request)) { super.postMessage(request); return; }
@@ -854,7 +860,7 @@ it('rejects an in-flight request when the complete fresh rendering group is revo
     }
     const { nativeGenerationParticipant } = await import('./checkpoint-domain.js');
     const { CemNativeGenerationGroup } = await import('./native-generation.js');
-    const { createCemProcessingRequestEnvelope, CemProcessingJobSequence } = await import('./processing-host.js');
+    const { createFreshCemProcessingHost } = await import('./processing-host-runtime.js');
     const workers: FreshWorker[] = [], scope = createCemDeclarationScope({ document: {} as Document });
     const host = cemProcessingHostForScope(scope, { workerScriptUrl: 'https://example.test/fresh.js', workerFactory: () => {
         const worker = new FreshWorker(); workers.push(worker); return worker as unknown as Worker;
@@ -869,11 +875,23 @@ it('rejects an in-flight request when the complete fresh rendering group is revo
     const admission = await group.allocate([retired]);
     try {
         const fresh = admission.generations[0].runtime as import('./processing-host-runtime.js').CemFreshRenderingGeneration;
-        const request = createCemProcessingRequestEnvelope(new CemProcessingJobSequence(), 'compile', compileInput('fresh-pending'));
-        const pending = fresh.request(request);
-        const rejected = expect(pending).rejects.toThrow('retired');
-        await flushMicrotasks(); expect(workers[1].requests).toHaveLength(1);
-        admission.revoke(); await rejected;
+        expect(() => createFreshCemProcessingHost(scope, { ...fresh })).toThrow('binding');
+        const first = createFreshCemProcessingHost(scope, fresh), otherScope = createCemDeclarationScope({ document: scope.document });
+        const second = createFreshCemProcessingHost(otherScope, fresh);
+        expect(first).not.toBe(host); expect(second).not.toBe(first);
+        expect(createFreshCemProcessingHost(scope, fresh)).toBe(first);
+        expect(nativeCheckpointIdentity(first.checkpointClient!)).toBe(admission.generations[0].runtimeId);
+        const pending = first.compile(compileInput('fresh-pending')).result;
+        const peer = second.compile(compileInput('peer-pending')).result;
+        const rejected = expect(pending).rejects.toThrow(scenario === 'revoke' ? /retired|disposed|closed/ : /fresh-failure/);
+        const peerRejected = expect(peer).rejects.toThrow(scenario === 'revoke' ? /retired|disposed|closed/ : /fresh-failure/);
+        await flushMicrotasks(); expect(workers[1].requests).toHaveLength(2);
+        expect(new Set(workers[1].requests.map(request => request.jobId)).size).toBe(2);
+        if (scenario === 'revoke') admission.revoke();
+        else workers[1].fail();
+        await rejected; await peerRejected;
+        expect(first.mode).toBe('worker'); expect(second.mode).toBe('worker');
+        admission.revoke(); otherScope.dispose();
         expect(workers[1].terminated).toBe(true);
     } finally { admission.revoke(); scope.dispose(); }
 });

@@ -65,6 +65,13 @@ async function handleMessage(message: unknown): Promise<void> {
             } else workerScope.postMessage(createCemProcessingSuccessEnvelope(request, result));
             return;
         }
+        if (request.operation === 'checkpoint') {
+            const result = await engine.checkpoint(request.payload);
+            workerScope.postMessage(jobs.isCancelled(request.jobId)
+                ? createCemProcessingFailureEnvelope(request, 'cancelled', [cancelledDiagnostic()])
+                : createCemProcessingSuccessEnvelope(request, result));
+            return;
+        }
         if (request.operation === 'value') {
             const result = await engine.value(request.payload);
             workerScope.postMessage(jobs.isCancelled(request.jobId)

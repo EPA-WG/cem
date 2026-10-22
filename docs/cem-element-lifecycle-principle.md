@@ -151,7 +151,7 @@ still trigger scope recovery; ownership changes still replace the scope. Root
 transactions retain normal revision, cancellation and prepared-range guards.
 Restricted live previews validate every serialized root and descendant, and
 placement markers continue to require fresh native admission. The render engine
-is `1.7.0`, with processing-host protocol `v24`; incompatible explicit frame engine
+is `1.7.0`, with processing-host protocol `v26`; incompatible explicit frame engine
 versions are rejected before mutation.
 
 Same-parent moves use `moveBefore` when supported and ordinary insertion otherwise.
@@ -426,3 +426,38 @@ memory and ownership checks. Separate command heaps and unmanaged exports need
 independent closed boundaries before coordinated replacement.
 Physical coverage and its remaining admission/resume fences are specified in
 [Committed checkpoints](committed-checkpoints.md#physical-runtime-generations-and-native-clients).
+
+
+Fresh processing bindings and checkpoint source preparation
+---------------------------------------------------------
+
+`prepareCemCheckpointProcessing` is the shared native preparation building block
+for trusted semantic owner adapters. It accepts an original resume context,
+explicit named control DTOs extracted from that context's sealed island, complete
+canonical compilation inputs, the current host event sequence and an explicit
+source-policy callback. It validates controls/runtime state on the fresh heap,
+imports the original opaque island through the native document importer and
+releases that temporary import. Approved external document bytes are reimported
+under new logical handles; source trees never pass through JavaScript objects.
+Preparation neither evaluates templates nor installs widgets, subscriptions or
+external effects. Host/source access remains unavailable until every owner is
+admitted by the original resume transaction.
+
+Fresh worker and owned-fallback hosts use original privately registered runtime
+facades, independent client/resource ledgers and generation-bound render/XPath
+helpers. Copies cannot obtain a processing binding. Roots on one fresh heap share
+helper caches and worker job sequencing. Existing hosts, aliases and the selected
+global fallback never retarget; failure of a fresh worker refuses processing
+instead of retrying on the retired fallback. Group revocation fences work before
+source/engine cleanup and physical disposal.
+
+The prepared owner's `consumeWrite` must precede journal admission and every
+external write. It suppresses all writes until the host accepts an input newer
+than the receipt, including implicit storage writes and newly exposed conditional
+writers. Resource refreshes and renders do not advance that sequence. Previously
+consumed location tokens remain consumed after new input; suppression does not
+consume a new token prematurely. Invalid or regressing event sequences refuse.
+The helper restores native processing state only: built-in DCE semantic adapters,
+widget authority and renewed publication remain explicit follow-up work. Standard
+DCE owners therefore continue to refuse resume, and Studio does not restart
+itself automatically.

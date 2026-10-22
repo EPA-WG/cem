@@ -1183,3 +1183,21 @@ fn custom_source_policies_reject_invalid_bounds_unknown_authority_and_xml_overri
     xml["references"]["sources"][0]["maxDepth"] = json!(32);
     assert!(validate(&xml.to_string()).is_err());
 }
+
+#[test]
+fn opaque_owner_islands_import_into_independent_native_tables_without_writer_execution() {
+    let island = br#"<template data-cem-instance-data="owner"><cem-context xmlns="urn:cem:context" version="1"><data-slices><slice name="draft">retained</slice></data-slices><resource-bindings><cem-location href="https://example.test/next"></cem-location></resource-bindings></cem-context></template>"#;
+    let mut original = cem_ml::import::documents::CemDocuments::default();
+    let old = original
+        .retain(island, "text/html", "https://example.test/owner")
+        .unwrap();
+    assert!(original.dispose(old));
+    let mut fresh = cem_ml::import::documents::CemDocuments::default();
+    let id = fresh
+        .retain(island, "text/html", "https://example.test/owner")
+        .unwrap();
+    let node = cem_ml::validation::xpath::XPathNativeNode::cem_document(fresh.get(id).unwrap());
+    assert!(node.string_value().contains("retained"));
+    assert!(fresh.dispose(id));
+    assert!(fresh.get(id).is_none());
+}

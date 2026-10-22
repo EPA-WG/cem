@@ -1,4 +1,4 @@
-import { cemMainThreadCheckpointDomain, nativeCheckpointWork, type CemCheckpointNativeClient } from './checkpoint-domain.js';
+import { cemMainThreadCheckpointDomain, nativeCheckpointWorkInDomain, type CemNativeCheckpointDomain, type CemCheckpointNativeClient } from './checkpoint-domain.js';
 import { resolveAriaReferenceProfile } from '../../aria-reference-profile.js';
 import { CemXPathFunctionLibraries, type CemXPathFunctionLibraryLease } from './xpath-function-library.js';
 import {
@@ -13,33 +13,12 @@ import {
     type RenderPlanAttribute,
     type RenderPlanNode,
 } from '../../projection.js';
-import {
-    processNativeCemValue,
-    prepareRetainedNativeSession,
-    releaseRetainedNativeSession,
-    exportRetainedNativeSessionView,
-    renderRetainedNativeSessionLabel,
-    processRetainedSuggestionsPublication,
-    processRetainedTemplateStylesheet,
-    releaseRetainedTemplateStylesheets,
-    retainLoadedCemDocument,
-    retainStylesheetSources,
-    disposeLoadedCemDocument,
-    compileCemMlTemplateArtifact,
-    cemMlTemplateArtifactPayloadKey,
-    disposeRetainedCemMlTemplate,
-    processRetainedCemMlTemplate,
-    retainCemMlTemplateArtifact,
-    retainCemMlTemplateSource,
-    retainCemMlTemplateModuleClosure,
-    retainXsltComponentSource,
-    type RetainedXsltComponent,
-    type CemQlStylesheetArtifact,
-    type RetainedCemMlTemplate,
-} from './cem-ql-render.js';
+import * as defaultRenderBindings from './cem-ql-render.js';
+import type { CemQlRenderBindings, RetainedXsltComponent, CemQlStylesheetArtifact, RetainedCemMlTemplate } from './cem-ql-render.js';
 import type {
     CemProcessingArtifactBinaryTransfer,
     CemProcessingArtifactHandle,
+    CemProcessingCheckpointInput, CemProcessingCheckpointResult,
     CemProcessingCompileInput,
     CemProcessingCompileResult,
     CemProcessingStylesheetInput,
@@ -83,6 +62,7 @@ interface CachedTemplateCompilation {
 
 export interface CemProcessingEngineOptions {
     checkpointClient?: CemCheckpointNativeClient;
+    bindings?: CemQlRenderBindings;
     maxArtifactEntries?: number;
     maxRenderPlanEntries?: number;
     maxNativeSessionEntries?: number;
@@ -105,7 +85,10 @@ export class CemProcessingEngine {
     private readonly renderPlans: CemProcessingLruCache<string, RenderPlan>;
     private readonly compilations = new Map<CachedTemplateCompilation, number>();
     private readonly compilationOperations = new Map<string, object>();
-    private readonly xpathLibraries = new CemXPathFunctionLibraries();
+    private readonly xpathLibraries: CemXPathFunctionLibraries;
+    private readonly bindings: Omit<CemQlRenderBindings, 'domain' | 'native' | 'RetainedXsltComponent'>;
+    private readonly domain: CemNativeCheckpointDomain;
+    private readonly work: typeof import('./checkpoint-domain.js').nativeCheckpointWork;
     private readonly documents = new Map<string, { input: Extract<CemProcessingDocumentInput, { action: 'retain' }>; id: number }>();
     private readonly documentOperations = new Map<string, object>();
     private readonly nativeSessions = new Map<string, { handle: CemProcessingNativeSessionInput['handle']; id: number; limits: Extract<CemProcessingNativeSessionInput, { action: 'prepare' }>['limits']; adapter?: 'suggestions-v1' | 'native-datalist-v1';
@@ -118,6 +101,10 @@ export class CemProcessingEngine {
     private readonly ownsCheckpointClient: boolean;
 
     constructor(options: CemProcessingEngineOptions = {}) {
+        this.bindings = options.bindings ?? defaultRenderBindings;
+        this.domain = options.bindings?.domain ?? cemMainThreadCheckpointDomain;
+        this.work = (operation, cleanup) => nativeCheckpointWorkInDomain(this.domain, operation, cleanup);
+        this.xpathLibraries = new CemXPathFunctionLibraries(options.bindings);
         this.checkpointClient = options.checkpointClient;
         this.ownsCheckpointClient = !options.checkpointClient;
         const maxArtifactEntries = options.maxArtifactEntries ?? DEFAULT_ARTIFACT_CACHE_ENTRIES;
@@ -131,7 +118,7 @@ export class CemProcessingEngine {
     }
 
     async nativeSession(input: CemProcessingNativeSessionInput): Promise<CemProcessingNativeSessionResult> {
-        return nativeCheckpointWork(() => this.nativeSessionOperation(input), input.action === 'release' || input.action === 'release-suggestions')();
+        return this.work(() => this.nativeSessionOperation(input), input.action === 'release' || input.action === 'release-suggestions')();
     }
 
     private async nativeSessionOperation(input: CemProcessingNativeSessionInput): Promise<CemProcessingNativeSessionResult> {
@@ -148,7 +135,7 @@ export class CemProcessingEngine {
             || owned.handle.sourceRevision !== handle.sourceRevision)) throw new Error('Native session revision or owner mismatch');
         if (input.action === 'release') {
             this.nativeSessionOperations.delete(key);
-            if (retained) releaseRetainedNativeSession(retained.id);
+            if (retained) this.bindings.releaseRetainedNativeSession(retained.id);
             this.nativeSessions.delete(key);
             return { status: 'released', handle };
         }
@@ -160,15 +147,15 @@ export class CemProcessingEngine {
             this.nativeSessionKeys.add(key);
             const operation = { handle };
             this.nativeSessionOperations.set(key, operation);
-            let session: Awaited<ReturnType<typeof prepareRetainedNativeSession>>;
-            try { session = await prepareRetainedNativeSession(input); }
+            let session: Awaited<ReturnType<typeof this.bindings.prepareRetainedNativeSession>>;
+            try { session = await this.bindings.prepareRetainedNativeSession(input); }
             catch (error) { if (this.nativeSessionOperations.get(key) === operation) this.nativeSessionOperations.delete(key); throw error; }
             if (this.disposed || this.nativeSessionOperations.get(key) !== operation) {
-                releaseRetainedNativeSession(session.id);
+                this.bindings.releaseRetainedNativeSession(session.id);
                 throw new Error('Native session preparation was superseded or released');
             }
             this.nativeSessionOperations.delete(key);
-            cemMainThreadCheckpointDomain.adopt('session', session.id, this.checkpointClient!);
+            this.domain.adopt('session', session.id, this.checkpointClient!);
             this.nativeSessions.set(key, { handle, id: session.id, limits: input.limits, adapter: input.adapter, publications: new Map(), publicationKeys: new Set(), publicationKeyBytes: 0 });
             return { status: 'ready', handle, length: session.length, ...(session.suggestions ? { suggestions: session.suggestions } : {}) };
         }
@@ -196,7 +183,7 @@ export class CemProcessingEngine {
             } else if (input.action === 'release-suggestions') retained.publications.delete(input.publication);
             else if (!publication?.ready) throw new Error('Native publication is not retained; reacquire authority');
             try {
-                const result = await processRetainedSuggestionsPublication(retained.id, input);
+                const result = await this.bindings.processRetainedSuggestionsPublication(retained.id, input);
                 if (this.disposed || this.nativeSessions.get(key) !== retained
                     || input.action !== 'release-suggestions' && retained.publications.get(input.publication) !== publication) throw new Error('Native publication result was superseded or released');
                 if ((input.action === 'publish-suggestions' || input.action === 'publish-datalist') && publication) publication.ready = true;
@@ -204,7 +191,7 @@ export class CemProcessingEngine {
             } catch (error) {
                 if (input.action === 'publish-suggestions' || input.action === 'publish-datalist') {
                     if (retained.publications.get(input.publication) === publication) retained.publications.delete(input.publication);
-                    await processRetainedSuggestionsPublication(retained.id, { action: 'release-suggestions', handle, publication: input.publication }).catch(() => undefined);
+                    await this.bindings.processRetainedSuggestionsPublication(retained.id, { action: 'release-suggestions', handle, publication: input.publication }).catch(() => undefined);
                 }
                 throw error;
             }
@@ -213,25 +200,43 @@ export class CemProcessingEngine {
         if (input.action === 'render' && input.groupLabel && !input.suggestions) throw new TypeError('A group label requires a native suggestions view');
         if (input.index !== undefined && (!Number.isSafeInteger(input.index) || input.index < 0 || input.index > 0xffffffff)) throw new TypeError('Invalid native source index');
         if (input.action === 'render' && new TextEncoder().encode(input.template).byteLength > retained.limits.maxBytes) throw new RangeError('Native label byte limit exceeded');
-        const result = input.action === 'view' ? exportRetainedNativeSessionView(retained.id, input)
-            : await renderRetainedNativeSessionLabel(retained.id, input);
+        const result = input.action === 'view' ? this.bindings.exportRetainedNativeSessionView(retained.id, input)
+            : await this.bindings.renderRetainedNativeSessionLabel(retained.id, input);
         if (this.disposed || this.nativeSessions.get(key) !== retained) throw new Error('Native session result was superseded or released');
         return result;
     }
 
+    async checkpoint(input: CemProcessingCheckpointInput): Promise<CemProcessingCheckpointResult> {
+        return this.work(async () => {
+            this.assertActive();
+            for (const text of [input.controls, input.runtime, input.island]) {
+                if (typeof text !== 'string' || new TextEncoder().encode(text).byteLength > 1024 * 1024)
+                    throw new Error('cem.checkpoint.resume.bounds');
+            }
+            if (!input.island || !input.scopePolicyStamp || new URL(input.sourceUri).href !== input.sourceUri)
+                throw new Error('cem.checkpoint.resume.source');
+            await this.bindings.validatePortableCheckpointControls(input.controls);
+            const runtime = await this.bindings.validatePortableCheckpointRuntime(input.runtime);
+            const document = await this.bindings.retainLoadedCemDocument(
+                new TextEncoder().encode(input.island).buffer, 'text/html', input.sourceUri);
+            try { this.assertActive(); return { runtime }; }
+            finally { this.bindings.disposeLoadedCemDocument(document); }
+        })();
+    }
+
     async value(input: CemProcessingValueInput): Promise<CemProcessingValueResult> {
-        return nativeCheckpointWork(() => this.valueOperation(input))();
+        return this.work(() => this.valueOperation(input))();
     }
 
     private async valueOperation(input: CemProcessingValueInput): Promise<CemProcessingValueResult> {
         this.assertActive();
-        const result = await processNativeCemValue(input);
+        const result = await this.bindings.processNativeCemValue(input);
         this.assertActive();
         return result;
     }
 
     async document(input: CemProcessingDocumentInput): Promise<CemProcessingDocumentResult> {
-        return nativeCheckpointWork(() => this.documentOperation(input), input.action === 'release')();
+        return this.work(() => this.documentOperation(input), input.action === 'release')();
     }
 
     private async documentOperation(input: CemProcessingDocumentInput): Promise<CemProcessingDocumentResult> {
@@ -240,7 +245,7 @@ export class CemProcessingEngine {
         if (input.action === 'release') {
             this.documentOperations.delete(key);
             const retained = this.documents.get(key);
-            if (retained) disposeLoadedCemDocument(retained.id);
+            if (retained) this.bindings.disposeLoadedCemDocument(retained.id);
             this.documents.delete(key);
             return { handle: input.handle, retained: false };
         }
@@ -256,23 +261,23 @@ export class CemProcessingEngine {
         this.documentOperations.set(key, operation);
         let id: number;
         try {
-            id = await retainLoadedCemDocument(input.bytes, input.contentType, input.sourceUri);
+            id = await this.bindings.retainLoadedCemDocument(input.bytes, input.contentType, input.sourceUri);
         } catch (error) {
             if (this.documentOperations.get(key) === operation) this.documentOperations.delete(key);
             throw error;
         }
         if (this.disposed || this.documentOperations.get(key) !== operation) {
-            disposeLoadedCemDocument(id);
+            this.bindings.disposeLoadedCemDocument(id);
             throw new Error('CEM document import was superseded or released');
         }
         this.documentOperations.delete(key);
-        cemMainThreadCheckpointDomain.adopt('document', id, this.checkpointClient!);
+        this.domain.adopt('document', id, this.checkpointClient!);
         this.documents.set(key, { input, id });
         return { handle: input.handle, retained: true };
     }
 
     async compile(input: CemProcessingCompileInput): Promise<CemProcessingCompileResult> {
-        return nativeCheckpointWork(() => this.compileOperation(input))();
+        return this.work(() => this.compileOperation(input))();
     }
 
     private async compileOperation(input: CemProcessingCompileInput): Promise<CemProcessingCompileResult> {
@@ -347,13 +352,13 @@ export class CemProcessingEngine {
                 this.assertCompilationCurrent(artifactKey, operation);
                 loaded = await this.compileOrImportTemplate(input, source);
                 if (loaded.xslt) loaded.xslt.bindCheckpointClient(this.checkpointClient!);
-                else cemMainThreadCheckpointDomain.adopt('template', loaded.wasmArtifactId, this.checkpointClient!);
+                else this.domain.adopt('template', loaded.wasmArtifactId, this.checkpointClient!);
                 this.assertCompilationCurrent(artifactKey, operation);
                 // A concurrent compile may have retained the same identity while
                 // this request awaited WASM. Reuse it and release the extra lease.
                 compilation = nativeChecked ? undefined : this.compiledArtifacts.get(handle.cacheKey);
                 if (compilation) {
-                    disposeCompilation(loaded);
+                    this.disposeCompilation(loaded);
                     xpathLibrary?.release();
                 } else {
                     compilation = { ...loaded, xpathLibrary };
@@ -364,7 +369,7 @@ export class CemProcessingEngine {
                     }
                 }
             } catch (error) {
-                if (loaded) disposeCompilation(loaded);
+                if (loaded) this.disposeCompilation(loaded);
                 xpathLibrary?.release();
                 throw error;
             }
@@ -391,7 +396,7 @@ export class CemProcessingEngine {
         const evicted = this.artifacts.set(artifactKey, artifact);
         if (evicted) {
             for (const consumer of evicted.value.stylesheetConsumers) {
-                releaseRetainedTemplateStylesheets(evicted.value.wasmArtifactId, consumer);
+                this.bindings.releaseRetainedTemplateStylesheets(evicted.value.wasmArtifactId, consumer);
             }
             this.releaseCompilation(evicted.value.compilation);
         }
@@ -399,7 +404,7 @@ export class CemProcessingEngine {
     }
 
     async stylesheet(input: CemProcessingStylesheetInput): Promise<CemProcessingStylesheetResult> {
-        return nativeCheckpointWork(() => this.stylesheetOperation(input), input.action !== 'begin')();
+        return this.work(() => this.stylesheetOperation(input), input.action !== 'begin')();
     }
 
     private async stylesheetOperation(input: CemProcessingStylesheetInput): Promise<CemProcessingStylesheetResult> {
@@ -422,12 +427,12 @@ export class CemProcessingEngine {
                 throw new Error('stylesheet load owner changed; restart the load');
             }
         }
-        const result = await processRetainedTemplateStylesheet(artifact.wasmArtifactId, input, consumer,
+        const result = await this.bindings.processRetainedTemplateStylesheet(artifact.wasmArtifactId, input, consumer,
             artifact.input.instanceStylesheetIdentity ?? artifact.handle.registrationIdentity, loadId);
         if (this.disposed || this.artifacts.get(key) !== artifact) {
             // The compilation can still be shared by another logical artifact.
             if (!this.disposed && 'loadId' in result) {
-                releaseRetainedTemplateStylesheets(artifact.wasmArtifactId, consumer, result.loadId);
+                this.bindings.releaseRetainedTemplateStylesheets(artifact.wasmArtifactId, consumer, result.loadId);
             }
             throw new Error('stylesheet template artifact was disposed or evicted');
         }
@@ -437,7 +442,7 @@ export class CemProcessingEngine {
     }
 
     async renderDiff(input: CemProcessingRenderDiffInput): Promise<CemProcessingRenderDiffResult> {
-        return nativeCheckpointWork(() => this.renderDiffOperation(input))();
+        return this.work(() => this.renderDiffOperation(input))();
     }
 
     private async renderDiffOperation(input: CemProcessingRenderDiffInput): Promise<CemProcessingRenderDiffResult> {
@@ -479,7 +484,7 @@ export class CemProcessingEngine {
         const token = {};
         this.activeRenders.set(renderKey, token);
         try {
-            const processed = await processRetainedCemMlTemplate(artifact.wasmArtifactId, {
+            const processed = await this.bindings.processRetainedCemMlTemplate(artifact.wasmArtifactId, {
                 retainedRenderAdmission: { owner: JSON.stringify([this.renderReuseOwner, input.revision.instanceId]), scopePolicyStamp: input.revision.scopePolicyStamp },
                 linkBaseUrl: artifact.input.linkBaseUrl,
                 xslt: artifact.compilation.xslt,
@@ -563,16 +568,16 @@ export class CemProcessingEngine {
     }
 
     dispose(_input: CemProcessingDisposeInput): CemProcessingDisposeResult {
-        for (const session of this.nativeSessions.values()) releaseRetainedNativeSession(session.id);
+        for (const session of this.nativeSessions.values()) this.bindings.releaseRetainedNativeSession(session.id);
         this.activeRenders.clear();
         this.nativeSessions.clear();
         this.nativeSessionOperations.clear();
         this.nativeSessionKeys.clear();
-        for (const document of this.documents.values()) disposeLoadedCemDocument(document.id);
+        for (const document of this.documents.values()) this.bindings.disposeLoadedCemDocument(document.id);
         this.documents.clear();
         this.documentOperations.clear();
         for (const compilation of this.compilations.keys()) {
-            disposeCompilation(compilation);
+            this.disposeCompilation(compilation);
             compilation.xpathLibrary?.release();
         }
         this.compilations.clear();
@@ -582,8 +587,13 @@ export class CemProcessingEngine {
         this.compiledArtifacts.clear();
         this.renderPlans.clear();
         this.disposed = true;
-        if (this.ownsCheckpointClient && this.checkpointClient) cemMainThreadCheckpointDomain.remove(this.checkpointClient);
+        if (this.ownsCheckpointClient && this.checkpointClient) this.domain.remove(this.checkpointClient);
         return { disposed: true };
+    }
+
+    private disposeCompilation(compilation: CachedTemplateCompilation): void {
+        if (compilation.xslt) compilation.xslt.dispose();
+        else this.bindings.disposeRetainedCemMlTemplate(compilation.wasmArtifactId);
     }
 
     private releaseCompilation(compilation: CachedTemplateCompilation): void {
@@ -592,7 +602,7 @@ export class CemProcessingEngine {
             this.compilations.set(compilation, references);
         } else {
             this.compilations.delete(compilation);
-            disposeCompilation(compilation);
+            this.disposeCompilation(compilation);
             compilation.xpathLibrary?.release();
         }
     }
@@ -606,7 +616,7 @@ export class CemProcessingEngine {
         if (this.disposed) {
             throw new Error('the CEM processing engine is disposed');
         }
-        this.checkpointClient ??= cemMainThreadCheckpointDomain.client();
+        this.checkpointClient ??= this.domain.client();
     }
 
     private async compileOrImportTemplate(
@@ -615,24 +625,24 @@ export class CemProcessingEngine {
     ): Promise<CachedTemplateCompilation> {
         const hostBindings = input.hostBindings ?? [];
         if (input.language === 'css') {
-            const retained = await retainStylesheetSources(source, input.instanceStylesheetIdentity);
+            const retained = await this.bindings.retainStylesheetSources(source, input.instanceStylesheetIdentity);
             return { wasmArtifactId: retained.artifactId, diagnostics: retained.diagnostics, stylesheets: retained.stylesheets };
         }
         if (input.xslt) {
-            const xslt = await retainXsltComponentSource(source, input.xslt.sourceUri, input.xslt.options, hostBindings, input.xslt.controlPolicy);
+            const xslt = await this.bindings.retainXsltComponentSource(source, input.xslt.sourceUri, input.xslt.options, hostBindings, input.xslt.controlPolicy);
             return { xslt, wasmArtifactId: 0, diagnostics: xslt.diagnostics, stylesheets: xslt.stylesheets };
         }
         if (input.moduleClosure) {
             // A source-only binary is not a dependency-closure artifact. Keep the
             // closure content/version/resolver contract in the native compilation.
-            const retained = await retainCemMlTemplateModuleClosure(source, input.moduleClosure, hostBindings);
+            const retained = await this.bindings.retainCemMlTemplateModuleClosure(source, input.moduleClosure, hostBindings);
             return {
                 wasmArtifactId: retained.artifactId,
                 diagnostics: retained.diagnostics,
                 stylesheets: retained.stylesheets,
             };
         }
-        const payloadKey = await cemMlTemplateArtifactPayloadKey(source, input.sourceMapMode);
+        const payloadKey = await this.bindings.cemMlTemplateArtifactPayloadKey(source, input.sourceMapMode);
         let rejectionDiagnostic: CemProcessingDiagnostic | undefined;
         if (input.precompiledArtifact) {
             try {
@@ -641,7 +651,7 @@ export class CemProcessingEngine {
                     input.scopePolicyStamp,
                     payloadKey
                 );
-                const retained = await retainCemMlTemplateArtifact(
+                const retained = await this.bindings.retainCemMlTemplateArtifact(
                     input.precompiledArtifact.bytes,
                     input.precompiledArtifact.cacheKey,
                     source,
@@ -659,7 +669,7 @@ export class CemProcessingEngine {
         }
 
         if (!input.exportCompiledArtifact) {
-            const retained = await retainCemMlTemplateSource(source, hostBindings);
+            const retained = await this.bindings.retainCemMlTemplateSource(source, hostBindings);
             const compilation = retainedCompilation(retained);
             if (rejectionDiagnostic) {
                 compilation.diagnostics.unshift(rejectionDiagnostic);
@@ -667,9 +677,9 @@ export class CemProcessingEngine {
             return compilation;
         }
 
-        const bytes = await compileCemMlTemplateArtifact(source, hostBindings, input.sourceMapMode);
+        const bytes = await this.bindings.compileCemMlTemplateArtifact(source, hostBindings, input.sourceMapMode);
         const artifactBytes = exactArrayBuffer(bytes);
-        const retained = await retainCemMlTemplateArtifact(
+        const retained = await this.bindings.retainCemMlTemplateArtifact(
             artifactBytes,
             '',
             source,
@@ -731,10 +741,6 @@ function sameCompileIdentity(left: CemProcessingCompileInput, right: CemProcessi
         && left.resolverIdentity === right.resolverIdentity;
 }
 
-function disposeCompilation(compilation: CachedTemplateCompilation): void {
-    if (compilation.xslt) compilation.xslt.dispose();
-    else disposeRetainedCemMlTemplate(compilation.wasmArtifactId);
-}
 
 function retainedCompilation(
     retained: RetainedCemMlTemplate,

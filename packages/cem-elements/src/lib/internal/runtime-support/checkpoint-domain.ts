@@ -420,10 +420,14 @@ export function cemWorkerCheckpointDomain(worker: object): CemNativeCheckpointDo
 /** Standalone support calls are native clients too. They may finish normally,
  * but cannot be omitted from an in-flight generation coverage receipt. */
 export function nativeCheckpointWork<Args extends unknown[], Result>(operation: (...args: Args) => Promise<Result>, cleanup = false): (...args: Args) => Promise<Result> {
+    return nativeCheckpointWorkInDomain(cemMainThreadCheckpointDomain, operation, cleanup);
+}
+
+export function nativeCheckpointWorkInDomain<Args extends unknown[], Result>(domain: CemNativeCheckpointDomain, operation: (...args: Args) => Promise<Result>, cleanup = false): (...args: Args) => Promise<Result> {
     return async (...args) => {
-        const client = cemMainThreadCheckpointDomain.client(cleanup, true);
+        const client = domain.client(cleanup, true);
         try { nativeCheckpointAssertAdmission(client, cleanup); return await operation(...args); }
-        finally { cemMainThreadCheckpointDomain.samplePressure(); cemMainThreadCheckpointDomain.remove(client); }
+        finally { domain.samplePressure(); domain.remove(client); }
     };
 }
 

@@ -2183,7 +2183,26 @@ async function isolatedNativePressure(base: string, fallback: boolean, load: (ur
                 check(admitted.generations[0].runtimeId !== admitted.generations[0].previousRuntimeId, 'worker reused its old identity');
                 const fresh = admitted.generations[0].runtime;
                 check(fresh.kind === 'cem-rendering-worker', 'wrong fresh worker runtime');
-                admitted.revoke();
+                const nextScope = createCemDeclarationScope({ document });
+                const nextHost = hosts.createFreshCemProcessingHost(nextScope, fresh);
+                check(nextHost !== host && nextHost.mode === 'worker' && domains.nativeCheckpointIdentity(nextHost.checkpointClient) === fresh.runtimeId,
+                    'fresh processing host did not bind the original new worker');
+                let copyRefused = false; try { hosts.createFreshCemProcessingHost(nextScope, { ...fresh }); } catch { copyRefused = true; }
+                check(copyRefused, 'copied worker runtime obtained a processing binding');
+                const source = { documentKey: crypto.randomUUID(), instanceId: 'fresh-owner', scopePolicyStamp: 'fresh-policy' };
+                await nextHost.document({ action: 'retain', handle: source, bytes: new TextEncoder().encode('<data>Fresh source</data>').buffer,
+                    contentType: 'application/xml', sourceUri: 'https://example.test/fresh.xml' }).result;
+                const compiled = await nextHost.compile({ language: 'cem-ml', producedTag: 'cem-fresh-worker', templateArtifactId: 'fresh-template',
+                    registrationIdentity: 'fresh-registration', source: { kind: 'text-chunks-v1', chunks: ['{p | Fresh worker evaluation}'] },
+                    sourceRef: { kind: 'inline', value: 'fresh-template' }, resolverIdentity: 'fresh-policy',
+                    scopePolicyStamp: 'fresh-policy', sourceMapMode: 'dev' }).result;
+                check(compiled.artifact.artifactId === 'fresh-template', 'fresh worker compilation failed');
+                await nextHost.document({ action: 'release', handle: source }).result;
+                check(host === hosts.cemProcessingHostForScope(scope, { workerScriptUrl: `${support}processing-worker.js`, workerFactory }),
+                    'an original scope lookup retargeted its old host');
+                admitted.revoke(); nextScope.dispose();
+                let hostRefused = false; try { await nextHost.compile({}).result; } catch { hostRefused = true; }
+                check(hostRefused && nextHost.mode === 'worker', 'fresh worker revocation retried on fallback');
                 let refusedFresh = false; try { await fresh.request({}); } catch (caught) { refusedFresh = String(caught).includes('closed'); }
                 check(refusedFresh, 'revoked worker admitted work');
 
@@ -2559,6 +2578,8 @@ async function isolatedOwnerResume(base: string, load: (url: string) => Promise<
     const { CemNativeGenerationGroup } = await load(`${support}native-generation.js`);
     const { CemCheckpointPublicationCoordinator } = await load(new URL('lib/checkpoint-publication.js', base).href);
     const { resumeCemCheckpointOwners } = await load(new URL('lib/checkpoint-resume.js', base).href);
+    const { prepareCemCheckpointProcessing } = await load(new URL('lib/checkpoint-processing.js', base).href);
+    const { createCemDeclarationScope } = await load(new URL('lib/declaration-scope.js', base).href);
     const { captureCheckpointControls } = await load(new URL('lib/checkpoint-controls.js', base).href);
     const check = (value: unknown, message: string) => { if (!value) throw Error(message); };
     const input = document.createElement('input'); input.setAttribute('data-cem-render-node-id', 'draft.1');
@@ -2583,6 +2604,7 @@ async function isolatedOwnerResume(base: string, load: (url: string) => Promise<
     const encode = (text: string) => btoa(String.fromCharCode(...new TextEncoder().encode(text)));
     const decode = (text: string) => new TextDecoder().decode(Uint8Array.from(atob(text), c => c.charCodeAt(0)));
     const island = `<template controls="${encode(controls)}" runtime="${encode(state)}"></template>`;
+    let accepted = 0;
     const register = (id: string, host: HTMLElement) => coordinator.register(id, () => island, () => true, 0, () => [], {
         host, nativeClient: client, resolve: () => undefined,
         resume: { witness: () => {
@@ -2593,16 +2615,25 @@ async function isolatedOwnerResume(base: string, load: (url: string) => Promise<
             const envelope = document.createElement('template'); envelope.innerHTML = context.island;
             const source = envelope.content.firstElementChild;
             if (!source) throw Error('missing source capsule');
-            const native = context.runtime;
-            const resumedControls = JSON.parse(native.invoke('validateCheckpointControls', [decode(source.getAttribute('controls') ?? '')]));
-            const resumed = JSON.parse(native.invoke('validateCheckpointRuntime', [decode(source.getAttribute('runtime') ?? '')]));
-            const sourceDocument = resumed.resources[0].document;
-            let handle = native.invoke('retainCemDocument', [Uint8Array.from(atob(sourceDocument.base64), c => c.charCodeAt(0)), sourceDocument.contentType, sourceDocument.sourceUri]);
+            const scope = createCemDeclarationScope({ document });
+            let copiedRefused = false;
+            const { createFreshCemProcessingHost } = await load(`${support}processing-host-runtime.js`);
+            try { createFreshCemProcessingHost(scope, { ...context.runtime }); } catch { copiedRefused = true; }
+            check(copiedRefused, 'copied native runtime obtained a processing binding');
+            const prepared = await prepareCemCheckpointProcessing(context, {
+                scope, sourceUri: 'https://example.test/owner', scopePolicyStamp: 'fresh-policy',
+                controls: decode(source.getAttribute('controls') ?? ''), runtime: decode(source.getAttribute('runtime') ?? ''),
+                acceptedEventSequence: () => accepted,
+                allowSource: (resource: any) => resource.url === 'https://example.test/catalog.xml' && resource.method === 'GET',
+                compilations: [{ language: 'cem-ml', producedTag: 'cem-resumed', templateArtifactId: 'resumed-template',
+                    registrationIdentity: 'resumed-registration', hostBindings: ['label', 'datadom'], source: { kind: 'text-chunks-v1', chunks: ['{p | {$label}}{output | {$datadom.slices.catalog.data.children.children.children.value}}'] },
+                    sourceRef: { kind: 'inline', value: 'resumed-template' }, resolverIdentity: 'fresh-policy',
+                    scopePolicyStamp: 'fresh-policy', sourceMapMode: 'dev' }],
+            });
+            let inactive = false; try { void prepared.owner.host; } catch { inactive = true; }
+            check(inactive, 'processing host exposed before complete owner admission');
             if (scenario === 'newer-input' && id === 'tree') input.value = 'Newer property-only draft';
-            return { owner: Object.freeze({ read: () => {
-                if (!context.active()) throw Error('inactive owner');
-                return { controls: resumedControls, widget: resumed.capability, source: handle, writers: resumed.writers };
-            } }), current: () => handle > 0, discard: () => { discarded.push(id); const owned = handle; handle = 0; check(native.release('disposeCemDocument', [owned]), 'fresh source cleanup failed'); } };
+            return { ...prepared, discard: () => { discarded.push(id); prepared.discard(); scope.dispose(); } };
         } },
     });
     const a = register('draft', input), b = register('tree', tree);
@@ -2623,10 +2654,27 @@ async function isolatedOwnerResume(base: string, load: (url: string) => Promise<
             const resumed = await resumeCemCheckpointOwners(admission, [ticket]);
             check(contexts.every(context => context.active()), 'complete owners did not resume together');
             for (const owner of resumed.owners) {
-                const value = owner.owner.read();
-                check(value.controls.controls[0].value === 'Unsaved Amsterdam é😀', 'portable draft was lost');
-                check(value.widget.focusValue === 'samples' && value.widget.typeahead === 's', 'widget state was lost');
-                check(value.source > 0 && value.writers[0].trigger === 'saved:1', 'source import or writer suppression intent was lost');
+                const value = owner.owner;
+                check(value.runtimeState.capability.focusValue === 'samples', 'widget state was lost');
+                check(value.sources.length === 1 && value.runtimeState.writers[0].trigger === 'saved:1', 'source import or writer intent was lost');
+                check(!value.consumeWrite() && !value.consumeWrite(0, 'saved:2') && !value.consumeWrite(7, 'new'), 'first evaluation replayed a write');
+                const compiled = await value.host.compile({ language: 'cem-ml', producedTag: 'cem-resumed', templateArtifactId: 'resumed-template',
+                    registrationIdentity: 'resumed-registration', hostBindings: ['label', 'datadom'], source: { kind: 'text-chunks-v1', chunks: ['{p | {$label}}{output | {$datadom.slices.catalog.data.children.children.children.value}}'] },
+                    sourceRef: { kind: 'inline', value: 'resumed-template' }, resolverIdentity: 'fresh-policy',
+                    scopePolicyStamp: 'fresh-policy', sourceMapMode: 'dev' }).result;
+                const snapshot = { instanceId: owner.instanceId, producedTag: 'cem-resumed', declarationTag: 'cem-element',
+                    templateArtifactId: 'resumed-template', dataRevision: 'fresh:1', outputTarget: 'light-dom', scopePolicyStamp: 'fresh-policy',
+                    privacyPolicyStamp: 'private', sourceMapMode: 'dev', hostAttributes: {}, dataset: {}, slices: {}, validationState: {}, eventPayloads: {},
+                    payload: { roots: [], byKey: {}, choices: [], options: [], data: [], dataByValue: {}, optionsByValue: {}, elementsByAttribute: {}, slots: {}, text: '' } };
+                const rendered = await value.host.renderDiff({ artifact: compiled.artifact, revision: {
+                    instanceId: owner.instanceId, templateArtifactId: 'resumed-template', dataRevision: 'fresh:1', outputTarget: 'light-dom', scopePolicyStamp: 'fresh-policy' },
+                    snapshot, data: { label: input.value, datadom: { slices: { catalog: { state: 'loaded', data: null } } } }, scopeUid: 'resumed-scope', documents: value.sources.map((source: any) => ({ slice: source.name, handle: source.handle })) }).result;
+                check(JSON.stringify(rendered).includes('Unsaved Amsterdam') && JSON.stringify(rendered).includes('Portable source'), `fresh engine did not evaluate with restored inputs: ${JSON.stringify(rendered)}`);
+            }
+            accepted++;
+            for (const owner of resumed.owners) {
+                check(!owner.owner.consumeWrite(0, 'saved:1') && owner.owner.consumeWrite(0, 'saved:2'), 'new input lost consumed token suppression');
+                check(owner.owner.consumeWrite() && owner.owner.consumeWrite(7, 'new'), 'new input did not admit new writes');
             }
             resumed.revoke(); check(discarded.length === 2 && contexts.every(context => !context.active()), 'revocation left owners live');
         }

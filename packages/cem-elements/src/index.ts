@@ -58,4 +58,5 @@ export { CemNativeGenerationGroup, type CemNativeGenerationParticipant, type Cem
 export type { CemFreshFallbackGeneration, CemFallbackNativeEntrypoint, CemFallbackNativeCleanup } from './lib/internal/runtime-support/native-runtime.js';
 export type { CemFreshRenderingGeneration } from './lib/internal/runtime-support/processing-host-runtime.js';
 
+export { prepareCemCheckpointProcessing, type CemCheckpointProcessingOptions, type CemResumedProcessingOwner } from './lib/checkpoint-processing.js';
 export { resumeCemCheckpointOwners, type CemCheckpointResumeAdapter, type CemCheckpointResumeContext, type CemCheckpointResumeTicket, type CemPreparedCheckpointOwner, type CemResumedCheckpointOwners } from './lib/checkpoint-resume.js';
