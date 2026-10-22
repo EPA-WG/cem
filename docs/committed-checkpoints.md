@@ -1175,3 +1175,87 @@ the declared complete group is coordinated; unknown heaps, arbitrary raw
 initializers, legacy fallback and shared-memory/native aliases outside these
 ownership contracts receive no replacement authority. No Studio/component UI
 JavaScript or theme/storage changes are introduced.
+
+## Explicit owner resume transactions
+
+Fresh allocation and semantic owner admission are separate gates.
+`resumeCemCheckpointOwners` now coordinates explicit **shared semantic adapters**;
+it does not infer an adapter from an island or restart Studio. Built-in
+`CemElementRuntime` owners do not yet provide these adapters. Their
+`prepareResume()` refuses with `cem.checkpoint.resume.unsupported`; generic HTML
+hydration still refuses checkpoint extensions. Generation-specific processing
+contexts and the built-in source/widget adapters remain necessary before
+ordinary DCE instances can resume automatically.
+
+A trusted shared owner can register `resume` alongside its existing publication
+endpoint. `witness()` captures a host-only currentness check before retirement.
+It must detect property-only edits, disconnects, changed declarations, source
+policies and widget state without reading the subsequently retired heap.
+`prepare(context)` receives the exact native-sealed opaque island, frozen owner
+receipt, fresh runtime and its original previous/fresh runtime identities. It
+must use native lifecycle/source validation and import, reacquire current host
+permissions, and install consumed-writer suppression before evaluating anything.
+It returns an owner object and original bound `current`/`discard` controls.
+
+Every prepared owner must obey `context.active()` and `context.signal`. While
+inactive, it must not publish, accept input, subscribe to live sources, invoke
+commands or deliver external effects. Source imports and authority preparation
+must be reversible. Widget state is intent: native datalists reset presentation,
+providers and placements acquire fresh grants/proofs, and focus/geometry follow
+the existing explicit policies. The transaction does not manufacture these
+permissions or replay even a terminal `not-applied` operation. Unknown outcomes
+refuse a ticket before fresh preparation starts. These obligations belong in
+shared runtime adapters, never application-local UI JavaScript.
+
+For an already enrolled, single rendering generation with complete adapters:
+
+```ts
+const group = new CemNativeGenerationGroup([publication.generationParticipant()]);
+const drain = await publication.closeRenderingGeneration(5000, consent);
+await publication.capture();
+const ticket = publication.prepareResume(); // after final capture, before retirement
+const retired = await publication.retireRenderingGeneration(drain, 5000, consent);
+const admission = await group.allocate([retired]);
+const resumed = await resumeCemCheckpointOwners(admission, [ticket]);
+// Use the fresh gated owner objects in resumed.owners.
+resumed.revoke();
+```
+
+An explicit complete multi-generation transaction requires one original ticket
+for every original physical generation, with exact private retirement bytes.
+There are at most 16 tickets, 256 owners overall, four MiB of checkpoint bytes
+and a positive preparation deadline no greater than five seconds. Command heaps
+without owner-resume tickets cannot be silently omitted from a mixed group.
+Copied admissions/tickets, duplicate or missing peers, reused authority,
+checkpoint edits, changed policy/input/publication and unsupported owners refuse.
+Array snapshots read own data slots without invoking caller iterators, methods
+or accessors. Original admission claims lock before running freshness probes to
+prevent reentrant double claims. Caller mutation of public checkpoint exports
+cannot change the private resume input.
+
+The publication coordinator retains one pending ticket. New tickets supersede
+old ones; host input, owner removal, policy changes and disposal erase its private
+bytes and cancel any active preparation. Current privacy consent is checked
+again. Native retirement invalidates ordinary capture but does not, by itself,
+invalidate the separate host-only resume witness. Successful or failed attempts
+release old adapter/witness references and erase private ticket bytes; last-good
+checkpoint storage remains governed by its existing policy/disposal rules.
+
+All preparation and fresh-native/owner probes run before one synchronous owner
+gate opens, with no activation callbacks. Timeout, explicit revocation, stale
+input or preparation failure closes the gate, aborts preparation, discards every
+prepared owner and revokes the entire fresh group. Late completions receive
+cleanup and cannot become active. Shared revocation listeners run after the
+native work gate closes and before physical cleanup. Fresh fallback handles
+provide `release(name, args)` for the explicit native disposal/release entrypoints
+only, allowing source cleanup in this window; allocation, evaluation and other
+entrypoints remain fenced. After physical disposal this cleanup path is retired
+too. Adapters must release partial native allocations on their own failure.
+
+The transaction does not replace rendered DOM. Focus, caret and newer edits
+remain with their current owners; a failed attempt cannot roll back to saved
+pixels. Real Chromium acceptance exercises a deliberately small trusted-host
+adapter using fresh WASM control/widget validation and source import, not a claim
+that built-in form/provider/placement controllers or Studio have resumed. Actual
+DCE processing rebinding, all built-in widget/source adapters, renewed publication
+and declarative recovery status remain subsequent work.

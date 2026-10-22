@@ -228,3 +228,24 @@ it.each(['pressure', 'unavailable'])('refuses fresh fallback %s without opening 
     expect([...receipt.checkpoint]).toEqual([4, 8]);
     expect(mocks.dispose).toHaveBeenCalledTimes(2);
 });
+
+it('allows only native cleanup while fresh owner revocation has fenced ordinary work', async () => {
+    const { generation, domains, consent, client, bindings } = await active();
+    const { CemNativeGenerationGroup, claimNativeGenerationAdmission } = await import('./native-generation.js');
+    const group = new CemNativeGenerationGroup([generation.generationParticipant()]);
+    const proof = await domains.closeNativeRenderingGeneration(client, 5000, consent);
+    const retired = await domains.retireNativeRenderingGeneration(bindings, [], proof, handoff(), 5000, consent);
+    mocks.call.mockImplementation((name: string) => name === 'runtimeMemoryStatus' ? '{"softPressure":false,"hardPressure":false}' : 'released');
+    const admission = await group.allocate([retired]);
+    const fresh = admission.generations[0].runtime as import('./native-runtime.js').CemFreshFallbackGeneration;
+    expect(() => fresh.release('compileTemplate' as never, [])).toThrow('entrypoint');
+    const release = vi.fn(() => {
+        expect(() => fresh.invoke('cemQlVersion', [])).toThrow('closed');
+        expect(fresh.release('disposeCemDocument', [77])).toBe('released');
+        expect(() => fresh.release('compileTemplate' as never, [])).toThrow('entrypoint');
+    });
+    claimNativeGenerationAdmission(admission).onRevoke(release);
+    admission.revoke(); expect(release).toHaveBeenCalledOnce();
+    expect(mocks.call).toHaveBeenCalledWith('disposeCemDocument', [77]);
+    expect(() => fresh.release('disposeCemDocument', [77])).toThrow('retired');
+});

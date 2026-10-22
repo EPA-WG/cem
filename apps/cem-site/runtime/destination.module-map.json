@@ -440,6 +440,10 @@
             "path": "./assets/cem-elements/lib/checkpoint-publication.js",
             "contentType": "text/javascript"
         },
+        "@epa-wg/cem-elements/dist/lib/checkpoint-resume.js": {
+            "path": "./assets/cem-elements/lib/checkpoint-resume.js",
+            "contentType": "text/javascript"
+        },
         "@epa-wg/cem-elements/dist/lib/checkpoint-controls.js": {
             "path": "./assets/cem-elements/lib/checkpoint-controls.js",
             "contentType": "text/javascript"

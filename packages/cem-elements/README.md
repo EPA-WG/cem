@@ -56,6 +56,17 @@ explicit domain membership does not discover physical WASM runtime generations
 or enable replacement/resume.
 
 
+Explicit shared owner adapters can now use `publication.prepareResume()` before
+retirement and `resumeCemCheckpointOwners(admission, tickets)` after original fresh
+allocation. Exact private checkpoint bytes, complete physical/owner coverage,
+current host/privacy witnesses and terminal journals guard one atomic owner gate.
+Failure cancels and discards the complete fresh group. Fresh fallback `release`
+permits only native cleanup after fencing. This transaction leaves DOM untouched.
+Built-in `CemElementRuntime` owners still refuse resume until generation-specific
+processing and source/widget adapters are implemented; Studio recovery remains
+manual. See [explicit owner resume transactions](../../docs/committed-checkpoints.md#explicit-owner-resume-transactions).
+
+
 Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
 
 `@epa-wg/cem-elements` provides the `<cem-element>` browser substrate for declarative light-DOM custom elements. It is

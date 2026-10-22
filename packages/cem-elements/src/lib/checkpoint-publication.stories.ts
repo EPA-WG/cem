@@ -2547,3 +2547,119 @@ export const ActiveFallbackRetirement: Story = {
         }
     },
 };
+
+/** Isolated trusted-host adapter contract: deliberately not a built-in DCE
+ * adapter or automatic Studio recovery. Native control DTOs remain named DTOs;
+ * the original island is reimported natively, never converted to a JS AST. */
+async function isolatedOwnerResume(base: string, load: (url: string) => Promise<any>, scenario: string): Promise<string> {
+    const support = new URL('lib/internal/runtime-support/', base).href;
+    const binding = await load(`${support}native-runtime.js`), generation = binding.isolateCemFallbackGeneration();
+    await generation.ready(); const embedding = generation.claimOwnership();
+    const domains = await load(`${support}checkpoint-domain.js`), domain = domains.cemMainThreadCheckpointDomain;
+    const { CemNativeGenerationGroup } = await load(`${support}native-generation.js`);
+    const { CemCheckpointPublicationCoordinator } = await load(new URL('lib/checkpoint-publication.js', base).href);
+    const { resumeCemCheckpointOwners } = await load(new URL('lib/checkpoint-resume.js', base).href);
+    const { captureCheckpointControls } = await load(new URL('lib/checkpoint-controls.js', base).href);
+    const check = (value: unknown, message: string) => { if (!value) throw Error(message); };
+    const input = document.createElement('input'); input.setAttribute('data-cem-render-node-id', 'draft.1');
+    const tree = document.createElement('section'); document.body.append(input, tree);
+    input.value = 'Unsaved Amsterdam é😀'; input.focus(); input.setSelectionRange(2, 9, 'backward');
+    const controls = binding.validateCheckpointControls(JSON.stringify(captureCheckpointControls([input])));
+    const state = binding.validateCheckpointRuntime(JSON.stringify({ version: 'cem-checkpoint-runtime/1',
+        capability: { kind: 'tree-view', focusValue: 'samples', typeahead: 's', typeaheadAt: 1 },
+        resources: [{ name: 'catalog', kind: 'http', disposition: 'reimport-and-read-again', revision: 2, cursor: 0, live: false, state: 'loaded',
+            url: 'https://example.test/catalog.xml', method: 'GET', document: { base64: btoa('<catalog><entry>Portable source</entry></catalog>'),
+                contentType: 'application/xml', sourceUri: 'https://example.test/catalog.xml', digest: null } }],
+        writers: [{ index: 0, trigger: 'saved:1', implicit: false }], writeDisposition: 'suppress-until-new-input' }));
+    const bytes = new TextEncoder().encode('<catalog><entry>Portable source</entry></catalog>');
+    const documentHandle = binding.retainCemDocument(bytes, 'application/xml', 'https://example.test/catalog.xml');
+    const client = domain.client(); domain.retain('document', documentHandle); domain.adopt('document', documentHandle, client);
+    domains.nativeCheckpointRetirementCleanup(client, () => { binding.disposeCemDocument(documentHandle); domain.release('document', documentHandle); });
+    const coordinator = new CemCheckpointPublicationCoordinator({ runtimeId: crypto.randomUUID(), generation: 1, policyStamp: 'private',
+        allowOwner: () => true, seal: (candidate: string, receipt: string) => binding.sealCommittedCheckpoint(candidate, receipt) });
+    const contexts: any[] = [], discarded: string[] = [];
+    // One inert source capsule per owner; no projection or operation callback
+    // is serialized. Fixture controls/resources use the native named validators.
+    const encode = (text: string) => btoa(String.fromCharCode(...new TextEncoder().encode(text)));
+    const decode = (text: string) => new TextDecoder().decode(Uint8Array.from(atob(text), c => c.charCodeAt(0)));
+    const island = `<template controls="${encode(controls)}" runtime="${encode(state)}"></template>`;
+    const register = (id: string, host: HTMLElement) => coordinator.register(id, () => island, () => true, 0, () => [], {
+        host, nativeClient: client, resolve: () => undefined,
+        resume: { witness: () => {
+            const value = input.value, start = input.selectionStart, end = input.selectionEnd;
+            return () => input.isConnected && input.value === value && input.selectionStart === start && input.selectionEnd === end;
+        }, prepare: async (context: any) => {
+            contexts.push(context); check(!context.active(), 'prepared owner became active early');
+            const envelope = document.createElement('template'); envelope.innerHTML = context.island;
+            const source = envelope.content.firstElementChild;
+            if (!source) throw Error('missing source capsule');
+            const native = context.runtime;
+            const resumedControls = JSON.parse(native.invoke('validateCheckpointControls', [decode(source.getAttribute('controls') ?? '')]));
+            const resumed = JSON.parse(native.invoke('validateCheckpointRuntime', [decode(source.getAttribute('runtime') ?? '')]));
+            const sourceDocument = resumed.resources[0].document;
+            let handle = native.invoke('retainCemDocument', [Uint8Array.from(atob(sourceDocument.base64), c => c.charCodeAt(0)), sourceDocument.contentType, sourceDocument.sourceUri]);
+            if (scenario === 'newer-input' && id === 'tree') input.value = 'Newer property-only draft';
+            return { owner: Object.freeze({ read: () => {
+                if (!context.active()) throw Error('inactive owner');
+                return { controls: resumedControls, widget: resumed.capability, source: handle, writers: resumed.writers };
+            } }), current: () => handle > 0, discard: () => { discarded.push(id); const owned = handle; handle = 0; check(native.release('disposeCemDocument', [owned]), 'fresh source cleanup failed'); } };
+        } },
+    });
+    const a = register('draft', input), b = register('tree', tree);
+    a.published({ instanceId: 'draft', declarationIdentity: 'draft:1', dataRevision: '2' });
+    b.published({ instanceId: 'tree', declarationIdentity: 'tree:1', dataRevision: '3' });
+    const group = new CemNativeGenerationGroup([coordinator.generationParticipant()]);
+    const consent = generation.retirementConsent([embedding]);
+    const proof = await coordinator.closeRenderingGeneration(5000, consent); await coordinator.capture();
+    const ticket = coordinator.prepareResume(), retained = coordinator.lastCommitted().bytes;
+    const retired = await coordinator.retireRenderingGeneration(proof, 5000, consent);
+    const admission = await group.allocate([retired]);
+    try {
+        if (scenario === 'newer-input') {
+            let refused = false; try { await resumeCemCheckpointOwners(admission, [ticket]); } catch (error) { refused = String(error).includes('stale'); }
+            check(refused && discarded.length === 2, 'newer input did not discard the complete resume');
+            check(contexts.every(context => !context.active()), 'failed resume admitted an owner');
+        } else {
+            const resumed = await resumeCemCheckpointOwners(admission, [ticket]);
+            check(contexts.every(context => context.active()), 'complete owners did not resume together');
+            for (const owner of resumed.owners) {
+                const value = owner.owner.read();
+                check(value.controls.controls[0].value === 'Unsaved Amsterdam é😀', 'portable draft was lost');
+                check(value.widget.focusValue === 'samples' && value.widget.typeahead === 's', 'widget state was lost');
+                check(value.source > 0 && value.writers[0].trigger === 'saved:1', 'source import or writer suppression intent was lost');
+            }
+            resumed.revoke(); check(discarded.length === 2 && contexts.every(context => !context.active()), 'revocation left owners live');
+        }
+        check(!binding.nativeRuntimeUsable() && retained.length > 0 && coordinator.lastCommitted(), 'old authority revived or host bytes were lost');
+        check(input.isConnected && document.activeElement === input, 'resume changed live DOM or focus');
+        if (scenario === 'success') check(input.value === 'Unsaved Amsterdam é😀' && input.selectionStart === 2 && input.selectionEnd === 9, 'resume lost edits or selection');
+        else check(input.value === 'Newer property-only draft', 'failed resume rolled back a newer edit');
+        return `${scenario} owner resume passed`;
+    } finally { admission.revoke(); coordinator.dispose(); document.body.replaceChildren(); }
+}
+export const FreshOwnerResume: Story = {
+    render: () => '<section aria-label="Fresh owner resume"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section'), base = new URL('../../dist/', import.meta.url).href;
+        if (!root) throw Error('missing fresh owner resume fixture');
+        for (const scenario of ['success', 'newer-input']) {
+            const frame = document.createElement('iframe'), id = crypto.randomUUID(); frame.title = 'Isolated fresh owner resume'; root.append(frame);
+            let stop = () => undefined;
+            try {
+                const completed = new Promise<string>((resolve, reject) => {
+                    const timer = setTimeout(() => reject(new Error(`owner resume timed out: ${scenario}`)), 15000);
+                    const receive = (event: MessageEvent) => {
+                        if (event.source !== frame.contentWindow || event.data?.id !== id) return;
+                        clearTimeout(timer); if (event.data.error) reject(new Error(event.data.error)); else resolve(event.data.result);
+                    };
+                    window.addEventListener('message', receive); stop = () => { clearTimeout(timer); window.removeEventListener('message', receive); };
+                });
+                const hook = import.meta.env.MODE === 'test' ? 'globalThis.__vitest_browser_runner__ = { wrapDynamicImport: f => f() };' : '';
+                frame.srcdoc = `<script type="module">${hook}(${isolatedOwnerResume.toString()})(${JSON.stringify(base)}, url => import(url), ${JSON.stringify(scenario)})
+                    .then(result => parent.postMessage({ id: ${JSON.stringify(id)}, result }, '*'),
+                        error => parent.postMessage({ id: ${JSON.stringify(id)}, error: error.stack || String(error) }, '*'));</script>`;
+                expect(await completed).toBe(`${scenario} owner resume passed`);
+            } finally { stop(); frame.remove(); }
+        }
+    },
+};

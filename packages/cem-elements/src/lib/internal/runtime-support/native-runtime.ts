@@ -7,11 +7,14 @@ import { CemNativeCheckpointDomain, cemMainThreadCheckpointDomain as domain } fr
 import type { CemNativeGenerationCandidate, CemNativeGenerationParticipant } from './native-generation.js';
 
 export type CemFallbackNativeEntrypoint = typeof sharedEntrypoints[number];
+export type CemFallbackNativeCleanup = typeof cleanupEntrypoints[number];
 export interface CemFreshFallbackGeneration {
     readonly kind: 'cem-fallback';
     readonly runtimeId: string;
     /** Trusted native embedding boundary. Bindings never switch physical heaps. */
     invoke(name: CemFallbackNativeEntrypoint, args: unknown[]): unknown;
+    /** Cleanup only, including the fenced pre-disposal resume-owner window. */
+    release(name: CemFallbackNativeCleanup, args: unknown[]): unknown;
     claimOwnership(): CemFallbackWasmOwnership;
     releaseOwnership(ownership: CemFallbackWasmOwnership): void;
     retirementConsent(ownership: readonly CemFallbackWasmOwnership[]): CemFallbackRetirementConsent;
@@ -108,6 +111,10 @@ class OwnedFallback {
         const runtime: CemFreshFallbackGeneration = Object.freeze({ kind: 'cem-fallback', runtimeId: next.domain.issuedIdentity(),
             invoke: (name: CemFallbackNativeEntrypoint, args: unknown[]) => {
                 assert(); if (!(sharedEntrypoints as readonly string[]).includes(name)) throw new Error('cem.runtime.generation.entrypoint');
+                return next.call(name, args);
+            },
+            release: (name: CemFallbackNativeCleanup, args: unknown[]) => {
+                if (!(cleanupEntrypoints as readonly string[]).includes(name)) throw new Error('cem.runtime.generation.entrypoint');
                 return next.call(name, args);
             },
             claimOwnership: () => { assert(); return next.claim(); },
@@ -209,6 +216,7 @@ export const cemQlVersion = bind('cemQlVersion');
 export const runtimeMemoryStatus = bind('runtimeMemoryStatus');
 export const validateCheckpointControls = bind('validateCheckpointControls');
 export const validateCheckpointRuntime = bind('validateCheckpointRuntime');
+export const sealCommittedCheckpoint = bind('sealCommittedCheckpoint');
 export const compileTemplate = bind('compileTemplate');
 export const adoptDomStylesheets = bind('adoptDomStylesheets');
 export const adoptInstanceStylesheets = bind('adoptInstanceStylesheets');
@@ -266,7 +274,7 @@ export const disposeCemtXPathFunctions = bind('disposeCemtXPathFunctions');
 const sharedEntrypoints = [
     'closeCommandNativeAdmission', 'commandNativeResourceInventory', 'prepareCommandNativeRetirement',
     'cemQlVersion', 'runtimeMemoryStatus', 'validateCheckpointControls',
-    'validateCheckpointRuntime', 'compileTemplate', 'adoptDomStylesheets',
+    'validateCheckpointRuntime', 'sealCommittedCheckpoint', 'compileTemplate', 'adoptDomStylesheets',
     'adoptInstanceStylesheets', 'beginTemplateStylesheet', 'deliverTemplateStylesheet',
     'failTemplateStylesheet', 'releaseTemplateStylesheets', 'compileTemplateArtifact',
     'compileTemplateModuleClosure', 'convertLegacyCustomElementTemplate', 'disposeTemplate',
@@ -285,3 +293,10 @@ const sharedEntrypoints = [
     'renderXsltComponentWithNativeValues', 'disposeXsltComponent', 'xsltStylesheetImports',
     'evaluateQuerySource', 'retainCemtXPathFunctions', 'disposeCemtXPathFunctions',
 ] as const;
+
+// Cleanup cannot allocate/restart native work or confer a new source grant.
+const cleanupEntrypoints = [
+    'releaseTemplateStylesheets', 'disposeTemplate', 'disposeNativeCapabilitySession',
+    'releaseNativeSuggestions', 'disposeReferenceSource', 'disposeNativeValueArtifact',
+    'disposeCemDocument', 'disposeXsltComponent', 'disposeCemtXPathFunctions',
+] as const satisfies readonly CemFallbackNativeEntrypoint[];

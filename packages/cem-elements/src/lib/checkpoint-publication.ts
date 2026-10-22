@@ -1,3 +1,4 @@
+import { issueCheckpointResumeTicket, revokeCheckpointResumeTicket, type CemCheckpointResumeAdapter, type CemCheckpointResumeTicket } from './checkpoint-resume.js';
 import type { CemFallbackRetirementConsent } from './internal/runtime-support/native-runtime.js';
 import { nativeGenerationParticipant, closeNativeRenderingGeneration, retireNativeRenderingGeneration, type CemNativeDrain, nativeCheckpointIdentity, nativeCheckpointValidSourceProof, nativeCheckpointSubscribe, nativeCheckpointSnapshot, type CemCheckpointNativeClient, type CemCheckpointNativeSourceProof } from './internal/runtime-support/checkpoint-domain.js';
 import type { CheckpointEndpoint } from './checkpoint-interactions.js';
@@ -27,6 +28,8 @@ export interface CemCheckpointPublicationOwner {
 /** Explicit host registration, never inferred from attributes or instance IDs. */
 export interface CemCheckpointEndpointOwner {
     host: HTMLElement;
+    /** Explicit shared semantic adapter; absent means resume is unsupported. */
+    resume?: CemCheckpointResumeAdapter;
     nativeClient?: CemCheckpointNativeClient;
     nativeSources?: () => readonly CemCheckpointNativeSourceProof[] | undefined;
     resolve: (element: HTMLElement) => CheckpointEndpoint | undefined;
@@ -50,7 +53,8 @@ const MAX_OWNERS = 256;
 
 /** Host-side publication barrier. Keeps only active export hooks, bounded
  * metadata and the last sealed bytes, never event payload queues or WASM views.
- * No restart, input interception, action retry or semantic resume authority. */
+ * No automatic restart, input interception or action retry. Explicit resume
+ * tickets require complete shared semantic adapters. */
 export class CemCheckpointPublicationCoordinator {
     private store: CemCommittedCheckpointStore;
     private readonly sourceClients = new Map<CemCheckpointNativeClient, () => void>();
@@ -67,6 +71,8 @@ export class CemCheckpointPublicationCoordinator {
     private allowOwner?: CemCheckpointPublicationOptions['allowOwner'];
     private sequence = 0;
     private epoch = 0;
+    private resumeEpoch = 0;
+    private resumeTicket?: CemCheckpointResumeTicket;
     private capturing = false;
     private dependencyIdentity?: string;
     private scheduled = false;
@@ -93,7 +99,7 @@ export class CemCheckpointPublicationCoordinator {
         }
         const owner: Owner = { id, exportIsland, current, sequence: initialEventSequence, dependencies, ...(endpoint ? { endpoint: { ...endpoint } } : {}) };
         if (owner.endpoint?.nativeClient) {
-            try { owner.stopNative = nativeCheckpointSubscribe(owner.endpoint.nativeClient, () => { this.invalidate(); this.schedule(); }); }
+            try { owner.stopNative = nativeCheckpointSubscribe(owner.endpoint.nativeClient, () => { this.invalidate(false); this.schedule(); }); }
             catch { this.blocked = true; this.invalidate(); throw new Error('cem.checkpoint.native-client'); }
         }
         this.owners.set(id, owner); if (owner.endpoint) this.endpoints.set(owner.endpoint.host, owner); this.invalidate();
@@ -225,7 +231,14 @@ export class CemCheckpointPublicationCoordinator {
         for (const owner of this.owners.values()) owner.receipt = undefined;
     }
 
-    private invalidate(): void { this.epoch++; this.store.invalidate(); }
+    private invalidate(hostMutation = true): void {
+        if (hostMutation) {
+            this.resumeEpoch++;
+            const ticket = this.resumeTicket; this.resumeTicket = undefined;
+            if (ticket) revokeCheckpointResumeTicket(ticket);
+        }
+        this.epoch++; this.store.invalidate();
+    }
     private nativeSnapshot() {
         const bindings = new Map<CemCheckpointNativeClient, string[]>();
         const sources = new Map<CemCheckpointNativeClient, Set<string>>();
@@ -252,7 +265,7 @@ export class CemCheckpointPublicationCoordinator {
         if ([...this.owners.values()].some(owner => !owner.endpoint?.nativeClient)) return undefined;
         for (const [client, stop] of this.sourceClients) if (!sources.has(client)) { stop(); this.sourceClients.delete(client); }
         for (const client of sources.keys()) if (!this.sourceClients.has(client)) {
-            try { this.sourceClients.set(client, nativeCheckpointSubscribe(client, () => { this.invalidate(); this.schedule(); })); }
+            try { this.sourceClients.set(client, nativeCheckpointSubscribe(client, () => { this.invalidate(false); this.schedule(); })); }
             catch { return undefined; }
         }
         return nativeCheckpointSnapshot(bindings, sources);
@@ -351,6 +364,29 @@ export class CemCheckpointPublicationCoordinator {
     }
 
     current(): CemStoredCheckpoint | undefined { return this.ready() ? this.store.current() : undefined; }
+    /** Prepare before retirement while current native publication is still
+     * available. Native revocation invalidates capture, but only fresh host
+     * witnesses plus this separate input/policy epoch can authorize resume. */
+    prepareResume(): CemCheckpointResumeTicket {
+        if (this.capturing || !this.ready()) throw new Error('cem.checkpoint.unavailable');
+        const coverage = this.renderingCoverage();
+        const client = coverage.bindings.keys().next().value;
+        const runtimeId = client && nativeCheckpointIdentity(client);
+        const saved = this.store.current();
+        if (!runtimeId || !saved) throw new Error('cem.checkpoint.unavailable');
+        const adapters = new Map<string, CemCheckpointResumeAdapter>();
+        for (const owner of this.owners.values()) {
+            if (!owner.endpoint?.resume) throw new Error('cem.checkpoint.resume.unsupported');
+            adapters.set(owner.id, owner.endpoint.resume);
+        }
+        const epoch = this.resumeEpoch;
+        const receipts = saved.receipt.owners.map(receipt => Object.freeze({ ...receipt }));
+        const hostCurrent = () => !this.disposed && !this.blocked && !this.capturing && !this.admissions.size && epoch === this.resumeEpoch;
+        const current = () => hostCurrent() && receipts.every(receipt => this.allowOwner?.(receipt) === true) && hostCurrent();
+        if (this.resumeTicket) revokeCheckpointResumeTicket(this.resumeTicket);
+        return this.resumeTicket = issueCheckpointResumeTicket(runtimeId, saved, current, adapters);
+    }
+
     /** Enroll the exact complete physical rendering generation before retirement. */
     generationParticipant(): import('./internal/runtime-support/native-generation.js').CemNativeGenerationParticipant {
         const coverage = this.renderingCoverage();

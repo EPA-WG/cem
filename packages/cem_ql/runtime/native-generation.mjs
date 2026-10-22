@@ -3,6 +3,7 @@
  * cannot join this registry; its registration exports are internal host APIs. */
 const key = Symbol.for('cem.native-generation.groups.v1');
 const state = globalThis[key] ??= { participants: new WeakMap(), receipts: new WeakMap(), identities: new WeakSet(), candidates: new WeakSet() };
+state.admissions ??= new WeakMap();
 const fail = code => { throw new Error(`cem.runtime.allocation.${code}`); };
 const object = value => typeof value === 'object' && value !== null;
 function slots(values) {
@@ -36,6 +37,18 @@ export function completeNativeRetirement(participant, bytes) {
     return receipt;
 }
 
+/** Internal: consume original resume authority once, never trust exposed bytes.
+ * These are host controls, not permission for authored data or old aliases. */
+export function claimNativeGenerationAdmission(admission) {
+    const record = object(admission) && state.admissions.get(admission);
+    if (!record || record.claimed) fail('admission');
+    record.claimed = true;
+    if (!record.current()) { record.revoke(); fail('admission'); }
+    return Object.freeze({ current: record.current, revoke: record.revoke, onRevoke: record.onRevoke,
+        generations: Object.freeze(record.generations.map(entry => Object.freeze({ ...entry,
+            checkpoint: new Uint8Array(entry.checkpoint) }))) });
+}
+
 /** An explicit complete set of original shared runtime participants. It never
  * discovers unknown heaps or upgrades legacy/raw aliases into managed owners. */
 export class CemNativeGenerationGroup {
@@ -60,12 +73,14 @@ export class CemNativeGenerationGroup {
         if (receipts.reduce((size, receipt) => size + receipt.checkpoint.byteLength, 0) > 4 * 1024 * 1024) fail('limit');
         this.#state = 'allocating';
         const cancellation = new AbortController();
-        const gate = { admitted: false, revoked: false }, candidates = [], identities = new Set();
+        const gate = { admitted: false, revoked: false }, candidates = [], identities = new Set(), revokeListeners = [];
         const admitted = () => gate.admitted && !gate.revoked;
         const discard = candidate => { try { candidate.discard(); } catch { /* Fence every peer even if native cleanup refuses. */ } };
         const revoke = () => {
             if (gate.revoked) return;
-            gate.revoked = true; identities.clear(); cancellation.abort();
+            gate.revoked = true; identities.clear();
+            for (const listener of revokeListeners.splice(0)) { try { listener(); } catch { /* Continue every physical cleanup. */ } }
+            cancellation.abort();
             for (const candidate of candidates) discard(candidate);
         };
         const deadline = performance.now() + timeoutMs;
@@ -104,7 +119,18 @@ export class CemNativeGenerationGroup {
             identities.clear();
             this.#state = 'admitted';
             gate.admitted = true;
-            return Object.freeze({ generations: Object.freeze(generations), revoke });
+            const admission = Object.freeze({ generations: Object.freeze(generations), revoke });
+            state.admissions.set(admission, { claimed: false, revoke,
+                onRevoke: listener => {
+                    if (typeof listener !== 'function' || revokeListeners.length) fail('admission');
+                    if (!admitted()) listener(); else revokeListeners.push(listener);
+                },
+                current: () => {
+                    if (!admitted()) return false;
+                    try { return candidates.every(candidate => candidate.current() === true) && admitted(); } catch { return false; }
+                },
+                generations: generations.map(entry => ({ ...entry, checkpoint: new Uint8Array(entry.checkpoint) })) });
+            return admission;
         } catch (error) { this.#state = 'failed'; revoke(); throw error; }
         finally { clearTimeout(timer); }
     }

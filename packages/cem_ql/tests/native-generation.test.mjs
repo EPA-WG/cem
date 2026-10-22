@@ -116,3 +116,48 @@ test('retained revoked admission handles release original and candidate memory i
     assert.equal(admission.generations[0].runtime.admitted(), false);
     assert.ok(group);
 });
+
+test('resume claims require an original live admission and retain private checkpoint bytes once', async () => {
+    const { claimNativeGenerationAdmission } = await import('../runtime/native-generation.mjs');
+    const a = source(), group = new CemNativeGenerationGroup([a.participant]);
+    const admission = await group.allocate([a.retire()]);
+    assert.throws(() => claimNativeGenerationAdmission({ ...admission }), /admission/);
+    admission.generations[0].checkpoint.fill(7);
+    const claimed = claimNativeGenerationAdmission(admission);
+    assert.deepEqual([...claimed.generations[0].checkpoint], [1, 2, 3]);
+    assert.equal(claimed.current(), true);
+    assert.throws(() => claimNativeGenerationAdmission(admission), /admission/);
+    claimed.revoke(); assert.equal(claimed.current(), false);
+    const b = source(), second = await new CemNativeGenerationGroup([b.participant]).allocate([b.retire()]);
+    second.revoke(); assert.throws(() => claimNativeGenerationAdmission(second), /admission/);
+});
+
+test('currentness probes cannot reenter and claim the same admission twice', async () => {
+    const { claimNativeGenerationAdmission } = await import('../runtime/native-generation.mjs');
+    let admission, probe = false, nestedRefused = false;
+    const a = source(async () => ({ identity: {}, runtimeId: crypto.randomUUID(), runtime: {}, discard: () => undefined,
+        current: () => {
+            if (probe) {
+                probe = false;
+                try { claimNativeGenerationAdmission(admission); } catch { nestedRefused = true; }
+            }
+            return true;
+        } }));
+    admission = await new CemNativeGenerationGroup([a.participant]).allocate([a.retire()]);
+    probe = true; claimNativeGenerationAdmission(admission);
+    assert.equal(nestedRefused, true); admission.revoke();
+});
+
+test('owner cleanup runs behind the closed gate before allocation abort and physical disposal', async () => {
+    const { claimNativeGenerationAdmission } = await import('../runtime/native-generation.mjs');
+    const events = []; let gate;
+    const a = source(async (admitted, signal) => {
+        gate = admitted; signal.addEventListener('abort', () => events.push('allocation abort'), { once: true });
+        return { identity: {}, runtimeId: crypto.randomUUID(), runtime: {}, current: () => true,
+            discard: () => events.push('physical disposal') };
+    });
+    const admission = await new CemNativeGenerationGroup([a.participant]).allocate([a.retire()]);
+    claimNativeGenerationAdmission(admission).onRevoke(() => { assert.equal(gate(), false); events.push('owner cleanup'); });
+    admission.revoke();
+    assert.deepEqual(events, ['owner cleanup', 'allocation abort', 'physical disposal']);
+});

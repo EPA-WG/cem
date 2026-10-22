@@ -24,3 +24,12 @@ export declare class CemNativeGenerationGroup {
     constructor(participants: readonly CemNativeGenerationParticipant[]);
     allocate(retirements: readonly CemNativeGenerationRetirement[], timeoutMs?: number): Promise<CemNativeGenerationAdmission>;
 }
+
+/** @internal One original live admission can authorize one complete resume attempt.
+ * Snapshot bytes come from the private successful retirement, not public exports. */
+export declare function claimNativeGenerationAdmission(admission: CemNativeGenerationAdmission): Readonly<{
+    current(): boolean;
+    revoke(): void;
+    onRevoke(listener: () => void): void;
+    generations: CemNativeGenerationAdmission['generations'];
+}>;
