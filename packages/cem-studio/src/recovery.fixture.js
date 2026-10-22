@@ -63,6 +63,11 @@ export async function studioRecovery(mode, progress) {
         check(themes.length > 0 && themes.every(owner => owner.adapterAvailable), 'shared theme storage adapter missing');
         const retained = coordinator.inspectRecovery().owners.filter(owner => ['cem-action', 'cem-expansion', 'cem-list'].includes(owner.tag));
         check(retained.some(owner => owner.tag === 'cem-action') && retained.every(owner => owner.adapterAvailable), 'shared retained capability adapter missing');
+        // The complete theme composition is supported. Mount a real preview so
+        // this refusal lane proves an actual unenrolled runtime/capability.
+        setStage('initial native preview'); await workbench.buildProjectPreview(); await view.whenSettled();
+        check(workbench.snapshot().projectPreview?.attempt?.status === 'succeeded', 'initial recovery preview failed');
+        check(blockers().some(owner => owner.tag === 'cem-media-preview'), 'preview refusal lane has no preview owner');
         for (let cycle = 0; cycle < 3; cycle++) {
             for (let edit = 0; edit < 4; edit++) {
                 setStage(`edit ${cycle}/${edit}`);

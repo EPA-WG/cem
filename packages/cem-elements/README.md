@@ -85,7 +85,8 @@ No click, submit, command or navigation is replayed. New explicit actions work
 through the fresh processing/publication binding.
 Trees, tabs, navigation, composite menus, popups and settled native surfaces also
 retain their browser state; geometry is rechecked without replaying open/focus
-actions. Passive source/placement consumers call the original host input callback,
+actions. Parent reconciliation preserves unchanged authored child inputs, including
+live open state; changed or removed authored inputs still apply. Passive source/placement consumers call the original host input callback,
 validate its opaque source bytes/policy on the fresh heap, and acquire new invocation
 leases from current registry grants. Copies, changed sources and revoked endpoints
 cannot authorize publication. The first unchanged frame retains its sealed data
@@ -102,8 +103,13 @@ proof and unsupported storage/location rendering still refuse. Plain text storag
 owners now compile on the fresh processing host, retain original storage authority
 and raw values, replace parked live subscriptions and suppress consumed writes
 until new input. Page and example keys remain independent. JSON/XML/dynamic-type
-storage and legacy location adapters remain gated, as does the theme menu's
-external-trigger/viewport popup. Complete Studio preview/command-runtime coverage
+storage and legacy location adapters remain gated. External popup triggers and
+anchor/boundary/focus roles require complete owned endpoints, original controller
+and control identities, current layout evidence and fresh source/placement grants
+when native references are used. Viewport geometry recomputes without replaying
+open/focus actions; changed policies, replaced targets and stale layout refuse.
+The complete production theme menu uses these shared contracts.
+Complete Studio preview/command-runtime coverage
 and successful whole-workspace acceptance are still required before automatic
 recovery. See [explicit owner resume transactions](../../docs/committed-checkpoints.md#explicit-owner-resume-transactions).
 

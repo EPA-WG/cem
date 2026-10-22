@@ -3243,23 +3243,25 @@ async function isolatedWidgetResume(base: string, load: (url: string) => Promise
         const tabs = await create(template(sources[1]), 'tab-panels', '<cem-tab value="one" label="One">First</cem-tab><cem-tab value="two" label="Two">Second</cem-tab>', { 'selected-index': '1', label: 'Views' });
         const nav = await create(template(sources[2]), 'navigation-landmark', '<a href="#current" aria-current="page">Current</a>');
         const menu = await create(template(sources[3]), 'composite-menu', '<button type="button">First</button><button type="button">Second</button>');
-        const popup = await create(template(sources[4]), 'popup', '<p>Popup content</p>', { open: 'true' });
+        const popup = await create(template(sources[4]), 'popup', '<input id="widget-popup-focus" value="Popup content">', { open: 'true', 'focus-target': '#widget-popup-focus' });
         const surface = await create(template(sources[5]), 'native-surface', '<input value="Dialog default" aria-label="Draft">');
         const producer = await create('{dialog | Placement target}'), target = producer.querySelector('dialog')!;
         references = { kind: 'cem-element-reference-inputs-v1', requesting: 0,
             sources: bundles.map(encoded => ({ bundle: Uint8Array.from(atob(encoded), char => char.charCodeAt(0)).buffer, primarySourceId: 1, context: true })),
             bindings: [{ source: 0, name: 'relation', select: 'input.children' }, { source: 1, name: 'destination', select: 'input.children' }], grants: [[0, 1]] };
-        consumer = await create('{slice @name=relation}{slice @name=destination}{button @type=button @commandfor={#relation} @command=show-modal | Open}');
+        consumer = await create(`{slice @name=relation}{slice @name=destination}{${popup.localName} @anchor={#relation} @boundary=viewport @open=false | Anchored content}{button @type=button @commandfor={#relation} @command=show-modal | Open}`);
         runtime.refreshElementReferences(consumer); await runtime.whenRenderSettled(consumer);
         const producerId = runtime.readInstanceSnapshot(producer).instanceId, consumerId = runtime.readInstanceSnapshot(consumer).instanceId;
         const revision = runtime.readInstanceSnapshot(producer).dataRevision;
         const lease = placements.register({ producer: producerId, revision, path: [0], element: target,
             source: references.sources[1], select: 'input.children', currentRevision: () => producer.isConnected ? runtime.readInstanceSnapshot(producer).dataRevision : undefined });
-        const revoke = placements.grant(consumerId, lease, ['commandfor']);
+        const revoke = placements.grant(consumerId, lease, ['commandfor', 'anchor']);
         diagnostic = () => JSON.stringify({ revision, currentRevision: runtime.readInstanceSnapshot(producer).dataRevision, target: target.id, consumerRevision: runtime.readInstanceSnapshot(consumer!).dataRevision });
         runtime.refreshElementReferences(consumer); await runtime.whenRenderSettled(consumer);
-        const button = consumer.querySelector('button')!;
+        const button = consumer.querySelector<HTMLButtonElement>('button[command]')!;
         check(button.getAttribute('commandfor') === target.id, 'initial placement did not publish');
+        const boundPopup = consumer.querySelector<HTMLElement>(popup.localName)!;
+        check(boundPopup.getAttribute('anchor') === target.id && boundPopup.hasAttribute('data-cem-node-ref-anchor'), 'native popup anchor not published');
         const menuControl = menu.querySelectorAll('button')[1]; menuControl.focus();
         menuControl.dispatchEvent(new KeyboardEvent('keydown', { key: 's', bubbles: true }));
         menuControl.dispatchEvent(new KeyboardEvent('keyup', { key: 's', bubbles: true }));
@@ -3278,7 +3280,7 @@ async function isolatedWidgetResume(base: string, load: (url: string) => Promise
         owners.forEach(owner => runtime.readInstanceSnapshot(owner));
         check(owners.every((owner, index) => owner.querySelector('template[data-cem-island=instance]')?.outerHTML === sealed[index]), 'inspection rewrote a sealed island');
         const admitted = placements.checkpoint(consumerId, consumer, (node: HTMLElement) => coordinator.endpoint(node), () => true)!;
-        check(admitted.length === 1, 'missing placement receipt');
+        check(admitted.length === 2, 'missing popup/command placement receipts');
         let actions = 0; surface.addEventListener('cem-open', () => actions++); surface.addEventListener('cem-before-open', () => actions++);
         const group = new CemNativeGenerationGroup([coordinator.generationParticipant()]);
         const consent = fallback ? generation.retirementConsent([embedding]) : undefined;
@@ -3313,7 +3315,7 @@ async function isolatedWidgetResume(base: string, load: (url: string) => Promise
         check(coordinator.lastCommitted().receipt.owners.every((owner: any, index: number) => owner.acceptedEventSequence === beforeSequence[index]
             && owner.dataRevision === before.receipt.owners[index].dataRevision), 'resume manufactured input or a canonical revision');
         const fresh = placements.checkpoint(consumerId, consumer, (node: HTMLElement) => coordinator.endpoint(node), () => true)!;
-        check(fresh.length === 1 && fresh[0].source.sources.length === admitted[0].source.sources.length, 'fresh native source/placement publication missing');
+        check(fresh.length === 2 && fresh[0].source.sources.length === admitted[0].source.sources.length && boundPopup.getAttribute('anchor') === target.id, 'fresh native popup/source/placement publication missing');
         stage = 'second retirement'; const next = admission.generations[0].runtime, nextEmbedding = fallback ? next.claimOwnership() : undefined;
         const nextGroup = new CemNativeGenerationGroup([coordinator.generationParticipant()]);
         const nextConsent = fallback ? next.retirementConsent([nextEmbedding]) : undefined;
@@ -3810,9 +3812,8 @@ async function isolatedTextStorageResume(base: string, load: (url: string) => Pr
         check(/stale|unsupported|unavailable|ticket|unknown|coverage|storage-authority/.test(String(error)), String(error)); return;
     } throw Error('changed storage owner admitted'); };
     try {
-        // Storage-owner lane leaves the separately gated external popup uninstantiated.
-        // The popup lane mounts the complete production composition and requires refusal.
-        for (const source of scenario.endsWith('popup') ? sources : [sources[0], sources[1], sources[6]]) {
+        // Full popup lanes mount every production child controller in the same domain.
+        for (const source of scenario.includes('-popup') ? sources : [sources[0], sources[1], sources[6]]) {
             const parsed = new DOMParser().parseFromString(source, 'text/html').querySelector('cem-element')!;
             const declaration = document.createElement('div');
             for (const attribute of [...parsed.attributes]) declaration.setAttribute(attribute.name, attribute.value);
@@ -3820,7 +3821,7 @@ async function isolatedTextStorageResume(base: string, load: (url: string) => Pr
             runtime.registerDeclaration(declaration); await runtime.whenDeclarationSettled(declaration);
         }
         const declaration = document.createElement('div'), template = document.createElement('template'); declaration.setAttribute('tag', 'storage-writer');
-        template.type = 'text/cem-ml'; template.textContent = `{slice @name=edit}{local-storage @slice=stored @key="${keys[2]}" @type=text @value={datadom.slices.edit ?? "seed"}}{input @slice=edit @slice-event=input @slice-value="$target.value" @value=seed}{output | {datadom.slices.stored}}`;
+        template.type = 'text/cem-ml'; template.textContent = `{slice @name=edit}{local-storage @slice=stored @key="${keys[2]}" @type=text @value={datadom.slices.edit ?? "seed"}}{input @id=storage-focus @slice=edit @slice-event=input @slice-value="$target.value" @value=seed}{output | {datadom.slices.stored}}`;
         declaration.append(template); document.head.append(declaration); runtime.registerDeclaration(declaration); await runtime.whenDeclarationSettled(declaration);
         localStorage.setItem(keys[0], 'cem-theme-dark'); localStorage.setItem(keys[1], 'cem-theme-contrast-light');
         const theme = document.createElement('cem-theme-switch'), example = document.createElement('cem-theme-switch'), writer = document.createElement('storage-writer');
@@ -3833,16 +3834,32 @@ async function isolatedTextStorageResume(base: string, load: (url: string) => Pr
         check(localStorage.getItem(keys[2]) === 'Edited é😀', 'initial storage edit not persisted');
         const nodes = [...theme.querySelectorAll('button'), ...example.querySelectorAll('button'), input];
         check(nodes.length === 13, `production theme controls not rendered: ${nodes.length}`);
-        if (scenario.endsWith('popup')) {
-            await refused(() => coordinator.capture()); await refused(() => coordinator.prepareResume());
-            check(coordinator.lastCommitted() === undefined, 'unsupported external popup published a partial checkpoint');
-            return `${scenario} text storage passed`;
+        const popupModule = scenario.includes('-popup') ? await load(new URL('lib/popup-capability.js', base).href) : undefined;
+        const popup = scenario.includes('-popup') ? theme.querySelector<HTMLElement>('cem-dropdown') : null, trigger = theme.querySelector<HTMLButtonElement>('cem-icon-button[part=trigger] button');
+        let panel: HTMLElement | null = null;
+        if (scenario.includes('-popup')) {
+            check(popup && trigger, 'production external popup not rendered');
+            if (scenario.endsWith('unowned')) {
+                const unowned = document.createElement('button'); unowned.id = 'unowned-trigger'; document.body.append(unowned);
+                popup!.setAttribute('trigger-for', '#unowned-trigger'); await settle();
+                await refused(() => coordinator.capture()); await refused(() => coordinator.prepareResume());
+                check(!coordinator.lastCommitted(), 'partial external owner checkpoint'); return `${scenario} text storage passed`;
+            }
+            if (scenario.endsWith('reference')) {
+                writer.id = 'theme-boundary'; writer.style.cssText = 'display:block;position:fixed;inset:0;width:280px;height:140px;pointer-events:none'; popup!.setAttribute('anchor', '@theme-trigger'); popup!.setAttribute('boundary', '#theme-boundary');
+                popup!.setAttribute('focus-target', 'none'); popup!.setAttribute('return-focus', '#storage-focus');
+            }
+            popup!.setAttribute('open', 'true'); await settle(); panel = popup!.querySelector<HTMLElement>(':scope > [part~=popup]');
+            check(panel && !panel.hidden && trigger!.getAttribute('aria-expanded') === 'true', 'external popup not open');
         }
+        const retainedFocus = scenario.includes('-popup') ? theme.querySelector<HTMLButtonElement>('cem-icon-button[value=cem-theme-light] button')! : input;
+        retainedFocus.focus(); await settle();
+        const negative = scenario !== 'worker' && scenario !== 'fallback' && !scenario.endsWith('-popup') && !scenario.endsWith('-popup-reference');
         const operation = coordinator.operation.bind(coordinator);
         coordinator.operation = (owner: string) => { writes++; return operation(owner); };
         await capture();
         check(coordinator.inspectRecovery().owners.filter((owner: any) => owner.tag === 'cem-theme-switch').every((owner: any) => owner.adapterAvailable), 'theme adapter not available');
-        for (let cycle = 0; cycle < (scenario === 'worker' || scenario === 'fallback' ? 2 : 1); cycle++) {
+        for (let cycle = 0; cycle < (negative ? 1 : 2); cycle++) {
             stage = `retire ${cycle}`; const before = coordinator.lastCommitted().receipt;
             const group = new CemNativeGenerationGroup([coordinator.generationParticipant()]);
             const consent = fallback ? heap.retirementConsent([embedding]) : undefined;
@@ -3860,8 +3877,15 @@ async function isolatedTextStorageResume(base: string, load: (url: string) => Pr
                 if (scenario.endsWith('source')) template.textContent += '{p | changed}';
                 if (scenario.endsWith('authority')) Object.defineProperty(window, 'localStorage', { configurable: true, value: { getItem: (key: string) => storage.getItem(key) } });
                 if (scenario.endsWith('method')) Storage.prototype.getItem = function(key: string) { return originalGet.call(this, key); };
+                if (scenario.endsWith('trigger')) trigger!.replaceWith(trigger!.cloneNode(true));
+                if (scenario.endsWith('policy')) popup!.setAttribute('anchor-lost', 'freeze');
+                if (scenario.endsWith('controller')) { popupModule.CEM_POPUP_CAPABILITY.disconnected(popup); popupModule.CEM_POPUP_CAPABILITY.connected(popup); popupModule.CEM_POPUP_CAPABILITY.rendered(popup); }
+                if (scenario.endsWith('geometry')) {
+                    const rect = trigger!.getBoundingClientRect.bind(trigger);
+                    trigger!.getBoundingClientRect = () => { const value = rect(); return new DOMRect(value.x + 7, value.y, value.width, value.height); };
+                }
+                if (scenario.endsWith('viewport')) Object.defineProperty(window, 'innerWidth', { configurable: true, value: window.innerWidth + 40 });
             };
-            const negative = scenario !== 'worker' && scenario !== 'fallback';
             if (negative && !scenario.includes('late-')) mutate();
             stage = `prepare ${cycle}`;
             if (negative && !scenario.includes('late-')) {
@@ -3873,13 +3897,22 @@ async function isolatedTextStorageResume(base: string, load: (url: string) => Pr
                     stage = `resume ${cycle}`; for (const owner of resumed.owners) await owner.owner.resume(); previous?.revoke(); await settle(); await capture();
                     heap = admission.generations[0].runtime; if (fallback) embedding = heap.claimOwnership();
                     check(subscriptions.size === 2, 'fresh storage listeners missing or duplicated');
+                    if (popup) {
+                        check(popup.querySelector(':scope > [part~=popup]') === panel && panel && !panel.hidden
+                            && trigger!.getAttribute('aria-expanded') === 'true', 'popup intent/DOM not retained');
+                        check(coordinator.lastCommitted().receipt.relationships.some((edge: any) => edge.property === 'trigger-for'), 'external trigger endpoint omitted');
+                    }
                     check(coordinator.lastCommitted().receipt.owners.every((owner: any, index: number) => owner.acceptedEventSequence === before.owners[index].acceptedEventSequence), 'resume manufactured input');
                 }
             }
             check(writes === 0 && input.value === 'Edited é😀' && input.selectionStart === 2 && input.selectionEnd === 7
-                && input.selectionDirection === 'backward' && document.activeElement === input, 'storage replay or lost draft/focus/selection');
-            check(nodes.every(node => node.isConnected), 'theme/editor nodes replaced');
+                && input.selectionDirection === 'backward' && document.activeElement === retainedFocus, 'storage replay or lost draft/focus/selection');
+            if (!scenario.endsWith('trigger')) check(nodes.every(node => node.isConnected), 'theme/editor nodes replaced');
             if (negative) return `${scenario} text storage passed`;
+            if (popup && cycle === 0) {
+                trigger!.style.marginLeft = '12px'; window.dispatchEvent(new Event('resize')); await settle(); await capture();
+                check(!panel!.hidden && document.activeElement === retainedFocus, 'settled viewport reflow lost popup/focus');
+            }
         }
         stage = 'fresh storage and selection';
         originalSet.call(localStorage, keys[0], 'cem-theme-native');
@@ -3924,8 +3957,47 @@ export const ThemeTextStorageAuthorityRefusals: Story = { render: () => '<sectio
 export const ThemeTextStorageLateRefusals: Story = { render: () => '<section aria-label="Late theme storage refusal"></section>',
     play: async ({ canvasElement }) => textStorageResumeStory(canvasElement, ['fallback-late-raw', 'worker-late-key', 'fallback-late-source', 'worker-late-authority']) };
 
-export const ThemeExternalPopupStillRefuses: Story = { render: () => '<section aria-label="Unsupported theme external popup recovery"></section>',
+export const ThemeExternalPopupRepeatedResume: Story = { render: () => '<section aria-label="Production theme external popup recovery"></section>',
     play: async ({ canvasElement }) => textStorageResumeStory(canvasElement, ['worker-popup', 'fallback-popup']) };
 
 export const ThemeTextStorageCallbackRefusals: Story = { render: () => '<section aria-label="Changed theme storage callback refusal"></section>',
     play: async ({ canvasElement }) => textStorageResumeStory(canvasElement, ['worker-method', 'fallback-late-method']) };
+
+export const ThemePopupReferenceGeometryResume: Story = { render: () => '<section aria-label="Owned popup reference geometry recovery"></section>',
+    play: async ({ canvasElement }) => textStorageResumeStory(canvasElement, ['worker-popup-reference', 'fallback-popup-reference']) };
+export const ThemePopupEndpointRefusals: Story = { render: () => '<section aria-label="Popup endpoint ownership refusal"></section>',
+    play: async ({ canvasElement }) => textStorageResumeStory(canvasElement, ['worker-popup-unowned', 'fallback-popup-unowned', 'worker-popup-trigger', 'fallback-popup-late-trigger']) };
+export const ThemePopupPolicyRefusals: Story = { render: () => '<section aria-label="Changed popup policy refusal"></section>',
+    play: async ({ canvasElement }) => textStorageResumeStory(canvasElement, ['worker-popup-policy', 'fallback-popup-late-policy']) };
+export const ThemePopupGeometryRefusals: Story = { render: () => '<section aria-label="Stale popup layout refusal"></section>',
+    play: async ({ canvasElement }) => textStorageResumeStory(canvasElement, ['worker-popup-geometry', 'fallback-popup-late-geometry', 'worker-popup-viewport', 'fallback-popup-late-viewport']) };
+
+export const ThemePopupControllerRefusals: Story = { render: () => '<section aria-label="Replaced popup controller refusal"></section>',
+    play: async ({ canvasElement }) => textStorageResumeStory(canvasElement, ['worker-popup-controller', 'fallback-popup-late-controller']) };
+
+export const ParentKeepsUnchangedChildInputs: Story = {
+    render: () => '<section aria-label="Retained child inputs"></section>',
+    play: async ({ canvasElement }) => {
+        await init(); const root = canvasElement.querySelector('section')!;
+        const f = fixture(root, false);
+        try {
+            const child = await f.create('{button @type=button | Content}', 'cem-ml');
+            const parent = await f.create(`{attribute @name=tick | 0}{attribute @name=setting | false}{p | {$tick}}{${child.localName} @open={if $setting == "remove" { null } else { $setting }} @data-choice=original}`);
+            await f.runtime.whenRenderSettled(parent);
+            const nested = parent.querySelector<HTMLElement>(child.localName)!; await f.runtime.whenRenderSettled(nested);
+            const button = nested.querySelector<HTMLButtonElement>('button')!;
+            nested.setAttribute('open', 'true'); nested.removeAttribute('data-choice'); button.focus();
+            await f.runtime.whenRenderSettled(nested);
+            parent.setAttribute('tick', '1'); await f.runtime.whenRenderSettled(parent);
+            expect(nested.getAttribute('open')).toBe('true'); expect(nested.hasAttribute('data-choice')).toBe(false);
+            expect(nested.querySelector('button')).toBe(button); expect(document.activeElement).toBe(button);
+            parent.setAttribute('setting', 'changed'); await f.runtime.whenRenderSettled(parent);
+            expect(nested.getAttribute('open')).toBe('changed');
+            nested.setAttribute('open', 'live'); await f.runtime.whenRenderSettled(nested);
+            parent.setAttribute('setting', 'remove'); await f.runtime.whenRenderSettled(parent);
+            expect(nested.hasAttribute('open')).toBe(false);
+            parent.setAttribute('setting', 'false'); await f.runtime.whenRenderSettled(parent);
+            expect(nested.getAttribute('open')).toBe('false');
+        } finally { f.dispose(); }
+    },
+};

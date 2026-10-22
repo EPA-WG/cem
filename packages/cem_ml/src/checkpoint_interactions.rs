@@ -438,6 +438,8 @@ pub struct Popup {
     scroll_top: f64,
     scroll_left: f64,
     disposition: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    policies: Option<PopupPolicies>,
 }
 impl Surface {
     pub fn validate(&self, phase: &str, bytes: &mut usize) -> Result<(), &'static str> {
@@ -492,6 +494,9 @@ impl Surface {
 }
 impl Popup {
     pub fn validate(&self) -> Result<(), &'static str> {
+        if let Some(policies) = &self.policies {
+            policies.validate(&self.trigger)?;
+        }
         if !identity(&self.trigger)
             || !identity(&self.panel)
             || !self.scroll_top.is_finite()
@@ -499,6 +504,38 @@ impl Popup {
             || self.disposition != "reacquire"
         {
             return Err("cem.checkpoint.runtime.surface");
+        }
+        Ok(())
+    }
+}
+
+/// Semantic popup intent; endpoints require fresh complete-domain authority.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PopupPolicies {
+    external_trigger: Option<Endpoint>,
+    anchor: MenuRole,
+    boundary: MenuRole,
+    focus_target: MenuRole,
+    return_focus: MenuRole,
+    anchor_lost: String,
+    geometry: String,
+}
+impl PopupPolicies {
+    fn validate(&self, trigger: &str) -> Result<(), &'static str> {
+        if self.external_trigger.as_ref().is_some_and(|e| {
+            e.node_id != trigger
+                || ![&e.instance_id, &e.data_revision, &e.node_id]
+                    .iter()
+                    .all(|s| identity(s))
+        }) || !self.anchor.valid(&["invoker"])
+            || !self.boundary.valid(&["viewport"])
+            || !self.focus_target.valid(&["auto", "none"])
+            || !self.return_focus.valid(&["auto", "none"])
+            || !matches!(self.anchor_lost.as_str(), "close" | "freeze")
+            || self.geometry != "recompute"
+        {
+            return Err("cem.checkpoint.runtime.popup-policy");
         }
         Ok(())
     }

@@ -1,8 +1,9 @@
+import type { CheckpointEndpoint, CheckpointMenuRole, CheckpointPopup } from './checkpoint-interactions.js';
 import { registerCemPopupRelay, containsCemMenuChain } from './menu-task-relay.js';
 import { interactionReference, interactionControl, reportInteractionReference, observeInteractionReferences } from './interaction-reference.js';
-import { focusSurface, restoreSurfaceFocus } from './surface-references.js';
+import { focusSurface, restoreSurfaceFocus, surfaceElementAvailable, surfaceFocusTargetEligible } from './surface-references.js';
 import type { CemProducedElementBehavior } from './cem-elements.js';
-import { hidePopup, positionPopup, showPopup, observePopupGeometry, releasePopupGeometry } from './popup-controller.js';
+import { checkpointPopupGeometry, hidePopup, positionPopup, showPopup, observePopupGeometry, releasePopupGeometry } from './popup-controller.js';
 
 interface State { relayRevision: number; releaseRelay?: () => void; abort?: AbortController; observer?: MutationObserver; trigger?: HTMLElement; panel?: HTMLElement; open: boolean; releaseReferences?: () => void; releaseGeometry?: () => void; geometryReady?: boolean; authoredBase?: boolean; generatedBase?: { node: HTMLElement; hidden: HTMLElement['hidden'] }; external?: { trigger: HTMLElement; attributes: Map<string, string | null> }; authoredDisabled?: boolean; authoredHasPopup?: string; }
 const states = new WeakMap<HTMLElement, State>();
@@ -179,16 +180,63 @@ export const CEM_POPUP_CAPABILITY: CemProducedElementBehavior = {
     },
 };
 
-/** Read-only portable state; listeners, generated IDs and grants are reacquired. */
-export function cemPopupCheckpoint(instance: HTMLElement) {
+/** Read-only portable intent; selectors and serialized endpoints confer no authority. */
+export function cemPopupCheckpoint(instance: HTMLElement, resolve?: (node: HTMLElement) => CheckpointEndpoint | undefined) {
     const state = states.get(instance);
-    if (!state?.abort || state.abort.signal.aborted || !state.panel || !state.trigger || state.external
-        || hostReference(instance) || state.open && !state.geometryReady) return undefined;
+    if (!instance.isConnected || !state?.abort || state.abort.signal.aborted || !state.panel || !state.trigger
+        || !popups.has(instance) || !state.trigger.isConnected || !state.panel.isConnected
+        || instance.querySelector(':scope > [part~="popup"]') !== state.panel || state.open && !state.geometryReady) return undefined;
+    // Natural absolute panels follow their containing block on scroll. Explicit
+    // viewport/reference geometry instead requires a current clamping witness.
+    if (state.open && (state.external || instance.hasAttribute('anchor') || instance.hasAttribute('boundary') || getComputedStyle(state.panel).position !== 'absolute')
+        && !checkpointPopupGeometry(state.trigger, state.panel, false, instance)) return undefined;
     const trigger = state.trigger.getAttribute('data-cem-render-node-id'), panel = state.panel.getAttribute('data-cem-render-node-id');
     if (!trigger || !panel) return undefined;
-    return { kind: 'popup' as const, open: state.open, state: { trigger, panel, scrollTop: state.panel.scrollTop, scrollLeft: state.panel.scrollLeft, disposition: 'reacquire' as const } };
+    const endpoint = (node: HTMLElement) => {
+        const target = resolve?.(node);
+        return target && (target.nodeId === 'host' || (node as HTMLElement & { cemRenderNodeId?: string }).cemRenderNodeId === target.nodeId) ? target : undefined;
+    };
+    const externalTrigger = state.external ? endpoint(state.trigger) : null;
+    if (externalTrigger === undefined || externalTrigger && externalTrigger.nodeId !== trigger) return undefined;
+    if (state.external) {
+        const selected = interactionReference(instance, instance.getAttribute('trigger-for') ?? '', 'trigger-for');
+        if (selected.code || interactionControl(selected.target) !== state.trigger || state.external.trigger !== state.trigger
+            || [...popups].some(other => other !== instance && other.hasAttribute('trigger-for')
+                && interactionControl(interactionReference(other, other.getAttribute('trigger-for') ?? '', 'trigger-for').target) === state.trigger)) return undefined;
+    } else if (instance.hasAttribute('trigger-for') || instance.querySelector(':scope > [part~="base"] > :is(button,a,[tabindex])') !== state.trigger) return undefined;
+    const role = (name: string, fallback: 'invoker' | 'viewport' | 'auto'): CheckpointMenuRole | undefined => {
+        const value = instance.getAttribute(name) ?? fallback;
+        if (!instance.hasAttribute(`data-cem-node-ref-${name}`) && (value === fallback || fallback === 'auto' && value === 'none'))
+            return { mode: value as CheckpointMenuRole['mode'], target: null };
+        const selected = interactionReference(instance, value, name), node = selected.target;
+        if (selected.code || !(node instanceof HTMLElement) || !node.isConnected || node.getRootNode() !== instance.getRootNode()) return undefined;
+        if (fallback === 'auto' && (!surfaceFocusTargetEligible(node) || name === 'focus-target' && !state.panel!.contains(node)
+            || state.open && !surfaceElementAvailable(node))) return undefined;
+        const target = endpoint(node); return target ? { mode: 'target', target } : undefined;
+    };
+    const anchor = role('anchor', 'invoker'), boundary = role('boundary', 'viewport');
+    const focusTarget = role('focus-target', 'auto'), returnFocus = role('return-focus', 'auto');
+    const anchorLost = instance.getAttribute('anchor-lost') ?? 'close';
+    if (!anchor || !boundary || !focusTarget || !returnFocus || !['close', 'freeze'].includes(anchorLost)) return undefined;
+    const contract: CheckpointPopup = { trigger, panel, scrollTop: state.panel.scrollTop, scrollLeft: state.panel.scrollLeft, disposition: 'reacquire',
+        policies: { externalTrigger, anchor, boundary, focusTarget, returnFocus, anchorLost: anchorLost as 'close' | 'freeze', geometry: 'recompute' } };
+    return { kind: 'popup' as const, open: state.open, state: contract };
 }
-function hostReference(host: HTMLElement): boolean { return host.hasAttribute('anchor') || host.hasAttribute('boundary'); }
+
+/** Original controller/DOM evidence, including the control outside the popup subtree. */
+export function prepareCemPopupGuard(host: HTMLElement, resolve: (node: HTMLElement) => CheckpointEndpoint | undefined): () => boolean {
+    const state = states.get(host), saved = cemPopupCheckpoint(host, resolve);
+    if (!state || !saved) throw Error('cem.checkpoint.resume.unsupported');
+    const { abort, trigger, panel, external, generatedBase } = state;
+    const root = host.getRootNode(), scope = host.closest('[interaction-scope]');
+    const names = ['trigger-for', 'anchor', 'boundary', 'focus-target', 'return-focus', 'anchor-lost'];
+    const policy = () => JSON.stringify(names.map(name => [host.getAttribute(name), host.getAttribute(`data-cem-node-ref-${name}`)]));
+    const attributes = () => JSON.stringify(['id', 'aria-controls', 'aria-haspopup', 'aria-expanded', 'aria-disabled', 'disabled', 'tabindex'].map(name => trigger!.getAttribute(name)));
+    const intent = JSON.stringify(saved), authored = policy(), control = attributes();
+    return () => states.get(host) === state && state.abort === abort && !abort?.signal.aborted && state.trigger === trigger && state.panel === panel
+        && state.external === external && state.generatedBase === generatedBase && host.getRootNode() === root && host.closest('[interaction-scope]') === scope
+        && policy() === authored && attributes() === control && JSON.stringify(cemPopupCheckpoint(host, resolve)) === intent;
+}
 
 /** Renew geometry after fresh-owner admission without replaying open/focus actions. */
 export function resumeCemPopupGeometry(host: HTMLElement): void {

@@ -437,9 +437,32 @@ an owner-local host or render-node identity; nested owners record their own focu
 Native controls retain their exact edits and selection in the control domain.
 Keyboard, focus and surface lifecycle events invalidate publication before export.
 
-Settled popup capture requires an internal trigger, stable render-node identities
-and no external geometry references. Both open and closed states retain scroll
-position and fresh geometry/authority intent. Settled native dialog/popover
+Settled popup capture requires stable render-node identities and the original
+controller, trigger and panel. External triggers require an owned control endpoint
+in the complete receipt graph (`trigger-for`), resolved again through the original
+interaction scope. Anchor, boundary, focus-target and return-focus roles record
+explicit defaults (`invoker`, `viewport`, `auto`/`none`) or owned target endpoints.
+`anchor-lost` is `close`/`freeze`; geometry intent is always `recompute`. Typed native
+references additionally require the original source callback, fresh validated
+source capsules and current placement grants. Serialized selectors/endpoints never
+grant authority. Unowned targets, duplicate names, replaced controls/controllers,
+changed policies and missing endpoint coverage refuse the complete handoff.
+
+Both open and closed popups retain scroll and open intent. Open capture and
+activation of external/explicit geometry require current shared geometry evidence,
+including visual viewport, anchor/boundary rectangles, containing block and
+geometry style ownership. Internal natural absolute panels keep their existing
+containing-block scroll behavior; fresh admission still repositions them. Fresh
+admission recomputes placement through the retained controller without reopening,
+clicking, moving focus or restoring old pixels. Unprocessed geometry changes refuse;
+ordinary geometry observers can settle new layout before a new checkpoint.
+Private guards include external trigger attributes and original DOM identities,
+so a matching render-node string on a replacement cannot authorize recovery.
+Parent reconciliation compares the previous and fresh authored child inputs: an
+unchanged input cannot reset a child's live open state or move focus during a
+resource-owner render. Changed and removed authored inputs still apply normally.
+Focus references use authored or freshly granted native identities; adding an
+unowned ID to another renderer's native output does not make it durable. Settled native dialog/popover
 controllers retain open/closed phase, modality, return value, focus-within state,
 close reason and invocation command/context key/input kind/geometry. Invocation
 source, return destination and logical parent use trusted owner/revision/node
@@ -774,10 +797,9 @@ retired generation. The first fresh render keeps the original edits, selection,
 theme and independent page/example keys, with initialization and slice writes
 suppressed until new accepted input. Subsequent selection, external storage
 events and key rebinding use the shared resource lifecycle normally. No theme-
-or Studio-specific recovery behavior is added. The production theme menu also
-contains an external-trigger/viewport popup: that separate checkpoint policy is
-still unsupported. A complete composition must refuse rather than omit its
-popup owner; storage-owner acceptance does not authorize full-menu recovery.
+or Studio-specific recovery behavior is added. The complete production theme menu
+uses the shared external-trigger/viewport popup policy above; every popup, menu,
+icon and storage owner participates. Theme and example keys remain independent.
 Credential URLs, credential request headers, unsupported request methods or
 unresolved resource state refuse capture. Whole-island consent must also exclude
 secrets in response bytes, parameters, payload and slices; no owner is redacted,
@@ -1232,8 +1254,8 @@ The exact workspace dependency audit includes declarative Storybook fixture rout
 published runtime dependencies remain unchanged.
 
 This audit does **not** pass successful whole-workspace recovery. Theme text
-storage now has a shared adapter, while its external-trigger/viewport popup
-remains unsupported. Media/live previews own additional runtime state.
+storage and its external-trigger/viewport popup now have shared adapters.
+Media/live previews own additional runtime state.
 Shared action/disclosure/list owners now have guarded adapters, including
 complete command/descriptor/submenu endpoint coverage.
 Command-service heaps also need explicit host-service rebinding and complete group

@@ -1237,3 +1237,65 @@ fn validates_retained_action_disclosure_and_native_list_guards() {
         assert!(validate(&s.to_string()).is_err(), "{s}");
     }
 }
+
+fn popup_policy_state() -> Value {
+    let endpoint = json!({"instanceId":"trigger-owner","dataRevision":"2","nodeId":"button"});
+    let mut s = state();
+    s["capability"] = json!({"kind":"popup","open":true,"state":{
+        "trigger":"button","panel":"aside","scrollTop":12,"scrollLeft":0,"disposition":"reacquire",
+        "policies":{"externalTrigger":endpoint,"anchor":{"mode":"invoker","target":null},
+            "boundary":{"mode":"viewport","target":null},"focusTarget":{"mode":"auto","target":null},
+            "returnFocus":{"mode":"none","target":null},"anchorLost":"close","geometry":"recompute"}}});
+    s
+}
+#[test]
+fn popup_external_and_viewport_policies_round_trip() {
+    let mut s = popup_policy_state();
+    let normalized = validate(&s.to_string()).unwrap();
+    assert_eq!(validate(&normalized).unwrap(), normalized);
+    for role in ["anchor", "boundary", "focusTarget", "returnFocus"] {
+        s["capability"]["state"]["policies"][role] = json!({"mode":"target","target":{"instanceId":"other","dataRevision":"3","nodeId":"node"}});
+        assert!(validate(&s.to_string()).is_ok());
+    }
+    s["capability"]["state"]["policies"]["externalTrigger"] = Value::Null;
+    assert!(validate(&s.to_string()).is_ok());
+}
+#[test]
+fn popup_policies_refuse_private_authority_and_incomplete_roles() {
+    let s = popup_policy_state();
+    for (key, value) in [
+        (
+            "externalTrigger",
+            json!({"instanceId":"x","dataRevision":"","nodeId":"node"}),
+        ),
+        (
+            "externalTrigger",
+            json!({"instanceId":"x","dataRevision":"1","nodeId":"other"}),
+        ),
+        ("anchorLost", json!("restore")),
+        ("geometry", json!("restore-pixels")),
+        ("rect", json!({"left":1})),
+        ("grant", json!("private")),
+    ] {
+        let mut bad = s.clone();
+        bad["capability"]["state"]["policies"][key] = value;
+        assert!(validate(&bad.to_string()).is_err(), "{key}");
+    }
+    for role in ["anchor", "boundary", "focusTarget", "returnFocus"] {
+        for value in [
+            json!({"mode":"target","target":null}),
+            json!({"mode":"unknown","target":null}),
+            json!({"mode":"auto","target":{"instanceId":"x","dataRevision":"1","nodeId":"node"}}),
+        ] {
+            let mut bad = s.clone();
+            bad["capability"]["state"]["policies"][role] = value;
+            assert!(validate(&bad.to_string()).is_err(), "{role}");
+        }
+        let mut bad = s.clone();
+        bad["capability"]["state"]["policies"]
+            .as_object_mut()
+            .unwrap()
+            .remove(role);
+        assert!(validate(&bad.to_string()).is_err());
+    }
+}

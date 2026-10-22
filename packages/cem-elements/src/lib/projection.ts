@@ -3035,6 +3035,7 @@ function mergeRenderPlanNode(
         (attribute) => (isRegisteredCustomElement(element) && !isRenderMetadataAttribute(attribute.name)
             && !previousAttributes?.has(attribute.name))
             || !!(preserveElementAttribute && desiredElement && preserveElementAttribute(element, desiredElement, attribute)),
+        isRegisteredCustomElement(element) ? previousAttributes : undefined,
     );
     syncNativeAttributes(element, desired.attributes);
     syncReboundCheckedControl(element, previousSlice, renderedAttributeValues.get(element));
@@ -3308,6 +3309,7 @@ function syncAttributes(
     current: Element,
     desired: Element | ReadonlyMap<string, string>,
     preserveCurrentAttribute?: (attribute: Attr) => boolean,
+    previousAuthoredAttributes?: ReadonlyMap<string, string>,
 ): void {
     const desiredAttributes = isAttributeElement(desired)
         ? new Map(Array.from(desired.attributes).map((attribute) => [attribute.name, attribute.value]))
@@ -3318,6 +3320,9 @@ function syncAttributes(
         }
     }
     for (const [name, value] of desiredAttributes) {
+        // Unchanged parent inputs do not reset a child controller's live state.
+        // A changed or removed authored input still belongs to the parent.
+        if (previousAuthoredAttributes?.get(name) === value) continue;
         if (renderPlanAttributeValue(current, name) !== value) {
             setRenderPlanAttribute(current, name, value);
         }

@@ -66,7 +66,11 @@ export interface CheckpointMenuPolicies {
     compositeNode: string; anchor: CheckpointMenuRole; boundary: CheckpointMenuRole; boundaryOwner: CheckpointEndpoint | null;
     focusTarget: CheckpointMenuRole; returnFocus: CheckpointMenuRole; anchorLost: 'close' | 'freeze'; geometry: 'recompute';
 }
-export interface CheckpointPopup { trigger: string; panel: string; scrollTop: number; scrollLeft: number; disposition: 'reacquire' }
+export interface CheckpointPopup {
+    trigger: string; panel: string; scrollTop: number; scrollLeft: number; disposition: 'reacquire';
+    policies?: { externalTrigger: CheckpointEndpoint | null; anchor: CheckpointMenuRole; boundary: CheckpointMenuRole;
+        focusTarget: CheckpointMenuRole; returnFocus: CheckpointMenuRole; anchorLost: 'close' | 'freeze'; geometry: 'recompute' };
+}
 
 // Exact invocation snapshots are private host evidence, never inferred from markup.
 const referenceSnapshots = new WeakSet<object>();

@@ -160,7 +160,7 @@ import { CEM_EDITABLE_CHOICE_CAPABILITY, cemEditableChoiceCheckpoint } from './e
 import { CEM_CHECKABLE_CONTROL_CAPABILITY, cemCheckableControlCheckpoint } from './checkable-control.js';
 import { CEM_SUGGESTIONS_CAPABILITY, cemSuggestionsCheckpoint, cemSuggestionsCheckpointEditor, refreshCemSuggestionsAuthorization, localCemSuggestionsBinding, type CemLocalSuggestionsEnvironment } from './suggestions-capability.js';
 import type { CemSuggestionsControllerOptions } from './suggestions-controller.js';
-import { CEM_POPUP_CAPABILITY, cemPopupCheckpoint, resumeCemPopupGeometry } from './popup-capability.js';
+import { CEM_POPUP_CAPABILITY, cemPopupCheckpoint, prepareCemPopupGuard, resumeCemPopupGeometry } from './popup-capability.js';
 import { CEM_NATIVE_SURFACE_CAPABILITY, cemNativeSurfaceCheckpoint, resumeCemNativeSurface } from './native-surface.js';
 import { CEM_ACTION_CONTROL_CAPABILITY, cemActionControlCheckpoint, prepareCemActionControlGuard } from './action-control-capability.js';
 import { CEM_ACTION_COMMAND_CAPABILITY, cemActionCommandCheckpoint, prepareCemActionCommandGuard } from './action-command-capability.js';
@@ -3013,7 +3013,7 @@ export class CemElementRuntime {
         else if (compiled.behavior === CEM_TAB_PANELS_CAPABILITY) capability = cemTabPanelsCheckpoint(instance) ?? null;
         else if (compiled.behavior === CEM_NAVIGATION_LANDMARK_CAPABILITY) capability = cemNavigationLandmarkCheckpoint(instance) ?? null;
         else if (compiled.behavior === CEM_COMPOSITE_MENU_CAPABILITY) capability = cemCompositeMenuCheckpoint(instance, element => this.checkpointEndpoint(element)) ?? null;
-        else if (compiled.behavior === CEM_POPUP_CAPABILITY) capability = cemPopupCheckpoint(instance) ?? null;
+        else if (compiled.behavior === CEM_POPUP_CAPABILITY) capability = cemPopupCheckpoint(instance, node => this.checkpointEndpoint(node)) ?? null;
         else if (compiled.behavior === CEM_NATIVE_SURFACE_CAPABILITY) capability = cemNativeSurfaceCheckpoint(instance, element => this.checkpointEndpoint(element)) ?? null;
         else if (compiled.behavior === CEM_SUGGESTIONS_CAPABILITY) {
             const editor = cemSuggestionsCheckpointEditor(instance);
@@ -3174,6 +3174,23 @@ export class CemElementRuntime {
                 }
             }
         }
+        if (this.declarationForInstance(instance)?.behavior === CEM_POPUP_CAPABILITY) {
+            const popup = cemPopupCheckpoint(instance, node => this.checkpointEndpoint(node));
+            if (!popup?.state.policies) return undefined;
+            const policies = popup.state.policies;
+            // A native trigger-for placement may select the component host; its
+            // actual browser control is a separate endpoint, never a substitute grant.
+            if (policies.externalTrigger) result.push({ id: `${requester.instanceId}:popup:trigger`, kind: 'placement',
+                requester: { ...requester, nodeId: popup.state.panel }, provider: policies.externalTrigger, property: 'trigger-for', disposition: 'reacquire' });
+            for (const [name, provider] of [['anchor', policies.anchor.target], ['boundary', policies.boundary.target],
+                ['focus-target', policies.focusTarget.target], ['return-focus', policies.returnFocus.target]] as const) {
+                if (!provider) continue;
+                const existing = result.find(edge => edge.requester.nodeId === requester.nodeId && edge.property === name);
+                if (existing) {
+                    if (existing.kind !== 'placement' || !equalCheckpointState(existing.provider, provider)) return undefined;
+                } else result.push({ id: `${requester.instanceId}:popup:${name}`, kind: 'placement', requester, provider, property: name, disposition: 'reacquire' });
+            }
+        }
         if (this.declarationForInstance(instance)?.behavior === CEM_NATIVE_SURFACE_CAPABILITY) {
             const surface = cemNativeSurfaceCheckpoint(instance, element => this.checkpointEndpoint(element));
             const invocation = surface?.state.invocation;
@@ -3247,6 +3264,7 @@ export class CemElementRuntime {
         if (compiled.behavior === CEM_ACTION_CONTROL_CAPABILITY) return prepareCemActionControlGuard(instance);
         if (compiled.behavior === CEM_DISCLOSURE_PANEL_CAPABILITY) return prepareCemDisclosurePanelGuard(instance);
         if (compiled.behavior === CEM_NATIVE_LIST_CAPABILITY) return prepareCemNativeListGuard(instance);
+        if (compiled.behavior === CEM_POPUP_CAPABILITY) return prepareCemPopupGuard(instance, node => this.checkpointEndpoint(node));
         return undefined;
     }
 
@@ -3307,7 +3325,7 @@ export class CemElementRuntime {
             : compiled.behavior === CEM_TAB_PANELS_CAPABILITY ? () => cemTabPanelsCheckpoint(instance)
                 : compiled.behavior === CEM_NAVIGATION_LANDMARK_CAPABILITY ? () => cemNavigationLandmarkCheckpoint(instance)
                     : compiled.behavior === CEM_COMPOSITE_MENU_CAPABILITY ? () => cemCompositeMenuCheckpoint(instance, node => this.checkpointEndpoint(node))
-                        : compiled.behavior === CEM_POPUP_CAPABILITY ? () => cemPopupCheckpoint(instance)
+                        : compiled.behavior === CEM_POPUP_CAPABILITY ? () => cemPopupCheckpoint(instance, node => this.checkpointEndpoint(node))
                             : compiled.behavior === CEM_NATIVE_SURFACE_CAPABILITY ? () => cemNativeSurfaceCheckpoint(instance, node => this.checkpointEndpoint(node)) : undefined;
         const suggestions = compiled.behavior === CEM_SUGGESTIONS_CAPABILITY;
         let pair: CemProviderHandoff | undefined, provider: ReturnType<typeof prepareCemEditorProviderHandoff>;
