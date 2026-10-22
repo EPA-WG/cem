@@ -42,6 +42,11 @@ for ownership, scope resolution, specificity, lifecycle, and diagnostics.
 That target is not current runtime behavior until its active migration gate is
 complete.
 
+The shared [`cem-source-editor` code editor](./playgrounds/cem-source-editor-gallery.html)
+has a [property playground](./playgrounds/cem-source-editor.html) and is used by
+the [`cem-demo-element` playground](../cem-demo-element/demo/playground.html).
+Browse the [components gallery](./playgrounds/index.html) for related controls.
+
 ## Install
 
 ```bash

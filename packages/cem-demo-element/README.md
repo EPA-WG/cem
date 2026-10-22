@@ -130,10 +130,12 @@ demo without sanitizing it first.
 ## Editable playground
 
 Open [`demo/playground.html`](./demo/playground.html) through the local demo
-server. Edit the shared `cem-source-editor` pane, select input and output formats,
+server. Edit the shared [`cem-source-editor`](../cem-components/playgrounds/cem-source-editor-gallery.html)
+pane, select input and output formats,
 then choose **Render**. Input defaults to **Auto**; output defaults to **HTML**.
 Auto provides a syntax hint for pasted text; select a format explicitly for
-ambiguous input.
+ambiguous input. See the [editor property playground](../cem-components/playgrounds/cem-source-editor.html)
+and [components gallery](../cem-components/playgrounds/index.html) for the reusable control.
 
 The declarative source editor uses `cem-elements` native HTML/CEM-ML/CSS
 coloring over the existing plaintext DOM. Input format controls its content type;
