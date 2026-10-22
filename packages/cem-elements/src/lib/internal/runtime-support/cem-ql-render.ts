@@ -53,6 +53,8 @@ export interface CemDomStylesheetSource extends CemQlStylesheetArtifact {
 }
 
 export interface CemMlTemplateCompileResult {
+    /** Conservative native host-routing policy; never an AST or admission grant. */
+    legacyRuntimeResources?: boolean;
     stylesheets: CemQlStylesheetArtifact[];
     moduleMap: CemBrowserModuleUrlMap | null;
     diagnostics: RuntimeSupportDiagnostic[];
@@ -646,12 +648,14 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
             artifactId?: number;
             stylesheets?: WasmStylesheetArtifact[];
             moduleMap?: CemBrowserModuleUrlMap | null;
+            legacyRuntimeResources?: boolean;
             diagnostics?: WasmDiagnostic[];
         };
         if (Number.isSafeInteger(result.artifactId) && (result.artifactId ?? 0) > 0) {
             disposeTemplate(result.artifactId as number);
         }
         return {
+            legacyRuntimeResources: result.legacyRuntimeResources !== false,
             stylesheets: (result.stylesheets ?? []).map(mapStylesheet),
             moduleMap: result.moduleMap ?? null,
             diagnostics: (result.diagnostics ?? [])

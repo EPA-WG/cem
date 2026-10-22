@@ -98,8 +98,14 @@ adapters. External suggestions and standalone delegates require their original
 trusted lifecycle's `resume(freshHost)` policy; absent or withdrawn policy refuses.
 Standalone listbox presentation resets, and native datalists require an unfocused
 editor and reset picker presentation. Inactive sources without an admitted readonly
-proof and legacy storage/location rendering still refuse. Studio recovery remains
-manual. See [explicit owner resume transactions](../../docs/committed-checkpoints.md#explicit-owner-resume-transactions).
+proof and unsupported storage/location rendering still refuse. Plain text storage
+owners now compile on the fresh processing host, retain original storage authority
+and raw values, replace parked live subscriptions and suppress consumed writes
+until new input. Page and example keys remain independent. JSON/XML/dynamic-type
+storage and legacy location adapters remain gated, as does the theme menu's
+external-trigger/viewport popup. Complete Studio preview/command-runtime coverage
+and successful whole-workspace acceptance are still required before automatic
+recovery. See [explicit owner resume transactions](../../docs/committed-checkpoints.md#explicit-owner-resume-transactions).
 
 
 Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
@@ -615,7 +621,7 @@ This is an explicit shared owner adapter, not automatic Studio recovery.
 
 With `content-type="text/html|text/cem-ml|text/css"`, the capability reuses the
 playground's lossless native highlighter through bounded `highlight` processing
-jobs (protocol v28). The named `sourceHighlightPaintV1` presentation DTO contains
+jobs (protocol v29). The named `sourceHighlightPaintV1` presentation DTO contains
 only schema/status and UTF-16 role ranges, never a source AST or token stream.
 CSS Custom Highlights paint existing text without rewriting the editable DOM.
 The original native client/generation controls admission, cancellation and paint

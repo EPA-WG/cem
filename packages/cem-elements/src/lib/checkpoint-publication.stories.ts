@@ -60,6 +60,12 @@ import expansionDeclaration from '../../../cem-components/src/components/cem-exp
 import listDeclaration from '../../../cem-components/src/components/cem-list/cem-list.xhtml?raw';
 // eslint-disable-next-line @nx/enforce-module-boundaries -- production declarative sources are acceptance inputs.
 import menuItemDeclaration from '../../../cem-components/src/components/cem-menu-item/cem-menu-item.xhtml?raw';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- production sources exercise shared storage recovery.
+import themeSwitchDeclaration from '../../../cem-components/src/components/cem-theme-switch/cem-theme-switch.xhtml?raw';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- production sources exercise shared storage recovery.
+import iconButtonDeclaration from '../../../cem-components/src/components/cem-icon-button/cem-icon-button.xhtml?raw';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- production sources exercise shared storage recovery.
+import iconDeclaration from '../../../cem-components/src/components/cem-icon/cem-icon.xhtml?raw';
 
 import { createCemDeclarationScope } from './declaration-scope.js';
 // eslint-disable-next-line @nx/enforce-module-boundaries -- real native checkpoint transport acceptance.
@@ -2865,7 +2871,7 @@ export const BuiltInOwnerUnsupportedScopes: Story = {
             try {
                 const plain = await f.create('{p | Covered plain owner}'); await f.runtime.whenRenderSettled(plain);
                 const owner = legacy
-                    ? await f.create(`{local-storage @slice=draft @key="${key}" @type=text @value=recorded}{p | Legacy storage owner}`)
+                    ? await f.create(`{local-storage @slice=draft @key="${key}" @type=json @value='{}'}{p | Unsupported JSON storage owner}`)
                     : await f.create('<p>Legacy DOM-mode owner</p>', 'dom');
                 await f.runtime.whenRenderSettled(owner); await waitFor(() => f.coordinator.capture());
                 expect(decode(f.coordinator).owners).toHaveLength(2);
@@ -3765,3 +3771,161 @@ export const RetainedActionRelationshipRefusals: Story = { render: () => '<secti
 
 export const RetainedActionControlAndDisclosureRefusals: Story = { render: () => '<section aria-label="Retained link controller and disclosure node refusals"></section>',
     play: async ({ canvasElement }) => retainedGuardResumeStory(canvasElement, ['worker-link', 'fallback-late-link', 'worker-control', 'fallback-late-panel']) };
+
+async function isolatedTextStorageResume(base: string, load: (url: string) => Promise<any>, scenario: string, sources: string[]): Promise<string> {
+    const support = new URL('lib/internal/runtime-support/', base).href;
+    const binding = await load(`${support}native-runtime.js`), initial = binding.isolateCemFallbackGeneration();
+    await initial.ready(); let heap = initial, embedding = initial.claimOwnership(), admission: any;
+    const [{ CemElementRuntime }, { createCemDeclarationScope }, { CemCheckpointPublicationCoordinator }, { resumeCemCheckpointOwners }, { CemNativeGenerationGroup }] = await Promise.all([
+        load(new URL('lib/cem-elements.js', base).href), load(new URL('lib/declaration-scope.js', base).href),
+        load(new URL('lib/checkpoint-publication.js', base).href), load(new URL('lib/checkpoint-resume.js', base).href), load(`${support}native-generation.js`),
+    ]);
+    const check = (value: unknown, message: string) => { if (!value) throw Error(message); };
+    const scope = createCemDeclarationScope({ document }), fallback = scenario.startsWith('fallback');
+    const coordinator = new CemCheckpointPublicationCoordinator({ runtimeId: crypto.randomUUID(), generation: 1,
+        policyStamp: 'text-storage', allowOwner: () => true, seal: (candidate: string, receipt: string) => binding.sealCommittedCheckpoint(candidate, receipt) });
+    const runtime = new CemElementRuntime({ declarationScope: scope, declarationTag: `storage-declaration-${crypto.randomUUID()}`, checkpointPublication: coordinator,
+        processingWorkerFactory: () => { if (fallback) throw Error('owned fallback'); return new Worker(`${support}processing-worker.js`, { type: 'module' }); } });
+    const prefix = `cem-storage-resume-${crypto.randomUUID()}`, keys = [prefix, `${prefix}-example`, `${prefix}-write`, `${prefix}-next`];
+    const originalSet = Storage.prototype.setItem, originalGet = Storage.prototype.getItem, storage = localStorage,
+        storageProperty = Object.getOwnPropertyDescriptor(window, 'localStorage')!;
+    const add = window.addEventListener, remove = window.removeEventListener, subscriptions = new Set<EventListenerOrEventListenerObject>();
+    window.addEventListener = function(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions) {
+        if (type === 'storage') subscriptions.add(listener); add.call(this, type, listener, options);
+    };
+    window.removeEventListener = function(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions) {
+        if (type === 'storage') subscriptions.delete(listener); remove.call(this, type, listener, options);
+    };
+    let writes = 0, stage = 'create';
+    const progress = setInterval(() => parent.postMessage({ progress: stage }, '*'), 250);
+    const capture = async () => { for (let n = 0; ; n++) { try { await coordinator.capture(); return; }
+        catch (error) { if (n >= 100) throw Error(`${String(error)}: ${JSON.stringify(coordinator.inspectRecovery())}`, { cause: error }); await new Promise(resolve => setTimeout(resolve, 10)); } } };
+    const settle = async () => {
+        for (let n = 0; n < 3; n++) {
+            for (const owner of document.querySelectorAll('cem-theme-switch,cem-icon-button,cem-icon,cem-dropdown,cem-menu,cem-menu-item,cem-action,storage-writer')) await runtime.whenRenderSettled(owner);
+            await new Promise(requestAnimationFrame);
+        }
+    };
+    const refused = async (work: () => unknown) => { try { await work(); } catch (error) {
+        check(/stale|unsupported|unavailable|ticket|unknown|coverage|storage-authority/.test(String(error)), String(error)); return;
+    } throw Error('changed storage owner admitted'); };
+    try {
+        // Storage-owner lane leaves the separately gated external popup uninstantiated.
+        // The popup lane mounts the complete production composition and requires refusal.
+        for (const source of scenario.endsWith('popup') ? sources : [sources[0], sources[1], sources[6]]) {
+            const parsed = new DOMParser().parseFromString(source, 'text/html').querySelector('cem-element')!;
+            const declaration = document.createElement('div');
+            for (const attribute of [...parsed.attributes]) declaration.setAttribute(attribute.name, attribute.value);
+            declaration.append(document.importNode(parsed.querySelector('template')!, true)); document.head.append(declaration);
+            runtime.registerDeclaration(declaration); await runtime.whenDeclarationSettled(declaration);
+        }
+        const declaration = document.createElement('div'), template = document.createElement('template'); declaration.setAttribute('tag', 'storage-writer');
+        template.type = 'text/cem-ml'; template.textContent = `{slice @name=edit}{local-storage @slice=stored @key="${keys[2]}" @type=text @value={datadom.slices.edit ?? "seed"}}{input @slice=edit @slice-event=input @slice-value="$target.value" @value=seed}{output | {datadom.slices.stored}}`;
+        declaration.append(template); document.head.append(declaration); runtime.registerDeclaration(declaration); await runtime.whenDeclarationSettled(declaration);
+        localStorage.setItem(keys[0], 'cem-theme-dark'); localStorage.setItem(keys[1], 'cem-theme-contrast-light');
+        const theme = document.createElement('cem-theme-switch'), example = document.createElement('cem-theme-switch'), writer = document.createElement('storage-writer');
+        theme.setAttribute('storage-key', keys[0]); example.setAttribute('storage-key', keys[1]); document.body.append(theme, example, writer);
+        stage = 'initial rendering'; await settle();
+        check(subscriptions.size === 2, 'independent storage listeners not installed');
+        check(theme.getAttribute('data-theme') === 'cem-theme-dark' && example.getAttribute('data-theme') === 'cem-theme-contrast-light', 'independent theme storage not read');
+        const input = writer.querySelector('input')!; input.value = 'Edited é😀'; input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        await settle(); input.focus(); input.setSelectionRange(2, 7, 'backward'); await settle();
+        check(localStorage.getItem(keys[2]) === 'Edited é😀', 'initial storage edit not persisted');
+        const nodes = [...theme.querySelectorAll('button'), ...example.querySelectorAll('button'), input];
+        check(nodes.length === 13, `production theme controls not rendered: ${nodes.length}`);
+        if (scenario.endsWith('popup')) {
+            await refused(() => coordinator.capture()); await refused(() => coordinator.prepareResume());
+            check(coordinator.lastCommitted() === undefined, 'unsupported external popup published a partial checkpoint');
+            return `${scenario} text storage passed`;
+        }
+        const operation = coordinator.operation.bind(coordinator);
+        coordinator.operation = (owner: string) => { writes++; return operation(owner); };
+        await capture();
+        check(coordinator.inspectRecovery().owners.filter((owner: any) => owner.tag === 'cem-theme-switch').every((owner: any) => owner.adapterAvailable), 'theme adapter not available');
+        for (let cycle = 0; cycle < (scenario === 'worker' || scenario === 'fallback' ? 2 : 1); cycle++) {
+            stage = `retire ${cycle}`; const before = coordinator.lastCommitted().receipt;
+            const group = new CemNativeGenerationGroup([coordinator.generationParticipant()]);
+            const consent = fallback ? heap.retirementConsent([embedding]) : undefined;
+            const proof = await coordinator.closeRenderingGeneration(5000, consent); await capture(); const ticket = coordinator.prepareResume();
+            check(subscriptions.size === 0, 'old storage listeners not parked');
+            const retired = await coordinator.retireRenderingGeneration(proof, 5000, consent), previous = admission;
+            admission = await group.allocate([retired]);
+            const mutate = () => {
+                if (scenario.endsWith('raw')) {
+                    originalSet.call(localStorage, keys[0], 'cem-theme-native');
+                    window.dispatchEvent(new StorageEvent('storage', { key: keys[0], storageArea: localStorage }));
+                    check(runtime.readInstanceSnapshot(theme).slices.selection === 'cem-theme-dark', 'parked storage event changed canonical selection');
+                }
+                if (scenario.endsWith('key')) theme.setAttribute('storage-key', keys[3]);
+                if (scenario.endsWith('source')) template.textContent += '{p | changed}';
+                if (scenario.endsWith('authority')) Object.defineProperty(window, 'localStorage', { configurable: true, value: { getItem: (key: string) => storage.getItem(key) } });
+                if (scenario.endsWith('method')) Storage.prototype.getItem = function(key: string) { return originalGet.call(this, key); };
+            };
+            const negative = scenario !== 'worker' && scenario !== 'fallback';
+            if (negative && !scenario.includes('late-')) mutate();
+            stage = `prepare ${cycle}`;
+            if (negative && !scenario.includes('late-')) {
+                await refused(() => resumeCemCheckpointOwners(admission, [ticket]));
+            } else {
+                const resumed = await resumeCemCheckpointOwners(admission, [ticket]);
+                if (negative) { mutate(); await refused(async () => { for (const owner of resumed.owners) await owner.owner.resume(); }); }
+                else {
+                    stage = `resume ${cycle}`; for (const owner of resumed.owners) await owner.owner.resume(); previous?.revoke(); await settle(); await capture();
+                    heap = admission.generations[0].runtime; if (fallback) embedding = heap.claimOwnership();
+                    check(subscriptions.size === 2, 'fresh storage listeners missing or duplicated');
+                    check(coordinator.lastCommitted().receipt.owners.every((owner: any, index: number) => owner.acceptedEventSequence === before.owners[index].acceptedEventSequence), 'resume manufactured input');
+                }
+            }
+            check(writes === 0 && input.value === 'Edited é😀' && input.selectionStart === 2 && input.selectionEnd === 7
+                && input.selectionDirection === 'backward' && document.activeElement === input, 'storage replay or lost draft/focus/selection');
+            check(nodes.every(node => node.isConnected), 'theme/editor nodes replaced');
+            if (negative) return `${scenario} text storage passed`;
+        }
+        stage = 'fresh storage and selection';
+        originalSet.call(localStorage, keys[0], 'cem-theme-native');
+        window.dispatchEvent(new StorageEvent('storage', { key: keys[0], storageArea: localStorage, newValue: 'cem-theme-native' })); await settle();
+        check(theme.getAttribute('data-theme') === 'cem-theme-native' && example.getAttribute('data-theme') === 'cem-theme-contrast-light', 'fresh independent live subscription failed');
+        theme.querySelector<HTMLButtonElement>('cem-icon-button[value=cem-theme-light] button')!.click(); await settle();
+        check(localStorage.getItem(keys[0]) === 'cem-theme-light' && localStorage.getItem(keys[1]) === 'cem-theme-contrast-light', 'new theme selection not persisted independently');
+        input.value = 'Fresh é😀'; input.dispatchEvent(new InputEvent('input', { bubbles: true })); await settle();
+        check(localStorage.getItem(keys[2]) === 'Fresh é😀' && writes > 0, 'new explicit storage edit blocked');
+        stage = 'new key'; theme.setAttribute('storage-key', keys[3]); await settle();
+        originalSet.call(localStorage, keys[3], 'cem-theme-dark'); window.dispatchEvent(new StorageEvent('storage', { key: keys[3], storageArea: localStorage })); await settle();
+        check(theme.getAttribute('data-theme') === 'cem-theme-dark', 'new key subscription not installed');
+        return `${scenario} text storage passed`;
+    } catch (error) { throw Error(`${scenario}/${stage}: ${error instanceof Error ? error.stack : String(error)}`, { cause: error }); }
+    finally { clearInterval(progress); Object.defineProperty(window, 'localStorage', storageProperty); Storage.prototype.getItem = originalGet; admission?.revoke(); coordinator.dispose(); scope.dispose();
+        window.addEventListener = add; window.removeEventListener = remove;
+        for (const key of keys) localStorage.removeItem(key); document.body.replaceChildren(); }
+}
+async function textStorageResumeStory(canvasElement: HTMLElement, scenarios: string[]) {
+    const root = canvasElement.querySelector('section')!, base = new URL('../../dist/', import.meta.url).href;
+    for (const scenario of scenarios) {
+        const frame = document.createElement('iframe'), id = crypto.randomUUID(); root.append(frame); let stop = () => undefined;
+        try {
+            const result = new Promise<string>((resolve, reject) => {
+                let stage = 'load'; const timer = setTimeout(() => reject(Error(`${scenario}/${stage}: text storage timed out`)), 25000);
+                const receive = (event: MessageEvent) => { if (event.source !== frame.contentWindow) return;
+                    if (event.data?.progress) { stage = event.data.progress; return; } if (event.data?.id !== id) return;
+                    if (event.data.error) reject(Error(event.data.error)); else resolve(event.data.result); };
+                window.addEventListener('message', receive); stop = () => { clearTimeout(timer); window.removeEventListener('message', receive); };
+            });
+            const hook = import.meta.env.MODE === 'test' ? 'globalThis.__vitest_browser_runner__ = { wrapDynamicImport: f => f() };' : '';
+            frame.srcdoc = `<script type="module">${hook}(${isolatedTextStorageResume.toString()})(${JSON.stringify(base)}, url => import(url), ${JSON.stringify(scenario)}, ${JSON.stringify([iconDeclaration, iconButtonDeclaration, actionDeclaration, menuItemDeclaration, menuDeclaration, dropdownDeclaration, themeSwitchDeclaration])})
+                .then(result => parent.postMessage({id:${JSON.stringify(id)},result},'*'), error => parent.postMessage({id:${JSON.stringify(id)},error:error.stack||String(error)},'*'));</script>`;
+            expect(await result).toBe(`${scenario} text storage passed`);
+        } finally { stop(); frame.remove(); }
+    }
+}
+export const ThemeTextStorageRepeatedRuntimeResume: Story = { render: () => '<section aria-label="Theme text storage fresh runtime resume"></section>',
+    play: async ({ canvasElement }) => textStorageResumeStory(canvasElement, ['worker', 'fallback']) };
+export const ThemeTextStorageAuthorityRefusals: Story = { render: () => '<section aria-label="Theme storage authority refusal"></section>',
+    play: async ({ canvasElement }) => textStorageResumeStory(canvasElement, ['worker-raw', 'fallback-key', 'worker-source', 'fallback-authority']) };
+export const ThemeTextStorageLateRefusals: Story = { render: () => '<section aria-label="Late theme storage refusal"></section>',
+    play: async ({ canvasElement }) => textStorageResumeStory(canvasElement, ['fallback-late-raw', 'worker-late-key', 'fallback-late-source', 'worker-late-authority']) };
+
+export const ThemeExternalPopupStillRefuses: Story = { render: () => '<section aria-label="Unsupported theme external popup recovery"></section>',
+    play: async ({ canvasElement }) => textStorageResumeStory(canvasElement, ['worker-popup', 'fallback-popup']) };
+
+export const ThemeTextStorageCallbackRefusals: Story = { render: () => '<section aria-label="Changed theme storage callback refusal"></section>',
+    play: async ({ canvasElement }) => textStorageResumeStory(canvasElement, ['worker-method', 'fallback-late-method']) };

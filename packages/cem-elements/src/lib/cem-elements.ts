@@ -940,6 +940,8 @@ interface CompiledDeclaration {
     declaredSlices: SliceDeclaration[];
     stylesheets: CemQlStylesheetArtifact[];
     stylesheetsReady: boolean;
+    /** Native resource routing must settle before the produced tag upgrades. */
+    legacyRuntimeResources?: boolean;
     domStylesheetSources?: CemDomStylesheetSource[];
     domStyleAdoption?: Promise<void>;
     domStyleArtifact?: CemProcessingCompileResult['artifact'];
@@ -1161,6 +1163,8 @@ interface ActiveLocalStorageResource {
     lastRawValue: string | null;
     native?: NativeJsonStorageState;
     destroy?: () => void;
+    /** Original text-storage authority; no native handles or prior runtime. */
+    textBinding?: { storage: Storage; declaration: Readonly<LocalStorageDeclaration> };
 }
 
 interface ActiveLocationResource {
@@ -1815,6 +1819,7 @@ export class CemElementRuntime {
     private readonly dataRevisions = new WeakMap<HTMLElement, number>();
     private readonly checkpointScopeBindings = new Map<CemDeclarationScope, CheckpointScopeBinding>();
     private readonly checkpointResumedProcessing = new WeakMap<HTMLElement, { context: CemCheckpointResumeContext; owner: CemResumedProcessingOwner }>();
+    private readonly checkpointStorageParked = new WeakSet<HTMLElement>();
     private readonly checkpointHttpBindings = new WeakMap<ActiveHttpResource, { host: CemProcessingHost; document: CemProcessingDocumentHandle; binding: CheckpointScopeBinding }>();
     private readonly checkpointImplicitWriters = new WeakMap<HTMLElement, Set<number>>();
     private readonly locationWriteTriggers = new WeakMap<HTMLElement, Map<number, string>>();
@@ -2249,13 +2254,15 @@ export class CemElementRuntime {
             return Promise.resolve();
         }
 
-        // Static module-map metadata must be available before `customElements.define()`
+        // Static module-map metadata and native resource routing must settle before `customElements.define()`
         // upgrades authored instances. This also guarantees that a wrapper context is
         // complete before its first render connects nested DCE instances.
         const requiresStaticModuleMap = compiled.mode === 'cem-ml'
             && compiled.cemMlSource !== null
             && containsModuleMapPrelude(compiled.cemMlSource);
-        if (requiresStaticModuleMap) {
+        const requiresResourcePolicy = compiled.mode === 'cem-ml' && compiled.cemMlSource !== null
+            && containsLegacyRuntimeResourceDirective(compiled.cemMlSource);
+        if (requiresStaticModuleMap || requiresResourcePolicy) {
             await this.surfaceDeclarationDiagnostics(declarationElement, compiled);
         }
 
@@ -2613,6 +2620,7 @@ export class CemElementRuntime {
             const result = await this.renderSupport(compiled.declarationScope).compileCemMlTemplate(compiled.cemMlSource ?? '');
             if (!compiled.moduleClosureReady) compiled.stylesheets = result.stylesheets;
             compiled.moduleMap = result.moduleMap;
+            compiled.legacyRuntimeResources = result.legacyRuntimeResources;
             compiled.stylesheetsReady = true;
             this.installDeclarationStylesheets(compiled);
             if (result.diagnostics.length > 0) {
@@ -3242,6 +3250,48 @@ export class CemElementRuntime {
         return undefined;
     }
 
+    private checkpointTextStorageGuard(instance: HTMLElement): () => boolean {
+        const state = this.instanceStates.get(instance)!;
+        const bindings = Object.entries(state.localStorageResources).map(([name, active]) => {
+            const binding = active.textBinding;
+            if (this.restrictedPreview || active.storageType !== 'text' || active.native || !binding
+                || binding.storage !== localStorageForWindow(instance.ownerDocument.defaultView)
+                || binding.storage.getItem(active.key) !== active.lastRawValue) throw Error('cem.checkpoint.resume.storage-authority');
+            return { name, active, binding, raw: active.lastRawValue,
+                read: binding.storage.getItem, write: binding.storage.setItem, remove: binding.storage.removeItem };
+        });
+        return () => {
+            try {
+                return (!bindings.length || !this.restrictedPreview) && this.instanceStates.get(instance) === state
+                    && Object.keys(state.localStorageResources).length === bindings.length
+                    && bindings.every(({ name, active, binding, raw, read, write, remove }) => state.localStorageResources[name] === active
+                        && active.textBinding === binding && !active.native && sameLocalStorageDeclaration(active, binding.declaration)
+                        && binding.storage === localStorageForWindow(instance.ownerDocument.defaultView)
+                        && binding.storage.getItem === read && binding.storage.setItem === write && binding.storage.removeItem === remove
+                        && active.lastRawValue === raw && binding.storage.getItem(active.key) === raw);
+            } catch { return false; }
+        };
+    }
+
+    private parkCheckpointTextStorage(instance: HTMLElement, compiled: CompiledDeclaration): () => void {
+        const state = this.instanceStates.get(instance)!;
+        const entries = Object.values(state.localStorageResources);
+        if (!entries.length) return () => undefined;
+        this.checkpointStorageParked.add(instance);
+        for (const active of entries) { active.destroy?.(); active.destroy = undefined; }
+        return () => {
+            this.checkpointStorageParked.delete(instance);
+            const restored = this.checkpointResumedProcessing.get(instance);
+            const client = this.processingHost(compiled).checkpointClient;
+            if (!instance.isConnected || compiled.declarationScope.disposed || !client || !nativeCheckpointIdentity(client)
+                || restored && (!restored.context.active() || restored.context.signal.aborted)) return;
+            for (const active of entries) if (active.live && active.textBinding && !active.destroy
+                && state.localStorageResources[active.textBinding.declaration.sliceName] === active) {
+                active.destroy = this.bindLocalStorageLiveListener(instance, compiled, state, active.textBinding.declaration, active);
+            }
+        };
+    }
+
     private checkpointResumeAdapter(instance: HTMLElement, compiled: CompiledDeclaration,
         publication: () => CemCheckpointPublicationOwner): CemCheckpointResumeAdapter | undefined {
         const plaintext = compiled.behavior === CEM_PLAINTEXT_EDITOR_CAPABILITY;
@@ -3270,7 +3320,8 @@ export class CemElementRuntime {
                     : suggestions ? runtime.capability?.kind === 'suggestions' && !!pair : !runtime.capability)
             && (!runtime.references || !!this.elementReferenceInputsOption) && (!runtime.nativePublication || !!pair) && (!runtime.manualListbox || !!pair) && (!runtime.standaloneDatalist || !!pair)
             && (!runtime.placements?.length || !!this.placementCoordinator && !!runtime.references)
-            && runtime.resources.every(resource => ['http', 'local-storage', 'location'].includes(resource.kind));
+            && runtime.resources.every(resource => resource.kind === 'http' || resource.kind === 'local-storage'
+                && this.instanceStates.get(instance)?.localStorageResources[resource.name]?.storageType === 'text');
         const eligible = () => {
             const state = this.instanceStates.get(instance);
             const runtime = state && this.checkpointRuntimeState(instance, compiled, state);
@@ -3285,13 +3336,17 @@ export class CemElementRuntime {
                 eligible();
                 sealedCapability = this.checkpointRuntimeState(instance, compiled, this.instanceStates.get(instance)!)?.capability ?? null;
                 const retained = this.checkpointRetainedCapabilityGuard(instance, compiled);
+                const storageCurrent = this.checkpointTextStorageGuard(instance);
                 const fingerprint = this.checkpointResumeHostWitness(instance, compiled);
                 const form = provider ? undefined : formKind ? prepareCemRetainedFormResume(instance, formKind,
                     cemRetainedFormCheckpoint(instance, formKind), this.checkpointControls(instance)!, () => this.checkpointControls(instance))
                     : widgetCheckpoint ? prepareCemRetainedWidgetResume(instance, widgetCheckpoint(), this.checkpointControls(instance)!, () => this.checkpointControls(instance), widgetCheckpoint) : undefined;
-                return () => { try { return (!retained || retained()) && (!form || form.current()) && (!provider || provider.current()) && (!pair || pair.current()) && this.checkpointResumeHostWitness(instance, compiled) === fingerprint; } catch { return false; } };
+                return () => { try { return storageCurrent() && (!retained || retained()) && (!form || form.current()) && (!provider || provider.current()) && (!pair || pair.current()) && this.checkpointResumeHostWitness(instance, compiled) === fingerprint; } catch { return false; } };
             },
-            park: () => !provider && pair ? pair.park() : () => undefined,
+            park: () => {
+                const storage = this.parkCheckpointTextStorage(instance, compiled), presentation = !provider && pair ? pair.park() : undefined;
+                return () => { presentation?.(); storage(); };
+            },
             parkProvider: () => provider ? (unparkProvider = provider.park()) : () => undefined,
             prepare: async context => {
                 // The original retained island is the exact sealed source.
@@ -3314,6 +3369,7 @@ export class CemElementRuntime {
                 const state = this.instanceStates.get(instance);
                 const compilation = this.nativeSuggestionsCompilations.get(compiled);
                 if (!state || !compilation) throw new Error('cem.checkpoint.resume.compilation');
+                const storageCurrent = this.checkpointTextStorageGuard(instance);
                 const source = structuredClone(await compilation);
                 const cssSource = { ...source, templateArtifactId: `${compiled.artifactId}:retained-css` };
                 const previous = this.processingHost(compiled);
@@ -3323,8 +3379,7 @@ export class CemElementRuntime {
                     islandXml,
                     acceptedEventSequence: () => this.checkpointEventSequences.get(instance) ?? 0,
                     allowSource: async resource => {
-                        if (resource.kind === 'local-storage') return !!state.localStorageResources[resource.name];
-                        if (resource.kind === 'location') return resource.url === instance.ownerDocument.location.href;
+                        if (resource.kind === 'local-storage') return storageCurrent() && state.localStorageResources[resource.name]?.storageType === 'text';
                         const active = state.httpResources[resource.name];
                         const value = state.slices[resource.name] as CemHttpResourceEnvelope | undefined;
                         if (!active || !value || active.revision !== resource.revision || value.request.resolvedUrl !== resource.url
@@ -3366,9 +3421,10 @@ export class CemElementRuntime {
                     if (active) this.checkpointHttpBindings.set(active, { host: native.host, document: source.handle, binding: route });
                 }
                 let activated = false, resume: Promise<void> | undefined;
-                const current = () => prepared.current() && (!retained || retained()) && instance.isConnected && this.declarationForInstance(instance) === compiled
+                const current = () => prepared.current() && storageCurrent() && (!retained || retained()) && instance.isConnected && this.declarationForInstance(instance) === compiled
                     && (activated || (!widget || widget.current()) && (!references || references.current()));
                 const bind = () => {
+                    if (!storageCurrent()) throw Error('cem.checkpoint.resume.storage-stale');
                     if (retained && !retained()) throw Error('cem.checkpoint.resume.widget-stale');
                     if (this.checkpointComposing.has(instance) || this.checkpointInteracting.has(instance)
                         || (this.checkpointEventSequences.get(instance) ?? 0) !== context.receipt.acceptedEventSequence
@@ -3436,6 +3492,7 @@ export class CemElementRuntime {
                         finally { this.checkpointPresentationResume.delete(instance); }
                     } : undefined,
                     renewed: () => {
+                        if (!storageCurrent()) throw Error('cem.checkpoint.resume.storage-stale');
                         if (retained && (!retained() || !equalCheckpointState(native.state.capability, widgetCheckpoint?.()))) throw Error('cem.checkpoint.resume.widget-stale');
                         if (!context.active() || context.signal.aborted || this.checkpointComposing.has(instance) || this.checkpointInteracting.has(instance)
                             || (this.checkpointEventSequences.get(instance) ?? 0) !== context.receipt.acceptedEventSequence
@@ -4084,7 +4141,7 @@ export class CemElementRuntime {
         return (
             compiled.mode === 'xslt' || (compiled.mode === 'cem-ml' &&
             compiled.cemMlSource !== null &&
-            !containsLegacyRuntimeResourceDirective(compiled.cemMlSource))
+            (compiled.legacyRuntimeResources === false || !containsLegacyRuntimeResourceDirective(compiled.cemMlSource)))
         );
     }
 
@@ -5012,7 +5069,12 @@ export class CemElementRuntime {
         const httpRequests = new Set<string>();
         const repositoryQueries = new Set<string>();
         const storageStatuses = new Set<string>();
+        const localStorages = new Set<string>();
         for (const control of controls) {
+            if (control.kind === 'local-storage') {
+                localStorages.add(control.sliceName);
+                this.bindLocalStorageResource(instance, compiled, control);
+            }
             if (control.kind === 'http-request') {
                 httpRequests.add(control.sliceName);
                 settled.push(
@@ -5056,6 +5118,9 @@ export class CemElementRuntime {
             }
         }
         const state = this.instanceStates.get(instance);
+        for (const [slice, active] of Object.entries(state?.localStorageResources ?? {})) if (!localStorages.has(slice) && state) {
+            active.destroy?.(); delete state.localStorageResources[slice];
+        }
         for (const [slice, active] of Object.entries(state?.httpResources ?? {})) {
             if (!httpRequests.has(slice) && state) {
                 this.releaseHttpResource(active);
@@ -7009,6 +7074,9 @@ export class CemElementRuntime {
             live: declaration.live,
             lastValue: value,
             lastRawValue: rawValue,
+            ...(declaration.storageType === 'text' ? { textBinding: {
+                storage: localStorageForWindow(instance.ownerDocument.defaultView)!, declaration: Object.freeze({ ...declaration }),
+            } } : {}),
         };
         if (declaration.live) {
             active.destroy = this.bindLocalStorageLiveListener(instance, compiled, state, declaration, active);
@@ -7031,6 +7099,10 @@ export class CemElementRuntime {
         }
         ensureTrackedLocalStorage(window);
         const listener = (event: Event) => {
+            const restored = this.checkpointResumedProcessing.get(instance);
+            if (this.checkpointStorageParked.has(instance) || !instance.isConnected || compiled.declarationScope.disposed
+                || this.declarationForInstance(instance) !== compiled || state.localStorageResources[declaration.sliceName] !== active
+                || restored && (!restored.context.active() || restored.context.signal.aborted)) return;
             const changedKey = localStorageChangedKey(event);
             if (changedKey !== null && changedKey !== declaration.key) {
                 return;
@@ -7045,10 +7117,14 @@ export class CemElementRuntime {
         };
         window.addEventListener('storage', listener);
         window.addEventListener(LOCAL_STORAGE_EVENT, listener);
-        return () => {
+        const signal = this.checkpointResumedProcessing.get(instance)?.context.signal;
+        const destroy = () => {
             window.removeEventListener('storage', listener);
             window.removeEventListener(LOCAL_STORAGE_EVENT, listener);
+            signal?.removeEventListener('abort', destroy);
         };
+        signal?.addEventListener('abort', destroy, { once: true });
+        return destroy;
     }
 
     private bindLocationResource(

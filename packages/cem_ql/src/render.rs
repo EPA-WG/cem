@@ -210,6 +210,35 @@ pub struct TemplateArtifact {
     pub diagnostics: Vec<Diagnostic>,
 }
 
+impl TemplateArtifact {
+    /// Host routing policy derived from native instructions, never a source-text
+    /// attribute parser. Only plain text storage has a processing/resume adapter.
+    /// This scalar is not serialized IR and grants no recovery authority.
+    pub fn requires_legacy_runtime_resources(&self) -> bool {
+        fn legacy(nodes: &[TemplateNode]) -> bool {
+            nodes.iter().any(|node| match node {
+                TemplateNode::Element { tag, attributes, children, .. } => {
+                    tag == "location-element"
+                        || tag == "local-storage" && attributes.iter().any(|attribute| {
+                            attribute.name == "type" && match &attribute.value {
+                                None => false,
+                                Some(TemplateAttributeValue::Literal(value)) => !value.trim().is_empty() && value.trim() != "text",
+                                _ => true,
+                            }
+                        })
+                        || legacy(children)
+                }
+                TemplateNode::Result { children, .. }
+                | TemplateNode::If { children, .. }
+                | TemplateNode::ForEach { children, .. } => legacy(children),
+                TemplateNode::Choose { branches, .. } => branches.iter().any(|branch| legacy(&branch.children)),
+                _ => false,
+            })
+        }
+        legacy(&self.nodes)
+    }
+}
+
 /// One resolver-preflighted CEMT dependency. Hosts resolve and load modules; the render engine
 /// validates their hashes and compiles the immutable closure without performing I/O.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -4977,6 +5006,31 @@ fn escape_controlled(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn legacy_resource_policy_uses_native_nodes() {
+        for source in [
+            "{local-storage @slice=theme @key=theme @type=text @live=true}",
+            "{local-storage @slice=theme @key=theme}",
+            "{cem:if @test=true | {local-storage @slice=theme @key=theme @type=text}}",
+            "{p | local-storage location-element}",
+        ] {
+            let compiled = compile_template(source, &CompileTemplateOptions::default());
+            assert!(!compiled.requires_legacy_runtime_resources(), "{source}");
+        }
+        for source in [
+            "{local-storage @slice=theme @key=theme @type=json}",
+            "{local-storage @slice=theme @key=theme @type=xml}",
+            "{local-storage @slice=theme @key=theme @type=\"{$kind}\"}",
+            "{cem:if @test=false | {local-storage @slice=theme @key=theme @type=json}}",
+            "{cem:choose | {cem:when @test=false | {location-element @slice=url}}}",
+            "{cem:for-each @select=items | {location-element @slice=url}}",
+            "{local-storage @slice=theme @key=theme @type=text}{location-element @slice=url}",
+        ] {
+            let compiled = compile_template(source, &CompileTemplateOptions::default());
+            assert!(compiled.requires_legacy_runtime_resources(), "{source}");
+        }
+    }
+
     #[test]
     fn adjacent_quoted_attribute_expressions_preserve_values_and_diagnostics() {
         let data = TemplateData::default()

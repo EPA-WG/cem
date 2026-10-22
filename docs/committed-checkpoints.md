@@ -755,6 +755,29 @@ Consumed location trigger tokens and implicit writer indices, plus the resource
 must restore writer suppression **before** evaluating the declaration and must
 obtain fresh host permissions/subscriptions; it cannot replay an initialization
 write or a command. Ordinary rendering retains its existing resource behavior.
+Text `local-storage` declarations (omitted or literal `type=text`) now use the
+shared processing host. Native compilation returns a scalar routing policy;
+JavaScript does not parse CEM-ML attributes or receive its AST. Processing
+protocol v29 transports their named resource controls, including empty explicit
+values. Unsupported storage types and location controls cannot enter that path
+through dynamic output either. JSON/XML/dynamic-type storage and legacy location
+declarations retain their ordinary renderer and remain unsupported for resume.
+
+Text-storage resume uses the original retained owner, storage object, key, type,
+live policy and exact raw value as private authority. Fresh source compilation
+and native island/runtime validation precede activation. Key/source changes,
+replaced storage objects or I/O callbacks, withdrawn preview permissions and
+changes ahead of storage-event delivery refuse the complete handoff. Original live listeners
+are detached while the ticket is parked; fresh listeners bind only after every
+owner has activated and completed renewal. Cancellation cannot reconnect a
+retired generation. The first fresh render keeps the original edits, selection,
+theme and independent page/example keys, with initialization and slice writes
+suppressed until new accepted input. Subsequent selection, external storage
+events and key rebinding use the shared resource lifecycle normally. No theme-
+or Studio-specific recovery behavior is added. The production theme menu also
+contains an external-trigger/viewport popup: that separate checkpoint policy is
+still unsupported. A complete composition must refuse rather than omit its
+popup owner; storage-owner acceptance does not authorize full-menu recovery.
 Credential URLs, credential request headers, unsupported request methods or
 unresolved resource state refuse capture. Whole-island consent must also exclude
 secrets in response bytes, parameters, payload and slices; no owner is redacted,
@@ -1208,9 +1231,10 @@ checks prevent a source-only test pass from masking missing deployment modules.
 The exact workspace dependency audit includes declarative Storybook fixture routes;
 published runtime dependencies remain unchanged.
 
-This audit does **not** pass successful whole-workspace recovery. The theme switch
-uses legacy text local storage, and media/live previews own additional runtime
-state. Shared action/disclosure/list owners now have guarded adapters, including
+This audit does **not** pass successful whole-workspace recovery. Theme text
+storage now has a shared adapter, while its external-trigger/viewport popup
+remains unsupported. Media/live previews own additional runtime state.
+Shared action/disclosure/list owners now have guarded adapters, including
 complete command/descriptor/submenu endpoint coverage.
 Command-service heaps also need explicit host-service rebinding and complete group
 coverage. These owners must not be omitted, silently reconstructed or treated as
@@ -1296,7 +1320,7 @@ unfocused capture and reset native picker presentation while reacquiring the own
 Only toggle delivery from the exact admitted presentation surface is excluded from
 new-input accounting during that bounded renewal; keys, focus, edits and commands
 retain ordinary invalidation. Unknown/withdrawn source policies, inactive
-sources without an admitted readonly proof and legacy storage/location rendering still refuse with
+sources without an admitted readonly proof and unsupported storage/location rendering still refuse with
 `cem.checkpoint.resume.unsupported`. Generic HTML hydration refuses checkpoint
 extensions. Full long-session acceptance and declarative recovery status remain
 necessary before automatic Studio recovery.
@@ -1396,5 +1420,6 @@ the editing subtree, native undo/redo, focus and selection, refuses later edits,
 and emits no input. Composition/deferred values and unreported DOM text refuse
 capture. Old paint requests are cancelled and native role ranges regenerated on
 the admitted fresh generation; paint/job identities are never durable state.
-Built-in widget/legacy resource adapters and declarative recovery status remain
-subsequent work; Studio is not automatically resumed.
+Unsupported resource adapters, complete preview/command-runtime enrollment and
+declarative recovery status remain subsequent work; Studio is not automatically
+resumed.

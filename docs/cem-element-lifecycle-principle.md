@@ -72,6 +72,15 @@ or ancestor scope disposal invalidate older asynchronous work. Reconnect reads c
 Portable artifacts belong to durable slice state; temporary WASM decode handles
 are released after each render, and storage I/O retains no WASM handles.
 
+Plain text `local-storage` uses shared worker/fallback processing. Its retained
+checkpoint adapter prepares fresh native compilation while storage subscriptions
+are parked, checks original storage authority and raw bytes through activation,
+and renews listeners only after the complete owner group binds. Initialization
+and consumed slice writes stay suppressed until new input. Existing DOM, edited
+controls and independent page/example storage keys are preserved. JSON/XML and
+dynamic storage types, and legacy location bindings, keep ordinary rendering
+but require separate reviewed adapters before fresh-runtime resume.
+
 Payload snapshot slot and attribute indexes preserve encounter order and own their
 arrays per snapshot. Building a group appends each entry once; it must not copy
 the growing group for every node. Authored names such as `constructor` and

@@ -20,7 +20,7 @@ import {
 } from '../../declaration-scope.js';
 
 /** @internal Phase 3A worker/main-thread protocol. Not a public package export. */
-export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v28' as const;
+export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v29' as const;
 
 export const CEM_PROCESSING_HOST_CAPABILITIES = [
     'compile',
@@ -310,6 +310,8 @@ export interface CemProcessingStorageStatusControl {
 }
 
 export type CemProcessingResourceControl =
+    | { kind: 'local-storage'; renderNodeId: string; sliceName: string; key: string;
+        storageType: 'text'; live: boolean; initialValue?: string; sourceMapRef?: SourceMapRef }
     | CemProcessingModuleUrlControl
     | CemProcessingHttpRequestControl
     | CemProcessingRepositoryQueryControl

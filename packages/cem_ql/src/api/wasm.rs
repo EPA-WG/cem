@@ -108,12 +108,14 @@ pub fn wasm_compile_template(source: &str, host_bindings_json: &str) -> String {
     let diagnostics = diagnostics_json(&artifact.diagnostics);
     let stylesheets = stylesheets_json(&artifact);
     let module_map = module_map_json(&artifact);
+    let legacy_runtime_resources = artifact.requires_legacy_runtime_resources();
     let artifact_id = retain_artifact(artifact);
     json!({
         "artifactId": artifact_id,
         "cacheHit": cache_hit,
         "stylesheets": stylesheets,
         "moduleMap": module_map,
+        "legacyRuntimeResources": legacy_runtime_resources,
         "diagnostics": diagnostics
     })
     .to_string()

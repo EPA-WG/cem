@@ -24,6 +24,8 @@ it.each(['worker', 'fallback'])('refuses incomplete Studio recovery and preserve
             import(${JSON.stringify(fixture)}).then(({ studioRecovery }) => studioRecovery(${JSON.stringify(mode)}, stage => parent.postMessage({id, stage}, '*')))
                 .then(result => parent.postMessage({id, result}, '*'), error => parent.postMessage({id, error: error.stack || String(error)}, '*'));
             </script>`;
-        expect(await result).toMatchObject({ recoveries: 0, refusedRecoveries: 3, edits: 12, unknownRefused: true, unsupported: expect.arrayContaining(['cem-theme-switch', 'cem-media-preview']) });
+        const observed = await result;
+        expect(observed).toMatchObject({ recoveries: 0, refusedRecoveries: 3, edits: 12, unknownRefused: true, unsupported: expect.arrayContaining(['cem-media-preview']) });
+        expect(observed.unsupported).not.toContain('cem-theme-switch');
     } finally { stop?.(); frame.remove(); }
 }, 120_000);

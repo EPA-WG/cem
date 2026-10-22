@@ -132,6 +132,17 @@ vi.mock('./cem-ql-render.js', () => {
                     children: [],
                     sourceMapRef: { fidelity: 'author-byte-exact' as const, frame: 'cem:1' },
                 }] : []),
+                ...(sources.get(artifactId)?.includes('local-storage') ? [{
+                    kind: 'element' as const, namespace: null, tag: 'local-storage',
+                    attributes: [{ name: 'slice', value: 'theme' }, { name: 'key', value: 'page-theme' },
+                        { name: 'live', value: 'true' }, { name: 'value', value: '' },
+                        { name: 'type', value: sources.get(artifactId)?.includes('type=json') ? 'json' : 'text' }],
+                    renderNodeId: `${input.identity.producedTag}-storage-text`, children: [],
+                }] : []),
+                ...(sources.get(artifactId)?.includes('location-element') ? [{
+                    kind: 'element' as const, namespace: null, tag: 'location-element', attributes: [],
+                    renderNodeId: `${input.identity.producedTag}-location`, children: [],
+                }] : []),
                 ...(sources.get(artifactId)?.includes('storage-status') ? [{
                     kind: 'element' as const,
                     namespace: null,
@@ -181,6 +192,25 @@ import {
 import { createCemProcessingTextSource } from './processing-host.js';
 
 describe('Phase 3A retained processing engine', () => {
+    it('lowers text storage as a named control, preserving empty values, and fences unsupported dynamic resources', async () => {
+        for (const source of ['{local-storage @type=text}', '{local-storage @type=json}', '{location-element}']) {
+            const engine = new CemProcessingEngine(), snapshot = snapshotFixture('1', 'storage-template', 'storage-policy');
+            try {
+                const compiled = await engine.compile({ language: 'cem-ml', producedTag: snapshot.producedTag,
+                    templateArtifactId: snapshot.templateArtifactId, registrationIdentity: 'storage-policy', source: createCemProcessingTextSource(source),
+                    sourceRef: { kind: 'inline', value: 'storage-policy' }, resolverIdentity: 'storage-policy', scopePolicyStamp: snapshot.scopePolicyStamp, sourceMapMode: 'dev' });
+                const render = engine.renderDiff({ artifact: compiled.artifact, revision: revision(snapshot), snapshot,
+                    data: {}, scopeUid: 'storage-policy', previousRenderPlan: null });
+                if (source.includes('type=text')) {
+                    const output = await render;
+                    expect(output.resourceControls).toEqual([{ kind: 'local-storage', renderNodeId: 'storage-policy-storage-text',
+                        sliceName: 'theme', key: 'page-theme', storageType: 'text', live: true, initialValue: '' }]);
+                    expect(JSON.stringify(output.frames)).not.toContain('local-storage');
+                    expect(structuredClone(output)).toEqual(output);
+                } else await expect(render).rejects.toThrow(/storage_type_unsupported|location_unsupported/);
+            } finally { await engine.dispose({ reason: 'runtime-disposed' }); }
+        }
+    });
     it('retains a CSS source batch once, rejects unrelated compile options, and releases its native owner', async () => {
         const engine = new CemProcessingEngine();
         const source = JSON.stringify([{ css: ':scope { color: red; }', scope: null, contentType: 'text/css' }]);

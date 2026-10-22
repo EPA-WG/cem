@@ -852,6 +852,19 @@ function lowerResourceControls(plan: RenderPlan): {
                 }
                 continue;
             }
+            if (node.tag === 'local-storage') {
+                const attributes = renderAttributeRecord(node.attributes);
+                // Native render-plan output is the trusted transport boundary.
+                // Dynamic/module-produced unsupported resources must fail closed.
+                if ((attributes.type?.trim() || 'text') !== 'text') throw Error('cem.processing_host.storage_type_unsupported');
+                const sliceName = attributes.slice?.trim(), key = attributes.key?.trim();
+                if (sliceName && key) resourceControls.push({ kind: 'local-storage', renderNodeId: node.renderNodeId,
+                    sliceName, key, storageType: 'text', live: controlBooleanAttribute(attributes, 'live'),
+                    ...('value' in attributes ? { initialValue: attributes.value } : {}),
+                    ...(node.sourceMapRef ? { sourceMapRef: node.sourceMapRef } : {}) });
+                continue;
+            }
+            if (node.tag === 'location-element') throw Error('cem.processing_host.location_unsupported');
             retained.push({ ...node, children: lowerNodes(node.children) });
         }
         return retained;

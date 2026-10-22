@@ -59,7 +59,8 @@ export async function studioRecovery(mode, progress) {
         let edits = 0;
         const paint = editor => [...CSS.highlights.values()].flatMap(value => [...value]).filter(range => editor.contains(range.startContainer));
         const blockers = () => coordinator.inspectRecovery().owners.filter(owner => !owner.adapterAvailable);
-        check(blockers().some(owner => owner.tag === 'cem-theme-switch'), 'legacy theme source incorrectly admitted');
+        const themes = coordinator.inspectRecovery().owners.filter(owner => owner.tag === 'cem-theme-switch');
+        check(themes.length > 0 && themes.every(owner => owner.adapterAvailable), 'shared theme storage adapter missing');
         const retained = coordinator.inspectRecovery().owners.filter(owner => ['cem-action', 'cem-expansion', 'cem-list'].includes(owner.tag));
         check(retained.some(owner => owner.tag === 'cem-action') && retained.every(owner => owner.adapterAvailable), 'shared retained capability adapter missing');
         for (let cycle = 0; cycle < 3; cycle++) {
