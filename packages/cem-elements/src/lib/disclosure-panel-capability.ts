@@ -73,3 +73,29 @@ function isDirectHeader(instance: HTMLElement, button: HTMLButtonElement): boole
         && surface.parentElement === instance
     );
 }
+
+/** Private generated IDs and retained expanded intent, inspected without creating state. */
+export function cemDisclosurePanelCheckpoint(instance: HTMLElement) {
+    const state = EXPANSION_STATES.get(instance);
+    if (!state?.connected || !state.onClick || !instance.isConnected) return;
+    const heading = instance.querySelector<HTMLElement>(':scope > [part~="root"] > [part~="heading"]');
+    const button = heading?.querySelector<HTMLButtonElement>(':scope > button[part~="header"]');
+    const summary = button?.querySelector<HTMLElement>('[part~="summary"]');
+    const panel = instance.querySelector<HTMLElement>(':scope > [part~="root"] > [part~="panel"]');
+    const expanded = instance.hasAttribute('expanded'), headingLevel = normalizedHeadingLevel(instance);
+    if (!button || !summary || !panel || button.id !== state.headingId || panel.id !== state.panelId || summary.id !== state.summaryId
+        || heading?.getAttribute('aria-level') !== headingLevel || button.getAttribute('aria-controls') !== panel.id
+        || button.getAttribute('aria-labelledby') !== summary.id || panel.getAttribute('aria-labelledby') !== button.id
+        || button.getAttribute('aria-expanded') !== String(expanded) || panel.hidden === expanded) return;
+    const root = instance.getRootNode() as ParentNode;
+    for (const node of [button, summary, panel]) if (root.querySelectorAll(`[id="${CSS.escape(node.id)}"]`).length !== 1) return;
+    return { kind: 'disclosure-panel' as const, headingId: state.headingId, panelId: state.panelId, summaryId: state.summaryId, headingLevel, expanded };
+}
+export function prepareCemDisclosurePanelGuard(host: HTMLElement) {
+    const state = EXPANSION_STATES.get(host), nodes = [...host.querySelectorAll('[part~=root],[part~=heading],[part~=header],[part~=summary],[part~=panel]')];
+    if (!cemDisclosurePanelCheckpoint(host)) throw Error('cem.checkpoint.resume.disclosure-stale');
+    const listener = state?.onClick;
+    return () => EXPANSION_STATES.get(host) === state && state?.onClick === listener && !!cemDisclosurePanelCheckpoint(host)
+        && nodes.length === host.querySelectorAll('[part~=root],[part~=heading],[part~=header],[part~=summary],[part~=panel]').length
+        && nodes.every(node => node.isConnected && host.contains(node));
+}

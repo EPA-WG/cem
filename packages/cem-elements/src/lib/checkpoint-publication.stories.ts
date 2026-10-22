@@ -52,6 +52,15 @@ import gridDeclaration from '../../../cem-components/src/components/cem-grid/cem
 import { mountCemView } from './host-view.js';
 // eslint-disable-next-line @nx/enforce-module-boundaries -- production declarative XHTML is fixture input, not a runtime dependency.
 import sourceEditorDeclaration from '../../../cem-components/src/components/cem-source-editor/cem-source-editor.xhtml?raw';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- production declarative sources are acceptance inputs.
+import actionDeclaration from '../../../cem-components/src/components/cem-action/cem-action.xhtml?raw';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- production declarative sources are acceptance inputs.
+import expansionDeclaration from '../../../cem-components/src/components/cem-expansion/cem-expansion.xhtml?raw';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- production declarative sources are acceptance inputs.
+import listDeclaration from '../../../cem-components/src/components/cem-list/cem-list.xhtml?raw';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- production declarative sources are acceptance inputs.
+import menuItemDeclaration from '../../../cem-components/src/components/cem-menu-item/cem-menu-item.xhtml?raw';
+
 import { createCemDeclarationScope } from './declaration-scope.js';
 // eslint-disable-next-line @nx/enforce-module-boundaries -- real native checkpoint transport acceptance.
 import * as wasm from '../../../cem_ql/dist/wasm/cem_ql.js';
@@ -3597,3 +3606,162 @@ export const PairedExternalProviderFreshRuntimeResume: Story = {
     render: () => '<section aria-label="Paired external suggestions source fresh runtime resume"></section>',
     play: async ({ canvasElement }) => providerResumeStory(canvasElement, ['worker-external', 'fallback-external-proof']),
 };
+
+async function isolatedRetainedGuardResume(base: string, load: (url: string) => Promise<any>, scenario: string, sources: string[]): Promise<string> {
+    const support = new URL('lib/internal/runtime-support/', base).href;
+    const binding = await load(`${support}native-runtime.js`), generation = binding.isolateCemFallbackGeneration();
+    await generation.ready(); let heap = generation, embedding = generation.claimOwnership(), admission: any;
+    const [{ CemElementRuntime }, { createCemDeclarationScope }, { CemCheckpointPublicationCoordinator }, { resumeCemCheckpointOwners }, { CemNativeGenerationGroup }, actions] = await Promise.all([
+        load(new URL('lib/cem-elements.js', base).href), load(new URL('lib/declaration-scope.js', base).href),
+        load(new URL('lib/checkpoint-publication.js', base).href), load(new URL('lib/checkpoint-resume.js', base).href),
+        load(`${support}native-generation.js`), load(new URL('lib/action-command-capability.js', base).href),
+    ]);
+    const actionControls = await load(new URL('lib/action-control-capability.js', base).href);
+    const check = (value: unknown, message: string) => { if (!value) throw Error(message); };
+    const fallback = scenario.startsWith('fallback'), scope = createCemDeclarationScope({ document });
+    const coordinator = new CemCheckpointPublicationCoordinator({ runtimeId: crypto.randomUUID(), generation: 1,
+        policyStamp: 'retained-controls', allowOwner: () => true, seal: (candidate: string, receipt: string) => binding.sealCommittedCheckpoint(candidate, receipt) });
+    const runtime = new CemElementRuntime({ declarationScope: scope, declarationTag: `guard-declaration-${crypto.randomUUID()}`, checkpointPublication: coordinator,
+        processingWorkerFactory: () => { if (fallback) throw Error('owned fallback'); return new Worker(`${support}processing-worker.js`, { type: 'module' }); } });
+    const capture = async () => { for (let n = 0; ; n++) { try { await coordinator.capture(); return; }
+        catch (error) { if (n >= 100) throw error; await new Promise(resolve => setTimeout(resolve, 10)); } } };
+    const refused = async (work: () => unknown) => { try { await work(); } catch (error) { check(/stale|unsupported|unavailable|ticket|unknown|cem\.checkpoint\.resume\.coverage/.test(String(error)), String(error)); return; } throw Error('unsafe retained owner admitted'); };
+    let stage = 'create'; const progress = setInterval(() => parent.postMessage({ progress: stage }, '*'), 250);
+    try {
+        const create = async (index: number, capability: string, attributes: Record<string, string> = {}, payload = '', container = document.body) => {
+            stage = `create ${capability}`;
+            const source = new DOMParser().parseFromString(sources[index], 'text/html').querySelector('template')!.content.textContent;
+            const declaration = document.createElement('div'), template = document.createElement('template'), tag = `guard-${crypto.randomUUID()}`;
+            declaration.setAttribute('tag', tag); declaration.setAttribute('capability', capability); template.type = 'text/cem-ml'; template.textContent = source;
+            declaration.append(template); document.head.append(declaration); runtime.registerDeclaration(declaration); await runtime.whenDeclarationSettled(declaration);
+            const element = document.createElement(tag); for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, value);
+            if (payload) { const inert = document.createElement('template'); inert.innerHTML = payload; element.append(inert); }
+            container.append(element); await runtime.whenRenderSettled(element); return element;
+        };
+        const surface = await create(4, 'native-surface', { 'surface-id': `guard-dialog-${crypto.randomUUID()}` }), dialog = surface.querySelector('dialog')!;
+        const action = await create(0, 'action-command', { type: 'button', commandfor: dialog.id, command: 'show-modal', label: 'Open' });
+        const button = action.querySelector('button')!;
+        const plain = await create(0, 'action-command', { type: 'button', label: 'Plain' });
+        const link = await create(3, 'action-control', { href: '#section', label: 'Resource' });
+        const anchor = link.querySelector('a')!; anchor.addEventListener('click', event => event.preventDefault());
+        const descriptorId = `guard-descriptor-${crypto.randomUUID()}`;
+        const disclosure = await create(1, 'disclosure-panel', { expanded: '', label: 'Project' }, `<input value="Original" aria-label="Draft"><cem-interaction id="${descriptorId}" command-target="#${dialog.id}" command="show-modal"></cem-interaction>`);
+        const routed = await create(0, 'action-command', { type: 'button', interaction: `#${descriptorId}`, label: 'Open by descriptor' });
+        const submenu = await create(3, 'action-control', { label: 'More' }, '<div slot="submenu" hidden>Nested resources</div>');
+        const header = disclosure.querySelector('button')!, panel = disclosure.querySelector<HTMLElement>('[part~=panel]')!, draft = disclosure.querySelector('input')!;
+        const list = await create(2, 'native-list', { selectable: '', size: '4' }, Array.from({ length: 20 }, (_, i) => `<cem-list-option value="${i}">Item ${i}</cem-list-option>`).join(''));
+        const passive = await create(2, 'native-list', {}, '<li>Resources</li>');
+        const select = list.querySelector('select')!;
+        const form = document.createElement('form'); document.body.append(form);
+        let submits = 0, clicks = 0, changes = 0, links = 0;
+        form.addEventListener('submit', event => { event.preventDefault(); submits++; });
+        const submit = await create(0, 'action-command', { type: 'submit', label: 'Save' }, '', form);
+        stage = 'initial command';
+        check(button.getAttribute('commandfor') === dialog.id && dialog.id.length > 0, 'initial command target not wired');
+        const changed = new Promise<void>(resolve => dialog.addEventListener('toggle', () => resolve(), { once: true }));
+        button.click(); await changed;
+        check(dialog.open && dialog.isConnected, 'initial command did not retain an open connected dialog');
+        stage = 'initial close';
+        const closed = new Promise<void>(resolve => dialog.addEventListener('close', () => resolve(), { once: true })); dialog.close(); await closed;
+        check(!dialog.open, 'initial close failed');
+        await runtime.whenRenderSettled(surface); await runtime.whenRenderSettled(action);
+        const invocation = actions.getCemActionInvocation(button);
+        button.addEventListener('click', () => clicks++); anchor.addEventListener('click', () => links++); select.addEventListener('change', () => changes++);
+        draft.value = 'Retained é😀'; select.selectedIndex = 5; select.dispatchEvent(new Event('change', { bubbles: true }));
+        await runtime.whenRenderSettled(list); changes = 0; const options = [...select.options];
+        select.selectedIndex = 7; select.focus();
+        await new Promise(requestAnimationFrame); select.scrollTop = 24;
+        await new Promise(requestAnimationFrame);
+        stage = 'initial capture';
+        const scroll = select.scrollTop, nodes = [button, anchor, header, panel, draft, select, ...options], headingId = header.id;
+        const refusedState = () => { check(draft.value === 'Retained é😀' && select.selectedIndex === 7 && !dialog.open, 'refusal changed retained edits/visibility');
+            check(clicks === 0 && changes === 0 && links === 0 && submits === 0, 'refusal replayed an external action'); };
+        await capture();
+        check(select.scrollTop === scroll, 'initial native scrolling did not settle before capture');
+        const receipts = coordinator.lastCommitted().receipt;
+        check(receipts.relationships.some((edge: any) => edge.property === 'command-target' && edge.provider.instanceId === runtime.readInstanceSnapshot(surface).instanceId), 'action target omitted from coverage');
+        check(receipts.relationships.filter((edge: any) => edge.property === 'interaction').length >= 2, 'descriptor/submenu coverage omitted');
+        if (scenario.includes('unowned')) {
+            const foreign = document.createElement('dialog'); foreign.id = 'outside-domain'; document.body.append(foreign); action.setAttribute('commandfor', foreign.id);
+            await runtime.whenRenderSettled(action); await refused(() => coordinator.capture()); refusedState(); return `${scenario} retained guards passed`;
+        }
+        if (scenario.includes('picker')) { list.setAttribute('size', '1'); await runtime.whenRenderSettled(list); await refused(() => coordinator.capture()); refusedState(); return `${scenario} retained guards passed`; }
+        for (let cycle = 0; cycle < (scenario === 'worker' || scenario === 'fallback' ? 2 : 1); cycle++) {
+            stage = `retire ${cycle}`; const before = coordinator.lastCommitted();
+            const group = new CemNativeGenerationGroup([coordinator.generationParticipant()]);
+            const consent = fallback ? heap.retirementConsent([embedding]) : undefined;
+            const proof = await coordinator.closeRenderingGeneration(5000, consent); await capture(); const ticket = coordinator.prepareResume();
+            const retired = await coordinator.retireRenderingGeneration(proof, 5000, consent);
+            const previous = admission; admission = await group.allocate([retired]);
+            const mutate = () => {
+                if (scenario.endsWith('target')) { const replacement = dialog.cloneNode(true); dialog.replaceWith(replacement); }
+                if (scenario.endsWith('option') || scenario.endsWith('list')) select.options[0].replaceWith(select.options[0].cloneNode(true));
+                if (scenario.endsWith('disclosure')) disclosure.removeAttribute('expanded');
+                if (scenario.endsWith('form')) form.action = 'https://example.test/changed';
+                if (scenario.endsWith('controller')) { actions.CEM_ACTION_COMMAND_CAPABILITY.disconnected(action); actions.CEM_ACTION_COMMAND_CAPABILITY.connected(action); }
+                if (scenario.endsWith('descriptor')) { const node = disclosure.querySelector('cem-interaction')!; node.replaceWith(node.cloneNode(true)); }
+                if (scenario.endsWith('submenu')) { const node = submenu.querySelector('[slot=submenu]')!; node.replaceWith(node.cloneNode(true)); }
+                if (scenario.endsWith('link')) anchor.replaceWith(anchor.cloneNode(true));
+                if (scenario.endsWith('control')) { actionControls.CEM_ACTION_CONTROL_CAPABILITY.disconnected(link); actionControls.CEM_ACTION_CONTROL_CAPABILITY.connected(link); }
+                if (scenario.endsWith('panel')) panel.replaceWith(panel.cloneNode(true));
+            };
+            const negative = scenario !== 'worker' && scenario !== 'fallback';
+            if (negative && !scenario.includes('late-')) mutate();
+            stage = `prepare ${cycle}`;
+            if (negative && !scenario.includes('late-')) { await refused(() => resumeCemCheckpointOwners(admission, [ticket])); refusedState(); return `${scenario} retained guards passed`; }
+            const resumed = await resumeCemCheckpointOwners(admission, [ticket]);
+            if (negative) { mutate(); await refused(async () => { for (const owner of resumed.owners) await owner.owner.resume(); }); refusedState(); return `${scenario} retained guards passed`; }
+            stage = `activate ${cycle}`;
+            for (const owner of resumed.owners) await owner.owner.resume(); previous?.revoke(); await capture();
+            heap = admission.generations[0].runtime; if (fallback) embedding = heap.claimOwnership();
+            check(nodes.every(node => node.isConnected) && options.every((node, i) => select.options[i] === node), 'retained nodes replaced');
+            check(document.activeElement === select && select.selectedIndex === 7 && select.scrollTop === scroll && draft.value === 'Retained é😀', `selection/focus/scroll/draft lost: ${JSON.stringify({ focused: document.activeElement === select, selected: select.selectedIndex, scroll: select.scrollTop, expectedScroll: scroll, draft: draft.value })}`);
+            check(disclosure.hasAttribute('expanded') && !panel.hidden && header.id === headingId, 'disclosure IDs/intent lost');
+            check(actions.getCemActionInvocation(button) === invocation && !dialog.open && clicks === 0 && changes === 0 && links === 0 && submits === 0, 'invocation or user action replayed');
+            check(coordinator.lastCommitted().receipt.owners.every((owner: any, i: number) => owner.acceptedEventSequence === before.receipt.owners[i].acceptedEventSequence), 'resume manufactured input');
+        }
+        stage = 'new explicit actions';
+        const opened = new Promise<void>(resolve => dialog.addEventListener('toggle', () => resolve(), { once: true })); button.click(); await opened;
+        check(dialog.open && clicks === 1, 'fresh command route did not execute exactly once'); dialog.close();
+        header.click(); await runtime.whenRenderSettled(disclosure); check(!disclosure.hasAttribute('expanded') && panel.hidden, 'fresh disclosure listener failed');
+        select.selectedIndex = 9; select.dispatchEvent(new Event('change', { bubbles: true })); await runtime.whenRenderSettled(list);
+        check(select.value === '9' && changes === 1, 'fresh list changes failed'); anchor.click(); check(links === 1, 'fresh link failed');
+        submit.querySelector('button')!.click(); check(submits === 1, 'fresh form action failed');
+        check(plain.isConnected && passive.isConnected && routed.isConnected && submenu.isConnected, 'passive/routed owners disappeared');
+        return `${scenario} retained guards passed`;
+    } catch (error) { throw Error(`${scenario}/${stage}: ${error instanceof Error ? error.stack : String(error)}`, { cause: error }); }
+    finally { clearInterval(progress); admission?.revoke(); coordinator.dispose(); scope.dispose(); document.body.replaceChildren(); }
+}
+async function retainedGuardResumeStory(canvasElement: HTMLElement, scenarios: string[]) {
+    const root = canvasElement.querySelector('section')!, base = new URL('../../dist/', import.meta.url).href;
+    for (const scenario of scenarios) {
+        const frame = document.createElement('iframe'), id = crypto.randomUUID(); root.append(frame); let stop = () => undefined;
+        try {
+            const result = new Promise<string>((resolve, reject) => {
+                let stage = 'load'; const timer = setTimeout(() => reject(Error(`${scenario}/${stage}: retained guards timed out`)), 15000);
+                const receive = (event: MessageEvent) => { if (event.source !== frame.contentWindow) return;
+                    if (event.data?.progress) { stage = event.data.progress; return; } if (event.data?.id !== id) return;
+                    if (event.data.error) reject(Error(event.data.error)); else resolve(event.data.result); };
+                window.addEventListener('message', receive); stop = () => { clearTimeout(timer); window.removeEventListener('message', receive); };
+            });
+            const hook = import.meta.env.MODE === 'test' ? 'globalThis.__vitest_browser_runner__ = { wrapDynamicImport: f => f() };' : '';
+            frame.srcdoc = `<script type="module">${hook}(${isolatedRetainedGuardResume.toString()})(${JSON.stringify(base)}, url => import(url), ${JSON.stringify(scenario)}, ${JSON.stringify([actionDeclaration, expansionDeclaration, listDeclaration, menuItemDeclaration, dialogDeclaration])})
+                .then(result => parent.postMessage({id:${JSON.stringify(id)},result},'*'), error => parent.postMessage({id:${JSON.stringify(id)},error:error.stack||String(error)},'*'));</script>`;
+            expect(await result).toBe(`${scenario} retained guards passed`);
+        } finally { stop(); frame.remove(); }
+    }
+}
+export const RetainedActionDisclosureAndListResume: Story = { render: () => '<section aria-label="Retained action disclosure list resume"></section>',
+    play: async ({ canvasElement }) => retainedGuardResumeStory(canvasElement, ['worker', 'fallback']) };
+export const RetainedActionDisclosureAndListRefusals: Story = { render: () => '<section aria-label="Retained controller guard refusals"></section>',
+    play: async ({ canvasElement }) => retainedGuardResumeStory(canvasElement, ['fallback-target', 'worker-option', 'fallback-controller', 'worker-disclosure']) };
+export const RetainedActionDisclosureAndListLateRefusals: Story = { render: () => '<section aria-label="Late retained controller guard refusals"></section>',
+    play: async ({ canvasElement }) => retainedGuardResumeStory(canvasElement, ['fallback-late-target', 'worker-late-list', 'fallback-late-disclosure', 'worker-late-controller']) };
+export const RetainedActionAndListCoverageRefusals: Story = { render: () => '<section aria-label="Unowned action and unknown picker refusal"></section>',
+    play: async ({ canvasElement }) => retainedGuardResumeStory(canvasElement, ['worker-unowned', 'fallback-picker', 'worker-form', 'fallback-late-form']) };
+
+export const RetainedActionRelationshipRefusals: Story = { render: () => '<section aria-label="Retained descriptor and submenu guard refusals"></section>',
+    play: async ({ canvasElement }) => retainedGuardResumeStory(canvasElement, ['worker-descriptor', 'fallback-late-descriptor', 'worker-submenu', 'fallback-late-submenu']) };
+
+export const RetainedActionControlAndDisclosureRefusals: Story = { render: () => '<section aria-label="Retained link controller and disclosure node refusals"></section>',
+    play: async ({ canvasElement }) => retainedGuardResumeStory(canvasElement, ['worker-link', 'fallback-late-link', 'worker-control', 'fallback-late-panel']) };

@@ -145,11 +145,11 @@ import { CEM_PLAINTEXT_EDITOR_CAPABILITY, cemPlaintextEditorEventValue, cemPlain
 import { equalCheckpointState, cemRetainedFormCheckpoint, prepareCemRetainedFormResume, prepareCemRetainedWidgetResume } from './checkpoint-form-resume.js';
 import { prepareCemReferenceResume } from './checkpoint-reference-resume.js';
 import { CEM_NAVIGATION_LANDMARK_CAPABILITY, cemNavigationLandmarkCheckpoint } from './navigation-landmark-capability.js';
-import { CEM_DISCLOSURE_PANEL_CAPABILITY } from './disclosure-panel-capability.js';
+import { CEM_DISCLOSURE_PANEL_CAPABILITY, cemDisclosurePanelCheckpoint, prepareCemDisclosurePanelGuard } from './disclosure-panel-capability.js';
 import { CEM_SORT_ACTION_CAPABILITY } from './sort-action-capability.js';
 import { CEM_PROGRESS_STATUS_CAPABILITY } from './progress-status-capability.js';
 import { CEM_PAGINATION_CAPABILITY } from './pagination-capability.js';
-import { CEM_NATIVE_LIST_CAPABILITY } from './native-list-capability.js';
+import { CEM_NATIVE_LIST_CAPABILITY, cemNativeListCheckpoint, prepareCemNativeListGuard } from './native-list-capability.js';
 import { CEM_TAB_PANELS_CAPABILITY, cemTabPanelsCheckpoint } from './tab-panels-capability.js';
 import { CEM_WORKFLOW_PANELS_CAPABILITY } from './workflow-panels-capability.js';
 import { CEM_TREE_VIEW_CAPABILITY, cemTreeViewCheckpoint } from './tree-view-capability.js';
@@ -162,8 +162,8 @@ import { CEM_SUGGESTIONS_CAPABILITY, cemSuggestionsCheckpoint, cemSuggestionsChe
 import type { CemSuggestionsControllerOptions } from './suggestions-controller.js';
 import { CEM_POPUP_CAPABILITY, cemPopupCheckpoint, resumeCemPopupGeometry } from './popup-capability.js';
 import { CEM_NATIVE_SURFACE_CAPABILITY, cemNativeSurfaceCheckpoint, resumeCemNativeSurface } from './native-surface.js';
-import { CEM_ACTION_CONTROL_CAPABILITY } from './action-control-capability.js';
-import { CEM_ACTION_COMMAND_CAPABILITY } from './action-command-capability.js';
+import { CEM_ACTION_CONTROL_CAPABILITY, cemActionControlCheckpoint, prepareCemActionControlGuard } from './action-control-capability.js';
+import { CEM_ACTION_COMMAND_CAPABILITY, cemActionCommandCheckpoint, prepareCemActionCommandGuard } from './action-command-capability.js';
 import { CEM_COMPOSITE_MENU_CAPABILITY, cemCompositeMenuCheckpoint, resumeCemMenuGeometry } from './composite-menu-capability.js';
 import { CEM_CHOICE_SELECT_CAPABILITY, cemChoiceSelectCheckpoint } from './choice-select-capability.js';
 import { consumeLocationWriteTrigger } from './internal/runtime-support/location-write-trigger.js';
@@ -2997,6 +2997,10 @@ export class CemElementRuntime {
         else if (compiled.behavior === CEM_CHECKABLE_CONTROL_CAPABILITY) capability = cemCheckableControlCheckpoint(instance) ?? null;
         else if (compiled.behavior === CEM_CHOICE_SELECT_CAPABILITY) capability = cemChoiceSelectCheckpoint(instance) ?? null;
         else if (compiled.behavior === CEM_EDITABLE_CHOICE_CAPABILITY) capability = cemEditableChoiceCheckpoint(instance) ?? null;
+        else if (compiled.behavior === CEM_ACTION_COMMAND_CAPABILITY) capability = cemActionCommandCheckpoint(instance, node => this.checkpointEndpoint(node)) ?? null;
+        else if (compiled.behavior === CEM_ACTION_CONTROL_CAPABILITY) capability = cemActionControlCheckpoint(instance, node => this.checkpointEndpoint(node)) ?? null;
+        else if (compiled.behavior === CEM_DISCLOSURE_PANEL_CAPABILITY) capability = cemDisclosurePanelCheckpoint(instance) ?? null;
+        else if (compiled.behavior === CEM_NATIVE_LIST_CAPABILITY) capability = cemNativeListCheckpoint(instance) ?? null;
         else if (compiled.behavior === CEM_TREE_VIEW_CAPABILITY) capability = cemTreeViewCheckpoint(instance) ?? null;
         else if (compiled.behavior === CEM_TAB_PANELS_CAPABILITY) capability = cemTabPanelsCheckpoint(instance) ?? null;
         else if (compiled.behavior === CEM_NAVIGATION_LANDMARK_CAPABILITY) capability = cemNavigationLandmarkCheckpoint(instance) ?? null;
@@ -3173,6 +3177,18 @@ export class CemElementRuntime {
                 if (provider) result.push({ id: `${requester.instanceId}:surface:${name}`, kind: 'placement', requester, provider, property: name, disposition: 'reacquire' });
             }
         }
+        if (this.declarationForInstance(instance)?.behavior === CEM_ACTION_COMMAND_CAPABILITY) {
+            const action = cemActionCommandCheckpoint(instance, node => this.checkpointEndpoint(node));
+            if (!action) return undefined;
+            for (const [property, provider] of [['command-target', action.target], ['interaction', action.descriptor]] as const) {
+                if (provider) result.push({ id: `${requester.instanceId}:action:${property}`, kind: 'placement', requester, provider, property, disposition: 'reacquire' });
+            }
+        }
+        if (this.declarationForInstance(instance)?.behavior === CEM_ACTION_CONTROL_CAPABILITY) {
+            const action = cemActionControlCheckpoint(instance, node => this.checkpointEndpoint(node));
+            if (!action) return undefined;
+            if (action.submenu) result.push({ id: `${requester.instanceId}:action:submenu`, kind: 'placement', requester, provider: action.submenu, property: 'interaction', disposition: 'reacquire' });
+        }
         return result;
     }
     private checkpointFingerprint(instance: HTMLElement, compiled: CompiledDeclaration): string | undefined {
@@ -3218,6 +3234,14 @@ export class CemElementRuntime {
             location: instance.ownerDocument.location.href });
     }
 
+    private checkpointRetainedCapabilityGuard(instance: HTMLElement, compiled: CompiledDeclaration): (() => boolean) | undefined {
+        if (compiled.behavior === CEM_ACTION_COMMAND_CAPABILITY) return prepareCemActionCommandGuard(instance);
+        if (compiled.behavior === CEM_ACTION_CONTROL_CAPABILITY) return prepareCemActionControlGuard(instance);
+        if (compiled.behavior === CEM_DISCLOSURE_PANEL_CAPABILITY) return prepareCemDisclosurePanelGuard(instance);
+        if (compiled.behavior === CEM_NATIVE_LIST_CAPABILITY) return prepareCemNativeListGuard(instance);
+        return undefined;
+    }
+
     private checkpointResumeAdapter(instance: HTMLElement, compiled: CompiledDeclaration,
         publication: () => CemCheckpointPublicationOwner): CemCheckpointResumeAdapter | undefined {
         const plaintext = compiled.behavior === CEM_PLAINTEXT_EDITOR_CAPABILITY;
@@ -3225,7 +3249,11 @@ export class CemElementRuntime {
             : compiled.behavior === CEM_CHECKABLE_CONTROL_CAPABILITY ? 'checkable-control'
                 : compiled.behavior === CEM_CHOICE_SELECT_CAPABILITY ? 'choice-select'
                     : compiled.behavior === CEM_EDITABLE_CHOICE_CAPABILITY ? 'editable-choice' : undefined;
-        const widgetCheckpoint = compiled.behavior === CEM_TREE_VIEW_CAPABILITY ? () => cemTreeViewCheckpoint(instance)
+        const widgetCheckpoint = compiled.behavior === CEM_ACTION_COMMAND_CAPABILITY ? () => cemActionCommandCheckpoint(instance, node => this.checkpointEndpoint(node))
+            : compiled.behavior === CEM_ACTION_CONTROL_CAPABILITY ? () => cemActionControlCheckpoint(instance, node => this.checkpointEndpoint(node))
+                : compiled.behavior === CEM_DISCLOSURE_PANEL_CAPABILITY ? () => cemDisclosurePanelCheckpoint(instance)
+                    : compiled.behavior === CEM_NATIVE_LIST_CAPABILITY ? () => cemNativeListCheckpoint(instance)
+                        : compiled.behavior === CEM_TREE_VIEW_CAPABILITY ? () => cemTreeViewCheckpoint(instance)
             : compiled.behavior === CEM_TAB_PANELS_CAPABILITY ? () => cemTabPanelsCheckpoint(instance)
                 : compiled.behavior === CEM_NAVIGATION_LANDMARK_CAPABILITY ? () => cemNavigationLandmarkCheckpoint(instance)
                     : compiled.behavior === CEM_COMPOSITE_MENU_CAPABILITY ? () => cemCompositeMenuCheckpoint(instance, node => this.checkpointEndpoint(node))
@@ -3256,11 +3284,12 @@ export class CemElementRuntime {
                 if (provider && pair?.editor !== instance) throw Error('cem.checkpoint.resume.unsupported');
                 eligible();
                 sealedCapability = this.checkpointRuntimeState(instance, compiled, this.instanceStates.get(instance)!)?.capability ?? null;
+                const retained = this.checkpointRetainedCapabilityGuard(instance, compiled);
                 const fingerprint = this.checkpointResumeHostWitness(instance, compiled);
                 const form = provider ? undefined : formKind ? prepareCemRetainedFormResume(instance, formKind,
                     cemRetainedFormCheckpoint(instance, formKind), this.checkpointControls(instance)!, () => this.checkpointControls(instance))
                     : widgetCheckpoint ? prepareCemRetainedWidgetResume(instance, widgetCheckpoint(), this.checkpointControls(instance)!, () => this.checkpointControls(instance), widgetCheckpoint) : undefined;
-                return () => { try { return (!form || form.current()) && (!provider || provider.current()) && (!pair || pair.current()) && this.checkpointResumeHostWitness(instance, compiled) === fingerprint; } catch { return false; } };
+                return () => { try { return (!retained || retained()) && (!form || form.current()) && (!provider || provider.current()) && (!pair || pair.current()) && this.checkpointResumeHostWitness(instance, compiled) === fingerprint; } catch { return false; } };
             },
             park: () => !provider && pair ? pair.park() : () => undefined,
             parkProvider: () => provider ? (unparkProvider = provider.park()) : () => undefined,
@@ -3306,6 +3335,7 @@ export class CemElementRuntime {
                         return resolution.resolvedUrl === resource.url && resolution.resourcePolicyStamp === value.request.resourcePolicyStamp;
                     } });
                 const native = preparedCheckpointProcessing(prepared.owner), scope = native.host.ownerScope;
+                const retained = this.checkpointRetainedCapabilityGuard(instance, compiled);
                 const rawReferences = native.state.references && await this.elementReferenceInputsOption?.(instance, this.readInstanceSnapshot(instance), context.signal);
                 if (native.state.references && !rawReferences) throw new Error('cem.checkpoint.resume.source-authority');
                 const references = native.state.references && rawReferences
@@ -3336,9 +3366,10 @@ export class CemElementRuntime {
                     if (active) this.checkpointHttpBindings.set(active, { host: native.host, document: source.handle, binding: route });
                 }
                 let activated = false, resume: Promise<void> | undefined;
-                const current = () => prepared.current() && instance.isConnected && this.declarationForInstance(instance) === compiled
+                const current = () => prepared.current() && (!retained || retained()) && instance.isConnected && this.declarationForInstance(instance) === compiled
                     && (activated || (!widget || widget.current()) && (!references || references.current()));
                 const bind = () => {
+                    if (retained && !retained()) throw Error('cem.checkpoint.resume.widget-stale');
                     if (this.checkpointComposing.has(instance) || this.checkpointInteracting.has(instance)
                         || (this.checkpointEventSequences.get(instance) ?? 0) !== context.receipt.acceptedEventSequence
                         || formWitness !== undefined && this.checkpointResumeHostWitness(instance, compiled) !== formWitness)
@@ -3405,6 +3436,7 @@ export class CemElementRuntime {
                         finally { this.checkpointPresentationResume.delete(instance); }
                     } : undefined,
                     renewed: () => {
+                        if (retained && (!retained() || !equalCheckpointState(native.state.capability, widgetCheckpoint?.()))) throw Error('cem.checkpoint.resume.widget-stale');
                         if (!context.active() || context.signal.aborted || this.checkpointComposing.has(instance) || this.checkpointInteracting.has(instance)
                             || (this.checkpointEventSequences.get(instance) ?? 0) !== context.receipt.acceptedEventSequence
                             || !equalCheckpointState(native.controls, this.checkpointControls(instance))

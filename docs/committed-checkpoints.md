@@ -1209,8 +1209,9 @@ The exact workspace dependency audit includes declarative Storybook fixture rout
 published runtime dependencies remain unchanged.
 
 This audit does **not** pass successful whole-workspace recovery. The theme switch
-uses legacy text local storage; action/disclosure/list capabilities still need
-reviewed resume guards, and media/live previews own additional runtime state.
+uses legacy text local storage, and media/live previews own additional runtime
+state. Shared action/disclosure/list owners now have guarded adapters, including
+complete command/descriptor/submenu endpoint coverage.
 Command-service heaps also need explicit host-service rebinding and complete group
 coverage. These owners must not be omitted, silently reconstructed or treated as
 plain retained templates. The ordinary Studio release/navigation/live-view gates
@@ -1239,6 +1240,20 @@ require complete paired activation and fresh native source authority. Retained t
 popups and settled native surfaces now have shared adapters too. Browser modal
 visibility, edits, roving state, focus and controller metadata remain live; geometry
 is rechecked without invoking open/command/focus policy again.
+
+Shared action-command/action-control, disclosure-panel and native-list owners also
+have retained resume adapters. Native validation admits only bounded lifecycle
+DTOs; original host-only witnesses retain controller, control, option and form
+identities. Command targets, interaction descriptors and projected submenus require
+complete current endpoint coverage. Changed targets, same-markup replacement nodes,
+form routing or controller replacement refuse preparation and late activation.
+Disclosure IDs, heading relationships and expanded intent stay live. Visible native
+listboxes retain selected properties, original options and scroll; native dropdown
+picker modes remain refused because their open state is unobservable. Actions
+retain transient invocation metadata without serializing or invoking it, and do not
+click, submit, open or navigate during resume. Unknown interest relationships and
+unowned routes remain refused. New explicit user actions work after publication
+renews on the fresh generation.
 
 Passive reference/placement consumers reauthorize through the original host callback
 and registry. Fresh native validation checks opaque source bytes/digests and policy

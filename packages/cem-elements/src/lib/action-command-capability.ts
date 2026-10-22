@@ -1,3 +1,4 @@
+import type { CheckpointEndpoint } from './checkpoint-interactions.js';
 import { isDomInstance } from './dom-realm.js';
 import { interactionReference as reference, nativeInteractionReference as nativeReference } from './interaction-reference.js';
 import type { CemProducedElementBehavior } from './cem-elements.js';
@@ -14,7 +15,7 @@ export function getCemActionInvocation(source: HTMLButtonElement): CemActionInvo
     return invocations.get(source);
 }
 interface State { abort: AbortController; root: Document | ShadowRoot; error?: string; wired?: boolean; }
-interface Resolution { target?: Element; command?: string; contextKey?: string | null; code?: string; }
+interface Resolution { descriptor?: Element; target?: Element; command?: string; contextKey?: string | null; code?: string; }
 const states = new WeakMap<HTMLElement, State>();
 const roots = new WeakMap<Document | ShadowRoot, { hosts: Set<HTMLElement>; observer: MutationObserver; abort: AbortController }>();
 const nativeCommands = new Set(['toggle-popover', 'show-popover', 'hide-popover', 'show-modal', 'close', 'request-close']);
@@ -58,7 +59,7 @@ function resolve(host: HTMLElement): Resolution {
             if (owners.length !== 1) return { code: 'interaction-surface-ambiguous' };
             result.target = owners[0];
         }
-        return { ...result, command, contextKey };
+        return { ...result, command, contextKey, descriptor };
     }
     if (descriptor) return { code: 'interaction-reference-missing' };
     if (host.hasAttribute('commandfor') && host.hasAttribute('popovertarget')) return { code: 'interaction-dual-route' };
@@ -199,3 +200,45 @@ export const CEM_ACTION_COMMAND_CAPABILITY: CemProducedElementBehavior = {
         states.delete(host);
     },
 };
+
+/** Read-only controller/route inspection. No synchronization, ID allocation or invocation. */
+function checkpointAction(host: HTMLElement) {
+    const state = states.get(host), button = control(host);
+    if (!state || state.abort.signal.aborted || state.error || !host.isConnected || !button || state.root !== host.getRootNode()) return;
+    if (host.hasAttribute('interestfor') || button.hasAttribute('interestfor')) return;
+    const route = resolve(host);
+    if (route.code || route.target && (!compatible(route.target, route.command) || button.type !== 'button')) return;
+    if (route.target) {
+        const unique = nativeReference(button, route.target.id);
+        if (unique.code || unique.target !== route.target) return;
+        if (button.hasAttribute('commandfor')) {
+            if (button.getAttribute('commandfor') !== route.target.id || button.getAttribute('command') !== (route.command ?? null)
+                || 'commandForElement' in button && (button as HTMLButtonElement & { commandForElement: Element | null }).commandForElement !== route.target) return;
+        } else if (button.hasAttribute('popovertarget')) {
+            if (button.getAttribute('popovertarget') !== route.target.id || button.popoverTargetElement !== route.target) return;
+        } else return;
+    } else if (button.hasAttribute('commandfor') || button.hasAttribute('popovertarget')
+        || button.popoverTargetElement || 'commandForElement' in button && (button as HTMLButtonElement & { commandForElement: Element | null }).commandForElement) return;
+    return { state, button, route };
+}
+export function cemActionCommandCheckpoint(host: HTMLElement, endpoint: (node: HTMLElement) => CheckpointEndpoint | undefined) {
+    const inspected = checkpointAction(host); if (!inspected) return;
+    const { button, route } = inspected, controlNode = button.getAttribute('data-cem-render-node-id');
+    const target = route.target ? endpoint(route.target as HTMLElement) : null;
+    const descriptor = route.descriptor ? endpoint(route.descriptor as HTMLElement) : null;
+    if (!controlNode || route.target && !target || route.descriptor && !descriptor) return;
+    return { kind: 'action-command' as const, controlNode, command: route.command ?? null, contextKey: route.contextKey ?? null,
+        target: target ?? null, descriptor: descriptor ?? null, disposition: 'retain-without-invocation' as const };
+}
+/** Original browser objects, retained outside WASM; no authority inferred from IDs. */
+export function prepareCemActionCommandGuard(host: HTMLElement) {
+    const saved = checkpointAction(host); if (!saved) throw Error('cem.checkpoint.resume.action-stale');
+    const invocation = invocations.get(saved.button), wired = saved.state.wired;
+    const formState = () => { const button = saved.button, form = button.form; return JSON.stringify([form && [form.action, form.method, form.target, form.enctype, form.noValidate],
+        button.formAction, button.formMethod, button.formTarget, button.formEnctype, button.formNoValidate]); };
+    const form = saved.button.form, signature = formState();
+    return () => { const value = checkpointAction(host); return !!value && value.state === saved.state && value.button === saved.button
+        && value.route.target === saved.route.target && value.route.descriptor === saved.route.descriptor
+        && value.route.command === saved.route.command && value.route.contextKey === saved.route.contextKey && value.state.wired === wired
+        && invocations.get(saved.button) === invocation && saved.button.form === form && formState() === signature; };
+}

@@ -412,8 +412,9 @@ for integrity checks, ownership and offline limits.
 `test:workbench` includes isolated worker/owned-fallback probes of the real shell
 and workspace: repeated Unicode edits, draft/paint/focus retention, exact Save and
 native graph builds after incomplete recovery refuses. This validates safe
-refusal, not successful whole-workspace recovery. Legacy theme storage, remaining
-capability adapters and child preview/command-runtime enrollment remain blockers;
+refusal, not successful whole-workspace recovery. Shared action, disclosure and
+native-list adapters are available with original-controller and endpoint guards.
+Legacy theme storage and child preview/command-runtime enrollment remain blockers;
 automatic recovery stays disabled. The host can supply the original shared runtime
 via `installCemStudioShellComponents({ runtime })` before first installation.
 See [the admission contract](../../docs/committed-checkpoints.md#complete-studio-admission-acceptance)

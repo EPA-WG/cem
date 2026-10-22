@@ -7,7 +7,7 @@ Use the shared native `sealCommittedCheckpoint` export as its trusted sealer.
 adapter/acknowledgment metadata and pending admissions/unknown operations without
 exporting source, probing owners or touching native state. It grants no recovery
 authority. Complete Studio acceptance still refuses legacy theme storage and
-unsupported capability/preview owners; see
+child preview/command-runtime enrollment; see
 [the Studio admission contract](../../docs/committed-checkpoints.md#complete-studio-admission-acceptance).
 
 `CemCheckpointPublicationCoordinator` adds opt-in all-owner capture through
@@ -77,6 +77,12 @@ Form adapters retain the original controls, reset defaults, validity, focus and
 selection, including consumed selection/value requests and one-shot provider-commit
 change suppression. They reject newer edits and do not manufacture input/change
 events. Provider relationships require separately renewed authority.
+Action-command/action-control, disclosure-panel and visible native-list owners
+retain original controllers, controls/options, form ownership, disclosure IDs and
+scroll. Routed targets, descriptors and submenus require complete owned endpoints;
+changed routes/controllers/options and unknown native picker/interest state refuse.
+No click, submit, command or navigation is replayed. New explicit actions work
+through the fresh processing/publication binding.
 Trees, tabs, navigation, composite menus, popups and settled native surfaces also
 retain their browser state; geometry is rechecked without replaying open/focus
 actions. Passive source/placement consumers call the original host input callback,

@@ -42,6 +42,34 @@ enum Capability {
     },
     NavigationLandmark {},
     #[serde(rename_all = "camelCase")]
+    ActionCommand {
+        control_node: String,
+        command: Option<String>,
+        context_key: Option<String>,
+        target: Option<ActionEndpoint>,
+        descriptor: Option<ActionEndpoint>,
+        disposition: String,
+    },
+    #[serde(rename_all = "camelCase")]
+    ActionControl {
+        control_node: String,
+        submenu: Option<ActionEndpoint>,
+    },
+    #[serde(rename_all = "camelCase")]
+    DisclosurePanel {
+        heading_id: String,
+        panel_id: String,
+        summary_id: String,
+        heading_level: String,
+        expanded: bool,
+    },
+    #[serde(rename_all = "camelCase")]
+    NativeList {
+        selectable: bool,
+        scroll_top: f64,
+        scroll_left: f64,
+    },
+    #[serde(rename_all = "camelCase")]
     TreeView {
         focus_value: String,
         typeahead: String,
@@ -124,6 +152,19 @@ enum Capability {
         value: String,
     },
 }
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ActionEndpoint {
+    instance_id: String,
+    data_revision: String,
+    node_id: String,
+}
+impl ActionEndpoint {
+    fn valid(&self) -> bool {
+        [&self.instance_id, &self.data_revision, &self.node_id].into_iter().all(|value| identity(value))
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Resource {
@@ -235,6 +276,35 @@ pub fn validate(input: &str) -> Result<String, &'static str> {
         }
     }
     match &state.capability {
+        Some(Capability::ActionCommand { control_node, command, context_key, target, descriptor, disposition }) => {
+            let command_valid = command.as_deref().is_none_or(|command| {
+                identity(command) && (command.starts_with("--") && command.len() > 2
+                    || matches!(command, "toggle-popover" | "show-popover" | "hide-popover" | "show-modal" | "close" | "request-close"))
+            });
+            if !identity(control_node) || disposition != "retain-without-invocation" || !command_valid
+                || context_key.as_ref().is_some_and(|key| key.len() > 4096)
+                || target.as_ref().is_some_and(|endpoint| !endpoint.valid())
+                || descriptor.as_ref().is_some_and(|endpoint| !endpoint.valid())
+                || target.is_none() && (command.is_some() || descriptor.is_some())
+            { return Err("cem.checkpoint.runtime.capability"); }
+        }
+        Some(Capability::ActionControl { control_node, submenu }) => {
+            if !identity(control_node) || submenu.as_ref().is_some_and(|endpoint| !endpoint.valid()) {
+                return Err("cem.checkpoint.runtime.capability");
+            }
+        }
+        Some(Capability::DisclosurePanel { heading_id, panel_id, summary_id, heading_level, .. }) => {
+            if ![heading_id, panel_id, summary_id].into_iter().all(|value| identity(value))
+                || heading_id == panel_id || heading_id == summary_id || panel_id == summary_id
+                || !matches!(heading_level.as_str(), "1" | "2" | "3" | "4" | "5" | "6") {
+                return Err("cem.checkpoint.runtime.capability");
+            }
+        }
+        Some(Capability::NativeList { scroll_top, scroll_left, .. }) => {
+            if !scroll_top.is_finite() || !scroll_left.is_finite() || scroll_top.abs() > 1e9 || scroll_left.abs() > 1e9 {
+                return Err("cem.checkpoint.runtime.capability");
+            }
+        }
         Some(Capability::FormControl {
             provider: Some(provider),
             ..

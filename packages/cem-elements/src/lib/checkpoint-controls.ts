@@ -1,4 +1,4 @@
-import type { CheckpointSource, CheckpointSuggestions, CheckpointPlacement, CheckpointSurface, CheckpointPopup, CheckpointMenu, CheckpointNativePublication, CheckpointManualListbox, CheckpointStandaloneDatalist } from './checkpoint-interactions.js';
+import type { CheckpointEndpoint, CheckpointSource, CheckpointSuggestions, CheckpointPlacement, CheckpointSurface, CheckpointPopup, CheckpointMenu, CheckpointNativePublication, CheckpointManualListbox, CheckpointStandaloneDatalist } from './checkpoint-interactions.js';
 import { cemPlaintextEditorEventValue } from './plaintext-editor-capability.js';
 
 /** Explicit browser control-state DTO; not a document or template AST. Native
@@ -24,6 +24,10 @@ export interface CemCheckpointRuntimeState {
     placements?: CheckpointPlacement[];
     focus?: { target: 'host' | 'node'; nodeId: string | null };
     capability: null | { kind: 'suggestions'; state: CheckpointSuggestions } | { kind: 'navigation-landmark' }
+        | { kind: 'action-command'; controlNode: string; command: string | null; contextKey: string | null; target: CheckpointEndpoint | null; descriptor: CheckpointEndpoint | null; disposition: 'retain-without-invocation' }
+        | { kind: 'action-control'; controlNode: string; submenu: CheckpointEndpoint | null }
+        | { kind: 'disclosure-panel'; headingId: string; panelId: string; summaryId: string; headingLevel: string; expanded: boolean }
+        | { kind: 'native-list'; selectable: boolean; scrollTop: number; scrollLeft: number }
         | { kind: 'tree-view'; focusValue: string; typeahead: string; typeaheadAt: number }
         | { kind: 'tab-panels'; focusIndex: number; tabCount: number }
         | { kind: 'composite-menu'; activeNode: string | null; typeahead: string; typeaheadAt: number; open: boolean; state?: CheckpointMenu }

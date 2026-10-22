@@ -507,6 +507,20 @@ stay in the browser top layer, including edited contents and focus. Menu/popup/s
 geometry is recomputed after admission, without repeating open, command or focus
 actions. Missing anchors and changed endpoint policies refuse activation.
 
+Shared action-command/action-control, disclosure-panel and native-list owners also
+have retained resume adapters. Native validation admits only bounded lifecycle
+DTOs; original host-only witnesses retain controller, control, option and form
+identities. Command targets, interaction descriptors and projected submenus require
+complete current endpoint coverage. Changed targets, same-markup replacement nodes,
+form routing or controller replacement refuse preparation and late activation.
+Disclosure IDs, heading relationships and expanded intent stay live. Visible native
+listboxes retain selected properties, original options and scroll; native dropdown
+picker modes remain refused because their open state is unobservable. Actions
+retain transient invocation metadata without serializing or invoking it, and do not
+click, submit, open or navigate during resume. Unknown interest relationships and
+unowned routes remain refused. New explicit user actions work after publication
+renews on the fresh generation.
+
 Passive source consumers rerun their original trusted host input callback while
 inactive. Source bytes, crossings, bindings and policies must validate natively on
 the fresh heap and match the sealed source intent. Placement invocation leases

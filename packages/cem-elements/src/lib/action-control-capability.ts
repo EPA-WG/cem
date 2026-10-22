@@ -1,3 +1,4 @@
+import type { CheckpointEndpoint } from './checkpoint-interactions.js';
 import type { CemProducedElementBehavior } from './cem-elements.js';
 
 const aborts = new WeakMap<HTMLElement, AbortController>();
@@ -24,3 +25,30 @@ export const CEM_ACTION_CONTROL_CAPABILITY: CemProducedElementBehavior = {
     },
     disconnected(host) { aborts.get(host)?.abort(); aborts.delete(host); },
 };
+
+function checkpointActionControl(host: HTMLElement) {
+    const abort = aborts.get(host), controls = host.querySelectorAll<HTMLElement>(':scope > [part~="control"]');
+    const submenus = host.querySelectorAll<HTMLElement>(':scope > [slot="submenu"]');
+    if (!abort || abort.signal.aborted || !host.isConnected || controls.length !== 1 || submenus.length > 1) return;
+    const control = controls[0];
+    if (!control.matches('button,a') || control.matches('[commandfor],[popovertarget],[interestfor]')
+        || (control as HTMLButtonElement).popoverTargetElement
+        || 'commandForElement' in control && (control as HTMLButtonElement & { commandForElement: Element | null }).commandForElement) return;
+    return { abort, control, submenu: submenus[0] };
+}
+export function cemActionControlCheckpoint(host: HTMLElement, endpoint: (node: HTMLElement) => CheckpointEndpoint | undefined) {
+    const inspected = checkpointActionControl(host); if (!inspected) return;
+    const controlNode = inspected.control.getAttribute('data-cem-render-node-id');
+    const submenu = inspected.submenu ? endpoint(inspected.submenu) : null;
+    if (!controlNode || inspected.submenu && !submenu) return;
+    return { kind: 'action-control' as const, controlNode, submenu: submenu ?? null };
+}
+export function prepareCemActionControlGuard(host: HTMLElement) {
+    const saved = checkpointActionControl(host); if (!saved) throw Error('cem.checkpoint.resume.action-stale');
+    const href = (saved.control as HTMLAnchorElement).href, form = (saved.control as HTMLButtonElement).form;
+    const formState = () => { const button = saved.control as HTMLButtonElement; return JSON.stringify([form && [form.action, form.method, form.target, form.enctype, form.noValidate],
+        button.formAction, button.formMethod, button.formTarget, button.formEnctype, button.formNoValidate]); };
+    const signature = formState();
+    return () => { const value = checkpointActionControl(host); return !!value && value.abort === saved.abort && value.control === saved.control
+        && value.submenu === saved.submenu && (value.control as HTMLAnchorElement).href === href && (value.control as HTMLButtonElement).form === form && formState() === signature; };
+}

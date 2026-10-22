@@ -1201,3 +1201,39 @@ fn opaque_owner_islands_import_into_independent_native_tables_without_writer_exe
     assert!(fresh.dispose(id));
     assert!(fresh.get(id).is_none());
 }
+
+#[test]
+fn validates_retained_action_disclosure_and_native_list_guards() {
+    let endpoint = json!({"instanceId":"target","dataRevision":"2","nodeId":"dialog.1"});
+    for capability in [
+        json!({"kind":"action-command","controlNode":"button.1","command":null,"contextKey":null,"target":null,"descriptor":null,"disposition":"retain-without-invocation"}),
+        json!({"kind":"action-command","controlNode":"button.1","command":"show-modal","contextKey":"project","target":endpoint,"descriptor":null,"disposition":"retain-without-invocation"}),
+        json!({"kind":"action-control","controlNode":"link.1","submenu":null}),
+        json!({"kind":"action-control","controlNode":"link.1","submenu":endpoint}),
+        json!({"kind":"disclosure-panel","headingId":"heading","panelId":"panel","summaryId":"summary","headingLevel":"3","expanded":true}),
+        json!({"kind":"native-list","selectable":true,"scrollTop":20.5,"scrollLeft":-2.0}),
+        json!({"kind":"native-list","selectable":false,"scrollTop":0.0,"scrollLeft":0.0}),
+    ] {
+        let mut s = state(); s["capability"] = capability;
+        let output: Value = serde_json::from_str(&validate(&s.to_string()).unwrap()).unwrap();
+        assert_eq!(output, s);
+        for key in ["nativeHandle", "callback", "replay"] {
+            let mut bad = s.clone(); bad["capability"][key] = json!(1);
+            assert!(validate(&bad.to_string()).is_err());
+        }
+    }
+    for capability in [
+        json!({"kind":"action-command","controlNode":"","command":null,"contextKey":null,"target":null,"descriptor":null,"disposition":"retain-without-invocation"}),
+        json!({"kind":"action-command","controlNode":"button","command":"show-modal","contextKey":null,"target":null,"descriptor":null,"disposition":"retain-without-invocation"}),
+        json!({"kind":"action-command","controlNode":"button","command":"execute","contextKey":null,"target":endpoint,"descriptor":null,"disposition":"retain-without-invocation"}),
+        json!({"kind":"action-command","controlNode":"button","command":null,"contextKey":null,"target":null,"descriptor":endpoint,"disposition":"retain-without-invocation"}),
+        json!({"kind":"action-command","controlNode":"button","command":"--action","contextKey":null,"target":{"instanceId":"","dataRevision":"2","nodeId":"host"},"descriptor":null,"disposition":"retain-without-invocation"}),
+        json!({"kind":"action-control","controlNode":"link","submenu":{"instanceId":"peer","dataRevision":"","nodeId":"host"}}),
+        json!({"kind":"disclosure-panel","headingId":"same","panelId":"same","summaryId":"summary","headingLevel":"3","expanded":false}),
+        json!({"kind":"disclosure-panel","headingId":"heading","panelId":"panel","summaryId":"summary","headingLevel":"7","expanded":false}),
+        json!({"kind":"native-list","selectable":true,"scrollTop":1000000001.0,"scrollLeft":0.0}),
+    ] {
+        let mut s = state(); s["capability"] = capability;
+        assert!(validate(&s.to_string()).is_err(), "{s}");
+    }
+}
