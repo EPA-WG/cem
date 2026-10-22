@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -53,6 +53,14 @@ try {
     rmSync(generatedRoot, { recursive: true, force: true });
 }
 chmodSync(resolve(projectRoot, 'dist/bin.js'), 0o755);
+for (const file of ['native-generation.js', 'native-generation.d.ts']) {
+    copyFileSync(resolve(workspaceRoot, 'packages/cem_ql/runtime', file.replace('.d.ts', '.d.mts').replace('.js', '.mjs')), resolve(projectRoot, 'dist', file));
+}
+for (const file of ['generation-lifecycle.js', 'generation-lifecycle.d.ts']) {
+    const path = resolve(projectRoot, 'dist', file);
+    writeFileSync(path, readFileSync(path, 'utf8').replaceAll('../../cem_ql/runtime/native-generation.mjs', './native-generation.js'));
+}
+
 
 const runtimeManifest = readJson(resolve(workspaceRoot, 'packages/cem-ml-npm/dist/cem-ml-runtime.json'));
 if (runtimeManifest.commonVersion !== cargoVersion) {

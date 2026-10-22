@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { CommandNativeClientCheckpoint } from '../dist/native-admission.js';
 import { parseCommandNativeRetirement } from '../dist/native-embedding.js';
-import { createNodeCommandServiceClient } from '../dist/node.js';
+import { CemNativeGenerationGroup, createNodeCommandServiceClient } from '../dist/node.js';
 
 const inventory = { schemaVersion: 1, profile: 'cem-ml-cem-ql-command-v1', revision: 3, complete: true,
     blockingResources: 0, registries: [{ name: 'native-entries', live: 0, discardable: 0 }], replacementAllowed: false };
@@ -134,4 +134,43 @@ test('handoff admission bounds bytes and copies typed storage without caller sli
     const result = await s.retire(proof, [owner], { current: () => true, retain: () => bytes }, async () => confirmation,
         async () => undefined, async () => undefined);
     bytes.fill(8); assert.deepEqual([...result.checkpoint], [1, 2]);
+});
+
+test('two original command workers allocate and admit a complete fresh set without retargeting old clients', async () => {
+    const first = await createNodeCommandServiceClient({ host }), second = await createNodeCommandServiceClient({ host });
+    let admission;
+    try {
+        const group = new CemNativeGenerationGroup([first.generationParticipant(), second.generationParticipant()]);
+        const a = first.claimNativeEmbedding(), b = second.claimNativeEmbedding();
+        const ap = await first.closeNativeAdmission([a]), bp = await second.closeNativeAdmission([b]);
+        const ar = await first.retireNativeGeneration(ap, [a], handoff()), br = await second.retireNativeGeneration(bp, [b], handoff());
+        ar.checkpoint.fill(0);
+        await assert.rejects(group.allocate([ar]), /coverage/);
+        await assert.rejects(group.allocate([{ ...ar }, br]), /receipt/);
+        admission = await group.allocate([br, ar]);
+        assert.equal(admission.generations.length, 2);
+        assert.match(new TextDecoder().decode(admission.generations[0].checkpoint), /terminal journal/);
+        for (const item of admission.generations) {
+            const fresh = item.runtime;
+            assert.equal(fresh.runtimeInstanceId, item.runtimeId);
+            assert.notEqual(item.previousRuntimeId, item.runtimeId);
+            const owner = fresh.claimNativeEmbedding(); fresh.releaseNativeEmbedding(owner);
+        }
+        assert.throws(() => first.claimNativeEmbedding(), /closed/);
+        assert.throws(() => second.claimNativeEmbedding(), /closed/);
+        admission.revoke();
+        for (const item of admission.generations) assert.throws(() => item.runtime.claimNativeEmbedding(), /allocation.closed/);
+    } finally { admission?.revoke(); await first.close(); await second.close(); }
+});
+
+test('cancelled fresh startup terminates immediately and never accepts late initialization', async () => {
+    const { initializeFreshGeneration } = await import('../dist/generation-lifecycle.js');
+    const cancellation = new AbortController(); cancellation.abort();
+    let started = 0, terminated = 0;
+    await assert.rejects(initializeFreshGeneration(cancellation.signal, async () => { started++; }, () => terminated++), /cancelled/);
+    assert.equal(started, 0); assert.equal(terminated, 1);
+    const active = new AbortController(); let resolve;
+    const pending = initializeFreshGeneration(active.signal, () => new Promise(done => { resolve = done; }), () => terminated++);
+    active.abort(); await assert.rejects(pending, /cancelled/); resolve('late');
+    assert.equal(terminated, 2);
 });

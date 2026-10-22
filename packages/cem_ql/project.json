@@ -23,6 +23,13 @@
         ]
     },
     "targets": {
+        "test:native-generation": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": { "command": "node --expose-gc --test packages/cem_ql/tests/native-generation.test.mjs", "cwd": "{workspaceRoot}" },
+            "inputs": ["{projectRoot}/runtime/**", "{projectRoot}/tests/native-generation.test.mjs"],
+            "outputs": []
+        },
         "verify:url-package": {
             "cache": false,
             "executor": "nx:run-commands",
@@ -114,6 +121,7 @@
             },
             "inputs": [
                 "{projectRoot}/src/**/*",
+                "{projectRoot}/runtime/**",
                 "{projectRoot}/Cargo.toml",
                 "rustDependencies",
                 "{workspaceRoot}/tools/scripts/build-cem-ql-wasm.mjs",

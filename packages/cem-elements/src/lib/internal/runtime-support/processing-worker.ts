@@ -1,4 +1,5 @@
 /// <reference lib="webworker" />
+import { runtimeMemoryStatus } from './native-runtime.js';
 
 import { ensureRuntimeReady, closeRenderingNativeAdmission, renderingNativeResourceInventory, prepareRenderingNativeRetirement } from './cem-ql-render.js';
 import { CemProcessingEngine } from './processing-engine.js';
@@ -140,7 +141,18 @@ async function retirementControl(request: CemRenderingRetirementControl): Promis
     try {
         if (preparing || activeRequests) throw new Error('cem.runtime.retirement.busy');
         let confirmation: unknown;
-        if (request.action === 'close') {
+        if (request.action === 'inspect') {
+            if (nativeClosed || prepared) throw new Error('cem.runtime.allocation.closed');
+            preparing = true;
+            try {
+                await ensureRuntimeReady();
+                const text = runtimeMemoryStatus();
+                if (text.length > 2048) throw new Error('cem.runtime.allocation.headroom');
+                const status = JSON.parse(text);
+                if (status.softPressure !== false || status.hardPressure !== false) throw new Error('cem.runtime.allocation.headroom');
+                confirmation = { softPressure: false, hardPressure: false };
+            } finally { preparing = false; }
+        } else if (request.action === 'close') {
             preparing = true;
             try { await ensureRuntimeReady(); closeRenderingNativeAdmission(); nativeClosed = true; }
             finally { preparing = false; }

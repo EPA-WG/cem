@@ -13,6 +13,14 @@ const identity = native.runtimeMemoryStatus;
 export const commandNativeAdmission = registry.get(identity) ?? new CommandNativeAdmission(() => native.runtimeMemoryStatus());
 registry.set(identity, commandNativeAdmission);
 
+/** Fresh worker initialization must leave guarded native admission headroom. */
+export function assertCommandNativeHeadroom(): void {
+    const text = native.runtimeMemoryStatus();
+    if (typeof text !== 'string' || text.length > 2048) throw new Error('cem.runtime.allocation.headroom');
+    const status = JSON.parse(text) as { softPressure?: unknown; hardPressure?: unknown };
+    if (status.softPressure !== false || status.hardPressure !== false) throw new Error('cem.runtime.allocation.headroom');
+}
+
 const cleanup = new Set([
     'cancelCommandServiceV1', 'disposeCommandArtifactV1', 'disposeCommandArtifactsV1',
     'disposeResumableOperationHost', 'pollResumableOperation', 'acceptResumableOperationResult',

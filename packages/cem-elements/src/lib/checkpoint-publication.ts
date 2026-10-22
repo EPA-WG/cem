@@ -1,5 +1,5 @@
 import type { CemFallbackRetirementConsent } from './internal/runtime-support/native-runtime.js';
-import { closeNativeRenderingGeneration, retireNativeRenderingGeneration, type CemNativeDrain, nativeCheckpointIdentity, nativeCheckpointValidSourceProof, nativeCheckpointSubscribe, nativeCheckpointSnapshot, type CemCheckpointNativeClient, type CemCheckpointNativeSourceProof } from './internal/runtime-support/checkpoint-domain.js';
+import { nativeGenerationParticipant, closeNativeRenderingGeneration, retireNativeRenderingGeneration, type CemNativeDrain, nativeCheckpointIdentity, nativeCheckpointValidSourceProof, nativeCheckpointSubscribe, nativeCheckpointSnapshot, type CemCheckpointNativeClient, type CemCheckpointNativeSourceProof } from './internal/runtime-support/checkpoint-domain.js';
 import type { CheckpointEndpoint } from './checkpoint-interactions.js';
 import { CemCommittedCheckpointStore, type CemCheckpointOwnerReceipt, type CemCheckpointSealer, type CemCommitReceipt, type CemStoredCheckpoint, type CemCheckpointRelationship } from './committed-checkpoint.js';
 
@@ -351,6 +351,13 @@ export class CemCheckpointPublicationCoordinator {
     }
 
     current(): CemStoredCheckpoint | undefined { return this.ready() ? this.store.current() : undefined; }
+    /** Enroll the exact complete physical rendering generation before retirement. */
+    generationParticipant(): import('./internal/runtime-support/native-generation.js').CemNativeGenerationParticipant {
+        const coverage = this.renderingCoverage();
+        const client = coverage.bindings.keys().next().value;
+        if (!client) throw new Error('cem.runtime.retirement.coverage');
+        return nativeGenerationParticipant(client);
+    }
     /** Shared lifecycle adapter; no app-local event interception or state serializer. */
     handoff(): import('./committed-checkpoint.js').CemCheckpointRetirementHandoff {
         if (this.capturing || !this.ready()) throw new Error('cem.checkpoint.unavailable');

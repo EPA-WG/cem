@@ -1,3 +1,4 @@
+export { CemNativeGenerationGroup, type CemNativeGenerationParticipant, type CemNativeGenerationAdmission } from './generation-lifecycle.js';
 export type { CommandNativeEmbeddingOwnership, CommandNativeInventory, CommandNativeClosureValidation, CommandNativeRetirementHandoff, CommandNativeRetiredGeneration } from './native-embedding.js';
 export type { CommandNativeDrain } from './native-admission.js';
 import { commandNativeRuntime as runtime } from './managed-native-runtime.js';

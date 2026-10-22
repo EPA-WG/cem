@@ -1,4 +1,5 @@
 import {
+    CemNativeGenerationGroup,
     buildBrowserCommandInvocation,
     createBrowserCommandServiceClient,
     createBrowserWorkerPool,
@@ -805,6 +806,7 @@ async function runNativeInventoryFixture(coordinated = false) {
         await mutate(false);
         let proof = await capture([a, b]);
         if (coordinated === 'retirement') {
+            const group = new CemNativeGenerationGroup([client.generationParticipant()]);
             const handoff = () => ({ current: () => true,
                 retain: () => new TextEncoder().encode('sealed draft and terminal journal') });
             await mutate('reset');
@@ -818,6 +820,15 @@ async function runNativeInventoryFixture(coordinated = false) {
             const retired = await client.retireNativeGeneration(proof, [a, b], handoff());
             const frozen = await probe;
             let closed; try { client.claimNativeEmbedding(); } catch (error) { closed = error.code; }
+            const admission = await group.allocate([retired]);
+            try {
+                const item = admission.generations[0], fresh = item.runtime;
+                if (item.runtimeId === item.previousRuntimeId || fresh.worker.runtimeInstanceId !== item.runtimeId) throw Error('fresh worker identity mismatch');
+                const lease = fresh.claimNativeEmbedding(); fresh.releaseNativeEmbedding(lease);
+            } finally { admission.revoke(); }
+            let fenced = false; try { admission.generations[0].runtime.claimNativeEmbedding(); } catch (error) { fenced = String(error).includes('allocation.closed'); }
+            if (!fenced) throw Error('revoked fresh worker admitted work');
+
             return { stale, cancelled, frozen: frozen.refusal, permit: frozen.live, unchanged: frozen.revision === frozen.frozenRevision,
                 checkpoint: new TextDecoder().decode(retired.checkpoint), replacementAllowed: retired.replacementAllowed, closed };
         }

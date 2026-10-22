@@ -2166,6 +2166,8 @@ async function isolatedNativePressure(base: string, fallback: boolean, load: (ur
                 check(coordinator.current(), 'unsupported fallback retirement invalidated a good checkpoint');
                 return 'fallback retirement refused';
             }
+            const { CemNativeGenerationGroup } = await load(`${support}native-generation.js`);
+            const group = retirement === 'success' ? new CemNativeGenerationGroup([coordinator.generationParticipant()]) : undefined;
             const proof = await coordinator.closeRenderingGeneration();
             await coordinator.capture();
             const sealed = [...coordinator.lastCommitted().bytes].join(',');
@@ -2177,6 +2179,14 @@ async function isolatedNativePressure(base: string, fallback: boolean, load: (ur
                 check([...result.checkpoint].join(',') === sealed, 'retired bytes differ from the current complete checkpoint');
                 check(new TextDecoder().decode(result.checkpoint).includes('reimport-and-read-again'), 'retirement omitted the retained document source contract');
                 check(terminated === 1, 'physical rendering worker was not terminated exactly once');
+                const admitted = await group.allocate([result]);
+                check(admitted.generations[0].runtimeId !== admitted.generations[0].previousRuntimeId, 'worker reused its old identity');
+                const fresh = admitted.generations[0].runtime;
+                check(fresh.kind === 'cem-rendering-worker', 'wrong fresh worker runtime');
+                admitted.revoke();
+                let refusedFresh = false; try { await fresh.request({}); } catch (caught) { refusedFresh = String(caught).includes('closed'); }
+                check(refusedFresh, 'revoked worker admitted work');
+
             } else {
                 check(error && terminated === 0, 'unmanaged roots or newer input authorized physical retirement');
                 check([...coordinator.lastCommitted().bytes].join(',') === sealed, 'failed retirement lost the host checkpoint');
@@ -2395,10 +2405,19 @@ export const OwnedFallbackGenerationAndOwnership: Story = {
     },
 };
 
-async function isolatedActiveFallback(base: string, load: (url: string) => Promise<any>, scenario: string): Promise<string> {
+async function isolatedActiveFallback(base: string, load: (url: string) => Promise<any>, scenario: string, commandUrl: string): Promise<string> {
     const support = new URL('lib/internal/runtime-support/', base).href;
     const binding = await load(`${support}native-runtime.js`), generation = binding.isolateCemFallbackGeneration();
     await generation.ready(); const owner = generation.claimOwnership(), extra = generation.claimOwnership();
+    const { CemNativeGenerationGroup } = await load(`${support}native-generation.js`);
+    const commands = scenario === 'success' ? await load(commandUrl) : undefined;
+    const commandClient = commands ? await commands.createBrowserCommandServiceClient({ host: {
+        currentRevision: ({ project }: any) => ({ project, resourceVersions: {} }),
+        readResource: () => { throw new Error('unexpected read'); }, prepareWrite: () => { throw new Error('unexpected write'); },
+        commitWrite: () => { throw new Error('unexpected commit'); }, rollbackWrite: () => undefined,
+    } }) : undefined;
+    const group = commandClient ? new CemNativeGenerationGroup([generation.generationParticipant(), commandClient.generationParticipant()]) : undefined;
+
     const [{ CemElementRuntime }, { createCemDeclarationScope }, { CemCheckpointPublicationCoordinator }, hosts, legacy] = await Promise.all([
         load(new URL('lib/cem-elements.js', base).href), load(new URL('lib/declaration-scope.js', base).href),
         load(new URL('lib/checkpoint-publication.js', base).href), load(`${support}processing-host-runtime.js`), load(`${support}vendor/cem_ql.js`),
@@ -2471,6 +2490,24 @@ async function isolatedActiveFallback(base: string, load: (url: string) => Promi
             check(coordinator.lastCommitted(), 'retirement discarded last-good host bytes');
             await refuses(() => binding.cemQlVersion(), 'retired');
             await refuses(() => generation.ready(), 'retired');
+            const commandOwner = commandClient.claimNativeEmbedding();
+            const commandDrain = await commandClient.closeNativeAdmission([commandOwner]);
+            const commandRetired = await commandClient.retireNativeGeneration(commandDrain, [commandOwner], {
+                current: () => true, retain: () => new Uint8Array(retired.checkpoint),
+            });
+            await refuses(() => group.allocate([retired]), 'coverage');
+            const admitted = await group.allocate([commandRetired, retired]);
+            const freshCommand = admitted.generations[1].runtime;
+            const freshOwner = freshCommand.claimNativeEmbedding(); freshCommand.releaseNativeEmbedding(freshOwner);
+            await refuses(() => commandClient.claimNativeEmbedding(), 'closed');
+            const fresh = admitted.generations[0].runtime;
+            check(fresh.runtimeId !== generation.runtimeId && fresh.kind === 'cem-fallback', 'fresh fallback reused old identity');
+            const template = JSON.parse(fresh.invoke('compileTemplate', ['{p | Fresh owned binding}', '[]'])).artifactId;
+            check(fresh.invoke('disposeTemplate', [template]), 'fresh fallback did not execute independently');
+            await refuses(() => binding.cemQlVersion(), 'retired');
+            admitted.revoke(); await refuses(() => fresh.invoke('cemQlVersion', []), 'closed');
+            await refuses(() => freshCommand.claimNativeEmbedding(), 'closed');
+
         } else {
             await refuses(() => coordinator.retireRenderingGeneration(proof, 5000, consent));
             check([...coordinator.lastCommitted().bytes].join(',') === before, 'failure replaced host checkpoint bytes');
@@ -2482,7 +2519,7 @@ async function isolatedActiveFallback(base: string, load: (url: string) => Promi
         check(legacy.disposeTemplate(legacyTemplate), 'owned retirement affected legacy memory');
         const fresh = JSON.parse(legacy.compileTemplate('{p | Legacy remains open}', '[]')).artifactId; legacy.disposeTemplate(fresh);
         return `${scenario} active fallback passed`;
-    } finally { scope.dispose(); peerScope.dispose(); coordinator.dispose(); document.body.replaceChildren(); }
+    } finally { await commandClient?.close(); scope.dispose(); peerScope.dispose(); coordinator.dispose(); document.body.replaceChildren(); }
 }
 
 export const ActiveFallbackRetirement: Story = {
@@ -2502,7 +2539,7 @@ export const ActiveFallbackRetirement: Story = {
                     window.addEventListener('message', receive); stop = () => { clearTimeout(timer); window.removeEventListener('message', receive); };
                 });
                 const hook = import.meta.env.MODE === 'test' ? 'globalThis.__vitest_browser_runner__ = { wrapDynamicImport: f => f() };' : '';
-                frame.srcdoc = `<script type="module">${hook}(${isolatedActiveFallback.toString()})(${JSON.stringify(base)}, url => import(url), ${JSON.stringify(scenario)})
+                frame.srcdoc = `<script type="module">${hook}(${isolatedActiveFallback.toString()})(${JSON.stringify(base)}, url => import(url), ${JSON.stringify(scenario)}, ${JSON.stringify(new URL('../../../cem-ml-cli-npm/dist/browser-commands.js', import.meta.url).href)})
                     .then(result => parent.postMessage({ id: ${JSON.stringify(id)}, result }, '*'),
                         error => parent.postMessage({ id: ${JSON.stringify(id)}, error: error.stack || String(error) }, '*'));</script>`;
                 expect(await completed).toBe(`${scenario} active fallback passed`);

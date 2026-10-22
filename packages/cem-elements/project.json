@@ -421,7 +421,7 @@
         "test:unit": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": [{ "projects": ["cem_ql"], "target": "build:wasm" }],
+            "dependsOn": [{ "projects": ["cem_ql"], "target": "build:wasm" }, { "projects": ["cem_ql"], "target": "test:native-generation" }],
             "options": {
                 "command": "yarn vitest --config packages/cem-elements/vitest.unit.config.mts --run",
                 "cwd": "{workspaceRoot}"

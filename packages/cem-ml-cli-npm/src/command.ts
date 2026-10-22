@@ -792,3 +792,5 @@ function serializePositional(
     }
     output.push(...(Array.isArray(value) ? value : [value]));
 }
+
+export { CemNativeGenerationGroup, type CemNativeGenerationParticipant, type CemNativeGenerationAdmission } from './generation-lifecycle.js';

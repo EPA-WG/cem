@@ -28,6 +28,7 @@
                 "{projectRoot}/src/**/*.ts",
                 "{projectRoot}/scripts/build.mjs",
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ql/runtime/**",
                 {
                     "dependentTasksOutputFiles": "**/*",
                     "transitive": false

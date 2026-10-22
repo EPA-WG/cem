@@ -816,6 +816,22 @@
         "@epa-wg/cem-elements/cem-ql-factory": {
             "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_factory.js",
             "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/native-generation": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/internal/runtime-support/native-generation.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/native-generation-vendor": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/native-generation.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-ml-cli/generation-lifecycle": {
+            "path": "../../../node_modules/@epa-wg/cem-ml-cli/dist/generation-lifecycle.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-ml-cli/native-generation": {
+            "path": "../../../node_modules/@epa-wg/cem-ml-cli/dist/native-generation.js",
+            "contentType": "text/javascript"
         }
     }
 }

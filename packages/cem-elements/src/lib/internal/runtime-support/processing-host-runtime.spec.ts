@@ -840,3 +840,40 @@ it('fences retirement on actual worker loss and never moves the closed root to f
     expect(host.mode).toBe('worker');
     await host.dispose({ reason: 'runtime-disposed' }).result; scope.dispose();
 });
+
+it('rejects an in-flight request when the complete fresh rendering group is revoked', async () => {
+    class FreshWorker extends ControlledProcessingWorker {
+        override postMessage(request: CemProcessingRequestEnvelope | CemRenderingRetirementControl): void {
+            if (!isCemRenderingRetirementControl(request)) { super.postMessage(request); return; }
+            queueMicrotask(() => this.emit('message', { protocol: CEM_RENDERING_RETIREMENT_PROTOCOL,
+                direction: 'response', id: request.id, action: request.action, ok: true,
+                ...(request.action === 'inspect' ? { confirmation: { softPressure: false, hardPressure: false } } : {}),
+                ...(request.action === 'prepare' ? { confirmation: { schemaVersion: 1, frozen: true, inventoryRevision: 3,
+                    frozenRevision: 4, replacementAllowed: false } } : {}) }));
+        }
+    }
+    const { nativeGenerationParticipant } = await import('./checkpoint-domain.js');
+    const { CemNativeGenerationGroup } = await import('./native-generation.js');
+    const { createCemProcessingRequestEnvelope, CemProcessingJobSequence } = await import('./processing-host.js');
+    const workers: FreshWorker[] = [], scope = createCemDeclarationScope({ document: {} as Document });
+    const host = cemProcessingHostForScope(scope, { workerScriptUrl: 'https://example.test/fresh.js', workerFactory: () => {
+        const worker = new FreshWorker(); workers.push(worker); return worker as unknown as Worker;
+    } });
+    await host.ready;
+    const client = host.checkpointClient;
+    if (!client) throw new Error('missing native client');
+    const group = new CemNativeGenerationGroup([nativeGenerationParticipant(client)]);
+    const proof = await closeNativeRenderingGeneration(client);
+    const retired = await retireNativeRenderingGeneration(new Map([[client, ['editor']]]), [], proof,
+        { current: () => true, retain: () => new Uint8Array([1]) });
+    const admission = await group.allocate([retired]);
+    try {
+        const fresh = admission.generations[0].runtime as import('./processing-host-runtime.js').CemFreshRenderingGeneration;
+        const request = createCemProcessingRequestEnvelope(new CemProcessingJobSequence(), 'compile', compileInput('fresh-pending'));
+        const pending = fresh.request(request);
+        const rejected = expect(pending).rejects.toThrow('retired');
+        await flushMicrotasks(); expect(workers[1].requests).toHaveLength(1);
+        admission.revoke(); await rejected;
+        expect(workers[1].terminated).toBe(true);
+    } finally { admission.revoke(); scope.dispose(); }
+});

@@ -1,3 +1,4 @@
+import { registerNativeGeneration, completeNativeRetirement, type CemNativeGenerationAllocator, type CemNativeGenerationParticipant } from './native-generation.js';
 import type { CemCheckpointRetirementHandoff } from '../../committed-checkpoint.js';
 import type { CemCheckpointNativeRuntime } from '../../committed-checkpoint.js';
 
@@ -47,6 +48,7 @@ export class CemNativeCheckpointDomain {
     private pressureSampler?: () => { softPressure: boolean; hardPressure: boolean };
     private readonly pressureListeners = new Set<(reason: CemNativePressureReason) => void>();
     private deadline?: ReturnType<typeof setTimeout>;
+    private allocationToken?: CemNativeGenerationParticipant;
     private cleanupOwners?: ReadonlySet<CemCheckpointNativeClient>;
 
     constructor(private readonly mode: 'worker' | 'main-thread') {}
@@ -109,6 +111,8 @@ export class CemNativeCheckpointDomain {
         this.revoke();
     }
     revoke(): void { this.alive = false; this.changed(); }
+    /** Only a privately allocated candidate's cleanup uses this after fencing. */
+    discardAllocatedIdentity(): void { this.nativeIdentity = undefined; this.pressureSampler = undefined; this.revoke(); }
 
     /** Trusted native telemetry only; authored data never supplies this sampler. */
     sampleWith(sampler: () => { softPressure: boolean; hardPressure: boolean }): void {
@@ -239,6 +243,14 @@ export class CemNativeCheckpointDomain {
         if (this.mode !== 'main-thread' || !this.nativeIdentity || !this.alive || fallbackRetirementEndpoints.has(this))
             throw new Error('cem.runtime.retirement.unsupported');
         fallbackRetirementEndpoints.set(this, endpoint);
+    }
+    /** Explicit membership in one complete fresh-generation transaction. */
+    retainedAllocationParticipant(): CemNativeGenerationParticipant | undefined { return this.allocationToken; }
+    generationParticipant(): CemNativeGenerationParticipant {
+        if (this.allocationToken) return this.allocationToken;
+        const allocate = (fallbackRetirementEndpoints.get(this) ?? retirementEndpoints.get(this))?.allocate;
+        if (!this.nativeIdentity || !allocate || !this.alive) throw new Error('cem.runtime.allocation.unsupported');
+        return this.allocationToken = registerNativeGeneration(this.nativeIdentity, this.runtimeId, allocate);
     }
     hasRetirementCleanups(bindings: ReadonlyMap<CemCheckpointNativeClient, readonly string[]>): boolean {
         return !!this.members.size && [...this.members].every(client => bindings.has(client.token) && !!client.retirementCleanup);
@@ -417,6 +429,7 @@ export function nativeCheckpointWork<Args extends unknown[], Result>(operation: 
 
 
 interface NativeRenderingRetirementEndpoint {
+    allocate?: CemNativeGenerationAllocator;
     close(): Promise<void>;
     /** Terminal cleanup of owned roots precedes the existing native zero-root
      * permit. Failure fences the generation; it never rolls native state back. */
@@ -425,6 +438,7 @@ interface NativeRenderingRetirementEndpoint {
     terminate(): void;
 }
 interface NativeFallbackRetirementEndpoint {
+    allocate?: CemNativeGenerationAllocator;
     close(): Promise<void>;
     authorize(consent: object | undefined): () => boolean;
     commit(current: () => boolean): void;
@@ -502,7 +516,7 @@ export async function retireNativeRenderingGeneration(
             const started = performance.now();
             domain.retireOwnedResources(bindings, () => handoff.current() === true && current(),
                 () => performance.now() - started < timeoutMs && domain.drainCurrent(proof) && !!closedConsent?.current(), check => fallback.commit(check));
-            return Object.freeze({ checkpoint, replacementAllowed: false });
+            return completedRenderingRetirement(domain, checkpoint);
         }
         if (!endpoint) throw new Error('cem.runtime.retirement.unsupported');
         const confirmation = await retirementDeadline(() => endpoint.prepare(), timeoutMs);
@@ -514,7 +528,7 @@ export async function retireNativeRenderingGeneration(
             throw new Error('cem.runtime.retirement.confirmation');
         if (handoff.current() !== true || !current()) throw new Error('cem.runtime.retirement.stale');
         endpoint.terminate(); domain.revoke();
-        return Object.freeze({ checkpoint, replacementAllowed: false });
+        return completedRenderingRetirement(domain, checkpoint);
     } catch (error) {
         if (preparing) {
             // Owned native roots may already have been released. Preserve host
@@ -529,4 +543,15 @@ export async function retireNativeRenderingGeneration(
 export function nativeCheckpointRetirementStarted(client: CemCheckpointNativeClient): boolean {
     const domain = clients.get(client)?.domain;
     return !!domain && terminalRenderingGenerations.has(domain);
+}
+
+export function nativeGenerationParticipant(client: CemCheckpointNativeClient): CemNativeGenerationParticipant {
+    const domain = clients.get(client)?.domain;
+    if (!domain) throw new Error('cem.runtime.allocation.unsupported');
+    return domain.generationParticipant();
+}
+
+function completedRenderingRetirement(domain: CemNativeCheckpointDomain, checkpoint: Uint8Array): CemRetiredRenderingGeneration {
+    const participant = domain.retainedAllocationParticipant();
+    return participant ? completeNativeRetirement(participant, checkpoint) : Object.freeze({ checkpoint, replacementAllowed: false });
 }

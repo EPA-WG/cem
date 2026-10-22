@@ -455,6 +455,14 @@
         "@epa-wg/cem-elements/cem-ql-factory": {
             "path": "../../../packages/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_factory.js",
             "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/native-generation": {
+            "path": "../../../packages/cem-elements/dist/lib/internal/runtime-support/native-generation.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/native-generation-vendor": {
+            "path": "../../../packages/cem-elements/dist/lib/internal/runtime-support/vendor/native-generation.js",
+            "contentType": "text/javascript"
         }
     }
 }

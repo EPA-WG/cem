@@ -833,7 +833,7 @@ function workerFallbackDiagnostic(phase: CemProcessingWorkerFailurePhase): CemPr
 
 /** Separate bounded lifecycle control, never authored processing payloads. */
 export const CEM_RENDERING_RETIREMENT_PROTOCOL = 'cem-rendering-retirement-v1' as const;
-export type CemRenderingRetirementAction = 'close' | 'prepare' | 'abort';
+export type CemRenderingRetirementAction = 'close' | 'prepare' | 'abort' | 'inspect';
 export interface CemRenderingRetirementControl {
     protocol: typeof CEM_RENDERING_RETIREMENT_PROTOCOL;
     direction: 'request' | 'response';
@@ -847,7 +847,7 @@ export function isCemRenderingRetirementControl(value: unknown): value is CemRen
     if (!value || typeof value !== 'object') return false;
     const r = value as Record<string, unknown>;
     return r.protocol === CEM_RENDERING_RETIREMENT_PROTOCOL && (r.direction === 'request' || r.direction === 'response')
-        && Number.isSafeInteger(r.id) && (r.id as number) > 0 && ['close', 'prepare', 'abort'].includes(r.action as string)
+        && Number.isSafeInteger(r.id) && (r.id as number) > 0 && ['close', 'prepare', 'abort', 'inspect'].includes(r.action as string)
         && Object.keys(r).every(key => ['protocol', 'direction', 'id', 'action', 'ok', 'confirmation', 'error'].includes(key))
         && (r.direction === 'request' ? r.ok === undefined && r.confirmation === undefined && r.error === undefined : typeof r.ok === 'boolean' && (r.error === undefined || typeof r.error === 'string' && r.error.length <= 512));
 }

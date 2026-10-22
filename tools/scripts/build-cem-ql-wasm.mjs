@@ -63,6 +63,10 @@ writeFileSync(declarations, `/// <reference lib="esnext.disposable" />\n${readFi
 writeFileSync(resolve(repoRoot, outDir, 'cem_ql_factory.js'), cemQlWasmFactory(readFileSync(resolve(repoRoot, outDir, 'cem_ql.js'), 'utf8')));
 writeFileSync(resolve(repoRoot, outDir, 'cem_ql_factory.d.ts'), cemQlWasmFactoryTypes);
 
+for (const file of ['native-generation.js', 'native-generation.d.ts']) {
+    copyFileSync(resolve(repoRoot, 'packages/cem_ql/runtime', file.replace('.d.ts', '.d.mts').replace('.js', '.mjs')), resolve(repoRoot, outDir, file));
+}
+
 // wasm-bindgen `--target web` emits ESM, but the out dir has no package.json, so
 // Node/TypeScript `nodenext` resolution would infer CommonJS from the repo root and
 // the default `init` import becomes non-callable. Mark the artifact as ESM.

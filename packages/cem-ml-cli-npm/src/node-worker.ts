@@ -2,7 +2,7 @@ import { CommandNativeAdmissionError, isCommandNativeAdmissionError } from './na
 import { readFile } from 'node:fs/promises';
 import { parentPort, threadId, workerData } from 'node:worker_threads';
 
-import { prepareCommandNativeRetirement, abortCommandNativeRetirement, commandNativeAdmission, closeCommandNativeAdmission, validateCommandNativeClosure, readCommandNativeInventory, commandNativeRuntime as runtime } from './managed-native-runtime.js';
+import { assertCommandNativeHeadroom, prepareCommandNativeRetirement, abortCommandNativeRetirement, commandNativeAdmission, closeCommandNativeAdmission, validateCommandNativeClosure, readCommandNativeInventory, commandNativeRuntime as runtime } from './managed-native-runtime.js';
 
 import type {
     BrowserCommandActionResultMessage,
@@ -40,6 +40,8 @@ const abiIdentity = runtimeMetadata.abi.identity;
 if (typeof abiIdentity !== 'string' || abiIdentity.length === 0) {
     throw new Error('CEM-ML runtime metadata does not provide an ABI identity');
 }
+
+assertCommandNativeHeadroom();
 
 const protocol = JSON.parse(runtime.workerProtocolDescriptor()) as WorkerProtocolDescriptor;
 const capabilityRequest = JSON.stringify({

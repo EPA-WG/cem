@@ -15,7 +15,7 @@ async function selected() {
 describe('owned fallback generation and embedding consent', () => {
     it('selects once before use, keeps generated exports private and fences saved aliases after empty disposal', async () => {
         const { api, generation, lease } = await selected(); const alias = api.cemQlVersion;
-        expect(Object.keys(generation).sort()).toEqual(['claimOwnership', 'disposeEmpty', 'ready', 'releaseOwnership', 'retirementConsent', 'runtimeId'].sort());
+        expect(Object.keys(generation).sort()).toEqual(['claimOwnership', 'disposeEmpty', 'generationParticipant', 'ready', 'releaseOwnership', 'retirementConsent', 'runtimeId'].sort());
         expect(alias()).toBe('owned'); expect(mocks.legacy).not.toHaveBeenCalled();
         expect(() => api.isolateCemFallbackGeneration()).toThrow('already-selected');
         const disposed = await generation.disposeEmpty([lease]);
@@ -105,7 +105,6 @@ describe('owned fallback generation and embedding consent', () => {
 });
 
 
-describe('active owned fallback retirement', () => {
     async function active() {
         const state = await selected(), d = state.domains, domain = d.cemMainThreadCheckpointDomain;
         const client = domain.client(); domain.retain('template', 7); domain.adopt('template', 7, client);
@@ -115,6 +114,8 @@ describe('active owned fallback retirement', () => {
         return { ...state, domain, client, cleanup, consent, bindings: new Map([[client, ['editor']]]) };
     }
     const handoff = () => ({ current: () => true, retain: () => new Uint8Array([4, 8]) });
+
+describe('active owned fallback retirement', () => {
     it('refuses primitive consent even before any embedding lease has been claimed', async () => {
         const api = await import('./native-runtime.js'), d = await import('./checkpoint-domain.js');
         const generation = api.isolateCemFallbackGeneration(); await generation.ready();
@@ -195,4 +196,35 @@ describe('active owned fallback retirement', () => {
         expect(d.nativeCheckpointDrainCurrent(proof)).toBe(false);
         expect(() => api.cemQlVersion()).toThrow('retired');
     });
+});
+
+describe('coordinated fresh fallback allocation', () => {
+    it('admits distinct bindings after original active retirement and keeps old aliases fenced', async () => {
+        const { generation, domains, api, consent, client, bindings } = await active();
+        const { CemNativeGenerationGroup } = await import('./native-generation.js');
+        const group = new CemNativeGenerationGroup([generation.generationParticipant()]);
+        const proof = await domains.closeNativeRenderingGeneration(client, 5000, consent);
+        const receipt = await domains.retireNativeRenderingGeneration(bindings, [], proof, handoff(), 5000, consent);
+        mocks.call.mockImplementation((name: string) => name === 'runtimeMemoryStatus' ? '{"softPressure":false,"hardPressure":false}' : 'fresh');
+        const admission = await group.allocate([receipt]);
+        const fresh = admission.generations[0].runtime as import('./native-runtime.js').CemFreshFallbackGeneration;
+        expect(fresh.runtimeId).not.toBe(generation.runtimeId);
+        expect(fresh.invoke('cemQlVersion', [])).toBe('fresh');
+        expect(() => fresh.invoke('configureRuntimeMemoryBudget' as never, [])).toThrow('entrypoint');
+        expect(() => api.cemQlVersion()).toThrow('retired');
+        admission.revoke(); expect(() => fresh.invoke('cemQlVersion', [])).toThrow('closed');
+    });
+});
+
+it.each(['pressure', 'unavailable'])('refuses fresh fallback %s without opening admission or old aliases', async mode => {
+    const { generation, domains, api, consent, client, bindings } = await active();
+    const { CemNativeGenerationGroup } = await import('./native-generation.js');
+    const group = new CemNativeGenerationGroup([generation.generationParticipant()]);
+    const proof = await domains.closeNativeRenderingGeneration(client, 5000, consent);
+    const receipt = await domains.retireNativeRenderingGeneration(bindings, [], proof, handoff(), 5000, consent);
+    mocks.call.mockReturnValue(mode === 'pressure' ? '{"softPressure":true,"hardPressure":false}' : '{}');
+    await expect(group.allocate([receipt])).rejects.toThrow('stale');
+    expect(() => api.cemQlVersion()).toThrow('retired');
+    expect([...receipt.checkpoint]).toEqual([4, 8]);
+    expect(mocks.dispose).toHaveBeenCalledTimes(2);
 });

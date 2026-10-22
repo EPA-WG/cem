@@ -1,5 +1,5 @@
 import { CommandNativeAdmissionError, isCommandNativeAdmissionError } from './native-admission.js';
-import { prepareCommandNativeRetirement, abortCommandNativeRetirement, commandNativeAdmission, closeCommandNativeAdmission, validateCommandNativeClosure, readCommandNativeInventory, commandNativeRuntime as runtime } from './managed-native-runtime.js';
+import { assertCommandNativeHeadroom, prepareCommandNativeRetirement, abortCommandNativeRetirement, commandNativeAdmission, closeCommandNativeAdmission, validateCommandNativeClosure, readCommandNativeInventory, commandNativeRuntime as runtime } from './managed-native-runtime.js';
 
 import type {
     BrowserCommandActionResultMessage,
@@ -74,6 +74,7 @@ workerScope.addEventListener('message', (event: MessageEvent<unknown>) => {
 
 async function initialize(bootstrap: BrowserWorkerBootstrap): Promise<void> {
     await initializeRuntime();
+    assertCommandNativeHeadroom();
     const protocol = JSON.parse(runtime.workerProtocolDescriptor()) as WorkerProtocolDescriptor;
     const capabilityRequest = JSON.stringify({
         runtime: 'wasm-browser-worker',

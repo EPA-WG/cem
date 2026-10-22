@@ -1,3 +1,4 @@
+import type { CemNativeGenerationCandidate, CemNativeGenerationParticipant } from './native-generation.js';
 import { CemNativeCheckpointDomain, cemWorkerCheckpointDomain, cemMainThreadCheckpointDomain, nativeCheckpointAdmission, nativeCheckpointRequirements, nativeCheckpointChanged, nativeCheckpointRefuse, nativeCheckpointIdentity, nativeCheckpointGeneration, nativeCheckpointFailureFence, nativeCheckpointWitnessSource, type CemCheckpointNativeClient } from './checkpoint-domain.js';
 import { nativeCheckpointRetirementCleanup, nativeCheckpointRetirementStarted, nativeCheckpointSubscribe, nativeCheckpointAssertAdmission, nativeCheckpointDrainRequirements } from './checkpoint-domain.js';
 import {
@@ -59,6 +60,14 @@ export interface CemProcessingHostRuntimeOptions {
     onTrace?: (event: CemProcessingSchedulingTraceEvent) => void;
 }
 
+/** Generation-bound trusted processing transport; existing hosts never retarget. */
+export interface CemFreshRenderingGeneration {
+    readonly kind: 'cem-rendering-worker';
+    readonly runtimeId: string;
+    request(request: CemProcessingRequestEnvelope): Promise<CemProcessingSuccessEnvelope>;
+    generationParticipant(): CemNativeGenerationParticipant;
+}
+
 interface PendingWorkerRequest {
     operation: CemProcessingOperation;
     resolve(response: CemProcessingSuccessEnvelope): void;
@@ -75,13 +84,15 @@ class CemProcessingWorkerTransport {
     private readonly controls = new Map<number, { action: CemRenderingRetirementAction; resolve(value: unknown): void; reject(error: unknown): void }>();
     private terminated = false;
     private readySettled = false;
+    private readonly freshOptions: CemProcessingHostRuntimeOptions;
     private failed = false;
     private readonly failureListeners = new Set<() => void>();
     private resolveReady!: (ready: CemProcessingReadyEnvelope) => void;
     private rejectReady!: (error: unknown) => void;
 
-    constructor(options: CemProcessingHostRuntimeOptions, name: string) {
+    constructor(options: CemProcessingHostRuntimeOptions, private readonly name: string) {
         const factory = options.workerFactory ?? defaultCemProcessingWorkerFactory;
+        this.freshOptions = { workerScriptUrl: String(options.workerScriptUrl), workerFactory: factory };
         this.ready = new Promise<CemProcessingReadyEnvelope>((resolve, reject) => {
             this.resolveReady = resolve;
             this.rejectReady = reject;
@@ -89,6 +100,7 @@ class CemProcessingWorkerTransport {
         this.worker = factory({ scriptUrl: options.workerScriptUrl, name, type: 'module' });
         this.checkpointDomain = cemWorkerCheckpointDomain(this.worker);
         this.checkpointDomain.retirementEndpoint({
+            allocate: (admitted, signal) => this.allocateFresh(admitted, signal),
             close: async () => { await this.control('close'); },
             prepare: () => this.control('prepare'),
             abort: async () => { await this.control('abort'); },
@@ -97,6 +109,28 @@ class CemProcessingWorkerTransport {
         this.worker.addEventListener('message', this.onMessage);
         this.worker.addEventListener('error', this.onError);
         this.worker.addEventListener('messageerror', this.onMessageError);
+    }
+
+    private async allocateFresh(admitted: () => boolean, signal: AbortSignal): Promise<CemNativeGenerationCandidate> {
+        if (signal.aborted) throw new Error('cem.runtime.allocation.cancelled');
+        const next = new CemProcessingWorkerTransport(this.freshOptions, `${this.name}-fresh`);
+        const cancel = () => { next.terminate(); next.checkpointDomain.revoke(); };
+        signal.addEventListener('abort', cancel, { once: true });
+        try {
+            if (signal.aborted) throw new Error('cem.runtime.allocation.cancelled');
+            await next.ready;
+            const status = await next.control('inspect');
+            if (!status || typeof status !== 'object' || (status as { softPressure?: unknown }).softPressure !== false
+                || (status as { hardPressure?: unknown }).hardPressure !== false) throw new Error('cem.runtime.allocation.headroom');
+            const assert = () => { if (!admitted()) throw new Error('cem.runtime.allocation.closed'); };
+            const runtime: CemFreshRenderingGeneration = Object.freeze({ kind: 'cem-rendering-worker', runtimeId: next.checkpointDomain.issuedIdentity(),
+                request: async (request: CemProcessingRequestEnvelope) => { assert(); return next.request(request); },
+                generationParticipant: () => { assert(); return next.checkpointDomain.generationParticipant(); } });
+            return { identity: next.worker, runtimeId: runtime.runtimeId, runtime,
+                current: () => !next.failed && !next.terminated && !next.checkpointDomain.pressureReason() && !!next.checkpointDomain.identity(),
+                discard: () => { next.terminate(); next.checkpointDomain.revoke(); } };
+        } catch (error) { cancel(); throw error; }
+        finally { signal.removeEventListener('abort', cancel); }
     }
 
     onFailure(listener: () => void): () => void {
@@ -136,8 +170,13 @@ class CemProcessingWorkerTransport {
     terminate(): void {
         if (this.terminated) return;
         this.terminated = true;
+        if (!this.readySettled) { this.readySettled = true; this.rejectReady(new Error('cem.runtime.generation.retired')); }
         for (const pending of this.controls.values()) pending.reject(new Error('cem.runtime.generation.retired'));
         this.controls.clear();
+        // Explicit retirement/revocation settles admitted work without routing
+        // a transport failure into fallback or replay.
+        for (const pending of this.pending.values()) pending.reject(new Error('cem.runtime.generation.retired'));
+        this.pending.clear();
         this.detach();
         this.worker.terminate();
     }

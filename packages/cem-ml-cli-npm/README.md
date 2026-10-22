@@ -380,3 +380,15 @@ transport-control injection remain unsupported retirement boundaries.
 The prepared retirement permit remains visible as one live `native-entries`
 root until abort or physical worker termination; a held barrier never produces
 a misleading empty resource census.
+
+Dedicated command-service workers can join `CemNativeGenerationGroup` through
+`client.generationParticipant()` before retirement. Enroll every managed physical
+heap in the group, retire each with its original complete embedding ownership and
+current checkpoint/terminal-journal handoff, then pass the original retirement
+results to `group.allocate(results)`. The returned command runtimes are new
+clients; previous clients remain closed. Allocation admits the complete set
+only after fresh workers initialize with native memory headroom. Failed or
+expired startup fences all candidates and retains independent handoff bytes.
+`admission.revoke()` fences the entire set and requests cleanup. Native command
+semantics, checkpoints and external actions are not automatically resumed.
+See [the coordinated allocation contract](https://github.com/EPA-WG/cem/blob/develop/docs/committed-checkpoints.md#coordinated-fresh-generation-allocation-and-admission).

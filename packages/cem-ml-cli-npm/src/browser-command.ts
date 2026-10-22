@@ -1,3 +1,4 @@
+import { initializeFreshGeneration, registerNativeGeneration, completeNativeRetirement, type CemNativeGenerationParticipant, type CemNativeGenerationCandidate } from './generation-lifecycle.js';
 import type { CommandNativeRetirementHandoff, CommandNativeRetiredGeneration, CommandNativeEmbeddingOwnership } from './native-embedding.js';
 export type { CommandNativeEmbeddingOwnership, CommandNativeInventory, CommandNativeClosureValidation, CommandNativeRetirementHandoff, CommandNativeRetiredGeneration } from './native-embedding.js';
 import { CommandNativeClientCheckpoint, type CommandNativeDrain } from './native-admission.js';
@@ -260,6 +261,10 @@ export class BrowserCommandServiceClient {
     #retirementActions = new Set<number>();
     #closed = false;
     #nativeCheckpoint: CommandNativeClientCheckpoint;
+    #allocationParticipant?: CemNativeGenerationParticipant;
+    #generationGate?: () => boolean;
+    #allocateFresh!: (admitted: () => boolean, signal: AbortSignal) => Promise<CemNativeGenerationCandidate>;
+
 
     private constructor(
         physicalWorker: Worker,
@@ -280,12 +285,27 @@ export class BrowserCommandServiceClient {
             runtimeInstanceId: initialization.runtimeInstanceId,
             commonVersion: initialization.commonVersion,
         });
+        // Snapshot trusted transport capabilities; never retain mutable setup options.
+        this.#allocateFresh = async (admitted, signal) => {
+            const fresh = await BrowserCommandServiceClient.#create({ host,
+                ...(hostConfigurationJson === undefined ? {} : { hostConfiguration: JSON.parse(hostConfigurationJson) }),
+                ...(onWorkerFailure === undefined ? {} : { onWorkerFailure }) }, signal);
+            fresh.#generationGate = admitted;
+            return { identity: fresh.#physicalWorker, runtimeId: fresh.worker.runtimeInstanceId, runtime: fresh,
+                current: () => !fresh.#closed,
+                discard: () => { void fresh.close().catch(() => undefined); } };
+        };
         physicalWorker.addEventListener('message', this.#onMessage);
         physicalWorker.addEventListener('error', this.#onError);
         physicalWorker.addEventListener('messageerror', this.#onMessageError);
     }
 
     static async create(options: BrowserCommandServiceClientOptions): Promise<BrowserCommandServiceClient> {
+        return BrowserCommandServiceClient.#create(options);
+    }
+
+    static async #create(options: BrowserCommandServiceClientOptions, signal?: AbortSignal): Promise<BrowserCommandServiceClient> {
+        if (signal?.aborted) throw new Error('cem.runtime.allocation.cancelled');
         validateOptions(options);
         // Capture trusted setup before worker startup yields. Requests and later
         // mutations of the caller's configuration cannot replace this snapshot.
@@ -305,7 +325,7 @@ export class BrowserCommandServiceClient {
             type: 'module',
         });
         try {
-            const initialization = await initializeWorker(physicalWorker, startupTimeoutMs, runtimeHostId);
+            const initialization = await initializeFreshGeneration(signal, () => initializeWorker(physicalWorker, startupTimeoutMs, runtimeHostId), () => physicalWorker.terminate());
             return new BrowserCommandServiceClient(
                 physicalWorker,
                 initialization,
@@ -379,6 +399,11 @@ export class BrowserCommandServiceClient {
         }, timeoutMs, ownership, coordination);
     }
 
+    generationParticipant(): CemNativeGenerationParticipant {
+        this.#requireOpen();
+        return this.#allocationParticipant ??= registerNativeGeneration(this.#physicalWorker, this.worker.runtimeInstanceId, this.#allocateFresh);
+    }
+
     /** Explicit retirement only; no replacement, resume or action replay. */
     retireNativeGeneration(proof: CommandNativeDrain, ownership: readonly CommandNativeEmbeddingOwnership[],
         handoff: CommandNativeRetirementHandoff, timeoutMs = 5000,
@@ -393,8 +418,9 @@ export class BrowserCommandServiceClient {
             return this.#action<unknown>(actionId, { type: 'cem-command-native-retirement', actionId, preparationId,
                 ...(expectedRevision === undefined ? {} : { expectedRevision }) }).then(({ value }) => value);
         };
+        const participant = this.#allocationParticipant;
         return this.#nativeCheckpoint.retire(proof, ownership, handoff,
-            () => send(proof.nativeClosure?.inventoryRevision), () => send(), () => this.close(), timeoutMs);
+            () => send(proof.nativeClosure?.inventoryRevision), () => send(), () => this.close(), timeoutMs).then(result => participant ? completeNativeRetirement(participant, result.checkpoint) : result);
     }
 
     isNativeCheckpointCurrent(proof: CommandNativeDrain): boolean {
@@ -630,6 +656,7 @@ export class BrowserCommandServiceClient {
     }
 
     #requireOpen(): void {
+        if (this.#generationGate && !this.#generationGate()) throw new Error('cem.runtime.allocation.closed');
         if (this.#closed) {
             throw new BrowserCommandServiceError(
                 'cem.browser_command.client_closed',

@@ -182,6 +182,18 @@ async function loadRuntimeContract(runtime, outputs) {
             throw new Error(`${runtime.id} runtime must ship ${specifier}`);
         }
     }
+    const nativeRuntime = declarations.find(asset => asset.specifier === '@epa-wg/cem-elements/native-runtime');
+    for (const [specifier, path] of [
+        ['@epa-wg/cem-elements/native-generation', 'native-generation.js'],
+        ['@epa-wg/cem-elements/native-generation-vendor', 'vendor/native-generation.js'],
+    ]) {
+        const helper = declarations.find(asset => asset.specifier === specifier);
+        if (!helper || helper.contentType !== 'text/javascript'
+            || resolve(helper.source) !== resolve(dirname(nativeRuntime.source), path)
+            || resolve(helper.target) !== resolve(dirname(nativeRuntime.target), path)) {
+            throw new Error(`${runtime.id} runtime must keep ${specifier} beside its native facade`);
+        }
+    }
     if (runtime.id === 'interactive') {
         if (
             declarations.filter(({ contentType }) => contentType === 'application/wasm').length !== 1 ||

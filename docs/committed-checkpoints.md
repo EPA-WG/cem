@@ -1093,3 +1093,85 @@ blocked by unmanaged roots can remain quarantined until realm destruction;
 failure does not claim that its memory was released. Earlier refusal before
 cleanup retains closed admission and ordinary cleanup ownership. No replacement,
 semantic resume or automatic Studio recovery is enabled by this transaction.
+
+### Coordinated fresh-generation allocation and admission
+
+`CemNativeGenerationGroup` coordinates an explicit complete set of managed
+physical generations. Enroll original participants before retirement; a
+publication coordinator exposes its exact rendering generation, an owned
+fallback exposes the same participant through `generationParticipant()`, and a
+browser/Node command-service client exposes its dedicated command worker.
+Including both aliases of one physical participant is a duplicate, not another
+heap. Rendering publication still requires complete client/source coverage;
+command/fallback retirement still requires every original embedding lease and
+the current acknowledged checkpoint and terminal journal.
+
+```ts
+import { CemNativeGenerationGroup } from '@epa-wg/cem-elements';
+
+// Enroll every physical heap in this explicit recovery group before retiring.
+const group = new CemNativeGenerationGroup([
+    publication.generationParticipant(),
+    commands.generationParticipant(),
+]);
+// Use the existing close/capture/retire protocols, with complete original
+// fallback consent or command embedding ownership as applicable.
+const admission = await group.allocate([renderingRetired, commandRetired]);
+for (const generation of admission.generations) {
+    // New generation-specific runtime handle and independent host bytes.
+    console.log(generation.previousRuntimeId, generation.runtimeId);
+}
+// Explicitly fence the whole admitted group and request each physical cleanup.
+admission.revoke();
+```
+
+Only original successful retirement result objects are accepted. Copies,
+serialized receipts, scalar native confirmations, empty-disposal reports,
+omitted/duplicate peers and receipts already consumed by another admission
+cannot authorize allocation. Each participant belongs to one original group.
+Caller arrays are bounded own-data-slot snapshots; accessors, iterators and
+reentrant inspection cannot substitute members or supersede a running group.
+The group retains its own bounded checkpoint/journal copies, independent of
+caller modifications to returned arrays. The default deadline is five seconds,
+with a positive maximum of five seconds, at most 16 heaps and an aggregate
+four-MiB checkpoint limit (one MiB per retirement).
+
+Allocation creates distinct WASM factory instances or dedicated workers using
+the original shared runtime's captured setup. Fresh initializers and private
+headroom probes run while shared operation handles remain inaccessible. Every
+candidate must report native admission headroom and retain its physical
+identity/liveness. A single synchronous host gate then admits the complete set;
+no callback or asynchronous gap opens one peer before another. Allocation failure,
+expired initialization, failed headroom or stale identity fences all candidates.
+A failed allocation group is terminal; it cannot reuse the old receipts for another attempt.
+Cancellation aborts owned fallback fetch/startup and terminates new workers;
+a late successful initializer discards its result without opening admission.
+Final synchronous probes recheck the deadline, but cannot preempt synchronous
+native/JavaScript CPU work. Revocation fences handles immediately and rejects in-flight rendering requests
+before detaching their transport. Node worker termination may finish asynchronously. Reference release never guarantees
+synchronous GC or an RSS bound.
+
+The returned `runtime` is generation-specific: `CemFreshFallbackGeneration`
+provides a trusted `invoke` boundary limited to the existing shared native
+entrypoints; `CemFreshRenderingGeneration` provides the typed processing
+transport; a command generation is a new browser/Node command-service client.
+The previous runtime aliases, processing hosts, source handles and clients stay
+retired. The selected global fallback is never reassigned. Vendored copies of
+the coordinator share original capabilities within the same realm, allowing a
+rendering/fallback generation and a separately linked command worker to join
+one transaction. The coordinator retains callable controls and weak identity history; it drops
+candidate objects and strong identity sets before admission/after revocation,
+so retained host admission handles do not keep discarded fallback memory alive.
+The registry's registration/retirement issuers remain internal
+trusted-host APIs, not authored CEM data or a security sandbox for arbitrary JS.
+
+This is explicit allocation/admission, not semantic restoration. It does not
+rebind existing processing hosts or owners, import checkpoints, restore widget
+state, reacquire resources, apply stale checkpoint bytes to newer edits, replay
+external actions, or enable automatic Studio recovery. Those require the next
+resume contracts and renewed original ownership on the fresh generations.
+Unknown operation outcomes still refuse the original retirement handoff. Only
+the declared complete group is coordinated; unknown heaps, arbitrary raw
+initializers, legacy fallback and shared-memory/native aliases outside these
+ownership contracts receive no replacement authority. No Studio/component UI
+JavaScript or theme/storage changes are introduced.
