@@ -138,6 +138,51 @@ export class CemPlacementAuthority<Root> {
                 || use.transaction !== entry.transaction?.token || !entry.endpoint.ready(snapshot.root, !committed && !!entry.transaction)) throw new Error('Placement admission changed before publication');
         }
     }
+    /** Fresh invocation leases derive only from this registry's still-current grants.
+     * Portable tokens/DTOs cannot authorize renewal. No DOM reservation/publication occurs here. */
+    renew(input: CemElementReferenceInputs): { inputs: CemElementReferenceInputs; current(): boolean; discard(): void } {
+        const previous = this.snapshots.get(input);
+        if (!previous || previous.transaction) throw new Error('Unknown or transactional placement snapshot');
+        const entries = new Map<Entry<Root>, Entry<Root>>(), replacements = new Map<string, string>();
+        const grants = previous.grants.map(original => {
+            const parent = original.entry;
+            let entry = entries.get(parent);
+            if (!entry) {
+                const source = structuredClone(parent.description.source);
+                const bytes = new Uint8Array(source.bundle);
+                const sameSource = () => {
+                    const live = parent.description.source;
+                    return live.primarySourceId === source.primarySourceId && live.context === source.context
+                        && live.maxDepth === source.maxDepth && live.maxWork === source.maxWork && live.unresolved === source.unresolved
+                        && live.bundle.byteLength === source.bundle.byteLength && new Uint8Array(live.bundle).every((byte, i) => byte === bytes[i]);
+                };
+                entry = { ...parent, token: crypto.randomUUID(), active: true, endpoint: {
+                    ready: (root, prepared) => parent.active && sameSource() && parent.endpoint.ready(root, prepared),
+                    reserve: () => parent.endpoint.reserve(),
+                } };
+                entries.set(parent, entry); replacements.set(parent.token, entry.token);
+            }
+            return { ...original, entry, properties: new Set(original.properties), active: true,
+                original };
+        });
+        const current = () => grants.every(grant => grant.active && grant.original.active && grant.entry.active
+            && grant.entry.endpoint.ready(previous.root, false));
+        if (!current()) throw new Error('Placement renewal authority is stale');
+        const raw = { ...input, placements: Object.freeze({ ...input.placements!,
+            admissions: Object.freeze(input.placements!.admissions.map(admission => Object.freeze({ ...admission, token: replacements.get(admission.token)! }))),
+            grants: Object.freeze(input.placements!.grants.map(grant => Object.freeze({ ...grant, token: replacements.get(grant.token)! }))),
+        }) };
+        const inputs = snapshotCheckpointReferences(raw);
+        if (!inputs) throw new Error('Placement renewal source is not portable');
+        const byToken = new Map<string, Grant<Root>[]>();
+        for (const grant of grants) {
+            const selected = byToken.get(grant.entry.token) ?? []; selected.push(grant); byToken.set(grant.entry.token, selected);
+            const ready = grant.entry.endpoint.ready;
+            grant.entry.endpoint = { ...grant.entry.endpoint, ready: (root, prepared) => grant.original.active && ready(root, prepared) };
+        }
+        this.snapshots.set(inputs, { ...previous, grants, byToken });
+        return { inputs, current, discard() { for (const grant of grants) grant.active = false; for (const entry of entries.values()) entry.active = false; } };
+    }
     publish<T>(input: CemElementReferenceInputs, uses: readonly CemElementPlacementUse[], commit: () => T, invalidate: (uses: readonly CemElementPlacementUse[]) => void = () => undefined): T {
         const snapshot = this.snapshots.get(input);
         if (!snapshot || snapshot.transaction) throw new Error('Prepared placements require coordinated publication');

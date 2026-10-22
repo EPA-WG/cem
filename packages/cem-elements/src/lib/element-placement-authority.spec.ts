@@ -20,6 +20,32 @@ it('keeps source crossing authority separate and rejects copied or stale snapsho
     expect(() => f.authority.check({ ...prepared }, [f.use])).toThrow();
     f.unavailable(); expect(() => f.authority.check(prepared, [f.use])).toThrow();
 });
+it('renews invocation leases only from live original grants without reserving or publishing', () => {
+    const f = fixture(), prepared = f.authority.prepare('consumer', inputs(), 'root', undefined, true);
+    const fresh = f.authority.renew(prepared), token = fresh.inputs.placements!.admissions[0].token;
+    expect(token).not.toBe(f.placement.token); expect(f.reserved()).toBe(false);
+    expect(Reflect.set(fresh.inputs.placements!.admissions[0], 'token', f.placement.token)).toBe(false);
+    expect(Reflect.set(fresh.inputs.placements!.grants[0], 'properties', ['form'])).toBe(false);
+    expect(() => f.authority.renew({ ...prepared })).toThrow();
+    expect(() => f.authority.check(fresh.inputs, [f.use])).toThrow();
+    const use = { ...f.use, token };
+    expect(() => f.authority.check(fresh.inputs, [use])).not.toThrow();
+    let lost = 0; f.authority.publish(fresh.inputs, [use], () => undefined, () => lost++);
+    f.revoke(); expect(fresh.current()).toBe(false); expect(lost).toBe(1);
+    expect(() => f.authority.check(fresh.inputs, [use])).toThrow();
+});
+it('fences renewed source aliases, endpoint loss and discarded leases', () => {
+    for (const change of ['bytes', 'policy', 'endpoint', 'discard']) {
+        const f = fixture(), prepared = f.authority.prepare('consumer', inputs(), 'root', undefined, true);
+        const fresh = f.authority.renew(prepared);
+        if (change === 'bytes') new Uint8Array(source.bundle)[0]++;
+        if (change === 'policy') Object.assign(source, { maxWork: 123 });
+        if (change === 'endpoint') f.unavailable();
+        if (change === 'discard') fresh.discard();
+        expect(fresh.current()).toBe(false);
+        f.authority.dispose(); new Uint8Array(source.bundle)[0] = 0; delete (source as { maxWork?: number }).maxWork;
+    }
+});
 it('admits editor-for only through its own property grant', () => {
     const f = fixture();
     const use = { ...f.use, attribute: 'editor-for' };

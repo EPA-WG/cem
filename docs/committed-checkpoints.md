@@ -1192,8 +1192,26 @@ metadata, host markup, composition and accepted input sequence. It neither resto
 old edits over current controls nor emits input/change. Exact one-shot change
 suppression after a completed provider commit remains effective across retirement,
 and a subsequent edit emits normally. Active provider relationships are refused;
-this adapter does not renew their leases. Other widget, provider/reference,
-placement and legacy storage/location rendering still refuse with
+this adapter does not renew their leases. Retained trees, tabs, navigation, menus,
+popups and settled native surfaces now have shared adapters too. Browser modal
+visibility, edits, roving state, focus and controller metadata remain live; geometry
+is rechecked without invoking open/command/focus policy again.
+
+Passive reference/placement consumers reauthorize through the original host callback
+and registry. Fresh native validation checks opaque source bytes/digests and policy
+against the sealed intent. Fresh private placement tokens derive from current
+original grants, never from saved IDs, and preserve dependency revocation. There is
+no DOM reservation/publication while inactive; the first fresh frame reauthorizes
+once more before publication. Copied snapshots, changed/withdrawn source policy,
+missing authority, stale producer identities and revoked grants refuse. Generated
+producer IDs survive merging only while privately reserved by that registry.
+Snapshot inspection is read-only, and an unchanged first fresh frame retains its
+sealed data revision under a one-use original active-context guard. This avoids
+manufacturing source changes from heap replacement; ordinary subsequent renders
+still allocate new revisions.
+
+Active suggestions/manual-listbox/native-datalist editor providers, their native
+publications and proofs, and legacy storage/location rendering still refuse with
 `cem.checkpoint.resume.unsupported`. Generic HTML hydration refuses checkpoint
 extensions. Complete widget adapters and declarative recovery status remain
 necessary before automatic Studio recovery.

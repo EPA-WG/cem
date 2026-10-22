@@ -2857,9 +2857,7 @@ export const BuiltInOwnerUnsupportedScopes: Story = {
                 const plain = await f.create('{p | Covered plain owner}'); await f.runtime.whenRenderSettled(plain);
                 const owner = legacy
                     ? await f.create(`{local-storage @slice=draft @key="${key}" @type=text @value=recorded}{p | Legacy storage owner}`)
-                    : await f.create(declarationTemplate(treeDeclaration), 'cem-ml', root,
-                        '<cem-tree-item value="docs" label="Documentation"></cem-tree-item>', 'tree-view',
-                        { label: 'Project resources', selection: 'single', 'selected-values': 'docs' });
+                    : await f.create('<p>Legacy DOM-mode owner</p>', 'dom');
                 await f.runtime.whenRenderSettled(owner); await waitFor(() => f.coordinator.capture());
                 expect(decode(f.coordinator).owners).toHaveLength(2);
                 expect(() => f.coordinator.prepareResume()).toThrow('unsupported');
@@ -3180,4 +3178,173 @@ export const FormFreshRuntimeRefusals: Story = {
 export const FormFreshRuntimeLateAuthorityRefusals: Story = {
     render: () => '<section aria-label="Form late authority refusal"></section>',
     play: async ({ canvasElement }) => formResumeStory(canvasElement, ['late-composition', 'late-provider', 'late-default']),
+};
+
+/** Complete retained browser widgets plus native source/placement reacquisition. */
+async function isolatedWidgetResume(base: string, load: (url: string) => Promise<any>, scenario: string, sources: string[], bundles: string[]): Promise<string> {
+    const support = new URL('lib/internal/runtime-support/', base).href;
+    const binding = await load(`${support}native-runtime.js`), generation = binding.isolateCemFallbackGeneration();
+    await generation.ready(); const embedding = generation.claimOwnership();
+    const [{ CemElementRuntime }, { createCemDeclarationScope }, { CemCheckpointPublicationCoordinator }, { resumeCemCheckpointOwners }, { CemNativeGenerationGroup }] = await Promise.all([
+        load(new URL('lib/cem-elements.js', base).href), load(new URL('lib/declaration-scope.js', base).href),
+        load(new URL('lib/checkpoint-publication.js', base).href), load(new URL('lib/checkpoint-resume.js', base).href),
+        load(`${support}native-generation.js`),
+    ]);
+    const check = (value: unknown, message: string) => { if (!value) throw Error(message); };
+    const fallback = scenario !== 'worker', scope = createCemDeclarationScope({ document });
+    const factory = () => { if (fallback) throw Error('owned form fallback'); return new Worker(`${support}processing-worker.js`, { type: 'module' }); };
+    const coordinator = new CemCheckpointPublicationCoordinator({ runtimeId: crypto.randomUUID(), generation: 1, policyStamp: 'private',
+        allowOwner: () => true, seal: (candidate: string, receipt: string) => binding.sealCommittedCheckpoint(candidate, receipt) });
+    const { CemElementPlacementCoordinator } = await load(new URL('lib/element-placement-coordinator.js', base).href);
+    const placements = new CemElementPlacementCoordinator(document);
+    let consumer: HTMLElement | undefined, references: any;
+    const runtime = new CemElementRuntime({ declarationScope: scope, declarationTag: `form-declaration-${crypto.randomUUID()}`,
+        checkpointPublication: coordinator, processingWorkerFactory: factory, placementCoordinator: placements,
+        elementReferenceInputs: (instance: HTMLElement) => instance === consumer ? references : undefined });
+    const capture = async () => {
+        for (let attempt = 0; ; attempt++) {
+            try { return await coordinator.capture(); }
+            catch (error) { if (attempt >= 100) throw error; await new Promise(resolve => setTimeout(resolve, 10)); }
+        }
+    };
+    const refused = async (action: () => unknown, pattern: RegExp) => {
+        try { await action(); } catch (error) { check(pattern.test(String(error)), `unexpected refusal: ${String(error)}`); return; }
+        throw Error('unsafe form resume was admitted');
+    };
+    let admission: any, stage = 'create', diagnostic = () => '';
+    try {
+        const create = async (source: string, capability?: string, payload?: string, attributes: Record<string, string> = {}) => {
+            const declaration = document.createElement('div'), template = document.createElement('template'), tag = `widget-${crypto.randomUUID()}`;
+            declaration.setAttribute('tag', tag); if (capability) declaration.setAttribute('capability', capability);
+            template.type = 'text/cem-ml'; template.textContent = source;
+            declaration.append(template); document.body.append(declaration); runtime.registerDeclaration(declaration); await runtime.whenDeclarationSettled(declaration);
+            const owner = document.createElement(tag);
+            for (const [name, value] of Object.entries(attributes)) owner.setAttribute(name, value);
+            if (payload) { const inert = document.createElement('template'); inert.innerHTML = payload; owner.append(inert); }
+            document.body.append(owner); await runtime.whenRenderSettled(owner); return owner;
+        };
+        const template = (source: string) => new DOMParser().parseFromString(source, 'text/html').querySelector('template')!.content.textContent!;
+        const tree = await create(template(sources[0]), 'tree-view', '<cem-tree-item value="a" label="Alpha"></cem-tree-item><cem-tree-item value="b" label="Beta"></cem-tree-item>', { label: 'Resources', selection: 'single', 'selected-values': 'b' });
+        const tabs = await create(template(sources[1]), 'tab-panels', '<cem-tab value="one" label="One">First</cem-tab><cem-tab value="two" label="Two">Second</cem-tab>', { 'selected-index': '1', label: 'Views' });
+        const nav = await create(template(sources[2]), 'navigation-landmark', '<a href="#current" aria-current="page">Current</a>');
+        const menu = await create(template(sources[3]), 'composite-menu', '<button type="button">First</button><button type="button">Second</button>');
+        const popup = await create(template(sources[4]), 'popup', '<p>Popup content</p>', { open: 'true' });
+        const surface = await create(template(sources[5]), 'native-surface', '<input value="Dialog default" aria-label="Draft">');
+        const producer = await create('{dialog | Placement target}'), target = producer.querySelector('dialog')!;
+        references = { kind: 'cem-element-reference-inputs-v1', requesting: 0,
+            sources: bundles.map(encoded => ({ bundle: Uint8Array.from(atob(encoded), char => char.charCodeAt(0)).buffer, primarySourceId: 1, context: true })),
+            bindings: [{ source: 0, name: 'relation', select: 'input.children' }, { source: 1, name: 'destination', select: 'input.children' }], grants: [[0, 1]] };
+        consumer = await create('{slice @name=relation}{slice @name=destination}{button @type=button @commandfor={#relation} @command=show-modal | Open}');
+        runtime.refreshElementReferences(consumer); await runtime.whenRenderSettled(consumer);
+        const producerId = runtime.readInstanceSnapshot(producer).instanceId, consumerId = runtime.readInstanceSnapshot(consumer).instanceId;
+        const revision = runtime.readInstanceSnapshot(producer).dataRevision;
+        const lease = placements.register({ producer: producerId, revision, path: [0], element: target,
+            source: references.sources[1], select: 'input.children', currentRevision: () => producer.isConnected ? runtime.readInstanceSnapshot(producer).dataRevision : undefined });
+        const revoke = placements.grant(consumerId, lease, ['commandfor']);
+        diagnostic = () => JSON.stringify({ revision, currentRevision: runtime.readInstanceSnapshot(producer).dataRevision, target: target.id, consumerRevision: runtime.readInstanceSnapshot(consumer!).dataRevision });
+        runtime.refreshElementReferences(consumer); await runtime.whenRenderSettled(consumer);
+        const button = consumer.querySelector('button')!;
+        check(button.getAttribute('commandfor') === target.id, 'initial placement did not publish');
+        const menuControl = menu.querySelectorAll('button')[1]; menuControl.focus();
+        menuControl.dispatchEvent(new KeyboardEvent('keydown', { key: 's', bubbles: true }));
+        menuControl.dispatchEvent(new KeyboardEvent('keyup', { key: 's', bubbles: true }));
+        await runtime.whenRenderSettled(menu);
+        const dialog = surface.querySelector('dialog')!, input = surface.querySelector('input')!;
+        const shown = new Promise<void>(resolve => dialog.addEventListener('toggle', () => resolve(), { once: true }));
+        const selected = new Promise<void>(resolve => input.addEventListener('select', () => resolve(), { once: true }));
+        dialog.showModal(); input.focus(); input.value = 'Unsubmitted é😀'; input.setSelectionRange(2, 8, 'backward');
+        // Await actual native events; a timer cannot prove select/toggle tasks settled.
+        await Promise.all([shown, selected]);
+        await runtime.whenRenderSettled(surface); await capture();
+        const owners = [tree, tabs, nav, menu, popup, surface, producer, consumer];
+        const nodes = owners.map(owner => [...owner.querySelectorAll('[data-cem-render-node-id]')]);
+        const before = coordinator.lastCommitted(), beforeSequence = before.receipt.owners.map((owner: any) => owner.acceptedEventSequence);
+        const sealed = owners.map(owner => owner.querySelector('template[data-cem-island=instance]')!.outerHTML);
+        owners.forEach(owner => runtime.readInstanceSnapshot(owner));
+        check(owners.every((owner, index) => owner.querySelector('template[data-cem-island=instance]')?.outerHTML === sealed[index]), 'inspection rewrote a sealed island');
+        const admitted = placements.checkpoint(consumerId, consumer, (node: HTMLElement) => coordinator.endpoint(node), () => true)!;
+        check(admitted.length === 1, 'missing placement receipt');
+        let actions = 0; surface.addEventListener('cem-open', () => actions++); surface.addEventListener('cem-before-open', () => actions++);
+        const group = new CemNativeGenerationGroup([coordinator.generationParticipant()]);
+        const consent = fallback ? generation.retirementConsent([embedding]) : undefined;
+        stage = 'retire'; const proof = await coordinator.closeRenderingGeneration(5000, consent); await capture(); const ticket = coordinator.prepareResume();
+        const retired = await coordinator.retireRenderingGeneration(proof, 5000, consent); admission = await group.allocate([retired]);
+        if (scenario === 'revoked') revoke();
+        if (scenario === 'source-change') references.sources[1].maxWork = 128;
+        if (scenario === 'source-bytes') new Uint8Array(references.sources[1].bundle)[0] ^= 1;
+        if (scenario === 'authority-missing') references = undefined;
+        if (scenario === 'endpoint-change') target.id = 'changed-target';
+        stage = 'prepare';
+        if (['revoked', 'source-change', 'source-bytes', 'authority-missing', 'endpoint-change'].includes(scenario)) {
+            await refused(() => resumeCemCheckpointOwners(admission, [ticket]), /source|stale|coverage|ticket|bundle|digest/);
+            check(input.value === 'Unsubmitted é😀' && dialog.open && actions === 0, 'refusal changed live widget state');
+            return `${scenario} widget resume passed`;
+        }
+        const resumed = await resumeCemCheckpointOwners(admission, [ticket]);
+        if (scenario.startsWith('late-')) {
+            if (scenario === 'late-source') references.sources[1].maxWork = 128;
+            if (scenario === 'late-revoked') revoke();
+            if (scenario === 'late-widget') input.value = 'Newer unreported modal draft';
+            await refused(async () => { for (const owner of resumed.owners) await owner.owner.resume(); }, /source|publication|stale/);
+            check(input.value === (scenario === 'late-widget' ? 'Newer unreported modal draft' : 'Unsubmitted é😀') && actions === 0, 'late refusal changed edits or replayed actions');
+            return `${scenario} widget resume passed`;
+        }
+        stage = 'activate'; for (const owner of resumed.owners) { stage = 'activate-' + owners.indexOf(owner.owner.element); await owner.owner.resume(); } await capture();
+        check(owners.every((owner, i) => nodes[i].every(node => owner.contains(node))), 'resume replaced retained widget DOM');
+        check(input.value === 'Unsubmitted é😀' && dialog.open && dialog.matches(':modal') && document.activeElement === input
+            && input.selectionStart === 2 && input.selectionEnd === 8 && input.selectionDirection === 'backward', 'resume lost modal/edit/focus/selection');
+        check(tree.getAttribute('selected-values') === 'b' && (tabs as any).selectedIndex === 1 && nav.querySelector('[aria-current="page"]'), 'tree/tabs/navigation state lost');
+        check(popup.getAttribute('open') === 'true' && actions === 0, 'popup state lost or lifecycle action replayed');
+        check(coordinator.lastCommitted().receipt.owners.every((owner: any, index: number) => owner.acceptedEventSequence === beforeSequence[index]
+            && owner.dataRevision === before.receipt.owners[index].dataRevision), 'resume manufactured input or a canonical revision');
+        const fresh = placements.checkpoint(consumerId, consumer, (node: HTMLElement) => coordinator.endpoint(node), () => true)!;
+        check(fresh.length === 1 && fresh[0].source.sources.length === admitted[0].source.sources.length, 'fresh native source/placement publication missing');
+        stage = 'second retirement'; const next = admission.generations[0].runtime, nextEmbedding = fallback ? next.claimOwnership() : undefined;
+        const nextGroup = new CemNativeGenerationGroup([coordinator.generationParticipant()]);
+        const nextConsent = fallback ? next.retirementConsent([nextEmbedding]) : undefined;
+        const nextProof = await coordinator.closeRenderingGeneration(5000, nextConsent); await capture(); const nextTicket = coordinator.prepareResume();
+        const nextRetired = await coordinator.retireRenderingGeneration(nextProof, 5000, nextConsent);
+        const previousAdmission = admission; admission = await nextGroup.allocate([nextRetired]);
+        const nextOwners = await resumeCemCheckpointOwners(admission, [nextTicket]);
+        for (const owner of nextOwners.owners) await owner.owner.resume();
+        previousAdmission.revoke(); await capture();
+        check(input.value === 'Unsubmitted é😀' && dialog.open && document.activeElement === input && actions === 0, 'second handoff lost live state');
+        stage = 'fresh relationship'; dialog.close(); await runtime.whenRenderSettled(surface); button.click(); check(target.open, 'fresh native command route failed'); target.close();
+        revoke(); check(!button.hasAttribute('commandfor'), 'original grant revocation did not fence renewed route');
+        await refused(() => coordinator.capture(), /unavailable/);
+        return `${scenario} widget resume passed`;
+    } catch (error) { throw Error(`${scenario}/${stage}: ${String(error)} ${diagnostic()}`, { cause: error }); }
+    finally { admission?.revoke(); coordinator.dispose(); scope.dispose(); placements.dispose(); document.body.replaceChildren(); }
+}
+async function widgetResumeStory(canvasElement: HTMLElement, scenarios: string[]) {
+    await init();
+    const bundles = elementReferenceFixtureInputs('{dialog | Placement target}').sources.map(source => btoa(String.fromCharCode(...new Uint8Array(source.bundle))));
+    const root = canvasElement.querySelector('section')!, base = new URL('../../dist/', import.meta.url).href;
+    for (const scenario of scenarios) {
+        const frame = document.createElement('iframe'), id = crypto.randomUUID(); frame.title = 'Isolated widget recovery'; root.append(frame);
+        let stop = () => undefined;
+        try {
+            const completed = new Promise<string>((resolve, reject) => {
+                const timer = setTimeout(() => reject(Error(`widget resume timed out: ${scenario}`)), 15000);
+                const receive = (event: MessageEvent) => {
+                    if (event.source !== frame.contentWindow || event.data?.id !== id) return;
+                    clearTimeout(timer); if (event.data.error) reject(Error(event.data.error)); else resolve(event.data.result);
+                };
+                window.addEventListener('message', receive); stop = () => { clearTimeout(timer); window.removeEventListener('message', receive); };
+            });
+            const hook = import.meta.env.MODE === 'test' ? 'globalThis.__vitest_browser_runner__ = { wrapDynamicImport: f => f() };' : '';
+            frame.srcdoc = `<script type="module">${hook}(${isolatedWidgetResume.toString()})(${JSON.stringify(base)}, url => import(url), ${JSON.stringify(scenario)}, ${JSON.stringify([treeDeclaration, tabsDeclaration, navDeclaration, menuDeclaration, dropdownDeclaration, dialogDeclaration])}, ${JSON.stringify(bundles)})
+                .then(result => parent.postMessage({ id: ${JSON.stringify(id)}, result }, '*'),
+                    error => parent.postMessage({ id: ${JSON.stringify(id)}, error: error.stack || String(error) }, '*'));</script>`;
+            expect(await completed).toBe(`${scenario} widget resume passed`);
+        } finally { stop(); frame.remove(); }
+    }
+}
+export const WidgetFreshRuntimeResume: Story = {
+    render: () => '<section aria-label="Widget fresh runtime resume"></section>',
+    play: async ({ canvasElement }) => widgetResumeStory(canvasElement, ['worker', 'fallback']),
+};
+export const WidgetFreshRuntimeRefusals: Story = {
+    render: () => '<section aria-label="Widget fresh runtime refusal"></section>',
+    play: async ({ canvasElement }) => widgetResumeStory(canvasElement, ['revoked', 'source-change', 'source-bytes', 'authority-missing', 'endpoint-change', 'late-source', 'late-revoked', 'late-widget']),
 };

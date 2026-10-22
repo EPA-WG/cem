@@ -501,7 +501,30 @@ leases/subscribers are refused until their separate renewal contracts are implem
 New edits, changed defaults, control replacement and composition refuse stale
 preparation or activation, including between admission and explicit owner activation.
 
-Other widget, reference/provider, placement and legacy storage/location rendering
-owners remain unsupported by this adapter; a complete domain containing one
-refuses resume. Widget authority and declarative recovery status remain follow-up
-work. Studio does not restart itself automatically.
+Retained tree, tab-panel, navigation, composite-menu, popup and native-surface
+owners use the same private-controller/control identity guard. Open modal surfaces
+stay in the browser top layer, including edited contents and focus. Menu/popup/surface
+geometry is recomputed after admission, without repeating open, command or focus
+actions. Missing anchors and changed endpoint policies refuse activation.
+
+Passive source consumers rerun their original trusted host input callback while
+inactive. Source bytes, crossings, bindings and policies must validate natively on
+the fresh heap and match the sealed source intent. Placement invocation leases
+receive new private tokens from the original registry's current grants. They remain
+dependent on the original grant, source bytes/policy, endpoint identity/revision
+and DOM root; revocation fences the renewed route. Preparation neither reserves
+IDs nor publishes relationships. The first fresh render reauthorizes again before
+publication, detecting policy/alias changes after admission. Render merging preserves
+generated producer IDs only through an actual current registry reservation.
+
+Snapshot inspection, including behavior `snapshot()`, is read-only. It neither
+allocates a data revision nor rewrites/drains mutations from sealed hydration data.
+The first unchanged resume frame keeps the sealed canonical data revision, so
+changing the physical runtime alone does not invalidate provider dependencies.
+The one-use revision authority belongs to that original active owner context;
+new input refuses stale first-frame authority and subsequent renders advance normally.
+
+Active suggestions, standalone manual-listbox/native-datalist editor providers,
+their native frames/proofs, and legacy storage/location rendering still refuse a
+complete-domain resume. Paired owner activation and declarative recovery status
+remain follow-up work. Studio does not restart itself automatically.

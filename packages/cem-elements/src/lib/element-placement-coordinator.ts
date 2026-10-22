@@ -24,7 +24,7 @@ export interface CemBrowserPlacementPublication {
     invalidate?(uses: readonly CemElementPlacementUse[]): void;
 }
 interface Group { hosts: Map<string, HTMLElement>; revisions: Readonly<Record<string, string>>; stages: Set<CemBrowserPlacementStage> }
-interface WatchedPlacement { transaction?: string; lease: CemPlacementLease; ready(): boolean; staged: boolean }
+interface WatchedPlacement { transaction?: string; lease: CemPlacementLease; ready(): boolean; staged: boolean; element: Element; id: string }
 
 /** DOM adapter for host-issued native placement authority and publication. */
 export class CemElementPlacementCoordinator {
@@ -86,6 +86,12 @@ export class CemElementPlacementCoordinator {
             () => ready(stage.host, false), transaction, ready);
     }
     grant(requester: string, lease: CemPlacementLease, properties: readonly string[]): () => void { this.active(); return this.authority.grant(requester, lease, properties); }
+    renew(inputs: CemElementReferenceInputs) { this.active(); return this.authority.renew(inputs); }
+    /** Only this registry's live producer reservation may preserve a generated ID. */
+    preservesId(current: Element, desired: Element, attribute: Attr): boolean {
+        return attribute.name === 'id' && !desired.hasAttribute('id') && [...this.watched].some(watched =>
+            !watched.staged && watched.element === current && current.id === watched.id && watched.ready());
+    }
     prepare(requester: HTMLElement, instanceId: string, inputs: CemElementReferenceInputs, transaction?: CemPlacementTransaction, captureSources = false): CemElementReferenceInputs {
         this.active();
         if (!(transaction ? this.preparedRoot(requester, this.group(transaction), new Set()) : requester.isConnected && requester.getRootNode() === this.root)) throw new Error('Requester is outside the permitted DOM root');
@@ -202,7 +208,8 @@ export class CemElementPlacementCoordinator {
                 return () => { reserved = old; if (previous === null) registration.element.removeAttribute('id'); else registration.element.setAttribute('id', previous); };
             },
         }, transaction);
-        const watched: WatchedPlacement = { transaction: transaction?.token, lease, staged: !!transaction, ready: () => live() && (!reserved || registration.element.id === id) };
+        const watched: WatchedPlacement = { transaction: transaction?.token, lease, staged: !!transaction, element: registration.element, id,
+            ready: () => live() && (!reserved || registration.element.id === id) };
         this.watched.add(watched); return Object.freeze({ token: lease.token, dispose: () => { lease.dispose(); this.watched.delete(watched); } });
     }
     private placementId(element: Element, producer: string, path: readonly number[]): string { return element.hasAttribute('id') ? element.id : `${producer}-ref-${path.join('-')}`; }

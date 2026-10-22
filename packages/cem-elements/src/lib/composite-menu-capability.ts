@@ -390,3 +390,11 @@ export function cemCompositeMenuCheckpoint(instance: HTMLElement, resolve: (node
     const contract: CheckpointMenu = { parent, launcher, panel, disposition: 'reacquire', ...(policies ? { policies } : {}) };
     return { kind: 'composite-menu' as const, activeNode, typeahead: state.buffer, typeaheadAt: state.typedAt, open: !!state.open, state: contract };
 }
+
+/** Recompute retained submenu geometry; reopening would replay focus/task policy. */
+export function resumeCemMenuGeometry(host: HTMLElement): void {
+    const state = states.get(host);
+    if (!state?.abort || state.abort.signal.aborted) throw new Error('cem.checkpoint.resume.menu');
+    if (state.open && state.openPanel && !positionPopup(state.open, state.openPanel, column(host), state.openPanel, boundaryOwner(state.openPanel)))
+        throw new Error('cem.checkpoint.resume.geometry');
+}

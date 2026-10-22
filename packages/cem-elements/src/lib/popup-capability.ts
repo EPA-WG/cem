@@ -189,3 +189,10 @@ export function cemPopupCheckpoint(instance: HTMLElement) {
     return { kind: 'popup' as const, open: state.open, state: { trigger, panel, scrollTop: state.panel.scrollTop, scrollLeft: state.panel.scrollLeft, disposition: 'reacquire' as const } };
 }
 function hostReference(host: HTMLElement): boolean { return host.hasAttribute('anchor') || host.hasAttribute('boundary'); }
+
+/** Renew geometry after fresh-owner admission without replaying open/focus actions. */
+export function resumeCemPopupGeometry(host: HTMLElement): void {
+    const state = states.get(host);
+    if (!state?.trigger || !state.panel) throw new Error('cem.checkpoint.resume.popup');
+    if (state.open && !positionPopup(state.trigger, state.panel, false, host)) throw new Error('cem.checkpoint.resume.geometry');
+}

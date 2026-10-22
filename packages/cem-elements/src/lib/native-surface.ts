@@ -437,6 +437,10 @@ class NativeSurface implements CemNativeSurfaceController {
             child.sync(); if (preparing) child.body.close();
         }
     }
+    resumeCheckpoint(): void {
+        if (this.disposed || this.phase !== 'closed' && (this.phase !== 'open' || !this.reposition()))
+            throw new Error('cem.checkpoint.resume.surface');
+    }
     private reposition(): boolean {
         if (this.disposed || !visible(this.owner)) return false;
         const ok = this.geometry.fit(this.invocation?.source, this.invocation?.geometry, this.placement());
@@ -624,4 +628,9 @@ export function cemNativeSurfaceCheckpoint(host: HTMLElement, resolve: (node: HT
     const captured = owner && defaultsInitialized.has(host) ? controllers.get(owner)?.controller.checkpoint(resolve) : undefined;
     if (!captured) return undefined;
     return { kind: 'native-surface' as const, defaultsInitialized: true as const, ...captured };
+}
+export function resumeCemNativeSurface(host: HTMLElement): void {
+    const owner = providerControllers.get(host)?.owner, controller = owner && controllers.get(owner)?.controller;
+    if (!controller) throw new Error('cem.checkpoint.resume.surface');
+    controller.resumeCheckpoint();
 }

@@ -140,7 +140,8 @@ import {
 } from './repository.js';
 import { CEM_FORM_CONTROL_CAPABILITY, cemFormControlCheckpoint, getCemEditorProvider } from './form-control-capability.js';
 import { CEM_PLAINTEXT_EDITOR_CAPABILITY, cemPlaintextEditorEventValue, cemPlaintextEditorCheckpoint, prepareCemPlaintextEditorResume } from './plaintext-editor-capability.js';
-import { cemRetainedFormCheckpoint, prepareCemRetainedFormResume } from './checkpoint-form-resume.js';
+import { cemRetainedFormCheckpoint, prepareCemRetainedFormResume, prepareCemRetainedWidgetResume } from './checkpoint-form-resume.js';
+import { prepareCemReferenceResume } from './checkpoint-reference-resume.js';
 import { CEM_NAVIGATION_LANDMARK_CAPABILITY, cemNavigationLandmarkCheckpoint } from './navigation-landmark-capability.js';
 import { CEM_DISCLOSURE_PANEL_CAPABILITY } from './disclosure-panel-capability.js';
 import { CEM_SORT_ACTION_CAPABILITY } from './sort-action-capability.js';
@@ -157,11 +158,11 @@ import { CEM_EDITABLE_CHOICE_CAPABILITY, cemEditableChoiceCheckpoint } from './e
 import { CEM_CHECKABLE_CONTROL_CAPABILITY, cemCheckableControlCheckpoint } from './checkable-control.js';
 import { CEM_SUGGESTIONS_CAPABILITY, cemSuggestionsCheckpoint, cemSuggestionsCheckpointEditor, refreshCemSuggestionsAuthorization, localCemSuggestionsBinding, type CemLocalSuggestionsEnvironment } from './suggestions-capability.js';
 import type { CemSuggestionsControllerOptions } from './suggestions-controller.js';
-import { CEM_POPUP_CAPABILITY, cemPopupCheckpoint } from './popup-capability.js';
-import { CEM_NATIVE_SURFACE_CAPABILITY, cemNativeSurfaceCheckpoint } from './native-surface.js';
+import { CEM_POPUP_CAPABILITY, cemPopupCheckpoint, resumeCemPopupGeometry } from './popup-capability.js';
+import { CEM_NATIVE_SURFACE_CAPABILITY, cemNativeSurfaceCheckpoint, resumeCemNativeSurface } from './native-surface.js';
 import { CEM_ACTION_CONTROL_CAPABILITY } from './action-control-capability.js';
 import { CEM_ACTION_COMMAND_CAPABILITY } from './action-command-capability.js';
-import { CEM_COMPOSITE_MENU_CAPABILITY, cemCompositeMenuCheckpoint } from './composite-menu-capability.js';
+import { CEM_COMPOSITE_MENU_CAPABILITY, cemCompositeMenuCheckpoint, resumeCemMenuGeometry } from './composite-menu-capability.js';
 import { CEM_CHOICE_SELECT_CAPABILITY, cemChoiceSelectCheckpoint } from './choice-select-capability.js';
 import { consumeLocationWriteTrigger } from './internal/runtime-support/location-write-trigger.js';
 
@@ -1881,6 +1882,8 @@ export class CemElementRuntime {
     private readonly nativeSuggestionsCompilations = new WeakMap<CompiledDeclaration, Promise<CemProcessingCompileInput>>();
     private readonly placementCoordinator?: CemElementPlacementCoordinator;
     private readonly placementInputs = new WeakMap<HTMLElement, { token: number; inputs: CemElementReferenceInputs }>();
+    private readonly checkpointReferenceIntent = new WeakMap<HTMLElement, NonNullable<CemCheckpointRuntimeState['references']>>();
+    private readonly checkpointResumeRevisions = new WeakMap<HTMLElement, CemCheckpointResumeContext>();
     private readonly loadSrcDocumentOption?: CemElementRuntimeOptions['loadSrcDocument'];
     private readonly resolveScopedModuleUrlOption?: CemElementRuntimeOptions['resolveScopedModuleUrl'];
     private readonly resolveModuleUrlOption?: CemElementRuntimeOptions['resolveModuleUrl'];
@@ -2637,7 +2640,7 @@ export class CemElementRuntime {
         if (!declaration) throw new Error(`No declaration registered for <${instance.localName}>`);
         const island = this.ensureDataIsland(instance);
         return this.snapshotFromCapturedForms(instance, declaration, island, String(this.dataRevisions.get(instance) ?? 0),
-            this.instanceStates.get(instance), this.captureRenderedForms(instance));
+            this.instanceStates.get(instance), this.captureRenderedForms(instance), false);
     }
 
     /** Read the effective declaration version without reserving a property on the produced element. */
@@ -2772,7 +2775,7 @@ export class CemElementRuntime {
             resumed: this.hydrationSnapshots.has(instance),
             internals: this.elementInternals.get(instance) ?? null,
             highlightSource: (source, contentType, signal) => this.highlightEditorSource(instance, source, contentType, signal),
-            snapshot: () => this.snapshotInstance(instance),
+            snapshot: () => this.readInstanceSnapshot(instance),
             setSlices: (values, options) => this.setInstanceSlices(instance, values, options),
             requestRender: () => {
                 const compiled = this.declarationForInstance(instance);
@@ -3200,6 +3203,8 @@ export class CemElementRuntime {
         // Output markup is an integrity witness only. Canonical data is imported
         // from the original sealed island, never reconstructed from this string.
         return JSON.stringify({ textNodes, markup: instance.outerHTML, declaration: compiled.declarationElement.outerHTML, controls,
+            focus: instance === instance.ownerDocument.activeElement ? 'host' : instance.contains(instance.ownerDocument.activeElement)
+                ? instance.ownerDocument.activeElement?.getAttribute('data-cem-render-node-id') : null,
             token: this.renderTokens.get(instance), revision: this.dataRevisions.get(instance),
             sequence: this.checkpointEventSequences.get(instance) ?? 0, slices: state.slices,
             native: Object.entries(state.nativeSlices).map(([name, value]) => [name, edgeContentAddress('sanitized-snapshot', value.value.artifact).digest, value.value.index]),
@@ -3217,12 +3222,20 @@ export class CemElementRuntime {
             : compiled.behavior === CEM_CHECKABLE_CONTROL_CAPABILITY ? 'checkable-control'
                 : compiled.behavior === CEM_CHOICE_SELECT_CAPABILITY ? 'choice-select'
                     : compiled.behavior === CEM_EDITABLE_CHOICE_CAPABILITY ? 'editable-choice' : undefined;
-        if (compiled.behavior && !plaintext && !formKind || compiled.mode !== 'cem-ml' || !this.usesProcessingHost(compiled) || !this.retainedStylesheets) return undefined;
+        const widgetCheckpoint = compiled.behavior === CEM_TREE_VIEW_CAPABILITY ? () => cemTreeViewCheckpoint(instance)
+            : compiled.behavior === CEM_TAB_PANELS_CAPABILITY ? () => cemTabPanelsCheckpoint(instance)
+                : compiled.behavior === CEM_NAVIGATION_LANDMARK_CAPABILITY ? () => cemNavigationLandmarkCheckpoint(instance)
+                    : compiled.behavior === CEM_COMPOSITE_MENU_CAPABILITY ? () => cemCompositeMenuCheckpoint(instance, node => this.checkpointEndpoint(node))
+                        : compiled.behavior === CEM_POPUP_CAPABILITY ? () => cemPopupCheckpoint(instance)
+                            : compiled.behavior === CEM_NATIVE_SURFACE_CAPABILITY ? () => cemNativeSurfaceCheckpoint(instance, node => this.checkpointEndpoint(node)) : undefined;
+        if (compiled.behavior && !plaintext && !formKind && !widgetCheckpoint || compiled.mode !== 'cem-ml' || !this.usesProcessingHost(compiled) || !this.retainedStylesheets) return undefined;
         const supported = (runtime: CemCheckpointRuntimeState) => (plaintext ? runtime.capability?.kind === 'plaintext-editor'
             : formKind ? runtime.capability?.kind === formKind && !!cemRetainedFormCheckpoint(instance, formKind)
-                && !(runtime.capability.kind === 'form-control' && runtime.capability.provider) : !runtime.capability)
-            && !runtime.references && !runtime.nativePublication && !runtime.manualListbox && !runtime.standaloneDatalist
-            && !runtime.placements?.length && runtime.resources.every(resource => ['http', 'local-storage', 'location'].includes(resource.kind));
+                && !(runtime.capability.kind === 'form-control' && runtime.capability.provider)
+                : widgetCheckpoint ? !!runtime.capability && runtime.capability.kind === widgetCheckpoint()?.kind : !runtime.capability)
+            && (!runtime.references || !!this.elementReferenceInputsOption) && !runtime.nativePublication && !runtime.manualListbox && !runtime.standaloneDatalist
+            && (!runtime.placements?.length || !!this.placementCoordinator && !!runtime.references)
+            && runtime.resources.every(resource => ['http', 'local-storage', 'location'].includes(resource.kind));
         const eligible = () => {
             const state = this.instanceStates.get(instance);
             const runtime = state && this.checkpointRuntimeState(instance, compiled, state);
@@ -3233,7 +3246,8 @@ export class CemElementRuntime {
             witness: () => {
                 eligible(); const fingerprint = this.checkpointResumeHostWitness(instance, compiled);
                 const form = formKind ? prepareCemRetainedFormResume(instance, formKind,
-                    cemRetainedFormCheckpoint(instance, formKind), this.checkpointControls(instance)!, () => this.checkpointControls(instance)) : undefined;
+                    cemRetainedFormCheckpoint(instance, formKind), this.checkpointControls(instance)!, () => this.checkpointControls(instance))
+                    : widgetCheckpoint ? prepareCemRetainedWidgetResume(instance, widgetCheckpoint(), this.checkpointControls(instance)!, () => this.checkpointControls(instance), widgetCheckpoint) : undefined;
                 return () => { try { return (!form || form.current()) && this.checkpointResumeHostWitness(instance, compiled) === fingerprint; } catch { return false; } };
             },
             prepare: async context => {
@@ -3278,9 +3292,16 @@ export class CemElementRuntime {
                         return resolution.resolvedUrl === resource.url && resolution.resourcePolicyStamp === value.request.resourcePolicyStamp;
                     } });
                 const native = preparedCheckpointProcessing(prepared.owner), scope = native.host.ownerScope;
+                const rawReferences = native.state.references && await this.elementReferenceInputsOption?.(instance, this.readInstanceSnapshot(instance), context.signal);
+                if (native.state.references && !rawReferences) throw new Error('cem.checkpoint.resume.source-authority');
+                const references = native.state.references && rawReferences
+                    ? await prepareCemReferenceResume(instance, context.receipt.instanceId, native.state.references, rawReferences,
+                        source => this.validateCheckpointReference(native.host, source), this.placementCoordinator) : undefined;
+                if (references) context.signal.addEventListener('abort', references.discard, { once: true });
                 const widget = plaintext ? prepareCemPlaintextEditorResume(instance, native.state.capability, native.controls)
-                    : formKind ? prepareCemRetainedFormResume(instance, formKind, native.state.capability, native.controls, () => this.checkpointControls(instance)) : undefined;
-                const formWitness = formKind ? this.checkpointResumeHostWitness(instance, compiled) : undefined;
+                    : formKind ? prepareCemRetainedFormResume(instance, formKind, native.state.capability, native.controls, () => this.checkpointControls(instance))
+                        : widgetCheckpoint ? prepareCemRetainedWidgetResume(instance, native.state.capability, native.controls, () => this.checkpointControls(instance), widgetCheckpoint) : undefined;
+                const formWitness = formKind || widgetCheckpoint ? this.checkpointResumeHostWitness(instance, compiled) : undefined;
                 const css = compiled.stylesheets.length ? await native.host.compile(cssSource).result : undefined;
                 let binding = this.checkpointScopeBindings.get(scope);
                 if (!binding || binding.host !== native.host) {
@@ -3300,7 +3321,7 @@ export class CemElementRuntime {
                 }
                 let activated = false, resume: Promise<void> | undefined;
                 const current = () => prepared.current() && instance.isConnected && this.declarationForInstance(instance) === compiled
-                    && (activated || !widget || widget.current());
+                    && (activated || (!widget || widget.current()) && (!references || references.current()));
                 const owner: CemResumedElementOwner = Object.freeze({ element: instance, resume: () => {
                     if (!context.active() || context.signal.aborted || !instance.isConnected || this.declarationForInstance(instance) !== compiled)
                         return Promise.reject(new Error('cem.checkpoint.resume.stale'));
@@ -3310,6 +3331,10 @@ export class CemElementRuntime {
                         || formWitness !== undefined && this.checkpointResumeHostWitness(instance, compiled) !== formWitness)
                         return Promise.reject(new Error('cem.checkpoint.resume.stale'));
                     widget?.activate();
+                    if (references && !references.current()) return Promise.reject(new Error('cem.checkpoint.resume.source-authority'));
+                    if (compiled.behavior === CEM_POPUP_CAPABILITY) resumeCemPopupGeometry(instance);
+                    if (compiled.behavior === CEM_COMPOSITE_MENU_CAPABILITY) resumeCemMenuGeometry(instance);
+                    if (compiled.behavior === CEM_NATIVE_SURFACE_CAPABILITY) resumeCemNativeSurface(instance);
                     this.admittedCheckpointBinding(route);
                     const client = native.host.checkpointClient;
                     if (!client) return Promise.reject(new Error('cem.checkpoint.resume.binding'));
@@ -3324,6 +3349,7 @@ export class CemElementRuntime {
                     const remove = () => { release?.(); stopScope(); this.checkpointNativeInstances.delete(instance); };
                     stopScope = onCemDeclarationScopeDispose(compiled.declarationScope, remove);
                     this.checkpointNativeInstances.set(instance, remove); activated = true;
+                    if (native.state.references) this.checkpointReferenceIntent.set(instance, native.state.references);
                     const triggers = new Map<number, string>(), implicit = new Set<number>();
                     for (const writer of native.state.writers) {
                         if (writer.trigger !== null) triggers.set(writer.index, writer.trigger);
@@ -3331,12 +3357,18 @@ export class CemElementRuntime {
                     }
                     this.locationWriteTriggers.set(instance, triggers); this.checkpointImplicitWriters.set(instance, implicit);
                     this.processingRenderPlans.delete(instance);
+                    this.checkpointResumeRevisions.set(instance, context);
                     this.renderInstance(instance, compiled);
                     return resume = this.whenRenderSettled(instance).then(() => {
+                        this.checkpointReferenceIntent.delete(instance);
+                        references?.discard();
                         if (!publication().acknowledged) throw new Error('cem.checkpoint.resume.publication');
                     });
                 } });
                 return { owner, current, discard: () => {
+                    references?.discard();
+                    if (this.checkpointReferenceIntent.get(instance) === native.state.references) this.checkpointReferenceIntent.delete(instance);
+                    if (this.checkpointResumeRevisions.get(instance) === context) this.checkpointResumeRevisions.delete(instance);
                     prepared.discard(); if (!activated) release?.();
                     if (!route.admitted && this.checkpointScopeBindings.get(scope) === route) { route.stopScope?.(); this.checkpointScopeBindings.delete(scope); }
                 } };
@@ -4682,6 +4714,14 @@ export class CemElementRuntime {
             });
             const inputs = await Promise.race([prepare, disposed]);
             if (!inputs) { this.placementInputs.delete(instance); return undefined; }
+            const expected = this.checkpointReferenceIntent.get(instance);
+            if (expected) {
+                const renewed = await prepareCemReferenceResume(instance, snapshot.instanceId, expected, inputs,
+                    source => this.validateCheckpointReference(this.processingHost(compiled!), source), this.placementCoordinator);
+                if (!renewed.current()) { renewed.discard(); throw new Error('cem.checkpoint.resume.source-authority'); }
+                this.placementInputs.set(instance, { token, inputs: renewed.inputs });
+                return renewed.inputs;
+            }
             const admitted = this.placementCoordinator ? this.placementCoordinator.prepare(instance, snapshot.instanceId, inputs, undefined, !!this.checkpointPublication)
                 : this.checkpointPublication && !inputs.placements ? snapshotCheckpointReferences(inputs) ?? inputs : inputs;
             this.placementInputs.set(instance, { token, inputs: admitted });
@@ -4691,6 +4731,14 @@ export class CemElementRuntime {
             releaseScope();
             if (this.referenceInputControllers.get(instance) === controller) this.referenceInputControllers.delete(instance);
         }
+    }
+
+    private async validateCheckpointReference(host: CemProcessingHost, references: NonNullable<CemCheckpointRuntimeState['references']>) {
+        const result = JSON.parse(await checkpointProcessingControl(host, { action: 'runtime', text: JSON.stringify({
+            version: 'cem-checkpoint-runtime/1', capability: null, references, resources: [], writers: [], writeDisposition: 'suppress-until-new-input',
+        }) })) as CemCheckpointRuntimeState;
+        if (!result.references) throw new Error('cem.checkpoint.resume.source');
+        return result.references;
     }
 
     private async submitProcessingRender(
@@ -4759,9 +4807,9 @@ export class CemElementRuntime {
         return {
             preserveNativeCheckedState: this.nativeCheckedPreservations.get(instance),
             preserveNode: (node) => behavior?.preserveRenderedNode?.(instance, node) ?? false,
-            preserveElementAttribute: preserveRenderedAttribute
-                ? (current, desired, attribute) => preserveRenderedAttribute(instance, current, desired, attribute)
-                : undefined,
+            preserveElementAttribute: (current, desired, attribute) =>
+                (this.placementCoordinator?.preservesId(current, desired, attribute) ?? false)
+                || (preserveRenderedAttribute?.(instance, current, desired, attribute) ?? false),
             preserveElementChildren: (current) =>
                 (behavior?.preserveRenderedChildren?.(instance, current) ?? false) ||
                 (this.declarationsByDocument.get(current.ownerDocument)?.has(current.localName) ?? false) &&
@@ -7586,10 +7634,9 @@ export class CemElementRuntime {
 
         const behavior = compiled.behavior;
         const preserveRenderedAttribute = behavior?.preserveRenderedAttribute?.bind(behavior);
-        const preserveElementAttribute = preserveRenderedAttribute
-            ? (current: Element, desired: Element, attribute: Attr) =>
-                  preserveRenderedAttribute(instance, current, desired, attribute)
-            : undefined;
+        const preserveElementAttribute = (current: Element, desired: Element, attribute: Attr) =>
+            (this.placementCoordinator?.preservesId(current, desired, attribute) ?? false)
+            || (preserveRenderedAttribute?.(instance, current, desired, attribute) ?? false);
         const mergeOptions = {
             preserveNativeCheckedState: this.nativeCheckedPreservations.get(instance),
             preserveNode: (node: Node) => behavior?.preserveRenderedNode?.(instance, node) ?? false,
@@ -7694,6 +7741,7 @@ export class CemElementRuntime {
         dataRevision: string,
         state: InstanceState | undefined,
         forms: CapturedRenderedForms,
+        persist = true,
     ): DataIslandSnapshot {
         const slices = { ...(state?.slices ?? {}) };
         for (const [name, mirror] of Object.entries(forms.sliceMirrors)) {
@@ -7729,9 +7777,9 @@ export class CemElementRuntime {
             eventPayloads: { ...(state?.eventPayloads ?? {}) },
             resourceState: portableResourceState(state),
         };
-        writeDataIslandHydrationData(island, snapshot);
+        if (persist) writeDataIslandHydrationData(island, snapshot);
         snapshot.dataIsland = serializeDataIsland(island);
-        this.instanceStates.get(instance)?.observer?.takeRecords();
+        if (persist) this.instanceStates.get(instance)?.observer?.takeRecords();
         return snapshot;
     }
 
@@ -7820,6 +7868,13 @@ export class CemElementRuntime {
     }
 
     private nextDataRevision(instance: HTMLElement): string {
+        const resumed = this.checkpointResumeRevisions.get(instance);
+        if (resumed !== undefined) {
+            this.checkpointResumeRevisions.delete(instance);
+            if (!resumed.active() || resumed.signal.aborted || (this.checkpointEventSequences.get(instance) ?? 0) !== resumed.receipt.acceptedEventSequence
+                || String(this.dataRevisions.get(instance) ?? 0) !== resumed.receipt.dataRevision) throw new Error('cem.checkpoint.resume.stale');
+            return resumed.receipt.dataRevision;
+        }
         const revision = (this.dataRevisions.get(instance) ?? 0) + 1;
         this.dataRevisions.set(instance, revision);
         return String(revision);

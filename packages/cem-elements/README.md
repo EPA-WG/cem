@@ -70,8 +70,15 @@ Form adapters retain the original controls, reset defaults, validity, focus and
 selection, including consumed selection/value requests and one-shot provider-commit
 change suppression. They reject newer edits and do not manufacture input/change
 events. Provider relationships require separately renewed authority.
-Other widget/provider/placement owners and legacy storage/location rendering still
-refuse resume. Studio recovery remains manual. See [explicit owner resume transactions](../../docs/committed-checkpoints.md#explicit-owner-resume-transactions).
+Trees, tabs, navigation, composite menus, popups and settled native surfaces also
+retain their browser state; geometry is rechecked without replaying open/focus
+actions. Passive source/placement consumers call the original host input callback,
+validate its opaque source bytes/policy on the fresh heap, and acquire new invocation
+leases from current registry grants. Copies, changed sources and revoked endpoints
+cannot authorize publication. The first unchanged frame retains its sealed data
+revision. Active suggestions/manual-listbox/native-datalist editor-provider handoff
+and legacy storage/location rendering still refuse resume. Studio recovery remains
+manual. See [explicit owner resume transactions](../../docs/committed-checkpoints.md#explicit-owner-resume-transactions).
 
 
 Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
