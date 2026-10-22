@@ -6,8 +6,7 @@ Use the shared native `sealCommittedCheckpoint` export as its trusted sealer.
 `CemCheckpointPublicationCoordinator.inspectRecovery()` reports immutable owner
 adapter/acknowledgment metadata and pending admissions/unknown operations without
 exporting source, probing owners or touching native state. It grants no recovery
-authority. Complete Studio acceptance still refuses legacy theme storage and
-child preview/command-runtime enrollment; see
+authority. Complete Studio recovery remains gated by whole-workspace acceptance; see
 [the Studio admission contract](../../docs/committed-checkpoints.md#complete-studio-admission-acceptance).
 
 `CemCheckpointPublicationCoordinator` adds opt-in all-owner capture through
@@ -76,8 +75,25 @@ maps during explicit handoff. Use `CemCheckpointPublicationCoordinator.combine()
 for original coordinators sharing one physical heap; complete native owner/source
 coverage remains mandatory. Mixed command bindings supply original
 `prepareResume()` tickets as the fourth argument to `resumeCemCheckpointOwners`.
-All command/rendering/preview routes bind before provider renewal. Static media
-policies and complete whole-Studio acceptance remain separate prerequisites.
+All command/rendering/preview routes bind before provider renewal. Static
+`document`, `text`, `media` and `message` modes use a separate native-validated
+`retain-presentation` policy. Their original DOM remains in place, preserving
+scroll, text selection, edited controls and browser media state. Static document
+frames remain opaque (`sandbox=""`): recovery neither inspects nor reconstructs
+the document. A trusted load revision and unchanged frame/presentation witness
+are required; pending initial loads, later load revisions, changed policies/topology, unknown modes
+and presentations exceeding 4096 nodes refuse. Live/artifact controller grants
+are unchanged. Complete whole-Studio acceptance remains a separate prerequisite.
+
+Restricted live-preview HTTP requests can checkpoint original resource-map
+sources with explicit `sourcePolicy: "retained-resource-map"`. Native validation
+admits credential-free absolute HTTP(S) and `studio://` map addresses for this
+policy only; ordinary HTTP checkpoints keep their HTTP(S) restriction. Original
+native document receipts, bounded source bytes/digests and complete native census
+remain mandatory. Inactive preparation reimports those bytes and rechecks the
+original map resolver and policy without fetching or replaying a request. Missing
+resources, changed inputs/policies and incomplete source receipts still refuse.
+These scalar policies carry intent and never grant controller or source authority.
 
 
 Explicit shared owner adapters can now use `publication.prepareResume()` before

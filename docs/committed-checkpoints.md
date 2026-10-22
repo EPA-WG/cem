@@ -1483,11 +1483,34 @@ registry; pending loads, released artifact trees, replaced documents/controllers
 and changed source/resource inputs refuse. Recovery retains the document, edited
 controls, child source callbacks and artifact object URLs. The controller renews
 its slice-publication callback on the fresh parent binding without mounting again.
-Other media modes still require a reviewed policy; child enrollment alone never
-establishes whole-workspace resume. Inspection reports adapter registration, not
-eligibility of the current mode or inputs; only complete capture/preparation can
-prove readiness. Restricted preview HTTP checkpoints also remain unavailable
-until their native source/export boundary is resolved.
+Static `document`, `text`, `media` and `message` modes use the distinct native
+`retain-presentation` disposition and a bounded revision. Shared host witnesses
+retain exact presentation nodes/attributes/topology (at most 4096 nodes), keeping
+scroll, selection, edited projected controls and media state in the browser.
+Opaque document frames retain their empty sandbox. Only a trusted completed
+initial load admits capture; pending initial loads, later load revisions, replaced
+frames, changed policies or unknown modes refuse. No document access, controller
+permission or reconstruction is inferred from the scalar disposition. Navigation
+inside an opaque frame remains browser-owned; the host observes completed loads
+and does not claim an inspectable document or a portable copy of its contents.
+
+Restricted preview HTTP capture now identifies original resource-map sources
+with `sourcePolicy: "retained-resource-map"`. The old HTTP(S)-only URL filter
+refused the preview's `studio://` addresses before native source capture.
+Native validation admits credential-free HTTP(S) and `studio://` map URLs under
+this explicit policy; ordinary network checkpoints keep their original rules.
+Complete original native document receipts, bounded bytes/digests and physical
+inventories are still required. Inactive preparation rechecks the original
+resolver/policy and map membership, then reimports original bytes without an
+HTTP request. Missing resources, changed source inputs/policies and incomplete
+receipts refuse. Serialized labels carry no source authority.
+
+Child enrollment alone never establishes whole-workspace resume. Inspection
+reports adapter registration, not eligibility of the current mode or inputs;
+only complete capture/preparation can prove readiness. Studio's incomplete-group
+acceptance deliberately selects an unknown mode, preserving fail-closed behavior
+after the static modes gain policies. Successful whole-Studio recovery remains
+a separate acceptance gate.
 
 `CemCheckpointPublicationCoordinator.combine([parent, child, ...])` creates one
 bounded checkpoint transaction for coordinators sharing one physical generation.

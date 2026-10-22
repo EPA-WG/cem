@@ -1312,3 +1312,44 @@ fn retained_media_preview_has_explicit_mode_and_no_serialized_controller_authori
         }
     }
 }
+
+#[test]
+fn static_preview_policies_do_not_grant_controller_authority() {
+    for mode in ["document", "text", "media", "message"] {
+        let mut s = state();
+        s["capability"] = json!({"kind":"media-preview", "mode":mode, "disposition":"retain-presentation","revision":1});
+        assert!(validate(&s.to_string()).is_ok());
+        for revision in [json!(null), json!(9007199254740992_u64)] {
+            let mut bad = s.clone(); bad["capability"]["revision"] = revision;
+            assert!(validate(&bad.to_string()).is_err());
+        }
+        s["capability"]["disposition"] = json!("retain-controller");
+        assert!(validate(&s.to_string()).is_err());
+    }
+    for mode in ["live", "artifact-tree", "unknown"] {
+        let mut s = state();
+        s["capability"] = json!({"kind":"media-preview", "mode":mode, "disposition":"retain-presentation","revision":1});
+        assert!(validate(&s.to_string()).is_err());
+    }
+}
+#[test]
+fn resource_map_http_sources_need_explicit_policy_and_safe_urls() {
+    let mut s = state();
+    s["resources"] = json!([{"name":"remote", "kind":"http", "disposition":"reimport-and-read-again",
+        "revision":1,"cursor":0,"live":false,"state":"loaded","method":"GET","url":"studio://example/data.json",
+        "sourcePolicy":"retained-resource-map", "document":{"base64":"e30=","contentType":"application/json",
+        "sourceUri":"studio://example/data.json","digest":null}}]);
+    assert!(validate(&s.to_string()).is_ok());
+    for policy in [json!(null), json!("unknown")] {
+        let mut bad = s.clone(); bad["resources"][0]["sourcePolicy"] = policy;
+        assert!(validate(&bad.to_string()).is_err());
+    }
+    for uri in ["javascript:alert(1)", "file:///private/data", "studio://user:secret@example/data", "data:application/json,e30="] {
+        for field in ["url", "sourceUri"] {
+            let mut bad = s.clone();
+            if field == "url" { bad["resources"][0][field] = json!(uri); }
+            else { bad["resources"][0]["document"][field] = json!(uri); }
+            assert!(validate(&bad.to_string()).is_err(), "{field}: {uri}");
+        }
+    }
+}

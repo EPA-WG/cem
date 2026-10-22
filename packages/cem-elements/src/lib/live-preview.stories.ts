@@ -49,7 +49,7 @@ export const ProjectResources = meta.story({
         try { await controller.ready; await waitFor(() => expect(frame.contentDocument?.querySelector('p')?.textContent).toBe('loaded')); }
         finally { controller.dispose(); }
         const denied = mountCemLivePreview(frame, { source, sourceUri: 'studio://two/view.cem', resources: [{ uri: 'studio://one/data.json', contentType: 'application/json', text: '{}' }] });
-        try { await expect(denied.ready).rejects.toThrow('resource_denied'); }
+        try { await expect(denied.ready).rejects.toThrow('resource_denied'); expect(denied.checkpoint()).toBeUndefined(); }
         finally { denied.dispose(); }
         localStorage.setItem('cem-preview-test-isolation', 'parent');
         const storage = mountCemLivePreview(frame, { sourceUri: 'studio://one/view.cem', resources: [], source: '{local-storage @slice=theme @key=cem-preview-test-isolation @value=child}{location-element @slice=location @method=replace @url="https://example.com"}{p | Independent}' });
@@ -141,5 +141,34 @@ export const RecoveryStartupCancellation = meta.story({
             runtimeOptions: { recoveryScope, dispose: () => { disposals++; } },
         })).toThrow();
         expect(recoveryScope.inspect().members).toEqual([]); expect(disposals).toBe(2); recoveryScope.dispose();
+    },
+});
+
+export const StaticCheckpointGuards = meta.story({
+    render: () => '<section aria-label="Static preview lifecycle guards"></section>',
+    play: async ({ canvasElement }) => {
+        const { CEM_LIVE_PREVIEW_CAPABILITY: behavior, cemMediaPreviewCheckpoint: capture, prepareCemMediaPreviewGuard: guard } = await import('./live-preview-capability.js');
+        const host = document.createElement('div'); host.setAttribute('mode', 'document');
+        const root = document.createElement('figure'); root.setAttribute('part', 'root');
+        const frame = document.createElement('iframe'); frame.setAttribute('part', 'document');
+        frame.setAttribute('sandbox', ''); frame.setAttribute('allow', ''); frame.setAttribute('referrerpolicy', 'no-referrer');
+        root.append(frame); host.append(root); canvasElement.querySelector('section')!.append(host);
+        const context = { runtime: { checkpointInteractionSettled() { /* Native publication is exercised by the generation fixtures. */ } } } as any;
+        try {
+            behavior.rendered!(host, context); expect(capture(host)).toBeUndefined();
+            frame.dispatchEvent(new Event('load')); expect(capture(host)).toBeUndefined();
+            frame.srcdoc = '<p>Opaque original</p>'; behavior.rendered!(host, context);
+            await new Promise<void>(resolve => frame.addEventListener('load', () => resolve(), { once: true }));
+            expect(frame.contentDocument).toBeNull(); expect(capture(host)).toMatchObject({ mode: 'document', disposition: 'retain-presentation', revision: 1 });
+            const retained = guard(host)!; expect(retained()).toBe(true);
+            frame.setAttribute('sandbox', 'allow-same-origin'); expect(guard(host)).toBeUndefined(); expect(retained()).toBe(false);
+            frame.setAttribute('sandbox', ''); frame.srcdoc = '<p>Replacement</p>';
+            expect(capture(host)).toBeUndefined(); expect(retained()).toBe(false);
+            host.setAttribute('mode', 'unknown'); behavior.rendered!(host, context); expect(capture(host)).toBeUndefined();
+            host.setAttribute('mode', 'message'); root.replaceChildren(); behavior.rendered!(host, context);
+            const empty = guard(host)!; expect(empty()).toBe(true); root.append(document.createTextNode('late')); expect(empty()).toBe(false);
+            const current = guard(host)!; root.append(...Array.from({ length: 4096 }, () => document.createElement('span')));
+            expect(capture(host)).toBeUndefined(); expect(current()).toBe(false); behavior.disconnected!(host); expect(current()).toBe(false); expect(capture(host)).toBeUndefined();
+        } finally { behavior.disconnected!(host); host.remove(); }
     },
 });

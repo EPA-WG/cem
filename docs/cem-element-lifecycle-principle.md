@@ -477,6 +477,26 @@ bytes remain the transaction authority. Preparation revalidates that identity, c
 inputs and reimports approved HTTP source bytes while inactive. Rendered markup
 is an integrity witness, never a substitute for canonical data.
 
+Restricted live-preview HTTP source checkpoints explicitly name the retained
+resource-map policy. Native validation permits credential-free HTTP(S) and
+`studio://` map URLs only under that policy; ordinary network source rules stay
+unchanged. Original native source receipts and complete physical inventories
+remain required. Inactive preparation re-resolves through the original immutable
+map and checks resolver identity/policy before importing the original bounded
+bytes. Neither URL strings nor serialized policies authorize a source or replay
+a request.
+
+Static media-preview modes (`document`, `text`, `media`, `message`) use the
+separate native `retain-presentation` disposition, with a bounded load revision.
+The shared capability guards exact retained DOM topology/attributes and the
+original presentation lifecycle; browser state stays in place rather than being
+serialized or replayed. Document frames retain their empty sandbox and opaque
+origin. A real completed initial load is required, and later loads invalidate previous
+witnesses. Pending, replaced, changed or unknown presentations refuse. Browser
+presentation witnesses are bounded to 4096 nodes and do not replace canonical
+island inputs, native control state or complete child-owner coverage. Live and
+artifact-tree modes continue to require their original controller witnesses.
+
 After complete owner admission, the trusted host calls each returned
 `CemResumedElementOwner.resume()`. It binds publication to that original active
 coordinator/owner context and its fresh native client, preserves event counters

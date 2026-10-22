@@ -90,7 +90,11 @@ function mountPreview(frame: HTMLIFrameElement, options: CemLivePreviewOptions):
                 return { resolvedUrl: uri, resolverIdentity: 'cem-live-preview-resources',
                     contentType: resource.contentType, body: stream(resource.text) };
             },
-            resolveResourceUrl: request => { const uri = new URL(request.authoredUrl, request.baseUrl).href; read(uri); return uri; },
+            resolveResourceUrl: request => {
+                const uri = new URL(request.authoredUrl, request.baseUrl).href; read(uri);
+                return { authoredUrl: request.authoredUrl, resolvedUrl: uri,
+                    resolverIdentity: 'cem-live-preview-resources', resourcePolicyStamp: 'cem-live-preview-resources/1' };
+            },
             loadHttpResource: async request => {
                 current(); request.signal.throwIfAborted();
                 const resource = read(request.resolvedUrl);

@@ -3073,7 +3073,8 @@ export class CemElementRuntime {
                 document = { base64: documents ? btoa(binary) : '', contentType: source.contentType, sourceUri: source.sourceUri, digest: null };
             }
             const resource: CemCheckpointRuntimeState['resources'][number] = { name, kind: 'http', disposition: 'reimport-and-read-again', revision: active.revision, cursor: 0,
-                live: false, state: envelope.state, url: envelope.request.resolvedUrl, method: envelope.request.method, ...(document ? { document } : {}) };
+                live: false, state: envelope.state, url: envelope.request.resolvedUrl, method: envelope.request.method,
+                ...(this.restrictedPreview && envelope.request.resolverIdentity === 'cem-live-preview-resources' ? { sourcePolicy: 'retained-resource-map' as const } : {}), ...(document ? { document } : {}) };
             if (native.document && document) {
                 native.host?.witnessCheckpointDocument?.(native.document, resource);
                 if (native.host?.checkpointClient && !nativeCheckpointSourceProof(resource)) return undefined;
@@ -3107,7 +3108,7 @@ export class CemElementRuntime {
         if (Object.values(state.httpResources).some(resource => resource.key.length > 512 * 1024)
             || Object.values(state.localStorageResources).some(resource => (resource.lastRawValue?.length ?? 0) > 256 * 1024)) return undefined;
         for (const resource of resources) if (resource.url) {
-            try { const url = new URL(resource.url); if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return undefined; }
+            try { const url = new URL(resource.url); if (!(resource.sourcePolicy === 'retained-resource-map' ? ['http:', 'https:', 'studio:'] : ['http:', 'https:']).includes(url.protocol) || !url.host || url.username || url.password) return undefined; }
             catch { return undefined; }
         }
         const writers: CemCheckpointRuntimeState['writers'] = [];
@@ -3428,7 +3429,9 @@ export class CemElementRuntime {
                         const resolution = await this.resolveHttpResourceUrl({ ...value.request, authoredUrl: value.request.authoredUrl,
                             kind: 'http-request', baseUrl: compiled.resourceBaseUrl,
                             declarationScopeId: this.currentScopeUid(instance, compiled), contextIdentity: this.currentScopeUid(instance, compiled) }, instance.ownerDocument);
-                        return resolution.resolvedUrl === resource.url && resolution.resourcePolicyStamp === value.request.resourcePolicyStamp;
+                        return resolution.resolvedUrl === resource.url && resolution.resourcePolicyStamp === value.request.resourcePolicyStamp
+                            && resolution.resolverIdentity === value.request.resolverIdentity
+                            && (!resource.sourcePolicy || this.restrictedPreview && resolution.resolverIdentity === 'cem-live-preview-resources');
                     } });
                 const native = preparedCheckpointProcessing(prepared.owner), scope = native.host.ownerScope;
                 const retained = this.checkpointRetainedCapabilityGuard(instance, compiled);

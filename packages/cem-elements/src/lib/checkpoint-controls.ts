@@ -35,6 +35,7 @@ export interface CemCheckpointRuntimeState {
         | { kind: 'native-surface'; phase: 'closed' | 'open'; defaultsInitialized: true; state?: CheckpointSurface }
         | { kind: 'form-control'; changeSuppression?: { revision: number; value: string; disposition: 'suppress-once' }; provider?: { revision: number; consumer: string; validity: string }; authoredValue: string | null; formDisabled: boolean; customValidity: string; selectionRequest: string | null }
         | { kind: 'media-preview'; mode: 'live' | 'artifact-tree'; disposition: 'retain-controller' }
+        | { kind: 'media-preview'; mode: 'document' | 'text' | 'media' | 'message'; disposition: 'retain-presentation'; revision: number }
         | { kind: 'plaintext-editor'; authored: string | null; selectionRequest: string | null }
         | { kind: 'checkable-control'; authoredIndeterminate: boolean }
         | { kind: 'choice-select'; selection: string[]; defaultValues: string[]; activeIndex: number; rangeAnchor: number;
@@ -44,7 +45,7 @@ export interface CemCheckpointRuntimeState {
             defaultCommittedOptionValue: string | null; defaultDisplayValue: string; defaultValue: string; displayValue: string;
             edited: boolean; expanded: boolean; formDisabled: boolean; value: string };
     resources: { name: string; kind: string; disposition: string; revision: number; cursor: number; live: boolean; state: string;
-        url?: string; method?: string; document?: { base64: string; contentType: string; sourceUri: string; digest: string | null } }[];
+        sourcePolicy?: 'retained-resource-map'; url?: string; method?: string; document?: { base64: string; contentType: string; sourceUri: string; digest: string | null } }[];
     writers: { index: number; trigger: string | null; implicit: boolean }[];
     writeDisposition: 'suppress-until-new-input';
 }

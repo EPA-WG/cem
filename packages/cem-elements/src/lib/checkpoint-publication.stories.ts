@@ -4029,3 +4029,10 @@ export const RetainedMediaControllerRepeatedResume: Story = { render: () => '<se
     play: async ({ canvasElement }) => mediaResumeStory(canvasElement, ['worker', 'fallback']) };
 export const RetainedMediaControllerRefusals: Story = { render: () => '<section aria-label="Stale preview controller refusals"></section>',
     play: async ({ canvasElement }) => mediaResumeStory(canvasElement, ['worker-refuse', 'fallback-release', 'worker-frame']) };
+
+export const StaticPreviewRepeatedResume: Story = { render: () => '<section aria-label="Static preview retained presentations"></section>',
+    play: async ({ canvasElement }) => mediaResumeStory(canvasElement, ['worker-static', 'fallback-static']) };
+export const StaticPreviewRefusals: Story = { render: () => '<section aria-label="Changed static preview refusals"></section>',
+    play: async ({ canvasElement }) => mediaResumeStory(canvasElement, ['worker-static-change', 'fallback-static-frame']) };
+export const RestrictedHttpPreviewRepeatedResume: Story = { render: () => '<section aria-label="Restricted HTTP native source receipts"></section>',
+    play: async ({ canvasElement }) => mediaResumeStory(canvasElement, ['worker-http', 'fallback-http', 'worker-http-refuse']) };

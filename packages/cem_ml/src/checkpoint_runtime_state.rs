@@ -41,7 +41,7 @@ enum Capability {
         state: Box<crate::checkpoint_interactions::Suggestions>,
     },
     NavigationLandmark {},
-    MediaPreview { mode: String, disposition: String },
+    MediaPreview { mode: String, disposition: String, #[serde(default, skip_serializing_if = "Option::is_none")] revision: Option<u64> },
     #[serde(rename_all = "camelCase")]
     ActionCommand {
         control_node: String,
@@ -182,6 +182,8 @@ struct Resource {
     method: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     document: Option<Document>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    source_policy: Option<String>,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -207,6 +209,16 @@ fn url(value: &str) -> bool {
             && url.username().is_empty()
             && url.password().is_none()
     })
+}
+fn resource_url(value: &str, policy: Option<&str>) -> bool {
+    match policy {
+        None => url(value),
+        Some("retained-resource-map") => url::Url::parse(value).is_ok_and(|u| {
+            matches!(u.scheme(), "http" | "https" | "studio") && u.host_str().is_some()
+                && u.username().is_empty() && u.password().is_none()
+        }),
+        _ => false,
+    }
 }
 pub fn validate(input: &str) -> Result<String, &'static str> {
     if input.len() > MAX_BYTES {
@@ -277,8 +289,12 @@ pub fn validate(input: &str) -> Result<String, &'static str> {
         }
     }
     match &state.capability {
-        Some(Capability::MediaPreview { mode, disposition }) => {
-            if !matches!(mode.as_str(), "live" | "artifact-tree") || disposition != "retain-controller" {
+        Some(Capability::MediaPreview { mode, disposition, revision }) => {
+            if !matches!((mode.as_str(), disposition.as_str()),
+                ("live" | "artifact-tree", "retain-controller")
+                | ("document" | "text" | "media" | "message", "retain-presentation"))
+                || if disposition == "retain-controller" { revision.is_some() }
+                    else { !revision.is_some_and(|value| value <= SAFE && (mode != "document" || value > 0)) } {
                 return Err("cem.checkpoint.runtime.capability");
             }
         }
@@ -416,7 +432,8 @@ pub fn validate(input: &str) -> Result<String, &'static str> {
     let mut names = BTreeSet::new();
     let mut bytes = source_bytes;
     for resource in &mut state.resources {
-        if !identity(&resource.name)
+        if resource.kind != "http" && resource.source_policy.is_some()
+            || !identity(&resource.name)
             || !names.insert(&resource.name)
             || resource.revision > SAFE
             || resource.cursor > SAFE
@@ -428,7 +445,7 @@ pub fn validate(input: &str) -> Result<String, &'static str> {
             if resource.live
                 || resource.disposition != "reimport-and-read-again"
                 || !matches!(resource.method.as_deref(), Some("GET" | "HEAD"))
-                || !resource.url.as_deref().is_some_and(url)
+                || !resource.url.as_deref().is_some_and(|value| resource_url(value, resource.source_policy.as_deref()))
                 || resource.state == "loaded"
                     && resource.method.as_deref() == Some("GET")
                     && resource.document.is_none()
@@ -438,7 +455,7 @@ pub fn validate(input: &str) -> Result<String, &'static str> {
             if let Some(document) = &mut resource.document {
                 if document.content_type.is_empty()
                     || document.content_type.len() > 256
-                    || !url(&document.source_uri)
+                    || !resource_url(&document.source_uri, resource.source_policy.as_deref())
                 {
                     return Err("cem.checkpoint.runtime.document");
                 }
