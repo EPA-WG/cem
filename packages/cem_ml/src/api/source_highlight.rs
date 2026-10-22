@@ -182,6 +182,58 @@ pub fn highlight_source_to_html_v1_json(request_json: &str) -> String {
     })
 }
 
+/// Bounded editor paint metadata over exact authored source. This is a named
+/// presentation DTO (UTF-16 offsets/roles), never a parser/token AST export.
+pub fn source_highlight_paint_v1_json(request_json: &str) -> String {
+    let empty = |status: &str| {
+        serde_json::json!({"schemaVersion":1,"status":status,"ranges":[]}).to_string()
+    };
+    if request_json.len() > 2 * 1024 * 1024 {
+        return empty("limited");
+    }
+    let Ok(request) = serde_json::from_str::<SourceHighlightRequestV1>(request_json) else {
+        return empty("invalid");
+    };
+    if request.source.len() > 256 * 1024 {
+        return empty("limited");
+    }
+    if request.content_type.len() > 128
+        || request
+            .source_url
+            .as_ref()
+            .is_some_and(|url| url.len() > 4096)
+    {
+        return empty("invalid");
+    }
+    let Some(highlighted) = highlight_source_scope(
+        &request.source,
+        &request.content_type,
+        request.source_url.as_deref(),
+        0,
+    ) else {
+        return empty("unsupported");
+    };
+    let spans = normalize_spans(highlighted.spans);
+    if spans.len() > 16384 {
+        return empty("limited");
+    }
+    let mut ranges = Vec::with_capacity(spans.len());
+    let mut byte = 0;
+    let mut utf16 = 0;
+    for span in spans {
+        utf16 += request.source[byte..span.byte_offset]
+            .encode_utf16()
+            .count();
+        let start = utf16;
+        utf16 += request.source[span.byte_offset..span.end()]
+            .encode_utf16()
+            .count();
+        byte = span.end();
+        ranges.push(serde_json::json!({"start":start,"end":utf16,"role":span.role}));
+    }
+    serde_json::json!({"schemaVersion":1,"status":"painted","ranges":ranges}).to_string()
+}
+
 /// Parse source into a generic, lossless token stream and recursively dispatch
 /// every AST-owned embedded body to the formatter/colorizer registered for its
 /// active content type.
@@ -1080,6 +1132,97 @@ fn serialize_response(response: SourceHighlightResponseV1) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn editor_highlighting_refuses_oversized_source_and_request() {
+        let result: serde_json::Value = serde_json::from_str(&super::source_highlight_paint_v1_json(
+            &serde_json::json!({"source": "x".repeat(256 * 1024 + 1), "contentType":"text/cem-ml"}).to_string())).unwrap();
+        assert_eq!(result["status"], "limited");
+        assert_eq!(result["ranges"], serde_json::json!([]));
+        let result: serde_json::Value = serde_json::from_str(
+            &super::source_highlight_paint_v1_json(&" ".repeat(2 * 1024 * 1024 + 1)),
+        )
+        .unwrap();
+        assert_eq!(result["status"], "limited");
+    }
+    #[test]
+    fn editor_paint_ranges_remain_lossless_for_incomplete_source() {
+        for (kind, source) in [
+            ("text/cem-ml", "\t{p @label=\"é😀\" | unfinished\r\n\n"),
+            ("text/html", "\t<p title=\"é😀\">unfinished<\r\n\n"),
+            ("text/css", "\t.foo { color: red; /*é😀\r\n\n"),
+        ] {
+            let result: serde_json::Value =
+                serde_json::from_str(&super::source_highlight_paint_v1_json(
+                    &serde_json::json!({"source":source,"contentType":kind}).to_string(),
+                ))
+                .unwrap();
+            assert_eq!(result["status"], "painted");
+            let units: Vec<u16> = source.encode_utf16().collect();
+            let mut cursor = 0;
+            let mut rebuilt = Vec::new();
+            for span in result["ranges"].as_array().unwrap() {
+                let start = span["start"].as_u64().unwrap() as usize;
+                let end = span["end"].as_u64().unwrap() as usize;
+                assert!(start >= cursor && end <= units.len());
+                rebuilt.extend_from_slice(&units[cursor..start]);
+                rebuilt.extend_from_slice(&units[start..end]);
+                cursor = end;
+            }
+            rebuilt.extend_from_slice(&units[cursor..]);
+            assert_eq!(String::from_utf16(&rebuilt).unwrap(), source);
+        }
+    }
+    #[test]
+    fn editor_paint_uses_utf16_and_child_language_roles_without_exports() {
+        let source = "😀é\r\n<style>.card { color: red }</style><p title='x'>";
+        let value: serde_json::Value = serde_json::from_str(&source_highlight_paint_v1_json(
+            &serde_json::json!({"source":source,"contentType":"text/html"}).to_string(),
+        ))
+        .unwrap();
+        let units: Vec<u16> = source.encode_utf16().collect();
+        let ranges = value["ranges"].as_array().unwrap();
+        let property = ranges
+            .iter()
+            .find(|range| range["role"] == "syntax.property")
+            .unwrap();
+        assert_eq!(
+            String::from_utf16(
+                &units[property["start"].as_u64().unwrap() as usize
+                    ..property["end"].as_u64().unwrap() as usize]
+            )
+            .unwrap(),
+            "color"
+        );
+        assert_eq!(
+            property["start"].as_u64().unwrap() as usize,
+            source[..source.find("color").unwrap()]
+                .encode_utf16()
+                .count()
+        );
+        assert!(
+            value.get("html").is_none()
+                && value.get("source").is_none()
+                && value.get("tokens").is_none()
+        );
+        for content_type in ["text/plain", "application/json", "text/cem-ql", "unknown"] {
+            let value: serde_json::Value = serde_json::from_str(&source_highlight_paint_v1_json(
+                &serde_json::json!({"source":source,"contentType":content_type}).to_string(),
+            ))
+            .unwrap();
+            assert_eq!(value["status"], "unsupported");
+            assert_eq!(value["ranges"], serde_json::json!([]));
+        }
+        let value: serde_json::Value = serde_json::from_str(&source_highlight_paint_v1_json(
+            &serde_json::json!({"source":"<a x='y'>".repeat(5000),"contentType":"text/html"})
+                .to_string(),
+        ))
+        .unwrap();
+        assert_eq!(value["status"], "limited");
+        assert_eq!(value["ranges"], serde_json::json!([]));
+        let value: serde_json::Value =
+            serde_json::from_str(&source_highlight_paint_v1_json("not json")).unwrap();
+        assert_eq!(value["status"], "invalid");
+    }
     use super::*;
 
     fn response(request: &str) -> serde_json::Value {

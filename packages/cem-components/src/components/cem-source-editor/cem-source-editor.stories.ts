@@ -26,7 +26,7 @@ export const TextAndSemantics = meta.story({
         host.setAttribute('label', 'Changed'); await whenCemRendered(host);
         expect(editor(host)).toBe(control);
         expect(control.innerText).toBe(host.value);
-        expect(storybookCemRuntime().diagnosticsFor(host)).toEqual([]);
+        expect(storybookCemRuntime().diagnosticsFor(host), JSON.stringify(storybookCemRuntime().diagnosticsFor(host))).toEqual([]);
     },
 });
 
@@ -167,5 +167,120 @@ export const ThemeAndReconnection = meta.story({
         await runtime.whenRenderSettled(isolated);
         expect(editor(isolated).textContent).toBe('<p>Standalone source</p>');
         expect(isolated.querySelector('p')).toBeNull();
+    },
+});
+
+const paintedRanges = (host: Element) => [...CSS.highlights.entries()]
+    .filter(([name]) => name.startsWith('cem-source-')).flatMap(([, paint]) => [...paint])
+    .filter(range => host.contains(range.startContainer));
+
+export const LosslessColoring = meta.story({
+    render: () => '<section aria-label="Colored source"></section>',
+    play: async ({ canvasElement }) => {
+        for (const fallback of [false, true]) {
+            const { runtime, scope, declare } = createCemStoryRuntime(canvasElement, fallback);
+            const tag = `cem-colored-editor-${crypto.randomUUID()}`;
+            await declare(declarationSource, tag);
+            const host = document.createElement(tag) as Editor;
+            host.setAttribute('content-type', 'text/html'); canvasElement.append(host);
+            await runtime.whenRenderSettled(host);
+            const control = editor(host), source = '\t<p title="é😀">unfinished<\r\n\n';
+            host.value = source;
+            const text = control.firstChild;
+            control.focus(); control.setSelectionRange(11, 14, 'backward');
+            await waitFor(() => expect(paintedRanges(host).length).toBeGreaterThan(0));
+            expect(host.value).toBe(source); expect(control.textContent).toBe(source);
+            expect(control.firstChild).toBe(text); expect(control.children).toHaveLength(0);
+            expect([control.selectionStart, control.selectionEnd, control.selectionDirection]).toEqual([11, 14, 'backward']);
+            expect(host.querySelector('p')).toBeNull();
+            host.setAttribute('label', 'Status update'); await runtime.whenRenderSettled(host);
+            expect(editor(host)).toBe(control); expect(control.firstChild).toBe(text);
+            expect(control.selectionStart).toBe(11); expect(document.activeElement).toBe(control);
+            // Native child-language coloring and exact Unicode range boundaries.
+            host.value = '😀é\r\n<style>.card { color: red }</style>';
+            await waitFor(() => expect(paintedRanges(host).map(range => range.toString())).toContain('color'));
+            for (const type of ['text/css', 'text/cem-ml']) {
+                host.setAttribute('content-type', type);
+                host.value = type === 'text/css' ? '\t.card { color: red; /* incomplete é😀\n\n' : '\t{p @title="é😀" | unfinished\n\n';
+                await runtime.whenRenderSettled(host);
+                await waitFor(() => expect(paintedRanges(host).length).toBeGreaterThan(0));
+                expect(control.textContent).toBe(host.value); expect(control.children).toHaveLength(0);
+            }
+            host.setAttribute('content-type', 'application/json'); host.value = '{"plain":true}';
+            await runtime.whenRenderSettled(host);
+            await waitFor(() => expect(paintedRanges(host)).toHaveLength(0));
+            expect(host.value).toBe('{"plain":true}');
+            host.setAttribute('content-type', 'text/html'); host.value = '<b>Again</b>';
+            await runtime.whenRenderSettled(host);
+            await waitFor(() => expect(paintedRanges(host).length).toBeGreaterThan(0));
+            host.setAttribute('highlight', 'off'); await runtime.whenRenderSettled(host);
+            expect(paintedRanges(host)).toHaveLength(0); expect(host.value).toBe('<b>Again</b>');
+            host.removeAttribute('highlight'); host.value = 'x'.repeat(262145); await runtime.whenRenderSettled(host);
+            expect(control.textContent).toBe(host.value); expect(paintedRanges(host)).toHaveLength(0);
+            host.remove(); scope.dispose();
+        }
+    },
+});
+
+export const ColoredEditingAndOwnership = meta.story({
+    parameters: { docs: { description: { story: 'Browser-runner-only trusted typing, undo, paste, composition and disposal checks with native source paint.' } } },
+    render: () => '<section class="cem-theme-light"><cem-source-editor content-type="text/html" value="&lt;p&gt;first&lt;/p&gt;"></cem-source-editor><cem-source-editor content-type="text/html" value="&lt;b&gt;second&lt;/b&gt;"></cem-source-editor></section>',
+    play: async ({ canvasElement }) => {
+        if (import.meta.env.MODE !== 'test') return;
+        const { userEvent } = await import('vitest/browser');
+        const [host, other] = [...canvasElement.querySelectorAll('cem-source-editor')] as Editor[];
+        await whenCemRendered(host); await whenCemRendered(other);
+        await waitFor(() => expect(paintedRanges(host).length).toBeGreaterThan(0));
+        await waitFor(() => expect(paintedRanges(other).length).toBeGreaterThan(0));
+        const control = editor(host), originalText = control.firstChild;
+        control.focus(); control.setSelectionRange(host.value.length, host.value.length);
+        await userEvent.keyboard('{Enter}<b>next</b>');
+        expect(host.value).toBe('<p>first</p>\n<b>next</b>');
+        await waitFor(() => expect(paintedRanges(host).map(range => range.toString())).toContain('b'));
+        host.setAttribute('fit', 'fill'); host.style.inlineSize = '8em'; host.style.blockSize = '5em';
+        await whenCemRendered(host);
+        control.scrollTop = control.scrollHeight; control.scrollLeft = control.scrollWidth;
+        const scroll = [control.scrollTop, control.scrollLeft];
+        const caret = control.selectionStart, nativeMarkup = control.innerHTML;
+        host.setAttribute('label', 'Colored draft'); await whenCemRendered(host);
+        expect(control.innerHTML).toBe(nativeMarkup); expect(control.firstChild).toBe(originalText);
+        expect([control.scrollTop, control.scrollLeft]).toEqual(scroll);
+        expect(control.selectionStart).toBe(caret); expect(document.activeElement).toBe(control);
+        await userEvent.keyboard('{Control>}z{/Control}'); expect(host.value).not.toBe('<p>first</p>\n<b>next</b>');
+        await userEvent.keyboard('{Control>}y{/Control}'); expect(host.value).toBe('<p>first</p>\n<b>next</b>');
+        control.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+        expect(paintedRanges(host)).toHaveLength(0); expect(paintedRanges(other).length).toBeGreaterThan(0);
+        control.textContent = '<p>日本語</p>'; control.dispatchEvent(new InputEvent('input', { bubbles: true, isComposing: true }));
+        host.value = '<p>Next file</p>'; host.setAttribute('source-id', 'next-resource'); await whenCemRendered(host);
+        expect(control.textContent).toBe('<p>日本語</p>'); expect(paintedRanges(host)).toHaveLength(0);
+        control.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+        await waitFor(() => expect(host.value).toBe('<p>Next file</p>'));
+        await waitFor(() => expect(paintedRanges(host).length).toBeGreaterThan(0));
+        for (const mode of ['light', 'dark', 'contrast-light', 'contrast-dark', 'native']) {
+            const section = host.parentElement!; section.className = `cem-theme-${mode}`;
+            const context = document.createElement('canvas').getContext('2d')!;
+            const luminance = (color: string) => {
+                context.clearRect(0, 0, 1, 1); context.fillStyle = color; context.fillRect(0, 0, 1, 1);
+                const rgb = [...context.getImageData(0, 0, 1, 1).data].slice(0, 3).map(channel => {
+                    const value = channel / 255; return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+                });
+                return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+            };
+            const background = luminance(getComputedStyle(control).backgroundColor);
+            for (const role of ['name', 'attribute', 'property', 'value', 'function', 'string', 'number', 'keyword', 'comment']) {
+                const foreground = luminance(getComputedStyle(control, `::highlight(cem-source-${role})`).color);
+                expect((Math.max(background, foreground) + 0.05) / (Math.min(background, foreground) + 0.05), `${mode} ${role}`).toBeGreaterThanOrEqual(4.5);
+            }
+            section.style.setProperty('--cem-palette-trust-x', 'rgb(12, 34, 56)');
+            expect(getComputedStyle(control, '::highlight(cem-source-name)').color).toBe('rgb(12, 34, 56)');
+            section.style.removeProperty('--cem-palette-trust-x');
+        }
+        host.value = '<i>old resource</i>'; host.setAttribute('source-id', 'older');
+        host.value = '<strong>Current</strong>'; host.setAttribute('source-id', 'current'); await whenCemRendered(host);
+        await waitFor(() => expect(paintedRanges(host).map(range => range.toString())).toContain('strong'));
+        expect(paintedRanges(host).map(range => range.toString())).not.toContain('i');
+        host.remove(); expect(paintedRanges(host)).toHaveLength(0);
+        expect(paintedRanges(other).length).toBeGreaterThan(0);
+        other.remove(); expect(paintedRanges(other)).toHaveLength(0);
     },
 });

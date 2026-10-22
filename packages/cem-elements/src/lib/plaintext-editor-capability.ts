@@ -1,6 +1,8 @@
+import type { CemSourceHighlightResult } from './internal/runtime-support/processing-host.js';
 import type { CemProducedElementBehavior, CemProducedElementBehaviorContext } from './cem-elements.js';
 
 interface EditorState {
+    host: HTMLElement;
     context: CemProducedElementBehaviorContext;
     value: string;
     authored?: string | null;
@@ -10,6 +12,10 @@ interface EditorState {
     deferred?: string;
     request?: string | null;
     selection: [number, number, string];
+    paintKey?: { source: string; type: string; identity: string };
+    paintAbort?: AbortController;
+    paintTimer?: ReturnType<typeof setTimeout>;
+    paint?: { registry: HighlightRegistry; name: string; highlight: Highlight; range: Range }[];
 }
 const states = new WeakMap<HTMLElement, EditorState>();
 const controls = new WeakMap<EventTarget, EditorState>();
@@ -34,7 +40,7 @@ export function cemPlaintextEditorCheckpoint(host: HTMLElement) {
 /** Browser-owned plaintext editing; rendering and styling remain declarative. */
 export const CEM_PLAINTEXT_EDITOR_CAPABILITY: CemProducedElementBehavior = {
     constructed(host, context) {
-        const state: EditorState = { context, value: '', composing: false, selection: [0, 0, 'none'] };
+        const state: EditorState = { host, context, value: '', composing: false, selection: [0, 0, 'none'] };
         states.set(host, state);
         installValue(host, state);
     },
@@ -46,23 +52,27 @@ export const CEM_PLAINTEXT_EDITOR_CAPABILITY: CemProducedElementBehavior = {
         const owns = (event: Event) => event.target === state.control;
         const editable = () => !host.hasAttribute('disabled') && !host.hasAttribute('readonly');
         host.ownerDocument.addEventListener('selectionchange', () => { selection(state); }, { signal: abort.signal });
-        host.addEventListener('beforeinput', event => { if (owns(event) && !editable()) event.preventDefault(); }, options);
+        host.addEventListener('beforeinput', event => {
+            if (!owns(event)) return;
+            if (!editable()) event.preventDefault(); else cancelPaint(state);
+        }, options);
         host.addEventListener('input', event => {
             if (!owns(event)) return;
             if (!editable()) { event.stopImmediatePropagation(); writeControl(state); return; }
             state.value = readControl(state.control!);
             state.context.setSlices({ value: state.value }, { render: false });
+            schedulePaint(host, state);
         }, options);
-        host.addEventListener('compositionstart', event => { if (owns(event)) state.composing = true; }, options);
+        host.addEventListener('compositionstart', event => { if (owns(event)) { state.composing = true; cancelPaint(state); } }, options);
         host.addEventListener('compositionend', event => {
             if (!owns(event)) return;
             state.composing = false;
             // A final native input can follow compositionend. Admit a queued
             // external value only after that browser edit has completed.
             setTimeout(() => {
-                if (abort.signal.aborted || state.composing || state.deferred === undefined) return;
-                const value = state.deferred; state.deferred = undefined;
-                replaceValue(state, value);
+                if (abort.signal.aborted || state.composing) return;
+                if (state.deferred !== undefined) { const value = state.deferred; state.deferred = undefined; replaceValue(state, value); }
+                schedulePaint(host, state);
             });
         }, options);
     },
@@ -87,6 +97,7 @@ export const CEM_PLAINTEXT_EDITOR_CAPABILITY: CemProducedElementBehavior = {
             state.control = control; controls.set(control, state); installValue(control, state);
         }
         if (!state.composing) writeControl(state);
+        schedulePaint(host, state);
         const request = host.getAttribute('selection-request');
         if (!request || request === state.request) return;
         state.request = request;
@@ -99,6 +110,7 @@ export const CEM_PLAINTEXT_EDITOR_CAPABILITY: CemProducedElementBehavior = {
     },
     disconnected(host) {
         const state = states.get(host)!;
+        cancelPaint(state);
         state.abort?.abort(); state.abort = undefined;
         state.composing = false; state.deferred = undefined;
         if (state.control) controls.delete(state.control);
@@ -117,9 +129,11 @@ function installValue(element: HTMLElement, state: EditorState): void {
 }
 function replaceValue(state: EditorState, value: string): void {
     if (state.composing) { state.deferred = value; return; }
+    cancelPaint(state);
     state.value = value;
     state.context.setSlices({ value }, { render: false });
     writeControl(state);
+    schedulePaint(state.host, state);
 }
 function writeControl(state: EditorState): void {
     const control = state.control;
@@ -131,6 +145,7 @@ function writeControl(state: EditorState): void {
 }
 
 function readControl(control: HTMLElement): string {
+    if ([...control.childNodes].every(node => node.nodeType === 3)) return control.textContent ?? '';
     const text = control.innerText;
     let last: ChildNode | null = control.lastChild;
     while (last?.lastChild) last = last.lastChild;
@@ -200,4 +215,77 @@ function setSelection(state: EditorState, start: number, end: number, direction:
     if (focus) control.focus();
     const first = point(start), last = point(end);
     control.ownerDocument.getSelection()?.setBaseAndExtent(...(direction === 'backward' ? last : first), ...(direction === 'backward' ? first : last));
+}
+
+// Paint is disposable browser presentation. Native text/undo and the canonical
+// value never contain color markup. Names are shared per document, ranges per owner.
+const paints = new WeakMap<Document, Map<string, Highlight>>();
+function clearPaint(state: EditorState): void {
+    for (const { registry, name, highlight, range } of state.paint ?? []) {
+        highlight.delete(range);
+        if (!highlight.size && registry.get(name) === highlight) registry.delete(name);
+    }
+    state.paint = undefined;
+}
+function cancelPaint(state: EditorState): void {
+    clearTimeout(state.paintTimer); state.paintTimer = undefined;
+    state.paintAbort?.abort(); state.paintAbort = undefined; state.paintKey = undefined; clearPaint(state);
+}
+function schedulePaint(host: HTMLElement, state: EditorState): void {
+    const type = host.getAttribute('content-type') ?? 'text/plain', identity = host.getAttribute('source-id') ?? '';
+    const control = state.control, view = control?.ownerDocument.defaultView as (Window & typeof globalThis) | null;
+    if (!control || !host.isConnected || state.composing || host.getAttribute('highlight') === 'off'
+        || type === 'text/plain' || !view?.CSS?.highlights || !view.Highlight || !state.context.highlightSource
+        || state.value.length > 262144) { cancelPaint(state); return; }
+    if (state.paintKey?.source === state.value && state.paintKey.type === type && state.paintKey.identity === identity) return;
+    cancelPaint(state);
+    const key = { source: state.value, type, identity }; state.paintKey = key;
+    const abort = new AbortController(); state.paintAbort = abort;
+    state.paintTimer = setTimeout(() => {
+        state.paintTimer = undefined;
+        if (abort.signal.aborted || state.composing) return;
+        void state.context.highlightSource!(key.source, type, abort.signal).then(result => {
+            if (abort.signal.aborted || result.signal.aborted || state.paintKey !== key || state.value !== key.source
+                || state.control !== control || !host.isConnected || state.composing || readControl(control) !== key.source
+                || (host.getAttribute('content-type') ?? 'text/plain') !== key.type
+                || (host.getAttribute('source-id') ?? '') !== key.identity || host.getAttribute('highlight') === 'off') {
+                abort.abort(); return;
+            }
+            if (result.status !== 'painted') { abort.abort(); return; }
+            const revoke = () => {
+                if (state.paintKey !== key) return;
+                clearPaint(state); state.paintKey = undefined; state.paintAbort = undefined; abort.abort();
+            };
+            result.signal.addEventListener('abort', revoke, { once: true });
+            abort.signal.addEventListener('abort', () => result.signal.removeEventListener('abort', revoke), { once: true });
+            applyPaint(state, result, view);
+        }).catch(() => { if (state.paintKey === key) { clearPaint(state); abort.abort(); } });
+    }, 80);
+}
+function applyPaint(state: EditorState, result: CemSourceHighlightResult, view: Window & typeof globalThis): void {
+    const control = state.control!, registry = view.CSS.highlights;
+    let owned = paints.get(control.ownerDocument);
+    if (!owned) { owned = new Map(); paints.set(control.ownerDocument, owned); }
+    const { segments, breaks } = positions(state), boundaries = new Map(breaks.map(item => [item.index, item]));
+    let cursor = 0;
+    const point = (offset: number): [Node, number] => {
+        while (cursor < segments.length && segments[cursor].end < offset) cursor++;
+        const text = segments[cursor];
+        if (text && offset >= text.start) return [text.node, Math.min(text.node.length, offset - text.start)];
+        const boundary = boundaries.get(offset);
+        if (boundary) return [boundary.node, boundary.offset];
+        return text ? [text.node, 0] : [control, control.childNodes.length];
+    };
+    state.paint = [];
+    for (const token of result.ranges) {
+        if (['syntax.raw', 'syntax.text', 'syntax.punctuation'].includes(token.role)) continue;
+        const name = `cem-source-${token.role.slice(7)}`;
+        let highlight = owned.get(name);
+        if (!highlight) { highlight = new view.Highlight(); owned.set(name, highlight); }
+        if (registry.has(name) && registry.get(name) !== highlight) continue;
+        const range = control.ownerDocument.createRange();
+        range.setStart(...point(token.start)); range.setEnd(...point(token.end));
+        highlight.add(range); registry.set(name, highlight);
+        state.paint.push({ registry, name, highlight, range });
+    }
 }

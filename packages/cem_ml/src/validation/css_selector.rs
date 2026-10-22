@@ -337,6 +337,8 @@ pub enum CssSelectorSimpleSelector {
     },
     PseudoElement {
         name: String,
+        /// Decoded case-sensitive custom identifier for ::highlight().
+        argument: Option<String>,
         source_range: CssSelectorSourceRange,
     },
     PseudoClass {
@@ -561,7 +563,7 @@ pub(crate) fn stylesheet_selector_structure(
     }
 }
 
-// Initial stylesheet profile: one terminal nonfunctional pseudo-element, only
+// Stylesheet profile: one terminal simple or custom-highlight pseudo-element, only
 // in the outer selector list. Reject unsupported placement without exposing a
 // partial specificity or changing forgiving selector-list matching semantics.
 fn stylesheet_pseudo_element_positions(list: &CssSelectorListAst, outer: bool) -> bool {
@@ -1065,6 +1067,7 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
                 if let Some(feature) = feature.filter(|token| token.token_kind == "ident") {
                     return Some((
                         CssSelectorSimpleSelector::PseudoElement {
+                            argument: None,
                             name: feature
                                 .value
                                 .clone()
@@ -1077,6 +1080,47 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
                         },
                         start + 3,
                     ));
+                }
+            }
+            if self.stylesheet
+                && feature.is_some_and(|token| {
+                    token.token_kind == "function-open"
+                        && token
+                            .value
+                            .as_deref()
+                            .is_some_and(|name| name.eq_ignore_ascii_case("highlight"))
+                })
+            {
+                if let Some(close) = self.find_close(start + 2, end, "parenthesis-close") {
+                    let arguments: Vec<_> = self.tokens[start + 3..close]
+                        .iter()
+                        .filter(|token| !is_trivia(token))
+                        .collect();
+                    if arguments.len() == 1 && arguments[0].token_kind == "ident" {
+                        if let Some(argument) = arguments[0].value.as_ref().filter(|name| {
+                            !matches!(
+                                name.to_ascii_lowercase().as_str(),
+                                "initial"
+                                    | "inherit"
+                                    | "unset"
+                                    | "revert"
+                                    | "revert-layer"
+                                    | "default"
+                            )
+                        }) {
+                            return Some((
+                                CssSelectorSimpleSelector::PseudoElement {
+                                    name: "highlight".to_owned(),
+                                    argument: Some(argument.clone()),
+                                    source_range: CssSelectorSourceRange::covering(
+                                        colon.source_range,
+                                        self.tokens[close].source_range,
+                                    ),
+                                },
+                                close + 1,
+                            ));
+                        }
+                    }
                 }
             }
             let range = feature.map_or(colon.source_range, |token| {
@@ -1111,6 +1155,7 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
                     return Some((
                         CssSelectorSimpleSelector::PseudoElement {
                             name,
+                            argument: None,
                             source_range: CssSelectorSourceRange::covering(
                                 colon.source_range,
                                 next.source_range,

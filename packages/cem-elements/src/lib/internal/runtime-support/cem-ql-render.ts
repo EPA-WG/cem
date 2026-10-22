@@ -514,6 +514,28 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
         return native.sealCommittedCheckpoint(input.text, input.receipt);
     }
 
+    /** Reuse native lossless color roles; only bounded presentation metadata leaves WASM. */
+    const highlightSource = nativeCheckpointWork(async (input: import('./processing-host.js').CemSourceHighlightInput) => {
+        if (input.source.length > 262144 || new TextEncoder().encode(input.source).byteLength > 262144
+            || input.contentType.length > 128) throw new Error('cem.source_highlight.limit');
+        await ensureRuntimeReady();
+        const text = native.sourceHighlightPaintV1(JSON.stringify({ source: input.source, contentType: input.contentType }));
+        if (text.length > 4 * 1024 * 1024) throw new Error('cem.source_highlight.limit');
+        // Named paint-range DTO, never a source AST/token stream.
+        const result = JSON.parse(text) as import('./processing-host.js').CemSourceHighlightResult;
+        if (result.schemaVersion !== 1 || !['painted', 'unsupported', 'limited', 'invalid'].includes(result.status)
+            || !Array.isArray(result.ranges) || result.ranges.length > 16384) throw new Error('cem.source_highlight.response');
+        let end = 0;
+        for (const range of result.ranges) {
+            if (!Number.isSafeInteger(range.start) || !Number.isSafeInteger(range.end) || range.start < end
+                || range.end <= range.start || range.end > input.source.length
+                || !/^syntax\.(name|attribute|property|value|function|string|number|keyword|comment|text|raw|punctuation)$/.test(range.role))
+                throw new Error('cem.source_highlight.response');
+            end = range.end;
+        }
+        return result;
+    });
+
     /** Validate scalar XML Base metadata through the shared native URL boundary. */
     const resolveDeclarationResourceBase = nativeCheckpointWork(resolveDeclarationResourceBaseOperation);
 
@@ -1390,6 +1412,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
     }
 
     return { domain, native, processCheckpointControl,
+        highlightSource,
         retainStylesheetSources,
         releaseRetainedTemplateStylesheets,
         processRetainedTemplateStylesheet,
@@ -1479,3 +1502,5 @@ export function prepareRenderingNativeRetirement(revision: number): { confirmati
 }
 
 export const processCheckpointControl = defaultBindings.processCheckpointControl;
+
+export const highlightSource = defaultBindings.highlightSource;

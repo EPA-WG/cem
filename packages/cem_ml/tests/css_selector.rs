@@ -323,6 +323,10 @@ fn parser_reports_invalid_and_unsupported_features_without_silent_non_matches() 
         .iter()
         .any(|diagnostic| diagnostic.code == "css-selector.parse.invalid"));
 
+    let (_, highlight) = parse_selector("article::highlight(cem-source-name)", &BTreeMap::new());
+    assert!(highlight
+        .iter()
+        .any(|diagnostic| diagnostic.code == "css-selector.feature.unsupported"));
     let (_, unsupported) = parse_selector("article::before", &BTreeMap::new());
     assert!(unsupported
         .iter()

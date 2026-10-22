@@ -712,3 +712,57 @@ fn literal_selector_arguments_retain_values_kinds_and_authored_ranges() {
     );
     assert_eq!(elements(&tree, "literal-arguments").len(), 2);
 }
+
+#[test]
+fn css_import_retains_custom_highlight_identifiers_and_rejects_invalid_arguments() {
+    for (selector, name) in [
+        (
+            "[part~='control']::highlight(cem-source-name)",
+            "cem-source-name",
+        ),
+        (r"::HIGHLIGHT( \43 aseName )", "CaseName"),
+    ] {
+        let tree = import_data(
+            &format!("{selector} {{color:red}}"),
+            "text/css",
+            "cem",
+            "paint.css",
+        )
+        .unwrap();
+        let list = tree.node(elements(&tree, "rule")[0]).unwrap().children[0];
+        assert_eq!(
+            attr(&tree, list, "analysis-status").as_deref(),
+            Some("complete"),
+            "{selector}"
+        );
+        let pseudo = elements(&tree, "simple-selector")
+            .into_iter()
+            .find(|id| attr(&tree, *id, "kind").as_deref() == Some("pseudo-element"))
+            .unwrap();
+        assert_eq!(attr(&tree, pseudo, "name").as_deref(), Some("highlight"));
+        assert_eq!(attr(&tree, pseudo, "value").as_deref(), Some(name));
+    }
+    for selector in [
+        "::highlight()",
+        "::highlight(a,b)",
+        "::highlight('a')",
+        "::highlight(initial)",
+        "::highlight(inherit)",
+        "::highlight(unset)",
+        "::highlight(revert)",
+        "::highlight(revert-layer)",
+        "::highlight(default)",
+        "::highlight(x):hover",
+        ":is(::highlight(x))",
+        "::part(x)",
+    ] {
+        let tree =
+            import_data(&format!("{selector} {{}}"), "text/css", "cem", "paint.css").unwrap();
+        let list = tree.node(elements(&tree, "rule")[0]).unwrap().children[0];
+        assert_eq!(
+            attr(&tree, list, "analysis-status").as_deref(),
+            Some("unsupported"),
+            "{selector}"
+        );
+    }
+}

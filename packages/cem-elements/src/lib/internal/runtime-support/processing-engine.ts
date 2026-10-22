@@ -18,6 +18,7 @@ import type { CemQlRenderBindings, RetainedXsltComponent, CemQlStylesheetArtifac
 import type {
     CemProcessingArtifactBinaryTransfer,
     CemProcessingArtifactHandle,
+    CemSourceHighlightInput, CemSourceHighlightResult,
     CemProcessingCheckpointInput, CemProcessingCheckpointResult,
     CemProcessingCompileInput,
     CemProcessingCompileResult,
@@ -204,6 +205,13 @@ export class CemProcessingEngine {
             : await this.bindings.renderRetainedNativeSessionLabel(retained.id, input);
         if (this.disposed || this.nativeSessions.get(key) !== retained) throw new Error('Native session result was superseded or released');
         return result;
+    }
+
+    async highlight(input: CemSourceHighlightInput): Promise<CemSourceHighlightResult> {
+        return this.work(async () => {
+            this.assertActive();
+            const result = await this.bindings.highlightSource(input); this.assertActive(); return result;
+        })();
     }
 
     async checkpoint(input: CemProcessingCheckpointInput): Promise<CemProcessingCheckpointResult> {

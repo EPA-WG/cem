@@ -4,8 +4,33 @@
 `plaintext-editor` capability in `cem-elements`. It follows the existing
 `cem-demo-element` playground's `contenteditable="plaintext-only"` convention.
 Its editable `pre` is a named multiline textbox in the light DOM. Source enters
-as text; HTML/CEM source is never executed or treated as editor markup. Syntax
-highlighting and language services are separate future work.
+as text; HTML/CEM source is never executed or treated as editor markup.
+
+Set `content-type="text/html|text/cem-ml|text/css"` to use the playground's native
+semantic coloring over exact authored source, including incomplete source and
+nested language regions. The default is `text/plain`. `highlight="auto"` is the
+default; `highlight="off"` keeps plain text. Optional `source-id` identifies a
+resource so switching files invalidates pending paint even for identical text.
+Coloring never formats source. Formatting remains an explicit caller command;
+language services, JSON/Markdown/XML/CEM-QL coloring are future work.
+
+The shared runtime paints CSS Custom Highlight ranges over the existing text;
+it inserts no coloring markup and leaves native undo, selection and scroll alone.
+Paint is transient and owned per editor, removed on edits, composition, file or
+language changes, disconnection, native pressure/retirement and scope disposal.
+Jobs debounce for 80 ms, cancel superseded work and time out after five seconds.
+Cancellation prevents queued work or publication; an admitted synchronous native
+parse can finish before cancellation is observed.
+They stay bound to the original processing/native generation; failed jobs do not
+retry through another heap. Native paint is bounded to 256 KiB UTF-8 source,
+16,384 ranges and a 2 MiB request. Unsupported browsers/languages, oversized
+source or unavailable native processing leave a fully editable plain source view.
+Authoritative text and UTF-16 selection remain the checkpoint contract; ranges,
+DOM nodes and native handles are never serialized. Widget resume is separate.
+
+Colors use inherited canonical palette foregrounds for semantic syntax roles
+and CanvasText in forced colors; disabled controls retain GrayText. There are
+no component-local palette defaults or public syntax-token overrides.
 
 Use `value` for initial/controlled source and `.value` for silent programmatic
 replacement. Native `input` bubbles; declarative `$target.value` and host-command
@@ -46,7 +71,8 @@ are consumed without applying. The host and owned control expose `.value`,
 ```cem
 {cem-element @tag=cem-source-editor
  @src="@epa-wg/cem-components/components/cem-source-editor/cem-source-editor.xhtml#cem-source-editor"}
-{cem-source-editor @label="templates/view.cemt" @value={datadom.slices.source}
+{cem-source-editor @label="templates/view.cemt" @content-type="text/cem-ml"
+ @source-id="view-template" @value={datadom.slices.source}
  @slice=source @slice-event=input @slice-value="$target.value"}
 ```
 

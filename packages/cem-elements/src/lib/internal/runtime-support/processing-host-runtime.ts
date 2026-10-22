@@ -22,6 +22,7 @@ import {
     defaultCemProcessingWorkerFactory,
     type CemProcessingCancelInput,
     type CemProcessingCancelResult,
+    type CemSourceHighlightInput, type CemSourceHighlightResult,
     type CemProcessingCheckpointControlInput, type CemProcessingCheckpointInput, type CemProcessingCheckpointResult,
     type CemProcessingCompileInput,
     type CemProcessingCompileResult,
@@ -845,6 +846,12 @@ class RootCemProcessingHost implements CemProcessingHost {
             && (payload.action !== 'prepare' || this.nativeSessionHandles.get(key) === issued) };
     }
 
+    highlight(input: CemSourceHighlightInput): CemProcessingJob<CemSourceHighlightResult> {
+        if (this.disposed) return this.disposedJob();
+        const refused = this.admissionRefusal<CemSourceHighlightResult>(); if (refused) return refused;
+        return this.submit('highlight', { ...input });
+    }
+
     checkpoint(input: CemProcessingCheckpointInput): CemProcessingJob<CemProcessingCheckpointResult> {
         if (this.disposed) return this.disposedJob();
         const refused = this.admissionRefusal<CemProcessingCheckpointResult>(); if (refused) return refused;
@@ -1083,6 +1090,9 @@ class RootCemProcessingHost implements CemProcessingHost {
                 if (!(error instanceof CemProcessingWorkerTransportError)) {
                     throw error;
                 }
+                // Source paint is disposable and belongs to its original heap.
+                // Do not move that owner or replay paint through another runtime.
+                if (request.operation === 'highlight') throw new Error('cem.source_highlight.generation_lost', { cause: error });
                 this.selectFallback(error, request);
                 if (request.operation === 'native-session' && request.payload.action !== 'prepare') {
                     throw new Error('Native session worker owner was lost; prepare a fresh session', { cause: error });
@@ -1142,6 +1152,10 @@ class RootCemProcessingHost implements CemProcessingHost {
         request: CemProcessingRequestEnvelope<TOperation>,
         cancellationAccepted = false
     ): Promise<OperationResult<TOperation>> {
+        if (request.operation === 'highlight') {
+            const result = await this.engine.highlight(request.payload);
+            this.assertNotCancelled(request); return result as OperationResult<TOperation>;
+        }
         if (request.operation === 'checkpoint') {
             const result = await this.engine.checkpoint(request.payload);
             this.assertNotCancelled(request); return result as OperationResult<TOperation>;
@@ -1284,7 +1298,7 @@ function requestScopePolicyStamp(
     jobPolicies: ReadonlyMap<number, string>
 ): string {
     if (request.operation === 'native-session') return request.payload.handle.scopePolicyStamp;
-    if (request.operation === 'value' || request.operation === 'checkpoint') return request.payload.scopePolicyStamp;
+    if (request.operation === 'value' || request.operation === 'checkpoint' || request.operation === 'highlight') return request.payload.scopePolicyStamp;
     if (request.operation === 'document') return request.payload.handle.scopePolicyStamp;
     if (request.operation === 'compile') {
         return request.payload.scopePolicyStamp;
@@ -1302,6 +1316,7 @@ type OperationResult<TOperation extends CemProcessingOperation> =
     TOperation extends 'native-session' ? CemProcessingNativeSessionResult
         : TOperation extends 'stylesheet' ? CemProcessingStylesheetResult
         : TOperation extends 'checkpoint' ? CemProcessingCheckpointResult
+        : TOperation extends 'highlight' ? CemSourceHighlightResult
         : TOperation extends 'value' ? CemProcessingValueResult
         : TOperation extends 'document' ? CemProcessingDocumentResult
         : TOperation extends 'compile' ? CemProcessingCompileResult

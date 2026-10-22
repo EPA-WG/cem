@@ -322,7 +322,17 @@ fn emit(
             text.push(']');
             Ok(text)
         }
-        "pseudo-element" => Ok(format!("::{}", ident(field("name")?))),
+        "pseudo-element" => {
+            let name = field("name")?;
+            match attribute(tree, id, "value") {
+                Some(argument) if name == "highlight" => {
+                    Ok(format!("::highlight({})", ident(argument)))
+                }
+                Some(_) => Err(invalid(tree, id)),
+                None if name != "highlight" => Ok(format!("::{}", ident(name))),
+                None => Err(invalid(tree, id)),
+            }
+        }
         "pseudo-class" => {
             let name = field("name")?;
             if attribute(tree, id, "argument-kind") == Some("literal") {

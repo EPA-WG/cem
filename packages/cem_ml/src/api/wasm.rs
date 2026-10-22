@@ -130,6 +130,15 @@ pub fn highlight_source_to_html_v1(request_json: &str) -> String {
     crate::api::source_highlight::highlight_source_to_html_v1_json(request_json)
 }
 
+/// Source-preserving editor paint metadata; formatting remains a separate command.
+#[wasm_bindgen(js_name = "sourceHighlightPaintV1")]
+pub fn source_highlight_paint_v1(request_json: &str) -> String {
+    let _native = match crate::runtime_admission::admit(false) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error) };
+    if request_json.len() > 2 * 1024 * 1024 { return "{\"schemaVersion\":1,\"status\":\"limited\",\"ranges\":[]}".into(); }
+    let _memory = match crate::runtime_memory::admit_input(request_json.len()) { Ok(permit) => permit, Err(error) => return crate::runtime_admission::refusal_json(error.0) };
+    crate::api::source_highlight::source_highlight_paint_v1_json(request_json)
+}
+
 /// Describe/edit a bounded transform graph using the same native AST and validation.
 #[wasm_bindgen(js_name = "authorTransformConfigV1")]
 pub fn author_transform_config_v1(request_json: &str) -> String {

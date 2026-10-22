@@ -12,10 +12,12 @@ import {
 describe('cem-element declarative capability contract', () => {
     it('owns reusable select behavior in cem-elements under a stable declaration identity', () => {
         expect(Object.keys(CEM_DECLARATIVE_CAPABILITIES)).toEqual(['live-preview', 'progress-status', 'disclosure-panel', 'sort-action', 'pagination', 'native-list', 'navigation-landmark', 'tab-panels', 'workflow-panels', 'tree-view', 'plaintext-editor', 'time-input', 'range-input', 'calendar-input', 'editable-choice', 'checkable-control', 'suggestions', 'native-surface', 'form-control', 'popup', 'action-control', 'action-command', 'composite-menu', 'choice-select']);
-        for (const name of ['live-preview', 'progress-status', 'disclosure-panel', 'sort-action', 'pagination', 'native-list', 'navigation-landmark', 'tab-panels', 'workflow-panels', 'tree-view', 'plaintext-editor'] as const) {
+        for (const name of ['live-preview', 'progress-status', 'disclosure-panel', 'sort-action', 'pagination', 'native-list', 'navigation-landmark', 'tab-panels', 'workflow-panels', 'tree-view'] as const) {
             expect(CEM_DECLARATIVE_CAPABILITIES[name].behaviorIdentity).toBe(`cem-elements-${name}-v1`);
             expect(CEM_DECLARATIVE_CAPABILITIES[name].behavior.formAssociated).toBeUndefined();
         }
+        expect(CEM_DECLARATIVE_CAPABILITIES['plaintext-editor'].behaviorIdentity).toBe('cem-elements-plaintext-editor-v2');
+        expect(CEM_DECLARATIVE_CAPABILITIES['plaintext-editor'].behavior.formAssociated).toBeUndefined();
         expect(CEM_DECLARATIVE_CAPABILITIES['time-input'].behaviorIdentity).toBe('cem-elements-time-input-v1');
         expect(CEM_DECLARATIVE_CAPABILITIES['range-input'].behaviorIdentity).toBe('cem-elements-range-input-v1');
         expect(CEM_DECLARATIVE_CAPABILITIES['time-input'].behavior.formAssociated).toBeUndefined();

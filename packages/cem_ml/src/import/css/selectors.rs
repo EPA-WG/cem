@@ -180,9 +180,12 @@ impl CssImport<'_> {
                     );
                 }
             }
-            CssSelectorSimpleSelector::PseudoElement { name, .. } => {
+            CssSelectorSimpleSelector::PseudoElement { name, argument, .. } => {
                 self.attr(id, "kind", "pseudo-element");
                 self.attr(id, "name", name);
+                if let Some(argument) = argument {
+                    self.attr(id, "value", argument);
+                }
             }
             CssSelectorSimpleSelector::PseudoClass {
                 name,

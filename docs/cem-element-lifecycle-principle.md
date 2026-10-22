@@ -151,7 +151,7 @@ still trigger scope recovery; ownership changes still replace the scope. Root
 transactions retain normal revision, cancellation and prepared-range guards.
 Restricted live previews validate every serialized root and descendant, and
 placement markers continue to require fresh native admission. The render engine
-is `1.7.0`, with processing-host protocol `v27`; incompatible explicit frame engine
+is `1.7.0`, with processing-host protocol `v28`; incompatible explicit frame engine
 versions are rejected before mutation.
 
 Same-parent moves use `moveBefore` when supported and ordinary insertion otherwise.

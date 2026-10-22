@@ -70,8 +70,12 @@ window.cemPlaygroundRuntime = runtime;
 {cem-radio @label=forward @name=selectionDirection @value=forward @checked={if datadom.slices.selectionDirection == "forward" { true } else { null }} @slice=selectionDirection @slice-event=change @slice-value="$target.value"}
 {cem-radio @label=backward @name=selectionDirection @value=backward @checked={if datadom.slices.selectionDirection == "backward" { true } else { null }} @slice=selectionDirection @slice-event=change @slice-value="$target.value"}
 }
+{cem-field @label="Source content type" @value={datadom.slices.contentType ?? "text/cem-ml"} @slice=contentType @slice-event=input @slice-value="$target.value"}
+{cem-field @label="Source identity" @value={datadom.slices.sourceId} @slice=sourceId @slice-event=input @slice-value="$target.value"}
+{cem-radio @label="Color automatically" @name=highlight @value=auto @checked={if (datadom.slices.highlight ?? "auto") == "auto" { true } else { null }} @slice=highlight @slice-event=change @slice-value="$target.value"}
+{cem-radio @label="Plain source" @name=highlight @value=off @checked={if datadom.slices.highlight == "off" { true } else { null }} @slice=highlight @slice-event=change @slice-value="$target.value"}
 {div @style="block-size:55vb" |
- {cem-source-editor @label={datadom.slices.label} @aria-label={datadom.slices.ariaLabel} @value={datadom.slices.value} @slice=value @slice-event=input @slice-value="$target.value" @fit={datadom.slices.fit} @dir={datadom.slices.dir} @class={datadom.slices.class} @describedby={datadom.slices.describedby}
+ {cem-source-editor @content-type={datadom.slices.contentType ?? "text/cem-ml"} @highlight={datadom.slices.highlight ?? "auto"} @source-id={datadom.slices.sourceId} @label={datadom.slices.label} @aria-label={datadom.slices.ariaLabel} @value={datadom.slices.value} @slice=value @slice-event=input @slice-value="$target.value" @fit={datadom.slices.fit} @dir={datadom.slices.dir} @class={datadom.slices.class} @describedby={datadom.slices.describedby}
  @readonly={if datadom.slices.readonly { true } else { null }} @disabled={if datadom.slices.disabled { true } else { null }} @hidden={if datadom.slices.hidden { true } else { null }}
  @selection-start={datadom.slices.selectionStart} @selection-end={datadom.slices.selectionEnd} @selection-direction={datadom.slices.selectionDirection} @selection-request={datadom.slices.selectionRequest} @selection-focus={if datadom.slices.selectionFocus { true } else { null }} |
   {cem:if @test=datadom.slices.slotLabel | {strong @slot=label | {$datadom.slices.slotLabel}}}

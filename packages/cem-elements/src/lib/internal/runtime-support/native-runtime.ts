@@ -239,6 +239,7 @@ function bind<K extends keyof typeof legacy>(name: K): typeof legacy[K] {
 export const closeCommandNativeAdmission = bind('closeCommandNativeAdmission');
 export const commandNativeResourceInventory = bind('commandNativeResourceInventory');
 export const prepareCommandNativeRetirement = bind('prepareCommandNativeRetirement');
+export const sourceHighlightPaintV1 = bind('sourceHighlightPaintV1');
 export const cemQlVersion = bind('cemQlVersion');
 export const runtimeMemoryStatus = bind('runtimeMemoryStatus');
 export const validateCheckpointControls = bind('validateCheckpointControls');
@@ -300,7 +301,7 @@ export const disposeCemtXPathFunctions = bind('disposeCemtXPathFunctions');
 
 const sharedEntrypoints = [
     'closeCommandNativeAdmission', 'commandNativeResourceInventory', 'prepareCommandNativeRetirement',
-    'cemQlVersion', 'runtimeMemoryStatus', 'validateCheckpointControls',
+    'sourceHighlightPaintV1', 'cemQlVersion', 'runtimeMemoryStatus', 'validateCheckpointControls',
     'validateCheckpointRuntime', 'sealCommittedCheckpoint', 'compileTemplate', 'adoptDomStylesheets',
     'adoptInstanceStylesheets', 'beginTemplateStylesheet', 'deliverTemplateStylesheet',
     'failTemplateStylesheet', 'releaseTemplateStylesheets', 'compileTemplateArtifact',

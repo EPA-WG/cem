@@ -1,7 +1,7 @@
 import { prepareCemCheckpointProcessing, preparedCheckpointProcessing, type CemResumedProcessingOwner } from './checkpoint-processing.js';
 import type { CemCheckpointResumeAdapter, CemCheckpointResumeContext } from './checkpoint-resume.js';
 import * as defaultRenderSupport from './internal/runtime-support/cem-ql-render.js';
-import { nativeCheckpointSourceProof, type CemCheckpointNativeSourceProof } from './internal/runtime-support/checkpoint-domain.js';
+import { nativeCheckpointIdentity, nativeCheckpointSubscribe, nativeCheckpointAssertAdmission, nativeCheckpointSourceProof, type CemCheckpointNativeSourceProof } from './internal/runtime-support/checkpoint-domain.js';
 import { hasCemStandaloneDatalistCheckpoint, cemStandaloneDatalistCheckpoint } from './standalone-datalist.js';
 import { hasCemManualListboxCheckpoint, cemManualListboxCheckpoint } from './manual-listbox.js';
 import { snapshotCheckpointReferences, checkpointReferenceSource, type CheckpointEndpoint, type CheckpointNativePublication } from './checkpoint-interactions.js';
@@ -79,6 +79,7 @@ import {
     cemProcessingHostOwnerScope, createCemProcessingTextSource,
     type CemArtifactRegistryHooks,
     type CemArtifactRegistryNamespace,
+    type CemSourceHighlightResult,
     type CemProcessingArtifactBinaryTransfer,
     type CemProcessingSourceRef,
     type CemProcessingCompileResult,
@@ -805,7 +806,7 @@ export const CEM_DECLARATIVE_CAPABILITIES = Object.freeze({
     'tab-panels': { behavior: CEM_TAB_PANELS_CAPABILITY, behaviorIdentity: 'cem-elements-tab-panels-v1' },
     'workflow-panels': { behavior: CEM_WORKFLOW_PANELS_CAPABILITY, behaviorIdentity: 'cem-elements-workflow-panels-v1' },
     'tree-view': { behavior: CEM_TREE_VIEW_CAPABILITY, behaviorIdentity: 'cem-elements-tree-view-v1' },
-    'plaintext-editor': { behavior: CEM_PLAINTEXT_EDITOR_CAPABILITY, behaviorIdentity: 'cem-elements-plaintext-editor-v1' },
+    'plaintext-editor': { behavior: CEM_PLAINTEXT_EDITOR_CAPABILITY, behaviorIdentity: 'cem-elements-plaintext-editor-v2' },
 
     'time-input': { behavior: CEM_TIME_INPUT_CAPABILITY, behaviorIdentity: 'cem-elements-time-input-v1' },
     'range-input': { behavior: CEM_RANGE_INPUT_CAPABILITY, behaviorIdentity: 'cem-elements-range-input-v1' },
@@ -862,6 +863,7 @@ export interface CemProducedElementBehaviorContext {
     readonly resumed?: boolean;
     readonly runtime: CemElementRuntime;
     readonly internals: ElementInternals | null;
+    highlightSource?(source: string, contentType: string, signal: AbortSignal): Promise<CemSourceHighlightResult & { signal: AbortSignal }>;
     snapshot(): DataIslandSnapshot;
     setSlices(values: Readonly<Record<string, unknown>>, options?: { render?: boolean }): boolean;
     requestRender(): void;
@@ -2729,11 +2731,46 @@ export class CemElementRuntime {
         return changed;
     }
 
+    /** Shared editor presentation follows the actual processing host/generation. */
+    private async highlightEditorSource(instance: HTMLElement, source: string, contentType: string, parent: AbortSignal) {
+        const compiled = this.declarationForInstance(instance);
+        if (!compiled || parent.aborted || !instance.isConnected) throw new Error('cem.source_highlight.stale');
+        const host = this.processingHost(compiled), client = host.checkpointClient;
+        const generation = client && nativeCheckpointIdentity(client);
+        if (!host.highlight || !client || !generation) throw new Error('cem.source_highlight.unavailable');
+        nativeCheckpointAssertAdmission(client);
+        const controller = new AbortController(); let done = false;
+        let stop = () => undefined as void, stopScope = () => undefined as void;
+        const cancel = () => controller.abort();
+        const job = host.highlight({ source, contentType, scopePolicyStamp: this.scopePolicyStamp });
+        const timer = setTimeout(cancel, 5000);
+        const aborted = new Promise<never>((_, reject) => controller.signal.addEventListener('abort', () => {
+            clearTimeout(timer); stop(); stopScope(); parent.removeEventListener('abort', cancel);
+            if (!done) void host.cancel({ targetJobId: job.jobId, reason: 'superseded' }).result.catch(() => undefined);
+            reject(new Error('cem.source_highlight.cancelled'));
+        }, { once: true }));
+        const pending = Promise.race([job.result, aborted]);
+        try {
+            parent.addEventListener('abort', cancel, { once: true });
+            stopScope = onCemDeclarationScopeDispose(compiled.declarationScope, cancel);
+            stop = nativeCheckpointSubscribe(client, () => {
+                try { nativeCheckpointAssertAdmission(client); if (nativeCheckpointIdentity(client) !== generation) cancel(); } catch { cancel(); }
+            });
+            if (controller.signal.aborted) { stop(); stopScope(); }
+            if (parent.aborted) cancel();
+            const result = await pending; done = true; clearTimeout(timer);
+            if (controller.signal.aborted || !instance.isConnected || this.declarationForInstance(instance) !== compiled
+                || this.processingHost(compiled) !== host || nativeCheckpointIdentity(client) !== generation) throw new Error('cem.source_highlight.stale');
+            return { ...result, signal: controller.signal };
+        } catch (error) { controller.abort(); await pending.catch(() => undefined); throw error; }
+    }
+
     private behaviorContext(instance: HTMLElement): CemProducedElementBehaviorContext {
         return {
             runtime: this,
             resumed: this.hydrationSnapshots.has(instance),
             internals: this.elementInternals.get(instance) ?? null,
+            highlightSource: (source, contentType, signal) => this.highlightEditorSource(instance, source, contentType, signal),
             snapshot: () => this.snapshotInstance(instance),
             setSlices: (values, options) => this.setInstanceSlices(instance, values, options),
             requestRender: () => {

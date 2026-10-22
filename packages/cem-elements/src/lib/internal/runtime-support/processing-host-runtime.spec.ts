@@ -3,6 +3,7 @@ import { closeNativeRenderingGeneration, retireNativeRenderingGeneration, native
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('./cem-ql-render.js', () => ({
+    highlightSource: vi.fn(async () => ({ schemaVersion: 1, status: 'painted', ranges: [{ start: 1, end: 2, role: 'syntax.name' }] })),
     cemMlTemplateArtifactPayloadKey: vi.fn(async (_source: string, sourceMapMode: 'dev' | 'prod') => ({
         contentType: 'cem-template-artifact',
         sourceHash: 'cem-bin/1+blake3:fixture-source',
@@ -943,5 +944,53 @@ describe('read-only recovery controls', () => {
             worker.settle('late'); await Promise.resolve(); expect(host.mode).toBe('worker');
             await expect(checkpointProcessingControl(host, { action: 'controls', text: '{}' })).rejects.toThrow('retired');
         } finally { scope.dispose(); vi.useRealTimers(); }
+    });
+});
+
+
+describe('bounded source paint processing jobs', () => {
+    class PaintWorker extends ControlledProcessingWorker {
+        settle(): void {
+            const request = this.requests.findLast(request => request.operation === 'highlight');
+            if (!request || request.operation !== 'highlight') throw new Error('Missing paint request');
+            this.emit('message', createCemProcessingSuccessEnvelope(request, {
+                schemaVersion: 1, status: 'painted', ranges: [{ start: 1, end: 2, role: 'syntax.name' }],
+            }));
+        }
+    }
+    const input = { source: '<p>', contentType: 'text/html', scopePolicyStamp: 'paint-policy' };
+    it('snapshots source identities, drains paint jobs on pressure and refuses new ordinary work', async () => {
+        const worker = new PaintWorker(), scope = createCemDeclarationScope({ document: {} as Document });
+        const host = cemProcessingHostForScope(scope, { workerScriptUrl: 'https://example.test/paint.js', workerFactory: () => worker as unknown as Worker });
+        const mutable = { ...input }, job = host.highlight!(mutable); mutable.source = '<new-file>';
+        await vi.waitFor(() => expect(worker.requests.at(-1)?.operation).toBe('highlight'));
+        expect(worker.requests.at(-1)?.payload).toMatchObject({ source: '<p>' });
+        worker.pressure(); let drained = false;
+        const proof = nativeCheckpointDrain(host.checkpointClient!).then(value => { drained = true; return value; });
+        await flushMicrotasks(); expect(drained).toBe(false);
+        await expect(host.highlight!(input).result).rejects.toThrow('cem.runtime.memory.closed');
+        worker.settle(); await expect(job.result).resolves.toMatchObject({ status: 'painted' });
+        expect(nativeCheckpointDrainCurrent(await proof)).toBe(true); expect(host.mode).toBe('worker');
+        scope.dispose();
+    });
+    it.each(['cancel', 'worker-loss'])('refuses stale paint after %s without fallback or replay', async scenario => {
+        const worker = new PaintWorker(), scope = createCemDeclarationScope({ document: {} as Document });
+        const host = cemProcessingHostForScope(scope, { workerScriptUrl: 'https://example.test/paint.js', workerFactory: () => worker as unknown as Worker });
+        const job = host.highlight!(input), refused = expect(job.result).rejects.toThrow();
+        await vi.waitFor(() => expect(worker.requests.at(-1)?.operation).toBe('highlight'));
+        if (scenario === 'cancel') {
+            const cancellation = host.cancel({ targetJobId: job.jobId, reason: 'superseded' });
+            await vi.waitFor(() => expect(worker.requests.at(-1)?.operation).toBe('cancel'));
+            worker.respondCancel(true); await cancellation.result;
+        } else worker.fail();
+        worker.settle(); await refused;
+        expect(host.mode).toBe('worker'); expect(worker.requests.filter(request => request.operation === 'highlight')).toHaveLength(1);
+        scope.dispose();
+    });
+    it('uses the shared native binding through ordinary fallback processing', async () => {
+        const scope = createCemDeclarationScope({ document: {} as Document });
+        const host = cemProcessingHostForScope(scope, { workerScriptUrl: 'https://example.test/paint.js', workerFactory: () => { throw new Error('fallback fixture'); } });
+        await expect(host.highlight!(input).result).resolves.toMatchObject({ status: 'painted', ranges: [{ start: 1, end: 2, role: 'syntax.name' }] });
+        expect(host.mode).toBe('main-thread'); scope.dispose();
     });
 });

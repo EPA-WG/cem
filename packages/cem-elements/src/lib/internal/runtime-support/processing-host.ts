@@ -20,7 +20,7 @@ import {
 } from '../../declaration-scope.js';
 
 /** @internal Phase 3A worker/main-thread protocol. Not a public package export. */
-export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v27' as const;
+export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v28' as const;
 
 export const CEM_PROCESSING_HOST_CAPABILITIES = [
     'compile',
@@ -28,6 +28,7 @@ export const CEM_PROCESSING_HOST_CAPABILITIES = [
     'document',
     'stylesheet',
     'value',
+    'highlight',
     'checkpoint',
     'native-session',
     'cancel',
@@ -388,6 +389,14 @@ export type CemProcessingStylesheetResult<TLoadId = string> =
         diagnostics: Array<CemProcessingDiagnostic | CemProcessingStylesheetDiagnostic> }
     | { status: 'released'; count: number };
 
+/** Native presentation metadata only: UTF-16 ranges and semantic paint roles.
+ * Contains no parser tree, tokens, source substrings or executable markup. */
+export interface CemSourceHighlightInput { source: string; contentType: string; scopePolicyStamp: string }
+export interface CemSourceHighlightResult {
+    schemaVersion: 1;
+    status: 'painted' | 'unsupported' | 'limited' | 'invalid';
+    ranges: { start: number; end: number; role: string }[];
+}
 /** Named lifecycle controls plus opaque native source, never a projected DOM/AST. */
 export interface CemProcessingCheckpointControlInput {
     action: 'controls' | 'runtime' | 'seal';
@@ -408,6 +417,7 @@ interface CemProcessingRequestPayloads {
     stylesheet: CemProcessingStylesheetInput;
     document: CemProcessingDocumentInput;
     value: CemProcessingValueInput;
+    highlight: CemSourceHighlightInput;
     checkpoint: CemProcessingCheckpointInput;
     'native-session': CemProcessingNativeSessionInput;
     compile: CemProcessingCompileInput;
@@ -420,6 +430,7 @@ interface CemProcessingSuccessResults {
     stylesheet: CemProcessingStylesheetResult;
     document: CemProcessingDocumentResult;
     value: CemProcessingValueResult;
+    highlight: CemSourceHighlightResult;
     checkpoint: CemProcessingCheckpointResult;
     'native-session': CemProcessingNativeSessionResult;
     compile: CemProcessingCompileResult;
@@ -672,6 +683,7 @@ export interface CemProcessingHost {
     /** Synchronous revocation of transient native authority after owner loss/disposal. */
     onNativeAuthorityLost?(invalidate: () => void): () => void;
     checkpoint?(input: CemProcessingCheckpointInput): CemProcessingJob<CemProcessingCheckpointResult>;
+    highlight?(input: CemSourceHighlightInput): CemProcessingJob<CemSourceHighlightResult>;
     value(input: CemProcessingValueInput): CemProcessingJob<CemProcessingValueResult>;
     nativeSession(input: CemProcessingNativeSessionInput): CemProcessingJob<CemProcessingNativeSessionResult>;
     stylesheet(input: CemProcessingStylesheetInput): CemProcessingJob<CemProcessingStylesheetResult>;
@@ -716,7 +728,7 @@ export type CemProcessingWorkerFailure =
       })
     | (CemProcessingWorkerFailureBase & { operation: 'stylesheet'; action: 'begin' | 'deliver' | 'fail' | 'release' })
     | (CemProcessingWorkerFailureBase & { operation: 'native-session'; action: CemProcessingNativeSessionInput['action'] })
-    | (CemProcessingWorkerFailureBase & { operation: 'checkpoint' | 'value' | 'document' | 'cancel' | 'dispose' });
+    | (CemProcessingWorkerFailureBase & { operation: 'highlight' | 'checkpoint' | 'value' | 'document' | 'cancel' | 'dispose' });
 
 export type CemProcessingWorkerFailureDecision =
     | {

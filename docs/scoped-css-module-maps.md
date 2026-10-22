@@ -405,7 +405,7 @@ relative combinators and source ranges remain in the retained tree. Authored
 rule selector text and the native lexical owner remain available as provenance.
 
 The initial stylesheet profile supports type/universal, class, ID and attribute
-selectors, terminal nonfunctional pseudo-elements, ordinary simple pseudo-classes,
+selectors, terminal simple pseudo-elements and `::highlight(custom-ident)`, ordinary simple pseudo-classes,
 `:is`, `:where`, `:not`, relative `:has`, and functional `:host` with a single
 compound argument. It records
 specificity as `a-b-c`, including the pseudo-class plus argument weight for
@@ -415,7 +415,7 @@ separate within a compound for later manufactured-specificity checks.
 
 `analysis-status="complete"` marks structure available to the compiler, not a
 browser feature-support assertion. The profile leaves simple pseudo-class
-matching to the browser. Forms outside the profile, including functional/chained
+matching to the browser. Forms outside the profile, including other functional/chained
 pseudo-elements,
 unsupported structural-selector arguments, root-level `&`, and unbound namespace prefixes produce an
 empty list marked `analysis-status="unsupported"`, with no partial specificity
@@ -434,7 +434,11 @@ ASCII-normalized, so uppercase host aliases and zero-weight `:WHERE` preserve
 their semantics. This does not change the selector-query parser profile.
 
 This extension accepts only a terminal pseudo-element in the outer selector
-list. Functional forms, chains, trailing selectors/states, and pseudo-elements
+list. `::highlight(custom-ident)` additionally retains its decoded, case-sensitive
+identifier as `value`, emits an escaped identifier and contributes one type
+specificity unit. Empty, string/list and CSS-wide/default arguments are refused;
+selector queries continue to reject pseudo-elements. Other functional forms,
+chains, trailing selectors/states, and pseudo-elements
 inside selector-list functions remain outside the retained profile. Such a
 list is explicitly unsupported rather than partially emitted. The terminal
 restriction is this implementation's coverage limit, not a claim that all other
@@ -1164,7 +1168,7 @@ spacing: unqualified type selectors emit with an explicit wildcard namespace,
 and rewritten animation references emit quoted names. Existing browser animation
 fixtures already exercise those representations.
 
-Known syntax limits remain explicit: functional pseudo-elements, `:state()`,
+Known syntax limits remain explicit: other functional pseudo-elements, `:state()`,
 complex/list-valued host aliases, dynamic animation names/shorthands and some
 static timing-function forms are outside the retained profile. They are not a
 reason to add one emitter per function. Add grammar only with a concrete fixture,

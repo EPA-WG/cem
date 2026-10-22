@@ -562,3 +562,17 @@ fn selector_functions_cannot_use_literal_metadata_to_bypass_specificity_analysis
         "cem.scoped_css.selector_tree_invalid"
     );
 }
+
+#[test]
+fn declaration_selectors_emit_native_highlight_names_with_type_specificity() {
+    let result = selectors(
+        r"[part~='control']:not([aria-disabled='true'])::HIGHLIGHT(\43 aseName) {color:red}",
+    );
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert_eq!(result.selectors.len(), 1);
+    assert_eq!(
+        result.selectors[0].text,
+        r#"[part~="control"]:not([aria-disabled="true"])::highlight(CaseName)"#
+    );
+    assert_eq!(result.selectors[0].authored_specificity, (0, 2, 1));
+}

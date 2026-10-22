@@ -1097,6 +1097,12 @@ async function verifyGalleries(baseUrl, tags) {
                     throw error;
                 });
                 assert.equal(await source.locator('p').count(), 0);
+                await page.getByRole('textbox', { name: 'Source content type', exact: true }).fill('text/html');
+                await page.waitForFunction(() => {
+                    const host = document.querySelector('main cem-source-editor');
+                    return [...CSS.highlights.values()].some(paint => [...paint].some(range => host.contains(range.startContainer)));
+                });
+                assert.equal(await source.evaluate(node => node.value), '<p>Plain source</p>\n{h1 | Edited}', 'Coloring preserves authored source');
                 await page.getByRole('textbox', { name: 'label', exact: true }).fill('Edited filename');
                 await page.waitForFunction(() => document.querySelector('main cem-source-editor')?.getAttribute('label') === 'Edited filename');
                 assert.equal(await source.evaluate(node => node.value), '<p>Plain source</p>\n{h1 | Edited}');
@@ -1109,6 +1115,17 @@ async function verifyGalleries(baseUrl, tags) {
                     return [style.forcedColorAdjust, style.borderTopStyle, parseFloat(style.borderTopWidth) > 0,
                         node.matches(':focus-visible'), style.outlineStyle, parseFloat(style.outlineWidth) > 0];
                 }), ['auto', 'solid', true, true, 'solid', true], 'Source boundary and keyboard focus survive forced colors');
+                for (const disabled of [false, true]) {
+                    if (disabled) await page.evaluate(async () => {
+                        const host = document.querySelector('main cem-source-editor'); host.setAttribute('disabled', '');
+                        await window.cemPlaygroundRuntime.whenRenderSettled(host);
+                    });
+                    assert.equal(await source.evaluate((node, disabled) => {
+                        const marker = document.createElement('span'); marker.style.color = disabled ? 'GrayText' : 'CanvasText'; document.body.append(marker);
+                        const expected = getComputedStyle(marker).color; marker.remove();
+                        return getComputedStyle(node, '::highlight(cem-source-name)').color === expected;
+                    }, disabled), true, `Source paint uses forced ${disabled ? 'GrayText' : 'CanvasText'}`);
+                }
             }
         } finally { await context.close(); }
     }

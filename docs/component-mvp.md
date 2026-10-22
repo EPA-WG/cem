@@ -47,7 +47,7 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
 | Input | `fieldset` | `cem-fieldset` | Native labeled form groups with linked help and inherited disabled state | palette, stroke, bend, gap, inset, typography |
 | Input | `field` | `cem-field` | Generic labeled field wrapper for simple form controls | palette, stroke, bend, gap, typography |
 | Input | `text-field` | `cem-text-field` | Single-line text entry with label, help, and validation | palette, stroke, bend, gap, typography |
-| Input | `source-editor` | `cem-source-editor` | Plaintext contenteditable source documents with retained caret, undo and explicit source selection | palette, stroke, bend, gap, inset, control, typography |
+| Input | `source-editor` | `cem-source-editor` | Source documents with retained caret/undo, explicit source selection and optional native HTML/CEM-ML/CSS coloring | palette, stroke, bend, gap, inset, control, typography |
 | Input | `textarea` | `cem-textarea` | Multi-line text entry with label, help, and validation | palette, stroke, bend, gap, typography |
 | Input | `autocomplete` | `cem-autocomplete` | Form-associated editable combobox with declarative suggestions | palette, select, stroke, bend, layering, control, typography |
 | Input | `timepicker` | `cem-timepicker` | Time-of-day choice popup with an authored native text-input form owner | action, palette, select, stroke, bend, layering, coupling, control, typography |

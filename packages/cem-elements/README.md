@@ -556,10 +556,10 @@ disable the source's behavior; the tag name does not supply a default.
 
 `capability="plaintext-editor"` admits one `part="control"` editable element
 inside a direct `part="root"`. `cem-source-editor` supplies the production
-CEM-ML declaration and styles. The capability owns only text values, native
-composition/caret retention and explicit source selection. It exposes a string
-`.value` to declarative input bindings and host commands, reading native
-`innerText` to retain Enter/paste line breaks. Programmatic source is assigned
+CEM-ML declaration and styles. The capability owns text values, native
+composition/caret retention, explicit source selection and disposable native syntax paint. It exposes a string
+`.value` to declarative input bindings and host commands, reading exact text nodes and native block/BR
+line breaks to retain authored CRLF and Enter/paste source. Programmatic source is assigned
 as text, never HTML. Readonly and disabled declarations retain native semantics.
 
 A behavior's `preserveRenderedChildren` hook protects that browser-owned editing
@@ -569,6 +569,19 @@ applied by the capability, deferred during composition. The canonical value
 slice remains serializable; DOM nodes, browser Selection and undo state are
 transient. This capability does not add a form-associated host or language
 services. See the [source editor contract](../cem-components/docs/source-editor-contract.md).
+
+With `content-type="text/html|text/cem-ml|text/css"`, the capability reuses the
+playground's lossless native highlighter through bounded `highlight` processing
+jobs (protocol v28). The named `sourceHighlightPaintV1` presentation DTO contains
+only schema/status and UTF-16 role ranges, never a source AST or token stream.
+CSS Custom Highlights paint existing text without rewriting the editable DOM.
+The original native client/generation controls admission, cancellation and paint
+revocation; pressure, disposal and superseded text/file identities clear paint.
+Source is limited to 256 KiB UTF-8 and 16,384 ranges; jobs debounce for 80 ms and
+time out after five seconds. Missing browser support or native/language support
+leaves plain editable text. `highlight="off"` opts out, `source-id` fences file
+switches, and the default `content-type` remains `text/plain`. Formatting remains
+an explicit command. No Studio-specific editing behavior is required.
 
 ## Native string form controls
 

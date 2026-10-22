@@ -5,6 +5,13 @@ const native = await wasm.default({module_or_path:await readFile(new URL('../dis
 const status=()=>JSON.parse(wasm.runtimeMemoryStatus());
 const original=status().config;
 const configured=config=>JSON.parse(wasm.configureRuntimeMemoryBudget(JSON.stringify(config)));
+const paint=source=>JSON.parse(wasm.sourceHighlightPaintV1(JSON.stringify({source,contentType:'text/html'})));
+const source='😀é\r\n<p title="x">Incomplete<\n\n';
+const painted=paint(source);
+assert.equal(painted.status,'painted');
+assert.ok(painted.ranges.some(range=>range.role==='syntax.name' && source.slice(range.start,range.end)==='p'));
+assert.equal(painted.html,undefined);
+assert.equal(paint('é'.repeat(131073)).status,'limited');
 const template=JSON.parse(wasm.compileTemplate('{p | {$value}}','["value"]'));
 assert.ok(template.artifactId);
 try {
@@ -23,6 +30,7 @@ try {
     // Deliberately lower trusted setup below current measured capacity.
     configured({softLimitBytes:1,hardLimitBytes:65536,recoveryHeadroomBytes:32768,maxConcurrentOperations:1});
     assert.equal(status().hardPressure,true);
+    assert.ok(paint(source).diagnostics.some(d=>d.code==='cem.runtime.memory.admission'));
     const refused=JSON.parse(wasm.compileTemplate('{p | refused}','[]'));
     assert.ok(refused.diagnostics.some(d=>d.code==='cem.runtime.memory.admission'));
     assert.equal(refused.artifactId,undefined);
