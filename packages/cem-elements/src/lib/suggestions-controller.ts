@@ -1,8 +1,9 @@
+import type { CemProcessingHost } from './internal/runtime-support/processing-host.js';
 import type { CheckpointSuggestions, CheckpointSource, CheckpointReadySuggestions } from './checkpoint-interactions.js';
 import { checkpointSuggestionIndex, checkpointSuggestionSource } from './native-suggestions-publication.js';
 import type { CemPlatformCloseCoordinator, CemPlatformCloseLease } from './platform-close.js';
 import { getCemEditorProvider, registerCemEditorCheckpoint, subscribeCemEditorCheckpoint } from './form-control-capability.js';
-import { connectCemManualListbox, type CemManualListboxController } from './manual-listbox.js';
+import { connectCemManualListbox, parkCemManualListbox, type CemManualListboxController } from './manual-listbox.js';
 import { reportInteractionReference } from './interaction-reference.js';
 import type { CemNativeSuggestionSource } from './native-suggestions-publication.js';
 import type { CemSuggestionsPlacements, CemSuggestionsPlacedRow } from './suggestions-placements.js';
@@ -15,6 +16,8 @@ export interface CemSuggestionsControllerOptions {
     prepare(query: string, queryRevision: number): Promise<CemSuggestionsPlacements>;
     /** Trusted original source intent for settled inactive states; not live authority. */
     checkpointSource?(): CheckpointSource | undefined;
+    /** Original host source policy; only called after every participating owner is bound. */
+    resume?(host: CemProcessingHost): Promise<CemSuggestionsControllerOptions>;
     ancestors?: readonly CemSurfaceLifetime[];
     /** Explicit trusted host admission; never enabled by local markup. */
     platformClose?: CemPlatformCloseCoordinator;
@@ -44,6 +47,13 @@ export interface CemSuggestionsController {
     disconnect(): void;
 }
 
+const handoffs = new WeakMap<CemSuggestionsController, {
+    park(): () => void;
+    resume(options: CemSuggestionsControllerOptions, saved: CheckpointSuggestions): Promise<void>;
+}>();
+export function cemSuggestionsControllerHandoff(controller: CemSuggestionsController) {
+    const handoff = handoffs.get(controller); if (!handoff) throw Error('cem.checkpoint.resume.suggestions'); return handoff;
+}
 /** One shared native-row/controller route. The field provider owns all value writes. */
 export function connectCemSuggestionsController(host: HTMLElement, options: CemSuggestionsControllerOptions): CemSuggestionsController {
     const provider = getCemEditorProvider(options.editorHost), editor = provider?.control;
@@ -52,6 +62,7 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
     }
     const checkpointOwner = {};
     const abort = new AbortController(), lease = provider.lease(checkpointOwner), validity = provider.validity(checkpointOwner);
+    let paused = false, resumePopup: (() => void) | undefined;
     let disposed = false, generation = 0, queryRevision = 0, preparedRevision = -1, query = '', intent = false;
     let placements: CemSuggestionsPlacements | undefined, unsubscribePlacement: (() => void) | undefined;
     let active: CemSuggestionsPlacedRow | undefined, committed: { source: CemNativeSuggestionSource; value: string } | undefined;
@@ -79,16 +90,18 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
             qualifying: feedbackIntent && bound() && focused() && provider.editable && !provider.composing });
     };
     const notifyFeedback = () => {
+        if (paused) return;
         const next = feedback(), key = JSON.stringify(next);
         if (key !== lastFeedback) { lastFeedback = key; options.onFeedback?.(next); }
     };
     const updateValidity = () => {
+        if (paused) return;
         if (committed && !committed.source.valid) clearProof();
         validity.set(host.hasAttribute('require-selection') && !!editor.value && !committed
             ? host.getAttribute('selection-message')?.trim() || 'Select a suggestion.' : '');
     };
     const claim = () => {
-        if (reconciling) return;
+        if (reconciling || paused) return;
         reconciling = true;
         try {
             const visible = !!popup?.visible;
@@ -113,6 +126,7 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
         reportInteractionReference(host, platformClose ? undefined : 'interaction-platform-close-unavailable', 'platform-close');
     };
     const invalidate = () => {
+        if (paused) return;
         const readiness = host.getAttribute('options-state');
         const retainFeedback = bound() && feedbackIntent && focused() && ['pending', 'failed'].includes(readiness ?? '');
         feedbackState = retainFeedback ? readiness === 'pending' ? 'pending' : 'failed' : 'idle';
@@ -124,9 +138,10 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
     };
     const releases: (() => void)[] = [];
     const lifecycleListeners = new Set<() => void>();
-    const request = async (opening: boolean, preserveFeedback = false, event?: KeyboardEvent) => {
+    const request = async (opening: boolean, preserveFeedback = false, event?: KeyboardEvent, restored?: CheckpointSuggestions) => {
+        if (paused) return;
         releasePlatform();
-        if (!bound() || !provider.editable || provider.composing) { dismiss('unavailable'); return; }
+        if (!bound() || !provider.editable && !(restored && 'phase' in restored && restored.phase === 'inactive' && restored.proof) || provider.composing) { dismiss('unavailable'); return; }
         const attempt = ++generation, revision = provider.revision, value = editor.value, nextQuery = ++queryRevision;
         feedbackIntent = focused() && (opening || preserveFeedback && feedbackIntent);
         intent = opening && focused(); pending = true; feedbackState = 'pending'; active = undefined; pointer = undefined;
@@ -148,16 +163,47 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
             unsubscribePlacement = prepared.subscribe(invalidate); preparedRevision = revision; query = value; pending = false;
             if (committed && host.getAttribute('options-policy') === 'vocabulary'
                 && !prepared.rows.some(row => row.native.source === committed?.source && row.native.available)) clearProof();
+            if (restored) {
+                const proof = 'phase' in restored ? restored.phase === 'inactive' ? restored.proof : undefined : restored.committedIndex < 0 ? undefined
+                    : { index: restored.committedIndex, value: restored.committedValue };
+                clearProof();
+                if (proof) {
+                    const fresh = (await prepared.binding.rows()).find(row => checkpointSuggestionIndex(row.source) === proof.index);
+                    if (!fresh?.valid || !fresh.available || fresh.value !== proof.value || editor.value !== proof.value)
+                        throw Error('cem.checkpoint.resume.proof');
+                    committed = { source: fresh.source, value: fresh.value };
+                    stopProof = fresh.source.subscribe(() => { if (!paused) { clearProof(); updateValidity(); } });
+                }
+                if (!('phase' in restored)) {
+                    if (prepared.rows.length !== restored.rows.length || prepared.rows.some((row, index) => {
+                        const expected = restored.rows[index]; return checkpointSuggestionIndex(row.native.source) !== expected.index
+                            || row.native.value !== expected.value || eligibleRow(row) !== expected.eligible || row.native.available !== expected.available
+                            || row.element.getAttribute('data-cem-render-node-id') !== expected.nodeId;
+                    })) throw Error('cem.checkpoint.resume.rows');
+                    intent = restored.intent && focused(); feedbackIntent = restored.feedbackIntent;
+                }
+            }
             feedbackState = 'ready'; updateValidity(); reportInteractionReference(host, undefined, 'suggestions-source');
             claim();
-            if (intent && focused() && available().length) intent = !!popup?.open();
+            let presented: Promise<void> | undefined;
+            if (intent && focused() && available().length) {
+                if (restored && !options.listbox.matches(':popover-open')) presented = new Promise<void>(resolve => options.listbox.addEventListener('toggle', () => resolve(), { once: true }));
+                intent = !!popup?.open();
+            }
             else if (!available().length) closePresentation('empty');
+            if (restored && !('phase' in restored)) {
+                active = restored.activeIndex < 0 ? undefined : prepared.rows.find(row => checkpointSuggestionIndex(row.native.source) === restored.activeIndex);
+                if (restored.activeIndex >= 0 && (!active || !eligible(active))) throw Error('cem.checkpoint.resume.active');
+                options.listbox.scrollTop = restored.scrollTop; options.listbox.scrollLeft = restored.scrollLeft;
+            }
             claim();
+            if (presented && intent) await presented;
         } catch (error) {
             if (!disposed && attempt === generation) {
                 pending = false; feedbackState = host.getAttribute('options-state') === 'pending' ? 'pending' : 'failed';
                 closePresentation('source'); lease.attributes.clear();
                 reportInteractionReference(host, 'suggestions-source-unavailable', 'suggestions-source'); options.onError?.(error);
+                if (restored) throw error;
             }
         } finally { if (attempt === generation) { pending = false; notifyFeedback(); } }
     };
@@ -186,7 +232,7 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
         return lease.commit(row.native.value, { revision: provider.revision,
             current: () => attempt === generation && eligible(row) && focused() && !!popup?.visible,
             applied() { clearProof(); committed = { source: row.native.source, value: row.native.value };
-                stopProof = row.native.source.subscribe(() => { clearProof(); updateValidity(); }); dismiss('commit'); updateValidity(); },
+                stopProof = row.native.source.subscribe(() => { if (!paused) { clearProof(); updateValidity(); } }); dismiss('commit'); updateValidity(); },
         });
     };
     const move = (direction: number) => {
@@ -203,7 +249,7 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
         return true;
     };
     releases.push(subscribeCemEditorCheckpoint(provider, lease, update => {
-        if (disposed) return;
+        if (disposed || paused) return;
         if (update.cause === 'attribute-claims') return;
         if (update.cause === 'claims' || update.cause === 'availability') {
             if (!bound() || !provider.editable) invalidate();
@@ -310,13 +356,13 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
     releases.push(registerCemEditorCheckpoint(provider, { host, owner: checkpointOwner, lease, current: () => !!checkpoint(),
         claim: () => { const state = checkpoint(); return state ? 'phase' in state ? 'none' : 'attributes' : undefined; } }));
     void request(false); updateValidity();
-    return {
+    const controller: CemSuggestionsController = {
         checkpoint,
         get retained() { return retained(); },
         get visible() { return !!popup?.visible; }, get pending() { return pending; },
         get active() { return active?.native.source; }, get committed() { updateValidity(); return committed?.source; },
         get feedback() { return feedback(); },
-        refresh: () => request(false, true), reconcile: () => { platformClose?.reconcile(); popup?.reconcile(); claim(); updateValidity(); }, dismiss,
+        refresh: () => request(false, true), reconcile: () => { if (paused) return; platformClose?.reconcile(); popup?.reconcile(); claim(); updateValidity(); }, dismiss,
         disconnect() {
             if (disposed) return; releasePlatform(); disposed = true; ++generation; pending = false; feedbackIntent = false; feedbackState = 'idle';
             notifyFeedback();
@@ -325,4 +371,24 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
             popup?.disconnect(); lease.release(); validity.release();
         },
     };
+    handoffs.set(controller, {
+        park() {
+            if (paused || !checkpoint()) throw Error('cem.checkpoint.resume.suggestions');
+            const unparkPopup = parkCemManualListbox(popup!); resumePopup = unparkPopup; paused = true;
+            let released = false;
+            return () => { if (released) return; released = true; paused = false; unparkPopup(); };
+        },
+        async resume(next, saved) {
+            if ('phase' in saved && saved.phase === 'native-datalist') throw Error('cem.checkpoint.resume.profile');
+            if (!paused || next.editorHost !== options.editorHost || next.listbox !== options.listbox || provider.composing
+                || saved.providerRevision !== provider.revision) throw Error('cem.checkpoint.resume.provider');
+            options = { ...next, onFeedback: options.onFeedback };
+            // Expired native rows are never current again. Rebuild from the fresh
+            // source; the browser lease retains its consumed-change/default state.
+            paused = false; resumePopup?.(); resumePopup = undefined; queryRevision = saved.queryRevision - 1;
+            await request(!('phase' in saved) && saved.intent, false, undefined, saved);
+            if (!checkpoint()) throw Error('cem.checkpoint.resume.publication');
+        },
+    });
+    return controller;
 }

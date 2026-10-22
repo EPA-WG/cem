@@ -445,7 +445,12 @@ export class CemCheckpointPublicationCoordinator {
 
     async retireRenderingGeneration(proof: CemNativeDrain, timeoutMs = 5000, consent?: CemFallbackRetirementConsent): Promise<import('./internal/runtime-support/checkpoint-domain.js').CemRetiredRenderingGeneration> {
         const coverage = this.renderingCoverage();
-        return retireNativeRenderingGeneration(coverage.bindings, coverage.sources, proof, this.handoff(), timeoutMs, consent);
+        try { return await retireNativeRenderingGeneration(coverage.bindings, coverage.sources, proof, this.handoff(), timeoutMs, consent); }
+        catch (error) {
+            const ticket = this.resumeTicket; this.resumeTicket = undefined;
+            if (ticket) revokeCheckpointResumeTicket(ticket);
+            throw error;
+        }
     }
 
     private renderingCoverage() {

@@ -34,7 +34,7 @@ function fixture() {
     let active = false, sequence = 3;
     const context: CemCheckpointResumeContext = { previousRuntimeId: 'old', runtimeId: domain.issuedIdentity(), runtime: {},
         receipt: { instanceId: 'editor', declarationIdentity: 'template:1', dataRevision: '2', acceptedEventSequence: 3 },
-        island: '<template>opaque é😀</template>', active: () => active, signal: controller.signal };
+        island: '<template>opaque é😀</template>', active: () => active, bindOwners: () => undefined, renewOwners: async () => undefined, signal: controller.signal };
     const state = { version: 'cem-checkpoint-runtime/1', capability: null, writers, writeDisposition: 'suppress-until-new-input',
         resources: [{ name: 'catalog', kind: 'http', disposition: 'reimport-and-read-again', state: 'loaded', revision: 1, cursor: 0, live: false,
             url: 'https://example.test/data.xml', method: 'GET', document: { base64: btoa('<data>original</data>'), contentType: 'application/xml', sourceUri: 'https://example.test/data.xml', digest: 'native' } }] } as CemCheckpointRuntimeState;

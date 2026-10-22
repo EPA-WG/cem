@@ -1,3 +1,6 @@
+import type { CemElementRuntime } from './cem-elements.js';
+import type { CemProcessingHost } from './internal/runtime-support/processing-host.js';
+import { registerCemProviderHandoff, validateCemProviderSource } from './checkpoint-provider-handoff.js';
 import type { CheckpointEndpoint, CheckpointManualListbox } from './checkpoint-interactions.js';
 import { getCemEditorProvider, registerCemEditorCheckpoint, isCemEditorLeaseFor, subscribeCemEditorCheckpoint, type CemEditorLease } from './form-control-capability.js';
 import { createCemSurfaceGeometryLease, nativeSurfaceGeometry } from './popup-controller.js';
@@ -11,10 +14,14 @@ export interface CemManualListboxLifecycle {
     ready(): boolean;
     /** Host opts into inert reset/reacquisition; callbacks remain current admission policy. */
     checkpoint?: boolean;
+    /** Original host policy reacquires sources on the already-bound fresh owner.
+     * Returning a lifecycle grants no old native handle or publication. */
+    resume?(host: CemProcessingHost): Promise<CemManualListboxLifecycle>;
     /** Revoke any outstanding opening when the captured relationship/revision changes. */
     subscribe(invalidate: () => void): () => void;
 }
 interface Options {
+    runtime?: CemElementRuntime;
     host: HTMLElement;
     editorHost: HTMLElement;
     lifecycle: CemManualListboxLifecycle;
@@ -24,6 +31,10 @@ interface Options {
     onVisibility?(open: boolean, reason: string): void;
 }
 export interface CemManualListboxController extends CemSurfaceSession { open(): boolean }
+const pauses = new WeakMap<CemManualListboxController, () => () => void>();
+export function parkCemManualListbox(controller: CemManualListboxController): () => void {
+    const park = pauses.get(controller); if (!park) throw Error('cem.checkpoint.resume.listbox'); return park();
+}
 const checkpointDelegates = new WeakMap<HTMLElement, { editor: HTMLElement; panel: HTMLElement; capture(): Omit<CheckpointManualListbox, 'panel' | 'editor'> | undefined }>();
 export function hasCemManualListboxCheckpoint(host: HTMLElement): boolean { return checkpointDelegates.has(host); }
 export function cemManualListboxCheckpoint(host: HTMLElement, resolve: (node: HTMLElement) => CheckpointEndpoint | undefined): CheckpointManualListbox | undefined {
@@ -37,14 +48,16 @@ const noninteractive = 'button,a[href],input,select,textarea,summary,iframe,obje
 export function connectCemManualListbox(owner: HTMLElement, options: Options): CemManualListboxController {
     assertCemSurfaceOwnerAvailable(owner);
     if (!options.editorLease && options.lifecycle.checkpoint && checkpointDelegates.has(options.host)) throw new TypeError('Duplicate standalone delegate checkpoint owner');
-    const { host, editorHost, lifecycle } = options;
+    const { host, editorHost } = options;
+    let lifecycle = options.lifecycle;
+    let stopLifecycle: (() => void) | undefined;
     const provider = getCemEditorProvider(editorHost), editor = provider?.control;
     if (!provider || !(editor instanceof HTMLInputElement)) throw new TypeError('Manual listbox requires an exact native editor provider');
     if (options.editorLease && !isCemEditorLeaseFor(options.editorLease, provider)) throw new TypeError('Manual listbox requires a verified editor lease');
     const ancestors = Object.freeze([...(options.ancestors ?? [])]);
     const abort = new AbortController();
     // Acquire surface ownership before the editor claim: a competing surface must not perturb another provider.
-    let session: CemSurfaceSession | undefined;
+    let session: CemSurfaceSession | undefined, paused = false;
     const geometry = createCemSurfaceGeometryLease(host, owner, () => session?.reconcile());
     const checkpointOwner = {};
     const lease = options.editorLease ?? provider.lease(checkpointOwner);
@@ -80,7 +93,7 @@ export function connectCemManualListbox(owner: HTMLElement, options: Options): C
     };
     try {
         session = createCemSurfaceSession(host, owner, {
-            profile: 'manual-listbox', ancestors,
+            profile: 'manual-listbox', ancestors, paused: () => paused,
             capture() {
                 if (!check()) return;
                 const revision = provider.revision;
@@ -98,8 +111,10 @@ export function connectCemManualListbox(owner: HTMLElement, options: Options): C
     const releases: (() => void)[] = [];
     try {
         releases.push(observeInteractionReferences(host, () => current.reconcile()));
-        releases.push(lifecycle.subscribe(() => current.dismiss('revision')));
+        stopLifecycle = lifecycle.subscribe(() => { if (!paused) current.dismiss('revision'); });
+        releases.push(() => stopLifecycle?.());
         releases.push(subscribeCemEditorCheckpoint(provider, lease, update => {
+            if (paused) return;
             if ((update.cause === 'claims' || update.cause === 'availability'
                 || update.cause === 'attribute-claims' && lease.attributes.valid) && lease.valid) { current.reconcile(); return; }
             current.dismiss(update.cause);
@@ -142,8 +157,33 @@ export function connectCemManualListbox(owner: HTMLElement, options: Options): C
         checkpointDelegates.set(host, record);
         releases.push(() => { if (checkpointDelegates.get(host) === record) checkpointDelegates.delete(host); });
         releases.push(registerCemEditorCheckpoint(provider, { host, owner: checkpointOwner, lease, current: () => !!capture(), claim: () => 'none' }));
+        releases.push(registerCemProviderHandoff(host, () => {
+            const captured = capture(), renew = lifecycle.resume?.bind(lifecycle);
+            if (!captured || !renew) return undefined;
+            return { editor: editorHost, presentation: owner, current: () => !disposed && (paused || !!capture()), park() {
+                if (!capture() || paused) throw Error('cem.checkpoint.resume.listbox');
+                return parkCemManualListbox(controller);
+            }, async renew(freshHost, saved) {
+                if (!paused || !saved.manualListbox || saved.manualListbox.providerRevision !== provider.revision)
+                    throw Error('cem.checkpoint.resume.listbox');
+                const next = await renew(freshHost);
+                if (!next || next.checkpoint !== true || !next.current() || !next.ready()) throw Error('cem.checkpoint.resume.source-authority');
+                if (saved.nativePublication) {
+                    if (!options.runtime) throw Error('cem.checkpoint.resume.source-authority');
+                    options.runtime.refreshElementReferences(host); await options.runtime.whenRenderSettled(host);
+                    await validateCemProviderSource(freshHost, options.runtime.renderedSuggestionsFor(host)?.binding.checkpointSource(), saved.nativePublication.source);
+                }
+                stopLifecycle?.(); lifecycle = next;
+                stopLifecycle = lifecycle.subscribe(() => { if (!paused) current.dismiss('revision'); });
+                // This standalone delegate explicitly opted into picker reset.
+                const closed = owner.matches(':popover-open') ? new Promise<void>(resolve => owner.addEventListener('toggle', () => resolve(), { once: true })) : undefined;
+                current.dismiss('resume'); paused = false; current.reconcile();
+                await closed;
+                if (!capture()) throw Error('cem.checkpoint.resume.listbox');
+            } };
+        }));
     }
-    return {
+    const controller: CemManualListboxController = {
         get visible() { return current.visible; }, get pending() { return current.pending; }, get generation() { return current.generation; },
         prepare: () => current.prepare(), complete: attempt => current.complete(attempt),
         open() { const attempt = current.prepare(); return !!attempt && current.complete(attempt); },
@@ -154,4 +194,10 @@ export function connectCemManualListbox(owner: HTMLElement, options: Options): C
             try { current.disconnect(); } finally { releaseLease(); geometry.release(); }
         },
     };
+    pauses.set(controller, () => {
+        if (disposed || paused || current.pending) throw Error('cem.checkpoint.resume.listbox');
+        paused = true;
+        return () => { if (!paused) return; paused = false; current.reconcile(); };
+    });
+    return controller;
 }

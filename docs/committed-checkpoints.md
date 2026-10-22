@@ -1191,8 +1191,8 @@ DTOs and exact control/form identities with live state; activation rechecks priv
 metadata, host markup, composition and accepted input sequence. It neither restores
 old edits over current controls nor emits input/change. Exact one-shot change
 suppression after a completed provider commit remains effective across retirement,
-and a subsequent edit emits normally. Active provider relationships are refused;
-this adapter does not renew their leases. Retained trees, tabs, navigation, menus,
+and a subsequent edit emits normally. Shared provider relationships additionally
+require complete paired activation and fresh native source authority. Retained trees, tabs, navigation, menus,
 popups and settled native surfaces now have shared adapters too. Browser modal
 visibility, edits, roving state, focus and controller metadata remain live; geometry
 is rechecked without invoking open/command/focus policy again.
@@ -1210,10 +1210,37 @@ sealed data revision under a one-use original active-context guard. This avoids
 manufacturing source changes from heap replacement; ordinary subsequent renders
 still allocate new revisions.
 
-Active suggestions/manual-listbox/native-datalist editor providers, their native
-publications and proofs, and legacy storage/location rendering still refuse with
+Paired active suggestions, standalone manual listboxes and native datalist
+providers now have shared resume adapters. Every participating route binds before
+provider/source renewal, independent of the order in which the host calls returned
+owners. A bounded presentation pause is issued only after all original witnesses
+pass. Consumer presentation pauses precede provider claim pauses; consumed tickets
+transfer cleanup ownership to the fresh transaction. Late host edits, replaced
+controls, competing browser claims, revoked source policy or mismatched native
+capsules refuse the whole group without restoring old values or replaying commits.
+
+Canonical local suggestions reimport their original inert source and renew native
+publications. External `CemSuggestionsControllerOptions` and standalone
+`CemManualListboxLifecycle`/`CemStandaloneDatalistLifecycle` must provide the original
+trusted `resume(freshHost)` callback. It must recheck host source permission, prepare
+fresh native sources/publications and return the current lifecycle/options; the
+host's normal binding callback must expose that new publication. No callback means
+explicit refusal, never inferred permission from saved bytes or DOM IDs. Native
+validation compares fresh source/preparation policies and digests with the sealed
+capsules. Active/committed proof indices, values, availability and rendered rows
+must match freshly acquired native identities. Readonly retained proofs also require
+fresh native validation. Browser controls, authored defaults, focus/selection and
+one-shot consumed-change state remain live; no selection/value is recommitted.
+
+Standalone listbox surfaces opt into `reset-on-resume`; native datalists require
+unfocused capture and reset native picker presentation while reacquiring the owned
+`list` relationship. The shared adapter waits for actual native presentation events.
+Only toggle delivery from the exact admitted presentation surface is excluded from
+new-input accounting during that bounded renewal; keys, focus, edits and commands
+retain ordinary invalidation. Unknown/withdrawn source policies, inactive
+sources without an admitted readonly proof and legacy storage/location rendering still refuse with
 `cem.checkpoint.resume.unsupported`. Generic HTML hydration refuses checkpoint
-extensions. Complete widget adapters and declarative recovery status remain
+extensions. Full long-session acceptance and declarative recovery status remain
 necessary before automatic Studio recovery.
 
 A trusted shared owner can register `resume` alongside its existing publication
@@ -1285,8 +1312,10 @@ The transaction does not replace rendered DOM. Focus, caret and newer edits
 remain with their current owners; a failed attempt cannot roll back to saved
 pixels. Chromium acceptance exercises both trusted-host preparation and built-in
 plain retained CEM-ML owners on actual fresh workers and owned fallback heaps.
-After admission, call each returned `CemResumedElementOwner.resume()` to bind
-publication and evaluate on the fresh context. Rebinding requires an original
+After admission, call each returned `CemResumedElementOwner.resume()`. The first
+call checks the complete staged set and binds every processing/publication route;
+only then does bounded, one-shot source/provider renewal run. Each owner evaluates
+on the fresh context, reusing an already renewed native provider frame. Rebinding requires an original
 active context issued by that same coordinator for that owner, its retired
 predecessor and the exact fresh native generation. Copies, foreign owners, live
 predecessors, duplicate binding and revoked contexts refuse. Event sequences and

@@ -2781,8 +2781,8 @@ async function isolatedBuiltinResume(base: string, load: (url: string) => Promis
         if (scenario === 'declaration-change') alter = () => { template.textContent += ' '; };
         if (scenario === 'policy-change') alter = () => undefined;
         if (['newer-input', 'declaration-change', 'policy-change'].includes(scenario)) {
-            let refused = false; try { await resumeCemCheckpointOwners(admission, [ticket]); } catch (error) { refused = /stale|source-policy/.test(String(error)); }
-            check(refused && input.value === (scenario === 'newer-input' ? 'Newer property-only draft' : 'Unsaved Amsterdam é😀'), 'changed host authority was not preserved/refused');
+            let refusal = ''; try { await resumeCemCheckpointOwners(admission, [ticket]); } catch (error) { refusal = String(error); }
+            check(/stale|source-policy/.test(refusal) && input.value === (scenario === 'newer-input' ? 'Newer property-only draft' : 'Unsaved Amsterdam é😀'), `changed host authority was not preserved/refused: ${refusal}, value=${input.value}`);
             check(coordinator.lastCommitted().bytes.length === before.bytes.length, 'failed resume discarded last-good checkpoint');
             return `${scenario} built-in resume passed`;
         }
@@ -2985,7 +2985,7 @@ async function isolatedColoredEditorResume(base: string, load: (url: string) => 
         await coordinator.retireRenderingGeneration(nextProof, 5000, nextConsent);
         check(editor.value === edited && control.isConnected && painted(editor).length === 0, 'second retirement lost text or retained paint');
         return `${scenario} colored editor resume passed`;
-    } catch (error) { throw Error(`${scenario}/${stage}: ${String(error)}`, { cause: error }); }
+    } catch (error) { throw Error(`${scenario}/${stage}: ${error instanceof Error ? error.stack : String(error)}`, { cause: error }); }
     finally { releaseOld(); admission?.revoke(); coordinator.dispose(); scope.dispose(); document.body.replaceChildren(); }
 }
 export const ColoredEditorFreshRuntimeResume: Story = {
@@ -3347,4 +3347,253 @@ export const WidgetFreshRuntimeResume: Story = {
 export const WidgetFreshRuntimeRefusals: Story = {
     render: () => '<section aria-label="Widget fresh runtime refusal"></section>',
     play: async ({ canvasElement }) => widgetResumeStory(canvasElement, ['revoked', 'source-change', 'source-bytes', 'authority-missing', 'endpoint-change', 'late-source', 'late-revoked', 'late-widget']),
+};
+
+async function isolatedProviderResume(base: string, load: (url: string) => Promise<any>, scenario: string, sources: string[]): Promise<string> {
+    parent.postMessage({ progress: 'boot', scenario }, '*');
+    const support = new URL('lib/internal/runtime-support/', base).href;
+    const binding = await load(`${support}native-runtime.js`), generation = binding.isolateCemFallbackGeneration();
+    await generation.ready(); parent.postMessage({ progress: 'runtime ready', scenario }, '*'); const embedding = generation.claimOwnership();
+    const [{ CemElementRuntime }, { createCemDeclarationScope }, { CemCheckpointPublicationCoordinator }, { resumeCemCheckpointOwners }, { CemNativeGenerationGroup }, suggestions, forms] = await Promise.all([
+        load(new URL('lib/cem-elements.js', base).href), load(new URL('lib/declaration-scope.js', base).href),
+        load(new URL('lib/checkpoint-publication.js', base).href), load(new URL('lib/checkpoint-resume.js', base).href), load(`${support}native-generation.js`),
+        load(new URL('lib/suggestions-capability.js', base).href), load(new URL('lib/form-control-capability.js', base).href),
+    ]);
+    const check = (value: unknown, message: string) => { if (!value) throw Error(message); };
+    const fallback = !scenario.startsWith('worker'), datalist = scenario.includes('datalist'), standalone = scenario.includes('standalone'), external = scenario.includes('external'), scope = createCemDeclarationScope({ document });
+    const coordinator = new CemCheckpointPublicationCoordinator({ runtimeId: crypto.randomUUID(), generation: 1, policyStamp: 'private',
+        allowOwner: () => true, seal: (candidate: string, receipt: string) => binding.sealCommittedCheckpoint(candidate, receipt) });
+    let policyAllowed = true;
+    let externalPublication: any, externalOptions: any, sourceSession: any, externalOwner: HTMLElement | undefined, detached: any;
+    const sessions: any[] = [];
+    const runtime = new CemElementRuntime({ declarationScope: scope, declarationTag: `provider-declaration-${crypto.randomUUID()}`,
+        checkpointPublication: coordinator, localSuggestions: true,
+        suggestionsControllerInputs: (instance: HTMLElement) => instance === externalOwner ? externalOptions : undefined,
+        nativeSuggestionsInputs: (instance: HTMLElement, snapshot: any) => instance === externalOwner && externalPublication
+            ? [externalPublication.bind({ instanceId: snapshot.instanceId, scopePolicyStamp: snapshot.scopePolicyStamp,
+                revision: snapshot.dataRevision, current: () => instance.isConnected })] : [], processingWorkerFactory: () => {
+            if (fallback) throw Error('owned provider fallback'); return new Worker(`${support}processing-worker.js`, { type: 'module' });
+        } });
+    const until = async (action: () => any) => {
+        for (let attempt = 0; ; attempt++) { try { const value = await action(); if (value) return value; }
+            catch (error) { if (attempt >= 100) throw error; }
+            if (attempt >= 100) throw Error('provider did not settle'); await new Promise(resolve => setTimeout(resolve, 10)); }
+    };
+    const capture = () => until(async () => { await coordinator.capture(); return true; });
+    let admission: any, stage = 'create';
+    const progress = setInterval(() => parent.postMessage({ progress: stage, scenario }, '*'), 1000);
+    try {
+        const declare = async (text: string, capability?: string) => {
+            const declaration = document.createElement('div'), template = document.createElement('template'), tag = `provider-${crypto.randomUUID()}`;
+            declaration.setAttribute('tag', tag); if (capability) declaration.setAttribute('capability', capability);
+            template.type = 'text/cem-ml'; template.textContent = new DOMParser().parseFromString(text, 'text/html').querySelector('template')!.content.textContent;
+            declaration.append(template); document.body.append(declaration); runtime.registerDeclaration(declaration); await runtime.whenDeclarationSettled(declaration); return tag;
+        };
+        const fieldTag = await declare(sources[0], 'form-control');
+        const standaloneSource = datalist
+            ? '{datalist | {cem:for-each @select=datadom.slices.suggestions.children @as=row | {option @value={row.dom:attribute("value").value} @label={row.dom:attribute("label").value}}}}'
+            : '{div @role=listbox @popover=manual | {cem:for-each @select=datadom.slices.suggestions.children @as=row | {div @role=option | {row.dom:attribute("label").value}}}}';
+        const tag = await declare(standalone ? `<template>${standaloneSource}</template>` : sources[1], standalone ? undefined : 'suggestions');
+        const host = document.createElement(tag), payload = document.createElement('template');
+        if (!standalone && datalist) host.setAttribute('profile', 'native-datalist'); else if (!standalone) { host.setAttribute('filter', 'none'); host.setAttribute('require-selection', ''); }
+        payload.innerHTML = `<${fieldTag} slot="editor" name="choice" label="Choice"></${fieldTag}><template slot="options"><option value="same">Alpha</option><option value="same">Another</option><option value="b">Beta</option></template>`;
+        if (!standalone) host.append(payload);
+        document.body.append(host); await runtime.whenRenderSettled(host);
+        const field = standalone ? document.createElement(fieldTag) : host.querySelector<HTMLElement>(fieldTag)!;
+        if (standalone) document.body.append(field);
+        await runtime.whenRenderSettled(field); const input = field.querySelector('input')!;
+        let standaloneCapture: (() => any) | undefined;
+        if (standalone || external) {
+            const [{ CemNativeCapabilitySession }, { cemProcessingHostForScope }, manual, nativeList] = await Promise.all([
+                load(new URL('lib/native-capability-session.js', base).href), load(`${support}processing-host-runtime.js`),
+                load(new URL('lib/manual-listbox.js', base).href), load(new URL('lib/standalone-datalist.js', base).href),
+            ]);
+            externalOwner = host;
+            const sourceRevision = crypto.randomUUID(), sourceText = datalist
+                ? '<root><option value="same" label="Alpha"/><option value="same" label="Another"/></root>'
+                : '<root><cem-option value="same" label="Alpha"/><cem-option value="same" label="Another"/></root>';
+            const prepare = async (owner: any) => {
+                if (!policyAllowed) throw Error('cem.checkpoint.resume.source-authority');
+                const session = await CemNativeCapabilitySession.prepare(owner, { action: 'prepare', adapter: datalist ? 'native-datalist-v1' : 'suggestions-v1',
+                    handle: { sessionKey: crypto.randomUUID(), instanceId: runtime.readInstanceSnapshot(host).instanceId,
+                        scopePolicyStamp: runtime.readInstanceSnapshot(host).scopePolicyStamp, sourceRevision },
+                    sources: { kind: 'cem-native-session-import-v1', bytes: new TextEncoder().encode(sourceText).buffer,
+                        contentType: 'application/xml', sourceUri: document.baseURI }, data: {}, select: 'input.children.children',
+                    limits: { maxBytes: 256 * 1024, maxValues: 1024, maxDepth: 64 } }, () => policyAllowed, undefined, true);
+                sessions.push(session); sourceSession = session;
+                externalPublication = datalist ? await session.publishDatalist({}, () => true)
+                    : await session.publishSuggestions({ query: '', queryRevision: 1, filter: 'none' }, () => true);
+            };
+            await prepare(cemProcessingHostForScope(scope, { workerScriptUrl: `${support}processing-worker.js`, workerFactory: () => {
+                if (fallback) throw Error("owned standalone fallback"); return new Worker(`${support}processing-worker.js`, { type: "module" });
+            } }));
+            if (external) {
+                const { CemSuggestionsPlacementCoordinator } = await load(new URL('lib/suggestions-placements.js', base).href);
+                const placements = new CemSuggestionsPlacementCoordinator(document), leases: any[] = [];
+                externalOptions = { editorHost: field, listbox: host.querySelector('[part~=surface]'), current: () => policyAllowed && sourceSession.valid,
+                    checkpointSource: () => sourceSession.checkpointSourceIntent(),
+                    resume: async (owner: any) => { await prepare(owner); return externalOptions; },
+                    async prepare(query: string, queryRevision: number) {
+                        for (const lease of leases.splice(0)) lease.dispose();
+                        const session = sourceSession, provider = forms.getCemEditorProvider(field), revision = provider.revision;
+                        const current = () => policyAllowed && sourceSession === session && session.valid && provider.revision === revision;
+                        externalPublication = await session.publishSuggestions({ query, queryRevision, filter: 'none' }, current);
+                        runtime.refreshElementReferences(host); await runtime.whenRenderSettled(host);
+                        const mapped = runtime.renderedSuggestionsFor(host); if (!mapped?.current()) throw Error('Missing external source publication');
+                        const producer = runtime.readInstanceSnapshot(host).instanceId, editorProducer = runtime.readInstanceSnapshot(field).instanceId;
+                        const editorLease = placements.register({ producer: editorProducer, revision: String(revision), current, kind: 'editor', element: field });
+                        const panel = placements.register({ producer, revision: String(queryRevision), current, kind: 'listbox', element: externalOptions.listbox });
+                        leases.push(editorLease, panel); placements.grant(producer, editorLease, ['editor-for']); placements.grant(editorProducer, panel, ['aria-controls']);
+                        const rows = mapped.rows.map((row: any) => {
+                            const lease = placements.register({ producer, revision: String(queryRevision), current: () => current() && mapped.current(), kind: 'row', element: row.element, row: row.native });
+                            leases.push(lease); placements.grant(editorProducer, lease, ['aria-activedescendant']); return lease;
+                        });
+                        return placements.prepare(mapped.binding, editorLease, panel, rows);
+                    } };
+                suggestions.refreshCemSuggestionsAuthorization(host);
+                detached = { disconnect: () => placements.dispose() };
+            } else {
+            runtime.refreshElementReferences(host); await runtime.whenRenderSettled(host);
+            const listeners = new Set<() => void>();
+            const lifecycle: any = { checkpoint: true, current: () => host.isConnected && policyAllowed, ready: () => true,
+                subscribe: (listener: () => void) => { listeners.add(listener); return () => listeners.delete(listener); },
+                resume: async (owner: any) => { await prepare(owner); if (scenario.includes('during-renewal')) input.value = 'Newer unsaved draft'; return lifecycle; } };
+            if (datalist) {
+                detached = nativeList.connectCemStandaloneDatalist({ runtime, host, editorHost: field, target: host.querySelector('datalist'), lifecycle });
+                standaloneCapture = () => nativeList.cemStandaloneDatalistCheckpoint(host, (node: HTMLElement) => coordinator.endpoint(node));
+            } else {
+                detached = manual.connectCemManualListbox(host.querySelector('[role=listbox]'), { runtime, host, editorHost: field, lifecycle });
+                standaloneCapture = () => manual.cemManualListboxCheckpoint(host, (node: HTMLElement) => coordinator.endpoint(node));
+            }
+            }
+        }
+        const checkpoint = () => standaloneCapture ? standaloneCapture() : suggestions.cemSuggestionsCheckpoint(host);
+        await until(checkpoint); stage = 'edit';
+        input.focus(); input.value = 'same'; input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        stage = 'focused'; if (!datalist) await until(checkpoint); stage = 'move';
+        if (!datalist && !standalone) {
+            input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+            input.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowDown', bubbles: true }));
+            await until(checkpoint);
+            if (scenario.includes('proof')) {
+                input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true }));
+                input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true })); await until(checkpoint);
+                if (scenario.includes('readonly')) { input.blur(); field.setAttribute('readonly', ''); await runtime.whenRenderSettled(field); await until(checkpoint); }
+            }
+        } else if (datalist) { input.blur(); await until(checkpoint); }
+        else check(detached.open(), 'standalone listbox did not open');
+        stage = 'initial capture'; await capture(); const saved = checkpoint(), provider = forms.getCemEditorProvider(field), revision = provider.revision;
+        const oldSource = suggestions.cemSuggestionsControllerFor(host)?.active ?? suggestions.cemSuggestionsControllerFor(host)?.committed;
+        const suppression = forms.cemFormControlCheckpoint(field, (consumer: HTMLElement) => runtime.readInstanceSnapshot(consumer).instanceId)?.changeSuppression;
+        const nodes = [...host.querySelectorAll('[data-cem-render-node-id]')]; let inputs = 0, changes = 0;
+        input.addEventListener('input', () => inputs++); input.addEventListener('change', () => changes++);
+        const group = new CemNativeGenerationGroup([coordinator.generationParticipant()]), consent = fallback ? generation.retirementConsent([embedding]) : undefined;
+        stage = 'close'; const proof = await coordinator.closeRenderingGeneration(5000, consent); stage = 'closed capture'; await capture(); stage = 'ticket'; const ticket = coordinator.prepareResume();
+        stage = 'retire'; const retired = await coordinator.retireRenderingGeneration(proof, 5000, consent); admission = await group.allocate([retired]); stage = 'prepare';
+        const resumed = await resumeCemCheckpointOwners(admission, [ticket]); stage = 'activate';
+        let foreign: any;
+        if (scenario.includes('late-value')) input.value = 'Newer unsaved draft';
+        if (scenario.includes('late-disconnect')) host.remove();
+        if (scenario.includes('late-lease')) foreign = provider.lease({});
+        if (scenario.includes('policy')) policyAllowed = false;
+        if (scenario.includes('late-source')) {
+            const island = host.querySelector<HTMLTemplateElement>('template[data-cem-island=instance]')!;
+            island.content.querySelector('template[slot=options]')!.content.textContent = 'Changed source';
+        }
+        if (scenario.includes('late-') || scenario.includes('policy') || scenario.includes('during-renewal')) {
+            let refused = false;
+            try { for (const owner of resumed.owners) await owner.owner.resume(); }
+            catch (error) { refused = /stale|source|provider|revoked/.test(String(error)); }
+            foreign?.release();
+            check(refused && input.value === (scenario.includes('late-value') || scenario.includes('during-renewal') ? 'Newer unsaved draft' : 'same') && inputs === 0 && changes === 0,
+                'stale pair admitted or edit/action replayed');
+            return `${scenario} provider resume passed`;
+        }
+        for (const owner of [...resumed.owners].reverse()) { stage = owner.owner.element === host ? "activate-consumer" : "activate-editor"; await owner.owner.resume(); }
+        await until(checkpoint); await capture(); stage = 'verify'; const fresh = checkpoint();
+        check(input.value === 'same' && forms.getCemEditorProvider(field) === provider && provider.revision === revision, 'provider/edit/revision changed');
+        check(nodes.every(node => host.contains(node)) && inputs === 0 && changes === 0, 'DOM replaced or edits replayed');
+        if (standalone) {
+            check(datalist ? input.list === host.querySelector('datalist') : !detached.visible, 'standalone picker was not reset/renewed');
+        } else if (!datalist) {
+            check('phase' in saved ? fresh.proof?.index === saved.proof?.index : fresh.activeIndex === saved.activeIndex && fresh.committedIndex === saved.committedIndex, 'native active/proof index not restored');
+            const source = suggestions.cemSuggestionsControllerFor(host)?.active ?? suggestions.cemSuggestionsControllerFor(host)?.committed;
+            check(source && source !== oldSource && source.valid && !oldSource.valid, 'old source reused or no fresh proof');
+            check(scenario.includes('readonly') ? document.activeElement !== input : document.activeElement === input, 'focus lost');
+        } else check(input.list === host.querySelector('datalist') && !input.hasAttribute('aria-activedescendant'), 'fresh datalist relationship missing');
+        check(JSON.stringify(forms.cemFormControlCheckpoint(field, (consumer: HTMLElement) => runtime.readInstanceSnapshot(consumer).instanceId)?.changeSuppression) === JSON.stringify(suppression), 'consumed change suppression lost');
+        if (scenario.includes('twice')) {
+            stage = 'second retirement';
+            const next = admission.generations[0].runtime, nextEmbedding = fallback ? next.claimOwnership() : undefined;
+            const nextGroup = new CemNativeGenerationGroup([coordinator.generationParticipant()]);
+            const nextConsent = fallback ? next.retirementConsent([nextEmbedding]) : undefined;
+            const nextProof = await coordinator.closeRenderingGeneration(5000, nextConsent); await capture(); const nextTicket = coordinator.prepareResume();
+            const nextRetired = await coordinator.retireRenderingGeneration(nextProof, 5000, nextConsent), previous = admission;
+            admission = await nextGroup.allocate([nextRetired]);
+            const again = await resumeCemCheckpointOwners(admission, [nextTicket]);
+            for (const owner of again.owners) await owner.owner.resume(); previous.revoke(); await capture();
+            check(input.value === 'same' && inputs === 0 && changes === 0 && nodes.every(node => host.contains(node)), 'second handoff lost edits or replayed actions');
+        }
+        if (!datalist && !standalone && !scenario.includes('readonly')) {
+            stage = 'fresh editing'; input.value = 'b'; input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+            await until(() => { const value = checkpoint(); return value && value.query === 'b'; }); await capture();
+            check(provider.revision > revision && inputs === 1 && changes === 0, 'fresh editor stopped publishing');
+        }
+        return `${scenario} provider resume passed`;
+    } catch (error) { throw Error(`${scenario}/${stage}: ${error instanceof Error ? error.stack : String(error)}`, { cause: error }); }
+    finally { clearInterval(progress); detached?.disconnect(); admission?.revoke(); coordinator.dispose(); scope.dispose(); document.body.replaceChildren(); }
+}
+async function providerResumeStory(canvasElement: HTMLElement, scenarios: string[]) {
+    const root = canvasElement.querySelector('section')!, base = new URL('../../dist/', import.meta.url).href;
+    for (const scenario of scenarios) {
+        const frame = document.createElement('iframe'), id = crypto.randomUUID(); frame.title = 'Isolated paired provider recovery'; root.append(frame);
+        let stop = () => undefined, lastStage = 'no script';
+        try {
+            const completed = new Promise<string>((resolve, reject) => {
+                const timer = setTimeout(() => reject(Error(`provider resume timed out: ${scenario}/${lastStage}`)), 15000);
+                const receive = (event: MessageEvent) => { if (event.source === frame.contentWindow && event.data?.progress) { lastStage = event.data.progress; return; }
+                    if (event.source !== frame.contentWindow || event.data?.id !== id) return;
+                    clearTimeout(timer); if (event.data.error) reject(Error(event.data.error)); else resolve(event.data.result); };
+                window.addEventListener('message', receive); stop = () => { clearTimeout(timer); window.removeEventListener('message', receive); };
+            });
+            const hook = import.meta.env.MODE === 'test' ? 'globalThis.__vitest_browser_runner__ = { wrapDynamicImport: f => f() };' : '';
+            frame.srcdoc = `<script>addEventListener("error", e => parent.postMessage({id: ${JSON.stringify(id)}, error: e.message}, "*"));</script><script type="module">${hook}(${isolatedProviderResume.toString()})(${JSON.stringify(base)}, url => import(url), ${JSON.stringify(scenario)}, ${JSON.stringify([fieldDeclaration, suggestionsDeclaration])})
+                .then(result => parent.postMessage({ id: ${JSON.stringify(id)}, result }, '*'), error => parent.postMessage({ id: ${JSON.stringify(id)}, error: error.stack || String(error) }, '*'));</script>`;
+            expect(await completed).toBe(`${scenario} provider resume passed`);
+        } finally { stop(); frame.remove(); }
+    }
+}
+export const PairedProviderFreshRuntimeResume: Story = {
+    render: () => '<section aria-label="Paired provider fresh runtime resume"></section>',
+    play: async ({ canvasElement }) => providerResumeStory(canvasElement, ['worker', 'fallback', 'fallback-proof', 'fallback-datalist']),
+};
+
+export const PairedStandaloneProviderFreshRuntimeResume: Story = {
+    render: () => '<section aria-label="Paired standalone provider fresh runtime resume"></section>',
+    play: async ({ canvasElement }) => providerResumeStory(canvasElement, ['worker-standalone', 'fallback-standalone', 'worker-standalone-datalist', 'fallback-standalone-datalist']),
+};
+
+export const PairedProviderFreshRuntimeRefusals: Story = {
+    render: () => '<section aria-label="Paired provider stale authority refusal"></section>',
+    play: async ({ canvasElement }) => providerResumeStory(canvasElement, ['fallback-late-value', 'fallback-late-lease', 'fallback-late-source', 'fallback-standalone-policy']),
+};
+
+export const PairedProviderRepeatedRuntimeResume: Story = {
+    render: () => '<section aria-label="Repeated paired provider fresh runtime resume"></section>',
+    play: async ({ canvasElement }) => providerResumeStory(canvasElement, ['worker-twice', 'fallback-twice']),
+};
+
+export const PairedProviderNativeProfilesResume: Story = {
+    render: () => '<section aria-label="Paired native datalist and retained proof resume"></section>',
+    play: async ({ canvasElement }) => providerResumeStory(canvasElement, ['worker-datalist', 'fallback-proof-readonly']),
+};
+
+export const PairedProviderRenewalEditRefusal: Story = {
+    render: () => '<section aria-label="Paired provider edit during renewal refusal"></section>',
+    play: async ({ canvasElement }) => providerResumeStory(canvasElement, ['fallback-standalone-during-renewal', 'fallback-late-disconnect']),
+};
+
+export const PairedExternalProviderFreshRuntimeResume: Story = {
+    render: () => '<section aria-label="Paired external suggestions source fresh runtime resume"></section>',
+    play: async ({ canvasElement }) => providerResumeStory(canvasElement, ['worker-external', 'fallback-external-proof']),
 };

@@ -92,6 +92,8 @@ export interface CemSurfaceSession {
 }
 interface SessionOptions {
     profile: string;
+    /** Private checkpoint pause retains presentation but admits no opening. */
+    paused?(): boolean;
     /** Capture consumer-owned readiness/revision/admission; no DOM strings grant authority. */
     capture(): (() => boolean) | undefined;
     fit(): boolean;
@@ -120,7 +122,7 @@ export function createCemSurfaceSession(host: HTMLElement, owner: HTMLElement, o
         return active;
     };
     const reconcile = () => {
-        if (disposed || closing || syncing) return accepted && nativeSurfaceVisible(owner);
+        if (disposed || closing || syncing || options.paused?.()) return accepted && nativeSurfaceVisible(owner);
         syncing = true;
         try {
             if (!nativeSurfaceVisible(owner)) {
@@ -133,7 +135,7 @@ export function createCemSurfaceSession(host: HTMLElement, owner: HTMLElement, o
         } finally { syncing = false; }
     };
     const prepare = () => {
-        if (disposed || closing) return;
+        if (disposed || closing || options.paused?.()) return;
         generation++; opening = undefined;
         const captured = options.capture();
         if (!captured || !available(host) || !available(owner) || !ancestors.every(a => a.current()) || !captured()) { dismiss('unavailable'); return; }
@@ -157,7 +159,7 @@ export function createCemSurfaceSession(host: HTMLElement, owner: HTMLElement, o
     }, { signal: abort.signal });
     const session: CemSurfaceSession = {
         get visible() { return reconcile(); },
-        get pending() { if (opening && !current()) dismiss('unavailable'); return !!opening; },
+        get pending() { if (!options.paused?.() && opening && !current()) dismiss('unavailable'); return !!opening; },
         get generation() { return generation; },
         prepare,
         complete(attempt) {

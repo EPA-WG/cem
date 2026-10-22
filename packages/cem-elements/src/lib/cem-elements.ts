@@ -1,5 +1,7 @@
+import { prepareCemProviderHandoff, type CemProviderHandoff } from './checkpoint-provider-handoff.js';
+import { prepareCemEditorProviderHandoff } from './form-control-capability.js';
 import { prepareCemCheckpointProcessing, preparedCheckpointProcessing, type CemResumedProcessingOwner } from './checkpoint-processing.js';
-import type { CemCheckpointResumeAdapter, CemCheckpointResumeContext } from './checkpoint-resume.js';
+import { revokeCemCheckpointResume, type CemCheckpointResumeAdapter, type CemCheckpointResumeContext } from './checkpoint-resume.js';
 import * as defaultRenderSupport from './internal/runtime-support/cem-ql-render.js';
 import { nativeCheckpointIdentity, nativeCheckpointSubscribe, nativeCheckpointAssertAdmission, nativeCheckpointSourceProof, type CemCheckpointNativeSourceProof } from './internal/runtime-support/checkpoint-domain.js';
 import { hasCemStandaloneDatalistCheckpoint, cemStandaloneDatalistCheckpoint } from './standalone-datalist.js';
@@ -140,7 +142,7 @@ import {
 } from './repository.js';
 import { CEM_FORM_CONTROL_CAPABILITY, cemFormControlCheckpoint, getCemEditorProvider } from './form-control-capability.js';
 import { CEM_PLAINTEXT_EDITOR_CAPABILITY, cemPlaintextEditorEventValue, cemPlaintextEditorCheckpoint, prepareCemPlaintextEditorResume } from './plaintext-editor-capability.js';
-import { cemRetainedFormCheckpoint, prepareCemRetainedFormResume, prepareCemRetainedWidgetResume } from './checkpoint-form-resume.js';
+import { equalCheckpointState, cemRetainedFormCheckpoint, prepareCemRetainedFormResume, prepareCemRetainedWidgetResume } from './checkpoint-form-resume.js';
 import { prepareCemReferenceResume } from './checkpoint-reference-resume.js';
 import { CEM_NAVIGATION_LANDMARK_CAPABILITY, cemNavigationLandmarkCheckpoint } from './navigation-landmark-capability.js';
 import { CEM_DISCLOSURE_PANEL_CAPABILITY } from './disclosure-panel-capability.js';
@@ -1883,6 +1885,7 @@ export class CemElementRuntime {
     private readonly placementCoordinator?: CemElementPlacementCoordinator;
     private readonly placementInputs = new WeakMap<HTMLElement, { token: number; inputs: CemElementReferenceInputs }>();
     private readonly checkpointReferenceIntent = new WeakMap<HTMLElement, NonNullable<CemCheckpointRuntimeState['references']>>();
+    private readonly checkpointPresentationResume = new WeakMap<HTMLElement, HTMLElement>();
     private readonly checkpointResumeRevisions = new WeakMap<HTMLElement, CemCheckpointResumeContext>();
     private readonly loadSrcDocumentOption?: CemElementRuntimeOptions['loadSrcDocument'];
     private readonly resolveScopedModuleUrlOption?: CemElementRuntimeOptions['resolveScopedModuleUrl'];
@@ -3228,12 +3231,16 @@ export class CemElementRuntime {
                     : compiled.behavior === CEM_COMPOSITE_MENU_CAPABILITY ? () => cemCompositeMenuCheckpoint(instance, node => this.checkpointEndpoint(node))
                         : compiled.behavior === CEM_POPUP_CAPABILITY ? () => cemPopupCheckpoint(instance)
                             : compiled.behavior === CEM_NATIVE_SURFACE_CAPABILITY ? () => cemNativeSurfaceCheckpoint(instance, node => this.checkpointEndpoint(node)) : undefined;
-        if (compiled.behavior && !plaintext && !formKind && !widgetCheckpoint || compiled.mode !== 'cem-ml' || !this.usesProcessingHost(compiled) || !this.retainedStylesheets) return undefined;
+        const suggestions = compiled.behavior === CEM_SUGGESTIONS_CAPABILITY;
+        let pair: CemProviderHandoff | undefined, provider: ReturnType<typeof prepareCemEditorProviderHandoff>;
+        let unparkProvider: (() => void) | undefined;
+        let sealedCapability: CemCheckpointRuntimeState['capability'];
+        if (compiled.behavior && !plaintext && !formKind && !widgetCheckpoint && !suggestions || compiled.mode !== 'cem-ml' || !this.usesProcessingHost(compiled) || !this.retainedStylesheets) return undefined;
         const supported = (runtime: CemCheckpointRuntimeState) => (plaintext ? runtime.capability?.kind === 'plaintext-editor'
-            : formKind ? runtime.capability?.kind === formKind && !!cemRetainedFormCheckpoint(instance, formKind)
-                && !(runtime.capability.kind === 'form-control' && runtime.capability.provider)
-                : widgetCheckpoint ? !!runtime.capability && runtime.capability.kind === widgetCheckpoint()?.kind : !runtime.capability)
-            && (!runtime.references || !!this.elementReferenceInputsOption) && !runtime.nativePublication && !runtime.manualListbox && !runtime.standaloneDatalist
+            : formKind ? runtime.capability?.kind === formKind && (provider ? !!pair : !!cemRetainedFormCheckpoint(instance, formKind))
+                : widgetCheckpoint ? !!runtime.capability && runtime.capability.kind === widgetCheckpoint()?.kind
+                    : suggestions ? runtime.capability?.kind === 'suggestions' && !!pair : !runtime.capability)
+            && (!runtime.references || !!this.elementReferenceInputsOption) && (!runtime.nativePublication || !!pair) && (!runtime.manualListbox || !!pair) && (!runtime.standaloneDatalist || !!pair)
             && (!runtime.placements?.length || !!this.placementCoordinator && !!runtime.references)
             && runtime.resources.every(resource => ['http', 'local-storage', 'location'].includes(resource.kind));
         const eligible = () => {
@@ -3244,12 +3251,19 @@ export class CemElementRuntime {
         };
         return {
             witness: () => {
-                eligible(); const fingerprint = this.checkpointResumeHostWitness(instance, compiled);
-                const form = formKind ? prepareCemRetainedFormResume(instance, formKind,
+                provider = formKind === 'form-control' ? prepareCemEditorProviderHandoff(instance) : undefined;
+                pair = prepareCemProviderHandoff(provider?.consumer ?? instance);
+                if (provider && pair?.editor !== instance) throw Error('cem.checkpoint.resume.unsupported');
+                eligible();
+                sealedCapability = this.checkpointRuntimeState(instance, compiled, this.instanceStates.get(instance)!)?.capability ?? null;
+                const fingerprint = this.checkpointResumeHostWitness(instance, compiled);
+                const form = provider ? undefined : formKind ? prepareCemRetainedFormResume(instance, formKind,
                     cemRetainedFormCheckpoint(instance, formKind), this.checkpointControls(instance)!, () => this.checkpointControls(instance))
                     : widgetCheckpoint ? prepareCemRetainedWidgetResume(instance, widgetCheckpoint(), this.checkpointControls(instance)!, () => this.checkpointControls(instance), widgetCheckpoint) : undefined;
-                return () => { try { return (!form || form.current()) && this.checkpointResumeHostWitness(instance, compiled) === fingerprint; } catch { return false; } };
+                return () => { try { return (!form || form.current()) && (!provider || provider.current()) && (!pair || pair.current()) && this.checkpointResumeHostWitness(instance, compiled) === fingerprint; } catch { return false; } };
             },
+            park: () => !provider && pair ? pair.park() : () => undefined,
+            parkProvider: () => provider ? (unparkProvider = provider.park()) : () => undefined,
             prepare: async context => {
                 // The original retained island is the exact sealed source.
                 // HTML reparsing normalizes CRLF in authored editor text/values.
@@ -3299,7 +3313,9 @@ export class CemElementRuntime {
                         source => this.validateCheckpointReference(native.host, source), this.placementCoordinator) : undefined;
                 if (references) context.signal.addEventListener('abort', references.discard, { once: true });
                 const widget = plaintext ? prepareCemPlaintextEditorResume(instance, native.state.capability, native.controls)
-                    : formKind ? prepareCemRetainedFormResume(instance, formKind, native.state.capability, native.controls, () => this.checkpointControls(instance))
+                    : provider ? prepareCemRetainedWidgetResume(instance, native.state.capability, native.controls, () => this.checkpointControls(instance),
+                        () => provider?.current() ? sealedCapability : undefined)
+                        : formKind ? prepareCemRetainedFormResume(instance, formKind, native.state.capability, native.controls, () => this.checkpointControls(instance))
                         : widgetCheckpoint ? prepareCemRetainedWidgetResume(instance, native.state.capability, native.controls, () => this.checkpointControls(instance), widgetCheckpoint) : undefined;
                 const formWitness = formKind || widgetCheckpoint ? this.checkpointResumeHostWitness(instance, compiled) : undefined;
                 const css = compiled.stylesheets.length ? await native.host.compile(cssSource).result : undefined;
@@ -3322,22 +3338,19 @@ export class CemElementRuntime {
                 let activated = false, resume: Promise<void> | undefined;
                 const current = () => prepared.current() && instance.isConnected && this.declarationForInstance(instance) === compiled
                     && (activated || (!widget || widget.current()) && (!references || references.current()));
-                const owner: CemResumedElementOwner = Object.freeze({ element: instance, resume: () => {
-                    if (!context.active() || context.signal.aborted || !instance.isConnected || this.declarationForInstance(instance) !== compiled)
-                        return Promise.reject(new Error('cem.checkpoint.resume.stale'));
-                    if (resume) return resume;
+                const bind = () => {
                     if (this.checkpointComposing.has(instance) || this.checkpointInteracting.has(instance)
                         || (this.checkpointEventSequences.get(instance) ?? 0) !== context.receipt.acceptedEventSequence
                         || formWitness !== undefined && this.checkpointResumeHostWitness(instance, compiled) !== formWitness)
-                        return Promise.reject(new Error('cem.checkpoint.resume.stale'));
+                        throw new Error('cem.checkpoint.resume.stale');
                     widget?.activate();
-                    if (references && !references.current()) return Promise.reject(new Error('cem.checkpoint.resume.source-authority'));
+                    if (references && !references.current()) throw new Error('cem.checkpoint.resume.source-authority');
                     if (compiled.behavior === CEM_POPUP_CAPABILITY) resumeCemPopupGeometry(instance);
                     if (compiled.behavior === CEM_COMPOSITE_MENU_CAPABILITY) resumeCemMenuGeometry(instance);
                     if (compiled.behavior === CEM_NATIVE_SURFACE_CAPABILITY) resumeCemNativeSurface(instance);
                     this.admittedCheckpointBinding(route);
                     const client = native.host.checkpointClient;
-                    if (!client) return Promise.reject(new Error('cem.checkpoint.resume.binding'));
+                    if (!client) throw new Error('cem.checkpoint.resume.binding');
                     publication().resume(context, client, (candidate, receipt) => checkpointProcessingControl(native.host, { action: 'seal', text: candidate, receipt }));
                     for (const source of native.sources) {
                         const active = state.httpResources[source.name];
@@ -3358,20 +3371,52 @@ export class CemElementRuntime {
                     this.locationWriteTriggers.set(instance, triggers); this.checkpointImplicitWriters.set(instance, implicit);
                     this.processingRenderPlans.delete(instance);
                     this.checkpointResumeRevisions.set(instance, context);
-                    this.renderInstance(instance, compiled);
-                    return resume = this.whenRenderSettled(instance).then(() => {
-                        this.checkpointReferenceIntent.delete(instance);
-                        references?.discard();
-                        if (!publication().acknowledged) throw new Error('cem.checkpoint.resume.publication');
-                    });
+                };
+                const owner: CemResumedElementOwner = Object.freeze({ element: instance, resume: () => {
+                    if (!context.active() || context.signal.aborted || !instance.isConnected || this.declarationForInstance(instance) !== compiled) {
+                        revokeCemCheckpointResume(context);
+                        return Promise.reject(new Error('cem.checkpoint.resume.stale'));
+                    }
+                    if (resume) return resume;
+                    try { if (!activated) widget?.activate(); context.bindOwners(); }
+                    catch (error) { revokeCemCheckpointResume(context); return Promise.reject(error); }
+                    return resume = context.renewOwners().then(() => {
+                        const providerFrame = !provider && pair && (suggestions || native.state.nativePublication || native.state.standaloneDatalist);
+                        if (!providerFrame) {
+                            this.checkpointResumeRevisions.set(instance, context);
+                            this.renderInstance(instance, compiled);
+                        } else this.checkpointInteractionSettled(instance);
+                        return this.whenRenderSettled(instance).then(() => {
+                            this.checkpointReferenceIntent.delete(instance);
+                            references?.discard();
+                            if (!publication().acknowledged) throw new Error('cem.checkpoint.resume.publication');
+                        });
+                    }).catch(error => { revokeCemCheckpointResume(context); throw error; });
                 } });
-                return { owner, current, discard: () => {
-                    references?.discard();
-                    if (this.checkpointReferenceIntent.get(instance) === native.state.references) this.checkpointReferenceIntent.delete(instance);
-                    if (this.checkpointResumeRevisions.get(instance) === context) this.checkpointResumeRevisions.delete(instance);
-                    prepared.discard(); if (!activated) release?.();
-                    if (!route.admitted && this.checkpointScopeBindings.get(scope) === route) { route.stopScope?.(); this.checkpointScopeBindings.delete(scope); }
-                } };
+                return { owner, current, bind, bound: () => { unparkProvider?.(); unparkProvider = undefined; },
+                    renew: !provider && pair ? async () => {
+                        if (pair!.presentation) this.checkpointPresentationResume.set(instance, pair!.presentation);
+                        try {
+                            await pair!.renew(native.host, native.state);
+                            if (!context.active() || context.signal.aborted || this.checkpointComposing.has(instance) || this.checkpointInteracting.has(instance)
+                                || (this.checkpointEventSequences.get(instance) ?? 0) !== context.receipt.acceptedEventSequence
+                                || !equalCheckpointState(native.controls, this.checkpointControls(instance))) throw Error('cem.checkpoint.resume.stale');
+                        }
+                        finally { this.checkpointPresentationResume.delete(instance); }
+                    } : undefined,
+                    renewed: () => {
+                        if (!context.active() || context.signal.aborted || this.checkpointComposing.has(instance) || this.checkpointInteracting.has(instance)
+                            || (this.checkpointEventSequences.get(instance) ?? 0) !== context.receipt.acceptedEventSequence
+                            || !equalCheckpointState(native.controls, this.checkpointControls(instance))
+                            || provider && !equalCheckpointState(native.state.capability, cemFormControlCheckpoint(instance,
+                                consumer => this.checkpointEndpoint(consumer)?.instanceId))) throw Error('cem.checkpoint.resume.stale');
+                    }, discard: () => {
+                        references?.discard();
+                        if (this.checkpointReferenceIntent.get(instance) === native.state.references) this.checkpointReferenceIntent.delete(instance);
+                        if (this.checkpointResumeRevisions.get(instance) === context) this.checkpointResumeRevisions.delete(instance);
+                        prepared.discard(); if (!activated) release?.();
+                        if (!route.admitted && this.checkpointScopeBindings.get(scope) === route) { route.stopScope?.(); this.checkpointScopeBindings.delete(scope); }
+                    } };
             },
         };
     }
@@ -3454,7 +3499,10 @@ export class CemElementRuntime {
             publishedControls = this.checkpointFingerprint(instance, compiled);
             published(receipt);
         };
-        const input = () => {
+        const input = (event?: Event) => {
+            // Only the explicitly admitted paired adapter may reset native picker
+            // presentation. Edits, focus, keys and commands remain ordinary input.
+            if (event?.type === 'toggle' && this.checkpointPresentationResume.get(instance) === event.target) return;
             owner.input();
             this.checkpointEventSequences.set(instance, (this.checkpointEventSequences.get(instance) ?? 0) + 1);
             if (this.checkpointAdapterOwnsInteraction(compiled) || hasCemManualListboxCheckpoint(instance) || hasCemStandaloneDatalistCheckpoint(instance)) this.checkpointInteractionSettled(instance);

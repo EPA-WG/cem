@@ -11,6 +11,8 @@ import { reportInteractionReference } from './interaction-reference.js';
 
 export interface CemNativeDatalistAttachment {
     current(): boolean;
+    park(): () => void;
+    ready(): Promise<void>;
     checkpoint(): CheckpointDatalist | undefined;
     editorHost: HTMLElement;
     readonly failed: boolean;
@@ -61,7 +63,7 @@ export function checkpointInactiveDatalist(instance: HTMLElement, context: CemPr
 }
 /** Local host policy admits original sources; the native owner renders options into the declaration. */
 export function createLocalDatalist(instance: HTMLElement, context: CemProducedElementBehaviorContext,
-    environment: CemLocalSuggestionsEnvironment, changed: () => void, ownerLost: () => void): CemNativeDatalistAttachment {
+    environment: CemLocalSuggestionsEnvironment, changed: () => void, ownerLost: () => void, resumeRevision?: string): CemNativeDatalistAttachment {
     const { editorHost, provider, datalist, templates } = localDatalistInputs(instance, environment);
     inactiveSources.delete(instance);
     const runtime = context.runtime;
@@ -73,11 +75,16 @@ export function createLocalDatalist(instance: HTMLElement, context: CemProducedE
     const checkpointOwner = {};
     const abort = new AbortController(), lease = provider.lease(checkpointOwner);
     const coordinator = new CemSuggestionsPlacementCoordinator(instance.getRootNode() as Document | ShadowRoot, environment.limits);
+    let paused = false;
+    let readyResolve!: () => void, readyReject!: (error: unknown) => void;
+    const ready = new Promise<void>((resolve, reject) => { readyResolve = resolve; readyReject = reject; });
+    void ready.catch(() => undefined);
     let session: CemNativeCapabilitySession | undefined, publication: CemNativeSuggestionsPublication | undefined;
     let released = false, failed = false, preparing = true, queued = false, editorPlacement: CemSuggestionsPlacementLease | undefined, targetPlacement: CemSuggestionsPlacementLease | undefined;
     const queue = () => {
         if (queued || released) return;
         queued = true; queueMicrotask(() => { queued = false; if (!released) {
+            if (paused) return;
             attachment.reconcile();
             if (runtime.checkpointCaptureEnabled) { runtime.checkpointInteractionSettled(instance); runtime.checkpointInteractionSettled(editorHost); }
         } });
@@ -105,7 +112,9 @@ export function createLocalDatalist(instance: HTMLElement, context: CemProducedE
     };
     const stopProvider = subscribeCemEditorCheckpoint(provider, lease, queue);
     const attachment: CemNativeDatalistAttachment = {
-        current, editorHost, get failed() { return !released && failed; },
+        current, editorHost, ready: () => ready,
+        park() { if (paused || !attachment.checkpoint()) throw Error('cem.checkpoint.resume.datalist'); paused = true;
+            return () => { if (paused) { paused = false; attachment.reconcile(); } }; }, get failed() { return !released && failed; },
         checkpoint() {
             if (released || failed || preparing || queued || !current() || !lease.valid || provider.composing
                 || editorHost.contains(instance.ownerDocument.activeElement)) return undefined;
@@ -118,7 +127,7 @@ export function createLocalDatalist(instance: HTMLElement, context: CemProducedE
                 claim: provider.editable ? 'attached' : 'unavailable', presentation: 'reset-on-resume' };
         },
         reconcile() {
-            if (released || failed) return;
+            if (released || failed || paused) return;
             if (!current()) { attachment.release(); changed(); return; }
             if (preparing || !publication?.valid) return;
             coordinator.refresh();
@@ -149,7 +158,7 @@ export function createLocalDatalist(instance: HTMLElement, context: CemProducedE
     };
     const stopCheckpoint = registerCemEditorCheckpoint(provider, { host: instance, owner: checkpointOwner, lease,
         current: () => !!attachment.checkpoint(), claim: () => attachment.checkpoint()?.claim === 'attached' ? 'datalist' : attachment.checkpoint() ? 'none' : undefined });
-    const stopOwner = environment.owner.onNativeAuthorityLost?.(() => { attachment.release(); ownerLost();
+    const stopOwner = environment.owner.onNativeAuthorityLost?.(() => { if (paused) return; attachment.release(); ownerLost();
         reportInteractionReference(instance, 'suggestions-native-owner-lost', 'suggestions-binding'); });
     // Wait until the caller installs this attachment before submitting its native frame.
     queueMicrotask(() => { void (async () => {
@@ -157,7 +166,7 @@ export function createLocalDatalist(instance: HTMLElement, context: CemProducedE
             const bytes = new TextEncoder().encode(sourceText);
             session = await CemNativeCapabilitySession.prepare(environment.owner, { action: 'prepare', adapter: 'native-datalist-v1',
                 handle: { sessionKey: crypto.randomUUID(), instanceId: environment.snapshot.instanceId,
-                    scopePolicyStamp: environment.snapshot.scopePolicyStamp, sourceRevision: crypto.randomUUID() },
+                    scopePolicyStamp: environment.snapshot.scopePolicyStamp, sourceRevision: resumeRevision ?? crypto.randomUUID() },
                 sources: { kind: 'cem-native-session-import-v1', bytes: bytes.buffer as ArrayBuffer, contentType: 'application/xml', sourceUri: instance.baseURI },
                 data: {}, select: 'seq:where(input.children.children, fn(n) => n.name == "options").children', limits: environment.limits }, current, abort.signal, runtime.checkpointCaptureEnabled);
             publication = await session.publishDatalist({}, current);
@@ -165,9 +174,10 @@ export function createLocalDatalist(instance: HTMLElement, context: CemProducedE
             runtime.refreshElementReferences(instance); await runtime.whenRenderSettled(instance);
             if (!current() || runtime.diagnosticsFor(instance).some(d => d.severity === 'error' || d.severity === 'fatal')
                 || runtime.renderedSuggestionsFor(instance)?.binding.config.profile !== 'native-datalist') throw new Error('Native datalist frame superseded or failed');
-            preparing = false; attachment.reconcile();
+            preparing = false; attachment.reconcile(); readyResolve();
             if (runtime.checkpointCaptureEnabled) { runtime.checkpointInteractionSettled(instance); runtime.checkpointInteractionSettled(editorHost); }
-        } catch {
+        } catch (error) {
+            readyReject(error);
             if (released) return;
             failed = true; stopProvider(); stopCheckpoint(); lease.release(); coordinator.dispose(); void publication?.release().catch(() => undefined);
             void session?.release().catch(() => undefined); publication = undefined;

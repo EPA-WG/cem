@@ -16,6 +16,8 @@ export interface CemEditorAttributeClaim {
     clear(): void;
     dispose(): void;
     preserves(name: string): boolean;
+    /** Internal accepted-checkpoint pause; never grants native authority. */
+    park(): () => void;
 }
 type ScalarClaim = { saved: string | null; applied: string | null };
 const names = ['role', 'aria-haspopup', 'aria-autocomplete', 'aria-expanded', 'aria-activedescendant'];
@@ -36,6 +38,7 @@ export function createCemEditorAttributeClaim(editor: HTMLElement, eligible: () 
     const scalars = new Map<string, ScalarClaim>();
     let controls: { saved: string | null; applied: string; added?: string } | undefined;
     let request: CemEditorAttributeRequest | undefined, closingPanel: HTMLElement | undefined, disposed = false, checking = false;
+    let paused = false;
     const clear = () => {
         request = undefined;
         for (const [name, claim] of scalars) if (editor.getAttribute(name) === claim.applied) write(editor, name, claim.saved);
@@ -67,7 +70,7 @@ export function createCemEditorAttributeClaim(editor: HTMLElement, eligible: () 
         && scalars.get('aria-activedescendant')?.applied === (request?.row?.id ?? null)
         && (!controls || tokens(editor.getAttribute('aria-controls')).includes(request?.listbox.id ?? ''));
     const refresh = () => {
-        if (!request || checking) return;
+        if (!request || checking || paused) return;
         checking = true;
         try { if (!admitted(request) || !matches()) { clear(); invalidated(); } }
         finally { checking = false; }
@@ -93,8 +96,10 @@ export function createCemEditorAttributeClaim(editor: HTMLElement, eligible: () 
     return {
         get valid() { refresh(); return !!request; },
         refresh, clear,
+        park() { if (paused) throw Error("cem.checkpoint.resume.claim"); paused = true; return () => { paused = false; refresh(); }; },
         preserves(name) { refresh(); return !!request && (scalars.has(name) || name === 'aria-controls' && !!controls); },
         set(next) {
+            if (paused) return false;
             const captured = Object.freeze({ ...next });
             const values: Record<string, string | null> = { role: 'combobox', 'aria-haspopup': 'listbox', 'aria-autocomplete': captured.autocomplete,
                 'aria-expanded': String(captured.expanded), 'aria-activedescendant': captured.row?.id ?? null };

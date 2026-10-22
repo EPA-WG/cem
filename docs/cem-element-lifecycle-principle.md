@@ -496,8 +496,8 @@ choice previews and multiple selections, authored reset defaults, validity and
 UTF-16 selection. Fresh evaluation synchronizes the existing form internals;
 it does not reapply defaults, selection/value requests or dispatch input/change.
 The exact revision/value/control-bound one-shot native change suppression survives
-a committed provider edit; the next genuine edit clears it as usual. Active provider
-leases/subscribers are refused until their separate renewal contracts are implemented.
+a committed provider edit; the next genuine edit clears it as usual. Accounted
+shared provider relationships require the paired handoff described below.
 New edits, changed defaults, control replacement and composition refuse stale
 preparation or activation, including between admission and explicit owner activation.
 
@@ -524,7 +524,30 @@ changing the physical runtime alone does not invalidate provider dependencies.
 The one-use revision authority belongs to that original active owner context;
 new input refuses stale first-frame authority and subsequent renders advance normally.
 
-Active suggestions, standalone manual-listbox/native-datalist editor providers,
-their native frames/proofs, and legacy storage/location rendering still refuse a
-complete-domain resume. Paired owner activation and declarative recovery status
-remain follow-up work. Studio does not restart itself automatically.
+Paired suggestions, standalone manual listboxes and native datalists now stage
+all owners before activation. Original host/control/claim-graph witnesses are
+checked as a complete set, then every processing/publication route binds before
+any source or provider relationship renews. A bounded browser presentation pause
+retains the exact owned controls and claims through native authority loss; it
+never makes an expired native row, source or invocation valid. Provider claim
+writes and new openings refuse while paused. All pauses transfer from the consumed
+ticket to the fresh transaction and release on completion, cancellation or failure.
+
+Canonical local suggestions rebuild source sessions/publications on the fresh host.
+The original trusted `resume(freshHost)` callback is mandatory for external sources
+and standalone delegates; it must recheck current host policy and reacquire its
+source/binding, rather than return an old native handle. Fresh native capsule
+validation checks source bytes, policies, preparation and digests against the
+sealed intent. Active and committed indices/values are revalidated against new
+native row identities; no provider value is recommitted. The browser provider
+retains edited controls, defaults, focus/selection and consumed-change suppression.
+Standalone manual listboxes reset their native presentation. Datalists capture only
+unfocused, settled editors and reacquire the owned list relationship; browser picker
+selection/visibility is never restored. Adapter-driven toggle delivery from the
+exact admitted surface is awaited and is not counted as new user input. Actual
+edits, focus, keys and commands remain input and refuse stale recovery.
+
+Unknown source policies, inactive sources without an admitted readonly proof and legacy
+storage/location rendering still refuse complete-domain resume. Full owner/source
+acceptance and declarative recovery status remain follow-up work. Studio does not
+restart itself automatically.

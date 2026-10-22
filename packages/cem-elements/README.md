@@ -76,8 +76,16 @@ actions. Passive source/placement consumers call the original host input callbac
 validate its opaque source bytes/policy on the fresh heap, and acquire new invocation
 leases from current registry grants. Copies, changed sources and revoked endpoints
 cannot authorize publication. The first unchanged frame retains its sealed data
-revision. Active suggestions/manual-listbox/native-datalist editor-provider handoff
-and legacy storage/location rendering still refuse resume. Studio recovery remains
+revision. Paired suggestions, manual listboxes and native datalists bind every
+participating processing/publication owner before renewing source publications and
+provider relationship claims. Native row/commit proofs are rebuilt and checked
+against sealed source capsules; original DOM, edits, defaults and consumed changes
+stay with the browser provider. Local canonical sources renew through shared
+adapters. External suggestions and standalone delegates require their original
+trusted lifecycle's `resume(freshHost)` policy; absent or withdrawn policy refuses.
+Standalone listbox presentation resets, and native datalists require an unfocused
+editor and reset picker presentation. Inactive sources without an admitted readonly
+proof and legacy storage/location rendering still refuse. Studio recovery remains
 manual. See [explicit owner resume transactions](../../docs/committed-checkpoints.md#explicit-owner-resume-transactions).
 
 

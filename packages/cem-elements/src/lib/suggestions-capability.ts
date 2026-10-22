@@ -1,8 +1,10 @@
+import { registerCemProviderHandoff, validateCemProviderSource } from './checkpoint-provider-handoff.js';
+import { equalCheckpointState } from './checkpoint-form-resume.js';
 import { checkpointXmlSource } from './checkpoint-interactions.js';
 import { checkpointInactiveDatalist, createLocalDatalist, nativeDatalistConfiguration, type CemNativeDatalistAttachment } from './native-datalist-attachment.js';
 import { captureLocalSuggestions, localSuggestionsNamespaceStamp } from './local-suggestions-capture.js';
 import type { DataIslandSnapshot, CemProducedElementBehavior, CemProducedElementBehaviorContext } from './cem-elements.js';
-import { connectCemSuggestionsController, type CemSuggestionsController, type CemSuggestionsControllerOptions, type CemSuggestionsFeedback } from './suggestions-controller.js';
+import { connectCemSuggestionsController, cemSuggestionsControllerHandoff, type CemSuggestionsController, type CemSuggestionsControllerOptions, type CemSuggestionsFeedback } from './suggestions-controller.js';
 import { resolveCemSuggestionsEditor } from './suggestions-editor.js';
 import { CemNativeCapabilitySession } from './native-capability-session.js';
 import { CemSuggestionsPlacementCoordinator, type CemSuggestionsPlacementLease } from './suggestions-placements.js';
@@ -19,6 +21,8 @@ interface State {
     stopReferences?: () => void;
     focusListener?: () => void;
     queued: boolean;
+    parked?: boolean;
+    stopHandoff?: () => void;
     configuration?: string;
     local?: LocalState;
     native?: CemNativeDatalistAttachment;
@@ -111,7 +115,7 @@ export function localCemSuggestionsBinding(instance: HTMLElement, snapshot: Data
 }
 function releaseLocal(state: State): void { state.local?.release(); state.local = undefined; }
 
-function localInputs(instance: HTMLElement, state: State): CemSuggestionsControllerOptions | undefined {
+function localInputs(instance: HTMLElement, state: State, resumeRevision?: string): CemSuggestionsControllerOptions | undefined {
     const runtime = state.context.runtime, environment = runtime.localSuggestionsEnvironmentFor(instance);
     if (!environment || state.localBlocked) { releaseLocal(state); return undefined; }
     const endpoint = resolveCemSuggestionsEditor(instance);
@@ -139,11 +143,12 @@ function localInputs(instance: HTMLElement, state: State): CemSuggestionsControl
     const previous = state.local;
     if (previous && previous.template === template && previous.sourceTemplate === sourceTemplate && previous.sourceLabels.length === sourceLabels.length && previous.sourceLabels.every((label, i) => label === sourceLabels[i]) && previous.provider === provider
         && previous.options.editorHost === editorHost && previous.options.listbox === listbox && previous.options.current?.()) return previous.options;
-    stop(state); releaseLocal(state);
+    if (resumeRevision === undefined) stop(state);
+    releaseLocal(state);
     const capturedSources = [...(sourceTemplate ? [sourceTemplate] : []), ...sourceLabels];
     const namespaces = localSuggestionsNamespaceStamp(capturedSources, environment.limits);
     const sourceText = captureLocalSuggestions(instance.ownerDocument, sourceTemplate, sourceLabels, environment.limits);
-    const sourceRevision = crypto.randomUUID();
+    const sourceRevision = resumeRevision ?? crypto.randomUUID();
     const checkpointSource = runtime.checkpointCaptureEnabled ? checkpointXmlSource(sourceText, instance.baseURI, sourceRevision,
         'seq:where(input.children.children, fn(n) => n.name == "options").children', {
             option: sourceLabels.some(label => label.slot === 'option') ? 'seq:where(input.children.children, fn(n) => n.name == "option-label")' : null,
@@ -242,7 +247,7 @@ function localInputs(instance: HTMLElement, state: State): CemSuggestionsControl
         },
     };
     state.local = local;
-    stopOwner = environment.owner.onNativeAuthorityLost?.(() => { state.localBlocked = true; stop(state); releaseLocal(state); queue(); });
+    stopOwner = environment.owner.onNativeAuthorityLost?.(() => { if (state.parked) return; state.localBlocked = true; stop(state); releaseLocal(state); queue(); });
     return local.options;
 }
 function sourceConfiguration(instance: HTMLElement): string {
@@ -250,7 +255,7 @@ function sourceConfiguration(instance: HTMLElement): string {
         .map(name => instance.getAttribute(name)).join('\u0000');
 }
 function synchronize(instance: HTMLElement, state: State): void {
-    if (!instance.isConnected || !state.observer) return;
+    if (!instance.isConnected || !state.observer || state.parked) return;
     const profile = instance.getAttribute('profile') ?? 'listbox';
     if (profile !== 'listbox') {
         if (state.controller || state.local) { stop(state); releaseLocal(state); }
@@ -320,6 +325,56 @@ export const CEM_SUGGESTIONS_CAPABILITY: CemProducedElementBehavior = {
     connected(instance, context) {
         const state = states.get(instance); if (!state || state.observer) return;
         state.context = context;
+        state.stopHandoff = registerCemProviderHandoff(instance, () => {
+            const captured = cemSuggestionsCheckpoint(instance), editor = cemSuggestionsCheckpointEditor(instance);
+            if (captured && 'phase' in captured && captured.phase === 'inactive' && (!captured.proof || captured.feedbackState !== 'unavailable')) return undefined;
+            const external = state.context.runtime.suggestionsControllerInputsFor(instance);
+            const renew = external?.resume?.bind(external);
+            if (!captured || !editor || !state.local && !state.native && !renew || external && !renew) return undefined;
+            const controller = state.controller, native = state.native, local = state.local;
+            const current = () => states.get(instance) === state && state.controller === controller && state.native === native
+                && state.local === local && instance.isConnected && editor.isConnected
+                && (state.parked || equalCheckpointState(captured, cemSuggestionsCheckpoint(instance)));
+            return { editor, presentation: state.options?.listbox, current, park() {
+                if (!current() || state.parked) throw Error('cem.checkpoint.resume.provider');
+                const release = controller ? cemSuggestionsControllerHandoff(controller).park() : native!.park();
+                state.parked = true;
+                return () => { if (!state.parked) return; state.parked = false; release(); };
+            }, async renew(host, saved) {
+                if (!state.parked || saved.capability?.kind !== 'suggestions') throw Error('cem.checkpoint.resume.provider');
+                const expected = saved.capability.state;
+                // Native validation has already approved the sealed capsule. The
+                // original local source/policy is checked again before releasing it.
+                const intent = { ...captured, source: expected.source };
+                if ('phase' in captured && captured.phase === 'inactive' && captured.proof
+                    && 'phase' in expected && expected.phase === 'inactive' && expected.proof)
+                    Object.assign(intent, { proof: { ...captured.proof, source: expected.proof.source } });
+                if (!equalCheckpointState(intent, expected)) throw Error('cem.checkpoint.resume.source');
+                if (controller) {
+                    releaseLocal(state); state.localBlocked = false;
+                    const options = renew ? await renew(host) : localInputs(instance, state, expected.source.revision);
+                    if (!options) throw Error('cem.checkpoint.resume.source-authority');
+                    state.options = options;
+                    await cemSuggestionsControllerHandoff(controller).resume({ ...options,
+                        current: () => resolveCemSuggestionsEditor(instance).host === options.editorHost && (options.current?.() ?? true) }, expected);
+                    await validateCemProviderSource(host, controller.checkpoint()?.source, expected.source);
+                    if ('phase' in expected && expected.phase === 'inactive' && expected.proof) {
+                        const fresh = controller.checkpoint();
+                        await validateCemProviderSource(host, fresh && 'phase' in fresh && fresh.phase === 'inactive' ? fresh.proof?.source : undefined, expected.proof.source);
+                    }
+                    state.parked = false;
+                } else {
+                    native!.release(); state.native = undefined; state.localBlocked = false;
+                    const environment = state.context.runtime.localSuggestionsEnvironmentFor(instance);
+                    if (!environment) throw Error('cem.checkpoint.resume.source-authority');
+                    state.native = createLocalDatalist(instance, state.context, environment,
+                        () => { state.native = undefined; state.context.requestRender(); },
+                        () => { state.localBlocked = true; state.context.requestRender(); }, expected.source.revision);
+                    await state.native.ready();
+                    await validateCemProviderSource(host, state.native.checkpoint()?.source, expected.source); state.parked = false;
+                }
+            } };
+        });
         const queue = () => {
             if (state.queued) return;
             state.queued = true;
@@ -356,6 +411,7 @@ export const CEM_SUGGESTIONS_CAPABILITY: CemProducedElementBehavior = {
     disconnected(instance) {
         const state = states.get(instance); if (!state) return;
         if (state.focusListener) { instance.removeEventListener('focusin', state.focusListener); instance.removeEventListener('focusout', state.focusListener); state.focusListener = undefined; }
+        state.stopHandoff?.(); state.stopHandoff = undefined; state.parked = false;
         state.observer?.disconnect(); state.observer = undefined; state.queued = false; state.stopReferences?.(); state.stopReferences = undefined;
         state.native?.release(); state.native = undefined; state.nativeConfiguration = undefined;
         stop(state); releaseLocal(state); state.localBlocked = false; state.configuration = undefined;

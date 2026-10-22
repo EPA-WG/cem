@@ -1,3 +1,5 @@
+import type { CemProcessingHost } from './internal/runtime-support/processing-host.js';
+import { registerCemProviderHandoff, validateCemProviderSource } from './checkpoint-provider-handoff.js';
 import type { CemElementRuntime } from './cem-elements.js';
 import type { CheckpointEndpoint, CheckpointStandaloneDatalist } from './checkpoint-interactions.js';
 import { getCemEditorProvider, registerCemEditorCheckpoint, subscribeCemEditorCheckpoint } from './form-control-capability.js';
@@ -8,6 +10,8 @@ export interface CemStandaloneDatalistLifecycle {
     current(): boolean;
     ready(): boolean;
     checkpoint?: boolean;
+    /** Trusted original source policy, invoked only after every owner is bound. */
+    resume?(host: CemProcessingHost): Promise<CemStandaloneDatalistLifecycle>;
     subscribe(invalidate: () => void): () => void;
 }
 interface Options {
@@ -33,7 +37,8 @@ export function connectCemStandaloneDatalist({ runtime, host, editorHost, target
     const producer = runtime.readInstanceSnapshot(host).instanceId, editorProducer = runtime.readInstanceSnapshot(editorHost).instanceId;
     const owner = {}, lease = provider.lease(owner);
     const coordinator = new CemSuggestionsPlacementCoordinator(host.getRootNode() as Document | ShadowRoot);
-    let disposed = false, queued = false;
+    let disposed = false, queued = false, paused = false;
+    let stopLifecycle: (() => void) | undefined;
     const current = () => !disposed && host.isConnected && editorHost.isConnected && target.isConnected && host.contains(target)
         && host.getRootNode() === editorHost.getRootNode() && lease.valid && getCemEditorProvider(editorHost) === provider
         && provider.control === editor && isCemDatalistInput(editor) && !provider.composing && lifecycle.current() && lifecycle.ready();
@@ -54,7 +59,7 @@ export function connectCemStandaloneDatalist({ runtime, host, editorHost, target
     } catch (error) { coordinator.dispose(); lease.release(); throw error; }
     const settled = () => { runtime.checkpointInteractionSettled(host); runtime.checkpointInteractionSettled(editorHost); };
     const reconcile = () => {
-        if (disposed) return;
+        if (disposed || paused) return;
         coordinator.refresh();
         if (!frame() || !provider.editable) { lease.datalist.clear(); return; }
         if (lease.datalist.valid || lease.attributes.valid) return;
@@ -64,7 +69,7 @@ export function connectCemStandaloneDatalist({ runtime, host, editorHost, target
         } catch { /* Conflicting or authored relationships are preserved and block capture. */ }
     };
     const queue = () => {
-        if (disposed || queued) return;
+        if (disposed || queued || paused) return;
         queued = true; queueMicrotask(() => { queued = false; if (!disposed) { reconcile(); settled(); } });
     };
     const releases: (() => void)[] = [];
@@ -72,7 +77,7 @@ export function connectCemStandaloneDatalist({ runtime, host, editorHost, target
     const abort = new AbortController();
     try {
         releases.push(subscribeCemEditorCheckpoint(provider, lease, queue));
-        releases.push(lifecycle.subscribe(queue));
+        stopLifecycle = lifecycle.subscribe(queue); releases.push(() => stopLifecycle?.());
         observer.observe(target, { attributes: true, childList: true, subtree: true, characterData: true });
         editor.addEventListener('focus', queue, { signal: abort.signal }); editor.addEventListener('blur', queue, { signal: abort.signal });
         if (lifecycle.checkpoint) {
@@ -89,6 +94,25 @@ export function connectCemStandaloneDatalist({ runtime, host, editorHost, target
             releases.push(() => { if (delegates.get(host) === record) delegates.delete(host); });
             releases.push(registerCemEditorCheckpoint(provider, { host, owner, lease, current: () => !!capture(),
                 claim: () => capture()?.claim === 'attached' ? 'datalist' : capture() ? 'none' : undefined }));
+            releases.push(registerCemProviderHandoff(host, () => {
+                const captured = capture(), renew = lifecycle.resume?.bind(lifecycle);
+                if (!captured || !renew) return undefined;
+                return { editor: editorHost, current: () => !disposed && (paused || !!capture()), park() {
+                    if (!capture() || paused) throw Error('cem.checkpoint.resume.datalist');
+                    paused = true;
+                    return () => { if (paused) { paused = false; reconcile(); } };
+                }, async renew(freshHost, saved) {
+                    if (!paused || !saved.standaloneDatalist || saved.standaloneDatalist.providerRevision !== provider.revision)
+                        throw Error('cem.checkpoint.resume.datalist');
+                    const next = await renew(freshHost);
+                    if (!next || next.checkpoint !== true || !next.current() || !next.ready()) throw Error('cem.checkpoint.resume.source-authority');
+                    stopLifecycle?.(); lifecycle = next; stopLifecycle = lifecycle.subscribe(queue);
+                    runtime.refreshElementReferences(host); await runtime.whenRenderSettled(host);
+                    await validateCemProviderSource(freshHost, runtime.renderedSuggestionsFor(host)?.binding.checkpointSource(), saved.standaloneDatalist.source);
+                    lease.datalist.clear(); paused = false; reconcile();
+                    if (!capture()) throw Error('cem.checkpoint.resume.datalist');
+                } };
+            }));
         }
         reconcile(); settled();
     } catch (error) {

@@ -93,6 +93,32 @@ export function subscribeCemEditorCheckpoint(provider: CemEditorProvider, lease:
     const release = provider.subscribe(listener);
     return () => { checkpointListeners.delete(listener); release(); };
 }
+/** Exact browser claim graph witness; does not inspect expired native authority. */
+export function prepareCemEditorProviderHandoff(host: HTMLElement) {
+    const state = states.get(host), consumers = state && checkpointConsumers.get(state.provider);
+    if (!state || consumers?.size !== 1 || state.composing || state.imePresses.size || state.handledPresses.size) return undefined;
+    const consumer = [...consumers][0], control = state.control, revision = state.revision;
+    const entries = [state.listeners, state.leases, state.attributeClaims, state.validityClaims, state.validityOwners] as const;
+    const copies = entries.map(value => [...value]);
+    const scalar = () => JSON.stringify([state.generation, state.authoredValue, state.formDisabled, state.customValidity,
+        state.selectionRequest, state.checkpoint && [state.checkpoint.revision, state.checkpoint.value]]);
+    const captured = scalar();
+    const current = () => states.get(host) === state && state.control === control && controlFor(host) === control
+        && state.revision === revision && !state.composing && !state.imePresses.size && !state.handledPresses.size
+        && checkpointConsumers.get(state.provider)?.size === 1 && checkpointConsumers.get(state.provider)?.has(consumer) === true
+        && scalar() === captured && entries.every((entry, index) => {
+            const now = [...entry] as unknown[]; return now.length === copies[index].length && now.every((value, n) => {
+                const previous = copies[index][n]; return Array.isArray(value) && Array.isArray(previous)
+                    ? value[0] === previous[0] && value[1] === previous[1] : value === previous;
+            });
+        });
+    return { consumer: consumer.host, current, park() {
+        if (!current()) throw Error('cem.checkpoint.resume.provider');
+        const attributes = consumer.lease.attributes.park(), datalist = consumer.lease.datalist.park();
+        let active = true;
+        return () => { if (!active) return; active = false; datalist(); attributes(); };
+    } };
+}
 /** Admit only standalone providers or one exactly accounted shared consumer. */
 export function cemFormControlCheckpoint(instance: HTMLElement, consumerId?: (host: HTMLElement) => string | undefined) {
     const state = states.get(instance);
@@ -364,11 +390,11 @@ function editorProvider(instance: HTMLElement, state: FormControlState): CemEdit
             const valid = () => current() && state.leases.size === 1;
             const attributes = admitted ? createCemEditorAttributeClaim(admitted, () => valid() && editable(instance, state),
                 () => state.revision, () => publish(instance, state, 'attribute-claims')) : {
-                    valid: false, set: () => false, refresh: () => undefined, clear: () => undefined, dispose: () => undefined, preserves: () => false,
+                    valid: false, set: () => false, refresh: () => undefined, clear: () => undefined, dispose: () => undefined, preserves: () => false, park: () => () => undefined,
                 };
             const datalist = admitted ? createCemEditorDatalistClaim(admitted, () => valid() && editable(instance, state) && !instance.hasAttribute('list'),
                 () => state.revision, () => publish(instance, state, 'attribute-claims')) : {
-                    valid: false, set: () => false, refresh: () => undefined, clear: () => undefined, dispose: () => undefined, preserves: () => false,
+                    valid: false, set: () => false, refresh: () => undefined, clear: () => undefined, dispose: () => undefined, preserves: () => false, park: () => () => undefined,
                 };
             state.attributeClaims.set(token, attributes);
             state.attributeClaims.set(datalist, datalist);

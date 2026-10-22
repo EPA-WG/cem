@@ -12,12 +12,15 @@ export interface CemEditorDatalistClaim {
     clear(): void;
     dispose(): void;
     preserves(name: string): boolean;
+    /** Internal accepted-checkpoint pause; never grants native authority. */
+    park(): () => void;
 }
 /** The provider owns only `list`; it never installs custom popup semantics or edits the value. */
 export function createCemEditorDatalistClaim(editor: HTMLElement, eligible: () => boolean, revision: () => number,
     invalidated: () => void): CemEditorDatalistClaim {
     let request: Readonly<CemEditorDatalistRequest> | undefined, applied: string | undefined;
     let stop: (() => void) | undefined, disposed = false, checking = false;
+    let paused = false;
     // Even a later author write of the same ID takes ownership. Drain our own writes
     // synchronously, leaving all externally queued list mutations visible here.
     const authored = (records: MutationRecord[]) => {
@@ -40,7 +43,7 @@ export function createCemEditorDatalistClaim(editor: HTMLElement, eligible: () =
         } catch { return false; }
     };
     const refresh = () => {
-        if (!request || checking) return;
+        if (!request || checking || paused) return;
         checking = true;
         try {
             authored(observer.takeRecords());
@@ -54,8 +57,10 @@ export function createCemEditorDatalistClaim(editor: HTMLElement, eligible: () =
     return {
         get valid() { refresh(); return !!request; },
         refresh, clear,
+        park() { if (paused) throw Error("cem.checkpoint.resume.claim"); paused = true; return () => { paused = false; refresh(); }; },
         preserves(name) { refresh(); return name === 'list' && !!request; },
         set(next) {
+            if (paused) return false;
             refresh();
             const captured = Object.freeze({ ...next });
             if (!admitted(captured) || (request ? editor.getAttribute('list') !== applied : editor.hasAttribute('list'))) {

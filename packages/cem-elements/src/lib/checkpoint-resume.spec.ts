@@ -10,7 +10,7 @@ const receipt = { runtimeId: 'session', generation: 1, commitSequence: 1, policy
 ], operations: [] };
 const saved = (): CemStoredCheckpoint => ({ receipt: structuredClone(receipt), bytes: new TextEncoder().encode(JSON.stringify({ version: 'cem-committed-checkpoint/1', receipt,
     owners: receipt.owners.map(owner => ({ instanceId: owner.instanceId, island: `<template>${owner.instanceId} é😀</template>` })) })) });
-async function fixture(adjust?: (id: string, context: CemCheckpointResumeContext) => Promise<void>) {
+async function fixture(adjust?: (id: string, context: CemCheckpointResumeContext) => Promise<void>, hooks?: (id: string, context: CemCheckpointResumeContext) => object) {
     let valid = true, alive = true;
     const contexts: CemCheckpointResumeContext[] = [], discarded: string[] = [];
     const checkpoint = saved(), previous = crypto.randomUUID();
@@ -21,7 +21,7 @@ async function fixture(adjust?: (id: string, context: CemCheckpointResumeContext
         async prepare(context) {
             contexts.push(context); await adjust?.(id, context);
             return { owner: { use: () => { if (!context.active()) throw Error('inactive'); return context.island; } },
-                current: () => alive, discard: () => { discarded.push(id); } };
+                current: () => alive, discard: () => { discarded.push(id); }, ...hooks?.(id, context) };
         } });
     const ticket = issueCheckpointResumeTicket(previous, checkpoint, () => valid, new Map(receipt.owners.map(owner => [owner.instanceId, adapter(owner.instanceId)])));
     const admission = await group.allocate([completeNativeRetirement(participant, checkpoint.bytes)]);
@@ -39,6 +39,57 @@ describe('fresh generation semantic owner transaction', () => {
         expect(f.contexts.every(context => !context.active() && context.signal.aborted)).toBe(true);
         result.revoke(); expect(f.discarded).toHaveLength(2);
         await expect(resumeCemCheckpointOwners(f.admission, [f.ticket])).rejects.toThrow('ticket');
+    });
+    it('binds every participating owner before renewing a provider, independent of caller order', async () => {
+        const events: string[] = [];
+        const f = await fixture(undefined, id => ({ bind: () => events.push(`bind:${id}`), bound: () => events.push(`bound:${id}`),
+            renew: async () => { expect(events.slice(0, 2)).toEqual(['bind:editor', 'bind:tree']); events.push(`renew:${id}`); } }));
+        const resumed = await resumeCemCheckpointOwners(f.admission, [f.ticket]);
+        expect(events).toEqual([]);
+        await f.contexts[1].renewOwners(); await f.contexts[0].renewOwners();
+        expect(events).toEqual(['bind:editor', 'bind:tree', 'bound:editor', 'bound:tree', 'renew:editor', 'renew:tree']);
+        resumed.revoke();
+    });
+    it('rejects late host edits before any peer binds and revokes every fresh owner', async () => {
+        const bind = vi.fn(), f = await fixture(undefined, () => ({ bind }));
+        await resumeCemCheckpointOwners(f.admission, [f.ticket]); f.invalidate();
+        await expect(f.contexts[1].renewOwners()).rejects.toThrow('stale');
+        expect(bind).not.toHaveBeenCalled(); expect(f.alive()).toBe(false); expect(f.discarded).toEqual(['editor', 'tree']);
+    });
+    it('fences partial renewal failures and never retries a provider action', async () => {
+        const renew = vi.fn(async () => { throw Error('withdrawn source policy'); });
+        const f = await fixture(undefined, id => ({ renew: id === 'tree' ? renew : async () => undefined }));
+        await resumeCemCheckpointOwners(f.admission, [f.ticket]);
+        await expect(f.contexts[0].renewOwners()).rejects.toThrow('withdrawn');
+        await expect(f.contexts[0].renewOwners()).rejects.toThrow('stale');
+        expect(renew).toHaveBeenCalledTimes(1); expect(f.alive()).toBe(false);
+    });
+    it('checks every peer after asynchronous renewal and refuses intervening edits', async () => {
+        let edited = false;
+        const f = await fixture(undefined, id => ({ renew: async () => { if (id === 'tree') edited = true; },
+            renewed: () => { if (id === 'editor' && edited) throw Error('late editor edit'); } }));
+        await resumeCemCheckpointOwners(f.admission, [f.ticket]);
+        await expect(f.contexts[0].renewOwners()).rejects.toThrow('late editor edit'); expect(f.alive()).toBe(false);
+    });
+    it('aborts stalled provider renewal immediately on group revocation without retry', async () => {
+        let finish!: () => void;
+        const renew = vi.fn(() => new Promise<void>(resolve => { finish = resolve; }));
+        const f = await fixture(undefined, () => ({ renew })); await resumeCemCheckpointOwners(f.admission, [f.ticket]);
+        const pending = f.contexts[0].renewOwners(); await vi.waitFor(() => expect(renew).toHaveBeenCalledTimes(1));
+        f.admission.revoke(); await expect(pending).rejects.toThrow('revoked');
+        finish(); expect(f.discarded).toEqual(['editor', 'tree']);
+    });
+    it('parks all presentations before provider claims and releases each hold on ticket revocation', () => {
+        const events: string[] = [];
+        const adapters = new Map(receipt.owners.map(owner => [owner.instanceId, {
+            witness: () => () => true, prepare: vi.fn(),
+            park: () => { events.push(`park:${owner.instanceId}`); return () => { events.push(`unpark:${owner.instanceId}`); }; },
+            parkProvider: () => { events.push(`provider:${owner.instanceId}`); return () => { events.push(`release:${owner.instanceId}`); }; },
+        }]));
+        const ticket = issueCheckpointResumeTicket('runtime', saved(), () => true, adapters);
+        expect(events).toEqual(['park:editor', 'park:tree', 'provider:editor', 'provider:tree']);
+        revokeCheckpointResumeTicket(ticket); revokeCheckpointResumeTicket(ticket);
+        expect(events.slice(4)).toEqual(['release:tree', 'release:editor', 'unpark:tree', 'unpark:editor']);
     });
     it('refuses copied tickets/admissions without consuming or revoking the original group', async () => {
         const f = await fixture();
