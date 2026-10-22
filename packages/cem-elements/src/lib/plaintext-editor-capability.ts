@@ -1,5 +1,6 @@
 import type { CemSourceHighlightResult } from './internal/runtime-support/processing-host.js';
 import type { CemProducedElementBehavior, CemProducedElementBehaviorContext } from './cem-elements.js';
+import type { CemCheckpointControlState, CemCheckpointRuntimeState } from './checkpoint-controls.js';
 
 interface EditorState {
     host: HTMLElement;
@@ -28,13 +29,38 @@ export function cemPlaintextEditorEventValue(target: EventTarget | null): string
 /** Composition and deferred external values are not committed editor state. */
 export function cemPlaintextEditorCheckpointReady(host: HTMLElement): boolean {
     const state = states.get(host);
-    return !!state?.control && !state.composing && state.deferred === undefined;
+    return !!state?.control?.isConnected && host.isConnected && !state.composing && state.deferred === undefined
+        && readControl(state.control) === state.value;
 }
 
 export function cemPlaintextEditorCheckpoint(host: HTMLElement) {
     const state = states.get(host);
     return cemPlaintextEditorCheckpointReady(host) && state
         ? { kind: 'plaintext-editor' as const, authored: state.authored ?? null, selectionRequest: state.request ?? null } : undefined;
+}
+
+/** Native-validated text/selection metadata admits the retained browser owner.
+ * Never replay a saved value or selection over live edits, or serialize paint. */
+export function prepareCemPlaintextEditorResume(host: HTMLElement, saved: CemCheckpointRuntimeState['capability'], controls: CemCheckpointControlState) {
+    const state = states.get(host), control = state?.control, captured = controls.controls[0];
+    const current = () => {
+        if (!state || !control || states.get(host) !== state || state.control !== control || !cemPlaintextEditorCheckpointReady(host)
+            || saved?.kind !== 'plaintext-editor' || controls.controls.length !== 1 || !captured || captured.kind !== 'text'
+            || captured.inputType !== 'plaintext' || !captured.selection || captured.id !== control.getAttribute('data-cem-render-node-id')
+            || captured.value !== state.value || saved.authored !== (state.authored ?? null) || saved.selectionRequest !== (state.request ?? null)
+            || captured.focused !== (control.ownerDocument.activeElement === control)
+            || captured.disabled !== (control.getAttribute('aria-disabled') === 'true')
+            || captured.readOnly !== (control.getAttribute('aria-readonly') === 'true')) return false;
+        const [start, end, direction] = selection(state);
+        return captured.selection.start === start && captured.selection.end === end && captured.selection.direction === direction;
+    };
+    if (!current()) throw new Error('cem.checkpoint.resume.editor');
+    return { current, activate() {
+        if (!current()) throw new Error('cem.checkpoint.resume.editor-stale');
+        // Even a pending/failed old request must not suppress an identical new
+        // source on the fresh heap. Rendering will schedule disposable paint.
+        cancelPaint(state!);
+    } };
 }
 
 /** Browser-owned plaintext editing; rendering and styling remain declarative. */

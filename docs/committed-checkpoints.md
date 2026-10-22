@@ -1182,7 +1182,9 @@ Fresh allocation and semantic owner admission are separate gates.
 `resumeCemCheckpointOwners` now coordinates explicit **shared semantic adapters**;
 it does not infer an adapter from an island or restart Studio. Built-in plain
 retained CEM-ML owners provide adapters for canonical slices, native form-control
-properties and approved HTTP source bytes. Capability, provider/reference,
+properties and approved HTTP source bytes. The shared plaintext-editor adapter
+also admits native-validated live text, UTF-16 selection and consumed selection
+requests. Other capability, provider/reference,
 placement and legacy storage/location rendering still refuse with
 `cem.checkpoint.resume.unsupported`. Generic HTML hydration refuses checkpoint
 extensions. Complete widget adapters and declarative recovery status remain
@@ -1275,5 +1277,11 @@ these named validation/sealing requests. Processing protocol v27 additionally ac
 XML serialization, so namespace-qualified island parts and HTML void payload
 can enter the existing native XML importer without relaxing HTML validation.
 Original sealed bytes remain the integrity authority; no source AST crosses JS.
+The adapter compares those bytes directly with the original retained island;
+HTML reparsing would normalize authored CRLF. Plaintext-editor activation keeps
+the editing subtree, native undo/redo, focus and selection, refuses later edits,
+and emits no input. Composition/deferred values and unreported DOM text refuse
+capture. Old paint requests are cancelled and native role ranges regenerated on
+the admitted fresh generation; paint/job identities are never durable state.
 Built-in widget/legacy resource adapters and declarative recovery status remain
 subsequent work; Studio is not automatically resumed.

@@ -460,7 +460,8 @@ consume a new token prematurely. Invalid or regressing event sequences refuse.
 Built-in plain retained CEM-ML owners use this helper. Their pre-retirement
 witness covers the live canonical island, rendered integrity, control properties,
 input sequence, declaration and source policy without reading a retired heap.
-The existing DOM adapter serializes the same sealed island with XMLSerializer
+The existing DOM adapter compares the sealed bytes directly with its original
+retained island, then serializes that same DOM with XMLSerializer
 for native XML ingress, preserving namespace-qualified parts, void HTML payload
 and text; it does not construct a JavaScript source AST. The original sealed
 bytes remain the transaction authority. Preparation revalidates that identity, compiles complete authoring
@@ -477,7 +478,16 @@ read-only recovery path, which remains available after ordinary admission closes
 without invalidating the closed-generation proof. In-flight recovery controls
 remain drain/retirement barriers.
 
-Capability, reference/provider, placement and legacy storage/location rendering
+The shared plaintext-editor adapter admits native-validated text/UTF-16 selection,
+focus, authored-value and consumed-selection metadata only while they still match
+the retained browser owner. It preserves that editing subtree and undo history
+instead of replaying source/selection over live state. Composition, deferred
+values and unreported DOM text refuse capture, and later edits refuse stale
+activation. Paint is discarded and regenerated on the fresh generation, outside
+canonical data; delayed retired replies retain no painting authority. HTML
+reparsing of sealed islands is avoided because it normalizes authored CRLF.
+
+Other capability, reference/provider, placement and legacy storage/location rendering
 owners remain unsupported by this adapter; a complete domain containing one
 refuses resume. Widget authority and declarative recovery status remain follow-up
 work. Studio does not restart itself automatically.

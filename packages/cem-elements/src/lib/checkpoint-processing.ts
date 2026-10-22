@@ -1,5 +1,5 @@
 import type { CemCheckpointResumeContext, CemPreparedCheckpointOwner } from './checkpoint-resume.js';
-import type { CemCheckpointRuntimeState } from './checkpoint-controls.js';
+import type { CemCheckpointControlState, CemCheckpointRuntimeState } from './checkpoint-controls.js';
 import type { CemDeclarationScope } from './declaration-scope.js';
 import { createFreshCemProcessingHost } from './internal/runtime-support/processing-host-runtime.js';
 import { nativeCheckpointIdentity } from './internal/runtime-support/checkpoint-domain.js';
@@ -59,12 +59,12 @@ export interface CemResumedProcessingOwner {
     consumeWrite(writer?: number, trigger?: string): boolean;
 }
 
-const preparedBindings = new WeakMap<CemResumedProcessingOwner, { host: CemProcessingHost; state: CemCheckpointRuntimeState; sources: readonly { name: string; handle: CemProcessingDocumentHandle }[] }>();
+const preparedBindings = new WeakMap<CemResumedProcessingOwner, { host: CemProcessingHost; state: CemCheckpointRuntimeState; controls: CemCheckpointControlState; sources: readonly { name: string; handle: CemProcessingDocumentHandle }[] }>();
 /** @internal Reversible native preparation for built-in semantic adapters only. */
 export function preparedCheckpointProcessing(owner: CemResumedProcessingOwner) {
     const prepared = preparedBindings.get(owner);
     if (!prepared) throw new Error('cem.checkpoint.resume.binding');
-    return { host: prepared.host, state: structuredClone(prepared.state), sources: structuredClone(prepared.sources) };
+    return { host: prepared.host, state: structuredClone(prepared.state), controls: structuredClone(prepared.controls), sources: structuredClone(prepared.sources) };
 }
 
 /** Shared processing/source preparation for trusted semantic owner adapters.
@@ -104,6 +104,7 @@ export async function prepareCemCheckpointProcessing(context: CemCheckpointResum
         assert();
         // Decode only the native-validated named lifecycle DTO, never a source AST.
         const state = JSON.parse(result.runtime) as CemCheckpointRuntimeState;
+        const controls = JSON.parse(options.controls) as CemCheckpointControlState;
         const writes = new CemCheckpointWriteSuppression(context.receipt.acceptedEventSequence, state.writers);
         for (const resource of state.resources) {
             if (!await options.allowSource(structuredClone(resource), context.signal)) throw new Error('cem.checkpoint.resume.source-policy');
@@ -127,7 +128,7 @@ export async function prepareCemCheckpointProcessing(context: CemCheckpointResum
             get runtimeState() { admitted(); return structuredClone(state); },
             consumeWrite: (writer?: number, trigger?: string) => { admitted(); return writes.consume(options.acceptedEventSequence(), writer, trigger); },
         });
-        preparedBindings.set(owner, { host, state, sources });
+        preparedBindings.set(owner, { host, state, controls, sources });
         return { owner, current, discard: () => { preparedBindings.delete(owner); context.signal.removeEventListener('abort', abort); discard(); } };
     } catch (error) { context.signal.removeEventListener('abort', abort); discard(); throw error; }
 }

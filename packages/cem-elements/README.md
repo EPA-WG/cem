@@ -62,11 +62,11 @@ allocation. Exact private checkpoint bytes, complete physical/owner coverage,
 current host/privacy witnesses and terminal journals guard one atomic owner gate.
 Failure cancels and discards the complete fresh group. Fresh fallback `release`
 permits only native cleanup after fencing. This transaction leaves DOM untouched.
-Built-in plain retained CEM-ML owners now prepare fresh processing contexts and
+Built-in plain retained CEM-ML and shared plaintext-editor owners prepare fresh processing contexts and
 approved HTTP sources. After complete admission, call each returned
 `CemResumedElementOwner.resume()` to renew its publication endpoint and evaluate
 on the fresh generation, preserving retained DOM, edits and installed styles.
-Capability/provider/placement owners and legacy storage/location rendering still
+Other capability/provider/placement owners and legacy storage/location rendering still
 refuse resume. Studio recovery remains manual. See [explicit owner resume transactions](../../docs/committed-checkpoints.md#explicit-owner-resume-transactions).
 
 
@@ -569,6 +569,17 @@ applied by the capability, deferred during composition. The canonical value
 slice remains serializable; DOM nodes, browser Selection and undo state are
 transient. This capability does not add a form-associated host or language
 services. See the [source editor contract](../cem-components/docs/source-editor-contract.md).
+
+Explicit checkpoint resume now admits this shared editor on fresh workers and
+owned fallback heaps. Native-validated control text and UTF-16 selection must
+match the retained browser owner, including focus, readonly/disabled state and
+consumed selection requests. Composition, deferred values and unreported DOM
+text refuse capture; later edits refuse stale preparation/activation. Resume
+keeps the same editing subtree and undo history, emits no input and renews
+publication/write suppression before rendering. It clears old paint requests
+and regenerates ranges on the fresh generation. Paint ranges and native job
+identities never enter the checkpoint; late retired replies cannot repaint.
+This is an explicit shared owner adapter, not automatic Studio recovery.
 
 With `content-type="text/html|text/cem-ml|text/css"`, the capability reuses the
 playground's lossless native highlighter through bounded `highlight` processing

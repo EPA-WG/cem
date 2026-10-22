@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { prepareCemCheckpointProcessing, CemCheckpointWriteSuppression } from './checkpoint-processing.js';
+import { prepareCemCheckpointProcessing, preparedCheckpointProcessing, CemCheckpointWriteSuppression } from './checkpoint-processing.js';
 import { CemNativeCheckpointDomain } from './internal/runtime-support/checkpoint-domain.js';
 import { createFreshCemProcessingHost } from './internal/runtime-support/processing-host-runtime.js';
 import type { CemProcessingHost } from './internal/runtime-support/processing-host.js';
@@ -43,10 +43,27 @@ function fixture() {
     const host = { checkpointClient: domain.client(), checkpoint, document, compile: vi.fn(input => ({ jobId: 3, result: Promise.resolve({}) })) } as unknown as CemProcessingHost;
     vi.mocked(createFreshCemProcessingHost).mockReturnValue(host);
     const options = { scope: {} as CemProcessingHost['ownerScope'], sourceUri: 'https://example.test/owner', scopePolicyStamp: 'scope',
-        controls: 'native controls', runtime: 'native runtime', acceptedEventSequence: () => sequence, allowSource: vi.fn(async () => true) };
-    return { context, options, document, checkpoint, host, controller, domain, activate: () => { active = true; }, input: () => sequence++ };
+        controls: JSON.stringify({ version: 'cem-checkpoint-controls/1', controls: [] }), runtime: 'native runtime', acceptedEventSequence: () => sequence, allowSource: vi.fn(async () => true) };
+    return { context, options, document, checkpoint, host, controller, domain, state, activate: () => { active = true; }, input: () => sequence++ };
 }
 describe('shared fresh checkpoint processing', () => {
+    it('keeps validated plaintext metadata private and suppresses consumed writes through editor admission', async () => {
+        const f = fixture();
+        f.state.capability = { kind: 'plaintext-editor', authored: '<p>Before</p>', selectionRequest: 'consumed' };
+        f.options.controls = JSON.stringify({ version: 'cem-checkpoint-controls/1', controls: [{ id: 'editor', kind: 'text', inputType: 'plaintext',
+            value: '<p>Draft é😀</p>', selection: { start: 9, end: 12, direction: 'backward' }, focused: true,
+            checked: false, indeterminate: false, multiple: false, options: [], disabled: false, readOnly: false, customValidity: '' }] });
+        const prepared = await prepareCemCheckpointProcessing(f.context, f.options), metadata = preparedCheckpointProcessing(prepared.owner);
+        expect(metadata.state.capability).toEqual(f.state.capability);
+        expect(metadata.controls.controls[0].value).toBe('<p>Draft é😀</p>');
+        metadata.controls.controls[0].value = 'Caller mutation';
+        expect(preparedCheckpointProcessing(prepared.owner).controls.controls[0].value).toBe('<p>Draft é😀</p>');
+        expect(() => prepared.owner.consumeWrite()).toThrow('inactive');
+        f.activate(); expect(prepared.owner.consumeWrite(0, 'saved:1')).toBe(false); expect(prepared.owner.consumeWrite(1)).toBe(false);
+        f.input(); expect(prepared.owner.consumeWrite(0, 'saved:1')).toBe(false);
+        expect(prepared.owner.consumeWrite(0, 'new-edit')).toBe(true); expect(prepared.owner.consumeWrite(0, 'new-edit')).toBe(false);
+        prepared.discard();
+    });
     it('prepares native islands and original sources before exposing evaluation, and cleans exactly once', async () => {
         const f = fixture(), prepared = await prepareCemCheckpointProcessing(f.context, f.options);
         expect(f.checkpoint).toHaveBeenCalledWith(expect.objectContaining({ island: f.context.island }));

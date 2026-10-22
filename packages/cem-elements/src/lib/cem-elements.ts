@@ -139,7 +139,7 @@ import {
     type CemRepositoryStatus,
 } from './repository.js';
 import { CEM_FORM_CONTROL_CAPABILITY, cemFormControlCheckpoint, getCemEditorProvider } from './form-control-capability.js';
-import { CEM_PLAINTEXT_EDITOR_CAPABILITY, cemPlaintextEditorEventValue, cemPlaintextEditorCheckpoint } from './plaintext-editor-capability.js';
+import { CEM_PLAINTEXT_EDITOR_CAPABILITY, cemPlaintextEditorEventValue, cemPlaintextEditorCheckpoint, prepareCemPlaintextEditorResume } from './plaintext-editor-capability.js';
 import { CEM_NAVIGATION_LANDMARK_CAPABILITY, cemNavigationLandmarkCheckpoint } from './navigation-landmark-capability.js';
 import { CEM_DISCLOSURE_PANEL_CAPABILITY } from './disclosure-panel-capability.js';
 import { CEM_SORT_ACTION_CAPABILITY } from './sort-action-capability.js';
@@ -3211,13 +3211,15 @@ export class CemElementRuntime {
 
     private checkpointResumeAdapter(instance: HTMLElement, compiled: CompiledDeclaration,
         publication: () => CemCheckpointPublicationOwner): CemCheckpointResumeAdapter | undefined {
-        if (compiled.behavior || compiled.mode !== 'cem-ml' || !this.usesProcessingHost(compiled) || !this.retainedStylesheets) return undefined;
+        const plaintext = compiled.behavior === CEM_PLAINTEXT_EDITOR_CAPABILITY;
+        if (compiled.behavior && !plaintext || compiled.mode !== 'cem-ml' || !this.usesProcessingHost(compiled) || !this.retainedStylesheets) return undefined;
+        const supported = (runtime: CemCheckpointRuntimeState) => (plaintext ? runtime.capability?.kind === 'plaintext-editor' : !runtime.capability)
+            && !runtime.references && !runtime.nativePublication && !runtime.manualListbox && !runtime.standaloneDatalist
+            && !runtime.placements?.length && runtime.resources.every(resource => ['http', 'local-storage', 'location'].includes(resource.kind));
         const eligible = () => {
             const state = this.instanceStates.get(instance);
             const runtime = state && this.checkpointRuntimeState(instance, compiled, state);
-            if (!runtime || runtime.capability || runtime.references || runtime.nativePublication || runtime.manualListbox
-                || runtime.standaloneDatalist || runtime.placements?.length
-                || runtime.resources.some(resource => !['http', 'local-storage', 'location'].includes(resource.kind)))
+            if (!runtime || !supported(runtime))
                 throw new Error('cem.checkpoint.resume.unsupported');
         };
         return {
@@ -3226,11 +3228,12 @@ export class CemElementRuntime {
                 return () => { try { return this.checkpointResumeHostWitness(instance, compiled) === fingerprint; } catch { return false; } };
             },
             prepare: async context => {
-                const envelope = instance.ownerDocument.createElement('template'); envelope.innerHTML = context.island;
-                const island = envelope.content.firstElementChild as HTMLTemplateElement | null;
-                if (envelope.content.childNodes.length !== 1 || !island || island.localName !== 'template'
-                    || validateDataIslandStructure(island) || island.outerHTML !== this.ensureDataIsland(instance).outerHTML)
+                // The original retained island is the exact sealed source.
+                // HTML reparsing normalizes CRLF in authored editor text/values.
+                const island = this.ensureDataIsland(instance);
+                if (validateDataIslandStructure(island) || island.outerHTML !== context.island)
                     throw new Error('cem.checkpoint.resume.island');
+                const islandXml = new XMLSerializer().serializeToString(island);
                 const metadata = readIslandRecordSection(island, DATA_ISLAND_SECTIONS.hydration);
                 const form = readIslandRecordSection(island, DATA_ISLAND_SECTIONS.formData);
                 const resources = readIslandRecordSection(island, DATA_ISLAND_SECTIONS.resources);
@@ -3240,8 +3243,7 @@ export class CemElementRuntime {
                     || metadata.privacyPolicyStamp !== this.privacyPolicyStamp || metadata.producedTag !== compiled.producedTag)
                     throw new Error('cem.checkpoint.resume.identity');
                 const runtime = { ...(resources.checkpointRuntime as Record<string, unknown>), capability: form.capability ?? null } as unknown as CemCheckpointRuntimeState;
-                if (runtime.capability || runtime.references || runtime.nativePublication || runtime.manualListbox || runtime.standaloneDatalist
-                    || runtime.placements?.length || runtime.resources.some(resource => !['http', 'local-storage', 'location'].includes(resource.kind)))
+                if (!supported(runtime))
                     throw new Error('cem.checkpoint.resume.unsupported');
                 const state = this.instanceStates.get(instance);
                 const compilation = this.nativeSuggestionsCompilations.get(compiled);
@@ -3252,7 +3254,7 @@ export class CemElementRuntime {
                 const prepared = await prepareCemCheckpointProcessing(context, { scope: compiled.declarationScope,
                     sourceUri: compiled.resourceBaseUrl, scopePolicyStamp: this.scopePolicyStamp,
                     controls: JSON.stringify(form.controls), runtime: JSON.stringify(runtime), compilations: [source, ...(compiled.stylesheets.length ? [cssSource] : [])],
-                    islandXml: new XMLSerializer().serializeToString(island),
+                    islandXml,
                     acceptedEventSequence: () => this.checkpointEventSequences.get(instance) ?? 0,
                     allowSource: async resource => {
                         if (resource.kind === 'local-storage') return !!state.localStorageResources[resource.name];
@@ -3267,6 +3269,7 @@ export class CemElementRuntime {
                         return resolution.resolvedUrl === resource.url && resolution.resourcePolicyStamp === value.request.resourcePolicyStamp;
                     } });
                 const native = preparedCheckpointProcessing(prepared.owner), scope = native.host.ownerScope;
+                const editor = plaintext ? prepareCemPlaintextEditorResume(instance, native.state.capability, native.controls) : undefined;
                 const css = compiled.stylesheets.length ? await native.host.compile(cssSource).result : undefined;
                 let binding = this.checkpointScopeBindings.get(scope);
                 if (!binding || binding.host !== native.host) {
@@ -3285,11 +3288,13 @@ export class CemElementRuntime {
                     if (active) this.checkpointHttpBindings.set(active, { host: native.host, document: source.handle, binding: route });
                 }
                 let activated = false, resume: Promise<void> | undefined;
-                const current = () => prepared.current() && instance.isConnected && this.declarationForInstance(instance) === compiled;
+                const current = () => prepared.current() && instance.isConnected && this.declarationForInstance(instance) === compiled
+                    && (activated || !editor || editor.current());
                 const owner: CemResumedElementOwner = Object.freeze({ element: instance, resume: () => {
                     if (!context.active() || context.signal.aborted || !instance.isConnected || this.declarationForInstance(instance) !== compiled)
                         return Promise.reject(new Error('cem.checkpoint.resume.stale'));
                     if (resume) return resume;
+                    editor?.activate();
                     this.admittedCheckpointBinding(route);
                     const client = native.host.checkpointClient;
                     if (!client) return Promise.reject(new Error('cem.checkpoint.resume.binding'));

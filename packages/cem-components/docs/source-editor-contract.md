@@ -97,3 +97,18 @@ without rewriting source. HTML, CEM-ML (including structured `+cem` media types)
 and CSS paint losslessly; unsupported languages remain plain. Copy Link reads
 the public value, preserving source whitespace and invalid text. Paint ranges
 are disposable and must never enter source storage or checkpoint text.
+
+The shared runtime's explicit fresh-generation checkpoint adapter now supports
+this editor. The sealed text, UTF-16 selection, focus, authored value and consumed
+selection request must still match the retained live owner. Native validation
+runs on the fresh heap before activation; changed edits/selection, composition
+and unsupported owners refuse the complete recovery transaction. Unreported DOM
+text cannot be checkpointed as an older `.value`.
+
+After complete admission, `CemResumedElementOwner.resume()` renews processing and
+publication while keeping the same contenteditable subtree, text and native
+undo/redo history. It does not replay selection requests or manufacture input.
+Highlight ranges are regenerated on the admitted fresh worker/owned fallback;
+retired requests and old paint remain disposable. Studio consumes this existing
+declarative editor; automatic Studio recovery and other widget adapters remain
+separate work. See [explicit owner resume](../../../docs/committed-checkpoints.md#explicit-owner-resume-transactions).

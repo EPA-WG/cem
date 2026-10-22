@@ -308,6 +308,11 @@ export const SharedSourceEditorPortableState: Story = {
                 control.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
                 await f.runtime.whenRenderSettled(instance); await waitFor(async () => f.coordinator.capture());
                 expect((instance as HTMLElement & { value: string }).value).toBe('Draft é😀\n');
+                const text = control.textContent;
+                control.textContent = 'Unreported DOM edit';
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                expect(control.textContent).toBe('Unreported DOM edit');
+                control.textContent = text; await waitFor(async () => f.coordinator.capture());
             } finally { f.dispose(); }
         }
     },
@@ -2846,21 +2851,165 @@ export const BuiltInOwnerUnsupportedScopes: Story = {
     render: () => '<section aria-label="Unsupported built-in resume scopes"></section>',
     play: async ({ canvasElement }) => {
         await init(); const root = canvasElement.querySelector('section')!;
-        const declaration = new DOMParser().parseFromString(sourceEditorDeclaration, 'application/xml');
-        const template = declaration.querySelector('template') as HTMLTemplateElement;
-        const editor = template.content?.textContent || template.textContent!;
         for (const fallback of [false, true]) for (const legacy of [false, true]) {
             const f = fixture(root, fallback), key = `unsupported-${crypto.randomUUID()}`;
             try {
                 const plain = await f.create('{p | Covered plain owner}'); await f.runtime.whenRenderSettled(plain);
                 const owner = legacy
                     ? await f.create(`{local-storage @slice=draft @key="${key}" @type=text @value=recorded}{p | Legacy storage owner}`)
-                    : await f.create(editor, 'cem-ml', root, undefined, 'plaintext-editor');
+                    : await f.create(declarationTemplate(fieldDeclaration), 'cem-ml', root, undefined, 'form-control');
                 await f.runtime.whenRenderSettled(owner); await waitFor(() => f.coordinator.capture());
                 expect(decode(f.coordinator).owners).toHaveLength(2);
                 expect(() => f.coordinator.prepareResume()).toThrow('unsupported');
                 expect(f.coordinator.current()).toBeDefined();
             } finally { f.dispose(); localStorage.removeItem(key); }
+        }
+    },
+};
+
+/** Keep native editing/paint in the original DOM while replacing the actual heap. */
+async function isolatedColoredEditorResume(base: string, load: (url: string) => Promise<any>, scenario: string, source: string): Promise<string> {
+    const support = new URL('lib/internal/runtime-support/', base).href;
+    const binding = await load(`${support}native-runtime.js`), generation = binding.isolateCemFallbackGeneration();
+    await generation.ready(); const embedding = generation.claimOwnership();
+    const [{ CemElementRuntime }, { createCemDeclarationScope }, { CemCheckpointPublicationCoordinator }, { resumeCemCheckpointOwners }, { CemNativeGenerationGroup }, hosts] = await Promise.all([
+        load(new URL('lib/cem-elements.js', base).href), load(new URL('lib/declaration-scope.js', base).href),
+        load(new URL('lib/checkpoint-publication.js', base).href), load(new URL('lib/checkpoint-resume.js', base).href),
+        load(`${support}native-generation.js`), load(`${support}processing-host-runtime.js`),
+    ]);
+    const check = (value: unknown, message: string) => { if (!value) throw Error(message); };
+    const wait = async (predicate: () => unknown) => {
+        for (let attempt = 0; !predicate(); attempt++) {
+            if (attempt > 200) throw Error('editor condition did not settle');
+            await new Promise(resolve => setTimeout(resolve, 10));
+        }
+    };
+    const fallback = scenario !== 'worker', scope = createCemDeclarationScope({ document });
+    const factory = () => { if (fallback) throw Error('owned editor fallback'); return new Worker(`${support}processing-worker.js`, { type: 'module' }); };
+    const coordinator = new CemCheckpointPublicationCoordinator({ runtimeId: crypto.randomUUID(), generation: 1, policyStamp: 'private',
+        allowOwner: () => true, seal: (candidate: string, receipt: string) => binding.sealCommittedCheckpoint(candidate, receipt) });
+    const runtime = new CemElementRuntime({ declarationScope: scope, declarationTag: `editor-declaration-${crypto.randomUUID()}`,
+        checkpointPublication: coordinator, processingWorkerFactory: factory });
+    const host = hosts.cemProcessingHostForScope(scope, { workerScriptUrl: `${support}processing-worker.js`, workerFactory: factory });
+    const capture = async () => {
+        for (let attempt = 0; ; attempt++) {
+            try { return await coordinator.capture(); }
+            catch (error) { if (attempt >= 100) throw error; await new Promise(resolve => setTimeout(resolve, 10)); }
+        }
+    };
+    const painted = (element: HTMLElement): Range[] => [...CSS.highlights.entries()]
+        .filter(([name]) => name.startsWith('cem-source-')).flatMap(([, paint]) => [...paint])
+        .filter(range => element.contains(range.startContainer));
+    let admission: any, releaseOld = () => undefined as void, stage = 'create';
+    try {
+        const parsed = new DOMParser().parseFromString(source, 'application/xml'), authored = parsed.querySelector('template')!;
+        const declaration = document.createElement('div'), template = document.createElement('template'), tag = `colored-${crypto.randomUUID()}`;
+        declaration.setAttribute('tag', tag); declaration.setAttribute('capability', 'plaintext-editor'); template.type = 'text/cem-ml';
+        template.textContent = (authored as HTMLTemplateElement).content?.textContent || authored.textContent;
+        declaration.append(template); document.body.append(declaration); runtime.registerDeclaration(declaration); await runtime.whenDeclarationSettled(declaration);
+        const editor = document.createElement(tag) as any, other = document.createElement(tag) as any;
+        const original = '\t<p title="é😀">Amsterdam</p>\r\n\nend';
+        for (const [element, value] of [[editor, original], [other, '<b>Independent</b>']]) {
+            element.setAttribute('content-type', 'text/html'); element.setAttribute('value', value);
+            element.setAttribute('source-id', crypto.randomUUID()); element.setAttribute('selection-request', 'consumed');
+            element.setAttribute('selection-start', '0'); element.setAttribute('selection-end', '1');
+            document.body.append(element); await runtime.whenRenderSettled(element);
+        }
+        other.setAttribute('readonly', ''); await runtime.whenRenderSettled(other);
+        const control = editor.querySelector('[part=control]') as any, peerControl = other.querySelector('[part=control]');
+        await wait(() => painted(editor).length && painted(other).length);
+        const firstPaint = painted(editor), highlight = host.highlight.bind(host);
+        let held = false, heldSource = '';
+        host.highlight = (input: any) => {
+            const job = highlight(input);
+            const gate = new Promise<void>(resolve => { releaseOld = resolve; });
+            return { ...job, result: job.result.then(async (result: any) => { heldSource = input.source; held = true; await gate; return result; }) };
+        };
+        control.focus(); control.setSelectionRange(editor.value.length, editor.value.length);
+        let inputs = 0; editor.addEventListener('input', () => inputs++);
+        check(document.execCommand('insertText', false, '<i>edited</i>'), 'native edit was refused');
+        const edited = editor.value, text = control.firstChild;
+        check(edited === original + '<i>edited</i>' && inputs > 0, `native source edit was not accepted: ${JSON.stringify({ original, edited, inputs, html: control.innerHTML })}`);
+        control.setSelectionRange(11, 14, 'backward'); await wait(() => held);
+        check(heldSource === edited && painted(editor).length === 0, 'old paint was not held after native editing');
+        await capture();
+        // Neither ranges nor native paint job identities belong to the saved island.
+        const before = coordinator.lastCommitted(), saved = new TextDecoder().decode(before.bytes);
+        check(!saved.includes('syntax.') && !saved.includes('cem-source-name'), 'paint entered the checkpoint');
+        const group = new CemNativeGenerationGroup([coordinator.generationParticipant()]);
+        const consent = fallback ? generation.retirementConsent([embedding]) : undefined;
+        stage = 'close'; const proof = await coordinator.closeRenderingGeneration(5000, consent); await capture();
+        stage = 'ticket'; const ticket = coordinator.prepareResume();
+        stage = 'retire'; const retired = await coordinator.retireRenderingGeneration(proof, 5000, consent);
+        check(painted(editor).length === 0 && painted(other).length === 0, 'retired paint survived');
+        stage = 'allocate'; admission = await group.allocate([retired]);
+        if (scenario === 'newer-value') editor.value = 'Newer property-only draft';
+        if (scenario === 'newer-selection') control.setSelectionRange(0, 2, 'forward');
+        if (scenario === 'composition') control.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+        if (['newer-value', 'newer-selection', 'composition'].includes(scenario)) {
+            let refusal = ''; try { await resumeCemCheckpointOwners(admission, [ticket]); } catch (error) { refusal = String(error); }
+            check(/stale|coverage|ticket/.test(refusal), `changed live editor was not refused: ${refusal}`);
+            check(editor.value === (scenario === 'newer-value' ? 'Newer property-only draft' : edited), 'failed resume rewrote live text');
+            check(control.isConnected && document.activeElement === control, 'failed resume replaced editor/focus');
+            return `${scenario} colored editor resume passed`;
+        }
+        stage = 'prepare'; const resumed = await resumeCemCheckpointOwners(admission, [ticket]);
+        if (scenario === 'late-value') {
+            editor.value = 'Newer admitted draft';
+            let refusal = ''; try { await resumed.owners[0].owner.resume(); } catch (error) { refusal = String(error); }
+            check(refusal.includes('editor-stale') && editor.value === 'Newer admitted draft' && document.activeElement === control,
+                `activation overwrote a later live edit: ${refusal}`);
+            return `${scenario} colored editor resume passed`;
+        }
+        const fresh = hosts.createFreshCemProcessingHost(scope, admission.generations[0].runtime), freshHighlight = fresh.highlight.bind(fresh);
+        let freshPaint = 0;
+        fresh.highlight = (input: any) => { freshPaint++; return freshHighlight(input); };
+        stage = 'activate'; const inputCount = inputs;
+        for (const owner of resumed.owners) await owner.owner.resume();
+        await capture(); await wait(() => painted(editor).length && painted(other).length);
+        check(freshPaint >= 2, 'decoration did not use fresh processing');
+        check(editor.querySelector('[part=control]') === control && control.firstChild === text && other.querySelector('[part=control]') === peerControl, 'resume replaced native editing DOM');
+        check(editor.value === edited && control.textContent === edited && inputs === inputCount, 'resume changed text or manufactured input');
+        check(document.activeElement === control && control.selectionStart === 11 && control.selectionEnd === 14 && control.selectionDirection === 'backward', 'resume lost UTF-16 selection/focus or replayed a selection request');
+        check(painted(editor).every(range => !firstPaint.includes(range)), 'old ranges were reused');
+        check(coordinator.lastCommitted().receipt.owners.every((owner: any, index: number) => owner.acceptedEventSequence === before.receipt.owners[index].acceptedEventSequence), 'resume advanced input/write authority');
+        const freshRanges = painted(editor); releaseOld(); await new Promise(resolve => setTimeout(resolve, 100));
+        check(painted(editor).every(range => freshRanges.includes(range)), 'late retired decoration replaced fresh ranges');
+        check(document.execCommand('undo') && editor.value === original, 'resume destroyed native undo');
+        check(document.execCommand('redo') && editor.value === edited, 'resume destroyed native redo');
+        await capture();
+        check(coordinator.lastCommitted().receipt.owners.some((owner: any, index: number) => owner.acceptedEventSequence > before.receipt.owners[index].acceptedEventSequence), 'new input did not advance fresh authority');
+        stage = 'second retirement'; const next = admission.generations[0].runtime, nextEmbedding = fallback ? next.claimOwnership() : undefined;
+        const nextConsent = fallback ? next.retirementConsent([nextEmbedding]) : undefined;
+        const nextProof = await coordinator.closeRenderingGeneration(5000, nextConsent); await capture(); coordinator.prepareResume();
+        await coordinator.retireRenderingGeneration(nextProof, 5000, nextConsent);
+        check(editor.value === edited && control.isConnected && painted(editor).length === 0, 'second retirement lost text or retained paint');
+        return `${scenario} colored editor resume passed`;
+    } catch (error) { throw Error(`${scenario}/${stage}: ${String(error)}`, { cause: error }); }
+    finally { releaseOld(); admission?.revoke(); coordinator.dispose(); scope.dispose(); document.body.replaceChildren(); }
+}
+export const ColoredEditorFreshRuntimeResume: Story = {
+    render: () => '<section aria-label="Colored editor fresh runtime resume"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section')!, base = new URL('../../dist/', import.meta.url).href;
+        for (const scenario of ['worker', 'fallback', 'newer-value', 'newer-selection', 'composition', 'late-value']) {
+            const frame = document.createElement('iframe'), id = crypto.randomUUID(); frame.title = 'Isolated colored editor recovery'; root.append(frame);
+            let stop = () => undefined;
+            try {
+                const completed = new Promise<string>((resolve, reject) => {
+                    const timer = setTimeout(() => reject(Error(`colored editor resume timed out: ${scenario}`)), 15000);
+                    const receive = (event: MessageEvent) => {
+                        if (event.source !== frame.contentWindow || event.data?.id !== id) return;
+                        clearTimeout(timer); if (event.data.error) reject(Error(event.data.error)); else resolve(event.data.result);
+                    };
+                    window.addEventListener('message', receive); stop = () => { clearTimeout(timer); window.removeEventListener('message', receive); };
+                });
+                const hook = import.meta.env.MODE === 'test' ? 'globalThis.__vitest_browser_runner__ = { wrapDynamicImport: f => f() };' : '';
+                frame.srcdoc = `<script type="module">${hook}(${isolatedColoredEditorResume.toString()})(${JSON.stringify(base)}, url => import(url), ${JSON.stringify(scenario)}, ${JSON.stringify(sourceEditorDeclaration)})
+                    .then(result => parent.postMessage({ id: ${JSON.stringify(id)}, result }, '*'),
+                        error => parent.postMessage({ id: ${JSON.stringify(id)}, error: error.stack || String(error) }, '*'));</script>`;
+                expect(await completed).toBe(`${scenario} colored editor resume passed`);
+            } finally { stop(); frame.remove(); }
         }
     },
 };
