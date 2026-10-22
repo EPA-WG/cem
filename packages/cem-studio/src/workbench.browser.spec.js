@@ -1,5 +1,5 @@
 import { parseCemMlCommandText } from '@epa-wg/cem-ml-cli/browser-commands';
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { describeCemStudioOperationFields, describeCemStudioOperationGroups, editCemStudioOperationField, editCemStudioOperationFields, createCemStudioBrowserValidator } from './feature-tour.js';
 import { createCemStudioFileSystemProvider, serializeCemStudioProjectBundle, parseCemStudioProjectBundle } from './file-system-provider.js';
@@ -3505,12 +3505,13 @@ describe('Studio project session admission', () => {
     });
 });
 
-let nativeGraphAuthor;
+let nativeGraphAuthor, nativeGraphValidator;
+afterAll(async () => { await nativeGraphValidator?.close(); });
 const edgeGraphSource = '{run | {import @id=other @src=other.xml} {import @id=data @src=data.xml | {transform @id=view @src=view.xpath @template-content-type=application/vnd.cem.xpath | {export @id=result @out=result.xml}}}}';
 async function graphWorkbench(source = '{run | {import @id=data @src=asset.svg @opaque=true @content-type=image/svg+xml | {export @id=result @out=result.svg}}}\n') {
     if (!nativeGraphAuthor) {
         const native = await createCemStudioBrowserValidator();
-        nativeGraphAuthor = native.authorGraph; await native.close();
+        nativeGraphValidator = native; nativeGraphAuthor = native.authorGraph;
     }
     const repository = await repositoryWithSource(source);
     const validator = validatorFor(validResult()); validator.authorGraph = nativeGraphAuthor;

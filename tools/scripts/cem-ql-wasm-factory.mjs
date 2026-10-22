@@ -2,8 +2,11 @@ import ts from 'typescript';
 
 /** Pin the wasm-bindgen module shape at build time. Each invocation owns every
  * binding/cache/registry closure; no eval, blob module or per-generation URL. */
-export function cemQlWasmFactory(source) {
-    const ast = ts.createSourceFile('cem_ql.js', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+export function cemQlWasmFactory(source) { return ownedWasmFactory(source, 'cem_ql', 'CemQl'); }
+
+export function ownedWasmFactory(source, stem, name) {
+    if (!['cem_ql', 'cem_ml'].includes(stem) || !['CemQl', 'CemMl'].includes(name)) throw new Error('Unknown owned WASM module');
+    const ast = ts.createSourceFile(`${stem}.js`, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
     const edits = [], functions = [];
     let finalizers = 0, initializer = false;
     for (const statement of ast.statements) {
@@ -31,16 +34,16 @@ export function cemQlWasmFactory(source) {
     if (!initializer || finalizers !== 2 || functions.length < 100 || !source.includes('let wasmModule, wasmInstance, wasm;')
         || !source.includes('cachedDataViewMemory0') || !source.includes('cachedUint8ArrayMemory0')) throw new Error('Unsupported wasm-bindgen owned-factory shape');
     for (const [start, end, value] of edits.sort((a, b) => b[0] - a[0])) source = source.slice(0, start) + value + source.slice(end);
-    source = source.replace('/* @ts-self-types="./cem_ql.d.ts" */', '');
-    return `/* @ts-self-types="./cem_ql_factory.d.ts" */
+    source = source.replace(`/* @ts-self-types="./${stem}.d.ts" */`, '');
+    return `/* @ts-self-types="./${stem}_factory.d.ts" */
 // Generated from pinned wasm-bindgen bindings. Owned lifecycle controls only.
-export function createCemQlWasmGeneration() {
+export function create${name}WasmGeneration() {
 ${source}
     const confirmationOf = CommandNativeRetirement.prototype.confirmation;
     const abandonPermit = CommandNativeRetirement.prototype.__destroy_into_raw;
     const freePermit = CommandNativeRetirement.prototype.free;
     const calls = Object.freeze({ ${functions.join(', ')} });
-    let initialization, initialized = false, dead = false;
+    let initialization, retirement, initialized = false, dead = false;
     const alive = () => { if (dead) throw new Error('cem.runtime.generation.retired'); };
     const ready = () => { alive(); if (!initialized) throw new Error('cem.runtime.generation.unavailable'); };
     const release = () => {
@@ -61,22 +64,47 @@ ${source}
             if (!Object.hasOwn(calls, name)) throw new Error('cem.runtime.generation.entrypoint');
             return Reflect.apply(calls[name], undefined, args);
         },
-        dispose(current = () => true) {
+        prepareRetirement(expectedRevision) {
             ready();
+            if (retirement) throw new Error('cem.runtime.generation.retirement-pending');
             closeCommandNativeAdmission();
             const text = commandNativeResourceInventory();
             if (text.length > 16384) throw new Error('cem.runtime.generation.inventory');
             const inventory = JSON.parse(text);
-            const permit = prepareCommandNativeRetirement(inventory.revision);
+            if (inventory.revision !== expectedRevision) throw new Error('cem.runtime.generation.inventory-stale');
+            const permit = prepareCommandNativeRetirement(expectedRevision);
             try {
+                const confirmation = JSON.parse(Reflect.apply(confirmationOf, permit, []));
+                retirement = { permit, confirmation };
+                return Object.freeze({ ...confirmation });
+            } catch (error) { Reflect.apply(freePermit, permit, []); throw error; }
+        },
+        abortRetirement() {
+            ready();
+            if (!retirement) return;
+            const permit = retirement.permit; retirement = undefined;
+            Reflect.apply(freePermit, permit, []);
+        },
+        dispose(current = () => true) {
+            ready();
+            let permit;
+            try {
+                if (retirement) permit = retirement.permit;
+                else {
+                    closeCommandNativeAdmission();
+                    const text = commandNativeResourceInventory();
+                    if (text.length > 16384) throw new Error('cem.runtime.generation.inventory');
+                    permit = prepareCommandNativeRetirement(JSON.parse(text).revision);
+                }
                 const confirmation = JSON.parse(Reflect.apply(confirmationOf, permit, []));
                 if (current() !== true) throw new Error('cem.runtime.generation.ownership-stale');
                 // Keep native mutation frozen while dropping its sole JS owner.
                 Reflect.apply(abandonPermit, permit, []);
-                release();
+                retirement = undefined; release();
                 return Object.freeze(confirmation);
             } catch (error) {
-                if (!dead) Reflect.apply(freePermit, permit, []);
+                retirement = undefined;
+                if (!dead && permit) Reflect.apply(freePermit, permit, []);
                 throw error;
             }
         },
@@ -85,12 +113,17 @@ ${source}
 `;
 }
 
-export const cemQlWasmFactoryTypes = `import type { InitInput } from './cem_ql.js';
-export interface CemQlWasmGeneration {
+export const cemQlWasmFactoryTypes = ownedWasmFactoryTypes('cem_ql', 'CemQl');
+
+export function ownedWasmFactoryTypes(stem, name) { return `import type { InitInput } from './${stem}.js';
+export interface ${name}WasmGeneration {
     initialize(input?: InitInput): Promise<void>;
     memory(): WebAssembly.Memory | undefined;
     call(name: string, args: unknown[]): unknown;
+    prepareRetirement(expectedRevision: number): Readonly<{ schemaVersion: 1; frozen: true; inventoryRevision: number; frozenRevision: number; replacementAllowed: false }>;
+    abortRetirement(): void;
     dispose(current?: () => boolean): Readonly<{ schemaVersion: 1; frozen: true; inventoryRevision: number; frozenRevision: number; replacementAllowed: false }>;
 }
-export declare function createCemQlWasmGeneration(): CemQlWasmGeneration;
+export declare function create${name}WasmGeneration(): ${name}WasmGeneration;
 `;
+}

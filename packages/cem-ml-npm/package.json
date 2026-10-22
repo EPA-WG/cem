@@ -32,7 +32,12 @@
     },
     "./runtime.json": "./dist/cem-ml-runtime.json",
     "./integrity.json": "./dist/integrity.json",
-    "./schema-packages/*": "./dist/schema-packages/*"
+    "./schema-packages/*": "./dist/schema-packages/*",
+    "./wasm/factory": {
+      "types": "./dist/wasm/browser/cem_ml_factory.d.ts",
+      "import": "./dist/wasm/browser/cem_ml_factory.js",
+      "default": "./dist/wasm/browser/cem_ml_factory.js"
+    }
   },
   "files": [
     "dist",

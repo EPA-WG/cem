@@ -1494,9 +1494,46 @@ the retired enrollment and enroll the admitted fresh client after coordinated
 binding. Recovery does not silently retarget existing client aliases.
 
 Browser invocation construction, synchronous graph authoring and presentation
-currently share another main-thread WASM singleton. Its managed census does not
-provide an owned fresh allocator. `enrollBrowserCommandInvocationRecovery()`
-records this heap as an explicit unsupported member, so a worker-only group
-cannot masquerade as successful Studio recovery. Owned invocation generations,
-combined preview/controller/command semantic handoff, repeated whole-Studio
-acceptance and declarative status remain required before automatic recovery.
+have an owned shared binding, `createBrowserCommandInvocationBinding()`. Studio
+uses this binding instead of initializing legacy singleton aliases. The low-level
+`@epa-wg/cem-ml/wasm/factory` export generates a lexical closure per physical heap:
+bindings, memory views, finalizers and initialization state are independent, with
+no eval, blob modules or per-generation URLs. Initialization validates native
+headroom before creating a candidate. Candidate work stays gated until the entire
+original native generation group is admitted.
+
+Public enrollment inputs use the shared scope's structural enrollment method,
+so independently emitted host/CLI declarations remain compatible. Runtime
+participants, ownership, receipts and admissions still require exact original
+capabilities from the shared realm registry.
+
+The authoring runtime exposes only three pure native operations. Raw sources and
+named invocation/graph/presentation DTOs cross the API; no JavaScript CEM AST or
+IR is introduced. Discovery holds admission across resolver awaits, and synchronous
+graph/presentation calls invalidate prepared host witnesses. Complete original
+embedding ownership, managed drain, native census/closure and an original terminal
+host handoff are required for retirement. The original native RAII permit freezes
+mutation before the final host witness and physical disposal; failed preparation
+releases the permit without reopening ordinary admission. Successful disposal
+clears all binding/cache/module/instance references and fences old runtime aliases.
+Participant identity uniqueness uses weak registries, and checkpoint mutation
+callbacks keep no shared closure with the physical memory witness. Revoking owners
+therefore releases that witness even when the original controller remains retained.
+
+`binding.resume(originalAdmission)` explicitly consumes a complete single-generation
+pure-authoring admission, checks its original previous runtime identity and adopts
+the fresh original runtime. Stable binding methods remain synchronous where they
+were synchronous before. Copies, foreign bindings, used admissions, mixed groups
+and revoked candidates refuse. Revocation of an older retired admission cannot
+close a subsequently admitted generation. Startup failure and binding closure
+remove only their own enrollment; allocation/resume replay no resolver or command.
+The pure heap retains no requests, native handles or external effects to restore;
+its independent terminal host handoff is retained by the original group receipt.
+
+Legacy singleton APIs retain their old identity and behavior.
+`enrollBrowserCommandInvocationRecovery()` still records that unsupported legacy
+heap, so a worker-only group cannot masquerade as complete recovery. Owned
+single-generation resume is not combined Studio semantic resume: retained media
+preview controllers, combined preview/rendering/command handoff including shared
+fallback owner coverage, repeated whole-Studio acceptance and declarative status
+remain required before automatic recovery.

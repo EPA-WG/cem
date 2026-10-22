@@ -1,3 +1,4 @@
+import { ownedWasmFactory, ownedWasmFactoryTypes } from '../../../tools/scripts/cem-ql-wasm-factory.mjs';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
@@ -113,6 +114,9 @@ for (const [target, outputRoot] of [
     '--remove-producers-section',
   ]);
 }
+writeFileSync(resolve(browserRoot, 'cem_ml_factory.js'), ownedWasmFactory(readFileSync(resolve(browserRoot, 'cem_ml.js'), 'utf8'), 'cem_ml', 'CemMl'));
+writeFileSync(resolve(browserRoot, 'cem_ml_factory.d.ts'), ownedWasmFactoryTypes('cem_ml', 'CemMl'));
+
 writeJson(resolve(nodeRoot, 'package.json'), { type: 'commonjs' });
 
 const commandTypesTargetRoot = resolve(workspaceRoot, 'dist/target/cem_ml_command_types');
@@ -191,6 +195,8 @@ const runtimeManifest = {
   artifacts: {
     browser: {
       module: 'wasm/browser/cem_ml.js',
+      factory: 'wasm/browser/cem_ml_factory.js',
+      factoryTypes: 'wasm/browser/cem_ml_factory.d.ts',
       wasm: 'wasm/browser/cem_ml_bg.wasm',
       types: 'wasm/browser/cem_ml.d.ts',
     },

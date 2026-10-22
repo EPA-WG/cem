@@ -15,6 +15,7 @@
       "inputs": [
         "{projectRoot}/package.json",
         "{projectRoot}/scripts/build.mjs",
+        "{workspaceRoot}/tools/scripts/cem-ql-wasm-factory.mjs",
         "{workspaceRoot}/Cargo.lock",
         "{workspaceRoot}/Cargo.toml",
         "{workspaceRoot}/rust-toolchain.toml",
@@ -38,6 +39,7 @@
       "inputs": [
         "{projectRoot}/package.json",
         "{projectRoot}/scripts/build.mjs",
+        "{workspaceRoot}/tools/scripts/cem-ql-wasm-factory.mjs",
         "{workspaceRoot}/Cargo.lock",
         "{workspaceRoot}/Cargo.toml",
         "{workspaceRoot}/rust-toolchain.toml",

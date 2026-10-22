@@ -423,7 +423,7 @@ export class BrowserCommandServiceClient {
 
     /** Host-only complete-membership enrollment. This does not replace native
      * ownership/census checks or grant permission to replay a command. */
-    enrollRecovery(scope: CemNativeRecoveryScope, id: string,
+    enrollRecovery(scope: Pick<CemNativeRecoveryScope, 'enroll'>, id: string,
         hostWitness: () => (() => boolean)): CemNativeRecoveryEnrollment {
         this.#requireOpen();
         return scope.enroll({ id, kind: 'command-service', prepare: async () => {
@@ -741,7 +741,7 @@ export function createBrowserCommandServiceClient(
 /** Reserve complete membership before asynchronous worker startup. A failed
  * startup terminates its worker and removes only its own original reservation. */
 export async function createEnrolledBrowserCommandServiceClient(options: BrowserCommandServiceClientOptions,
-    scope: CemNativeRecoveryScope, id: string, hostWitness: () => (() => boolean),
+    scope: Pick<CemNativeRecoveryScope, 'enroll'>, id: string, hostWitness: () => (() => boolean),
 ): Promise<Readonly<{ client: BrowserCommandServiceClient; enrollment: CemNativeRecoveryEnrollment }>> {
     const pending = scope.enroll({ id, kind: 'command-service', prepare: async () => { throw Error('cem.command.recovery.busy'); } });
     let client: BrowserCommandServiceClient | undefined;

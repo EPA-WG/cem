@@ -24,6 +24,10 @@ for (const path of [
     'browser-command.d.ts',
     'browser-invocation.js',
     'browser-invocation.d.ts',
+    'invocation-core.js',
+    'invocation-core.d.ts',
+    'owned-browser-invocation.js',
+    'owned-browser-invocation.d.ts',
     'browser.js',
     'browser.d.ts',
     'browser-worker.js',
@@ -84,7 +88,10 @@ assert.match(browserSource, /new Worker\(new URL\('\.\/browser-worker\.js'/);
 assert.match(browserSource, /hardwareConcurrency/);
 assert.match(browserWorkerSource, /browserWorkerCapabilityManifest/);
 const nativeEmbeddingSource = readFileSync(resolve(projectRoot, 'dist/native-embedding.js'), 'utf8');
-const browserClosure = `${browserSource}\n${browserCommandSource}\n${browserInvocationSource}\n${browserWorkerSource}\n${managedNativeSource}\n${nativeAdmissionSource}\n${nativeEmbeddingSource}`;
+const ownedInvocationSource = readFileSync(resolve(projectRoot, 'dist/owned-browser-invocation.js'), 'utf8');
+assert.match(ownedInvocationSource, /@epa-wg\/cem-ml\/wasm\/factory/);
+assert.doesNotMatch(ownedInvocationSource, /managed-native-runtime/);
+const browserClosure = `${ownedInvocationSource}\n${browserSource}\n${browserCommandSource}\n${browserInvocationSource}\n${browserWorkerSource}\n${managedNativeSource}\n${nativeAdmissionSource}\n${nativeEmbeddingSource}`;
 assert.doesNotMatch(browserClosure, /SharedArrayBuffer/);
 assert.doesNotMatch(browserClosure, /node:/);
 

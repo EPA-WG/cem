@@ -778,3 +778,5 @@ function requireBoundedInteger(field: string, value: number, minimum: number, ma
         throw new RangeError(`${field}=${value} is outside ${minimum}..=${maximum}`);
     }
 }
+
+export { createBrowserCommandInvocationBinding, BrowserCommandInvocationBinding, OwnedBrowserCommandInvocation } from './owned-browser-invocation.js';

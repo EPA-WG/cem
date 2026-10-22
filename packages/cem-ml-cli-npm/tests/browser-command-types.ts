@@ -135,3 +135,15 @@ async function compilePublicBrowserCommandContract(): Promise<void> {
 }
 
 void compilePublicBrowserCommandContract;
+
+
+// The host and CLI ship independently emitted copies of the shared lifecycle
+// declarations. Their private scope brands must not prevent public enrollment.
+// eslint-disable-next-line @nx/enforce-module-boundaries -- compile the canonical host declaration against the independently vendored CLI copy.
+import type { CemNativeRecoveryScope as HostRecoveryScope } from '../../cem_ql/runtime/native-generation.mjs';
+import { createBrowserCommandInvocationBinding, createEnrolledBrowserCommandServiceClient, enrollBrowserCommandInvocationRecovery } from '../dist/browser-commands.js';
+declare const hostScope: HostRecoveryScope;
+void createBrowserCommandInvocationBinding({ recoveryScope: hostScope, id: 'typed-author' });
+void createEnrolledBrowserCommandServiceClient({ host }, hostScope, 'typed-worker', () => () => true);
+void enrollBrowserCommandInvocationRecovery(hostScope, 'typed-legacy');
+void createBrowserCommandServiceClient({ host }).then(client => client.enrollRecovery(hostScope, 'typed-ready-worker', () => () => true));

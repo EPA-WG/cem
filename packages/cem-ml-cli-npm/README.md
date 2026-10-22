@@ -407,7 +407,26 @@ checked separately. Fresh workers retain the original snapshotted host services,
 while old aliases/handles are never retargeted or replayed. Explicitly enroll the
 fresh client after coordinated binding.
 
-Also call `enrollBrowserCommandInvocationRecovery(scope, id)` when using browser
-invocation/graph-authoring/presentation APIs. Their shared main-thread singleton
-has no owned allocator and intentionally blocks complete recovery. See
-[the shared enrollment contract](../../docs/committed-checkpoints.md#explicit-runtime-recovery-enrollment).
+Use `createBrowserCommandInvocationBinding({ recoveryScope, id, hostWitness })`
+for owned invocation discovery, synchronous `authorTransformConfigV1(json)` and
+`projectPresentation(plan, result)`. Startup reserves membership before loading
+WASM. Each binding owns a lexical wasm-bindgen generation with separate memory,
+caches and finalizers; it never initializes or retargets the legacy singleton.
+`binding.runtime` exposes the original generation's ownership, closure and
+retirement controls. Discovery holds admission across asynchronous resolution;
+active discovery or changed host ledgers refuse recovery preparation.
+
+For a complete pure-authoring group, claim original embedding ownership, close
+native admission, retain the explicit terminal host handoff, retire, allocate and
+call `binding.resume(originalAdmission)`. Only the stable binding changes target;
+captured methods on an old `binding.runtime` stay fenced. Resume consumes the
+original admission once and refuses copied, foreign or mixed-group admissions.
+Revocation fences the binding and disposes the admitted generation. No operation,
+resolver, command, write or presentation is replayed during allocation/resume.
+Combined rendering/preview/command semantic resume remains a separate transaction.
+
+Legacy `buildBrowserCommandInvocation`, `createBrowserTransformConfigAuthor` and
+`projectBrowserCommandPresentation` retain their original singleton behavior.
+Consumers retaining those aliases must still call
+`enrollBrowserCommandInvocationRecovery(scope, id)` to record its unsupported
+allocator boundary. See [the shared enrollment contract](../../docs/committed-checkpoints.md#explicit-runtime-recovery-enrollment).

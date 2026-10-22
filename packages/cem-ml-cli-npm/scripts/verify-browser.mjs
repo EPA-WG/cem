@@ -90,6 +90,9 @@ try {
     await page.goto(`http://127.0.0.1:${address.port}/`);
     await page.waitForFunction(() => typeof globalThis.runCemMlBrowserFixture === 'function');
 
+    const owned = await runFixture(page, 'owned-invocation');
+    assert.deepEqual(owned, { rounds: 2, startup: 'cem.command.recovery.busy', busy: 'cem.command.recovery.busy', distinct: 3, synchronous: true, fenced: true, resolverCalls: 1 });
+
     const pool = await runFixture(page, 'pool');
     assert.equal(pool.mode, 'pool');
     assert.equal(pool.fallbackReason, undefined);

@@ -24,7 +24,9 @@ export function registerNativeGeneration(identity, runtimeId, allocate) {
     if (!object(identity) || state.identities.has(identity) || typeof runtimeId !== 'string' || !runtimeId || typeof allocate !== 'function') fail('identity');
     const participant = Object.freeze({ kind: 'cem-native-generation-participant' });
     state.identities.add(identity);
-    state.participants.set(participant, { identity, runtimeId, allocate, group: undefined, receipt: undefined, consumed: false });
+    // Uniqueness is weakly held above. The physical owner releases memory;
+    // a retained participant must not keep a disposed WASM memory alive.
+    state.participants.set(participant, { runtimeId, allocate, group: undefined, receipt: undefined, consumed: false });
     return participant;
 }
 /** Internal: called only after original ownership/census/handoff retirement. */

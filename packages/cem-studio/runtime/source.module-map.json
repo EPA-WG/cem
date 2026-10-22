@@ -853,6 +853,21 @@
         "@epa-wg/cem-elements/dist/lib/checkpoint-reference-resume.js": {
             "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/checkpoint-reference-resume.js",
             "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-ml-cli/owned-browser-invocation": {
+            "path": "../../../node_modules/@epa-wg/cem-ml-cli/dist/owned-browser-invocation.js",
+            "contentType": "text/javascript",
+            "moduleImports": {
+                "@epa-wg/cem-ml/wasm/factory": "@epa-wg/cem-ml/wasm/factory"
+            }
+        },
+        "@epa-wg/cem-ml-cli/invocation-core": {
+            "path": "../../../node_modules/@epa-wg/cem-ml-cli/dist/invocation-core.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-ml/wasm/factory": {
+            "path": "../../../node_modules/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_factory.js",
+            "contentType": "text/javascript"
         }
     }
 }

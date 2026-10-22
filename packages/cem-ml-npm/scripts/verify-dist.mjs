@@ -21,6 +21,11 @@ assert.equal(packageMetadata.main, undefined, 'low-level package has no policy-b
 assert.equal(packageMetadata.exports['./wasm'].node.import, './dist/wasm/node/cem_ml.js');
 assert.equal(packageMetadata.exports['./wasm'].browser.import, './dist/wasm/browser/cem_ml.js');
 
+assert.equal(packageMetadata.exports['./wasm/factory'].import, './dist/wasm/browser/cem_ml_factory.js');
+const ownedSource = readFileSync(resolve(distRoot, 'wasm/browser/cem_ml_factory.js'), 'utf8');
+assert.match(ownedSource, /export function createCemMlWasmGeneration/);
+assert.doesNotMatch(ownedSource, /eval\(|new Function\(|import\(/);
+
 const runtimeManifest = readJson(resolve(distRoot, 'cem-ml-runtime.json'));
 assert.equal(runtimeManifest.featureProfile, 'debug-control');
 assert.equal(runtimeManifest.package.name, packageMetadata.name);

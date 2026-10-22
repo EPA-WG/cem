@@ -122,6 +122,7 @@
             },
             "inputs": [
                 "{projectRoot}/scripts/verify-dist.mjs",
+                "{projectRoot}/tests/*-types.ts",
                 {
                     "dependentTasksOutputFiles": "**/*",
                     "transitive": false

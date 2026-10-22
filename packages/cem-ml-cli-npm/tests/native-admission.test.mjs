@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { execFileSync } from 'node:child_process';
 import { CommandNativeAdmission, CommandNativeClientCheckpoint } from '../dist/native-admission.js';
 
 const healthy = () => JSON.stringify({ softPressure: false, hardPressure: false });
@@ -273,4 +274,27 @@ test('automatic native deadline fences capture without an explicit waiter', asyn
     context.mock.timers.tick(5000);
     retire();
     await assert.rejects(domain.drain(), { code: 'cem.command.checkpoint.uncertain' });
+});
+
+
+test('revoked checkpoint controllers release their original physical memory', () => {
+    const moduleUrl = new URL('../dist/native-admission.js', import.meta.url).href;
+    const output = execFileSync(process.execPath, ['--expose-gc', '--input-type=module', '-e', `
+        import { CommandNativeClientCheckpoint } from ${JSON.stringify(moduleUrl)};
+        const { checkpoint, weak } = (() => {
+            const memory = new WebAssembly.Memory({ initial: 1 });
+            return { checkpoint: new CommandNativeClientCheckpoint(() => true, memory), weak: new WeakRef(memory) };
+        })();
+        checkpoint.invalidate();
+        for (let i = 0; i < 20; i++) {
+            await new Promise(resolve => setImmediate(resolve)); global.gc();
+        }
+        if (weak.deref() !== undefined) throw Error('disposed memory retained by original checkpoint controller');
+        try { checkpoint.claimEmbedding(); throw Error('revoked ownership reopened'); }
+        catch (error) { if (error.code !== 'cem.command.embedding.generation') throw error; }
+        try { checkpoint.assertExecution(); throw Error('revoked admission reopened'); }
+        catch (error) { if (error.code !== 'cem.runtime.memory.closed') throw error; }
+        console.log('released');
+    `], { encoding: 'utf8', timeout: 30000 });
+    assert.equal(output.trim(), 'released');
 });

@@ -575,3 +575,48 @@ async function executeVersionCommand(runtime, runtimeKind, ledger = undefined, o
     ),
   );
 }
+
+test('owned browser bindings isolate memory and retire without retargeting aliases', async () => {
+  const { createCemMlWasmGeneration } = await import('@epa-wg/cem-ml/wasm/factory');
+  const wasm = await readFile(new URL('../dist/wasm/browser/cem_ml_bg.wasm', import.meta.url));
+  const first = createCemMlWasmGeneration(), second = createCemMlWasmGeneration();
+  await Promise.all([first.initialize(wasm), second.initialize(wasm)]);
+  const firstMemory = first.memory(), secondMemory = second.memory();
+  assert.ok(firstMemory instanceof WebAssembly.Memory);
+  assert.ok(secondMemory instanceof WebAssembly.Memory);
+  assert.notEqual(firstMemory, secondMemory);
+  const alias = () => first.call('version', []);
+  assert.equal(alias(), packageMetadata.version);
+  assert.throws(() => first.dispose(() => false), /ownership-stale/);
+  // Failed disposal releases only the original retirement permit; ordinary
+  // admission remains closed, while the unrelated second heap stays usable.
+  const confirmation = first.dispose();
+  assert.equal(confirmation.frozen, true);
+  assert.equal(first.memory(), undefined);
+  assert.throws(alias, /generation.retired/);
+  assert.equal(second.call('version', []), packageMetadata.version);
+  second.dispose();
+});
+
+
+test('owned retirement preparation freezes native mutation and aborts only its original permit', async () => {
+  const { createCemMlWasmGeneration } = await import('@epa-wg/cem-ml/wasm/factory');
+  const factory = createCemMlWasmGeneration();
+  await factory.initialize(await readFile(new URL('../dist/wasm/browser/cem_ml_bg.wasm', import.meta.url)));
+  factory.call('closeCommandNativeAdmission', []);
+  const inventory = JSON.parse(factory.call('commandNativeResourceInventory', []));
+  assert.throws(() => factory.prepareRetirement(inventory.revision + 1), /inventory-stale/);
+  const confirmation = factory.prepareRetirement(inventory.revision);
+  assert.equal(confirmation.inventoryRevision, inventory.revision);
+  assert.throws(() => factory.prepareRetirement(inventory.revision), /retirement-pending/);
+  factory.abortRetirement();
+  assert.throws(() => factory.prepareRetirement(inventory.revision), /inventory-stale/);
+  let current = JSON.parse(factory.call('commandNativeResourceInventory', [])).revision;
+  factory.prepareRetirement(current);
+  assert.throws(() => factory.dispose(() => false), /ownership-stale/);
+  assert.ok(factory.memory() instanceof WebAssembly.Memory);
+  current = JSON.parse(factory.call('commandNativeResourceInventory', [])).revision;
+  factory.prepareRetirement(current);
+  factory.dispose();
+  assert.equal(factory.memory(), undefined);
+});

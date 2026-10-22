@@ -156,6 +156,8 @@ export class CommandNativeAdmission {
     }
 }
 
+function embeddingIdentity(identity: object): () => object { return () => identity; }
+
 /** Host-side witness tied to the owning transport object and current activity. */
 export class CommandNativeClientCheckpoint {
     #closed = false;
@@ -171,7 +173,10 @@ export class CommandNativeClientCheckpoint {
 
     constructor(idle: () => boolean, identity: object = {}) {
         this.#idle = idle;
-        this.#owners = new CommandNativeEmbeddingOwners(identity, () => identity, () => this.changed());
+        // Isolate the identity closure from the retained mutation callback. A
+        // shared constructor closure would keep physical WASM memory alive
+        // even after owners.revoke() replaces its identity witness.
+        this.#owners = new CommandNativeEmbeddingOwners(identity, embeddingIdentity(identity), this.changed.bind(this));
     }
     claimEmbedding(): CommandNativeEmbeddingOwnership { return this.#owners.claim(); }
     releaseEmbedding(lease: CommandNativeEmbeddingOwnership): void { this.#owners.release(lease); }

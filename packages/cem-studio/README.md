@@ -414,8 +414,11 @@ and workspace: repeated Unicode edits, draft/paint/focus retention, exact Save a
 native graph builds after incomplete recovery refuses. This validates safe
 refusal, not successful whole-workspace recovery. Shared action, disclosure and
 native-list adapters are available with original-controller and endpoint guards.
-Legacy theme storage and child preview/command-runtime enrollment remain blockers;
-automatic recovery stays disabled. The host can supply the original shared runtime
+Legacy theme storage, child preview and command-runtime enrollment now have shared
+adapters. Invocation discovery, synchronous graph authoring and presentation use
+an owned shared command binding with independent WASM generations. Retained media
+preview controllers and combined rendering/preview/command semantic handoff remain
+gates; automatic whole-workspace recovery stays disabled. The host can supply the original shared runtime
 via `installCemStudioShellComponents({ runtime })` before first installation.
 See [the admission contract](../../docs/committed-checkpoints.md#complete-studio-admission-acceptance)
 and [active recovery tasks](../../docs/todo.md).

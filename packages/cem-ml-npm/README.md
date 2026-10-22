@@ -22,6 +22,20 @@ import * as cemMl from '@epa-wg/cem-ml/wasm';
 console.log(cemMl.version());
 ```
 
+## Owned browser generations
+
+`@epa-wg/cem-ml/wasm/factory` exports `createCemMlWasmGeneration()`. Each factory
+owns its generated bindings, native memory, cached views and finalizers. It can
+initialize from the adjacent WASM asset or explicit initialization bytes. Native
+retirement preparation retains the original RAII permit; abort releases that
+permit, while disposal checks the original current-owner callback before clearing
+all memory/module/instance references. Native closure and census revisions still
+apply. This is a low-level host API, with the same unmanaged boundary as raw
+WASM exports. Browser command consumers should use the managed
+[owned invocation binding](../cem-ml-cli-npm/README.md#recovery-group-enrollment),
+which adds bounded admission, complete embedding ownership, group allocation and
+explicit stable host rebinding.
+
 ## Static CEM-ML HTML rendering
 
 `renderCemMlToHtmlV1(requestJson)` exposes the common Rust parser and light-DOM

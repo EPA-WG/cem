@@ -1,6 +1,7 @@
 import {
     CemNativeGenerationGroup,
     CemNativeRecoveryScope,
+    createBrowserCommandInvocationBinding,
     enrollBrowserCommandInvocationRecovery,
     buildBrowserCommandInvocation,
     createBrowserCommandServiceClient,
@@ -18,6 +19,7 @@ import {
 } from './command-all-operations.fixture.mjs';
 
 globalThis.runCemMlBrowserFixture = async (scenario) => {
+    if (scenario === 'owned-invocation') return runOwnedInvocationFixture();
     if (scenario === 'command-host-configuration') return runHostConfigurationFixture();
     if (scenario === 'command-recovery-enrollment') return runRecoveryEnrollmentFixture();
     if (scenario === 'command-native-checkpoint') return runNativeCheckpointFixture();
@@ -911,4 +913,108 @@ async function runRecoveryEnrollmentFixture() {
         } finally { unknownScope.dispose(); await uncertain.close(); }
         return { busy, unsupported, kinds: scope.inspect().members.map(member => member.kind), rebound: true, replayed: false, unknownRefused: true };
     } finally { enrollment.remove(); admission?.revoke(); await client.close(); scope.dispose(); }
+}
+
+
+async function runOwnedInvocationFixture() {
+    const failureScope = new CemNativeRecoveryScope(), originalFetch = globalThis.fetch;
+    try {
+        globalThis.fetch = async () => { throw Error('owned startup refused'); };
+        const failed = await createBrowserCommandInvocationBinding({ recoveryScope: failureScope, id: 'failed-author' })
+            .then(() => 'admitted', error => error.message);
+        if (failed !== 'owned startup refused' || failureScope.inspect().members.length) throw Error('owned startup leaked membership');
+    } finally { globalThis.fetch = originalFetch; failureScope.dispose(); }
+    const scope = new CemNativeRecoveryScope(); let epoch = 0, calls = 0;
+    const creating = createBrowserCommandInvocationBinding({ recoveryScope: scope, id: 'owned-author',
+        hostWitness: () => { const captured = epoch; return () => captured === epoch; } });
+    const startup = await scope.prepare().then(() => 'admitted', error => error.message);
+    if (startup !== 'cem.command.recovery.busy') throw Error(startup);
+    const binding = await creating, other = await createBrowserCommandInvocationBinding();
+    const graph = '{run | {import @id=data @src=data.xml | {export @id=result @out=result.xml}}}';
+    const edit = JSON.stringify({ source: graph, edit: { node: 'result', attribute: 'out', value: 'changed.xml' } });
+    const author = binding.authorTransformConfigV1, build = binding.buildInvocation, present = binding.projectPresentation;
+    const baseline = author(edit);
+    if (!JSON.parse(baseline).source.includes('changed.xml')) throw Error(baseline);
+    const parsed = parseCemMlCommand(['version'], { runtime: 'wasm-browser-worker' });
+    const invocation = await build(parsed, async () => { throw Error('unexpected version resource'); }, { requestId: 'owned-version' });
+    const client = await createBrowserCommandServiceClient({ host: versionCommandHost() });
+    const admissions = [], ids = [binding.runtime.runtimeId];
+    try {
+        const handle = client.execute(invocation.request), result = await handle.result();
+        await buildBrowserCommandInvocation(parsed, async () => { throw Error('unexpected legacy resource'); }, { requestId: 'owned-version' });
+        const baselineError = author('{}');
+        if (!JSON.parse(baselineError).error) throw Error('invalid graph was accepted');
+        const baselinePresentation = JSON.stringify(present(invocation.presentation, result));
+        if (baselinePresentation !== JSON.stringify(projectBrowserCommandPresentation(invocation.presentation, result))) throw Error('presentation drift');
+        await handle.dispose();
+        let complete;
+        const resources = new Promise(resolve => { complete = resolve; });
+        const parsing = parseCemMlCommand(['parse', 'memory:fixture.css'], { runtime: 'wasm-browser-worker' });
+        const beforeWork = await scope.prepare();
+        const pending = build(parsing, async requirement => { calls++; await resources; return [{ uri: requirement.uri, bytes: new TextEncoder().encode('.card { color: red; }') }]; });
+        const busy = await scope.prepare().then(() => 'admitted', error => error.message);
+        if (busy !== 'cem.command.recovery.busy' || beforeWork.current() || !calls) throw Error('discovery was not fenced');
+        complete(); await pending;
+        const failedResolution = await build(parsing, async () => { throw Error('resolver refused'); })
+            .then(() => undefined, error => ({ code: error.code, exitCode: error.exitCode, message: error.message }));
+        if (failedResolution?.code !== 'cem.browser_command.resolve' || failedResolution.exitCode !== 6 || failedResolution.message !== 'resolver refused') throw Error('command error changed');
+        const beforeGraph = await scope.prepare(); author(edit);
+        if (beforeGraph.current()) throw Error('late synchronous graph work did not invalidate preparation');
+        const staleHost = await scope.prepare(); epoch++;
+        if (staleHost.current()) throw Error('host witness stayed current');
+        for (let round = 0; round < 2; round++) {
+            const old = binding.runtime, oldAuthor = old.authorTransformConfigV1;
+            const owner = old.claimNativeEmbedding();
+            const copiedOwner = await old.closeNativeAdmission([{ ...owner }]).then(() => 'admitted', error => error.message);
+            if (copiedOwner === 'admitted') throw Error('copied owner admitted');
+            let proof = await old.closeNativeAdmission([owner]);
+            if (!round) {
+                let checks = 0;
+                const stale = await old.retireNativeGeneration(proof, [owner], { current: () => ++checks < 3, retain: () => new Uint8Array([1]) })
+                    .then(() => 'admitted', error => error.code);
+                if (stale !== 'cem.command.retirement.stale' || old.isNativeCheckpointCurrent(proof)) throw Error('stale handoff retired or retained its proof');
+                proof = await old.closeNativeAdmission([owner]);
+            }
+            const copiedProof = await old.retireNativeGeneration({ ...proof }, [owner], { current: () => true, retain: () => new Uint8Array([1]) }).then(() => 'admitted', error => error.message);
+            if (copiedProof === 'admitted') throw Error('copied proof admitted');
+            const prepared = await scope.prepare(), group = prepared.createGenerationGroup();
+            const retired = await old.retireNativeGeneration(proof, [owner], { current: prepared.current, retain: () => new TextEncoder().encode('pure authoring: no retained request, handle or external effects') });
+            const admission = await group.allocate([retired]); admissions.push(admission);
+            try { binding.resume({ ...admission }); throw Error('copied admission accepted'); } catch (error) { if (!error.message.includes('allocation.admission')) throw error; }
+            binding.resume(admission); ids.push(binding.runtime.runtimeId);
+            try { binding.resume(admission); throw Error('used admission accepted'); }
+            catch (error) { if (!error.message.includes('allocation.admission')) throw error; }
+            try { oldAuthor(edit); throw Error('retired alias accepted'); } catch (error) { if (!error.message.includes('generation.retired')) throw error; }
+            if (author('{}') !== baselineError || author(edit) !== baseline || JSON.stringify(present(invocation.presentation, result)) !== baselinePresentation || other.authorTransformConfigV1(edit) !== baseline) throw Error('fresh synchronous native result drift');
+            if (round) { admissions[0].revoke(); if (author(edit) !== baseline) throw Error('old revocation fenced new binding'); }
+        }
+        admissions.at(-1).revoke();
+        try { author(edit); throw Error('revoked binding accepted'); } catch (error) { if (!error.message.includes('generation.retired')) throw error; }
+        // An admission for another binding or a mixed group may not publish a
+        // partial host rebinding. Refusal revokes every candidate in that group.
+        for (const mixed of [false, true]) {
+            const source = await createBrowserCommandInvocationBinding();
+            const peer = mixed ? await createBrowserCommandInvocationBinding() : undefined;
+            const originals = [source, ...(peer ? [peer] : [])];
+            try {
+                const participants = originals.map(item => item.runtime.generationParticipant());
+                const group = new CemNativeGenerationGroup(participants), retirements = [];
+                for (const item of originals) {
+                    const runtime = item.runtime, owner = runtime.claimNativeEmbedding();
+                    const proof = await runtime.closeNativeAdmission([owner]);
+                    retirements.push(await runtime.retireNativeGeneration(proof, [owner], { current: () => true, retain: () => new Uint8Array([1]) }));
+                }
+                const admission = await group.allocate(retirements);
+                const target = mixed ? source : other;
+                try { target.resume(admission); throw Error('foreign/mixed binding accepted'); }
+                catch (error) { if (error.message !== 'cem.command.recovery.binding') throw error; }
+                for (const generation of admission.generations) {
+                    try { generation.runtime.authorTransformConfigV1(edit); throw Error('refused candidate stayed open'); }
+                    catch (error) { if (!error.message.includes('generation.retired')) throw error; }
+                }
+            } finally { source.close(); peer?.close(); }
+        }
+        if (new Set(ids).size !== 3) throw Error('physical generation reused');
+        return { rounds: 2, startup, busy, distinct: ids.length, synchronous: true, fenced: true, resolverCalls: calls };
+    } finally { binding.close(); other.close(); admissions.forEach(admission => admission.revoke()); await client.close(); scope.dispose(); }
 }
