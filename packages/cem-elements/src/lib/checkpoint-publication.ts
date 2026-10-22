@@ -97,6 +97,20 @@ export class CemCheckpointPublicationCoordinator {
 
     get lastError(): string | undefined { return this.error; }
 
+    /** Read-only admission diagnostics, never a capture/retirement/resume proof.
+     * Does not probe owners, export private islands or touch native runtimes. */
+    inspectRecovery() {
+        return Object.freeze({
+            disposed: this.disposed, blocked: this.blocked, capturing: this.capturing,
+            inFlightAdmissions: this.admissions.size,
+            unknownOperations: [...this.operations.values()].filter(operation => operation.outcome === 'unknown').length,
+            owners: Object.freeze([...this.owners.values()].map(owner => Object.freeze({
+                instanceId: owner.id, tag: owner.endpoint?.host.localName ?? null,
+                acknowledged: !!owner.receipt, adapterAvailable: !!owner.endpoint?.resume,
+            }))),
+        });
+    }
+
     register(id: string, exportIsland: () => string | undefined | Promise<string | undefined>, current: () => boolean = () => true, initialEventSequence = 0, dependencies: () => CemCheckpointRelationship[] | undefined = () => [], endpoint?: CemCheckpointEndpointOwner): CemCheckpointPublicationOwner {
         if (this.disposed || this.owners.has(id) || endpoint && this.endpoints.has(endpoint.host) || !id || this.owners.size >= MAX_OWNERS
             || !Number.isSafeInteger(initialEventSequence) || initialEventSequence < 0) {

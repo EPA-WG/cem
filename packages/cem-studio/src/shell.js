@@ -13,9 +13,12 @@ export const CEM_STUDIO_THEME_MODES = Object.freeze([
 
 let componentInstallPromise;
 
-/** Install the production CEM component declarations through cem-elements. */
-export function installCemStudioShellComponents() {
-    componentInstallPromise ??= installComponents();
+/** Install the production CEM component declarations through cem-elements.
+ * @param {{runtime?: CemElementRuntime}} [options] Original shared runtime; set before the first installation.
+ */
+export function installCemStudioShellComponents({ runtime } = {}) {
+    if (runtime && componentInstallPromise) throw new Error('CEM Studio component runtime is already installed');
+    componentInstallPromise ??= installComponents(runtime);
     return componentInstallPromise;
 }
 
@@ -467,8 +470,7 @@ export async function mountCemStudioApplicationShell(options) {
     });
 }
 
-async function installComponents() {
-    const runtime = new CemElementRuntime({ declarationTag: 'cem-studio-component-declaration' });
+async function installComponents(runtime = new CemElementRuntime({ declarationTag: 'cem-studio-component-declaration' })) {
     const source = import.meta.resolve('@epa-wg/cem-components/components.xhtml');
     const registered = [], diagnostics = [];
     for (const tag of ['cem-icon', 'cem-icon-button', 'cem-theme-switch', 'cem-dropdown', 'cem-menu', 'cem-menu-item', 'cem-workspace', 'cem-expansion', 'cem-stack', 'cem-grid', 'cem-text', 'cem-fieldset', 'cem-action', 'cem-alert', 'cem-app-bar', 'cem-badge', 'cem-card', 'cem-media-preview', 'cem-select', 'cem-dialog', 'cem-list', 'cem-tab', 'cem-table', 'cem-tree', 'cem-tabs', 'cem-text-field', 'cem-textarea', 'cem-source-editor']) {

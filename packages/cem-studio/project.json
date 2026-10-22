@@ -226,12 +226,14 @@
                 }
             ],
             "options": {
-                "command": "yarn vitest --config packages/cem-studio/vitest.config.mts --project=browser --run src/workbench.browser.spec.js --no-file-parallelism",
+                "command": "yarn vitest --config packages/cem-studio/vitest.config.mts --project=browser --run src/workbench.browser.spec.js src/recovery.browser.spec.js --no-file-parallelism",
                 "cwd": "{workspaceRoot}"
             },
             "inputs": [
                 "{projectRoot}/src/workbench.js",
                 "{projectRoot}/src/workbench.browser.spec.js",
+                "{projectRoot}/src/recovery.browser.spec.js",
+                "{projectRoot}/src/recovery.fixture.js",
                 "{projectRoot}/src/feature-tour.js",
                 "{projectRoot}/src/preview.js",
                 "{projectRoot}/generated/feature-tour/examples/*.cem-studio.json",

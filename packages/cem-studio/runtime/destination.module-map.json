@@ -840,6 +840,18 @@
         "@epa-wg/cem-ml-cli/native-generation": {
             "path": "./assets/@epa-wg/cem-ml-cli/dist/native-generation.js",
             "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/checkpoint-provider-handoff.js": {
+            "path": "./assets/@epa-wg/cem-elements/dist/lib/checkpoint-provider-handoff.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/checkpoint-form-resume.js": {
+            "path": "./assets/@epa-wg/cem-elements/dist/lib/checkpoint-form-resume.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/checkpoint-reference-resume.js": {
+            "path": "./assets/@epa-wg/cem-elements/dist/lib/checkpoint-reference-resume.js",
+            "contentType": "text/javascript"
         }
     }
 }

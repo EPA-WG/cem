@@ -1,4 +1,4 @@
-import type { CemHostView } from '@epa-wg/cem-elements';
+import type { CemHostView, CemElementRuntime } from '@epa-wg/cem-elements';
 
 export declare const CEM_STUDIO_THEME_MODES: readonly [
     'cem-theme-light',
@@ -85,7 +85,8 @@ export interface CemStudioFileSystemController {
     dispose(): void;
 }
 
-export function installCemStudioShellComponents(): Promise<Readonly<Record<string, unknown>>>;
+/** Supply the original shared runtime before the first installation. Later replacement is refused. */
+export function installCemStudioShellComponents(options?: { runtime?: CemElementRuntime }): Promise<Readonly<Record<string, unknown>>>;
 export function createCemStudioThemeController(options?: {
     storage?: Storage;
     storageKey?: string;

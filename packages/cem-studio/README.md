@@ -406,3 +406,15 @@ drafts and portable source exports remain independent. Pins allow up to eight
 records / 64 MiB per browser, with 128 artifacts / 16 MiB output and 1 MiB metadata
 per record; capacity failures do not evict existing pins. See the [build design](../../docs/cem-studio.md#project-builds-and-artifact-previews)
 for integrity checks, ownership and offline limits.
+
+### Runtime recovery acceptance
+
+`test:workbench` includes isolated worker/owned-fallback probes of the real shell
+and workspace: repeated Unicode edits, draft/paint/focus retention, exact Save and
+native graph builds after incomplete recovery refuses. This validates safe
+refusal, not successful whole-workspace recovery. Legacy theme storage, remaining
+capability adapters and child preview/command-runtime enrollment remain blockers;
+automatic recovery stays disabled. The host can supply the original shared runtime
+via `installCemStudioShellComponents({ runtime })` before first installation.
+See [the admission contract](../../docs/committed-checkpoints.md#complete-studio-admission-acceptance)
+and [active recovery tasks](../../docs/todo.md).

@@ -182,6 +182,15 @@ async function loadRuntimeContract(runtime, outputs) {
             throw new Error(`${runtime.id} runtime must ship ${specifier}`);
         }
     }
+    for (const name of ['checkpoint-provider-handoff', 'checkpoint-form-resume', 'checkpoint-reference-resume']) {
+        const helper = declarations.find(asset => asset.specifier === `@epa-wg/cem-elements/dist/lib/${name}.js`);
+        const facade = declarations.find(asset => asset.specifier === '@epa-wg/cem-elements/cem-elements');
+        if (!helper || !facade || helper.contentType !== 'text/javascript'
+            || dirname(resolve(helper.source)) !== dirname(resolve(facade.source))
+            || dirname(resolve(helper.target)) !== dirname(resolve(facade.target))) {
+            throw new Error(`${runtime.id} runtime must ship ${name} beside its CEM facade`);
+        }
+    }
     const nativeRuntime = declarations.find(asset => asset.specifier === '@epa-wg/cem-elements/native-runtime');
     for (const [specifier, path] of [
         ['@epa-wg/cem-elements/native-generation', 'native-generation.js'],

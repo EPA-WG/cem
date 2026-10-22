@@ -3,6 +3,13 @@
 `CemCommittedCheckpointStore` holds bounded session-private checkpoint bytes
 outside WASM, with receipt freshness, cancellation and atomic replacement.
 Use the shared native `sealCommittedCheckpoint` export as its trusted sealer.
+`CemCheckpointPublicationCoordinator.inspectRecovery()` reports immutable owner
+adapter/acknowledgment metadata and pending admissions/unknown operations without
+exporting source, probing owners or touching native state. It grants no recovery
+authority. Complete Studio acceptance still refuses legacy theme storage and
+unsupported capability/preview owners; see
+[the Studio admission contract](../../docs/committed-checkpoints.md#complete-studio-admission-acceptance).
+
 `CemCheckpointPublicationCoordinator` adds opt-in all-owner capture through
 `CemElementRuntimeOptions.checkpointPublication`. Supply one trusted coordinator
 for the entire host domain, a native sealer and explicit whole-island privacy

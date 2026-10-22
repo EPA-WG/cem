@@ -43,6 +43,13 @@ const declaredAssets = [
     })),
 ];
 const assetsByIdentity = new Map(declaredAssets.map((asset) => [asset.identity, asset]));
+for (const name of ['checkpoint-provider-handoff', 'checkpoint-form-resume', 'checkpoint-reference-resume']) {
+    const helper = assetsByIdentity.get(`@epa-wg/cem-elements/dist/lib/${name}.js`);
+    const facade = assetsByIdentity.get('@epa-wg/cem-elements/cem-elements');
+    assert.ok(helper && facade && helper.contentType === 'text/javascript', `Studio must ship ${name}`);
+    assert.equal(dirname(resolve(runtimeRoot, helper.source)), dirname(resolve(runtimeRoot, facade.source)));
+    assert.equal(dirname(resolve(outputRoot, helper.target)), dirname(resolve(outputRoot, facade.target)));
+}
 const moduleAssetManifest = findModuleAssetManifest(buildReport);
 assert.ok(moduleAssetManifest, 'build report is missing the CEM-ML module-asset manifest');
 assert.equal(moduleAssetManifest.contractVersion, 2);

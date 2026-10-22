@@ -1176,6 +1176,49 @@ initializers, legacy fallback and shared-memory/native aliases outside these
 ownership contracts receive no replacement authority. No Studio/component UI
 JavaScript or theme/storage changes are introduced.
 
+## Complete Studio admission acceptance
+
+Studio's shell installer accepts an original `CemElementRuntime` through
+`installCemStudioShellComponents({ runtime })` before its first call. The default
+installation is unchanged; subsequent runtime injection refuses. This is host
+service configuration, not an app-owned renderer or recovery implementation.
+Studio composition remains declarative.
+
+`CemCheckpointPublicationCoordinator.inspectRecovery()` returns immutable,
+detached named lifecycle metadata: registered owner IDs/tags, acknowledgment and
+adapter presence, open admissions, capture/block/disposal flags and the number of
+unknown operation outcomes. It invokes no owner-currentness probes, serializers,
+privacy callbacks or native work. Adapter presence is **not** a currentness,
+source-policy, complete-coverage or recovery proof. Only the original capture,
+retirement and fresh-resume gates authorize handoff; the report cannot replace any
+of them. No source bytes, commands, callback objects or native handles are exposed.
+
+The actual Studio shell/workbench has a separate repeated-session refusal lane in
+`recovery.browser.spec.js`, included in `test:workbench` and the release gate. In
+isolated worker and owned-fallback realms it clones Login, edits Unicode source,
+retains paint/focus/selection and the draft journal, refuses partial capture/resume,
+and continues exact Save and native graph builds. Unknown journal outcomes remain
+unknown until explicit acknowledgment. Each realm owns a temporary database;
+existing user storage is not cleared.
+
+The release audit also requires checkpoint provider-handoff, retained-form and
+reference-resume helpers beside the CEM facade in both Studio and Site source and
+destination maps. Required-asset checks and existing byte-identity/relative-import
+checks prevent a source-only test pass from masking missing deployment modules.
+The exact workspace dependency audit includes declarative Storybook fixture routes;
+published runtime dependencies remain unchanged.
+
+This audit does **not** pass successful whole-workspace recovery. The theme switch
+uses legacy text local storage; action/disclosure/list capabilities still need
+reviewed resume guards, and media/live previews own additional runtime state.
+Command-service heaps also need explicit host-service rebinding and complete group
+coverage. These owners must not be omitted, silently reconstructed or treated as
+plain retained templates. The ordinary Studio release/navigation/live-view gates
+and individual real-heap resume tests remain complementary evidence. A bounded
+editing/build probe is not an OOM/RSS guarantee. Successful complete-group Studio
+retirement/resume and declarative recovery status remain on the active checklist;
+automatic Studio recovery stays disabled.
+
 ## Explicit owner resume transactions
 
 Fresh allocation and semantic owner admission are separate gates.

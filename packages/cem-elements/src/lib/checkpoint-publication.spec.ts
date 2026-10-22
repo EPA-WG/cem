@@ -8,6 +8,23 @@ const options = () => ({ runtimeId: 'host-session', generation: 1, policyStamp: 
 const read = (coordinator: CemCheckpointPublicationCoordinator) => JSON.parse(new TextDecoder().decode(coordinator.current()!.bytes));
 
 describe('all-owner publication checkpoint capture', () => {
+    it('inspects incomplete recovery without invoking owners, native work or journal actions', async () => {
+        let calls = 0;
+        const c = new CemCheckpointPublicationCoordinator(options());
+        const a = c.register('a', () => { calls++; return '<template>private</template>'; }, () => { calls++; return true; });
+        const operation = c.operation('a');
+        const before = c.inspectRecovery();
+        expect(before).toMatchObject({ disposed: false, blocked: false, capturing: false, inFlightAdmissions: 0, unknownOperations: 1,
+            owners: [{ instanceId: 'a', tag: null, acknowledged: false, adapterAvailable: false }] });
+        expect(calls).toBe(0); expect(c.lastCommitted()).toBeUndefined();
+        expect(Object.isFrozen(before) && Object.isFrozen(before.owners) && Object.isFrozen(before.owners[0])).toBe(true);
+        a.published(metadata); operation.acknowledge();
+        const release = c.admit();
+        expect(c.inspectRecovery()).toMatchObject({ inFlightAdmissions: 1, unknownOperations: 0, owners: [{ acknowledged: true }] });
+        expect(before.unknownOperations).toBe(1); expect(before.owners[0].acknowledged).toBe(false);
+        expect(calls).toBe(0); release(); a.remove(); c.dispose();
+        expect(c.inspectRecovery()).toMatchObject({ disposed: true, owners: [] });
+    });
     it('requires every publication and drained admission, then exports all islands together', async () => {
         const c = new CemCheckpointPublicationCoordinator(options());
         const a = c.register('a', () => '<template>unsaved a</template>');

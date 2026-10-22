@@ -62,6 +62,8 @@ const galleryPrefixes = [
     ['@epa-wg/cem-studio', '@epa-wg/cem-components', 'cem-elements', '@epa-wg/cem-demo-element'],
     ['@epa-wg/cem-studio', '@epa-wg/custom-element', 'cem-elements', '@epa-wg/cem-demo-element'],
     ['@epa-wg/cem-studio', 'cem-elements', '@epa-wg/cem-demo-element'],
+    ['@epa-wg/cem-studio', 'cem-elements', '@epa-wg/cem-components', '@epa-wg/cem-demo-element'],
+    ['@epa-wg/cem-studio', '@epa-wg/custom-element', 'cem-elements', '@epa-wg/cem-components', '@epa-wg/cem-demo-element'],
 ];
 assert.deepEqual(workspacePaths, uniquePaths([
     ['@epa-wg/cem-studio', '@epa-wg/cem-ml-cli', '@epa-wg/cem-ml'],
