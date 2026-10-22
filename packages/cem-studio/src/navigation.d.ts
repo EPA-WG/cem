@@ -48,6 +48,7 @@ export interface CemStudioNavigationNode {
     readonly icon: string;
     readonly path?: string;
     readonly resourceId?: string;
+    readonly contentType?: string;
     readonly children: readonly CemStudioNavigationNode[];
 }
 export interface CemStudioNavigationState {
@@ -60,6 +61,9 @@ export interface CemStudioNavigationState {
     readonly title: string;
     readonly status: string;
     readonly content: 'folder' | 'file' | 'sample-file';
+    readonly sampleText: string;
+    readonly contentType: string;
+    readonly sourceId: string;
     readonly count: number;
     readonly countKind: string;
     readonly error?: { readonly message: string };

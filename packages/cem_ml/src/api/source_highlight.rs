@@ -376,6 +376,7 @@ fn source_scope_kind(content_type: &str) -> Option<SourceScopeKind> {
             Some(SourceScopeKind::CemMl)
         }
         "css" | "text/css" => Some(SourceScopeKind::Css),
+        mime if mime.ends_with("+cem") => Some(SourceScopeKind::CemMl),
         _ => None,
     }
 }
@@ -1132,6 +1133,29 @@ fn serialize_response(response: SourceHighlightResponseV1) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn editor_paint_accepts_structured_cem_media_types_without_formatting() {
+        let source = "\t{article @label=\"é😀\" | {p | unchanged}}\r\n\n";
+        let paint = |content_type: &str| -> serde_json::Value {
+            serde_json::from_str(&super::source_highlight_paint_v1_json(
+                &serde_json::json!({"source": source, "contentType": content_type}).to_string(),
+            )).unwrap()
+        };
+        let expected = paint("application/cem");
+        assert_eq!(expected["status"], "painted");
+        assert!(!expected["ranges"].as_array().unwrap().is_empty());
+        for content_type in [
+            "application/vnd.cem.template+cem",
+            "application/vnd.cem.transform+cem",
+            "application/vnd.cem.schema-package+cem",
+            "Application/Vnd.Example+Cem; charset=utf-8",
+        ] {
+            assert_eq!(paint(content_type), expected, "{content_type}");
+        }
+        for content_type in ["application/vnd.cem.query+cem-ql", "application/json", "text/markdown"] {
+            assert_eq!(paint(content_type)["status"], "unsupported", "{content_type}");
+        }
+    }
     #[test]
     fn editor_highlighting_refuses_oversized_source_and_request() {
         let result: serde_json::Value = serde_json::from_str(&super::source_highlight_paint_v1_json(

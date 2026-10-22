@@ -85,7 +85,8 @@ export async function createCemStudioNavigation({ workbench, repository, example
             canDelete: Boolean(selection.project) && ['project', 'file'].includes(selected.kind),
             createKind: selection.project ? 'file' : 'project',
             content: selected.kind === 'file' || selected.kind === 'configuration' ? (selection.sample ? 'sample-file' : 'file') : 'folder',
-            sampleText: opened?.text ?? '',
+            sampleText: opened?.text ?? '', contentType: opened?.resource?.contentType ?? 'text/plain',
+            sourceId: JSON.stringify(['sample', selection.sample, opened?.resource?.id ?? selected.key]),
             status: busy ? 'opening' : error ? 'error' : base.dirty ? 'dirty' : selection.sample ? 'sample' : !selection.project || base.status === 'empty' ? 'ready' : base.status,
         };
         for (const notify of subscribers) notify(snapshot());
@@ -150,6 +151,7 @@ export async function createCemStudioNavigation({ workbench, repository, example
                     const resource = bundle.project.resources.find(item => item.id === route.file);
                     if (!resource) throw new Error('The requested sample file is unavailable.');
                     const bytes = bundle.contents[resource.id];
+                    nextOpened.resource = resource;
                     nextOpened.text = new TextDecoder('utf-8', { fatal: true }).decode(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes ?? []));
                 }
                 if (route.configuration) {
@@ -157,6 +159,7 @@ export async function createCemStudioNavigation({ workbench, repository, example
                     if (!entry) throw new Error('The requested configuration is unavailable.');
                     const resource = bundle.project.resources.find(item => item.id === entry.runConfigResourceId);
                     const bytes = bundle.contents[resource?.id];
+                    nextOpened.resource = resource;
                     nextOpened.text = new TextDecoder().decode(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes ?? []));
                 }
             } else if (route.project) {

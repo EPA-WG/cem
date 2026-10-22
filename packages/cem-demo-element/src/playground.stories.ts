@@ -3,8 +3,12 @@ import { expect, spyOn, userEvent, waitFor, within } from 'storybook/test';
 
 import playgroundDocument from '../demo/playground.html?raw';
 import playgroundCss from '../demo/playground.css?raw';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- Test-only fixture loads the canonical declarative editor, not a copied implementation.
+import editorDeclaration from '../../cem-components/src/components/cem-source-editor/cem-source-editor.xhtml?raw';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- Shared development loader supplies the production runtime and native worker for this integration fixture.
+import { loadCemDeclaration, storybookCemRuntime } from '../../cem-elements/.storybook/preview.js';
 import {
-    initializePlayground,
+    initializePlayground as initialize,
     playgroundLink,
     readPlaygroundState,
 } from './playground.js';
@@ -12,6 +16,7 @@ import {
 const meta: Meta = {
     title: 'CEM Demo Element/Playground',
     tags: ['test'],
+    loaders: [async () => { await loadCemDeclaration('cem-source-editor', editorDeclaration); return {}; }],
     render: () => {
         const parsed = new DOMParser().parseFromString(playgroundDocument, 'text/html');
         const playground = parsed.querySelector('main[aria-label="CEM playground"]');
@@ -31,6 +36,7 @@ export const HtmlAndCemRendering: Story = {
         const input = canvas.getByRole('combobox', { name: 'Input format' });
         const output = canvas.getByRole('combobox', { name: 'Output format' });
 
+        await expect(playground.querySelector('[aria-label="Rendered output"] > [slot="text"]')).not.toBeVisible();
         await expect(input).toHaveValue('auto');
         await expect(output).toHaveValue('html');
         await expect(canvas.getByRole('textbox', { name: 'Title', exact: true })).toHaveValue('Hello, CEM');
@@ -45,11 +51,9 @@ export const HtmlAndCemRendering: Story = {
         await userEvent.click(canvas.getByRole('button', { name: 'Render', exact: true }));
         await waitFor(() => expect(within(requiredOutput(playground)).getByRole('heading', { name: 'Edited HTML' })).toBeVisible());
         await expect(requiredOutput(playground)).toHaveTextContent('Keep & display this text.');
-        const name = requiredEditor(playground).querySelector('[data-role="syntax.name"]');
-        const text = requiredEditor(playground).querySelector('[data-role="syntax.text"]');
-        if (!name || !text) throw new Error('Expected colored HTML name and text tokens');
-        await expect(getComputedStyle(name).fontWeight).toBe('700');
-        await expect(getComputedStyle(name).color).not.toBe(getComputedStyle(text).color);
+        await expectPaint(playground);
+        await expect(requiredEditor(playground).children.length).toBe(0);
+        await expect(requiredEditor(playground).textContent).toBe('<article><h2>Edited HTML</h2><p>Keep &amp; display this text.</p></article>');
         await expect(requiredEditor(playground).textContent).toContain('<article>');
         await expect(requiredEditor(playground).querySelector('article')).toBeNull();
         await expect(requiredEditor(playground)).toHaveAttribute('contenteditable', 'plaintext-only');
@@ -58,7 +62,41 @@ export const HtmlAndCemRendering: Story = {
         setSource(playground, '{article @class=message | {strong | Hello from CEM-ML}}');
         await controller.render();
         await expect(requiredOutput(playground).querySelector('article.message strong')).toHaveTextContent('Hello from CEM-ML');
-        await expect(requiredEditor(playground).querySelector('b')).not.toBeNull();
+        await expectPaint(playground);
+        await expect(requiredEditor(playground).textContent).toBe('{article @class=message | {strong | Hello from CEM-ML}}');
+        await expect(requiredEditor(playground).children.length).toBe(0);
+    },
+};
+
+export const NativeEditingAndSourcePreservation: Story = {
+    play: async ({ canvasElement }) => {
+        if (import.meta.env.MODE !== 'test') return;
+        const { userEvent: browserInput } = await import('vitest/browser');
+        const playground = requiredPlayground(canvasElement);
+        const controller = await initializePlayground(playground);
+        const host = playground.querySelector('cem-source-editor') as HTMLElement & { value: string };
+        const control = requiredEditor(playground) as HTMLElement & { selectionStart: number; selectionEnd: number; setSelectionRange(start: number, end: number): void };
+        host.value = '<p>start</p>\n\n'; control.focus(); control.setSelectionRange(8, 8);
+        await browserInput.keyboard(' café 🧬');
+        const source = host.value;
+        const selection = [control.selectionStart, control.selectionEnd];
+        await expectPaint(playground);
+        await expect(host.value).toBe(source); await expect(control.children.length).toBe(0);
+        await expect([control.selectionStart, control.selectionEnd]).toEqual(selection);
+        await controller.render();
+        await expect(host.value).toBe(source);
+        await expect(source.endsWith('\n\n')).toBe(true);
+        await expect(requiredEditor(playground)).toBe(control);
+        control.focus(); await browserInput.keyboard('{Control>}z{/Control}');
+        await expect(host.value).not.toBe(source);
+        await browserInput.keyboard('{Control>}y{/Control}'); await expect(host.value).toBe(source);
+        await userEvent.selectOptions(within(playground).getByRole('combobox', { name: 'Input format' }), 'json');
+        await waitFor(() => expect(host.getAttribute('content-type')).toBe('application/json'));
+        await waitFor(() => {
+            const highlights = (CSS as unknown as { highlights: Map<string, Set<Range>> }).highlights;
+            expect([...highlights.values()].flatMap(highlight => [...highlight]).filter(range => host.contains(range.startContainer))).toHaveLength(0);
+        });
+        await expect(host.value).toBe(source); // Language selection does not rewrite invalid JSON.
     },
 };
 
@@ -84,7 +122,7 @@ export const CrossFormatOutput: Story = {
         if (!name || !number) throw new Error('Expected colored YAML name and number tokens');
         await expect(getComputedStyle(name).fontWeight).toBe('700');
         await expect(getComputedStyle(name).color).not.toBe(getComputedStyle(number).color);
-        await expect(requiredEditor(playground).children.length).toBeGreaterThan(0);
+        await expect(requiredEditor(playground).children.length).toBe(0);
         await expect(requiredEditor(playground).textContent).toContain('"name"');
         await expect(requiredOutput(playground).querySelector('article')).toBeNull();
 
@@ -142,8 +180,8 @@ export const ShareableState: Story = {
         await setMetadata(playground, state.title, state.description);
         await userEvent.selectOptions(canvas.getByRole('combobox', { name: 'Input format' }), 'html');
         await userEvent.selectOptions(canvas.getByRole('combobox', { name: 'Output format' }), 'cem');
-        // Browsers may leave block/BR nodes after editing colored source. The
-        // copied source must retain visible line boundaries, never token HTML.
+        // Native editing can leave block/BR nodes. The shared editor owns
+        // newline extraction; copied links contain source, never paint markup.
         const editor = requiredEditor(playground);
         editor.innerHTML = '<span>&lt;p&gt;One + &amp; # 🧬&lt;/p&gt;</span><div><br></div><div>&lt;p&gt;Two&lt;/p&gt;</div>';
         editor.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertParagraph' }));
@@ -231,8 +269,8 @@ export const PresetExamples: Story = {
                     await expect(code).toHaveTextContent('Catalog');
                     await expect(code).toHaveTextContent('string');
                     await userEvent.selectOptions(canvas.getByRole('combobox', { name: 'Output format' }), 'xml');
-                    // Render the original CSV, not its display-padded source view.
-                    setSource(playground, state.source);
+                    // Repeated Render must continue consuming the original CSV.
+                    await expect(requiredEditor(playground).textContent).toBe(state.source);
                     await controller.render();
                     await expect(playground).toHaveAttribute('data-state', 'ready');
                     const xmlCode = requiredOutput(playground).querySelector('pre code');
@@ -329,4 +367,18 @@ async function setMetadata(playground: HTMLElement, title: string, description: 
     if (title) await userEvent.type(titleField, title);
     await userEvent.clear(descriptionField);
     if (description) await userEvent.type(descriptionField, description);
+}
+
+function initializePlayground(playground: HTMLElement) {
+    return initialize(playground, storybookCemRuntime());
+}
+
+async function expectPaint(playground: HTMLElement): Promise<void> {
+    const editor = requiredEditor(playground);
+    await waitFor(() => {
+        const highlights = (CSS as unknown as { highlights: Map<string, Set<Range>> }).highlights;
+        const own = [...(highlights.get('cem-source-name') ?? [])].filter(range => editor.contains(range.startContainer));
+        expect(own.length).toBeGreaterThan(0);
+        expect(own.every(range => editor.contains(range.endContainer))).toBe(true);
+    });
 }

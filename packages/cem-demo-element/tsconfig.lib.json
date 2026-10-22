@@ -6,10 +6,20 @@
         "tsBuildInfoFile": "dist/tsconfig.lib.tsbuildinfo",
         "emitDeclarationOnly": false,
         "forceConsistentCasingInFileNames": true,
-        "lib": ["es2022", "dom", "dom.iterable"]
+        "lib": [
+            "es2022",
+            "dom",
+            "dom.iterable"
+        ]
     },
-    "include": ["src/**/*.ts"],
-    "exclude": ["src/**/*.stories.ts", "src/**/*.spec.ts", "src/**/*.test.ts"],
+    "include": [
+        "src/**/*.ts"
+    ],
+    "exclude": [
+        "src/**/*.stories.ts",
+        "src/**/*.spec.ts",
+        "src/**/*.test.ts"
+    ],
     "references": [
         {
             "path": "../cem-theme/tsconfig.lib.json"
@@ -17,5 +27,12 @@
         {
             "path": "../cem-ml-cli-npm/tsconfig.lib.json"
         }
-    ]
+    ],
+    "nx": {
+        "sync": {
+            "ignoredDependencies": [
+                "cem-elements"
+            ]
+        }
+    }
 }

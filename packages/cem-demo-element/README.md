@@ -130,17 +130,25 @@ demo without sanitizing it first.
 ## Editable playground
 
 Open [`demo/playground.html`](./demo/playground.html) through the local demo
-server. Edit the `contenteditable` code pane, select input and output formats,
+server. Edit the shared `cem-source-editor` pane, select input and output formats,
 then choose **Render**. Input defaults to **Auto**; output defaults to **HTML**.
 Auto provides a syntax hint for pasted text; select a format explicitly for
 ambiguous input.
 
-The page uses the native CEM WASM command service to import an AST, format the
-source, and convert it. The HTML colorer writes escaped, colored markup back
-into the editable code pane. HTML output appears inline; other outputs appear
-as formatted, colored code. The CEM elements runtime is installed for live
-declarations in the preview. JavaScript connects the editor, clipboard and
-URL controls to those shared APIs.
+The declarative source editor uses `cem-elements` native HTML/CEM-ML/CSS
+coloring over the existing plaintext DOM. Input format controls its content type;
+Auto updates the hint as text changes. Other formats remain editable as plain
+text. Coloring never formats or executes source and preserves native undo,
+selection and composition. Its `source-id` identifies the playground document.
+
+**Render** sends authored source through the native CEM WASM command service
+and publishes a separate output: inline HTML or formatted, colored code. Render
+and Copy Link retain the exact editor text, including tabs and trailing lines;
+repeated conversion never consumes display padding or token HTML. The CEM
+elements runtime owns both the editor declaration and live preview declarations.
+The existing playground controller connects the shared public value API,
+format selection, clipboard and URL services; it does not implement editing or
+rewrite the editing subtree.
 
 The selectors include HTML, CEM-ML, XML, XHTML, SVG, MathML, XSLT, JSON, YAML,
 CSV, Markdown and CSS. Supported conversions depend on the input and output
@@ -169,7 +177,11 @@ without recursively rebuilding its temporary command-schema source.
 
 ## Tests
 
-Storybook Chromium interaction stories are this package's unit tests. They
+Storybook Chromium interaction stories are this package's unit tests.
+The playground stories load the canonical editor declaration through the shared
+Storybook runtime setup. Nx builds the runtime for browser targets; its test-only
+dependency is excluded from production TypeScript project references to avoid
+a cycle with the runtime's demo fixtures. They
 cover inline and template HTML, explicit regions, programmatic and fetched
 source, type detection, the Rust/WASM CEM-ML boundary, diagnostics, and the
 absence of external CDN resources:

@@ -1664,8 +1664,20 @@ and selection through its existing document model and host commands. Saved
 project resources remain editable with the existing draft/save/validation guards.
 Predefined sample resources use the same editor readonly until the sample is
 cloned. Authored source is always text. The shared component supports optional native
-HTML/CEM-ML/CSS paint; Studio content-type/resource identity wiring and demo
-playground adoption are the next integration step.
+HTML/CEM-ML/CSS paint, including structured `+cem` template/transform media
+types. Studio binds the resource's declared `content-type` and an unambiguous
+`source-id` tuple of stable project/resource IDs, independently of names, paths,
+revisions and the preview selection. Readonly samples use a separate sample
+identity and the same language binding. URL-driven file admission changes these
+bindings only after draft guards succeed. Unsupported languages stay plain.
+
+The demo playground uses the same declaration and public value API. Render and
+Copy Link consume exact authored text; Render updates only the output pane.
+Neither coloring nor conversion silently replaces source with formatted markup.
+Studio Save/Discard, Parse/Inspect and explicit formatting continue through the
+ordinary document/command model. Draft journals persist text and command drafts,
+not paint ranges; repaint is disposable presentation. Widget recovery with
+UTF-16 selection and fresh-runtime repaint remains a separate adapter milestone.
 
 Editable HTML means editing HTML **source text**. Rendered HTML is a separate,
 read-only-by-default preview. Editor adapters must use the same versioned

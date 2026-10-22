@@ -10,6 +10,7 @@
     <script type="importmap">
         {
             "imports": {
+                "@epa-wg/cem-components/components/": "../../cem-components/src/components/",
                 "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
                 "@epa-wg/cem-ml/runtime.json": "../../cem-ml-npm/dist/cem-ml-runtime.json",
                 "@epa-wg/cem-ml-cli/browser": "../../cem-ml-cli-npm/dist/browser.js"
@@ -20,11 +21,14 @@
         import { installCemElementRuntime } from '../../cem-elements/dist/index.js';
         import { initializePlayground } from '../dist/playground.js';
 
-        installCemElementRuntime(window);
-        initializePlayground(document.querySelector('main'));
+        const runtime = installCemElementRuntime(window);
+        initializePlayground(document.querySelector('main'), runtime);
     </script>
 </head>
 <body class="playground" data-theme="cem-theme-light">
+<cem-element hidden><template type="text/cem-ml">
+{cem-element @tag=cem-source-editor @src="@epa-wg/cem-components/components/cem-source-editor/cem-source-editor.xhtml#cem-source-editor"}
+</template></cem-element>
 <nav aria-label="Demo pages">
     <a href="../../cem-elements/index.html">Elements gallery</a>
     <a href="../../cem-components/index.html">Components gallery</a>
@@ -68,13 +72,11 @@
     <div class="playground-panels">
         <section aria-labelledby="source-heading">
             <h2 id="source-heading">Source</h2>
-            <cem-demo-element demo="false" type="html" aria-label="Editable source">
-                <template slot="source"><article>
-    <h2>Hello, CEM</h2>
-    <p>Edit this HTML, then choose another output format.</p>
-    <button type="button">A live HTML button</button>
-</article></template>
-            </cem-demo-element>
+            <cem-source-editor fit="fill" label="Source code" content-type="text/html" source-id="cem-demo-playground:source" value="&lt;article&gt;
+    &lt;h2&gt;Hello, CEM&lt;/h2&gt;
+    &lt;p&gt;Edit this HTML, then choose another output format.&lt;/p&gt;
+    &lt;button type=&quot;button&quot;&gt;A live HTML button&lt;/button&gt;
+&lt;/article&gt;"></cem-source-editor>
         </section>
         <section aria-labelledby="output-heading">
             <h2 id="output-heading">Output</h2>

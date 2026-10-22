@@ -1,6 +1,6 @@
 import './index.js';
 import type { CemDemoElement } from './cem-demo-element.js';
-import { getPlaygroundFormats, renderPlaygroundSource } from './playground-runtime.js';
+import { detectPlaygroundFormat, getPlaygroundFormats, renderPlaygroundSource } from './playground-runtime.js';
 import { playgroundExamples } from './playground-examples.js';
 
 export interface PlaygroundState {
@@ -33,9 +33,9 @@ export function playgroundLink(baseUrl: string, state: PlaygroundState): string 
     return url.href;
 }
 
-export async function initializePlayground(playground: HTMLElement): Promise<{ render(): Promise<void> }> {
+export async function initializePlayground(playground: HTMLElement, runtime: { whenRenderSettled(instance: HTMLElement): Promise<void> }): Promise<{ render(): Promise<void> }> {
     const form = required<HTMLFormElement>(playground, 'form[aria-label="Render settings"]');
-    const sourceDemo = required<CemDemoElement>(playground, 'cem-demo-element[aria-label="Editable source"]');
+    const editor = required<HTMLElement & { value: string }>(playground, 'cem-source-editor');
     const outputDemo = required<CemDemoElement>(playground, 'cem-demo-element[aria-label="Rendered output"]');
     const title = required<HTMLInputElement>(playground, 'input[name="title"]');
     const description = required<HTMLTextAreaElement>(playground, 'textarea[name="description"]');
@@ -71,27 +71,24 @@ export async function initializePlayground(playground: HTMLElement): Promise<{ r
     }
 
     try {
-        await Promise.all([sourceDemo.updateComplete, outputDemo.updateComplete]);
-        const code = required<HTMLElement>(sourceDemo, '[slot="text"] code');
+        await window.customElements.whenDefined(editor.localName);
+        await Promise.all([runtime.whenRenderSettled(editor), outputDemo.updateComplete]);
         const preview = required<HTMLElement>(outputDemo, '[slot="demo"]');
         const formats = await getPlaygroundFormats();
         for (const format of formats.inputs) input.add(new Option(format.label, format.id));
         output.replaceChildren(...formats.outputs.map(format => new Option(format.label, format.id)));
         const defaults: PlaygroundState = {
             title: title.value, description: description.value,
-            source: code.textContent ?? '', input: 'auto', output: 'html',
+            source: editor.value, input: 'auto', output: 'html',
         };
         const state = readPlaygroundState(window.location.search, defaults);
         title.value = state.title;
         description.value = state.description;
-        code.textContent = state.source;
-        code.contentEditable = 'plaintext-only';
-        code.setAttribute('role', 'textbox');
-        code.setAttribute('aria-label', 'Source code');
-        code.setAttribute('aria-multiline', 'true');
-        code.setAttribute('spellcheck', 'false');
-        code.setAttribute('autocapitalize', 'off');
-        code.tabIndex = 0;
+        editor.value = state.source;
+        function updateLanguage(): void {
+            const format = input.value === 'auto' ? detectPlaygroundFormat(editor.value) : input.value;
+            editor.setAttribute('content-type', formats.inputs.find(item => item.id === format)?.contentType ?? 'text/plain');
+        }
         for (const example of playgroundExamples) {
             appendExample(example, playgroundLink(window.location.href, example));
         }
@@ -106,11 +103,9 @@ export async function initializePlayground(playground: HTMLElement): Promise<{ r
         }
 
         function currentState(): PlaygroundState {
-            // Unlike textContent, innerText retains newlines created by Enter
-            // (<div>/<br>) in a contenteditable code region.
             return {
                 title: title.value, description: description.value,
-                source: code.innerText, input: input.value, output: output.value,
+                source: editor.value, input: input.value, output: output.value,
             };
         }
 
@@ -122,17 +117,14 @@ export async function initializePlayground(playground: HTMLElement): Promise<{ r
             submit.disabled = true;
             input.disabled = true;
             output.disabled = true;
-            code.contentEditable = 'false';
+            editor.setAttribute('readonly', '');
             playground.setAttribute('aria-busy', 'true');
             announce('Rendering…', 'loading');
             preview.replaceChildren();
             try {
                 const result = await renderPlaygroundSource(state.source, state.input, state.output);
-                // Only the engine's escaped HTML colorer output enters the editor.
-                // Its text remains the source consumed by the next Render/Copy Link.
-                code.innerHTML = result.sourceHtml;
-                code.dataset.language = result.inputFormat;
-                code.className = `cem-source-code language-${result.inputFormat}`;
+                // Rendering publishes output only. Authored source, selection and
+                // undo remain owned by the shared plaintext editor.
                 if (result.status === 'error') {
                     announce(result.diagnostics.map(item => item.message).join('\n') || 'The source could not be rendered.', 'error');
                     return;
@@ -158,7 +150,7 @@ export async function initializePlayground(playground: HTMLElement): Promise<{ r
                 submit.disabled = false;
                 input.disabled = false;
                 output.disabled = false;
-                code.contentEditable = 'plaintext-only';
+                editor.removeAttribute('readonly');
                 playground.removeAttribute('aria-busy');
             }
         }
@@ -183,7 +175,10 @@ export async function initializePlayground(playground: HTMLElement): Promise<{ r
                 announce('Link added to the list. Copy the selected link to share the source.');
             }
         });
-        code.addEventListener('input', () => {
+        input.addEventListener('change', updateLanguage);
+        updateLanguage();
+        editor.addEventListener('input', () => {
+            updateLanguage();
             announce('Source changed. Render to update the output.');
             linkDetails.hidden = true;
         });

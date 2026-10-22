@@ -82,3 +82,18 @@ metadata when copying the template into a new declaration.
 See the [property playground](../playgrounds/cem-source-editor.html),
 [full examples and variation matrix](../playgrounds/cem-source-editor-gallery.html)
 and [browser stories](../src/components/cem-source-editor/cem-source-editor.stories.ts).
+
+## Consumers
+
+Studio binds `content-type` from the selected resource and `source-id` from its
+stable project/resource identity, including readonly sample resources. Path and
+preview selection do not identify the editing document. Draft persistence and
+explicit native commands remain in the ordinary Studio model; painting never
+saves, formats, parses for inspection or runs a configuration.
+
+The demo playground uses this same declaration for source editing. Input format
+selects the content type (Auto supplies a syntax hint); Render publishes output
+without rewriting source. HTML, CEM-ML (including structured `+cem` media types)
+and CSS paint losslessly; unsupported languages remain plain. Copy Link reads
+the public value, preserving source whitespace and invalid text. Paint ranges
+are disposable and must never enter source storage or checkpoint text.

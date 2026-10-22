@@ -41,6 +41,89 @@ afterEach(async () => {
 });
 
 describe('CEM Studio Feature Tour workbench', () => {
+    it.each([
+        ['login', 'login-html', 'text/html'],
+        ['supplier-pipeline', 'supplier-view', 'application/vnd.cem.template+cem'],
+        ['markdown-site', 'assets-site-css', 'text/css'],
+    ])('adopts shared source paint with readonly samples, URL identity and durable drafts: %s', async (name, resourceId, contentType) => {
+        const response = await fetch(new URL(`../generated/feature-tour/examples/${name}.cem-studio.json`, import.meta.url));
+        expect(response.ok).toBe(true);
+        const bundle = parseCemStudioProjectBundle(new Uint8Array(await response.arrayBuffer()));
+        const repository = await repositoryWithSource('unrelated saved project');
+        const validator = validatorFor(validResult());
+        const records = new Map();
+        const storage = { getItem: key => records.get(key) ?? null, setItem: (key, value) => records.set(key, value) };
+        const browser = new EventTarget(); browser.location = new URL(`https://studio.test/?sample=${name}&file=${resourceId}`);
+        browser.history = { pushState: (_, __, url) => { browser.location = new URL(url); }, replaceState: (_, __, url) => { browser.location = new URL(url); } };
+        const root = document.createElement('main'); document.body.append(root);
+        let session, workbench, view;
+        const mount = async () => {
+            session = createCemStudioProjectSession({ storage, openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator, selection }) });
+            workbenches.push(session);
+            const base = await createCemStudioSessionWorkbench({ repository, session });
+            workbench = await createCemStudioNavigation({ repository, workbench: base,
+                examples: [{ id: name, name, load: async () => bundle }], browser }); workbenches.push(workbench);
+            view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
+        };
+        const paintRanges = host => [...CSS.highlights.values()].flatMap(highlight => [...highlight]).filter(range => host.contains(range.startContainer));
+        const assertPaint = async host => {
+            await vi.waitFor(() => expect(paintRanges(host).length).toBeGreaterThan(0));
+            expect(paintRanges(host).every(range => host.contains(range.endContainer))).toBe(true);
+            expect(host.querySelector('[role=textbox]').children).toHaveLength(0);
+        };
+        await mount();
+        const sampleEditor = root.querySelector('cem-source-editor[readonly]');
+        const original = new TextDecoder().decode(bundle.contents[resourceId]);
+        expect(sampleEditor.value).toBe(original);
+        expect(sampleEditor.getAttribute('content-type')).toBe(contentType);
+        expect(sampleEditor.querySelector('[role=textbox]').contentEditable).toBe('false');
+        await assertPaint(sampleEditor);
+        const sampleIdentity = sampleEditor.getAttribute('source-id');
+        await workbench.openEntity(`sample=${name}`); workbench.requestAction('clone');
+        await workbench.submitAction({ name: [`${name} editor copy`] }); await view.whenSettled();
+        const projectId = workbench.snapshot().navigation.selection.project;
+        await workbench.openEntity(`project=${projectId}&file=${resourceId}`); await view.whenSettled();
+        let host = root.querySelector('cem-source-editor[data-cem-studio-editor]');
+        let control = host.querySelector('[role=textbox]');
+        expect(host.getAttribute('source-id')).toBe(JSON.stringify([projectId, resourceId]));
+        expect(host.getAttribute('source-id')).not.toBe(sampleIdentity);
+        expect(host.getAttribute('content-type')).toBe(contentType);
+        expect(new URL(browser.location).searchParams.get('file')).toBe(resourceId);
+        expect(control.value).toBe(original); await assertPaint(host);
+        const draft = original + '\n\t🧬 <unfinished\n';
+        control.focus(); control.value = draft; control.setSelectionRange(2, 7);
+        control.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText' })); await view.whenSettled();
+        await assertPaint(host);
+        expect(control.value).toBe(draft); expect([control.selectionStart, control.selectionEnd]).toEqual([2, 7]);
+        expect(document.activeElement).toBe(control); expect(workbench.snapshot().dirty).toBe(true);
+        const durable = (await repository.query(request('export-project', { projectId }))).value;
+        expect(new TextDecoder().decode(durable.contents[resourceId])).toBe(original);
+        expect(validator.runResourceCommand).not.toHaveBeenCalled(); // Paint never formats source.
+        const journal = [...records.values()].find(value => value.includes('"draft"'));
+        expect(JSON.parse(journal).draft).toBe(draft); expect(journal).not.toContain('cem-source-name');
+        // Reopen the same URL using only the ordinary draft journal; paint is regenerated.
+        view.dispose(); workbench.dispose(); session.dispose(); root.replaceChildren(); await mount();
+        host = root.querySelector('cem-source-editor[data-cem-studio-editor]'); control = host.querySelector('[role=textbox]');
+        expect(control.value).toBe(draft); expect(session.snapshot().draftRecovery.status).toBe('recovered');
+        await assertPaint(host);
+        await workbench.openEntity(`project=${projectId}&file=readme`); await view.whenSettled();
+        expect(session.snapshot().transition.stage).toBe('source');
+        expect(control.value).toBe(draft); expect(host.getAttribute('source-id')).toBe(JSON.stringify([projectId, resourceId]));
+        await workbench.resolveNavigation('cancel'); await view.whenSettled();
+        expect(new URL(browser.location).searchParams.get('file')).toBe(resourceId);
+        await workbench.saveSource(); await view.whenSettled();
+        expect(new TextDecoder().decode((await repository.query(request('export-project', { projectId }))).value.contents[resourceId])).toBe(draft);
+        workbench.updateDraft(draft + 'discard this'); await view.whenSettled();
+        await workbench.openEntity(`project=${projectId}&file=readme`); await workbench.resolveNavigation('discard'); await view.whenSettled();
+        expect(new URL(browser.location).searchParams.get('file')).toBe('readme');
+        host = root.querySelector('cem-source-editor[data-cem-studio-editor]');
+        expect(host.getAttribute('source-id')).toBe(JSON.stringify([projectId, 'readme']));
+        expect(host.getAttribute('content-type')).toMatch(/^text\/markdown/);
+        expect(paintRanges(host)).toHaveLength(0);
+        expect(host.value).toBe(new TextDecoder().decode(bundle.contents.readme));
+        expect(new TextDecoder().decode(bundle.contents[resourceId])).toBe(original);
+    }, 30_000);
+
     it('opens a just-imported project before cached inventory receives its repository notification', async () => {
         const repository = await repositoryWithSource('saved content');
         const validator = validatorFor(validResult());

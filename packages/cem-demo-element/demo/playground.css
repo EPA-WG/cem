@@ -87,7 +87,7 @@
     opacity: 0.6;
 }
 
-.playground :is(button, select, input, textarea, code[contenteditable]):focus-visible {
+.playground :is(button, select, input, textarea):focus-visible {
     outline: 3px solid var(--cem-palette-creativity-x, Highlight);
     outline-offset: 3px;
 }
@@ -113,6 +113,8 @@
 }
 
 .playground-panels > section {
+    display: grid;
+    grid-template-rows: auto minmax(21rem, 1fr);
     min-width: 0;
 }
 
@@ -127,22 +129,8 @@
     min-height: 21rem;
 }
 
-.playground [aria-label="Editable source"] > [slot="demo"],
 .playground [aria-label="Rendered output"] > [slot="text"] {
     display: none;
-}
-
-.playground [slot="text"] {
-    flex: 1;
-}
-
-.playground code[contenteditable] {
-    display: block;
-    min-height: 19rem;
-    outline-offset: -3px;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    caret-color: var(--cem-palette-comfort-text, CanvasText);
 }
 
 .playground-preview {

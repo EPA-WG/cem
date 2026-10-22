@@ -2702,7 +2702,7 @@ function workbenchLayoutNavigation(navigation) {
 function workbenchListingNavigation(navigation) {
     return navigation && { selected: { name: navigation.selected.name, description: navigation.selected.description },
         children: navigation.children, content: navigation.content, path: navigation.path,
-        sampleText: navigation.sampleText, action: navigation.action, error: navigation.error };
+        sampleText: navigation.sampleText, contentType: navigation.contentType, sourceId: navigation.sourceId, action: navigation.action, error: navigation.error };
 }
 function workbenchNavigationState(state) {
     const navigation = state.navigation;
@@ -2713,10 +2713,11 @@ function workbenchNavigationState(state) {
 }
 
 function workbenchControlState(state) {
-    const { status, projectId, workbenchId, workbenches, draft, dirty, projectRevision,
+    const { status, projectId, resourceId, workbenchId, workbenches, draft, dirty, projectRevision,
         resourceRevision, selection, error, path, description, contentType, validation } = state;
     return { graphConfiguration: state.graphConfiguration, structure: state.structure, home: state.home, explorer: state.explorer, status, projectId, workbenchId, workbenches, draft, dirty, projectRevision,
         resourceRevision, selection, error, path, description, contentType, validation,
+        sourceId: JSON.stringify([projectId, resourceId]),
         editable: state.editable !== false, runnable: state.runnable !== false, transition: state.transition,
         sessionStatus: state.sessionStatus, draftRecovery: state.draftRecovery, navigationError: state.navigationError, resourceAvailable: state.resourceAvailable ?? Boolean(state.resourceId),
         command: { status: state.command?.status, application: { status: state.command?.application?.status } } };
