@@ -294,6 +294,8 @@ try {
         callbacks: 0,
     });
 
+    const enrollment = await runFixture(page, 'command-recovery-enrollment');
+    assert.deepEqual(enrollment, { busy: 'cem.command.recovery.busy', unsupported: 'cem.command.recovery.invocation-singleton-unsupported', kinds: [], rebound: true, replayed: false, unknownRefused: true });
     const nativeCheckpoint = await runFixture(page, 'command-native-checkpoint');
     assert.deepEqual(nativeCheckpoint, { waited: true, refusal: 'cem.runtime.memory.closed', status: 'cancelled',
         current: true, copied: false, foreign: false, independent: 'succeeded', afterClose: false,

@@ -1,4 +1,4 @@
-import { initializeFreshGeneration, registerNativeGeneration, completeNativeRetirement, type CemNativeGenerationParticipant, type CemNativeGenerationCandidate } from './generation-lifecycle.js';
+import { initializeFreshGeneration, registerNativeGeneration, completeNativeRetirement, type CemNativeGenerationParticipant, type CemNativeGenerationCandidate, type CemNativeRecoveryScope, type CemNativeRecoveryEnrollment } from './generation-lifecycle.js';
 import type { CommandNativeRetirementHandoff, CommandNativeRetiredGeneration, CommandNativeEmbeddingOwnership } from './native-embedding.js';
 export type { CommandNativeEmbeddingOwnership, CommandNativeInventory, CommandNativeClosureValidation, CommandNativeRetirementHandoff, CommandNativeRetiredGeneration } from './native-embedding.js';
 import { CommandNativeClientCheckpoint, type CommandNativeDrain } from './native-admission.js';
@@ -82,6 +82,14 @@ export interface BrowserCommandServiceClientOptions {
     readonly host: CommandServiceHostCapabilitiesV1;
     readonly startupTimeoutMs?: number;
     readonly onWorkerFailure?: (failure: BrowserCommandWorkerFailure) => void;
+}
+
+const hostSnapshots = new WeakSet<CommandServiceHostCapabilitiesV1>();
+function snapshotHost(host: CommandServiceHostCapabilitiesV1): CommandServiceHostCapabilitiesV1 {
+    if (hostSnapshots.has(host)) return host;
+    const snapshot = Object.freeze({ currentRevision: host.currentRevision.bind(host), readResource: host.readResource.bind(host),
+        prepareWrite: host.prepareWrite.bind(host), commitWrite: host.commitWrite.bind(host), rollbackWrite: host.rollbackWrite.bind(host) });
+    hostSnapshots.add(snapshot); return snapshot;
 }
 
 export interface BrowserCommandServiceExecuteOptions {
@@ -264,6 +272,9 @@ export class BrowserCommandServiceClient {
     #allocationParticipant?: CemNativeGenerationParticipant;
     #generationGate?: () => boolean;
     #allocateFresh!: (admitted: () => boolean, signal: AbortSignal) => Promise<CemNativeGenerationCandidate>;
+    #recoveryRevision = 0;
+    #capabilityCalls = 0;
+    #unknownWriteOutcome = false;
 
 
     private constructor(
@@ -275,6 +286,9 @@ export class BrowserCommandServiceClient {
     ) {
         this.#physicalWorker = physicalWorker;
         this.#nativeCheckpoint = new CommandNativeClientCheckpoint(() => !this.#closed && this.#executions.size === 0 && this.#actions.size === 0, physicalWorker);
+        // Fresh generations renew the same original host services, rather than
+        // consulting a mutable caller-owned capability record after retirement.
+        host = snapshotHost(host);
         this.#host = host;
         this.#hostConfigurationJson = hostConfigurationJson;
         this.#onWorkerFailure = onWorkerFailure;
@@ -311,6 +325,8 @@ export class BrowserCommandServiceClient {
         // mutations of the caller's configuration cannot replace this snapshot.
         const hostConfigurationJson = options.hostConfiguration === undefined
             ? undefined : JSON.stringify(options.hostConfiguration);
+        const originalHost = snapshotHost(options.host);
+        const onWorkerFailure = options.onWorkerFailure;
         if (typeof Worker !== 'function') {
             throw new BrowserCommandServiceError(
                 'cem.browser_command.worker_unavailable',
@@ -329,9 +345,9 @@ export class BrowserCommandServiceClient {
             return new BrowserCommandServiceClient(
                 physicalWorker,
                 initialization,
-                options.host,
+                originalHost,
                 hostConfigurationJson,
-                options.onWorkerFailure,
+                onWorkerFailure,
             );
         } catch (error) {
             physicalWorker.terminate();
@@ -345,6 +361,7 @@ export class BrowserCommandServiceClient {
     ): BrowserCommandServiceHandle {
         this.#requireOpen();
         this.#nativeCheckpoint.assertExecution();
+        this.#recoveryRevision++;
         this.#nativeCheckpoint.changed();
         const executionId = this.#nextExecutionId++;
         const handle = new BrowserCommandServiceHandle(this, executionId, request.requestId, options);
@@ -402,6 +419,26 @@ export class BrowserCommandServiceClient {
     generationParticipant(): CemNativeGenerationParticipant {
         this.#requireOpen();
         return this.#allocationParticipant ??= registerNativeGeneration(this.#physicalWorker, this.worker.runtimeInstanceId, this.#allocateFresh);
+    }
+
+    /** Host-only complete-membership enrollment. This does not replace native
+     * ownership/census checks or grant permission to replay a command. */
+    enrollRecovery(scope: CemNativeRecoveryScope, id: string,
+        hostWitness: () => (() => boolean)): CemNativeRecoveryEnrollment {
+        this.#requireOpen();
+        return scope.enroll({ id, kind: 'command-service', prepare: async () => {
+            this.#requireOpen();
+            if (this.#unknownWriteOutcome) throw Error('cem.command.recovery.unknown-write-outcome');
+            if (this.#executions.size || this.#actions.size || this.#capabilityCalls) throw Error('cem.command.recovery.busy');
+            const currentHost = hostWitness(), revision = this.#recoveryRevision;
+            if (typeof currentHost !== 'function' || currentHost() !== true) throw Error('cem.command.recovery.host');
+            return Object.freeze({ participants: Object.freeze([this.generationParticipant()]),
+                // Closing/retiring the original transport is expected. New
+                // commands, callbacks or host ledger changes invalidate this
+                // witness independently of the old physical worker's liveness.
+                current: () => revision === this.#recoveryRevision && !this.#unknownWriteOutcome
+                    && this.#capabilityCalls === 0 && currentHost() === true && revision === this.#recoveryRevision });
+        } });
     }
 
     /** Explicit retirement only; no replacement, resume or action replay. */
@@ -581,6 +618,7 @@ export class BrowserCommandServiceClient {
     }
 
     async #serveCapability(message: BrowserCommandCapabilityRequest): Promise<void> {
+        this.#capabilityCalls++; this.#recoveryRevision++;
         const retire = this.#nativeCheckpoint.callback();
         try {
             const response: BrowserCommandCapabilityResponse = await Promise.resolve().then(() => this.#invokeCapability(message)).then(
@@ -590,17 +628,21 @@ export class BrowserCommandServiceClient {
                     ok: true,
                     value,
                 }),
-                (error: unknown) => ({
+                (error: unknown) => {
+                    if (['prepareWrite', 'commitWrite', 'rollbackWrite'].includes(message.capability)) this.#unknownWriteOutcome = true;
+                    return ({
                     type: 'cem-command-capability-response',
                     callbackId: message.callbackId,
                     ok: false,
                     error: serializeError(error),
-                }),
+                    });
+                },
             );
             if (this.#closed) return;
             try {
                 this.#physicalWorker.postMessage(response);
             } catch (error) {
+                if (['prepareWrite', 'commitWrite', 'rollbackWrite'].includes(message.capability)) this.#unknownWriteOutcome = true;
                 const cloneFailure: BrowserCommandCapabilityResponse = {
                     type: 'cem-command-capability-response',
                     callbackId: message.callbackId,
@@ -609,7 +651,7 @@ export class BrowserCommandServiceClient {
                 };
                 this.#physicalWorker.postMessage(cloneFailure);
             }
-        } finally { retire(); }
+        } finally { this.#capabilityCalls--; retire(); }
     }
 
     #invokeCapability(message: BrowserCommandCapabilityRequest): Promise<unknown> {
@@ -694,6 +736,20 @@ export function createBrowserCommandServiceClient(
     options: BrowserCommandServiceClientOptions,
 ): Promise<BrowserCommandServiceClient> {
     return BrowserCommandServiceClient.create(options);
+}
+
+/** Reserve complete membership before asynchronous worker startup. A failed
+ * startup terminates its worker and removes only its own original reservation. */
+export async function createEnrolledBrowserCommandServiceClient(options: BrowserCommandServiceClientOptions,
+    scope: CemNativeRecoveryScope, id: string, hostWitness: () => (() => boolean),
+): Promise<Readonly<{ client: BrowserCommandServiceClient; enrollment: CemNativeRecoveryEnrollment }>> {
+    const pending = scope.enroll({ id, kind: 'command-service', prepare: async () => { throw Error('cem.command.recovery.busy'); } });
+    let client: BrowserCommandServiceClient | undefined;
+    try {
+        client = await createBrowserCommandServiceClient(options);
+        pending.remove();
+        return Object.freeze({ client, enrollment: client.enrollRecovery(scope, id, hostWitness) });
+    } catch (error) { pending.remove(); await client?.close(); throw error; }
 }
 
 async function initializeWorker(

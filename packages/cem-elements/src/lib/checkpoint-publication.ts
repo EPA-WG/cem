@@ -85,6 +85,8 @@ export class CemCheckpointPublicationCoordinator {
     private disposed = false;
     private blocked = false;
     private error?: string;
+    private readonly children = new Set<CemCheckpointPublicationCoordinator>();
+    private parent?: CemCheckpointPublicationCoordinator;
 
     constructor(private readonly options: CemCheckpointPublicationOptions) {
         if (!options.runtimeId || !options.policyStamp || !Number.isSafeInteger(options.generation) || options.generation < 1) throw new Error('cem.checkpoint.identity');
@@ -96,6 +98,27 @@ export class CemCheckpointPublicationCoordinator {
     }
 
     get lastError(): string | undefined { return this.error; }
+
+    /** Child previews inherit the original explicit privacy/sealing policy,
+     * with independent owners, journals and physical-generation coverage. */
+    fork(): CemCheckpointPublicationCoordinator {
+        if (this.disposed) throw Error('cem.checkpoint.unavailable');
+        const child = new CemCheckpointPublicationCoordinator({ ...this.options,
+            runtimeId: crypto.randomUUID(), policyStamp: this.policyStamp,
+            allowOwner: owner => !this.disposed && this.allowOwner?.(owner) === true && !this.disposed });
+        child.parent = this; this.children.add(child);
+        return child;
+    }
+
+    /** Membership preparation only. Native closure, capture, source reimport
+     * and original resume tickets remain separate mandatory lifecycle steps. */
+    recoveryEnrollment() {
+        if ([...this.operations.values()].some(operation => operation.outcome === 'unknown')) throw Error('cem.checkpoint.recovery.unknown');
+        if (!this.ready() || [...this.owners.values()].some(owner => !owner.endpoint?.resume)) throw Error('cem.checkpoint.recovery.unsupported');
+        const participant = this.generationParticipant(), epoch = this.resumeEpoch;
+        return Object.freeze({ participants: Object.freeze([participant]),
+            current: () => !this.disposed && !this.blocked && epoch === this.resumeEpoch && !this.admissions.size });
+    }
 
     /** Read-only admission diagnostics, never a capture/retirement/resume proof.
      * Does not probe owners, export private islands or touch native runtimes. */
@@ -270,6 +293,8 @@ export class CemCheckpointPublicationCoordinator {
         this.policySequence++; this.retirement.clear();
         this.policyStamp = stamp; this.allowOwner = allowOwner;
         for (const owner of this.owners.values()) owner.receipt = undefined;
+        for (const child of this.children) child.setPolicy(stamp,
+            owner => !this.disposed && this.allowOwner?.(owner) === true && !this.disposed);
     }
 
     private invalidate(hostMutation = true): void {
@@ -496,6 +521,9 @@ export class CemCheckpointPublicationCoordinator {
 
     lastCommitted(): CemStoredCheckpoint | undefined { return this.store.lastCommitted(); }
     dispose(): void {
+        if (this.disposed) return;
+        this.parent?.children.delete(this); this.parent = undefined;
+        for (const child of [...this.children]) child.dispose(); this.children.clear();
         this.disposed = true; this.invalidate(); this.store.dispose();
         for (const stop of this.sourceClients.values()) stop(); this.sourceClients.clear();
         for (const owner of this.owners.values()) { owner.stopNative?.(); if (owner.endpoint) this.endpoints.delete(owner.endpoint.host); }

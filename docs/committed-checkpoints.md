@@ -1442,6 +1442,61 @@ the editing subtree, native undo/redo, focus and selection, refuses later edits,
 and emits no input. Composition/deferred values and unreported DOM text refuse
 capture. Old paint requests are cancelled and native role ranges regenerated on
 the admitted fresh generation; paint/job identities are never durable state.
-Unsupported resource adapters, complete preview/command-runtime enrollment and
+Unsupported resource adapters, complete preview/command semantic handoff and
 declarative recovery status remain subsequent work; Studio is not automatically
-resumed.
+resumed. Explicit runtime enrollment is described below.
+
+## Explicit runtime recovery enrollment
+
+`CemNativeRecoveryScope` is a shared host membership boundary exported by
+cem-elements and the browser/Node command packages. Enroll every rendering
+runtime, live-preview child, command worker and command-invocation heap in the
+same scope. `inspect()` returns detached labels without invoking endpoints or
+reading source/private checkpoint bytes. Labels and inspection results confer
+no authority. Authored markup and preview resource envelopes cannot enroll a
+runtime or supply lifecycle callbacks.
+
+`prepare()` probes every original endpoint with a bounded cancellation signal.
+Busy work, unknown write outcomes, unsupported heaps, copied participants,
+overlapping physical generations and membership changes refuse the complete
+preparation. The returned `createGenerationGroup()` is one-shot and binds a
+private membership/currentness guard through fresh allocation. Preparation does
+not close native admission, capture owners, retire heaps, issue semantic resume
+tickets or replay external actions. Each original adapter still needs its exact
+ownership census, native closure, committed checkpoint and terminal journal.
+Independent coordinators sharing one fallback memory require combined owner
+coverage; they cannot retire that memory independently.
+
+`CemElementRuntime({ recoveryScope, checkpointPublication })` enrolls its
+rendering domain. A runtime without publication consent remains an explicit
+blocker. Shared live previews inherit the parent's worker policy and a separate
+checkpoint coordinator with the original privacy/sealing policy. Their source
+bodies and allowed resource maps stay copied outside WASM for native reimport;
+retirement does not navigate/remount the frame. Child scope disposal removes
+membership and disposes its inherited coordinator. Parent privacy changes erase
+child checkpoints; parent disposal closes children, including nested previews. Native source callbacks and
+existing owner adapters remain the source authority on fresh processing contexts.
+The retained parent media-preview controller still requires its own coordinated
+resume contract; child enrollment alone never establishes whole-workspace resume.
+
+`createEnrolledBrowserCommandServiceClient(options, scope, id, hostWitness)`
+reserves membership before asynchronous startup and returns the client plus its
+original enrollment. Failure removes the reservation after worker termination.
+`client.enrollRecovery(scope, id, hostWitness)` enrolls an already ready worker. The
+original host witness must account for application ledgers and pending writes;
+a boolean supplied by an authored request is not a witness. Active executions,
+transport actions, host callbacks and uncertain write outcomes refuse. New work
+or host-ledger changes invalidate prepared membership. Original native inventory
+and artifact-disposal obligations remain enforced at retirement. Fresh workers
+receive snapshotted original host services/configuration; old handles keep their
+old identity and commands are never replayed. The host must explicitly remove
+the retired enrollment and enroll the admitted fresh client after coordinated
+binding. Recovery does not silently retarget existing client aliases.
+
+Browser invocation construction, synchronous graph authoring and presentation
+currently share another main-thread WASM singleton. Its managed census does not
+provide an owned fresh allocator. `enrollBrowserCommandInvocationRecovery()`
+records this heap as an explicit unsupported member, so a worker-only group
+cannot masquerade as successful Studio recovery. Owned invocation generations,
+combined preview/controller/command semantic handoff, repeated whole-Studio
+acceptance and declarative status remain required before automatic recovery.

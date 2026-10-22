@@ -15,8 +15,17 @@ import type {
 } from '@epa-wg/cem-ml/wasm';
 
 import type { ParsedCemMlCommand } from './command.js';
+import type { CemNativeRecoveryScope, CemNativeRecoveryEnrollment } from './generation-lifecycle.js';
 
 const MAX_DISCOVERY_PASSES = 8;
+/** The shared singleton is a real additional heap. It has managed census and
+ * ownership controls but no owned fresh-generation allocator. Enroll it as an
+ * explicit blocker instead of silently recovering only the command worker. */
+export function enrollBrowserCommandInvocationRecovery(scope: CemNativeRecoveryScope, id: string): CemNativeRecoveryEnrollment {
+    return scope.enroll({ id, kind: 'command-invocation', prepare: async () => {
+        throw Error('cem.command.recovery.invocation-singleton-unsupported');
+    } });
+}
 const initializeRuntime = (runtime as unknown as { readonly default: () => Promise<unknown> }).default;
 let runtimeInitialization: Promise<unknown> | undefined;
 

@@ -3251,3 +3251,20 @@ children retain current resources on internal sibling moves; real removal or a
 change of parent keeps the ordinary context lifecycle. Studio consumes the shared
 runtime without application JavaScript for this behavior. WASM restart/recovery
 remains future resilience work.
+
+### Runtime recovery membership
+
+Studio startup now supplies one shared `CemNativeRecoveryScope` to its component
+runtime and command validator. Child live previews inherit this scope and the
+parent's worker policy; their native sources remain outside WASM for reimport.
+The validator enrolls both its command worker and the separate invocation/graph
+heap, with original ledger/staged-write witnesses. The reusable lifecycle and
+host-service adapters live in cem-elements and the command package; Studio's
+visible UI remains declarative.
+
+This is complete inventory enrollment, not automatic whole-Studio recovery.
+The main-thread invocation singleton is an explicit unsupported member; retained
+media-preview handoff and combined cross-domain semantic activation still need
+acceptance. No partial worker-only recovery is reported as success. Existing
+saved projects/drafts and unknown command outcomes are preserved. See
+[the enrollment contract](committed-checkpoints.md#explicit-runtime-recovery-enrollment).

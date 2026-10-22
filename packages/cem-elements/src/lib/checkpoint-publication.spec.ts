@@ -8,6 +8,23 @@ const options = () => ({ runtimeId: 'host-session', generation: 1, policyStamp: 
 const read = (coordinator: CemCheckpointPublicationCoordinator) => JSON.parse(new TextDecoder().decode(coordinator.current()!.bytes));
 
 describe('all-owner publication checkpoint capture', () => {
+    it('propagates parent privacy changes and disposal to independent preview coordinators', async () => {
+        const parent = new CemCheckpointPublicationCoordinator(options()), child = parent.fork(), nested = child.fork();
+        const owner = child.register('a', () => '<template>private preview source</template>');
+        const nestedOwner = nested.register('a', () => '<template>private nested source</template>');
+        owner.published(metadata); nestedOwner.published(metadata); await child.capture(); await nested.capture();
+        expect(child.lastCommitted()).toBeDefined(); expect(nested.lastCommitted()).toBeDefined();
+        parent.setPolicy('withdrawn', () => false);
+        expect(child.lastCommitted()).toBeUndefined(); expect(nested.lastCommitted()).toBeUndefined();
+        owner.published(metadata); nestedOwner.published(metadata);
+        await expect(child.capture()).rejects.toThrow('privacy'); await expect(nested.capture()).rejects.toThrow('privacy');
+        parent.dispose(); expect(child.inspectRecovery().disposed).toBe(true); expect(nested.inspectRecovery().disposed).toBe(true);
+        expect(() => parent.fork()).toThrow('unavailable');
+        const another = new CemCheckpointPublicationCoordinator(options()), detached = another.fork(), sibling = another.fork();
+        detached.dispose(); expect(sibling.inspectRecovery().disposed).toBe(false); another.dispose();
+        expect(sibling.inspectRecovery().disposed).toBe(true);
+    });
+
     it('inspects incomplete recovery without invoking owners, native work or journal actions', async () => {
         let calls = 0;
         const c = new CemCheckpointPublicationCoordinator(options());

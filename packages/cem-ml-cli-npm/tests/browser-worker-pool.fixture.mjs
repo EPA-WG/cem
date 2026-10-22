@@ -1,7 +1,10 @@
 import {
     CemNativeGenerationGroup,
+    CemNativeRecoveryScope,
+    enrollBrowserCommandInvocationRecovery,
     buildBrowserCommandInvocation,
     createBrowserCommandServiceClient,
+    createEnrolledBrowserCommandServiceClient,
     createBrowserWorkerPool,
     parseCemMlCommand,
     projectBrowserCommandPresentation,
@@ -16,6 +19,7 @@ import {
 
 globalThis.runCemMlBrowserFixture = async (scenario) => {
     if (scenario === 'command-host-configuration') return runHostConfigurationFixture();
+    if (scenario === 'command-recovery-enrollment') return runRecoveryEnrollmentFixture();
     if (scenario === 'command-native-checkpoint') return runNativeCheckpointFixture();
     if (scenario === 'command-native-retirement') return runNativeInventoryFixture('retirement');
     if (scenario === 'command-native-closure') return runNativeInventoryFixture(true);
@@ -848,4 +852,63 @@ async function runNativeInventoryFixture(coordinated = false) {
             afterRelease: client.isNativeCheckpointCurrent(proof), replacementAllowed: proof.replacementAllowed,
             ...(coordinated ? { denied, stale, hostCurrent, closed: proof.nativeClosure.closed } : {}) };
     } finally { await client?.close(); globalThis.Worker = NativeWorker; URL.revokeObjectURL(url); }
+}
+
+async function runRecoveryEnrollmentFixture() {
+    const scope = new CemNativeRecoveryScope(); let ledgers = 0, epoch = 0;
+    const host = { currentRevision: ({ project }) => { ledgers++; return { project, resourceVersions: {} }; },
+        readResource: () => { throw Error('unexpected read'); }, prepareWrite: () => { throw Error('unexpected write'); },
+        commitWrite: () => { throw Error('unexpected commit'); }, rollbackWrite: () => undefined };
+    const failedScope = new CemNativeRecoveryScope(), NativeWorker = globalThis.Worker;
+    try {
+        globalThis.Worker = class { constructor() { throw Error('startup refused'); } };
+        const failed = await createEnrolledBrowserCommandServiceClient({ host }, failedScope, 'startup', () => () => true)
+            .then(() => 'admitted', error => error.message);
+        if (failed !== 'startup refused' || failedScope.inspect().members.length) throw Error('failed startup leaked enrollment');
+    } finally { globalThis.Worker = NativeWorker; failedScope.dispose(); }
+    const creating = createEnrolledBrowserCommandServiceClient({ host }, scope, 'commands', () => { const original = epoch; return () => epoch === original; });
+    const starting = await scope.prepare().then(() => 'admitted', error => error.message);
+    if (starting !== 'cem.command.recovery.busy') throw Error(starting);
+    host.currentRevision = () => { throw Error('mutated caller host'); };
+    const { client, enrollment } = await creating; let admission;
+    try {
+        const stale = await scope.prepare(); epoch++;
+        if (stale.current()) throw Error('changed host admitted');
+        const beforeWork = await scope.prepare();
+        const handle = client.execute(versionCommandRequest('enrollment-before'));
+        const busy = await scope.prepare().then(() => 'admitted', error => error.message);
+        await handle; await handle.dispose();
+        if (beforeWork.current()) throw Error('late command did not invalidate enrollment');
+        const owner = client.claimNativeEmbedding(), proof = await client.closeNativeAdmission([owner]);
+        const prepared = await scope.prepare(), group = prepared.createGenerationGroup();
+        const retired = await client.retireNativeGeneration(proof, [owner], { current: prepared.current,
+            retain: () => new TextEncoder().encode('terminal host ledger; no outstanding writes') });
+        const beforeFresh = ledgers;
+        admission = await group.allocate([retired]);
+        if (ledgers !== beforeFresh) throw Error('allocation replayed host callbacks');
+        const fresh = admission.generations[0].runtime;
+        const next = fresh.execute(versionCommandRequest('enrollment-after')); await next; await next.dispose();
+        if (ledgers <= beforeFresh) throw Error('fresh host callbacks not rebound');
+        enrollment.remove();
+        const rebound = fresh.enrollRecovery(scope, 'commands', () => () => true);
+        const invocation = enrollBrowserCommandInvocationRecovery(scope, 'authoring');
+        const unsupported = await scope.prepare().then(() => 'admitted', error => error.message);
+        invocation.remove(); rebound.remove();
+        const unknownScope = new CemNativeRecoveryScope(), bytes = new TextEncoder().encode('.card { color: red; }');
+        const version = { revision: 1, sha256: await sha256(bytes) }; let commits = 0;
+        const uncertain = await createBrowserCommandServiceClient({ host: {
+            currentRevision: ({ project }) => ({ project, resourceVersions: { 'memory:fixture.css': version } }),
+            readResource: () => ({ version, bytes: [...bytes], identity: { contentType: 'text/css', schema: 'https://cem.dev/ns/data/css/1', defaultNamespace: null, namespaces: {}, baseUri: null } }),
+            prepareWrite: () => ({ token: 'uncertain-write' }),
+            commitWrite: () => { commits++; throw Error('commit outcome unknown'); }, rollbackWrite: () => undefined,
+        } });
+        try {
+            uncertain.enrollRecovery(unknownScope, 'uncertain', () => () => true);
+            const outcome = await uncertain.execute(parseCommandRequest(version)).result().catch(error => ({ error: error.message }));
+            if (!commits) throw Error(`unknown-outcome fixture never attempted a commit: ${outcome.status ?? outcome.error}`);
+            const unknown = await unknownScope.prepare().then(() => 'admitted', error => error.message);
+            if (unknown !== 'cem.command.recovery.unknown-write-outcome') throw Error(unknown);
+        } finally { unknownScope.dispose(); await uncertain.close(); }
+        return { busy, unsupported, kinds: scope.inspect().members.map(member => member.kind), rebound: true, replayed: false, unknownRefused: true };
+    } finally { enrollment.remove(); admission?.revoke(); await client.close(); scope.dispose(); }
 }

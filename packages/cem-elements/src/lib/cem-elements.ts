@@ -613,6 +613,8 @@ export interface CemElementRuntimeOptions {
     /** Trusted opt-in host domain. Every client sharing a replaceable runtime
      * must use the same coordinator. Capture grants no restart authority. */
     checkpointPublication?: CemCheckpointPublicationCoordinator;
+    /** Explicit complete host membership, including child previews. No automatic restart. */
+    recoveryScope?: import('./internal/runtime-support/native-generation.js').CemNativeRecoveryScope;
     /** Host-only local source/placement authorization; default false, revocable through the runtime. */
     localSuggestions?: boolean;
     /** Transient host-admitted outbound publications, reacquired for each consumer frame. */
@@ -1950,6 +1952,24 @@ export class CemElementRuntime {
         this.processingPoolPolicy = options.processingPoolPolicy;
         this.artifactRegistry = options.artifactRegistry;
         this.onProcessingTrace = options.onProcessingTrace;
+        this.recoveryScope = options.recoveryScope;
+        if (this.recoveryScope) {
+            const enrollment = this.recoveryScope.enroll({ id: `cem-runtime:${crypto.randomUUID()}`,
+                kind: this.restrictedPreview ? 'live-preview' : 'rendering', prepare: async () => {
+                    if (!this.checkpointPublication) throw Error('cem.checkpoint.recovery.publication-required');
+                    return this.checkpointPublication.recoveryEnrollment();
+                } });
+            if (options.declarationScope) onCemDeclarationScopeDispose(options.declarationScope, () => enrollment.remove());
+        }
+    }
+
+    private readonly recoveryScope?: import('./internal/runtime-support/native-generation.js').CemNativeRecoveryScope;
+    /** Trusted browser lifecycle setup, never taken from a resource-set envelope. */
+    previewRuntimeOptions(): Pick<CemElementRuntimeOptions, 'checkpointPublication' | 'recoveryScope' | 'processingWorkerFactory' | 'processingPoolPolicy'> & { dispose(): void } {
+        const publication = this.checkpointPublication?.fork();
+        return { checkpointPublication: publication, recoveryScope: this.recoveryScope,
+            processingWorkerFactory: this.processingWorkerFactory, processingPoolPolicy: this.processingPoolPolicy,
+            dispose: () => publication?.dispose() };
     }
 
     /**

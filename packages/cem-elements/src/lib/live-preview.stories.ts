@@ -78,3 +78,64 @@ export const IncrementalAdmissionAndCancellation = meta.story({
         } finally { replacement.dispose(); }
     },
 });
+
+export const RecoveryEnrollment = meta.story({
+    render: () => '<iframe title="Enrolled live preview"></iframe>',
+    play: async ({ canvasElement }) => {
+        const { CemNativeRecoveryScope } = await import('./internal/runtime-support/native-generation.js');
+        const { CemCheckpointPublicationCoordinator } = await import('./checkpoint-publication.js');
+        const { resumeCemCheckpointOwners } = await import('./checkpoint-resume.js');
+        const binding = await import('./internal/runtime-support/native-runtime.js');
+        const scope = new CemNativeRecoveryScope();
+        const coordinator = new CemCheckpointPublicationCoordinator({ runtimeId: crypto.randomUUID(), generation: 1,
+            policyStamp: 'preview-enrollment', allowOwner: () => true, seal: (candidate, receipt) => binding.sealCommittedCheckpoint(candidate, receipt) });
+        const frame = canvasElement.querySelector('iframe')!;
+        const options = { sourceUri: 'studio://enrolled/view.cem', resources: [],
+            source: '{input @value="café 😀"}{p | Original source}', runtimeOptions: { checkpointPublication: coordinator, recoveryScope: scope } };
+        const controller = mountCemLivePreview(frame, options);
+        options.source = '{p | Mutated caller}';
+        let admission: import('./internal/runtime-support/native-generation.js').CemNativeGenerationAdmission | undefined;
+        try {
+            await expect(scope.prepare()).rejects.toThrow('cem.preview.recovery.pending');
+            await controller.ready;
+            expect(scope.inspect().members.map(member => member.kind)).toEqual(['live-preview']);
+            expect(frame.contentDocument!.querySelector('p')!.textContent).toBe('Original source');
+            const input = frame.contentDocument!.querySelector('input')!; input.value = 'edited é😀'; input.focus(); input.setSelectionRange(2, 5, 'backward');
+            const capture = async () => { await waitFor(async () => { await coordinator.capture(); expect(coordinator.current()).toBeDefined(); }); };
+            await capture();
+            const proof = await coordinator.closeRenderingGeneration(); await capture();
+            const ticket = coordinator.prepareResume();
+            const plan = await scope.prepare(), group = plan.createGenerationGroup();
+            const retired = await coordinator.retireRenderingGeneration(proof);
+            admission = await group.allocate([retired]);
+            const resumed = await resumeCemCheckpointOwners(admission, [ticket]);
+            for (const owner of resumed.owners) await (owner.owner as { resume(): Promise<void> }).resume();
+            await capture();
+            expect(frame.contentDocument!.querySelector('input')).toBe(input);
+            expect(input.value).toBe('edited é😀'); expect(input.selectionStart).toBe(2); expect(input.selectionEnd).toBe(5);
+            expect(frame.contentDocument!.activeElement).toBe(input);
+            expect(frame.contentDocument!.querySelector('p')!.textContent).toBe('Original source');
+        } finally { admission?.revoke(); controller.dispose(); coordinator.dispose(); expect(scope.inspect().members).toEqual([]); scope.dispose(); }
+    },
+});
+
+export const RecoveryStartupCancellation = meta.story({
+    render: () => '<iframe title="Cancelled enrolled preview"></iframe>',
+    play: async ({ canvasElement }) => {
+        const { CemNativeRecoveryScope } = await import('./internal/runtime-support/native-generation.js');
+        const recoveryScope = new CemNativeRecoveryScope(); let disposals = 0;
+        const controller = mountCemLivePreview(canvasElement.querySelector('iframe')!, {
+            sourceUri: 'studio://cancel/view.cem', source: '{p | Not mounted}', resources: [],
+            runtimeOptions: { recoveryScope, dispose: () => { disposals++; } },
+        });
+        expect(recoveryScope.inspect().members.map(member => member.kind)).toEqual(['live-preview']);
+        controller.dispose(); controller.dispose();
+        await expect(controller.ready).rejects.toThrow('disposed');
+        expect(recoveryScope.inspect().members).toEqual([]); expect(disposals).toBe(1);
+        expect(() => mountCemLivePreview(canvasElement.querySelector('iframe')!, {
+            sourceUri: 'invalid-url', source: '{p | Invalid setup}', resources: [],
+            runtimeOptions: { recoveryScope, dispose: () => { disposals++; } },
+        })).toThrow();
+        expect(recoveryScope.inspect().members).toEqual([]); expect(disposals).toBe(2); recoveryScope.dispose();
+    },
+});

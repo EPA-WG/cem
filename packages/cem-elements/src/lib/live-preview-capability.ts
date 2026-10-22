@@ -35,7 +35,8 @@ export const CEM_LIVE_PREVIEW_CAPABILITY: CemProducedElementBehavior = {
                 return;
             }
             const resources = JSON.parse(envelope) as CemLivePreviewResources;
-            state.controller = mountCemLivePreview(frame, { ...resources, source, sourceUri, onError(message) {
+            state.controller = mountCemLivePreview(frame, { ...resources, source, sourceUri,
+                runtimeOptions: context.runtime.previewRuntimeOptions(), onError(message) {
                 if (states.get(instance) === state) context.setSlices({ previewStatus: message });
             } });
             void state.controller.ready.then(() => {

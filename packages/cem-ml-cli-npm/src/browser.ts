@@ -1,4 +1,4 @@
-export { CemNativeGenerationGroup, type CemNativeGenerationParticipant, type CemNativeGenerationAdmission } from './generation-lifecycle.js';
+export { CemNativeRecoveryScope, type CemNativeRecoveryEnrollment, type CemNativeRecoveryEndpoint, CemNativeGenerationGroup, type CemNativeGenerationParticipant, type CemNativeGenerationAdmission } from './generation-lifecycle.js';
 export type { CommandNativeEmbeddingOwnership, CommandNativeInventory, CommandNativeClosureValidation, CommandNativeRetirementHandoff, CommandNativeRetiredGeneration } from './native-embedding.js';
 export type { CommandNativeDrain } from './native-admission.js';
 import { commandNativeRuntime as runtime } from './managed-native-runtime.js';
@@ -37,6 +37,7 @@ export {
     BrowserCommandServiceError,
     BrowserCommandServiceHandle,
     createBrowserCommandServiceClient,
+    createEnrolledBrowserCommandServiceClient,
 } from './browser-command.js';
 export type {
     BrowserCommandArtifactReadOptions,
@@ -72,6 +73,7 @@ export {
     checkpointBrowserCommandNativeEmbedding,
     isBrowserCommandNativeInventoryCurrent,
     buildBrowserCommandInvocation,
+    enrollBrowserCommandInvocationRecovery,
     createBrowserTransformConfigAuthor,
     BrowserCommandInvocationError,
     projectBrowserCommandPresentation,

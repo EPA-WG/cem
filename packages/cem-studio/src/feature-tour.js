@@ -17,13 +17,16 @@ export const CEM_STUDIO_PROJECT_SCHEMA = 'https://cem.dev/ns/studio/project/1';
 const ARTIFACT_READ_BYTES = 1024 * 1024;
 const PORTABLE_STUDIO_OPERATIONS = new Set(['parse', 'inspect', 'convert', 'query', 'transform', 'trace']);
 
-/** Create one reusable real CEM-ML browser command validator. */
-export async function createCemStudioBrowserValidator() {
+/** Create one reusable real CEM-ML browser command validator.
+ * @param {{recoveryScope?: import('@epa-wg/cem-elements').CemNativeRecoveryScope}} [options] */
+export async function createCemStudioBrowserValidator({ recoveryScope } = {}) {
     const {
         buildBrowserCommandInvocation,
         createBrowserTransformConfigAuthor,
+        enrollBrowserCommandInvocationRecovery,
         commandSchema,
         createBrowserCommandServiceClient,
+        createEnrolledBrowserCommandServiceClient,
         parseCemMlCommand,
         parseCemMlCommandResource,
         parseCemMlCommandText,
@@ -32,12 +35,17 @@ export async function createCemStudioBrowserValidator() {
         serializeCemMlCommandResource,
         serializeCemMlCommandText,
     } = await import('@epa-wg/cem-ml-cli/browser-commands');
-    const authorTransformConfigV1 = await createBrowserTransformConfigAuthor();
+    const recoveryId = crypto.randomUUID();
+    const invocationEnrollment = recoveryScope ? enrollBrowserCommandInvocationRecovery(recoveryScope, `studio-invocation:${recoveryId}`) : undefined;
+    let authorTransformConfigV1;
+    try { authorTransformConfigV1 = await createBrowserTransformConfigAuthor(); }
+    catch (error) { invocationEnrollment?.remove(); throw error; }
     const ledgers = new Map();
     const pendingWrites = new Map();
     const committedWrites = new Map();
     let nextWrite = 1;
-    const client = await createBrowserCommandServiceClient({
+    /** @type {Parameters<typeof createBrowserCommandServiceClient>[0]} */
+    const clientOptions = {
         hostConfiguration: { schemaPackageReplacementGrants: [], rootQueueSize: 1024 },
         host: {
             currentRevision: async ({ requestId }) => {
@@ -71,7 +79,17 @@ export async function createCemStudioBrowserValidator() {
                 pendingWrites.delete(token);
             },
         },
-    });
+    };
+    let closed = false;
+    let services;
+    try {
+        services = recoveryScope ? await createEnrolledBrowserCommandServiceClient(clientOptions, recoveryScope, `studio-commands:${recoveryId}`, () => {
+            const revision = nextWrite;
+            return () => !closed && !ledgers.size && !pendingWrites.size && !committedWrites.size && revision === nextWrite;
+        }) : { client: await createBrowserCommandServiceClient(clientOptions), enrollment: undefined };
+    } catch (error) { invocationEnrollment?.remove(); throw error; }
+    const { client, enrollment: commandEnrollment } = services;
+
     let nextRequest = 1;
 
     const executeResourceCommand = async ({
@@ -424,7 +442,7 @@ export async function createCemStudioBrowserValidator() {
                 );
             }
         },
-        close: () => client.close(),
+        close: () => { closed = true; commandEnrollment?.remove(); invocationEnrollment?.remove(); return client.close(); },
     });
 }
 

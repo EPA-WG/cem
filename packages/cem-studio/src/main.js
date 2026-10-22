@@ -1,3 +1,4 @@
+import { CemElementRuntime, CemNativeRecoveryScope } from '@epa-wg/cem-elements';
 import { createCemStudioNavigation } from './navigation.js';
 import '@epa-wg/custom-element';
 
@@ -10,6 +11,7 @@ import {
     createCemStudioProjectRepository,
     loadCemStudioExampleProjects,
     mountCemStudio,
+    installCemStudioShellComponents,
     mountCemStudioApplicationShell,
     mountCemStudioWorkbench,
     registerCemStudioServiceWorker,
@@ -17,7 +19,9 @@ import {
 
 const mounted = mountCemStudio();
 const registration = await registerCemStudioServiceWorker().catch(() => undefined);
-const validator = await createCemStudioBrowserValidator();
+const recoveryScope = new CemNativeRecoveryScope();
+const validator = await createCemStudioBrowserValidator({ recoveryScope });
+await installCemStudioShellComponents({ runtime: new CemElementRuntime({ declarationTag: 'cem-studio-component-declaration', recoveryScope }) });
 const repository = createCemStudioProjectRepository({
     validateProject: validator.validateProject,
 });

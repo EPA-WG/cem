@@ -6,12 +6,13 @@ export async function studioRecovery(mode, progress) {
     const binding = await import(/* @vite-ignore */ new URL('native-runtime.js', support).href);
     const initial = binding.isolateCemFallbackGeneration(); await initial.ready();
     initial.claimOwnership();
-    const { CemElementRuntime, createCemDeclarationScope, CemCheckpointPublicationCoordinator } = await import(/* @vite-ignore */ elements.href + 'index.js');
+    const { CemElementRuntime, createCemDeclarationScope, CemCheckpointPublicationCoordinator, CemNativeRecoveryScope } = await import(/* @vite-ignore */ elements.href + 'index.js');
     const coordinator = new CemCheckpointPublicationCoordinator({ runtimeId: crypto.randomUUID(), generation: 1,
         policyStamp: 'studio-acceptance', allowOwner: () => true,
         seal: (candidate, receipt) => binding.sealCommittedCheckpoint(candidate, receipt) });
+    const recoveryScope = new CemNativeRecoveryScope();
     const scope = createCemDeclarationScope({ document });
-    const runtime = new CemElementRuntime({ declarationScope: scope, declarationTag: 'cem-studio-component-declaration', checkpointPublication: coordinator,
+    const runtime = new CemElementRuntime({ declarationScope: scope, declarationTag: 'cem-studio-component-declaration', checkpointPublication: coordinator, recoveryScope,
         processingWorkerFactory: () => { if (mode === 'fallback') throw Error('owned fallback acceptance');
             return new Worker(new URL('processing-worker.js', support), { type: 'module' }); } });
     const map = document.createElement('script'); map.type = 'importmap'; map.textContent = JSON.stringify({ imports: {
@@ -27,7 +28,7 @@ export async function studioRecovery(mode, progress) {
     const records = new Map([['unrelated-draft', 'preserved']]);
     const storage = { getItem: key => records.get(key) ?? null, setItem: (key, value) => records.set(key, value) };
     const databaseName = `cem-studio-recovery-${crypto.randomUUID()}`;
-    const validator = await createCemStudioBrowserValidator();
+    const validator = await createCemStudioBrowserValidator({ recoveryScope });
     const repository = createCemStudioProjectRepository({ databaseName, validateProject: validator.validateProject });
     const request = (operation, parameters = {}) => ({ protocolVersion: 1, repository: 'studio-projects', requestRevision: 1, operation, parameters });
     let session, workbench, view, shell, stage = 'install';
@@ -64,10 +65,16 @@ export async function studioRecovery(mode, progress) {
         const retained = coordinator.inspectRecovery().owners.filter(owner => ['cem-action', 'cem-expansion', 'cem-list'].includes(owner.tag));
         check(retained.some(owner => owner.tag === 'cem-action') && retained.every(owner => owner.adapterAvailable), 'shared retained capability adapter missing');
         // The complete theme composition is supported. Mount a real preview so
-        // this refusal lane proves an actual unenrolled runtime/capability.
+        // this refusal lane proves an actual unsupported capability.
         setStage('initial native preview'); await workbench.buildProjectPreview(); await view.whenSettled();
         check(workbench.snapshot().projectPreview?.attempt?.status === 'succeeded', 'initial recovery preview failed');
         check(blockers().some(owner => owner.tag === 'cem-media-preview'), 'preview refusal lane has no preview owner');
+        const enrolledKinds = () => recoveryScope.inspect().members.map(member => member.kind);
+        check(enrolledKinds().includes('rendering') && enrolledKinds().includes('command-service') && enrolledKinds().includes('command-invocation'), 'Studio omitted an active runtime from recovery membership');
+        let groupRefused = false;
+        try { await recoveryScope.prepare(); } catch (error) { groupRefused = /unsupported|unavailable/.test(String(error)); }
+        check(groupRefused, 'incomplete Studio runtime inventory prepared a partial group');
+
         for (let cycle = 0; cycle < 3; cycle++) {
             for (let edit = 0; edit < 4; edit++) {
                 setStage(`edit ${cycle}/${edit}`);
@@ -118,7 +125,7 @@ export async function studioRecovery(mode, progress) {
     } catch (error) { throw Error(`${mode}/${stage}: ${error.stack || error}`, { cause: error }); }
     finally {
         view?.dispose(); shell?.dispose(); workbench?.dispose(); session?.dispose(); await validator?.close(); repository.close();
-        coordinator.dispose(); scope.dispose();
+        coordinator.dispose(); scope.dispose(); recoveryScope.dispose();
         await new Promise((resolve, reject) => { const deletion = indexedDB.deleteDatabase(databaseName); deletion.onsuccess = resolve; deletion.onerror = () => reject(deletion.error); });
     }
 }

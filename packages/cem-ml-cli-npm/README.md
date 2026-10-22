@@ -392,3 +392,22 @@ expired startup fences all candidates and retains independent handoff bytes.
 `admission.revoke()` fences the entire set and requests cleanup. Native command
 semantics, checkpoints and external actions are not automatically resumed.
 See [the coordinated allocation contract](https://github.com/EPA-WG/cem/blob/develop/docs/committed-checkpoints.md#coordinated-fresh-generation-allocation-and-admission).
+
+## Recovery group enrollment
+
+Use the shared `CemNativeRecoveryScope` and
+`client.enrollRecovery(scope, id, hostWitness)` to account for command workers
+alongside rendering/preview domains.
+`createEnrolledBrowserCommandServiceClient(options, scope, id, hostWitness)`
+reserves membership before worker startup and returns `{ client, enrollment }`;
+failed startup removes the reservation after terminating its worker. Include host ledgers, staged writes and
+unknown outcomes in the original witness. Active work and uncertain writes
+refuse preparation; native ownership, retained artifacts and closure are still
+checked separately. Fresh workers retain the original snapshotted host services,
+while old aliases/handles are never retargeted or replayed. Explicitly enroll the
+fresh client after coordinated binding.
+
+Also call `enrollBrowserCommandInvocationRecovery(scope, id)` when using browser
+invocation/graph-authoring/presentation APIs. Their shared main-thread singleton
+has no owned allocator and intentionally blocks complete recovery. See
+[the shared enrollment contract](../../docs/committed-checkpoints.md#explicit-runtime-recovery-enrollment).

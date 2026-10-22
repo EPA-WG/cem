@@ -63,6 +63,14 @@ explicit domain membership does not discover physical WASM runtime generations
 or enable replacement/resume.
 
 
+`CemNativeRecoveryScope` explicitly enrolls rendering runtimes and child live
+previews across physical heaps. Pass it through `CemElementRuntime` host options;
+preview children inherit worker/checkpoint policy and retain copied source bytes
+for native reimport. Scope preparation refuses incomplete, busy, overlapping or
+unsupported members and guards the complete native allocation. Enrollment does
+not enable automatic recovery or replace semantic owner tickets. See
+[explicit runtime enrollment](../../docs/committed-checkpoints.md#explicit-runtime-recovery-enrollment).
+
 Explicit shared owner adapters can now use `publication.prepareResume()` before
 retirement and `resumeCemCheckpointOwners(admission, tickets)` after original fresh
 allocation. Exact private checkpoint bytes, complete physical/owner coverage,

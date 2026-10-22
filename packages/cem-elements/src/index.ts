@@ -54,7 +54,7 @@ export type { CemNativeDrain, CemRetiredRenderingGeneration } from './lib/intern
 
 export { isolateCemFallbackGeneration, type CemOwnedFallbackGeneration, type CemFallbackWasmOwnership, type CemFallbackRetirementConsent, type CemDisposedFallbackGeneration } from './lib/internal/runtime-support/native-runtime.js';
 
-export { CemNativeGenerationGroup, type CemNativeGenerationParticipant, type CemNativeGenerationAdmission } from './lib/internal/runtime-support/native-generation.js';
+export { CemNativeRecoveryScope, type CemNativeRecoveryEnrollment, type CemNativeRecoveryEndpoint, CemNativeGenerationGroup, type CemNativeGenerationParticipant, type CemNativeGenerationAdmission } from './lib/internal/runtime-support/native-generation.js';
 export type { CemFreshFallbackGeneration, CemFallbackNativeEntrypoint, CemFallbackNativeCleanup } from './lib/internal/runtime-support/native-runtime.js';
 export type { CemFreshRenderingGeneration } from './lib/internal/runtime-support/processing-host-runtime.js';
 

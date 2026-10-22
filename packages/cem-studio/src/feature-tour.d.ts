@@ -132,7 +132,7 @@ export interface CemStudioGraphConfiguration {
     graph: Readonly<Record<string, unknown>>;
 }
 
-export declare function createCemStudioBrowserValidator(): Promise<CemStudioBrowserValidator>;
+export declare function createCemStudioBrowserValidator(options?: { readonly recoveryScope?: import('@epa-wg/cem-elements').CemNativeRecoveryScope }): Promise<CemStudioBrowserValidator>;
 export declare function loadCemStudioFeatureTour(options?: {
     baseUrl?: string | URL;
     fetch?: typeof globalThis.fetch;

@@ -1,4 +1,4 @@
-import { CemElementRuntime } from './cem-elements.js';
+import { CemElementRuntime, type CemElementRuntimeOptions } from './cem-elements.js';
 import { createCemDeclarationScope, type CemDeclarationScope } from './declaration-scope.js';
 
 export interface CemLivePreviewResource { uri: string; contentType: string; text: string }
@@ -12,6 +12,8 @@ export interface CemLivePreviewOptions extends CemLivePreviewResources {
     source: string;
     sourceUri: string;
     onError?: (message: string) => void;
+    /** Trusted parent setup, outside the authored resource transport envelope. */
+    runtimeOptions?: Pick<CemElementRuntimeOptions, 'checkpointPublication' | 'recoveryScope' | 'processingWorkerFactory' | 'processingPoolPolicy'> & { dispose?: () => void };
 }
 export interface CemLivePreview {
     readonly ready: Promise<void>;
@@ -23,8 +25,18 @@ const mounts = new WeakMap<HTMLIFrameElement, CemLivePreview>();
 
 /** Parent-owned runtime, script-free frame, fresh registry/scope and explicit resources per mount. */
 export function mountCemLivePreview(frame: HTMLIFrameElement, options: CemLivePreviewOptions): CemLivePreview {
+    const dispose = options.runtimeOptions?.dispose;
+    try { return mountPreview(frame, options); }
+    catch (error) { dispose?.(); throw error; }
+}
+function mountPreview(frame: HTMLIFrameElement, options: CemLivePreviewOptions): CemLivePreview {
     if (!frame.isConnected) throw new Error('cem.preview.detached_frame');
     mounts.get(frame)?.dispose();
+    // Keep original source bytes and callbacks outside WASM across retirement.
+    // A caller cannot retarget a mounted preview by mutating its setup object.
+    options = { ...options, declarations: options.declarations?.map(value => ({ ...value })),
+        styles: options.styles ? [...options.styles] : undefined,
+        runtimeOptions: options.runtimeOptions ? { ...options.runtimeOptions } : undefined };
     const sourceUri = new URL(options.sourceUri).href;
     if (encoder.encode(options.source).length > 256 * 1024 || options.resources.length > 128 || (options.declarations?.length ?? 0) > 128 || (options.styles?.length ?? 0) > 128) throw new RangeError('cem.preview.limit');
     const resources = new Map<string, CemLivePreviewResource>();
@@ -45,6 +57,10 @@ export function mountCemLivePreview(frame: HTMLIFrameElement, options: CemLivePr
     let previewDocument: Document | undefined;
     let resize: ResizeObserver | undefined;
     let cancelLoad: (() => void) | undefined;
+    // Reserve membership before frame loading yields. A preparing group must
+    // not omit a child whose native runtime has not finished starting yet.
+    const pendingEnrollment = options.runtimeOptions?.recoveryScope?.enroll({ id: `cem-preview-loading:${crypto.randomUUID()}`,
+        kind: 'live-preview', prepare: async () => { throw Error('cem.preview.recovery.pending'); } });
     const current = () => { if (!active || !frame.isConnected) throw new Error('cem.preview.disposed'); };
     const ready = (async () => {
         frame.setAttribute('sandbox', 'allow-same-origin');
@@ -62,6 +78,7 @@ export function mountCemLivePreview(frame: HTMLIFrameElement, options: CemLivePr
         previewDocument = document;
         scope = createCemDeclarationScope({ document });
         const runtime = new CemElementRuntime({
+            ...options.runtimeOptions,
             declarationScope: scope, restrictedPreview: true,
             logger: { warn() { /* Availability warnings remain on the native resource. */ }, error(message: string) { if (active) options.onError?.(message); } },
             moduleUrlRoot: { baseUrl: sourceUri, importMap: { imports: {} } },
@@ -119,11 +136,14 @@ export function mountCemLivePreview(frame: HTMLIFrameElement, options: CemLivePr
             if (!child) break;
             visited.add(child); await runtime.whenRenderSettled(child); check(runtime, child);
         }
+        pendingEnrollment?.remove();
     })();
     const controller = Object.freeze({ ready, dispose() {
         if (!active) return;
         active = false; cancelLoad?.(); cancelLoad = undefined;
+        pendingEnrollment?.remove();
         resize?.disconnect(); previewDocument?.body.replaceChildren(); scope?.dispose(); resources.clear();
+        options.runtimeOptions?.dispose?.();
         if (mounts.get(frame) === controller) { mounts.delete(frame); frame.removeAttribute('srcdoc'); frame.removeAttribute('height'); }
     } });
     mounts.set(frame, controller);

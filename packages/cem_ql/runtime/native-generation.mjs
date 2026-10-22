@@ -4,6 +4,7 @@
 const key = Symbol.for('cem.native-generation.groups.v1');
 const state = globalThis[key] ??= { participants: new WeakMap(), receipts: new WeakMap(), identities: new WeakSet(), candidates: new WeakSet() };
 state.admissions ??= new WeakMap();
+state.groupGuards ??= new WeakMap();
 const fail = code => { throw new Error(`cem.runtime.allocation.${code}`); };
 const object = value => typeof value === 'object' && value !== null;
 function slots(values) {
@@ -63,6 +64,8 @@ export class CemNativeGenerationGroup {
     async allocate(retirements, timeoutMs = 5000) {
         if (this.#state !== 'idle') fail('state');
         if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 5000) fail('timeout-config');
+        const guard = state.groupGuards.get(this) ?? (() => true);
+        if (guard() !== true) fail('enrollment-stale');
         // Snapshot caller data before locking or allocating. Proxy reentrancy
         // must not replace an in-flight original group transaction.
         const entries = slots(retirements), receipts = entries.map(value => state.receipts.get(value));
@@ -88,6 +91,7 @@ export class CemNativeGenerationGroup {
         try {
             const generations = [];
             for (const record of this.#records) {
+                if (guard() !== true) fail('enrollment-stale');
                 const remaining = deadline - performance.now();
                 if (remaining <= 0) fail('timeout');
                 const pending = Promise.resolve().then(() => record.allocate(admitted, cancellation.signal));
@@ -114,6 +118,7 @@ export class CemNativeGenerationGroup {
             // All callbacks execute with admission closed. The single gate
             // assignment below admits the entire set with no await/user hook.
             for (const candidate of candidates) if (candidate.current() !== true) fail('stale');
+            if (guard() !== true) fail('enrollment-stale');
             if (performance.now() >= deadline) fail('timeout');
             for (const record of this.#records) { record.consumed = true; record.allocate = undefined; }
             identities.clear();
@@ -132,6 +137,74 @@ export class CemNativeGenerationGroup {
                 generations: generations.map(entry => ({ ...entry, checkpoint: new Uint8Array(entry.checkpoint) })) });
             return admission;
         } catch (error) { this.#state = 'failed'; revoke(); throw error; }
-        finally { clearTimeout(timer); }
+        finally { clearTimeout(timer); state.groupGuards.delete(this); }
     }
+}
+
+/** Host-owned membership, including unsupported heaps. Labels are diagnostics,
+ * never retirement authority. Authored attributes cannot enroll a runtime.
+ * Preparation is read-only: native closure, sealed checkpoints and original
+ * ownership acknowledgments are still required by each retirement adapter. */
+export class CemNativeRecoveryScope {
+    #members = new Map();
+    #revision = 0;
+    #preparing = false;
+    #disposed = false;
+    enroll(endpoint) {
+        const { id, kind, prepare } = endpoint;
+        if (this.#disposed || typeof id !== 'string' || !id || id.length > 256 || this.#members.has(id)
+            || !['rendering', 'live-preview', 'command-service', 'command-invocation'].includes(kind)
+            || typeof prepare !== 'function' || this.#members.size >= 256) fail('enrollment');
+        const member = { id, kind, prepare };
+        this.#members.set(id, member); this.#revision++;
+        return Object.freeze({ remove: () => {
+            if (this.#members.get(id) === member) { this.#members.delete(id); this.#revision++; }
+        }, changed: () => { if (this.#members.get(id) === member) this.#revision++; } });
+    }
+    /** No callbacks, native work, source bytes or replacement permits. */
+    inspect() {
+        return Object.freeze({ disposed: this.#disposed, preparing: this.#preparing,
+            members: Object.freeze([...this.#members.values()].map(({ id, kind }) => Object.freeze({ id, kind }))) });
+    }
+    async prepare(timeoutMs = 5000) {
+        if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 5000) fail('timeout-config');
+        if (this.#disposed || this.#preparing || !this.#members.size) fail('enrollment');
+        this.#preparing = true;
+        const revision = this.#revision, members = [...this.#members.values()], witnesses = [], participants = [];
+        const cancellation = new AbortController();
+        const current = () => !this.#disposed && revision === this.#revision
+            && witnesses.every(witness => witness() === true) && !this.#disposed && revision === this.#revision;
+        let timer;
+        try {
+            await Promise.race([(async () => {
+                for (const member of members) {
+                    if (!current()) fail('enrollment-stale');
+                    const prepared = await member.prepare(cancellation.signal);
+                    if (cancellation.signal.aborted) fail('enrollment-stale');
+                    if (!prepared || typeof prepared.current !== 'function') fail('enrollment');
+                    const entries = slots(prepared.participants);
+                    if (entries.some(entry => !state.participants.has(entry))) fail('coverage');
+                    witnesses.push(prepared.current);
+                    participants.push(...entries);
+                    // Two logical coordinators sharing one physical heap need
+                    // combined owner coverage, never independent retirements.
+                    if (new Set(participants).size !== participants.length) fail('enrollment-overlap');
+                    if (participants.length > 16) fail('limit');
+                    if (!current()) fail('enrollment-stale');
+                }
+            })(), new Promise((_, reject) => { timer = setTimeout(() => reject(Error('cem.runtime.allocation.timeout')), timeoutMs); })]);
+            if (!current()) fail('enrollment-stale');
+            let used = false;
+            return Object.freeze({ current, createGenerationGroup: () => {
+                if (used || !current()) fail('enrollment-stale');
+                used = true;
+                const group = new CemNativeGenerationGroup(participants);
+                // The guard is private and cannot be removed by copying the
+                // preparation result. It is checked through allocation's gate.
+                state.groupGuards.set(group, current);
+                return group;
+            } });
+        } finally { clearTimeout(timer); cancellation.abort(); this.#preparing = false; }
+    }
+    dispose() { this.#disposed = true; this.#revision++; this.#members.clear(); }
 }

@@ -25,6 +25,30 @@ export declare class CemNativeGenerationGroup {
     allocate(retirements: readonly CemNativeGenerationRetirement[], timeoutMs?: number): Promise<CemNativeGenerationAdmission>;
 }
 
+/** Original host membership. Preparation never closes or retires a heap. */
+export interface CemNativeRecoveryEnrollment { remove(): void; changed(): void }
+export interface CemNativeRecoveryEndpoint {
+    readonly id: string;
+    readonly kind: 'rendering' | 'live-preview' | 'command-service' | 'command-invocation';
+    /** Return exact original participants and a host witness surviving retirement.
+     * Busy, unknown or unsupported members must reject; never omit a heap. */
+    readonly prepare: (signal: AbortSignal) => Promise<Readonly<{
+        participants: readonly CemNativeGenerationParticipant[];
+        current: () => boolean;
+    }>>;
+}
+export declare class CemNativeRecoveryScope {
+    #private;
+    enroll(endpoint: CemNativeRecoveryEndpoint): CemNativeRecoveryEnrollment;
+    inspect(): Readonly<{ disposed: boolean; preparing: boolean;
+        members: readonly Readonly<Pick<CemNativeRecoveryEndpoint, 'id' | 'kind'>>[] }>;
+    prepare(timeoutMs?: number): Promise<Readonly<{
+        current(): boolean;
+        createGenerationGroup(): CemNativeGenerationGroup;
+    }>>;
+    dispose(): void;
+}
+
 /** @internal One original live admission can authorize one complete resume attempt.
  * Snapshot bytes come from the private successful retirement, not public exports. */
 export declare function claimNativeGenerationAdmission(admission: CemNativeGenerationAdmission): Readonly<{
