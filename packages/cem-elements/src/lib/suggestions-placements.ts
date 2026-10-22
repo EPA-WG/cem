@@ -6,6 +6,9 @@ export interface CemSuggestionsPlacementLease { dispose(): void }
 export interface CemSuggestionsPlacementDescription {
     producer: string;
     revision: string;
+    /** Shared freshness witness, independent of invocation count. Each listbox
+     * admission validates it before and after its endpoints, without retaining
+     * the result across calls or asynchronous work. */
     current(): boolean;
     element: HTMLElement;
     kind: 'editor' | 'listbox' | 'row' | 'datalist';
@@ -103,18 +106,23 @@ export class CemSuggestionsPlacementCoordinator {
         const check = () => {
             try {
                 const ids = this.idIndex();
+                const freshness = new Set<() => boolean>();
                 const editorTargets = new Set<Entry>();
                 let reverse = false;
                 for (const grant of this.grants) if (grant.active) {
                     if (grant.requester === editor.description.producer) editorTargets.add(grant.entry);
                     if (grant.requester === listbox.description.producer && grant.entry === editor) reverse = true;
                 }
-                return !!ids && !this.disposed && binding.valid && selected.every(entry => this.ready(entry, ids))
+                return !!ids && !this.disposed && binding.valid && selected.every(entry => this.ready(entry, ids, freshness))
                     && getCemEditorProvider(editor.description.element) === provider && provider.control === control && control instanceof HTMLInputElement
                     && control.type === 'text' && !control.hasAttribute('list') && !editor.description.element.hasAttribute('list')
                     && reverse && editorTargets.has(listbox)
                     && (rowEntries as Entry[]).every(entry => editorTargets.has(entry)
-                        && listbox.description.element.contains(entry.description.element));
+                        && listbox.description.element.contains(entry.description.element))
+                    // Shared publication/source checks can traverse the entire
+                    // native row map and canonical island. Repeat once after
+                    // all endpoint reads, rather than once for every row.
+                    && [...freshness].every(current => current());
             } catch { return false; }
         };
         if (!check()) throw new Error('Suggestions requires current placement grants in both directions');
@@ -214,11 +222,12 @@ export class CemSuggestionsPlacementCoordinator {
         }
         return ids;
     }
-    private ready(entry: Entry, ids = this.idIndex()): boolean {
+    private ready(entry: Entry, ids = this.idIndex(), freshness?: Set<() => boolean>): boolean {
         const { element, kind, row, current } = entry.description;
-        if (!ids || !entry.active || !token(entry.id) || !current() || !(element instanceof HTMLElement) || !element.isConnected
+        if (!ids || !entry.active || !token(entry.id) || !(freshness?.has(current) || current()) || !(element instanceof HTMLElement) || !element.isConnected
             || element.getRootNode() !== this.root || element.hasAttribute('id') && element.id !== entry.id
             || ids.has(entry.id) && ids.get(entry.id) !== element) return false;
+        freshness?.add(current);
         if (kind === 'row') return !!row?.valid && element.getAttribute('role') === 'option';
         if (kind === 'listbox') return element.getAttribute('role') === 'listbox' && element.getAttribute('popover') === 'manual';
         if (kind === 'datalist') return element instanceof HTMLDataListElement;

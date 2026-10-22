@@ -47,16 +47,23 @@ export const ExactNativeRowsRequireBothDirections: Story = {
                 expect(native).toHaveLength(2); expect(native[0].value).toBe(native[1].value); expect(native[0].source).not.toBe(native[1].source);
                 expect(() => JSON.stringify(native[0])).toThrow('cannot be serialized');
                 expect(() => coordinator.register({ producer: 'listbox', revision: '1', current: () => true, element: first, kind: 'row', row: { ...native[0] } })).toThrow('Invalid');
-                const editor = coordinator.register({ producer: 'field', revision: '1', current: () => true, element: field, kind: 'editor' });
-                const listbox = coordinator.register({ producer: 'listbox', revision: '1', current: () => true, element: panel, kind: 'listbox' });
-                const rows = [first, second].map((element, i) => coordinator.register({ producer: 'listbox', revision: '1', current: () => true, element, kind: 'row', row: native[i] }));
+                let checks = 0, admitted = true, revokeDuringRead = false;
+                // Several endpoints share one immutable publication/freshness witness.
+                const current = () => { checks++; return admitted; };
+                const secondary = () => { if (revokeDuringRead) admitted = false; return true; };
+                const editor = coordinator.register({ producer: 'field', revision: '1', current, element: field, kind: 'editor' });
+                const listbox = coordinator.register({ producer: 'listbox', revision: '1', current, element: panel, kind: 'listbox' });
+                const rows = [first, second].map((element, i) => coordinator.register({ producer: 'listbox', revision: '1', current: i === 1 ? secondary : current, element, kind: 'row', row: native[i] }));
                 expect(() => coordinator.prepare(binding, editor, listbox, rows)).toThrow('both directions'); expect(panel.id).toBe('');
                 coordinator.grant('listbox', editor, ['editor-for']);
                 expect(() => coordinator.prepare(binding, editor, listbox, rows)).toThrow('both directions');
                 coordinator.grant('field', listbox, ['aria-controls']);
                 const revoke = rows.map(row => coordinator.grant('field', row, ['aria-activedescendant']));
                 const placements = coordinator.prepare(binding, editor, listbox, rows);
-                expect(placements.current()).toBe(true); expect(placements.rows[0].native).toBe(native[0]); expect(panel.id).not.toBe('');
+                checks = 0; expect(placements.current()).toBe(true);
+                expect(checks).toBeLessThanOrEqual(2); // One shared witness, checked before and after endpoint validation.
+                checks = 0; expect(placements.current()).toBe(true); expect(checks).toBeGreaterThan(0);
+                expect(placements.rows[0].native).toBe(native[0]); expect(panel.id).not.toBe('');
                 const provider = getCemEditorProvider(field); if (!provider) throw new Error('Missing provider');
                 const lease = provider.lease({});
                 expect(lease.attributes.set({ revision: provider.revision, current: placements.current, listbox: panel, expanded: false, autocomplete: 'list' })).toBe(true);
@@ -66,6 +73,12 @@ export const ExactNativeRowsRequireBothDirections: Story = {
                 const fresh = coordinator.prepare(binding, editor, listbox, rows);
                 first.remove(); coordinator.refresh(); expect(fresh.current()).toBe(false); panel.prepend(first);
                 expect(fresh.current()).toBe(false); fresh.release();
+                const revoked = coordinator.prepare(binding, editor, listbox, rows);
+                admitted = false; expect(revoked.current()).toBe(false);
+                admitted = true; expect(revoked.current()).toBe(false); revoked.release();
+                const revalidated = coordinator.prepare(binding, editor, listbox, rows);
+                revokeDuringRead = true; expect(revalidated.current()).toBe(false);
+                revokeDuringRead = false; admitted = true; expect(revalidated.current()).toBe(false); revalidated.release();
                 const next = await session.publishSuggestions({ query: 'Second', queryRevision: 2 }, () => true);
                 const nextBinding = next.bind({ instanceId: 'listbox', scopePolicyStamp: 'listbox', revision: '2', current: () => true });
                 try {

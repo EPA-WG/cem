@@ -663,6 +663,12 @@ with one live owner per frame and ordinary materialized native inputs. Native
 The shared placement coordinator admits exact opaque native rows mapped by a
 trusted host to committed editor/listbox/row endpoints. It requires property-specific
 grants in both directions before reserving IDs or activating provider claims.
+Endpoints may share the same `current` freshness predicate. Each synchronous
+listbox admission evaluates a shared predicate once before its endpoints and
+again after all endpoint reads; predicates must be independent of invocation
+count. Every endpoint still receives its own identity, native-row and grant
+checks. No predicate result survives the admission call, so subsequent reads,
+mutations and source/runtime revocation require fresh validation.
 The shared controller uses those admissions for keyboard/mouse activation,
 cancellable commits, selection provenance and leased validity. Query filtering
 preserves original source identity; source release and worker loss synchronously
