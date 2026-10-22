@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import { runtimeMemoryStatus } from './native-runtime.js';
 
-import { ensureRuntimeReady, closeRenderingNativeAdmission, renderingNativeResourceInventory, prepareRenderingNativeRetirement } from './cem-ql-render.js';
+import { processCheckpointControl, ensureRuntimeReady, closeRenderingNativeAdmission, renderingNativeResourceInventory, prepareRenderingNativeRetirement } from './cem-ql-render.js';
 import { CemProcessingEngine } from './processing-engine.js';
 import { cemMainThreadCheckpointDomain } from './checkpoint-domain.js';
 import {
@@ -148,7 +148,12 @@ async function retirementControl(request: CemRenderingRetirementControl): Promis
     try {
         if (preparing || activeRequests) throw new Error('cem.runtime.retirement.busy');
         let confirmation: unknown;
-        if (request.action === 'inspect') {
+        if (request.action === 'checkpoint') {
+            if (prepared || !request.input) throw new Error('cem.runtime.retirement.unavailable');
+            preparing = true;
+            try { confirmation = await processCheckpointControl(request.input); }
+            finally { preparing = false; }
+        } else if (request.action === 'inspect') {
             if (nativeClosed || prepared) throw new Error('cem.runtime.allocation.closed');
             preparing = true;
             try {

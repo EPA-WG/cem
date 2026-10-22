@@ -2121,7 +2121,7 @@ async function isolatedNativePressure(base: string, fallback: boolean, load: (ur
         const terminate = worker.terminate.bind(worker);
         worker.terminate = () => { terminated++; terminate(); };
         worker.addEventListener('message', event => {
-            if (retirement === 'stale' && event.data?.protocol === 'cem-rendering-retirement-v1'
+            if (retirement === 'stale' && event.data?.protocol === 'cem-rendering-retirement-v2'
                 && event.data.direction === 'response' && event.data.action === 'prepare' && event.data.ok) invalidate?.();
         });
         return worker;
@@ -2708,6 +2708,159 @@ export const FreshOwnerResume: Story = {
                         error => parent.postMessage({ id: ${JSON.stringify(id)}, error: error.stack || String(error) }, '*'));</script>`;
                 expect(await completed).toBe(`${scenario} owner resume passed`);
             } finally { stop(); frame.remove(); }
+        }
+    },
+};
+
+/** Exercise production semantic adapters in independent physical generations. */
+async function isolatedBuiltinResume(base: string, load: (url: string) => Promise<any>, scenario: string): Promise<string> {
+    const support = new URL('lib/internal/runtime-support/', base).href;
+    const binding = await load(`${support}native-runtime.js`), generation = binding.isolateCemFallbackGeneration();
+    await generation.ready(); const embedding = generation.claimOwnership();
+    const [{ CemElementRuntime }, { createCemDeclarationScope }, { CemCheckpointPublicationCoordinator }, { resumeCemCheckpointOwners }, { CemNativeGenerationGroup }, hosts] = await Promise.all([
+        load(new URL('lib/cem-elements.js', base).href), load(new URL('lib/declaration-scope.js', base).href),
+        load(new URL('lib/checkpoint-publication.js', base).href), load(new URL('lib/checkpoint-resume.js', base).href),
+        load(`${support}native-generation.js`), load(`${support}processing-host-runtime.js`),
+    ]);
+    const check = (value: unknown, message: string) => { if (!value) throw Error(message); };
+    const fallback = scenario !== 'worker', scope = createCemDeclarationScope({ document });
+    let loads = 0, alter: (() => void) | undefined;
+    const factory = () => { if (fallback) throw Error('owned fallback fixture'); return new Worker(`${support}processing-worker.js`, { type: 'module' }); };
+    const coordinator = new CemCheckpointPublicationCoordinator({ runtimeId: crypto.randomUUID(), generation: 1, policyStamp: 'private',
+        allowOwner: () => true, seal: (candidate: string, receipt: string) => binding.sealCommittedCheckpoint(candidate, receipt) });
+    const runtime = new CemElementRuntime({ declarationScope: scope, declarationTag: `declaration-${crypto.randomUUID()}`,
+        checkpointPublication: coordinator, processingWorkerFactory: factory, httpResourcePolicy: { allowCrossOrigin: true },
+        resolveResourceUrl: (request: any) => { alter?.(); return { authoredUrl: request.authoredUrl, resolvedUrl: new URL(request.authoredUrl, request.baseUrl).href,
+            resolverIdentity: 'fixture', resourcePolicyStamp: scenario === 'policy-change' && alter ? 'changed-policy' : 'fixture-policy' }; },
+        loadHttpResource: async (request: any) => { loads++; return {
+            response: { url: request.resolvedUrl, status: 200, statusText: 'OK', ok: true, redirected: false,
+                headers: { 'content-type': 'application/xml' }, contentType: 'application/xml' },
+            body: (async function* () { yield new TextEncoder().encode('<catalog><entry>Portable Amsterdam source</entry></catalog>'); })(),
+        }; } });
+    const host = hosts.cemProcessingHostForScope(scope, { workerScriptUrl: `${support}processing-worker.js`, workerFactory: factory });
+    let admission: any, stage = 'create';
+    const capture = async () => {
+        for (let attempt = 0; ; attempt++) {
+            try { return await coordinator.capture(); }
+            catch (error) { if (attempt >= 100) throw error; await new Promise(resolve => setTimeout(resolve, 10)); }
+        }
+    };
+    try {
+        const declaration = document.createElement('div'), template = document.createElement('template'), tag = `builtin-${crypto.randomUUID()}`;
+        declaration.setAttribute('tag', tag); template.type = 'text/cem-ml';
+        template.setAttribute('xpath-functions', new URL('../demo/http-data.cemt', base).href);
+        template.textContent = '{style | ``` :scope { color: inherit; } ```}{attribute @name=label | Before}'
+            + '{attribute @name=source | https://example.test/data.xml}{http-request @slice=remote @url="{$source}" @content-type="application/xml"}'
+            + '{slice @name=typed}{label | Draft {input @name=draft @slice=typed @slice-event=input @slice-value="$target.value"}}'
+            + `{p | {$label}}{output | {$typed}}{p | {$datadom.slices.remote.state}}{cem:if @test='datadom.slices.remote.state == "loaded"' | {cem:for-each @select='native:call("http.rows", datadom.slices.remote.data)' @as=entry | {output | {$native:call("http.text", entry)}}}}`;
+        declaration.append(template); document.body.append(declaration); runtime.registerDeclaration(declaration); await runtime.whenDeclarationSettled(declaration);
+        const instances = [document.createElement(tag), document.createElement(tag)];
+        for (const element of instances) {
+            const payload = document.createElement('template'); payload.innerHTML = '<input disabled value="inert payload"><span>Text&nbsp;&amp;é😀</span>'; element.append(payload);
+        }
+        document.body.append(...instances);
+        for (const instance of instances) await runtime.whenRenderSettled(instance);
+        const instance = instances[0], input = instance.querySelector('input')!;
+        check(input, `missing input ${JSON.stringify(runtime.diagnosticsFor(declaration))} ${JSON.stringify(runtime.diagnosticsFor(instance))}`);
+        input.focus(); input.value = 'Unsaved Amsterdam é😀'; input.setSelectionRange(2, 9, 'backward'); input.dispatchEvent(new Event('input', { bubbles: true }));
+        await runtime.whenRenderSettled(instance); await capture();
+        check(instance.textContent?.includes('Portable Amsterdam source'), `missing source: ${instance.textContent} ${JSON.stringify(runtime.diagnosticsFor(instance))}`);
+        const styles = [...document.querySelectorAll('style')], loadCount = loads, diagnosticCounts = instances.map(element => runtime.diagnosticsFor(element).length);
+        const group = new CemNativeGenerationGroup([coordinator.generationParticipant()]);
+        const consent = fallback ? generation.retirementConsent([embedding]) : undefined;
+        stage = 'close'; const proof = await coordinator.closeRenderingGeneration(5000, consent); await capture();
+        stage = 'ticket'; const ticket = coordinator.prepareResume(), before = coordinator.lastCommitted();
+        stage = 'retire'; const retired = await coordinator.retireRenderingGeneration(proof, 5000, consent);
+        stage = 'allocate'; admission = await group.allocate([retired]);
+        if (scenario === 'newer-input') alter = () => { input.value = 'Newer property-only draft'; };
+        if (scenario === 'declaration-change') alter = () => { template.textContent += ' '; };
+        if (scenario === 'policy-change') alter = () => undefined;
+        if (['newer-input', 'declaration-change', 'policy-change'].includes(scenario)) {
+            let refused = false; try { await resumeCemCheckpointOwners(admission, [ticket]); } catch (error) { refused = /stale|source-policy/.test(String(error)); }
+            check(refused && input.value === (scenario === 'newer-input' ? 'Newer property-only draft' : 'Unsaved Amsterdam é😀'), 'changed host authority was not preserved/refused');
+            check(coordinator.lastCommitted().bytes.length === before.bytes.length, 'failed resume discarded last-good checkpoint');
+            return `${scenario} built-in resume passed`;
+        }
+        stage = 'prepare'; const resumed = await resumeCemCheckpointOwners(admission, [ticket]);
+        stage = 'activate'; for (const owner of resumed.owners) await owner.owner.resume();
+        check(!instances.some((element, index) => runtime.diagnosticsFor(element).slice(diagnosticCounts[index]).some((entry: any) => entry.severity === 'error')), `activation diagnostics: ${JSON.stringify(instances.map(element => runtime.diagnosticsFor(element)))}`);
+        await capture();
+        check(loads === loadCount, 'resume refetched a source');
+        check(instance.querySelector('input') === input && document.activeElement === input && input.value === 'Unsaved Amsterdam é😀'
+            && input.selectionStart === 2 && input.selectionEnd === 9 && input.selectionDirection === 'backward', 'resume lost retained control/focus/selection');
+        check(instance.textContent?.includes('Unsaved Amsterdam é😀') && instance.textContent?.includes('Portable Amsterdam source'), 'fresh evaluation lost canonical state/source');
+        check(styles.every(style => style.isConnected), 'resume replaced installed styles');
+        check(coordinator.lastCommitted().receipt.owners.every((owner: any, index: number) => owner.acceptedEventSequence === before.receipt.owners[index].acceptedEventSequence), 'activation manufactured user input');
+        input.value = 'Property-only retained'; input.setSelectionRange(1, 7, 'forward');
+        instance.setAttribute('label', 'Fresh binding'); await runtime.whenRenderSettled(instance); await capture();
+        check(instance.textContent?.includes('Fresh binding') && instance.querySelector('input') === input && input.value === 'Property-only retained'
+            && input.selectionStart === 1 && input.selectionEnd === 7, 'fresh attribute rerender lost binding or a property-only edit');
+        instance.setAttribute('source', 'https://example.test/refreshed.xml'); await runtime.whenRenderSettled(instance); await capture();
+        check(loads === loadCount + 1 && instance.textContent?.includes('Portable Amsterdam source'), 'fresh source refresh did not use renewed native ownership');
+        input.value = 'New accepted draft'; input.dispatchEvent(new Event('input', { bubbles: true })); await runtime.whenRenderSettled(instance); await capture();
+        check(instance.textContent?.includes('New accepted draft'), 'new input did not evaluate in fresh runtime');
+        check(coordinator.lastCommitted().receipt.owners.some((owner: any, index: number) => owner.acceptedEventSequence > before.receipt.owners[index].acceptedEventSequence), 'accepted input counter was not preserved');
+        // Native recovery validation/sealing remains available after fresh ordinary
+        // admission closes; its read-only work must not spoil the closed proof.
+        const fresh = admission.generations[0].runtime;
+        const freshEmbedding = fallback ? fresh.claimOwnership() : undefined;
+        const nextConsent = fallback ? fresh.retirementConsent([freshEmbedding]) : undefined;
+        const nextProof = await coordinator.closeRenderingGeneration(5000, nextConsent); await capture();
+        coordinator.prepareResume();
+        await coordinator.retireRenderingGeneration(nextProof, 5000, nextConsent);
+        check(instance.querySelector('input') === input && input.value === 'New accepted draft', 'second retirement lost edited DOM');
+        return `${scenario} built-in resume passed`;
+    } catch (error: any) { throw Error(`${scenario}/${stage}: ${String(error)} ${JSON.stringify(error.diagnostics ?? [...document.body.children].filter(element => element.localName.startsWith('builtin-')).map(element => ({ html: element.outerHTML.slice(0, 150), diagnostics: runtime.diagnosticsFor(element) })))}`, { cause: error }); } finally {
+        alter = undefined;
+        admission?.revoke(); coordinator.dispose(); scope.dispose(); document.body.replaceChildren();
+    }
+}
+export const BuiltInOwnerResume: Story = {
+    render: () => '<section aria-label="Built-in owner fresh generation resume"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section')!, base = new URL('../../dist/', import.meta.url).href;
+        for (const scenario of ['worker', 'fallback', 'newer-input', 'declaration-change', 'policy-change']) {
+            const frame = document.createElement('iframe'), id = crypto.randomUUID(); frame.title = 'Isolated built-in owner resume'; root.append(frame);
+            let stop = () => undefined;
+            try {
+                const completed = new Promise<string>((resolve, reject) => {
+                    const timer = setTimeout(() => reject(Error(`built-in owner resume timed out: ${scenario}`)), 20000);
+                    const receive = (event: MessageEvent) => {
+                        if (event.source !== frame.contentWindow || event.data?.id !== id) return;
+                        clearTimeout(timer); if (event.data.error) reject(Error(event.data.error)); else resolve(event.data.result);
+                    };
+                    window.addEventListener('message', receive); stop = () => { clearTimeout(timer); window.removeEventListener('message', receive); };
+                });
+                const hook = import.meta.env.MODE === 'test' ? 'globalThis.__vitest_browser_runner__ = { wrapDynamicImport: f => f() };' : '';
+                frame.srcdoc = `<script type="module">${hook}(${isolatedBuiltinResume.toString()})(${JSON.stringify(base)}, url => import(url), ${JSON.stringify(scenario)})
+                    .then(result => parent.postMessage({ id: ${JSON.stringify(id)}, result }, '*'),
+                        error => parent.postMessage({ id: ${JSON.stringify(id)}, error: error.stack || String(error) }, '*'));</script>`;
+                expect(await completed).toBe(`${scenario} built-in resume passed`);
+            } finally { stop(); frame.remove(); }
+        }
+    },
+};
+
+
+export const BuiltInOwnerUnsupportedScopes: Story = {
+    render: () => '<section aria-label="Unsupported built-in resume scopes"></section>',
+    play: async ({ canvasElement }) => {
+        await init(); const root = canvasElement.querySelector('section')!;
+        const declaration = new DOMParser().parseFromString(sourceEditorDeclaration, 'application/xml');
+        const template = declaration.querySelector('template') as HTMLTemplateElement;
+        const editor = template.content?.textContent || template.textContent!;
+        for (const fallback of [false, true]) for (const legacy of [false, true]) {
+            const f = fixture(root, fallback), key = `unsupported-${crypto.randomUUID()}`;
+            try {
+                const plain = await f.create('{p | Covered plain owner}'); await f.runtime.whenRenderSettled(plain);
+                const owner = legacy
+                    ? await f.create(`{local-storage @slice=draft @key="${key}" @type=text @value=recorded}{p | Legacy storage owner}`)
+                    : await f.create(editor, 'cem-ml', root, undefined, 'plaintext-editor');
+                await f.runtime.whenRenderSettled(owner); await waitFor(() => f.coordinator.capture());
+                expect(decode(f.coordinator).owners).toHaveLength(2);
+                expect(() => f.coordinator.prepareResume()).toThrow('unsupported');
+                expect(f.coordinator.current()).toBeDefined();
+            } finally { f.dispose(); localStorage.removeItem(key); }
         }
     },
 };

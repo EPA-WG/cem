@@ -328,3 +328,42 @@ describe('publication-backed rendering retirement', () => {
         d.dispose(); first.remove(a); second.remove(b);
     });
 });
+
+describe('original-context native publication rebinding', () => {
+    it('binds only an admitted original context from this coordinator, preserving input and changing native sealing', async () => {
+        const { registerNativeGeneration, completeNativeRetirement, CemNativeGenerationGroup } = await import('./internal/runtime-support/native-generation.js');
+        const { resumeCemCheckpointOwners } = await import('./checkpoint-resume.js');
+        const old = new CemNativeCheckpointDomain('worker'), next = new CemNativeCheckpointDomain('worker');
+        const oldClient = old.client(), freshClient = next.client();
+        let retired = false, context!: import('./checkpoint-resume.js').CemCheckpointResumeContext;
+        const c = new CemCheckpointPublicationCoordinator({ ...options(), seal: text => { if (retired) throw Error('retired sealer'); return text; } });
+        const foreign = new CemCheckpointPublicationCoordinator(options());
+        const other = foreign.register('a', () => '<template/>', () => true, 3, () => [], { host: {} as HTMLElement, nativeClient: oldClient, resolve: () => undefined });
+        const owner = c.register('a', () => '<template>canonical source</template>', () => true, 3, () => [], {
+            host: {} as HTMLElement, nativeClient: oldClient, resolve: () => undefined,
+            resume: { witness: () => () => true, prepare: async ctx => {
+                context = ctx;
+                expect(() => owner.resume(ctx, freshClient, text => text)).toThrow('resume');
+                return { owner: {}, current: () => true, discard: () => undefined };
+            } },
+        });
+        owner.published(metadata); await c.capture(); const ticket = c.prepareResume(), saved = c.current()!;
+        const participant = registerNativeGeneration({}, old.issuedIdentity(), async () => ({ identity: {}, runtimeId: next.issuedIdentity(),
+            runtime: {}, current: () => !!next.identity(), discard: () => next.revoke() }));
+        old.revoke(); retired = true;
+        const admission = await new CemNativeGenerationGroup([participant]).allocate([completeNativeRetirement(participant, saved.bytes)]);
+        const result = await resumeCemCheckpointOwners(admission, [ticket]);
+        expect(() => owner.resume({ ...context }, freshClient, text => text)).toThrow('resume');
+        expect(() => other.resume(context, freshClient, text => text)).toThrow('resume');
+        expect(() => owner.resume(context, oldClient, text => text)).toThrow('resume');
+        owner.input(); owner.resume(context, freshClient, text => text);
+        expect(c.current()).toBeUndefined();
+        expect(() => owner.resume(context, freshClient, text => text)).toThrow('resume');
+        owner.published({ ...metadata, dataRevision: '2' }); await c.capture();
+        expect(read(c).receipt.owners[0]).toMatchObject({ acceptedEventSequence: 4, dataRevision: '2' });
+        expect(read(c).receipt.nativeRuntimes[0].runtimeId).toBe(next.issuedIdentity());
+        result.revoke(); expect(c.current()).toBeUndefined();
+        expect(() => owner.resume(context, freshClient, text => text)).toThrow('resume');
+        c.dispose(); foreign.dispose();
+    });
+});

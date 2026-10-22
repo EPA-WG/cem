@@ -1,3 +1,4 @@
+import { nativeCheckpointIdentity } from './checkpoint-domain.js';
 import type { CemStylesheetConsumerLease, CemOwnedStylesheet, DeclarationStylesheetCommit } from '../../declaration-style-ownership.js';
 import type { CemModuleUrlContextWire } from './module-url-resolution.js';
 import {
@@ -58,13 +59,15 @@ export function installRetainedStylesheets<TScope extends Begin['scope']>(option
     function clean(operation: () => Promise<unknown>, mode = host.mode): void {
         const pending = Promise.resolve().then(operation).then(() => undefined, error => {
             // Host disposal or worker replacement already drops the old native owners.
-            if (!host.ownerScope.disposed && host.mode === mode) cleanupErrors.push(error);
+            if (!host.ownerScope.disposed && host.mode === mode
+                && (!host.checkpointClient || nativeCheckpointIdentity(host.checkpointClient))) cleanupErrors.push(error);
         }).finally(() => cleanup.delete(pending));
         cleanup.add(pending);
     }
     function releaseGeneration(loadId: string): void {
         const mode = generations.get(loadId);
-        if (!generations.delete(loadId) || mode !== host.mode) return;
+        if (!generations.delete(loadId) || mode !== host.mode
+            || host.checkpointClient && !nativeCheckpointIdentity(host.checkpointClient)) return;
         clean(() => host.stylesheet({ action: 'release', artifact, consumer, loadId }).result, mode);
     }
     function release(): void {

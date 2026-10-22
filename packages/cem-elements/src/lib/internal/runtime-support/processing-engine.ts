@@ -213,12 +213,13 @@ export class CemProcessingEngine {
                 if (typeof text !== 'string' || new TextEncoder().encode(text).byteLength > 1024 * 1024)
                     throw new Error('cem.checkpoint.resume.bounds');
             }
+            if (input.islandContentType !== undefined && input.islandContentType !== 'application/xml') throw new Error('cem.checkpoint.resume.source');
             if (!input.island || !input.scopePolicyStamp || new URL(input.sourceUri).href !== input.sourceUri)
                 throw new Error('cem.checkpoint.resume.source');
             await this.bindings.validatePortableCheckpointControls(input.controls);
             const runtime = await this.bindings.validatePortableCheckpointRuntime(input.runtime);
             const document = await this.bindings.retainLoadedCemDocument(
-                new TextEncoder().encode(input.island).buffer, 'text/html', input.sourceUri);
+                new TextEncoder().encode(input.island).buffer, input.islandContentType ?? 'text/html', input.sourceUri);
             try { this.assertActive(); return { runtime }; }
             finally { this.bindings.disposeLoadedCemDocument(document); }
         })();

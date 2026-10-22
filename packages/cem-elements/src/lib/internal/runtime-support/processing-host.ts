@@ -20,7 +20,7 @@ import {
 } from '../../declaration-scope.js';
 
 /** @internal Phase 3A worker/main-thread protocol. Not a public package export. */
-export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v26' as const;
+export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v27' as const;
 
 export const CEM_PROCESSING_HOST_CAPABILITIES = [
     'compile',
@@ -389,7 +389,13 @@ export type CemProcessingStylesheetResult<TLoadId = string> =
     | { status: 'released'; count: number };
 
 /** Named lifecycle controls plus opaque native source, never a projected DOM/AST. */
+export interface CemProcessingCheckpointControlInput {
+    action: 'controls' | 'runtime' | 'seal';
+    text: string;
+    receipt?: string;
+}
 export interface CemProcessingCheckpointInput {
+    islandContentType?: 'application/xml';
     controls: string;
     runtime: string;
     island: string;
@@ -846,8 +852,8 @@ function workerFallbackDiagnostic(phase: CemProcessingWorkerFailurePhase): CemPr
 
 
 /** Separate bounded lifecycle control, never authored processing payloads. */
-export const CEM_RENDERING_RETIREMENT_PROTOCOL = 'cem-rendering-retirement-v1' as const;
-export type CemRenderingRetirementAction = 'close' | 'prepare' | 'abort' | 'inspect';
+export const CEM_RENDERING_RETIREMENT_PROTOCOL = 'cem-rendering-retirement-v2' as const;
+export type CemRenderingRetirementAction = 'close' | 'prepare' | 'abort' | 'inspect' | 'checkpoint';
 export interface CemRenderingRetirementControl {
     protocol: typeof CEM_RENDERING_RETIREMENT_PROTOCOL;
     direction: 'request' | 'response';
@@ -855,13 +861,21 @@ export interface CemRenderingRetirementControl {
     action: CemRenderingRetirementAction;
     ok?: boolean;
     confirmation?: unknown;
+    input?: CemProcessingCheckpointControlInput;
     error?: string;
 }
 export function isCemRenderingRetirementControl(value: unknown): value is CemRenderingRetirementControl {
     if (!value || typeof value !== 'object') return false;
     const r = value as Record<string, unknown>;
     return r.protocol === CEM_RENDERING_RETIREMENT_PROTOCOL && (r.direction === 'request' || r.direction === 'response')
-        && Number.isSafeInteger(r.id) && (r.id as number) > 0 && ['close', 'prepare', 'abort', 'inspect'].includes(r.action as string)
-        && Object.keys(r).every(key => ['protocol', 'direction', 'id', 'action', 'ok', 'confirmation', 'error'].includes(key))
+        && Number.isSafeInteger(r.id) && (r.id as number) > 0 && ['close', 'prepare', 'abort', 'inspect', 'checkpoint'].includes(r.action as string)
+        && Object.keys(r).every(key => ['protocol', 'direction', 'id', 'action', 'ok', 'confirmation', 'input', 'error'].includes(key))
+        && (r.direction === 'request' && r.action === 'checkpoint' ? !!r.input && typeof r.input === 'object'
+            && ['controls', 'runtime', 'seal'].includes((r.input as Record<string, unknown>).action as string)
+            && typeof (r.input as Record<string, unknown>).text === 'string'
+            && ((r.input as Record<string, unknown>).text as string).length <= 1024 * 1024
+            && ((r.input as Record<string, unknown>).receipt === undefined || typeof (r.input as Record<string, unknown>).receipt === 'string'
+                && ((r.input as Record<string, unknown>).receipt as string).length <= 1024 * 1024)
+            && Object.keys(r.input).every(key => ['action', 'text', 'receipt'].includes(key)) : r.input === undefined)
         && (r.direction === 'request' ? r.ok === undefined && r.confirmation === undefined && r.error === undefined : typeof r.ok === 'boolean' && (r.error === undefined || typeof r.error === 'string' && r.error.length <= 512));
 }

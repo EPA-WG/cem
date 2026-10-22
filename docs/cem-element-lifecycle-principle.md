@@ -151,7 +151,7 @@ still trigger scope recovery; ownership changes still replace the scope. Root
 transactions retain normal revision, cancellation and prepared-range guards.
 Restricted live previews validate every serialized root and descendant, and
 placement markers continue to require fresh native admission. The render engine
-is `1.7.0`, with processing-host protocol `v26`; incompatible explicit frame engine
+is `1.7.0`, with processing-host protocol `v27`; incompatible explicit frame engine
 versions are rejected before mutation.
 
 Same-parent moves use `moveBefore` when supported and ordinary insertion otherwise.
@@ -436,7 +436,7 @@ for trusted semantic owner adapters. It accepts an original resume context,
 explicit named control DTOs extracted from that context's sealed island, complete
 canonical compilation inputs, the current host event sequence and an explicit
 source-policy callback. It validates controls/runtime state on the fresh heap,
-imports the original opaque island through the native document importer and
+imports the opaque island through the native document importer and
 releases that temporary import. Approved external document bytes are reimported
 under new logical handles; source trees never pass through JavaScript objects.
 Preparation neither evaluates templates nor installs widgets, subscriptions or
@@ -457,7 +457,27 @@ than the receipt, including implicit storage writes and newly exposed conditiona
 writers. Resource refreshes and renders do not advance that sequence. Previously
 consumed location tokens remain consumed after new input; suppression does not
 consume a new token prematurely. Invalid or regressing event sequences refuse.
-The helper restores native processing state only: built-in DCE semantic adapters,
-widget authority and renewed publication remain explicit follow-up work. Standard
-DCE owners therefore continue to refuse resume, and Studio does not restart
-itself automatically.
+Built-in plain retained CEM-ML owners use this helper. Their pre-retirement
+witness covers the live canonical island, rendered integrity, control properties,
+input sequence, declaration and source policy without reading a retired heap.
+The existing DOM adapter serializes the same sealed island with XMLSerializer
+for native XML ingress, preserving namespace-qualified parts, void HTML payload
+and text; it does not construct a JavaScript source AST. The original sealed
+bytes remain the transaction authority. Preparation revalidates that identity, compiles complete authoring
+inputs and reimports approved HTTP source bytes while inactive. Rendered markup
+is an integrity witness, never a substitute for canonical data.
+
+After complete owner admission, the trusted host calls each returned
+`CemResumedElementOwner.resume()`. It binds publication to that original active
+coordinator/owner context and its fresh native client, preserves event counters
+and journals, then evaluates using the fresh processing host. Existing hosts and
+aliases stay retired. Ordinary subsequent rendering and source refresh use the
+new binding. Native control validation and sealing use a bounded generation-bound
+read-only recovery path, which remains available after ordinary admission closes
+without invalidating the closed-generation proof. In-flight recovery controls
+remain drain/retirement barriers.
+
+Capability, reference/provider, placement and legacy storage/location rendering
+owners remain unsupported by this adapter; a complete domain containing one
+refuses resume. Widget authority and declarative recovery status remain follow-up
+work. Studio does not restart itself automatically.

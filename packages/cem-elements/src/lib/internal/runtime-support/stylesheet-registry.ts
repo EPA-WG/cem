@@ -1,3 +1,4 @@
+import { nativeCheckpointIdentity } from './checkpoint-domain.js';
 import { observeRenderOrderMoves, type CemRenderOrderMoveObserver } from '../../projection.js';
 import {
     assertCemDeclarationScopeActive, onCemDeclarationScopeDispose, type CemDeclarationScope,
@@ -220,6 +221,27 @@ export class CemStylesheetRegistry {
         this.reconcile(this.observer?.takeRecords() ?? []);
         for (const connection of this.connections) this.attach(source, connection);
         return { release: () => this.removeSource(source) };
+    }
+
+    /** Renew a retired native source while the existing DOM installation remains
+     * owned until the normal grouped replacement commits identical outputs. */
+    rebind(declaration: object, previous: SourceOptions['host'], host: SourceOptions['host'], artifact: SourceOptions['artifact']): void {
+        const source = this.sources.get(declaration);
+        if (!source || source.options.host === host) return;
+        this.assertActive(source.options.scope); this.assertActive(host.ownerScope);
+        if (source.options.host !== previous || previous.ownerScope !== host.ownerScope
+            || source.options.artifact.artifactId !== artifact.artifactId
+            || source.options.artifact.registrationIdentity !== artifact.registrationIdentity
+            || source.options.artifact.scopePolicyStamp !== artifact.scopePolicyStamp
+            || source.options.artifact.sourceMapMode !== artifact.sourceMapMode
+            || !previous.checkpointClient || nativeCheckpointIdentity(previous.checkpointClient)
+            || !host.checkpointClient || !nativeCheckpointIdentity(host.checkpointClient))
+            throw new Error('cem.checkpoint.resume.stylesheet');
+        this.cancelPreparations();
+        source.unobserve();
+        source.options = { ...source.options, host, artifact: structuredClone(artifact) };
+        source.unobserve = observeScopes([source.options.scope, host.ownerScope], () => this.removeSource(source));
+        this.sourceRevision++;
     }
 
     connect(options: CemStylesheetConsumer): CemStylesheetConnection {

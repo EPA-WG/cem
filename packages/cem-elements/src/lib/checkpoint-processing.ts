@@ -39,6 +39,10 @@ export interface CemCheckpointProcessingOptions {
     /** Explicit named control DTOs extracted by the trusted semantic island adapter. */
     controls: string;
     runtime: string;
+    /** Trusted DOM adapter serialization of the same sealed canonical island.
+     * Namespace-qualified island parts/HTML void payload require XMLSerializer;
+     * the original context island remains the transaction integrity authority. */
+    islandXml?: string;
     /** Complete immutable authoring inputs; never a retained native handle. */
     compilations?: readonly CemProcessingCompileInput[];
     acceptedEventSequence(): number;
@@ -53,6 +57,14 @@ export interface CemResumedProcessingOwner {
     readonly runtimeState: CemCheckpointRuntimeState;
     /** Call before starting any external write/journal operation. */
     consumeWrite(writer?: number, trigger?: string): boolean;
+}
+
+const preparedBindings = new WeakMap<CemResumedProcessingOwner, { host: CemProcessingHost; state: CemCheckpointRuntimeState; sources: readonly { name: string; handle: CemProcessingDocumentHandle }[] }>();
+/** @internal Reversible native preparation for built-in semantic adapters only. */
+export function preparedCheckpointProcessing(owner: CemResumedProcessingOwner) {
+    const prepared = preparedBindings.get(owner);
+    if (!prepared) throw new Error('cem.checkpoint.resume.binding');
+    return { host: prepared.host, state: structuredClone(prepared.state), sources: structuredClone(prepared.sources) };
 }
 
 /** Shared processing/source preparation for trusted semantic owner adapters.
@@ -86,7 +98,8 @@ export async function prepareCemCheckpointProcessing(context: CemCheckpointResum
     const abort = () => discard(); context.signal.addEventListener('abort', abort, { once: true });
     try {
         if (!host.checkpoint) throw new Error('cem.checkpoint.resume.processing');
-        const result = await host.checkpoint({ controls: options.controls, runtime: options.runtime, island: context.island,
+        const result = await host.checkpoint({ controls: options.controls, runtime: options.runtime, island: options.islandXml ?? context.island,
+            ...(options.islandXml === undefined ? {} : { islandContentType: 'application/xml' as const }),
             sourceUri: options.sourceUri, scopePolicyStamp: options.scopePolicyStamp }).result;
         assert();
         // Decode only the native-validated named lifecycle DTO, never a source AST.
@@ -114,6 +127,7 @@ export async function prepareCemCheckpointProcessing(context: CemCheckpointResum
             get runtimeState() { admitted(); return structuredClone(state); },
             consumeWrite: (writer?: number, trigger?: string) => { admitted(); return writes.consume(options.acceptedEventSequence(), writer, trigger); },
         });
-        return { owner, current, discard: () => { context.signal.removeEventListener('abort', abort); discard(); } };
+        preparedBindings.set(owner, { host, state, sources });
+        return { owner, current, discard: () => { preparedBindings.delete(owner); context.signal.removeEventListener('abort', abort); discard(); } };
     } catch (error) { context.signal.removeEventListener('abort', abort); discard(); throw error; }
 }

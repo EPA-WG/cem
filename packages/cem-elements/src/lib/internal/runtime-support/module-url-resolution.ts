@@ -230,13 +230,14 @@ export async function resolveBrowserModuleUrl(
     currentContext: CemBrowserModuleUrlContext,
     authoredSpecifier: string,
     referrer?: { kind: 'url'; value: string } | { kind: 'context'; context: CemBrowserModuleUrlContext },
+    resolve: typeof resolveCemModuleUrl = resolveCemModuleUrl,
 ): Promise<CemModuleUrlResolution> {
     const contexts = new Map<string, CemBrowserModuleUrlContext>();
     collectContextLineage(contexts, currentContext);
     if (referrer?.kind === 'context') {
         collectContextLineage(contexts, referrer.context);
     }
-    const result = await resolveCemModuleUrl({
+    const result = await resolve({
         purpose: 'template-slice',
         authoredSpecifier,
         currentContext: currentContext.handle,

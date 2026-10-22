@@ -501,6 +501,19 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
         return validateCheckpointRuntime(state);
     }
 
+    /** Named recovery controls allocate no persistent source handles and remain
+     * available after ordinary native admission closes. */
+    async function processCheckpointControl(input: import('./processing-host.js').CemProcessingCheckpointControlInput): Promise<string> {
+        if (typeof input.text !== 'string' || new TextEncoder().encode(input.text).byteLength > 1024 * 1024
+            || input.receipt !== undefined && (typeof input.receipt !== 'string' || new TextEncoder().encode(input.receipt).byteLength > 1024 * 1024))
+            throw new Error('cem.checkpoint.limit');
+        await ensureRuntimeReady();
+        if (input.action === 'controls') return native.validateCheckpointControls(input.text);
+        if (input.action === 'runtime') return native.validateCheckpointRuntime(input.text);
+        if (input.action !== 'seal' || typeof input.receipt !== 'string') throw new Error('cem.checkpoint.control');
+        return native.sealCommittedCheckpoint(input.text, input.receipt);
+    }
+
     /** Validate scalar XML Base metadata through the shared native URL boundary. */
     const resolveDeclarationResourceBase = nativeCheckpointWork(resolveDeclarationResourceBaseOperation);
 
@@ -1376,7 +1389,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
         return { text: exportCemJsonValue(new Uint8Array(input.value.artifact), input.value.index, input.attribute ?? '', limits) ?? null };
     }
 
-    return { domain, native,
+    return { domain, native, processCheckpointControl,
         retainStylesheetSources,
         releaseRetainedTemplateStylesheets,
         processRetainedTemplateStylesheet,
@@ -1464,3 +1477,5 @@ export function renderingNativeResourceInventory(): string { return defaultNativ
 export function prepareRenderingNativeRetirement(revision: number): { confirmation(): string; free(): void } {
     return defaultNative.prepareCommandNativeRetirement(revision);
 }
+
+export const processCheckpointControl = defaultBindings.processCheckpointControl;

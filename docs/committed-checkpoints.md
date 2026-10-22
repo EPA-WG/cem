@@ -1180,12 +1180,13 @@ JavaScript or theme/storage changes are introduced.
 
 Fresh allocation and semantic owner admission are separate gates.
 `resumeCemCheckpointOwners` now coordinates explicit **shared semantic adapters**;
-it does not infer an adapter from an island or restart Studio. Built-in
-`CemElementRuntime` owners do not yet provide these adapters. Their
-`prepareResume()` refuses with `cem.checkpoint.resume.unsupported`; generic HTML
-hydration still refuses checkpoint extensions. Generation-specific processing
-contexts and the built-in source/widget adapters remain necessary before
-ordinary DCE instances can resume automatically.
+it does not infer an adapter from an island or restart Studio. Built-in plain
+retained CEM-ML owners provide adapters for canonical slices, native form-control
+properties and approved HTTP source bytes. Capability, provider/reference,
+placement and legacy storage/location rendering still refuse with
+`cem.checkpoint.resume.unsupported`. Generic HTML hydration refuses checkpoint
+extensions. Complete widget adapters and declarative recovery status remain
+necessary before automatic Studio recovery.
 
 A trusted shared owner can register `resume` alongside its existing publication
 endpoint. `witness()` captures a host-only currentness check before retirement.
@@ -1254,8 +1255,25 @@ too. Adapters must release partial native allocations on their own failure.
 
 The transaction does not replace rendered DOM. Focus, caret and newer edits
 remain with their current owners; a failed attempt cannot roll back to saved
-pixels. Real Chromium acceptance exercises a deliberately small trusted-host
-adapter using fresh WASM control/widget validation and source import, not a claim
-that built-in form/provider/placement controllers or Studio have resumed. Actual
-DCE processing rebinding, all built-in widget/source adapters, renewed publication
-and declarative recovery status remain subsequent work.
+pixels. Chromium acceptance exercises both trusted-host preparation and built-in
+plain retained CEM-ML owners on actual fresh workers and owned fallback heaps.
+After admission, call each returned `CemResumedElementOwner.resume()` to bind
+publication and evaluate on the fresh context. Rebinding requires an original
+active context issued by that same coordinator for that owner, its retired
+predecessor and the exact fresh native generation. Copies, foreign owners, live
+predecessors, duplicate binding and revoked contexts refuse. Event sequences and
+terminal journals survive; activation does not manufacture input.
+
+The binding routes subsequent rendering and HTTP refresh to the new host and
+keeps installed styles and unchanged DOM. Native controls/runtime validation and
+checkpoint sealing use a bounded read-only recovery channel on that same heap,
+including after ordinary admission closes. These operations retain drain
+barriers without changing managed publication revisions. Native admission and
+inventory counters remain authoritative and are revalidated at retirement;
+preparation/freeze refuses overlapping recovery work. Worker retirement control protocol v2 carries
+these named validation/sealing requests. Processing protocol v27 additionally accepts the trusted canonical DOM adapter’s
+XML serialization, so namespace-qualified island parts and HTML void payload
+can enter the existing native XML importer without relaxing HTML validation.
+Original sealed bytes remain the integrity authority; no source AST crosses JS.
+Built-in widget/legacy resource adapters and declarative recovery status remain
+subsequent work; Studio is not automatically resumed.

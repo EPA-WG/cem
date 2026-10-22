@@ -60,3 +60,5 @@ export type { CemFreshRenderingGeneration } from './lib/internal/runtime-support
 
 export { prepareCemCheckpointProcessing, type CemCheckpointProcessingOptions, type CemResumedProcessingOwner } from './lib/checkpoint-processing.js';
 export { resumeCemCheckpointOwners, type CemCheckpointResumeAdapter, type CemCheckpointResumeContext, type CemCheckpointResumeTicket, type CemPreparedCheckpointOwner, type CemResumedCheckpointOwners } from './lib/checkpoint-resume.js';
+
+export type { CemResumedElementOwner } from './lib/cem-elements.js';

@@ -278,6 +278,9 @@ export class CemNativeCheckpointDomain {
     issuedIdentity(): string { return this.runtimeId; }
     identity(): string | undefined { return this.alive && !this.overflow ? this.runtimeId : undefined; }
 
+    /** Read-only recovery controls settle without changing publication revisions. */
+    notifyDrains(): void { for (const waiter of [...this.drains]) waiter.check(); }
+
     changed(): void {
         if (!Number.isSafeInteger(++this.revision)) this.overflow = true;
         if (this.pressure && this.alive && !this.timedOut && !this.settled()) {
@@ -367,6 +370,7 @@ export function nativeCheckpointClosedCoverage(
 }
 export function nativeCheckpointRefuse(token: CemCheckpointNativeClient): void { clients.get(token)?.domain.revoke(); }
 export function nativeCheckpointChanged(token: CemCheckpointNativeClient): void { clients.get(token)?.domain.changed(); }
+export function nativeCheckpointNotifyDrains(token: CemCheckpointNativeClient): void { clients.get(token)?.domain.notifyDrains(); }
 export function nativeCheckpointAdmission(token: CemCheckpointNativeClient, cleanup = false): () => void {
     const client = clients.get(token);
     if (!client) throw new Error('cem.checkpoint.native-client');

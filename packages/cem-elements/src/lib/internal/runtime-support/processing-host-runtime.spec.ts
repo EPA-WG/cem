@@ -48,7 +48,7 @@ import { processRetainedTemplateStylesheet, processNativeCemValue, retainLoadedC
 import type { DataIslandSnapshot } from '../../cem-elements.js';
 import { createCemDeclarationScope } from '../../declaration-scope.js';
 import { CemProcessingEngine } from './processing-engine.js';
-import { cemProcessingHostForScope } from './processing-host-runtime.js';
+import { cemProcessingHostForScope, checkpointProcessingControl } from './processing-host-runtime.js';
 import {
     CEM_RENDERING_RETIREMENT_PROTOCOL, isCemRenderingRetirementControl, type CemRenderingRetirementControl,
     CemProcessingDiagnosticError,
@@ -894,4 +894,54 @@ it.each(['revoke', 'worker-loss'])('fences generation-bound fresh roots without 
         admission.revoke(); otherScope.dispose();
         expect(workers[1].terminated).toBe(true);
     } finally { admission.revoke(); scope.dispose(); }
+});
+
+
+describe('read-only recovery controls', () => {
+    class RecoveryWorker extends ControlledProcessingWorker {
+        controls: CemRenderingRetirementControl[] = [];
+        override postMessage(request: CemProcessingRequestEnvelope | CemRenderingRetirementControl): void {
+            if (!isCemRenderingRetirementControl(request)) { super.postMessage(request); return; }
+            if (request.action === 'checkpoint') this.controls.push(request);
+            else queueMicrotask(() => this.emit('message', { protocol: CEM_RENDERING_RETIREMENT_PROTOCOL,
+                direction: 'response', id: request.id, action: request.action, ok: true }));
+        }
+        settle(text = 'validated'): void {
+            const request = this.controls.shift()!;
+            this.emit('message', { protocol: CEM_RENDERING_RETIREMENT_PROTOCOL, direction: 'response',
+                id: request.id, action: request.action, ok: true, confirmation: text });
+        }
+    }
+    it('retains drain/freeze barriers without changing the closed proof, snapshots controls, and rejects copied hosts', async () => {
+        const worker = new RecoveryWorker(), scope = createCemDeclarationScope({ document: {} as Document });
+        const host = cemProcessingHostForScope(scope, { workerScriptUrl: 'https://example.test/recovery.js', workerFactory: () => worker as unknown as Worker });
+        await host.ready;
+        const proof = await closeNativeRenderingGeneration(host.checkpointClient!);
+        const input = { action: 'controls' as const, text: 'original' };
+        const pending = checkpointProcessingControl(host, input); input.text = 'changed';
+        expect(nativeCheckpointDrainCurrent(proof)).toBe(false);
+        let drained = false; const drain = nativeCheckpointDrain(host.checkpointClient!).then(() => { drained = true; });
+        await vi.waitFor(() => expect(worker.controls).toHaveLength(1));
+        expect(worker.controls[0].input?.text).toBe('original'); expect(drained).toBe(false);
+        await expect(checkpointProcessingControl({ ...host } as typeof host, input)).rejects.toThrow('control');
+        worker.settle(); await expect(pending).resolves.toBe('validated'); await drain;
+        expect(drained).toBe(true); expect(nativeCheckpointDrainCurrent(proof)).toBe(true);
+        await expect(checkpointProcessingControl(host, { action: 'runtime', text: 'é'.repeat(600000) })).rejects.toThrow('limit');
+        expect(nativeCheckpointDrainCurrent(proof)).toBe(true);
+        scope.dispose();
+    });
+    it('fences a timed-out recovery control and ignores its late reply without retry/fallback', async () => {
+        vi.useFakeTimers();
+        const worker = new RecoveryWorker(), scope = createCemDeclarationScope({ document: {} as Document });
+        try {
+            const host = cemProcessingHostForScope(scope, { workerScriptUrl: 'https://example.test/recovery-timeout.js', workerFactory: () => worker as unknown as Worker });
+            await host.ready;
+            const pending = checkpointProcessingControl(host, { action: 'controls', text: '{}' });
+            const rejected = expect(pending).rejects.toThrow('timeout');
+            await vi.advanceTimersByTimeAsync(5001); await rejected;
+            expect(nativeCheckpointIdentity(host.checkpointClient!)).toBeUndefined();
+            worker.settle('late'); await Promise.resolve(); expect(host.mode).toBe('worker');
+            await expect(checkpointProcessingControl(host, { action: 'controls', text: '{}' })).rejects.toThrow('retired');
+        } finally { scope.dispose(); vi.useRealTimers(); }
+    });
 });

@@ -62,9 +62,12 @@ allocation. Exact private checkpoint bytes, complete physical/owner coverage,
 current host/privacy witnesses and terminal journals guard one atomic owner gate.
 Failure cancels and discards the complete fresh group. Fresh fallback `release`
 permits only native cleanup after fencing. This transaction leaves DOM untouched.
-Built-in `CemElementRuntime` owners still refuse resume until generation-specific
-processing and source/widget adapters are implemented; Studio recovery remains
-manual. See [explicit owner resume transactions](../../docs/committed-checkpoints.md#explicit-owner-resume-transactions).
+Built-in plain retained CEM-ML owners now prepare fresh processing contexts and
+approved HTTP sources. After complete admission, call each returned
+`CemResumedElementOwner.resume()` to renew its publication endpoint and evaluate
+on the fresh generation, preserving retained DOM, edits and installed styles.
+Capability/provider/placement owners and legacy storage/location rendering still
+refuse resume. Studio recovery remains manual. See [explicit owner resume transactions](../../docs/committed-checkpoints.md#explicit-owner-resume-transactions).
 
 
 Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>

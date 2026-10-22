@@ -38,7 +38,14 @@ interface Ticket {
     current: () => boolean;
     owners: { receipt: Readonly<CemCheckpointOwnerReceipt>; island: string; prepare: CemCheckpointResumeAdapter['prepare'] }[];
     used: boolean;
+    authority?: object;
     cancel?: () => void;
+}
+const contexts = new WeakMap<CemCheckpointResumeContext, { authority?: object; instanceId: string }>();
+/** Original coordinator-scoped authority only; structural contexts never authorize rebinding. */
+export function checkpointResumeBelongsTo(context: CemCheckpointResumeContext, authority: object, instanceId: string): boolean {
+    const original = contexts.get(context);
+    return original?.authority === authority && original.instanceId === instanceId && context.active() && !context.signal.aborted;
 }
 const tickets = new WeakMap<CemCheckpointResumeTicket, Ticket>();
 const fail = (code: string): never => { throw new Error(`cem.checkpoint.resume.${code}`); };
@@ -46,7 +53,7 @@ const fail = (code: string): never => { throw new Error(`cem.checkpoint.resume.$
 /** @internal Publication coordinator only: native-sealed current bytes and
  * original complete endpoint adapters, never a reconstruction from user data. */
 export function issueCheckpointResumeTicket(runtimeId: string, saved: CemStoredCheckpoint,
-    current: () => boolean, adapters: ReadonlyMap<string, CemCheckpointResumeAdapter>): CemCheckpointResumeTicket {
+    current: () => boolean, adapters: ReadonlyMap<string, CemCheckpointResumeAdapter>, authority?: object): CemCheckpointResumeTicket {
     if (!saved.bytes.byteLength || saved.bytes.byteLength > 1024 * 1024 || !current()) fail('stale');
     if (saved.receipt.operations.some(operation => operation.outcome !== 'acknowledged' && operation.outcome !== 'not-applied')) fail('unknown');
     const witnesses: (() => boolean)[] = [];
@@ -64,7 +71,7 @@ export function issueCheckpointResumeTicket(runtimeId: string, saved: CemStoredC
     const valid = () => current() && witnesses.every(witness => witness() === true) && current();
     if (!valid()) fail('stale');
     const ticket = Object.freeze({ kind: 'cem-checkpoint-resume-ticket' as const });
-    tickets.set(ticket, { runtimeId, checkpoint: new Uint8Array(saved.bytes), current: valid, owners, used: false });
+    tickets.set(ticket, { runtimeId, checkpoint: new Uint8Array(saved.bytes), current: valid, owners, used: false, authority });
     return ticket;
 }
 /** @internal Erase superseded/private bytes and cancel an active preparation. */
@@ -147,10 +154,12 @@ export async function resumeCemCheckpointOwners(admission: CemNativeGenerationAd
             if (remaining <= 0) fail('timeout');
             const pending = Promise.resolve().then(() => {
                 if (!current()) return fail('stale');
-                return owner.prepare(Object.freeze({
+                const context = Object.freeze({
                     previousRuntimeId: generation.previousRuntimeId, runtimeId: generation.runtimeId, runtime: generation.runtime,
                     receipt: owner.receipt, island: owner.island, signal: controller.signal, active: () => active && !revoked && fresh.current(),
-                }));
+                });
+                contexts.set(context, { authority: record.authority, instanceId: owner.receipt.instanceId });
+                return owner.prepare(context);
             });
             void pending.then(prepared => { if (revoked) discard(prepared); }, () => undefined);
             const prepared = await Promise.race([pending, aborted, new Promise<never>((_, reject) => {
