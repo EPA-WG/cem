@@ -59,16 +59,24 @@ export async function studioRecovery(mode, progress) {
         const original = workbench.snapshot().draft;
         let edits = 0;
         const paint = editor => [...CSS.highlights.values()].flatMap(value => [...value]).filter(range => editor.contains(range.startContainer));
-        const blockers = () => coordinator.inspectRecovery().owners.filter(owner => !owner.adapterAvailable);
+        const staticPreviews = () => [...root.querySelectorAll('cem-media-preview')].filter(host => !['live', 'artifact-tree'].includes(host.getAttribute('mode')));
+        const blockers = () => coordinator.inspectRecovery().owners.filter(owner => !owner.adapterAvailable || owner.tag === 'cem-media-preview' && staticPreviews().length > 0);
+        const selectUnreviewedPreview = async () => {
+            const preview = root.querySelector('cem-media-preview'); check(preview, 'missing real preview');
+            // Deliberately select this public mode to retain the unsupported-
+            // group test after live/artifact controllers gained adapters.
+            preview.setAttribute('mode', 'document'); await runtime.whenRenderSettled(preview);
+        };
         const themes = coordinator.inspectRecovery().owners.filter(owner => owner.tag === 'cem-theme-switch');
         check(themes.length > 0 && themes.every(owner => owner.adapterAvailable), 'shared theme storage adapter missing');
         const retained = coordinator.inspectRecovery().owners.filter(owner => ['cem-action', 'cem-expansion', 'cem-list'].includes(owner.tag));
         check(retained.some(owner => owner.tag === 'cem-action') && retained.every(owner => owner.adapterAvailable), 'shared retained capability adapter missing');
-        // The complete theme composition is supported. Mount a real preview so
-        // this refusal lane proves an actual unsupported capability.
+        // Live/artifact controllers have adapters. Static media modes still
+        // refuse publication; keep this actual incomplete-workspace lane.
         setStage('initial native preview'); await workbench.buildProjectPreview(); await view.whenSettled();
         check(workbench.snapshot().projectPreview?.attempt?.status === 'succeeded', 'initial recovery preview failed');
-        check(blockers().some(owner => owner.tag === 'cem-media-preview'), 'preview refusal lane has no preview owner');
+        await selectUnreviewedPreview();
+        check(staticPreviews().length > 0 && blockers().some(owner => owner.tag === 'cem-media-preview'), 'refusal lane has no unreviewed static preview mode');
         const enrolledKinds = () => recoveryScope.inspect().members.map(member => member.kind);
         check(enrolledKinds().includes('rendering') && enrolledKinds().includes('command-service') && enrolledKinds().includes('command-invocation'), 'Studio omitted an active runtime from recovery membership');
         let groupRefused = false;
@@ -88,7 +96,7 @@ export async function studioRecovery(mode, progress) {
             for (let attempt = 0; !paint(colored).length; attempt++) {
                 check(attempt < 100, 'editor coloring did not settle'); await new Promise(resolve => setTimeout(resolve, 10));
             }
-            setStage(`refusal ${cycle}`);
+            setStage(`refusal ${cycle}`); await selectUnreviewedPreview();
             const draft = workbench.snapshot().draft;
             const editor = root.querySelector('cem-source-editor[data-cem-studio-editor]'), control = editor.querySelector('[role=textbox]');
             const url = browser.location.href, savedRecords = JSON.stringify([...records]), styles = [...document.querySelectorAll('style')];
@@ -112,7 +120,8 @@ export async function studioRecovery(mode, progress) {
             await workbench.buildProjectPreview(); await view.whenSettled();
             check(workbench.snapshot().projectPreview?.attempt?.status === 'succeeded', `native build after refusal failed: ${JSON.stringify(workbench.snapshot().projectPreview?.attempt)}`);
         }
-        check(blockers().some(owner => owner.tag === 'cem-media-preview'), 'preview capability incorrectly admitted');
+        await selectUnreviewedPreview();
+        check(staticPreviews().length > 0 && blockers().some(owner => owner.tag === 'cem-media-preview'), 'unreviewed static preview mode incorrectly published');
         setStage('unknown outcome refusal');
         const ownerId = coordinator.inspectRecovery().owners.find(owner => owner.tag === 'cem-studio-workbench-controls').instanceId;
         const operation = coordinator.operation(ownerId);
@@ -121,11 +130,26 @@ export async function studioRecovery(mode, progress) {
         check(refused && coordinator.inspectRecovery().unknownOperations === 1, 'refusal consumed an unknown operation');
         operation.acknowledge();
         check(coordinator.inspectRecovery().unknownOperations === 0, 'explicit acknowledgment was lost');
-        return { recoveries: 0, refusedRecoveries: 3, edits, unknownRefused: true, unsupported: [...new Set(blockers().map(owner => owner.tag))].sort() };
+        return { recoveries: 0, refusedRecoveries: 3, edits, unknownRefused: true, unavailable: [...new Set(blockers().map(owner => owner.tag))].sort() };
     } catch (error) { throw Error(`${mode}/${stage}: ${error.stack || error}`, { cause: error }); }
     finally {
         view?.dispose(); shell?.dispose(); workbench?.dispose(); session?.dispose(); await validator?.close(); repository.close();
         coordinator.dispose(); scope.dispose(); recoveryScope.dispose();
         await new Promise((resolve, reject) => { const deletion = indexedDB.deleteDatabase(databaseName); deletion.onsuccess = resolve; deletion.onerror = () => reject(deletion.error); });
     }
+}
+
+
+/** Focused complete rendering/preview/command handoff. Full workspace acceptance
+ * remains separate; this uses ordinary Studio host ledgers without UI helpers. */
+export async function combinedMediaRecovery(mode, progress) {
+    // eslint-disable-next-line @nx/enforce-module-boundaries -- shared acceptance driver; not an application dependency.
+    const { isolatedMediaResume } = await import('../../cem-elements/src/lib/retained-media.fixtures.js');
+    const { createCemStudioBrowserValidator } = await import('./feature-tour.js');
+    const source = await (await fetch(new URL('../../cem-components/src/components/cem-media-preview/cem-media-preview.xhtml', import.meta.url))).text();
+    const base = new URL('../../cem-elements/dist/', import.meta.url).href;
+    progress('combined media and command startup');
+    // The shared driver reports progress to its isolated frame's parent.
+    return isolatedMediaResume(base, url => import(/* @vite-ignore */ url), mode, source,
+        recoveryScope => createCemStudioBrowserValidator({ recoveryScope }));
 }

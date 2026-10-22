@@ -23,8 +23,7 @@ export async function createCemStudioBrowserValidator({ recoveryScope } = {}) {
     const {
         createBrowserCommandInvocationBinding,
         commandSchema,
-        createBrowserCommandServiceClient,
-        createEnrolledBrowserCommandServiceClient,
+        createBrowserCommandServiceBinding,
         parseCemMlCommand,
         parseCemMlCommandResource,
         parseCemMlCommandText,
@@ -37,7 +36,7 @@ export async function createCemStudioBrowserValidator({ recoveryScope } = {}) {
     const pendingWrites = new Map();
     const committedWrites = new Map();
     let nextWrite = 1;
-    /** @type {Parameters<typeof createBrowserCommandServiceClient>[0]} */
+    /** @type {Parameters<typeof createBrowserCommandServiceBinding>[0]} */
     const clientOptions = {
         hostConfiguration: { schemaPackageReplacementGrants: [], rootQueueSize: 1024 },
         host: {
@@ -78,12 +77,12 @@ export async function createCemStudioBrowserValidator({ recoveryScope } = {}) {
         hostWitness: () => { const revision = nextWrite; return () => !closed && !ledgers.size && !pendingWrites.size && !committedWrites.size && revision === nextWrite; } });
     let services;
     try {
-        services = recoveryScope ? await createEnrolledBrowserCommandServiceClient(clientOptions, recoveryScope, `studio-commands:${recoveryId}`, () => {
+        services = await createBrowserCommandServiceBinding(clientOptions, { recoveryScope, id: `studio-commands:${recoveryId}`, hostWitness: () => {
             const revision = nextWrite;
             return () => !closed && !ledgers.size && !pendingWrites.size && !committedWrites.size && revision === nextWrite;
-        }) : { client: await createBrowserCommandServiceClient(clientOptions), enrollment: undefined };
+        } });
     } catch (error) { invocationBinding.close(); throw error; }
-    const { client, enrollment: commandEnrollment } = services;
+    const client = services;
 
     let nextRequest = 1;
 
@@ -437,7 +436,10 @@ export async function createCemStudioBrowserValidator({ recoveryScope } = {}) {
                 );
             }
         },
-        close: () => { closed = true; commandEnrollment?.remove(); invocationBinding.close(); return client.close(); },
+        /** Trusted host lifecycle only; no UI state or external actions are replayed. */
+        prepareRecovery: () => ({ invocation: invocationBinding.runtime, commands: client.runtime,
+            bindings: [invocationBinding.prepareResume(), client.prepareResume()] }),
+        close: () => { closed = true; invocationBinding.close(); return client.close(); },
     });
 }
 

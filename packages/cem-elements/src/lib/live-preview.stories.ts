@@ -9,7 +9,9 @@ export const Lifecycle = meta.story({
         const options = { sourceUri: 'studio://one/view.cem', resources: [], source: '{slice @name=name | Initial}{input @aria-label=Name @slice=name @slice-event=input @slice-value="$target.value"}{p | {$datadom.slices.name}}' };
         const one = mountCemLivePreview(first, options), two = mountCemLivePreview(second, options);
         try {
+            expect(one.checkpoint()).toBeUndefined();
             await Promise.all([one.ready, two.ready]);
+            const original = one.checkpoint()!; expect(original()).toBe(true);
             expect(first.contentDocument?.querySelector('p')?.textContent).toBe('Initial');
             expect(first.contentDocument?.querySelector('cem-live-view')?.shadowRoot).toBeNull();
             const input = first.contentDocument!.querySelector('input')!;
@@ -17,9 +19,11 @@ export const Lifecycle = meta.story({
             await waitFor(() => expect(first.contentDocument?.querySelector('p')?.textContent).toBe('Amsterdam café'));
             expect(second.contentDocument?.querySelector('p')?.textContent).toBe('Initial');
             const replacement = mountCemLivePreview(first, { ...options, source: '{p | Saved edit}' });
+            expect(original()).toBe(false);
             await replacement.ready;
+            const retained = replacement.checkpoint()!; expect(retained()).toBe(true);
             expect(first.contentDocument?.querySelector('p')?.textContent).toBe('Saved edit');
-            replacement.dispose();
+            replacement.dispose(); expect(retained()).toBe(false);
             expect(first.hasAttribute('srcdoc')).toBe(false);
         } finally { one.dispose(); two.dispose(); }
     },

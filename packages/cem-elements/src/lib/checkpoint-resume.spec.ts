@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { CemCheckpointPublicationCoordinator } from './checkpoint-publication.js';
 import { issueCheckpointResumeTicket, revokeCheckpointResumeTicket, resumeCemCheckpointOwners, type CemCheckpointResumeAdapter, type CemCheckpointResumeContext } from './checkpoint-resume.js';
-import { CemNativeGenerationGroup, registerNativeGeneration, completeNativeRetirement } from './internal/runtime-support/native-generation.js';
+import { CemNativeGenerationGroup, registerNativeGeneration, completeNativeRetirement, issueNativeGenerationBindingTicket } from './internal/runtime-support/native-generation.js';
 import type { CemStoredCheckpoint } from './committed-checkpoint.js';
 import { CemNativeCheckpointDomain } from './internal/runtime-support/checkpoint-domain.js';
 const receipt = { runtimeId: 'session', generation: 1, commitSequence: 1, policyStamp: 'private:1', owners: [
@@ -28,6 +28,43 @@ async function fixture(adjust?: (id: string, context: CemCheckpointResumeContext
     return { ticket, admission, contexts, discarded, checkpoint, invalidate: () => { valid = false; }, alive: () => alive };
 }
 describe('fresh generation semantic owner transaction', () => {
+    it('binds mixed command routes before rendering renewal and revokes them on late failure', async () => {
+        for (const failure of ['none', 'missing', 'copied', 'late', 'bind']) {
+            const events: string[] = [], checkpoint = saved(); let valid = true, alive = true;
+            const renderingId = crypto.randomUUID(), commandId = crypto.randomUUID();
+            const participant = (runtimeId: string) => registerNativeGeneration({}, runtimeId, async () => ({ identity: {}, runtimeId: crypto.randomUUID(),
+                runtime: {}, current: () => alive, discard: () => { alive = false; } }));
+            const rendering = participant(renderingId), command = participant(commandId);
+            const ticket = issueCheckpointResumeTicket(renderingId, checkpoint, () => valid, new Map(receipt.owners.map(owner => [owner.instanceId, {
+                witness: () => () => valid, prepare: async (context: CemCheckpointResumeContext) => ({
+                    owner: { resume: context.renewOwners }, current: () => valid, discard: () => { events.push(`discard:${owner.instanceId}`); },
+                    bind: () => { events.push(`bind:${owner.instanceId}`); }, renew: async () => { expect(events[0]).toBe('bind:command'); events.push(`renew:${owner.instanceId}`); },
+                }),
+            }])));
+            const binding = issueNativeGenerationBindingTicket(command, () => valid, async context => {
+                expect(context.active()).toBe(false);
+                return { owner: {}, current: () => valid, discard: () => { events.push('discard:command'); }, bind: () => {
+                    expect(context.active()).toBe(true); events.push('bind:command'); if (failure === 'bind') throw Error('failed command binding');
+                } };
+            });
+            const admission = await new CemNativeGenerationGroup([rendering, command]).allocate([
+                completeNativeRetirement(rendering, checkpoint.bytes), completeNativeRetirement(command, new Uint8Array([1])),
+            ]);
+            const bindings = failure === 'missing' ? [] : failure === 'copied' ? [{ ...binding }] : [binding];
+            if (failure === 'missing' || failure === 'copied') {
+                await expect(resumeCemCheckpointOwners(admission, [ticket], 5000, bindings)).rejects.toThrow(/coverage|binding/);
+                expect(alive).toBe(false); expect(events).toEqual([]); continue;
+            }
+            const result = await resumeCemCheckpointOwners(admission, [ticket], 5000, bindings);
+            expect(events).toEqual([]);
+            if (failure === 'late') valid = false;
+            const resume = (result.owners[0].owner as { resume(): Promise<void> }).resume();
+            if (failure === 'late' || failure === 'bind') {
+                await expect(resume).rejects.toThrow(failure === 'late' ? 'stale' : 'failed command binding');
+                expect(alive).toBe(false); expect(events.some(event => event.startsWith('renew:'))).toBe(false);
+            } else { await resume; expect(events.slice(0, 3)).toEqual(['bind:command', 'bind:editor', 'bind:tree']); result.revoke(); }
+        }
+    });
     it('requires all preparations before opening one owner gate, preserves opaque islands and fences revocation', async () => {
         const f = await fixture(async (_id, context) => { expect(context.active()).toBe(false); });
         f.admission.generations[0].checkpoint.fill(9);

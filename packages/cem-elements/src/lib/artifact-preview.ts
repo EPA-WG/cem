@@ -50,6 +50,8 @@ export function registerCemInlineArtifactTree(envelope: { artifacts?: readonly {
 }
 export interface CemArtifactPreview {
     readonly ready: Promise<void>;
+    /** Retain only the original settled document and live byte registry. */
+    checkpoint(): (() => boolean) | undefined;
     /** Update query/fragment within the mounted file, retaining its document. */
     setLocation(path: string): void;
     dispose(): void;
@@ -64,13 +66,14 @@ export interface CemArtifactPreviewOptions {
 /** Parent-managed, script-free HTML output; no CEM runtime is installed in the frame. */
 export function mountCemArtifactPreview(frame: HTMLIFrameElement, options: CemArtifactPreviewOptions): CemArtifactPreview {
     if (!frame.isConnected) throw new Error('cem.preview.detached_frame');
+    options = { ...options };
     const envelope = JSON.parse(options.resourceSet) as { artifactTree?: string; artifacts?: Parameters<typeof registerCemInlineArtifactTree>[0]['artifacts'] };
     const inline = envelope.artifactTree ? undefined : registerCemInlineArtifactTree(envelope);
     const id = envelope.artifactTree ?? JSON.parse(inline!.resourceSet).artifactTree;
     const tree = trees.get(id);
     if (!tree) { inline?.dispose(); throw new Error('cem.preview.artifact_set_released'); }
     mounts.get(frame)?.dispose();
-    let active = true, cancelLoad: (() => void) | undefined, document: Document | undefined;
+    let active = true, settled = false, revision = 0, cancelLoad: (() => void) | undefined, document: Document | undefined;
     const blobs = new Set<string>(), images = new Map<string, string>(), styles = new Map<string, string>();
     const messages = new Set<string>();
     const current = () => { if (!active || !frame.isConnected) throw new Error('cem.preview.disposed'); };
@@ -207,14 +210,21 @@ export function mountCemArtifactPreview(frame: HTMLIFrameElement, options: CemAr
         // happens only into the child realm, which has no component registrations.
         document.body.append(inert.content);
         if (selected.hash) scroll(selected.hash.slice(1));
-        publish();
+        publish(); settled = true;
     })();
-    const controller: CemArtifactPreview = Object.freeze({ ready, setLocation(path: string) {
+    const controller: CemArtifactPreview = Object.freeze({ ready, checkpoint() {
+        if (!active || !settled || !document || trees.get(id) !== tree) return undefined;
+        const retained = document, srcdoc = frame.srcdoc, version = revision;
+        return () => active && settled && revision === version && trees.get(id) === tree && frame.isConnected
+            && mounts.get(frame) === controller && frame.contentDocument === retained && frame.srcdoc === srcdoc
+            && frame.getAttribute('sandbox') === 'allow-same-origin' && frame.getAttribute('referrerpolicy') === 'no-referrer'
+            && frame.getAttribute('allow') === '';
+    }, setLocation(path: string) {
         if (!active) return;
         const next = location(path);
         if (next.pathname !== selected.pathname) throw new Error('cem.preview.artifact_location');
         if (next.href === selected.href) return;
-        selected.search = next.search; selected.hash = next.hash;
+        revision++; selected.search = next.search; selected.hash = next.hash;
         if (selected.hash) scroll(selected.hash.slice(1));
         publish();
     }, dispose() {

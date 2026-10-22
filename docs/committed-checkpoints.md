@@ -1458,7 +1458,7 @@ runtime or supply lifecycle callbacks.
 
 `prepare()` probes every original endpoint with a bounded cancellation signal.
 Busy work, unknown write outcomes, unsupported heaps, copied participants,
-overlapping physical generations and membership changes refuse the complete
+unattested overlapping physical generations and membership changes refuse the complete
 preparation. The returned `createGenerationGroup()` is one-shot and binds a
 private membership/currentness guard through fresh allocation. Preparation does
 not close native admission, capture owners, retire heaps, issue semantic resume
@@ -1476,8 +1476,31 @@ retirement does not navigate/remount the frame. Child scope disposal removes
 membership and disposes its inherited coordinator. Parent privacy changes erase
 child checkpoints; parent disposal closes children, including nested previews. Native source callbacks and
 existing owner adapters remain the source authority on fresh processing contexts.
-The retained parent media-preview controller still requires its own coordinated
-resume contract; child enrollment alone never establishes whole-workspace resume.
+Loaded live/artifact `cem-media-preview` controllers now have a native-validated
+`media-preview` policy with `retain-controller` disposition. Original browser
+witnesses require the same connected iframe, document, sandbox and live resource
+registry; pending loads, released artifact trees, replaced documents/controllers
+and changed source/resource inputs refuse. Recovery retains the document, edited
+controls, child source callbacks and artifact object URLs. The controller renews
+its slice-publication callback on the fresh parent binding without mounting again.
+Other media modes still require a reviewed policy; child enrollment alone never
+establishes whole-workspace resume. Inspection reports adapter registration, not
+eligibility of the current mode or inputs; only complete capture/preparation can
+prove readiness. Restricted preview HTTP checkpoints also remain unavailable
+until their native source/export boundary is resolved.
+
+`CemCheckpointPublicationCoordinator.combine([parent, child, ...])` creates one
+bounded checkpoint transaction for coordinators sharing one physical generation.
+It retains original owner records, journal outcomes and per-owner resume authority;
+normal native census/source checks must cover every original native client and
+required owner. Missing peers fail rather than disappearing from coverage. Each
+original enrollment delegates to the same private coverage attestation, allowing
+one allocation/retirement for the shared heap. Copied attestations and unattested
+overlap refuse. Mixed heaps, ambiguous owner IDs, journal compaction in flight and
+mixed policy counters refuse; use separate original tickets for separate heaps.
+The aggregate is a transaction view: recreate it after input/publication changes
+and dispose it after binding. Peer policy withdrawal/disposal erases its bytes;
+disposing the aggregate leaves original owners/subscriptions under their owners.
 
 `createEnrolledBrowserCommandServiceClient(options, scope, id, hostWitness)`
 reserves membership before asynchronous startup and returns the client plus its
@@ -1489,9 +1512,11 @@ transport actions, host callbacks and uncertain write outcomes refuse. New work
 or host-ledger changes invalidate prepared membership. Original native inventory
 and artifact-disposal obligations remain enforced at retirement. Fresh workers
 receive snapshotted original host services/configuration; old handles keep their
-old identity and commands are never replayed. The host must explicitly remove
-the retired enrollment and enroll the admitted fresh client after coordinated
-binding. Recovery does not silently retarget existing client aliases.
+old identity and commands are never replayed. Low-level clients still require explicit enrollment replacement. The shared
+`createBrowserCommandServiceBinding(options, { recoveryScope, id, hostWitness })`
+provides a stable execution route and renews enrollment only during a complete
+original binding transaction. Raw client methods and artifact handles keep their
+old identities.
 
 Browser invocation construction, synchronous graph authoring and presentation
 have an owned shared binding, `createBrowserCommandInvocationBinding()`. Studio
@@ -1532,8 +1557,19 @@ its independent terminal host handoff is retained by the original group receipt.
 
 Legacy singleton APIs retain their old identity and behavior.
 `enrollBrowserCommandInvocationRecovery()` still records that unsupported legacy
-heap, so a worker-only group cannot masquerade as complete recovery. Owned
-single-generation resume is not combined Studio semantic resume: retained media
-preview controllers, combined preview/rendering/command handoff including shared
-fallback owner coverage, repeated whole-Studio acceptance and declarative status
-remain required before automatic recovery.
+heap, so a worker-only group cannot masquerade as complete recovery. Both invocation and service bindings expose `prepareResume()` for mixed groups.
+Capture those original tickets before retirement. Pass all of them as the fourth
+argument to `resumeCemCheckpointOwners(admission, renderingTickets, timeoutMs,
+bindingTickets)`. The shared transaction consumes the admission once, requires
+exact complete physical coverage using private original participant records, prepares
+every host/owner route inactive, then
+binds all command/rendering/preview routes before any provider renewal. Missing,
+copied, stale or reused tickets and partial binding/renewal failures revoke the
+whole fresh set; they never retry commands or infer unknown write outcomes.
+The original host ledgers and pending/committed-write maps stay outside WASM.
+Studio's validator exposes trusted `prepareRecovery()` controls for this explicit
+handoff; application markup cannot supply them. Stable graph authoring remains
+synchronous. Scoped acceptance covers repeated combined handoff with actual
+Studio native commands, live source resources and artifact navigation. Complete
+whole-Studio repeated acceptance and declarative status remain required before
+automatic recovery.

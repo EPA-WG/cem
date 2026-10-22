@@ -1,3 +1,4 @@
+import { registerNativeGenerationCoverage, type CemNativeGenerationCoverage } from './internal/runtime-support/native-generation.js';
 import { checkpointResumeBelongsTo, issueCheckpointResumeTicket, revokeCheckpointResumeTicket, type CemCheckpointResumeContext, type CemCheckpointResumeAdapter, type CemCheckpointResumeTicket } from './checkpoint-resume.js';
 import type { CemFallbackRetirementConsent } from './internal/runtime-support/native-runtime.js';
 import { nativeGenerationParticipant, closeNativeRenderingGeneration, retireNativeRenderingGeneration, type CemNativeDrain, nativeCheckpointIdentity, nativeCheckpointGeneration, nativeCheckpointValidSourceProof, nativeCheckpointSubscribe, nativeCheckpointSnapshot, type CemCheckpointNativeClient, type CemCheckpointNativeSourceProof } from './internal/runtime-support/checkpoint-domain.js';
@@ -87,6 +88,58 @@ export class CemCheckpointPublicationCoordinator {
     private error?: string;
     private readonly children = new Set<CemCheckpointPublicationCoordinator>();
     private parent?: CemCheckpointPublicationCoordinator;
+    private combined?: CemCheckpointPublicationCoordinator;
+    private peers?: readonly CemCheckpointPublicationCoordinator[];
+    private peerCurrent?: () => boolean;
+    private combinedCoverage?: CemNativeGenerationCoverage;
+    private ownerAuthorities?: ReadonlyMap<string, object>;
+
+    /** One checkpoint/retirement for logical domains sharing one actual heap.
+     * Full native census still checks every original client, owner and source.
+     * Recreate after publication/input; no independent peer may omit a sibling. */
+    static combine(peers: readonly CemCheckpointPublicationCoordinator[]): CemCheckpointPublicationCoordinator {
+        if (peers.length < 2 || peers.length > 16 || new Set(peers).size !== peers.length
+            || peers.some(peer => peer.disposed || peer.peers || peer.combined && !peer.combined.disposed
+                || peer.policyStamp !== peers[0].policyStamp)) throw Error('cem.checkpoint.combined.coverage');
+        const epochs = peers.map(peer => peer.resumeEpoch);
+        const members = peers.map(peer => [...peer.owners.values()]);
+        const current = () => peers.every((peer, index) => !peer.disposed && !peer.blocked && !peer.capturing && !peer.admissions.size
+            && peer.resumeEpoch === epochs[index] && peer.owners.size === members[index].length
+            && members[index].every(owner => peer.owners.get(owner.id) === owner));
+        const combined = new CemCheckpointPublicationCoordinator({ ...peers[0].options, runtimeId: crypto.randomUUID(), automatic: false,
+            allowOwner: receipt => { const peer = peers.find(peer => peer.owners.has(receipt.instanceId)); return current() && peer?.allowOwner?.(receipt) === true && current(); } });
+        const authorities = new Map<string, object>();
+        for (const peer of peers) {
+            if (combined.owners.size + peer.owners.size > MAX_OWNERS || combined.operations.size + peer.operations.size > MAX_OWNERS
+                || combined.relationships.size + peer.relationships.size > MAX_OWNERS) throw Error('cem.checkpoint.limit');
+            for (const [id, owner] of peer.owners) {
+                if (combined.owners.has(id) || owner.publicationPolicy !== peer.policySequence) throw Error('cem.checkpoint.combined.coverage');
+                combined.owners.set(id, owner); authorities.set(id, peer.resumeAuthority);
+            }
+            for (const [id, operation] of peer.operations) {
+                if (combined.operations.has(id) || peer.retirement.size) throw Error('cem.checkpoint.combined.journal');
+                combined.operations.set(id, operation);
+            }
+            for (const [id, relationship] of peer.relationships) {
+                if (combined.relationships.has(id) || relationship.policy !== peer.policySequence) throw Error('cem.checkpoint.combined.coverage');
+                combined.relationships.set(id, relationship);
+            }
+        }
+        // Owner records retain their original coordinators' policy counters.
+        // Reject mixed counters rather than weakening their publication checks.
+        if (peers.some(peer => peer.policySequence !== peers[0].policySequence)) throw Error('cem.checkpoint.combined.policy');
+        combined.policySequence = peers[0].policySequence;
+        combined.peers = [...peers]; combined.peerCurrent = current; combined.ownerAuthorities = authorities;
+        try {
+            combined.renderingCoverage();
+            if (!combined.ready()) throw Error('cem.checkpoint.combined.coverage');
+        } catch (error) { combined.dispose(); throw error; }
+        for (const peer of peers) peer.combined = combined;
+        return combined;
+    }
+
+    /** Original descendants for trusted host orchestration, never authored data. */
+    previewCoordinators(): readonly CemCheckpointPublicationCoordinator[] { return Object.freeze([...this.children]); }
 
     constructor(private readonly options: CemCheckpointPublicationOptions) {
         if (!options.runtimeId || !options.policyStamp || !Number.isSafeInteger(options.generation) || options.generation < 1) throw new Error('cem.checkpoint.identity');
@@ -112,12 +165,14 @@ export class CemCheckpointPublicationCoordinator {
 
     /** Membership preparation only. Native closure, capture, source reimport
      * and original resume tickets remain separate mandatory lifecycle steps. */
-    recoveryEnrollment() {
+    recoveryEnrollment(): { participants: readonly import('./internal/runtime-support/native-generation.js').CemNativeGenerationParticipant[]; coverage?: CemNativeGenerationCoverage; current: () => boolean } {
+        if (this.combined && !this.combined.disposed) return this.combined.recoveryEnrollment();
         if ([...this.operations.values()].some(operation => operation.outcome === 'unknown')) throw Error('cem.checkpoint.recovery.unknown');
         if (!this.ready() || [...this.owners.values()].some(owner => !owner.endpoint?.resume)) throw Error('cem.checkpoint.recovery.unsupported');
         const participant = this.generationParticipant(), epoch = this.resumeEpoch;
-        return Object.freeze({ participants: Object.freeze([participant]),
-            current: () => !this.disposed && !this.blocked && epoch === this.resumeEpoch && !this.admissions.size });
+        const current = () => !this.disposed && !this.blocked && epoch === this.resumeEpoch && !this.admissions.size && (!this.peerCurrent || this.peerCurrent());
+        if (this.peers) this.combinedCoverage ??= registerNativeGenerationCoverage(participant, current);
+        return Object.freeze({ participants: Object.freeze([participant]), coverage: this.combinedCoverage, current });
     }
 
     /** Read-only admission diagnostics, never a capture/retirement/resume proof.
@@ -289,6 +344,7 @@ export class CemCheckpointPublicationCoordinator {
     /** Policy boundaries erase older private bytes, including last-good exports. */
     setPolicy(stamp: string, allowOwner?: CemCheckpointPublicationOptions['allowOwner']): void {
         if (this.disposed || !stamp) throw new Error('cem.checkpoint.identity');
+        this.combined?.dispose();
         this.invalidate(); this.store.dispose(); this.store = new CemCommittedCheckpointStore(this.options.runtimeId);
         this.policySequence++; this.retirement.clear();
         this.policyStamp = stamp; this.allowOwner = allowOwner;
@@ -349,7 +405,7 @@ export class CemCheckpointPublicationCoordinator {
         return dependencies;
     }
     private ready(): boolean {
-        if (this.disposed || this.blocked || this.admissions.size || !this.owners.size) return false;
+        if (this.disposed || this.blocked || this.admissions.size || !this.owners.size || this.peerCurrent && !this.peerCurrent()) return false;
         for (const operation of this.operations.values()) if (!this.owners.has(operation.instanceId) && !this.retirement.has(operation.operationId)) return false;
         let acknowledged = true;
         for (const owner of this.owners.values()) {
@@ -448,10 +504,10 @@ export class CemCheckpointPublicationCoordinator {
         }
         const epoch = this.resumeEpoch;
         const receipts = saved.receipt.owners.map(receipt => Object.freeze({ ...receipt }));
-        const hostCurrent = () => !this.disposed && !this.blocked && !this.capturing && !this.admissions.size && epoch === this.resumeEpoch;
+        const hostCurrent = () => !this.disposed && !this.blocked && !this.capturing && !this.admissions.size && epoch === this.resumeEpoch && (!this.peerCurrent || this.peerCurrent());
         const current = () => hostCurrent() && receipts.every(receipt => this.allowOwner?.(receipt) === true) && hostCurrent();
         if (this.resumeTicket) revokeCheckpointResumeTicket(this.resumeTicket);
-        return this.resumeTicket = issueCheckpointResumeTicket(runtimeId, saved, current, adapters, this.resumeAuthority);
+        return this.resumeTicket = issueCheckpointResumeTicket(runtimeId, saved, current, adapters, this.resumeAuthority, this.ownerAuthorities);
     }
 
     /** Enroll the exact complete physical rendering generation before retirement. */
@@ -522,9 +578,17 @@ export class CemCheckpointPublicationCoordinator {
     lastCommitted(): CemStoredCheckpoint | undefined { return this.store.lastCommitted(); }
     dispose(): void {
         if (this.disposed) return;
+        this.combined?.dispose();
         this.parent?.children.delete(this); this.parent = undefined;
         for (const child of [...this.children]) child.dispose(); this.children.clear();
         this.disposed = true; this.invalidate(); this.store.dispose();
+        if (this.peers) {
+            for (const peer of this.peers) if (peer.combined === this) peer.combined = undefined;
+            this.peers = undefined; this.peerCurrent = undefined; this.ownerAuthorities = undefined; this.combinedCoverage = undefined;
+            this.allowOwner = undefined; this.options.allowOwner = undefined;
+            for (const stop of this.sourceClients.values()) stop(); this.sourceClients.clear();
+            this.owners.clear(); this.operations.clear(); this.relationships.clear(); return;
+        }
         for (const stop of this.sourceClients.values()) stop(); this.sourceClients.clear();
         for (const owner of this.owners.values()) { owner.stopNative?.(); if (owner.endpoint) this.endpoints.delete(owner.endpoint.host); }
         this.owners.clear(); this.admissions.clear(); this.operations.clear(); this.retirement.clear(); this.relationships.clear();

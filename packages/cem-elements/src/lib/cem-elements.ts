@@ -11,7 +11,7 @@ import type { CemCheckpointRelationship } from './committed-checkpoint.js';
 import { captureCheckpointControls, checkpointScalarPortable, type CemCheckpointControlState, type CemCheckpointRuntimeState } from './checkpoint-controls.js';
 import { type CemCheckpointPublicationCoordinator, type CemCheckpointPublicationOwner } from './checkpoint-publication.js';
 import { isDomInstance } from './dom-realm.js';
-import { CEM_LIVE_PREVIEW_CAPABILITY } from './live-preview-capability.js';
+import { cemMediaPreviewCheckpoint, prepareCemMediaPreviewGuard, CEM_LIVE_PREVIEW_CAPABILITY } from './live-preview-capability.js';
 import { validateLivePreviewFrames, validateLivePreviewNodes } from './live-preview-policy.js';
 import { resolveAriaReferenceProfile, DEFAULT_ARIA_REFERENCE_PROFILE, withoutAriaReferenceProfileStamp, type CemAriaReferenceProfile } from './aria-reference-profile.js';
 import { checkpointSuggestionIndex, isCemNativeSuggestionsBinding, type CemNativeSuggestionsBinding, type CemNativeSuggestionRow } from './native-suggestions-publication.js';
@@ -2985,7 +2985,7 @@ export class CemElementRuntime {
         void this.whenRenderSettled(instance).then(() => { if (owner && this.checkpointOwners.get(instance) === owner) owner.settled(); }, () => undefined);
     }
     private checkpointAdapterOwnsInteraction(compiled: CompiledDeclaration): boolean {
-        return [CEM_SUGGESTIONS_CAPABILITY, CEM_FORM_CONTROL_CAPABILITY, CEM_POPUP_CAPABILITY, CEM_NATIVE_SURFACE_CAPABILITY, CEM_COMPOSITE_MENU_CAPABILITY].includes(compiled.behavior!);
+        return [CEM_LIVE_PREVIEW_CAPABILITY, CEM_SUGGESTIONS_CAPABILITY, CEM_FORM_CONTROL_CAPABILITY, CEM_POPUP_CAPABILITY, CEM_NATIVE_SURFACE_CAPABILITY, CEM_COMPOSITE_MENU_CAPABILITY].includes(compiled.behavior!);
     }
     get checkpointCaptureEnabled(): boolean { return !!this.checkpointPublication; }
 
@@ -3018,6 +3018,7 @@ export class CemElementRuntime {
         this.checkpointNativeSources.delete(instance);
         let capability: CemCheckpointRuntimeState['capability'] = null;
         if (compiled.behavior === CEM_PLAINTEXT_EDITOR_CAPABILITY) capability = cemPlaintextEditorCheckpoint(instance) ?? null;
+        else if (compiled.behavior === CEM_LIVE_PREVIEW_CAPABILITY) capability = cemMediaPreviewCheckpoint(instance) ?? null;
         else if (compiled.behavior === CEM_FORM_CONTROL_CAPABILITY) capability = cemFormControlCheckpoint(instance, consumer => {
             const endpoint = this.checkpointEndpoint(consumer);
             return endpoint?.nodeId === 'host' && (cemSuggestionsCheckpoint(consumer) || cemManualListboxCheckpoint(consumer, node => this.checkpointEndpoint(node)) || cemStandaloneDatalistCheckpoint(consumer, node => this.checkpointEndpoint(node))) ? endpoint.instanceId : undefined;
@@ -3280,6 +3281,7 @@ export class CemElementRuntime {
     }
 
     private checkpointRetainedCapabilityGuard(instance: HTMLElement, compiled: CompiledDeclaration): (() => boolean) | undefined {
+        if (compiled.behavior === CEM_LIVE_PREVIEW_CAPABILITY) return prepareCemMediaPreviewGuard(instance);
         if (compiled.behavior === CEM_ACTION_COMMAND_CAPABILITY) return prepareCemActionCommandGuard(instance);
         if (compiled.behavior === CEM_ACTION_CONTROL_CAPABILITY) return prepareCemActionControlGuard(instance);
         if (compiled.behavior === CEM_DISCLOSURE_PANEL_CAPABILITY) return prepareCemDisclosurePanelGuard(instance);
@@ -3337,7 +3339,8 @@ export class CemElementRuntime {
             : compiled.behavior === CEM_CHECKABLE_CONTROL_CAPABILITY ? 'checkable-control'
                 : compiled.behavior === CEM_CHOICE_SELECT_CAPABILITY ? 'choice-select'
                     : compiled.behavior === CEM_EDITABLE_CHOICE_CAPABILITY ? 'editable-choice' : undefined;
-        const widgetCheckpoint = compiled.behavior === CEM_ACTION_COMMAND_CAPABILITY ? () => cemActionCommandCheckpoint(instance, node => this.checkpointEndpoint(node))
+        const widgetCheckpoint = compiled.behavior === CEM_LIVE_PREVIEW_CAPABILITY ? () => cemMediaPreviewCheckpoint(instance)
+            : compiled.behavior === CEM_ACTION_COMMAND_CAPABILITY ? () => cemActionCommandCheckpoint(instance, node => this.checkpointEndpoint(node))
             : compiled.behavior === CEM_ACTION_CONTROL_CAPABILITY ? () => cemActionControlCheckpoint(instance, node => this.checkpointEndpoint(node))
                 : compiled.behavior === CEM_DISCLOSURE_PANEL_CAPABILITY ? () => cemDisclosurePanelCheckpoint(instance)
                     : compiled.behavior === CEM_NATIVE_LIST_CAPABILITY ? () => cemNativeListCheckpoint(instance)

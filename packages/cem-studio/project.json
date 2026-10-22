@@ -234,6 +234,7 @@
                 "{projectRoot}/src/workbench.browser.spec.js",
                 "{projectRoot}/src/recovery.browser.spec.js",
                 "{projectRoot}/src/recovery.fixture.js",
+                "{workspaceRoot}/packages/cem-elements/src/lib/retained-media.fixtures.ts",
                 "{projectRoot}/src/feature-tour.js",
                 "{projectRoot}/src/preview.js",
                 "{projectRoot}/generated/feature-tour/examples/*.cem-studio.json",

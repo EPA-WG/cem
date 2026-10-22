@@ -147,3 +147,13 @@ void createBrowserCommandInvocationBinding({ recoveryScope: hostScope, id: 'type
 void createEnrolledBrowserCommandServiceClient({ host }, hostScope, 'typed-worker', () => () => true);
 void enrollBrowserCommandInvocationRecovery(hostScope, 'typed-legacy');
 void createBrowserCommandServiceClient({ host }).then(client => client.enrollRecovery(hostScope, 'typed-ready-worker', () => () => true));
+
+
+// Stable worker binding accepts independently emitted host scope declarations.
+async function mixedBindingTypes(scope: import('../../cem_ql/runtime/native-generation.mjs').CemNativeRecoveryScope) {
+    const { createBrowserCommandServiceBinding } = await import('../dist/browser-commands.js');
+    const binding = await createBrowserCommandServiceBinding({ host }, { recoveryScope: scope });
+    const ticket: import('../../cem_ql/runtime/native-generation.mjs').CemNativeGenerationBindingTicket = binding.prepareResume();
+    void ticket; await binding.close();
+}
+void mixedBindingTypes;

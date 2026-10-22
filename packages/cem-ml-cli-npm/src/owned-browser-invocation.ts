@@ -4,7 +4,7 @@ import type { ParsedCemMlCommand } from './command.js';
 import { buildCommandInvocationWith, projectCommandPresentationWith, type BrowserCommandInvocationOptions, type BrowserCommandInvocationResolver, type InvocationRuntime } from './invocation-core.js';
 import { CommandNativeAdmission, CommandNativeClientCheckpoint, type CommandNativeDrain } from './native-admission.js';
 import { parseCommandNativeInventory, type CommandNativeEmbeddingOwnership, type CommandNativeRetirementHandoff } from './native-embedding.js';
-import { registerNativeGeneration, completeNativeRetirement, claimNativeGenerationAdmission, type CemNativeGenerationParticipant, type CemNativeGenerationAdmission, type CemNativeGenerationRetirement, type CemNativeRecoveryScope, type CemNativeRecoveryEnrollment } from './generation-lifecycle.js';
+import { registerNativeGeneration, completeNativeRetirement, claimNativeGenerationAdmission, issueNativeGenerationBindingTicket, type CemNativeGenerationBindingTicket, type CemNativeGenerationParticipant, type CemNativeGenerationAdmission, type CemNativeGenerationRetirement, type CemNativeRecoveryScope, type CemNativeRecoveryEnrollment } from './generation-lifecycle.js';
 
 /** Pure native authoring only: no command execution, artifact handles or host writes.
  * Captured methods belong to this exact physical generation and never retarget. */
@@ -116,7 +116,7 @@ export class OwnedBrowserCommandInvocation {
 }
 
 /** Host binding is the only retargetable surface. Native aliases stay fenced.
- * Combined rendering/worker semantic resume remains a separate transaction. */
+ * Complete mixed groups use original prepareResume tickets. */
 export class BrowserCommandInvocationBinding {
     #runtime: OwnedBrowserCommandInvocation;
     #closed = false;
@@ -155,6 +155,24 @@ export class BrowserCommandInvocationBinding {
     buildInvocation = (parsed: ParsedCemMlCommand, resolver: BrowserCommandInvocationResolver, options?: BrowserCommandInvocationOptions): Promise<CommandInvocationV1> =>
         this.runtime.buildInvocation(parsed, resolver, options);
     projectPresentation = (plan: CommandPresentationPlanV1, result: CommandServiceResultV1): CommandPresentationV1 => this.runtime.projectPresentation(plan, result);
+    /** Capture before retirement; a complete shared owner transaction adopts
+     * this host route together with rendering/preview/command peers. */
+    prepareResume(): CemNativeGenerationBindingTicket {
+        const previous = this.runtime, nativeCurrent = previous.recoveryWitness(), hostCurrent = this.#hostWitness();
+        const current = () => !this.#closed && this.#runtime === previous && nativeCurrent() && hostCurrent() === true;
+        return issueNativeGenerationBindingTicket(previous.generationParticipant(), current, async context => {
+            const fresh = context.generation.runtime;
+            if (!(fresh instanceof OwnedBrowserCommandInvocation) || !current()) throw Error('cem.command.recovery.binding');
+            const freshCurrent = fresh.recoveryWitness(), stagedCurrent = () => current() && freshCurrent();
+            const previousRevoke = this.#revoke;
+            return { owner: this, current: stagedCurrent, bind: () => {
+                if (!context.active() || context.signal.aborted || !stagedCurrent()) throw Error('cem.command.recovery.binding');
+                this.#enrollment?.remove(); this.#runtime = fresh; this.#revoke = context.revoke; this.#enroll();
+            }, bound: () => { previousRevoke?.(); }, discard: () => {
+                if (this.#runtime === fresh) { this.#enrollment?.remove(); this.#closed = true; }
+            } };
+        });
+    }
     /** One complete pure-authoring admission; never silently consume a mixed group. */
     resume(admission: CemNativeGenerationAdmission): void {
         const authority = claimNativeGenerationAdmission(admission);

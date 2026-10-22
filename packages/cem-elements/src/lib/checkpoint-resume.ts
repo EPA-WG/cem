@@ -1,5 +1,5 @@
 import type { CemCheckpointOwnerReceipt, CemStoredCheckpoint } from './committed-checkpoint.js';
-import { claimNativeGenerationAdmission, type CemNativeGenerationAdmission } from './internal/runtime-support/native-generation.js';
+import { claimNativeGenerationAdmission, claimNativeGenerationBindings, type CemNativeGenerationBindingTicket, type CemNativeGenerationAdmission } from './internal/runtime-support/native-generation.js';
 
 /** Prepared owners must not publish, subscribe or deliver effects while inactive.
  * Native imports and fresh authority acquisition belong to the shared adapter.
@@ -51,7 +51,7 @@ interface Ticket {
     runtimeId: string;
     checkpoint: Uint8Array;
     current: () => boolean;
-    owners: { receipt: Readonly<CemCheckpointOwnerReceipt>; island: string; prepare: CemCheckpointResumeAdapter['prepare'] }[];
+    owners: { receipt: Readonly<CemCheckpointOwnerReceipt>; island: string; authority?: object; prepare: CemCheckpointResumeAdapter['prepare'] }[];
     used: boolean;
     authority?: object;
     cancel?: () => void;
@@ -71,7 +71,7 @@ const fail = (code: string): never => { throw new Error(`cem.checkpoint.resume.$
 /** @internal Publication coordinator only: native-sealed current bytes and
  * original complete endpoint adapters, never a reconstruction from user data. */
 export function issueCheckpointResumeTicket(runtimeId: string, saved: CemStoredCheckpoint,
-    current: () => boolean, adapters: ReadonlyMap<string, CemCheckpointResumeAdapter>, authority?: object): CemCheckpointResumeTicket {
+    current: () => boolean, adapters: ReadonlyMap<string, CemCheckpointResumeAdapter>, authority?: object, authorities?: ReadonlyMap<string, object>): CemCheckpointResumeTicket {
     if (!saved.bytes.byteLength || saved.bytes.byteLength > 1024 * 1024 || !current()) fail('stale');
     if (saved.receipt.operations.some(operation => operation.outcome !== 'acknowledged' && operation.outcome !== 'not-applied')) fail('unknown');
     const witnesses: (() => boolean)[] = [];
@@ -84,7 +84,7 @@ export function issueCheckpointResumeTicket(runtimeId: string, saved: CemStoredC
         if (!adapter || typeof island !== 'string' || !island) return fail('coverage');
         witnesses.push(adapter.witness());
         // Bind a snapshot of the adapter's method; later caller mutation is inert.
-        return { receipt: Object.freeze({ ...receipt }), island, prepare: adapter.prepare.bind(adapter) };
+        return { receipt: Object.freeze({ ...receipt }), island, authority: authorities?.get(receipt.instanceId) ?? authority, prepare: adapter.prepare.bind(adapter) };
     });
     const valid = () => current() && witnesses.every(witness => witness() === true) && current();
     if (!valid()) fail('stale');
@@ -135,7 +135,7 @@ function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
 /** Explicit, complete, one-shot semantic-adapter transaction. It does not
  * retarget old aliases, infer adapters, replay effects or restart Studio. */
 export async function resumeCemCheckpointOwners(admission: CemNativeGenerationAdmission,
-    originals: readonly CemCheckpointResumeTicket[], timeoutMs = 5000): Promise<CemResumedCheckpointOwners> {
+    originals: readonly CemCheckpointResumeTicket[], timeoutMs = 5000, bindings: readonly CemNativeGenerationBindingTicket[] = []): Promise<CemResumedCheckpointOwners> {
     if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 5000) return fail('timeout-config');
     const records = originalTickets(originals);
     // Claim after snapshotting caller slots; proxies cannot reuse a consumed
@@ -217,8 +217,11 @@ export async function resumeCemCheckpointOwners(admission: CemNativeGenerationAd
         });
     };
     try {
-        if (records.length !== fresh.generations.length || !current()) fail('coverage');
-        const pairs = fresh.generations.map(generation => {
+        if (records.some(record => !fresh.generations.some(generation => generation.previousRuntimeId === record.runtimeId))) fail('checkpoint');
+        const hostBindings = claimNativeGenerationBindings(fresh, bindings, records.map(record => record.runtimeId));
+        activationWitnesses.push(...hostBindings.map(binding => binding.current));
+        if (!current()) fail('coverage');
+        const pairs = fresh.generations.filter(generation => records.some(record => record.runtimeId === generation.previousRuntimeId)).map(generation => {
             const record = records.find(record => record.runtimeId === generation.previousRuntimeId);
             if (!record || !sameBytes(record.checkpoint, generation.checkpoint)) return fail('checkpoint');
             return { record, generation };
@@ -226,6 +229,21 @@ export async function resumeCemCheckpointOwners(admission: CemNativeGenerationAd
         if (new Set(pairs.map(pair => pair.record)).size !== records.length) fail('coverage');
         if (records.reduce((count, record) => count + record.owners.length, 0) > 256) fail('limit');
         const owners: { instanceId: string; runtimeId: string; owner: object }[] = [];
+        for (const binding of hostBindings) {
+            const pending = Promise.resolve().then(() => binding.prepare(Object.freeze({ generation: binding.generation,
+                active: () => active && !revoked && fresh.current(), signal: controller.signal, revoke })));
+            void pending.then(prepared => { if (revoked) discard(prepared); }, () => undefined);
+            const remaining = deadline - performance.now();
+            if (remaining <= 0) fail('timeout');
+            const prepared = await Promise.race([pending, aborted, new Promise<never>((_, reject) => {
+                timer = setTimeout(() => reject(Error('cem.checkpoint.resume.timeout')), remaining);
+            })]);
+            clearTimeout(timer); timer = undefined;
+            if (revoked) { discard(prepared); fail('stale'); }
+            staged.push({ current: prepared.current, discard: prepared.discard, bind: prepared.bind, bound: prepared.bound });
+            if (!prepared.owner || typeof prepared.current !== 'function' || typeof prepared.discard !== 'function' || typeof prepared.bind !== 'function') fail('adapter');
+            if (!binding.current() || !current()) fail('stale');
+        }
         for (const { record, generation } of pairs) for (const owner of record.owners) {
             if (!current()) fail('stale');
             const remaining = deadline - performance.now();
@@ -236,7 +254,7 @@ export async function resumeCemCheckpointOwners(admission: CemNativeGenerationAd
                     previousRuntimeId: generation.previousRuntimeId, runtimeId: generation.runtimeId, runtime: generation.runtime,
                     receipt: owner.receipt, island: owner.island, signal: controller.signal, active: () => active && !revoked && fresh.current(), bindOwners, renewOwners,
                 });
-                contexts.set(context, { authority: record.authority, instanceId: owner.receipt.instanceId, revoke });
+                contexts.set(context, { authority: owner.authority, instanceId: owner.receipt.instanceId, revoke });
                 return owner.prepare(context);
             });
             void pending.then(prepared => { if (revoked) discard(prepared); }, () => undefined);

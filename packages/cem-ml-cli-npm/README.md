@@ -423,7 +423,13 @@ captured methods on an old `binding.runtime` stay fenced. Resume consumes the
 original admission once and refuses copied, foreign or mixed-group admissions.
 Revocation fences the binding and disposes the admitted generation. No operation,
 resolver, command, write or presentation is replayed during allocation/resume.
-Combined rendering/preview/command semantic resume remains a separate transaction.
+For combined rendering/preview/command handoff, both the invocation binding and
+`createBrowserCommandServiceBinding(options, { recoveryScope, id, hostWitness })`
+expose `prepareResume()` tickets. Capture those before retirement and pass every
+original binding ticket to the shared cem-elements owner transaction. It claims
+one complete admission and binds all routes before provider renewal; raw aliases
+and artifact handles remain attached to their original workers. See
+[the combined handoff contract](../../docs/committed-checkpoints.md#explicit-runtime-recovery-enrollment).
 
 Legacy `buildBrowserCommandInvocation`, `createBrowserTransformConfigAuthor` and
 `projectBrowserCommandPresentation` retain their original singleton behavior.

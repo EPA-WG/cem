@@ -1,3 +1,4 @@
+import { isolatedMediaResume } from './retained-media.fixtures.js';
 import { retainCemMlTemplateSource, disposeRetainedCemMlTemplate } from './internal/runtime-support/cem-ql-render.js';
 import { connectCemNativeSurface } from './native-surface.js';
 import type { NativeCemValue } from './native-values.js';
@@ -66,6 +67,8 @@ import themeSwitchDeclaration from '../../../cem-components/src/components/cem-t
 import iconButtonDeclaration from '../../../cem-components/src/components/cem-icon-button/cem-icon-button.xhtml?raw';
 // eslint-disable-next-line @nx/enforce-module-boundaries -- production sources exercise shared storage recovery.
 import iconDeclaration from '../../../cem-components/src/components/cem-icon/cem-icon.xhtml?raw';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- production declarative preview is an acceptance input.
+import mediaPreviewDeclaration from '../../../cem-components/src/components/cem-media-preview/cem-media-preview.xhtml?raw';
 
 import { createCemDeclarationScope } from './declaration-scope.js';
 // eslint-disable-next-line @nx/enforce-module-boundaries -- real native checkpoint transport acceptance.
@@ -4001,3 +4004,28 @@ export const ParentKeepsUnchangedChildInputs: Story = {
         } finally { f.dispose(); }
     },
 };
+
+
+async function mediaResumeStory(canvasElement: HTMLElement, scenarios: string[]) {
+    const root = canvasElement.querySelector('section')!, base = new URL('../../dist/', import.meta.url).href;
+    for (const scenario of scenarios) {
+        const frame = document.createElement('iframe'), id = crypto.randomUUID(); root.append(frame); let stop = () => undefined;
+        try {
+            const result = new Promise<string>((resolve, reject) => {
+                let stage = 'load'; const timer = setTimeout(() => reject(Error(`${scenario}/${stage}: retained media timed out`)), 25000);
+                const receive = (event: MessageEvent) => { if (event.source !== frame.contentWindow) return;
+                    if (event.data?.progress) { stage = event.data.progress; return; } if (event.data?.id !== id) return;
+                    if (event.data.error) reject(Error(event.data.error)); else resolve(event.data.result); };
+                window.addEventListener('message', receive); stop = () => { clearTimeout(timer); window.removeEventListener('message', receive); };
+            });
+            const hook = import.meta.env.MODE === 'test' ? 'globalThis.__vitest_browser_runner__ = { wrapDynamicImport: f => f() };' : '';
+            frame.srcdoc = `<script type="module">${hook}(${isolatedMediaResume.toString()})(${JSON.stringify(base)}, url => import(url), ${JSON.stringify(scenario)}, ${JSON.stringify(mediaPreviewDeclaration)})
+                .then(result => parent.postMessage({id:${JSON.stringify(id)},result},'*'), error => parent.postMessage({id:${JSON.stringify(id)},error:error.stack||String(error)},'*'));</script>`;
+            expect(await result).toBe(`${scenario} media passed`);
+        } finally { stop(); frame.remove(); }
+    }
+}
+export const RetainedMediaControllerRepeatedResume: Story = { render: () => '<section aria-label="Retained live and artifact preview controllers"></section>',
+    play: async ({ canvasElement }) => mediaResumeStory(canvasElement, ['worker', 'fallback']) };
+export const RetainedMediaControllerRefusals: Story = { render: () => '<section aria-label="Stale preview controller refusals"></section>',
+    play: async ({ canvasElement }) => mediaResumeStory(canvasElement, ['worker-refuse', 'fallback-release', 'worker-frame']) };

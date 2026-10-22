@@ -1299,3 +1299,16 @@ fn popup_policies_refuse_private_authority_and_incomplete_roles() {
         assert!(validate(&bad.to_string()).is_err());
     }
 }
+
+#[test]
+fn retained_media_preview_has_explicit_mode_and_no_serialized_controller_authority() {
+    for mode in ["live", "artifact-tree"] {
+        let mut s = state();
+        s["capability"] = json!({"kind":"media-preview", "mode":mode, "disposition":"retain-controller"});
+        assert!(validate(&s.to_string()).is_ok());
+        for (key, value) in [("mode", json!("image")), ("disposition", json!("replay")), ("controller", json!("handle"))] {
+            let mut invalid = s.clone(); invalid["capability"][key] = value;
+            assert!(validate(&invalid.to_string()).is_err());
+        }
+    }
+}

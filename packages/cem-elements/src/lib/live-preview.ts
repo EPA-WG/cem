@@ -17,6 +17,8 @@ export interface CemLivePreviewOptions extends CemLivePreviewResources {
 }
 export interface CemLivePreview {
     readonly ready: Promise<void>;
+    /** Original host-only witness for a settled retained frame, never a restart permit. */
+    checkpoint(): (() => boolean) | undefined;
     dispose(): void;
 }
 const blank = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-src 'none'; connect-src 'none'; object-src 'none'"><meta name="referrer" content="no-referrer"><title>Live CEM preview</title></head><body></body></html>`;
@@ -52,7 +54,7 @@ function mountPreview(frame: HTMLIFrameElement, options: CemLivePreviewOptions):
         if (!resource) throw new Error(`cem.preview.resource_denied: ${uri}`);
         return resource;
     };
-    let active = true;
+    let active = true, settled = false;
     let scope: CemDeclarationScope | undefined;
     let previewDocument: Document | undefined;
     let resize: ResizeObserver | undefined;
@@ -136,9 +138,16 @@ function mountPreview(frame: HTMLIFrameElement, options: CemLivePreviewOptions):
             if (!child) break;
             visited.add(child); await runtime.whenRenderSettled(child); check(runtime, child);
         }
-        pendingEnrollment?.remove();
+        pendingEnrollment?.remove(); settled = true;
     })();
-    const controller = Object.freeze({ ready, dispose() {
+    const controller = Object.freeze({ ready, checkpoint() {
+        if (!active || !settled || !previewDocument || scope?.disposed) return undefined;
+        const document = previewDocument, srcdoc = frame.srcdoc;
+        return () => active && settled && !scope?.disposed && frame.isConnected && mounts.get(frame) === controller
+            && frame.contentDocument === document && frame.srcdoc === srcdoc
+            && frame.getAttribute('sandbox') === 'allow-same-origin' && frame.getAttribute('referrerpolicy') === 'no-referrer'
+            && frame.getAttribute('allow') === '';
+    }, dispose() {
         if (!active) return;
         active = false; cancelLoad?.(); cancelLoad = undefined;
         pendingEnrollment?.remove();

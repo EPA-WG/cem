@@ -41,6 +41,7 @@ enum Capability {
         state: Box<crate::checkpoint_interactions::Suggestions>,
     },
     NavigationLandmark {},
+    MediaPreview { mode: String, disposition: String },
     #[serde(rename_all = "camelCase")]
     ActionCommand {
         control_node: String,
@@ -276,6 +277,11 @@ pub fn validate(input: &str) -> Result<String, &'static str> {
         }
     }
     match &state.capability {
+        Some(Capability::MediaPreview { mode, disposition }) => {
+            if !matches!(mode.as_str(), "live" | "artifact-tree") || disposition != "retain-controller" {
+                return Err("cem.checkpoint.runtime.capability");
+            }
+        }
         Some(Capability::ActionCommand { control_node, command, context_key, target, descriptor, disposition }) => {
             let command_valid = command.as_deref().is_none_or(|command| {
                 identity(command) && (command.starts_with("--") && command.len() > 2

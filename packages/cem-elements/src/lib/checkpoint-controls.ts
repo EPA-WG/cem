@@ -34,6 +34,7 @@ export interface CemCheckpointRuntimeState {
         | { kind: 'popup'; open: boolean; state?: CheckpointPopup }
         | { kind: 'native-surface'; phase: 'closed' | 'open'; defaultsInitialized: true; state?: CheckpointSurface }
         | { kind: 'form-control'; changeSuppression?: { revision: number; value: string; disposition: 'suppress-once' }; provider?: { revision: number; consumer: string; validity: string }; authoredValue: string | null; formDisabled: boolean; customValidity: string; selectionRequest: string | null }
+        | { kind: 'media-preview'; mode: 'live' | 'artifact-tree'; disposition: 'retain-controller' }
         | { kind: 'plaintext-editor'; authored: string | null; selectionRequest: string | null }
         | { kind: 'checkable-control'; authoredIndeterminate: boolean }
         | { kind: 'choice-select'; selection: string[]; defaultValues: string[]; activeIndex: number; rangeAnchor: number;

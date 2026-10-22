@@ -5,6 +5,11 @@ const key = Symbol.for('cem.native-generation.groups.v1');
 const state = globalThis[key] ??= { participants: new WeakMap(), receipts: new WeakMap(), identities: new WeakSet(), candidates: new WeakSet() };
 state.admissions ??= new WeakMap();
 state.groupGuards ??= new WeakMap();
+state.authorities ??= new WeakSet();
+state.authorityRecords ??= new WeakMap();
+state.bindingTickets ??= new WeakMap();
+state.bindingClaims ??= new WeakSet();
+state.coverages ??= new WeakMap();
 const fail = code => { throw new Error(`cem.runtime.allocation.${code}`); };
 const object = value => typeof value === 'object' && value !== null;
 function slots(values) {
@@ -47,9 +52,46 @@ export function claimNativeGenerationAdmission(admission) {
     if (!record || record.claimed) fail('admission');
     record.claimed = true;
     if (!record.current()) { record.revoke(); fail('admission'); }
-    return Object.freeze({ current: record.current, revoke: record.revoke, onRevoke: record.onRevoke,
+    const authority = Object.freeze({ current: record.current, revoke: record.revoke, onRevoke: record.onRevoke,
         generations: Object.freeze(record.generations.map(entry => Object.freeze({ ...entry,
             checkpoint: new Uint8Array(entry.checkpoint) }))) });
+    state.authorities.add(authority); state.authorityRecords.set(authority, record.records); return authority;
+}
+
+/** Internal host adapters only. Original tickets bind stable host routes; they
+ * never revive a retired native alias or authorize an external action replay. */
+export function issueNativeGenerationBindingTicket(participant, current, prepare) {
+    const physical = state.participants.get(participant), runtimeId = physical?.runtimeId;
+    if (!physical || typeof runtimeId !== 'string' || !runtimeId || typeof current !== 'function' || typeof prepare !== 'function' || current() !== true) fail('binding');
+    const ticket = Object.freeze({ kind: 'cem-native-generation-binding-ticket' });
+    state.bindingTickets.set(ticket, { physical, runtimeId, current, prepare, used: false });
+    return ticket;
+}
+/** Claim all remaining generations exactly once, alongside original rendering
+ * tickets. The returned callbacks are snapshots from trusted shared adapters. */
+export function claimNativeGenerationBindings(authority, originals, renderingIds) {
+    if (!state.authorities.has(authority) || state.bindingClaims.has(authority) || !Array.isArray(originals) || originals.length > 16) fail('binding');
+    const entries = originals.length ? slots(originals) : [];
+    const records = entries.map(ticket => state.bindingTickets.get(ticket));
+    if (records.some(record => !record || record.used) || new Set(records).size !== records.length) fail('binding');
+    const physical = state.authorityRecords.get(authority);
+    if (!physical || records.some(record => !physical.includes(record.physical))) fail('binding');
+    const ids = [...renderingIds, ...records.map(record => record.runtimeId)];
+    if (ids.length !== authority.generations.length || new Set(ids).size !== ids.length
+        || authority.generations.some(generation => !ids.includes(generation.previousRuntimeId))) fail('coverage');
+    if (!authority.current() || records.some(record => record.current() !== true)) fail('binding-stale');
+    state.bindingClaims.add(authority);
+    const prepared = records.map(record => ({ generation: authority.generations[physical.indexOf(record.physical)],
+        current: record.current, prepare: record.prepare }));
+    for (const record of records) { record.used = true; record.prepare = undefined; record.current = () => false; }
+    return prepared;
+}
+/** Original attestation from a shared adapter that checked full physical owner
+ * coverage. Duplicate logical members may share only this exact attestation. */
+export function registerNativeGenerationCoverage(participant, current) {
+    if (!state.participants.has(participant) || typeof current !== 'function' || current() !== true) fail('coverage');
+    const coverage = Object.freeze({ kind: 'cem-native-generation-coverage' });
+    state.coverages.set(coverage, { participant, current }); return coverage;
 }
 
 /** An explicit complete set of original shared runtime participants. It never
@@ -127,7 +169,7 @@ export class CemNativeGenerationGroup {
             this.#state = 'admitted';
             gate.admitted = true;
             const admission = Object.freeze({ generations: Object.freeze(generations), revoke });
-            state.admissions.set(admission, { claimed: false, revoke,
+            state.admissions.set(admission, { claimed: false, revoke, records: [...this.#records],
                 onRevoke: listener => {
                     if (typeof listener !== 'function' || revokeListeners.length) fail('admission');
                     if (!admitted()) listener(); else revokeListeners.push(listener);
@@ -172,7 +214,7 @@ export class CemNativeRecoveryScope {
         if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 5000) fail('timeout-config');
         if (this.#disposed || this.#preparing || !this.#members.size) fail('enrollment');
         this.#preparing = true;
-        const revision = this.#revision, members = [...this.#members.values()], witnesses = [], participants = [];
+        const revision = this.#revision, members = [...this.#members.values()], witnesses = [], participants = [], coverages = new Map();
         const cancellation = new AbortController();
         const current = () => !this.#disposed && revision === this.#revision
             && witnesses.every(witness => witness() === true) && !this.#disposed && revision === this.#revision;
@@ -187,10 +229,14 @@ export class CemNativeRecoveryScope {
                     const entries = slots(prepared.participants);
                     if (entries.some(entry => !state.participants.has(entry))) fail('coverage');
                     witnesses.push(prepared.current);
-                    participants.push(...entries);
-                    // Two logical coordinators sharing one physical heap need
-                    // combined owner coverage, never independent retirements.
-                    if (new Set(participants).size !== participants.length) fail('enrollment-overlap');
+                    for (const entry of entries) {
+                        const coverage = state.coverages.get(prepared.coverage);
+                        if (coverage && (coverage.participant !== entry || coverage.current() !== true)) fail('coverage');
+                        if (participants.includes(entry)) {
+                            if (!coverage || coverages.get(entry) !== prepared.coverage) fail('enrollment-overlap');
+                        } else { participants.push(entry); coverages.set(entry, prepared.coverage); }
+                        if (coverage) witnesses.push(coverage.current);
+                    }
                     if (participants.length > 16) fail('limit');
                     if (!current()) fail('enrollment-stale');
                 }

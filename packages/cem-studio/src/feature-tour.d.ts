@@ -82,6 +82,12 @@ export interface CemStudioResourceCommandPreviewOptions extends CemStudioResourc
 }
 
 export interface CemStudioBrowserValidator {
+    /** Explicit host-only preparation; does not close/retire/replay a runtime. */
+    prepareRecovery(): {
+        invocation: import('@epa-wg/cem-ml-cli/browser-commands').OwnedBrowserCommandInvocation;
+        commands: import('@epa-wg/cem-ml-cli/browser-commands').BrowserCommandServiceClient;
+        bindings: readonly import('@epa-wg/cem-elements').CemNativeGenerationBindingTicket[];
+    };
     /** Native CEM AST description/editing; does not execute or persist a graph. */
     authorGraph(request: { source: string; edit?: { node: string; attribute: string; value: string | null }; create?: { parent?: string | null; kind: string; id: string; attributes?: Record<string, string> }; edge?: { node: string; role: 'parent' | 'input' | 'with'; source?: string | null; name?: string } }): CemStudioGraphConfiguration;
     readonly capability: Readonly<Record<string, unknown>>;

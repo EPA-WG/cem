@@ -34,6 +34,7 @@ export interface CemNativeRecoveryEndpoint {
      * Busy, unknown or unsupported members must reject; never omit a heap. */
     readonly prepare: (signal: AbortSignal) => Promise<Readonly<{
         participants: readonly CemNativeGenerationParticipant[];
+        coverage?: CemNativeGenerationCoverage;
         current: () => boolean;
     }>>;
 }
@@ -57,3 +58,30 @@ export declare function claimNativeGenerationAdmission(admission: CemNativeGener
     onRevoke(listener: () => void): void;
     generations: CemNativeGenerationAdmission['generations'];
 }>;
+
+/** @internal Full native owner coverage attested by a shared lifecycle adapter. */
+export interface CemNativeGenerationCoverage { readonly kind: 'cem-native-generation-coverage' }
+export declare function registerNativeGenerationCoverage(participant: CemNativeGenerationParticipant, current: () => boolean): CemNativeGenerationCoverage;
+export interface CemNativeGenerationBindingTicket { readonly kind: 'cem-native-generation-binding-ticket' }
+export interface CemNativeGenerationBindingContext {
+    readonly generation: CemNativeGenerationAdmission['generations'][number];
+    readonly active: () => boolean;
+    readonly signal: AbortSignal;
+    readonly revoke: () => void;
+}
+export interface CemPreparedGenerationBinding {
+    readonly owner: object;
+    readonly current: () => boolean;
+    readonly discard: () => void;
+    readonly bind: () => void;
+    readonly bound?: () => void;
+}
+/** @internal Original shared host adapters; never exposed to authored data. */
+export declare function issueNativeGenerationBindingTicket(participant: CemNativeGenerationParticipant, current: () => boolean,
+    prepare: (context: CemNativeGenerationBindingContext) => Promise<CemPreparedGenerationBinding>): CemNativeGenerationBindingTicket;
+/** @internal One complete original admission, claimed once by a shared transaction. */
+export declare function claimNativeGenerationBindings(authority: ReturnType<typeof claimNativeGenerationAdmission>,
+    tickets: readonly CemNativeGenerationBindingTicket[], renderingIds: readonly string[]): readonly Readonly<{
+        generation: CemNativeGenerationAdmission['generations'][number]; current: () => boolean;
+        prepare: (context: CemNativeGenerationBindingContext) => Promise<CemPreparedGenerationBinding>;
+    }>[];

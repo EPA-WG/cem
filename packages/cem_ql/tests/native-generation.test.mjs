@@ -161,3 +161,53 @@ test('owner cleanup runs behind the closed gate before allocation abort and phys
     admission.revoke();
     assert.deepEqual(events, ['owner cleanup', 'allocation abort', 'physical disposal']);
 });
+
+
+test('shared physical participants require one original complete coverage attestation', async () => {
+    const { CemNativeRecoveryScope, registerNativeGenerationCoverage } = await import('../runtime/native-generation.mjs');
+    for (const invalid of ['none', 'copy', 'stale', 'valid']) {
+        const a = source(), scope = new CemNativeRecoveryScope(); let current = true;
+        const coverage = registerNativeGenerationCoverage(a.participant, () => current);
+        scope.enroll({ id: 'parent', kind: 'rendering', prepare: async () => ({ participants: [a.participant], coverage, current: () => true }) });
+        scope.enroll({ id: 'child', kind: 'live-preview', prepare: async () => ({ participants: [a.participant],
+            coverage: invalid === 'none' ? undefined : invalid === 'copy' ? { ...coverage } : coverage, current: () => true }) });
+        if (invalid === 'stale') current = false;
+        if (invalid === 'valid') {
+            const prepared = await scope.prepare(), admission = await prepared.createGenerationGroup().allocate([a.retire()]);
+            assert.equal(admission.generations.length, 1); admission.revoke();
+        } else await assert.rejects(scope.prepare(), /coverage|overlap/);
+        scope.dispose();
+    }
+});
+
+test('mixed semantic tickets cover every remaining physical generation and consume original authority once', async () => {
+    const { issueNativeGenerationBindingTicket, claimNativeGenerationBindings, claimNativeGenerationAdmission } = await import('../runtime/native-generation.mjs');
+    const a = source(), b = source(), group = new CemNativeGenerationGroup([a.participant, b.participant]);
+    const admission = await group.allocate([a.retire(), b.retire()]), authority = claimNativeGenerationAdmission(admission);
+    const rendering = authority.generations[0].previousRuntimeId, runtimeId = authority.generations[1].previousRuntimeId;
+    let valid = true;
+    const ticket = issueNativeGenerationBindingTicket(b.participant, () => valid, async () => ({}));
+    assert.throws(() => claimNativeGenerationBindings({ ...authority }, [ticket], [rendering]), /binding/);
+    assert.throws(() => claimNativeGenerationBindings(authority, [{ ...ticket }], [rendering]), /binding/);
+    assert.throws(() => claimNativeGenerationBindings(authority, [], [rendering]), /coverage/);
+    valid = false; assert.throws(() => claimNativeGenerationBindings(authority, [ticket], [rendering]), /stale/);
+    valid = true; const bindings = claimNativeGenerationBindings(authority, [ticket], [rendering]);
+    assert.equal(bindings[0].generation.previousRuntimeId, runtimeId);
+    assert.throws(() => claimNativeGenerationBindings(authority, [ticket], [rendering]), /binding/);
+    admission.revoke();
+});
+
+
+test('matching runtime labels never substitute a foreign physical binding participant', async () => {
+    const { issueNativeGenerationBindingTicket, claimNativeGenerationBindings, claimNativeGenerationAdmission } = await import('../runtime/native-generation.mjs');
+    const runtimeId = crypto.randomUUID();
+    const create = () => registerNativeGeneration({}, runtimeId, async () => ({ identity: {}, runtimeId: crypto.randomUUID(), runtime: {}, current: () => true, discard() {} }));
+    const source = create(), foreign = create();
+    assert.throws(() => issueNativeGenerationBindingTicket({ ...source }, () => true, async () => ({})), /binding/);
+    assert.throws(() => issueNativeGenerationBindingTicket(runtimeId, () => true, async () => ({})), /binding/);
+    const ticket = issueNativeGenerationBindingTicket(source, () => true, async () => ({}));
+    const admission = await new CemNativeGenerationGroup([foreign]).allocate([completeNativeRetirement(foreign, new Uint8Array([1]))]);
+    const authority = claimNativeGenerationAdmission(admission);
+    assert.throws(() => claimNativeGenerationBindings(authority, [ticket], []), /binding/);
+    admission.revoke();
+});

@@ -66,10 +66,19 @@ or enable replacement/resume.
 `CemNativeRecoveryScope` explicitly enrolls rendering runtimes and child live
 previews across physical heaps. Pass it through `CemElementRuntime` host options;
 preview children inherit worker/checkpoint policy and retain copied source bytes
-for native reimport. Scope preparation refuses incomplete, busy, overlapping or
+for native reimport. Scope preparation refuses incomplete, busy, unattested overlapping or
 unsupported members and guards the complete native allocation. Enrollment does
 not enable automatic recovery or replace semantic owner tickets. See
 [explicit runtime enrollment](../../docs/committed-checkpoints.md#explicit-runtime-recovery-enrollment).
+
+Loaded live/artifact media controllers retain their original frames and resource
+maps during explicit handoff. Use `CemCheckpointPublicationCoordinator.combine()`
+for original coordinators sharing one physical heap; complete native owner/source
+coverage remains mandatory. Mixed command bindings supply original
+`prepareResume()` tickets as the fourth argument to `resumeCemCheckpointOwners`.
+All command/rendering/preview routes bind before provider renewal. Static media
+policies and complete whole-Studio acceptance remain separate prerequisites.
+
 
 Explicit shared owner adapters can now use `publication.prepareResume()` before
 retirement and `resumeCemCheckpointOwners(admission, tickets)` after original fresh

@@ -1,4 +1,4 @@
-import { initializeFreshGeneration, registerNativeGeneration, completeNativeRetirement, type CemNativeGenerationParticipant, type CemNativeGenerationCandidate, type CemNativeRecoveryScope, type CemNativeRecoveryEnrollment } from './generation-lifecycle.js';
+import { issueNativeGenerationBindingTicket, type CemNativeGenerationBindingTicket, initializeFreshGeneration, registerNativeGeneration, completeNativeRetirement, type CemNativeGenerationParticipant, type CemNativeGenerationCandidate, type CemNativeRecoveryScope, type CemNativeRecoveryEnrollment } from './generation-lifecycle.js';
 import type { CommandNativeRetirementHandoff, CommandNativeRetiredGeneration, CommandNativeEmbeddingOwnership } from './native-embedding.js';
 export type { CommandNativeEmbeddingOwnership, CommandNativeInventory, CommandNativeClosureValidation, CommandNativeRetirementHandoff, CommandNativeRetiredGeneration } from './native-embedding.js';
 import { CommandNativeClientCheckpoint, type CommandNativeDrain } from './native-admission.js';
@@ -441,6 +441,17 @@ export class BrowserCommandServiceClient {
         } });
     }
 
+    /** Original activity/outcome witness survives expected worker termination. */
+    recoveryWitness(hostWitness: () => (() => boolean)): () => boolean {
+        this.#requireOpen();
+        if (this.#unknownWriteOutcome) throw Error('cem.command.recovery.unknown-write-outcome');
+        if (this.#executions.size || this.#actions.size || this.#capabilityCalls) throw Error('cem.command.recovery.busy');
+        const currentHost = hostWitness(), revision = this.#recoveryRevision;
+        if (typeof currentHost !== 'function' || currentHost() !== true) throw Error('cem.command.recovery.host');
+        return () => revision === this.#recoveryRevision && !this.#unknownWriteOutcome && !this.#capabilityCalls && !this.#executions.size && !this.#actions.size
+            && currentHost() === true && revision === this.#recoveryRevision;
+    }
+
     /** Explicit retirement only; no replacement, resume or action replay. */
     retireNativeGeneration(proof: CommandNativeDrain, ownership: readonly CommandNativeEmbeddingOwnership[],
         handoff: CommandNativeRetirementHandoff, timeoutMs = 5000,
@@ -833,6 +844,64 @@ function validateInitialization(value: unknown): BrowserWorkerInitializePayload 
     }
     return payload as unknown as BrowserWorkerInitializePayload;
 }
+
+/** Stable host execution route. Artifact handles and captured raw client methods
+ * remain owned by their exact worker; original host callbacks are retained by
+ * the private fresh-worker allocator, never reconstructed from checkpoint data. */
+export class BrowserCommandServiceBinding {
+    #runtime: BrowserCommandServiceClient;
+    #closed = false;
+    #enrollment?: CemNativeRecoveryEnrollment;
+    #scope?: Pick<CemNativeRecoveryScope, 'enroll'>;
+    #id: string;
+    #hostWitness: () => (() => boolean);
+    #revoke?: () => void;
+    private constructor(runtime: BrowserCommandServiceClient, scope: Pick<CemNativeRecoveryScope, 'enroll'> | undefined,
+        id: string, hostWitness: () => (() => boolean)) {
+        this.#runtime = runtime; this.#scope = scope; this.#id = id; this.#hostWitness = hostWitness;
+        this.#enrollment = scope && runtime.enrollRecovery(scope, id, hostWitness);
+    }
+    static async create(options: BrowserCommandServiceClientOptions, recovery: {
+        recoveryScope?: Pick<CemNativeRecoveryScope, 'enroll'>; id?: string; hostWitness?: () => (() => boolean);
+    } = {}): Promise<BrowserCommandServiceBinding> {
+        const { recoveryScope, id = `commands:${crypto.randomUUID()}`, hostWitness = () => () => true } = recovery;
+        const startup = recoveryScope?.enroll({ id, kind: 'command-service', prepare: async () => { throw Error('cem.command.recovery.busy'); } });
+        let runtime: BrowserCommandServiceClient | undefined;
+        try {
+            runtime = await createBrowserCommandServiceClient(options); startup?.remove();
+            return new BrowserCommandServiceBinding(runtime, recoveryScope, id, hostWitness);
+        } catch (error) { startup?.remove(); await runtime?.close(); throw error; }
+    }
+    get runtime(): BrowserCommandServiceClient {
+        if (this.#closed) throw Error('cem.runtime.generation.retired');
+        return this.#runtime;
+    }
+    get capability() { return this.runtime.capability; }
+    get worker() { return this.runtime.worker; }
+    execute = (request: CommandServiceRequestV1, options?: BrowserCommandServiceExecuteOptions): BrowserCommandServiceHandle => this.runtime.execute(request, options);
+    prepareResume(): CemNativeGenerationBindingTicket {
+        const previous = this.runtime, activity = previous.recoveryWitness(this.#hostWitness);
+        const current = () => !this.#closed && this.#runtime === previous && activity();
+        return issueNativeGenerationBindingTicket(previous.generationParticipant(), current, async context => {
+            const fresh = context.generation.runtime;
+            if (!(fresh instanceof BrowserCommandServiceClient) || !current()) throw Error('cem.command.recovery.binding');
+            const freshCurrent = fresh.recoveryWitness(this.#hostWitness), stagedCurrent = () => current() && freshCurrent();
+            const previousRevoke = this.#revoke;
+            return { owner: this, current: stagedCurrent, bind: () => {
+                if (!context.active() || context.signal.aborted || !stagedCurrent()) throw Error('cem.command.recovery.binding');
+                this.#enrollment?.remove(); this.#runtime = fresh; this.#revoke = context.revoke;
+                this.#enrollment = this.#scope && fresh.enrollRecovery(this.#scope, this.#id, this.#hostWitness);
+            }, bound: () => { previousRevoke?.(); }, discard: () => {
+                if (this.#runtime === fresh) { this.#enrollment?.remove(); this.#closed = true; }
+            } };
+        });
+    }
+    async close(): Promise<void> {
+        if (this.#closed) return;
+        this.#closed = true; this.#enrollment?.remove(); this.#revoke?.(); await this.#runtime.close();
+    }
+}
+export const createBrowserCommandServiceBinding = BrowserCommandServiceBinding.create;
 
 function validateOptions(options: BrowserCommandServiceClientOptions): void {
     if (!isRecord(options) || !isRecord(options.host)) {

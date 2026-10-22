@@ -8,6 +8,31 @@ const options = () => ({ runtimeId: 'host-session', generation: 1, policyStamp: 
 const read = (coordinator: CemCheckpointPublicationCoordinator) => JSON.parse(new TextDecoder().decode(coordinator.current()!.bytes));
 
 describe('all-owner publication checkpoint capture', () => {
+    it('combines complete original domains on one heap and erases aggregate bytes on privacy withdrawal', async () => {
+        for (const change of ['input', 'policy', 'dispose', 'missing']) {
+            const domain = new CemNativeCheckpointDomain('main-thread'); domain.bindNativeRuntime({});
+            const a = new CemCheckpointPublicationCoordinator(options()), b = a.fork();
+            const first = domain.client(), second = domain.client();
+            const adapter = { witness: () => () => true, prepare: async () => ({ owner: {}, current: () => true, discard: () => undefined }) };
+            const one = a.register('a', () => '<template>a</template>', () => true, 0, () => [], {
+                host: {} as HTMLElement, nativeClient: first, resume: adapter, resolve: () => undefined });
+            const two = b.register('b', () => '<template>b</template>', () => true, 0, () => [], {
+                host: {} as HTMLElement, nativeClient: second, resume: adapter, resolve: () => undefined });
+            one.published(metadata); two.published({ ...metadata, instanceId: 'b' });
+            await expect(a.capture()).rejects.toThrow('unavailable'); await expect(b.capture()).rejects.toThrow('unavailable');
+            if (change === 'missing') {
+                domain.client(); expect(() => CemCheckpointPublicationCoordinator.combine([a, b])).toThrow('coverage');
+                a.dispose(); continue;
+            }
+            const combined = CemCheckpointPublicationCoordinator.combine([a, b]); await combined.capture();
+            expect(read(combined).receipt.nativeRuntimes[0].clients).toHaveLength(2);
+            expect(read(combined).owners).toHaveLength(2);
+            if (change === 'input') { one.input(); expect(combined.current()).toBeUndefined(); combined.dispose(); }
+            else if (change === 'policy') { a.setPolicy('withdrawn', () => false); expect(combined.lastCommitted()).toBeUndefined(); }
+            else { b.dispose(); expect(combined.lastCommitted()).toBeUndefined(); }
+            a.dispose();
+        }
+    });
     it('propagates parent privacy changes and disposal to independent preview coordinators', async () => {
         const parent = new CemCheckpointPublicationCoordinator(options()), child = parent.fork(), nested = child.fork();
         const owner = child.register('a', () => '<template>private preview source</template>');
