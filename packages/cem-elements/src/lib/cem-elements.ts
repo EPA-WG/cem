@@ -140,6 +140,7 @@ import {
 } from './repository.js';
 import { CEM_FORM_CONTROL_CAPABILITY, cemFormControlCheckpoint, getCemEditorProvider } from './form-control-capability.js';
 import { CEM_PLAINTEXT_EDITOR_CAPABILITY, cemPlaintextEditorEventValue, cemPlaintextEditorCheckpoint, prepareCemPlaintextEditorResume } from './plaintext-editor-capability.js';
+import { cemRetainedFormCheckpoint, prepareCemRetainedFormResume } from './checkpoint-form-resume.js';
 import { CEM_NAVIGATION_LANDMARK_CAPABILITY, cemNavigationLandmarkCheckpoint } from './navigation-landmark-capability.js';
 import { CEM_DISCLOSURE_PANEL_CAPABILITY } from './disclosure-panel-capability.js';
 import { CEM_SORT_ACTION_CAPABILITY } from './sort-action-capability.js';
@@ -3212,8 +3213,14 @@ export class CemElementRuntime {
     private checkpointResumeAdapter(instance: HTMLElement, compiled: CompiledDeclaration,
         publication: () => CemCheckpointPublicationOwner): CemCheckpointResumeAdapter | undefined {
         const plaintext = compiled.behavior === CEM_PLAINTEXT_EDITOR_CAPABILITY;
-        if (compiled.behavior && !plaintext || compiled.mode !== 'cem-ml' || !this.usesProcessingHost(compiled) || !this.retainedStylesheets) return undefined;
-        const supported = (runtime: CemCheckpointRuntimeState) => (plaintext ? runtime.capability?.kind === 'plaintext-editor' : !runtime.capability)
+        const formKind = compiled.behavior === CEM_FORM_CONTROL_CAPABILITY ? 'form-control'
+            : compiled.behavior === CEM_CHECKABLE_CONTROL_CAPABILITY ? 'checkable-control'
+                : compiled.behavior === CEM_CHOICE_SELECT_CAPABILITY ? 'choice-select'
+                    : compiled.behavior === CEM_EDITABLE_CHOICE_CAPABILITY ? 'editable-choice' : undefined;
+        if (compiled.behavior && !plaintext && !formKind || compiled.mode !== 'cem-ml' || !this.usesProcessingHost(compiled) || !this.retainedStylesheets) return undefined;
+        const supported = (runtime: CemCheckpointRuntimeState) => (plaintext ? runtime.capability?.kind === 'plaintext-editor'
+            : formKind ? runtime.capability?.kind === formKind && !!cemRetainedFormCheckpoint(instance, formKind)
+                && !(runtime.capability.kind === 'form-control' && runtime.capability.provider) : !runtime.capability)
             && !runtime.references && !runtime.nativePublication && !runtime.manualListbox && !runtime.standaloneDatalist
             && !runtime.placements?.length && runtime.resources.every(resource => ['http', 'local-storage', 'location'].includes(resource.kind));
         const eligible = () => {
@@ -3225,7 +3232,9 @@ export class CemElementRuntime {
         return {
             witness: () => {
                 eligible(); const fingerprint = this.checkpointResumeHostWitness(instance, compiled);
-                return () => { try { return this.checkpointResumeHostWitness(instance, compiled) === fingerprint; } catch { return false; } };
+                const form = formKind ? prepareCemRetainedFormResume(instance, formKind,
+                    cemRetainedFormCheckpoint(instance, formKind), this.checkpointControls(instance)!, () => this.checkpointControls(instance)) : undefined;
+                return () => { try { return (!form || form.current()) && this.checkpointResumeHostWitness(instance, compiled) === fingerprint; } catch { return false; } };
             },
             prepare: async context => {
                 // The original retained island is the exact sealed source.
@@ -3269,7 +3278,9 @@ export class CemElementRuntime {
                         return resolution.resolvedUrl === resource.url && resolution.resourcePolicyStamp === value.request.resourcePolicyStamp;
                     } });
                 const native = preparedCheckpointProcessing(prepared.owner), scope = native.host.ownerScope;
-                const editor = plaintext ? prepareCemPlaintextEditorResume(instance, native.state.capability, native.controls) : undefined;
+                const widget = plaintext ? prepareCemPlaintextEditorResume(instance, native.state.capability, native.controls)
+                    : formKind ? prepareCemRetainedFormResume(instance, formKind, native.state.capability, native.controls, () => this.checkpointControls(instance)) : undefined;
+                const formWitness = formKind ? this.checkpointResumeHostWitness(instance, compiled) : undefined;
                 const css = compiled.stylesheets.length ? await native.host.compile(cssSource).result : undefined;
                 let binding = this.checkpointScopeBindings.get(scope);
                 if (!binding || binding.host !== native.host) {
@@ -3289,12 +3300,16 @@ export class CemElementRuntime {
                 }
                 let activated = false, resume: Promise<void> | undefined;
                 const current = () => prepared.current() && instance.isConnected && this.declarationForInstance(instance) === compiled
-                    && (activated || !editor || editor.current());
+                    && (activated || !widget || widget.current());
                 const owner: CemResumedElementOwner = Object.freeze({ element: instance, resume: () => {
                     if (!context.active() || context.signal.aborted || !instance.isConnected || this.declarationForInstance(instance) !== compiled)
                         return Promise.reject(new Error('cem.checkpoint.resume.stale'));
                     if (resume) return resume;
-                    editor?.activate();
+                    if (this.checkpointComposing.has(instance) || this.checkpointInteracting.has(instance)
+                        || (this.checkpointEventSequences.get(instance) ?? 0) !== context.receipt.acceptedEventSequence
+                        || formWitness !== undefined && this.checkpointResumeHostWitness(instance, compiled) !== formWitness)
+                        return Promise.reject(new Error('cem.checkpoint.resume.stale'));
+                    widget?.activate();
                     this.admittedCheckpointBinding(route);
                     const client = native.host.checkpointClient;
                     if (!client) return Promise.reject(new Error('cem.checkpoint.resume.binding'));

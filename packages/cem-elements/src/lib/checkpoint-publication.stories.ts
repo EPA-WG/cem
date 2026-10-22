@@ -2857,7 +2857,9 @@ export const BuiltInOwnerUnsupportedScopes: Story = {
                 const plain = await f.create('{p | Covered plain owner}'); await f.runtime.whenRenderSettled(plain);
                 const owner = legacy
                     ? await f.create(`{local-storage @slice=draft @key="${key}" @type=text @value=recorded}{p | Legacy storage owner}`)
-                    : await f.create(declarationTemplate(fieldDeclaration), 'cem-ml', root, undefined, 'form-control');
+                    : await f.create(declarationTemplate(treeDeclaration), 'cem-ml', root,
+                        '<cem-tree-item value="docs" label="Documentation"></cem-tree-item>', 'tree-view',
+                        { label: 'Project resources', selection: 'single', 'selected-values': 'docs' });
                 await f.runtime.whenRenderSettled(owner); await waitFor(() => f.coordinator.capture());
                 expect(decode(f.coordinator).owners).toHaveLength(2);
                 expect(() => f.coordinator.prepareResume()).toThrow('unsupported');
@@ -3012,4 +3014,170 @@ export const ColoredEditorFreshRuntimeResume: Story = {
             } finally { stop(); frame.remove(); }
         }
     },
+};
+
+/** Retain real form owners while replacing their physical native generation. */
+async function isolatedFormResume(base: string, load: (url: string) => Promise<any>, scenario: string, sources: string[]): Promise<string> {
+    const support = new URL('lib/internal/runtime-support/', base).href;
+    const binding = await load(`${support}native-runtime.js`), generation = binding.isolateCemFallbackGeneration();
+    await generation.ready(); const embedding = generation.claimOwnership();
+    const [{ CemElementRuntime }, { createCemDeclarationScope }, { CemCheckpointPublicationCoordinator }, { resumeCemCheckpointOwners }, { CemNativeGenerationGroup }, hosts, providers] = await Promise.all([
+        load(new URL('lib/cem-elements.js', base).href), load(new URL('lib/declaration-scope.js', base).href),
+        load(new URL('lib/checkpoint-publication.js', base).href), load(new URL('lib/checkpoint-resume.js', base).href),
+        load(`${support}native-generation.js`), load(`${support}processing-host-runtime.js`), load(new URL('lib/form-control-capability.js', base).href),
+    ]);
+    const check = (value: unknown, message: string) => { if (!value) throw Error(message); };
+    const fallback = scenario !== 'worker', scope = createCemDeclarationScope({ document });
+    const factory = () => { if (fallback) throw Error('owned form fallback'); return new Worker(`${support}processing-worker.js`, { type: 'module' }); };
+    const coordinator = new CemCheckpointPublicationCoordinator({ runtimeId: crypto.randomUUID(), generation: 1, policyStamp: 'private',
+        allowOwner: () => true, seal: (candidate: string, receipt: string) => binding.sealCommittedCheckpoint(candidate, receipt) });
+    const runtime = new CemElementRuntime({ declarationScope: scope, declarationTag: `form-declaration-${crypto.randomUUID()}`,
+        checkpointPublication: coordinator, processingWorkerFactory: factory });
+    const capture = async () => {
+        for (let attempt = 0; ; attempt++) {
+            try { return await coordinator.capture(); }
+            catch (error) { if (attempt >= 100) throw error; await new Promise(resolve => setTimeout(resolve, 10)); }
+        }
+    };
+    const refused = async (action: () => unknown, pattern: RegExp) => {
+        try { await action(); } catch (error) { check(pattern.test(String(error)), `unexpected refusal: ${String(error)}`); return; }
+        throw Error('unsafe form resume was admitted');
+    };
+    let admission: any, stage = 'create';
+    try {
+        const form = document.createElement('form'), outside = document.createElement('button');
+        document.body.append(form, outside);
+        const owners: any[] = [], kinds = ['form-control', 'checkable-control', 'choice-select', 'editable-choice'];
+        for (const [index, source] of sources.entries()) {
+            const declaration = document.createElement('div'), template = document.createElement('template'), tag = `form-owner-${crypto.randomUUID()}`;
+            declaration.setAttribute('tag', tag); declaration.setAttribute('capability', kinds[index]); template.type = 'text/cem-ml';
+            template.textContent = new DOMParser().parseFromString(source, 'text/html').querySelector('template')!.content.textContent;
+            declaration.append(template); document.body.append(declaration); runtime.registerDeclaration(declaration); await runtime.whenDeclarationSettled(declaration);
+            const owner = document.createElement(tag) as any; owner.setAttribute('name', `control-${index}`);
+            if (index === 0) { owner.setAttribute('value', 'Default field'); owner.setAttribute('required', ''); owner.setAttribute('selection-request', 'consumed'); owner.setAttribute('selection-start', '0'); owner.setAttribute('selection-end', '1'); }
+            if (index === 1) { owner.setAttribute('checked', ''); owner.setAttribute('indeterminate', ''); }
+            if (index >= 2) {
+                const payload = document.createElement('template');
+                payload.innerHTML = '<cem-option value="a" selected>Alpha</cem-option><cem-option value="b">Beta</cem-option><cem-option value="c">Gamma</cem-option>';
+                owner.append(payload); owner.setAttribute('value-request', 'consumed');
+            }
+            if (index === 2 && scenario === 'multiple') owner.setAttribute('multiple', '');
+            form.append(owner); await runtime.whenRenderSettled(owner); owners.push(owner);
+        }
+        const [field, checkable, select, editable] = owners;
+        const input = field.querySelector('input') as HTMLInputElement, checkbox = checkable.querySelector('input') as HTMLInputElement;
+        const editor = editable.querySelector('input') as HTMLInputElement;
+        const controls = owners.map(owner => owner.querySelector('[part~=control]'));
+        checkbox.checked = false; checkbox.indeterminate = false; select.value = 'b';
+        if (scenario === 'multiple') select.selectedValues = ['b', 'c'];
+        editor.value = 'Unsaved choice é😀'; editor.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        editor.setSelectionRange(2, 8, 'backward'); editable.setAttribute('readonly', '');
+        await Promise.all(owners.map(owner => runtime.whenRenderSettled(owner)));
+        input.focus(); input.setSelectionRange(input.value.length, input.value.length);
+        check(document.execCommand('insertText', false, ' native draft'), 'native form editing failed');
+        const provider = providers.getCemEditorProvider(field), lease = provider.lease({});
+        check(lease.commit('Committed é😀', { revision: provider.revision }), 'provider commit failed'); lease.release();
+        field.setCustomValidity('Review the draft'); input.setSelectionRange(1, 6, 'backward');
+        await runtime.whenRenderSettled(field); await capture();
+        const before = coordinator.lastCommitted();
+        check(before.receipt.owners.length === 4 && JSON.parse(new TextDecoder().decode(before.bytes)).owners.some((owner: any) => owner.island.includes('suppress-once')), 'missing control/suppression checkpoint');
+        let inputs = 0, changes = 0, trustedChanges = 0; form.addEventListener('input', () => inputs++); form.addEventListener('change', () => changes++);
+        document.addEventListener('change', event => { if (event.target === input && event.isTrusted) trustedChanges++; }, true);
+        if (scenario === 'composition' || scenario === 'provider') {
+            const held = scenario === 'provider' ? provider.lease({}) : undefined;
+            if (!held) input.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+            await refused(() => coordinator.capture(), /unavailable/); held?.release(); return `${scenario} form resume passed`;
+        }
+        stage = 'retire'; const group = new CemNativeGenerationGroup([coordinator.generationParticipant()]);
+        const consent = fallback ? generation.retirementConsent([embedding]) : undefined;
+        const proof = await coordinator.closeRenderingGeneration(5000, consent); await capture(); const ticket = coordinator.prepareResume();
+        const retired = await coordinator.retireRenderingGeneration(proof, 5000, consent);
+        if (scenario === 'newer-value') input.value = 'Newer property-only draft';
+        if (scenario === 'newer-check') checkbox.indeterminate = true;
+        admission = await group.allocate([retired]); stage = 'prepare';
+        if (scenario.startsWith('newer-')) {
+            await refused(() => resumeCemCheckpointOwners(admission, [ticket]), /stale|coverage|ticket/);
+            check(scenario === 'newer-value' ? input.value === 'Newer property-only draft' : checkbox.indeterminate, 'refusal overwrote a live edit');
+            return `${scenario} form resume passed`;
+        }
+        const resumed = await resumeCemCheckpointOwners(admission, [ticket]);
+        if (scenario.startsWith('late-')) {
+            if (scenario === 'late-value') editor.value = 'Late unreported draft';
+            if (scenario === 'late-composition') input.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+            if (scenario === 'late-default') checkable.removeAttribute('checked');
+            const held = scenario === 'late-provider' ? provider.lease({}) : undefined;
+            await refused(async () => { for (const owner of resumed.owners) await owner.owner.resume(); }, /form-stale|resume.stale/);
+            held?.release();
+            if (scenario === 'late-value') check(editor.value === 'Late unreported draft', 'activation overwrote late choice edit');
+            return `${scenario} form resume passed`;
+        }
+        stage = 'activate'; for (const owner of resumed.owners) await owner.owner.resume(); await capture();
+        check(owners.every((owner, index) => owner.querySelector('[part~=control]') === controls[index]), 'native control was replaced');
+        check(input.value === 'Committed é😀' && document.activeElement === input && input.selectionStart === 1 && input.selectionEnd === 6
+            && input.selectionDirection === 'backward', 'field edit/focus/selection was replayed or lost');
+        check(!checkbox.checked && !checkbox.indeterminate && checkbox.defaultChecked, 'checkable live/default state was replayed');
+        check(select.value === 'b' && editor.value === 'Unsaved choice é😀', 'choice edit or consumed value request was replayed');
+        check(editor.readOnly && editor.selectionStart === 2 && editor.selectionEnd === 8 && editor.selectionDirection === 'backward', 'choice readonly/selection state lost');
+        if (scenario === 'multiple') check(JSON.stringify(select.selectedValues) === '["b","c"]'
+            && JSON.stringify(new FormData(form).getAll('control-2')) === '["b","c"]', 'multiple choice state/submission lost');
+        check(field.validationMessage === 'Review the draft' && !field.validity.valid, 'custom validity lost');
+        check(new FormData(form).get('control-0') === 'Committed é😀' && new FormData(form).get('control-2') === 'b'
+            && new FormData(form).get('control-3') === 'Unsaved choice é😀' && !new FormData(form).has('control-1'), 'fresh form submission incorrect');
+        check(inputs === 0 && changes === 0, 'resume manufactured input/change');
+        check(coordinator.lastCommitted().receipt.owners.every((owner: any, index: number) => owner.acceptedEventSequence === before.receipt.owners[index].acceptedEventSequence), 'resume advanced input authority');
+        stage = 'consumed change'; outside.focus();
+        check(trustedChanges === 1 && changes === 0 && !providers.cemFormControlCheckpoint(field)?.changeSuppression,
+            'already-consumed trusted native change was not suppressed exactly once');
+        input.focus(); input.setSelectionRange(input.value.length, input.value.length); document.execCommand('insertText', false, ' fresh'); outside.focus();
+        check(inputs === 1 && changes === 1, 'new native change was suppressed'); await runtime.whenRenderSettled(field); await capture();
+        check(coordinator.lastCommitted().receipt.owners.some((owner: any, index: number) => owner.acceptedEventSequence > before.receipt.owners[index].acceptedEventSequence), 'fresh input did not renew publication');
+        stage = 'reset'; form.reset(); await Promise.all(owners.map(owner => runtime.whenRenderSettled(owner)));
+        check(input.value === 'Default field' && checkbox.checked && !checkbox.indeterminate && select.value === 'a'
+            && editable.value === 'a' && editor.value === 'Alpha', 'reset defaults were replaced by checkpoint edits');
+        field.setCustomValidity(''); field.setAttribute('disabled', ''); await runtime.whenRenderSettled(field);
+        check(!new FormData(form).has('control-0') && input.disabled, 'fresh disabled state not reflected');
+        field.removeAttribute('disabled'); await runtime.whenRenderSettled(field); field.value = ''; await runtime.whenRenderSettled(field);
+        check(field.validity.valueMissing, 'fresh required validity not synchronized'); await capture();
+        stage = 'second retirement'; const next = admission.generations[0].runtime, nextEmbedding = fallback ? next.claimOwnership() : undefined;
+        const nextConsent = fallback ? next.retirementConsent([nextEmbedding]) : undefined;
+        const nextProof = await coordinator.closeRenderingGeneration(5000, nextConsent); await capture(); coordinator.prepareResume();
+        await coordinator.retireRenderingGeneration(nextProof, 5000, nextConsent);
+        check(owners.every((owner, index) => owner.querySelector('[part~=control]') === controls[index]), 'second retirement replaced controls');
+        return `${scenario} form resume passed`;
+    } catch (error) { throw Error(`${scenario}/${stage}: ${String(error)}`, { cause: error }); }
+    finally { admission?.revoke(); coordinator.dispose(); scope.dispose(); document.body.replaceChildren(); }
+}
+async function formResumeStory(canvasElement: HTMLElement, scenarios: string[]) {
+    const root = canvasElement.querySelector('section')!, base = new URL('../../dist/', import.meta.url).href;
+    for (const scenario of scenarios) {
+        const frame = document.createElement('iframe'), id = crypto.randomUUID(); frame.title = 'Isolated form recovery'; root.append(frame);
+        let stop = () => undefined;
+        try {
+            const completed = new Promise<string>((resolve, reject) => {
+                const timer = setTimeout(() => reject(Error(`form resume timed out: ${scenario}`)), 15000);
+                const receive = (event: MessageEvent) => {
+                    if (event.source !== frame.contentWindow || event.data?.id !== id) return;
+                    clearTimeout(timer); if (event.data.error) reject(Error(event.data.error)); else resolve(event.data.result);
+                };
+                window.addEventListener('message', receive); stop = () => { clearTimeout(timer); window.removeEventListener('message', receive); };
+            });
+            const hook = import.meta.env.MODE === 'test' ? 'globalThis.__vitest_browser_runner__ = { wrapDynamicImport: f => f() };' : '';
+            frame.srcdoc = `<script type="module">${hook}(${isolatedFormResume.toString()})(${JSON.stringify(base)}, url => import(url), ${JSON.stringify(scenario)}, ${JSON.stringify([fieldDeclaration, checkboxDeclaration, selectDeclaration, autocompleteDeclaration])})
+                .then(result => parent.postMessage({ id: ${JSON.stringify(id)}, result }, '*'),
+                    error => parent.postMessage({ id: ${JSON.stringify(id)}, error: error.stack || String(error) }, '*'));</script>`;
+            expect(await completed).toBe(`${scenario} form resume passed`);
+        } finally { stop(); frame.remove(); }
+    }
+}
+export const FormFreshRuntimeResume: Story = {
+    render: () => '<section aria-label="Form fresh runtime resume"></section>',
+    play: async ({ canvasElement }) => formResumeStory(canvasElement, ['worker', 'fallback', 'multiple']),
+};
+export const FormFreshRuntimeRefusals: Story = {
+    render: () => '<section aria-label="Form fresh runtime refusal"></section>',
+    play: async ({ canvasElement }) => formResumeStory(canvasElement, ['newer-value', 'newer-check', 'late-value', 'composition', 'provider']),
+};
+export const FormFreshRuntimeLateAuthorityRefusals: Story = {
+    render: () => '<section aria-label="Form late authority refusal"></section>',
+    play: async ({ canvasElement }) => formResumeStory(canvasElement, ['late-composition', 'late-provider', 'late-default']),
 };

@@ -487,7 +487,21 @@ activation. Paint is discarded and regenerated on the fresh generation, outside
 canonical data; delayed retired replies retain no painting authority. HTML
 reparsing of sealed islands is avoided because it normalizes authored CRLF.
 
-Other capability, reference/provider, placement and legacy storage/location rendering
+Standalone `form-control`, `checkable-control`, `choice-select` and
+`editable-choice` owners also admit fresh processing. Native validation supplies
+the named scalar control/capability DTOs. A shared browser adapter compares them
+with retained controller metadata and the original control objects, form ownership
+and effective disabled state. It preserves edited values, checked/mixed state,
+choice previews and multiple selections, authored reset defaults, validity and
+UTF-16 selection. Fresh evaluation synchronizes the existing form internals;
+it does not reapply defaults, selection/value requests or dispatch input/change.
+The exact revision/value/control-bound one-shot native change suppression survives
+a committed provider edit; the next genuine edit clears it as usual. Active provider
+leases/subscribers are refused until their separate renewal contracts are implemented.
+New edits, changed defaults, control replacement and composition refuse stale
+preparation or activation, including between admission and explicit owner activation.
+
+Other widget, reference/provider, placement and legacy storage/location rendering
 owners remain unsupported by this adapter; a complete domain containing one
 refuses resume. Widget authority and declarative recovery status remain follow-up
 work. Studio does not restart itself automatically.

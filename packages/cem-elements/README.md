@@ -62,11 +62,15 @@ allocation. Exact private checkpoint bytes, complete physical/owner coverage,
 current host/privacy witnesses and terminal journals guard one atomic owner gate.
 Failure cancels and discards the complete fresh group. Fresh fallback `release`
 permits only native cleanup after fencing. This transaction leaves DOM untouched.
-Built-in plain retained CEM-ML and shared plaintext-editor owners prepare fresh processing contexts and
+Built-in plain retained CEM-ML, plaintext-editor and standalone form/checkable/choice owners prepare fresh processing contexts and
 approved HTTP sources. After complete admission, call each returned
 `CemResumedElementOwner.resume()` to renew its publication endpoint and evaluate
 on the fresh generation, preserving retained DOM, edits and installed styles.
-Other capability/provider/placement owners and legacy storage/location rendering still
+Form adapters retain the original controls, reset defaults, validity, focus and
+selection, including consumed selection/value requests and one-shot provider-commit
+change suppression. They reject newer edits and do not manufacture input/change
+events. Provider relationships require separately renewed authority.
+Other widget/provider/placement owners and legacy storage/location rendering still
 refuse resume. Studio recovery remains manual. See [explicit owner resume transactions](../../docs/committed-checkpoints.md#explicit-owner-resume-transactions).
 
 

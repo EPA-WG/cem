@@ -1184,7 +1184,15 @@ it does not infer an adapter from an island or restart Studio. Built-in plain
 retained CEM-ML owners provide adapters for canonical slices, native form-control
 properties and approved HTTP source bytes. The shared plaintext-editor adapter
 also admits native-validated live text, UTF-16 selection and consumed selection
-requests. Other capability, provider/reference,
+requests. Standalone form/checkable/select/editable-choice owners likewise retain
+their original native controls and private reset/validity/selection state, including
+multiple values and consumed requests. Preparation compares the native-validated
+DTOs and exact control/form identities with live state; activation rechecks private
+metadata, host markup, composition and accepted input sequence. It neither restores
+old edits over current controls nor emits input/change. Exact one-shot change
+suppression after a completed provider commit remains effective across retirement,
+and a subsequent edit emits normally. Active provider relationships are refused;
+this adapter does not renew their leases. Other widget, provider/reference,
 placement and legacy storage/location rendering still refuse with
 `cem.checkpoint.resume.unsupported`. Generic HTML hydration refuses checkpoint
 extensions. Complete widget adapters and declarative recovery status remain
