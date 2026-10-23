@@ -26,7 +26,15 @@
   {div @part=workspace @data-cem-studio-workspace-mount="" | {slot | {cem-studio-workbench-layout}}}
   {footer @part=status @aria-label="Studio status" |
    {span @role=status @aria-live=polite | {$ | if datadom.slices.workspaceStatus == "opening" { "Opening…" } else { if datadom.slices.workspaceStatus == "dirty" { "Unsaved changes retained" } else { if datadom.slices.workspaceStatus == "sample" { "Sample · Clone to edit" } else { if datadom.slices.workspaceStatus == "ready" { "Ready" } else { datadom.slices.workspaceStatus } } } }}}
-
+   {cem-recovery-status
+    @state={datadom.slices.recoveryStatus.state ?? "unconfigured"}
+    @reason={datadom.slices.recoveryStatus.reason ?? "not-configured"}
+    @runtime-count={datadom.slices.recoveryStatus.runtimeCount ?? 0}
+    @owner-count={datadom.slices.recoveryStatus.ownerCount ?? 0}
+    @acknowledged-count={datadom.slices.recoveryStatus.acknowledgedCount ?? 0}
+    @admission-count={datadom.slices.recoveryStatus.admissionCount ?? 0}
+    @unknown-operation-count={datadom.slices.recoveryStatus.unknownOperationCount ?? 0}
+    @unsupported-owner-count={datadom.slices.recoveryStatus.unsupportedOwnerCount ?? 0}}
   }
  }
  }

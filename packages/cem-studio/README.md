@@ -427,3 +427,13 @@ can supply the original shared runtime via
 `installCemStudioShellComponents({ runtime })` before first installation.
 See [the admission contract](../../docs/committed-checkpoints.md#complete-studio-admission-acceptance)
 and [active recovery tasks](../../docs/todo.md).
+
+### Recovery status
+
+The status bar uses shared declarative `cem-recovery-status` and the shared
+metadata observer from `cem-elements`. Expand it for runtime registrations, owner
+publications and blocking metadata. Enrollment never means a current checkpoint
+or credential eligibility. Production checkpoint publication remains unconfigured
+and automatic recovery remains off. Entered passwords and one-time codes block
+recovery; the display never reads or clears them. See the
+[shared contract](../cem-components/docs/recovery-status-contract.md).

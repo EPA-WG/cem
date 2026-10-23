@@ -1546,3 +1546,12 @@ kind preserves the empty control and other consented edits without exporting a
 secret. Nonempty reset values/custom errors and file controls remain refused;
 property-only changes still invalidate currentness. See the
 [credential privacy policy](../../docs/committed-checkpoints.md#credential-privacy-policy-for-live-login-recovery).
+
+### Advisory recovery observation
+
+`runtime.observeRecoveryStatus()` (or an explicit `CemRecoveryStatusObserver`)
+provides a frozen, bounded, metadata-only status stream for declarative consumers.
+It does not inspect credentials, run native work, capture or authorize recovery.
+Dispose with the view; suspend publications across checkpoint quiescence and
+release only after fresh owners settle. See the
+[shared recovery-status contract](../cem-components/docs/recovery-status-contract.md).

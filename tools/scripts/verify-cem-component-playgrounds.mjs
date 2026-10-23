@@ -34,6 +34,7 @@ const feedbackOnly = process.argv.includes('--feedback-only');
 const disclosureDataOnly = process.argv.includes('--disclosure-data-only');
 const layoutOnly = process.argv.includes('--layout-only');
 const sourceEditorOnly = process.argv.includes('--source-editor-only');
+const recoveryStatusOnly = process.argv.includes('--recovery-status-only');
 const timeRangeOnly = process.argv.includes('--time-range-only');
 const datepickerOnly = process.argv.includes('--datepicker-only');
 const autocompleteOnly = process.argv.includes('--autocomplete-only');
@@ -57,7 +58,8 @@ try {
     if (nativeDatalistOnly && historyOnly) throw new Error('Choose one evidence mode');
     if (!evidenceOnly && (headed || nativeBrowser !== 'chromium' || evidenceOutput)) throw new Error('Browser evidence flags require --native-datalist-only or --history-only');
     browser = await ({ chromium, firefox, webkit })[nativeBrowser].launch({ headless: !headed });
-    if (!installedOnly && sourceEditorOnly) await verifyGalleries(`${origin}/packages/cem-components/playgrounds/`, ['cem-source-editor']);
+    if (!installedOnly && recoveryStatusOnly) await verifyRecoveryStatus(`${origin}/packages/cem-components/playgrounds/`);
+    else if (!installedOnly && sourceEditorOnly) await verifyGalleries(`${origin}/packages/cem-components/playgrounds/`, ['cem-source-editor']);
     else if (!installedOnly && fieldsetOnly) await verifyFieldset(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && passiveOnly) await verifyPassive(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && feedbackOnly) await verifyFeedback(`${origin}/packages/cem-components/playgrounds/`);
@@ -107,7 +109,8 @@ try {
         await mkdir(target, { recursive: true });
         execFileSync('tar', ['-xzf', join(temporary, output[0].filename), '--strip-components=1', '-C', target]);
     }
-    if (sourceEditorOnly) await verifyGalleries(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`, ['cem-source-editor']);
+    if (recoveryStatusOnly) await verifyRecoveryStatus(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    else if (sourceEditorOnly) await verifyGalleries(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`, ['cem-source-editor']);
     else if (fieldsetOnly) await verifyFieldset(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     else if (passiveOnly) await verifyPassive(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     else if (feedbackOnly) await verifyFeedback(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
@@ -175,6 +178,7 @@ try {
     else if (suggestionsOnly && !evidenceOnly) console.log(`Suggestions playground and gallery verified from ${verifiedLocations}.`);
     else if (actionOnly) console.log(`Action playground and gallery verified from ${verifiedLocations}.`);
     else if (navigationOnly) console.log(`Gallery navigation verified from ${verifiedLocations}.`);
+    else if (recoveryStatusOnly) console.log(`Recovery status property playground, gallery, inherited themes and forced colors verified from ${verifiedLocations}.`);
     else if (sourceEditorOnly) console.log(`Source editor property playground and gallery verified from ${verifiedLocations}.`);
     else if (passiveOnly) console.log(`${passiveTags.join(', ')} playgrounds verified from ${verifiedLocations}.`);
     else if (!evidenceOnly) console.log(`Action, field, text-field, textarea, icon, icon-button, menu-item, select, suggestions, theme-switch and bundle playgrounds verified from ${verifiedLocations}.`);
@@ -984,6 +988,7 @@ async function verifyGalleries(baseUrl, tags) {
     const folders = await readdir(join(root, 'packages/cem-components/src/components'), { withFileTypes: true });
     for (const folder of folders.filter(entry => entry.isDirectory() && (!tags || tags.includes(entry.name)))) {
         const tag = folder.name;
+        if (tag === 'cem-recovery-status') { await verifyRecoveryStatus(baseUrl); continue; }
         const context = await browser.newContext();
         const page = await context.newPage();
         try {
@@ -2688,4 +2693,54 @@ async function verifyPassive(baseUrl) {
         assert.deepEqual(errors, []);
     } finally { await context.close(); }
     await verifyBundle(new URL('cem-bundle.html', baseUrl).href);
+}
+
+async function verifyRecoveryStatus(baseUrl) {
+    const page = await browser.newPage(), errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    try {
+        await page.goto(`${baseUrl}cem-recovery-status.html`);
+        const host = page.locator('main .properties cem-recovery-status'), summary = host.locator('summary');
+        await summary.waitFor();
+        assert.match(await summary.textContent(), /Not configured/);
+        await summary.click();
+        await page.getByRole('textbox', { name: 'label', exact: true }).fill('Workspace');
+        await page.getByRole('radio', { name: 'observing', exact: true }).check();
+        await page.waitForFunction(() => document.querySelector('main .properties cem-recovery-status summary')?.textContent.includes('Workspace · Status observed'));
+        assert.equal(await host.locator('details').evaluate(node => node.open), true);
+        await page.getByRole('textbox', { name: 'runtime-count', exact: true }).fill('3');
+        await page.waitForFunction(() => document.querySelector('main .properties cem-recovery-status')?.textContent.includes('Runtime registrations: 3.'));
+        assert.match(await host.textContent(), /Entered passwords or one-time codes block recovery/);
+        assert.match(await host.textContent(), /Automatic recovery is off/);
+        assert.equal(await host.locator('button, input, a').count(), 0);
+        assert.equal(await page.getByRole('link', { name: 'Full examples and variation matrix', exact: true }).getAttribute('href'), './cem-recovery-status-gallery.html');
+        await page.goto(`${baseUrl}cem-recovery-status-gallery.html`);
+        const examples = page.locator('main cem-demo-element cem-recovery-status');
+        await examples.first().locator('summary').waitFor();
+        await page.waitForFunction(() => document.querySelectorAll('main cem-demo-element cem-recovery-status').length === 14);
+        assert.equal(await examples.count(), 14);
+        const themed = page.locator('main [data-gallery-theme] cem-recovery-status');
+        assert.equal(await themed.count(), 5);
+        for (const host of await themed.all()) {
+            await host.evaluate(node => {
+                node.style.setProperty('--cem-typography-ui-font-size', '19px');
+                node.style.setProperty('--cem-palette-comfort-text', 'rgb(24, 36, 48)');
+                node.style.setProperty('--cem-coupling-zone-min', '57px');
+            });
+            assert.deepEqual(await host.locator('summary').evaluate(node => ({ size: getComputedStyle(node).fontSize, color: getComputedStyle(node).color, target: getComputedStyle(node).minBlockSize })),
+                { size: '19px', color: 'rgb(24, 36, 48)', target: '57px' });
+        }
+        await page.emulateMedia({ forcedColors: 'active' });
+        await page.keyboard.press('Tab');
+        const first = examples.first().locator('summary'); await first.focus();
+        const forced = await first.evaluate(node => {
+            const probe = document.createElement('span'); probe.style.color = 'CanvasText'; document.body.append(probe);
+            const text = getComputedStyle(probe).color; probe.style.color = 'Highlight'; const highlight = getComputedStyle(probe).color; probe.remove();
+            const style = getComputedStyle(node);
+            return { active: matchMedia('(forced-colors: active)').matches, color: style.color, text, highlight, outline: style.outlineColor, width: parseFloat(style.outlineWidth), focus: node.matches(':focus-visible') };
+        });
+        assert.equal(forced.active, true); assert.equal(forced.color, forced.text);
+        assert.equal(forced.focus, true); assert.equal(forced.outline, forced.highlight); assert(forced.width > 0);
+        assert.deepEqual(errors, []);
+    } finally { await page.close(); }
 }

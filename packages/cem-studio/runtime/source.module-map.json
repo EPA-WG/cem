@@ -244,6 +244,10 @@
             "path": "../../../node_modules/@epa-wg/cem-components/src/components/cem-badge/cem-badge.xhtml",
             "contentType": "application/xhtml+xml"
         },
+        "@epa-wg/cem-components/components/cem-recovery-status": {
+            "path": "../../../node_modules/@epa-wg/cem-components/src/components/cem-recovery-status/cem-recovery-status.xhtml",
+            "contentType": "application/xhtml+xml"
+        },
         "@epa-wg/cem-components/components/cem-card": {
             "path": "../../../node_modules/@epa-wg/cem-components/src/components/cem-card/cem-card.xhtml",
             "contentType": "application/xhtml+xml"
@@ -785,6 +789,10 @@
         },
         "@epa-wg/cem-elements/dist/lib/checkpoint-publication.js": {
             "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/checkpoint-publication.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/dist/lib/recovery-status.js": {
+            "path": "../../../node_modules/@epa-wg/cem-elements/dist/lib/recovery-status.js",
             "contentType": "text/javascript"
         },
         "@epa-wg/cem-elements/dist/lib/checkpoint-resume.js": {

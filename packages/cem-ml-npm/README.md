@@ -32,7 +32,7 @@ permit, while disposal checks the original current-owner callback before clearin
 all memory/module/instance references. Native closure and census revisions still
 apply. This is a low-level host API, with the same unmanaged boundary as raw
 WASM exports. Browser command consumers should use the managed
-[owned invocation binding](../cem-ml-cli-npm/README.md#recovery-group-enrollment),
+[owned invocation binding](https://github.com/EPA-WG/cem/blob/develop/packages/cem-ml-cli-npm/README.md#recovery-group-enrollment),
 which adds bounded admission, complete embedding ownership, group allocation and
 explicit stable host rebinding.
 

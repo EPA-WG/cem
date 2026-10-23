@@ -453,4 +453,26 @@
       {export @id=cem-source-editor-gallery-html @out="../dist/{file}" @content-type="text/html"}
     }
   }
+  {import @id=cem-recovery-status @src="cem-recovery-status.html" @content-type="text/html" |
+    {rewrite-importmap @id=cem-recovery-status-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
+      {export @id=cem-recovery-status-html @out="../dist/{file}" @content-type="text/html"}
+    }
+  }
+  {import @id=cem-recovery-status-gallery @src="cem-recovery-status-gallery.html" @content-type="text/html" |
+    {rewrite-importmap @id=cem-recovery-status-gallery-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
+      {export @id=cem-recovery-status-gallery-html @out="../dist/{file}" @content-type="text/html"}
+    }
+  }
+
+  {import @id=cem-workspace @src="cem-workspace.html" @content-type="text/html" |
+    {rewrite-importmap @id=cem-workspace-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
+      {export @id=cem-workspace-html @out="../dist/{file}" @content-type="text/html"}
+    }
+  }
+  {import @id=cem-workspace-gallery @src="cem-workspace-gallery.html" @content-type="text/html" |
+    {rewrite-importmap @id=cem-workspace-gallery-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
+      {export @id=cem-workspace-gallery-html @out="../dist/{file}" @content-type="text/html"}
+    }
+  }
+
 }

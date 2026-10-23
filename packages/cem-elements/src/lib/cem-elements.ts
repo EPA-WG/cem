@@ -1,3 +1,4 @@
+import { CemRecoveryStatusObserver } from './recovery-status.js';
 import { prepareCemProviderHandoff, type CemProviderHandoff } from './checkpoint-provider-handoff.js';
 import { prepareCemEditorProviderHandoff } from './form-control-capability.js';
 import { prepareCemCheckpointProcessing, preparedCheckpointProcessing, type CemResumedProcessingOwner } from './checkpoint-processing.js';
@@ -2986,6 +2987,12 @@ export class CemElementRuntime {
         return [CEM_LIVE_PREVIEW_CAPABILITY, CEM_SUGGESTIONS_CAPABILITY, CEM_FORM_CONTROL_CAPABILITY, CEM_POPUP_CAPABILITY, CEM_NATIVE_SURFACE_CAPABILITY, CEM_COMPOSITE_MENU_CAPABILITY].includes(compiled.behavior!);
     }
     get checkpointCaptureEnabled(): boolean { return !!this.checkpointPublication; }
+
+    /** Host-owned metadata observer; dispose with the consuming view. Does not
+     * grant checkpoint consent, inspect private fields or enable recovery. */
+    observeRecoveryStatus(): CemRecoveryStatusObserver {
+        return new CemRecoveryStatusObserver({ publication: this.checkpointPublication, recoveryScope: this.recoveryScope });
+    }
 
     private checkpointControls(instance: HTMLElement): CemCheckpointControlState | undefined {
         const bounds = this.renderBounds.get(instance);

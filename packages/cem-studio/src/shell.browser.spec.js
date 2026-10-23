@@ -129,6 +129,22 @@ describe('CEM Studio installable application shell', () => {
         expect(root.children).toHaveLength(0);
     });
 
+    it('uses shared advisory recovery status without enabling capture, and retains disclosure through shell updates', async () => {
+        const root = document.createElement('main'); document.body.append(root);
+        const shell = await mountCemStudioApplicationShell({ root, storage: memoryStorage({}) }); mountedShells.push(shell);
+        const host = root.querySelector('footer cem-recovery-status'), details = host.querySelector('details'), summary = host.querySelector('summary');
+        expect(shell.recovery.snapshot()).toMatchObject({ state: 'unconfigured', automaticRecovery: false, credentialPolicy: 'block-entered' });
+        expect(summary.textContent).toContain('Recovery · Not configured');
+        expect(details.textContent).toContain('Entered passwords or one-time codes block recovery');
+        expect(details.textContent).toContain('Automatic recovery is off');
+        summary.click(); await new Promise(resolve => setTimeout(resolve, 0)); await shell.whenSettled(); summary.focus();
+        shell.setWorkspaceState('Login · login.html - CEM Studio', 'dirty'); shell.recovery.refresh(); await shell.whenSettled();
+        expect(root.querySelector('footer cem-recovery-status')).toBe(host); expect(host.querySelector('details')).toBe(details);
+        expect(details.open).toBe(true); expect(document.activeElement).toBe(summary);
+        expect(host.querySelector('button, a, input')).toBeNull(); expect(shell.view.errors).toEqual([]);
+        shell.dispose(); expect(shell.recovery.snapshot().state).toBe('unavailable');
+    });
+
     it('applies inherited workspace and control rhythm through installed shared layouts', async () => {
         const root = document.createElement('main');
         root.style.setProperty('--cem-gap-related', '31px');

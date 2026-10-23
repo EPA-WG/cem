@@ -36,7 +36,7 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
     progress('command services ready');
     const repository = createCemStudioProjectRepository({ databaseName, validateProject: validator.validateProject });
     const request = (operation, parameters = {}) => ({ protocolVersion: 1, repository: 'studio-projects', requestRevision: 1, operation, parameters });
-    let session, workbench, view, shell, stage = 'install';
+    let session, workbench, view, shell, releaseStatus, stage = 'install';
     const setStage = value => { stage = value; progress(value); };
     try {
         setStage('install'); await installCemStudioShellComponents({ runtime });
@@ -56,6 +56,14 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
             examples: [{ id: 'login', name: 'Login', load: async () => bundle }] });
         const root = document.createElement('main'); document.body.append(root);
         setStage('shell'); shell = await mountCemStudioApplicationShell({ root, storage });
+        const statusHost = root.querySelector('cem-recovery-status');
+        check(statusHost && shell.recovery.snapshot().automaticRecovery === false, 'missing shared advisory recovery status');
+        shell.recovery.refresh(); await shell.whenSettled();
+        statusHost.querySelector('summary').click(); await new Promise(resolve => setTimeout(resolve, 0)); await shell.whenSettled();
+        check(statusHost.querySelector('details').open, 'recovery disclosure did not open');
+        // Host telemetry is an input: quiesce it before original capture/drain,
+        // and resume it only after fresh owners and their publications settle.
+        releaseStatus = shell.recovery.suspend();
         setStage('workbench'); view = await mountCemStudioWorkbench({ root: shell.root, workbench }); await view.whenSettled();
         setStage('clone'); await workbench.openEntity('sample=login'); workbench.requestAction('clone');
         await workbench.submitAction({ name: ['Recovery acceptance'] }); await view.whenSettled();
@@ -87,6 +95,7 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
         check(complete || unreviewedPreviews().length > 0 && blockers().some(owner => owner.tag === 'cem-media-preview'), 'refusal lane has no unknown preview mode');
         if (privacy) {
             setStage('Login credential privacy');
+            check(statusHost.textContent.includes('Entered passwords or one-time codes block recovery'), 'status omitted credential policy');
             await workbench.selectWorkbench(JSON.stringify({ projectId: project, entryId: 'live-view' }));
             await view.whenSettled();
             workbench.selectPreviewConfiguration('render-graph');
@@ -132,6 +141,8 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
                 check(!JSON.stringify([...records]).includes(credential) && !JSON.stringify([...records]).includes(identity), 'credential entered draft/session storage');
             };
             password.value = credential; email.value = identity;
+            const observation = JSON.stringify(shell.recovery.snapshot());
+            check(!observation.includes(credential) && !observation.includes(identity) && !observation.includes('ready'), 'recovery observation exposed credentials or asserted eligibility');
             await assertPrivacy(); // Password-manager/property-only edits cannot bypass the policy.
             password.dispatchEvent(new InputEvent('input', { bubbles: true }));
             email.dispatchEvent(new InputEvent('input', { bubbles: true }));
@@ -273,6 +284,14 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
             setStage(`build ${cycle}`);
             await workbench.buildProjectPreview(); await view.whenSettled();
             check(workbench.snapshot().projectPreview?.attempt?.status === 'succeeded', `native build after handoff failed: ${JSON.stringify(workbench.snapshot().projectPreview?.attempt)}`);
+            releaseStatus(); await shell.whenSettled(); shell.recovery.refresh(); await shell.whenSettled();
+            const status = shell.recovery.snapshot();
+            check(root.querySelector('cem-recovery-status') === statusHost && status.ownerCount > 0
+                && status.runtimeCount === recoveryScope.inspect().members.length && status.automaticRecovery === false,
+            'fresh recovery status lost shared membership or enabled recovery');
+            check(statusHost.querySelector('details').open, 'handoff closed the recovery disclosure');
+            check(Number(statusHost.getAttribute('owner-count')) === status.ownerCount, 'status projection did not resume after handoff');
+            releaseStatus = shell.recovery.suspend();
         }
         await selectUnreviewedPreview();
         check(unreviewedPreviews().length > 0 && blockers().some(owner => owner.tag === 'cem-media-preview'), 'unknown preview mode incorrectly published');
@@ -287,7 +306,7 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
         return { ...(privacy ? { privacyRefusals: 2, checkpointBytes, groupBytes } : {}), recoveries: complete ? 3 : 0, refusedRecoveries: complete ? 0 : 3, edits, unknownRefused: true, unavailable: [...new Set(blockers().map(owner => owner.tag))].sort() };
     } catch (error) { throw Error(`${mode}/${stage}: ${error.stack || error}`, { cause: error }); }
     finally {
-        view?.dispose(); shell?.dispose(); workbench?.dispose(); session?.dispose(); await validator?.close(); repository.close();
+        shell?.recovery.dispose(); releaseStatus?.(); view?.dispose(); shell?.dispose(); workbench?.dispose(); session?.dispose(); await validator?.close(); repository.close();
         admission?.revoke(); combined?.dispose(); coordinator.dispose(); scope.dispose(); recoveryScope.dispose();
         await new Promise((resolve, reject) => { const deletion = indexedDB.deleteDatabase(databaseName); deletion.onsuccess = resolve; deletion.onerror = () => reject(deletion.error); });
     }

@@ -62,3 +62,5 @@ export { prepareCemCheckpointProcessing, type CemCheckpointProcessingOptions, ty
 export { resumeCemCheckpointOwners, type CemCheckpointResumeAdapter, type CemCheckpointResumeContext, type CemCheckpointResumeTicket, type CemPreparedCheckpointOwner, type CemResumedCheckpointOwners } from './lib/checkpoint-resume.js';
 
 export type { CemResumedElementOwner } from './lib/cem-elements.js';
+
+export { CemRecoveryStatusObserver, type CemRecoveryStatus, type CemRecoveryStatusState, type CemRecoveryStatusReason, type CemRecoveryStatusOptions } from './lib/recovery-status.js';

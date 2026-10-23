@@ -133,7 +133,11 @@
         "./playgrounds/cem-tab.html": "./dist/cem-tab.html",
         "./playgrounds/cem-tab-gallery.html": "./dist/cem-tab-gallery.html",
         "./playgrounds/cem-step.html": "./dist/cem-step.html",
-        "./playgrounds/cem-step-gallery.html": "./dist/cem-step-gallery.html"
+        "./playgrounds/cem-step-gallery.html": "./dist/cem-step-gallery.html",
+        "./playgrounds/cem-recovery-status.html": "./dist/cem-recovery-status.html",
+        "./playgrounds/cem-recovery-status-gallery.html": "./dist/cem-recovery-status-gallery.html",
+        "./playgrounds/cem-workspace.html": "./dist/cem-workspace.html",
+        "./playgrounds/cem-workspace-gallery.html": "./dist/cem-workspace-gallery.html"
     },
     "files": [
         "dist",

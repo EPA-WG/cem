@@ -1,0 +1,37 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-recovery-status">
+  <template id="cem-recovery-status" type="text/cem-ml">
+    {slice @name=disclosure | closed}
+    {attribute @name=label | Recovery}
+    {attribute @name=state | unconfigured}
+    {attribute @name=reason | not-configured}
+    {attribute @name=runtime-count | 0}
+    {attribute @name=owner-count | 0}
+    {attribute @name=acknowledged-count | 0}
+    {attribute @name=admission-count | 0}
+    {attribute @name=unknown-operation-count | 0}
+    {attribute @name=unsupported-owner-count | 0}
+    {style @type=text/css |```
+:scope { display: block; min-inline-size: 0; }
+:scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
+[part~='root'] { display: grid; gap: var(--cem-gap-related); color: var(--cem-palette-comfort-text); font-family: var(--cem-typography-ui-font-family); font-size: var(--cem-typography-ui-font-size); line-height: var(--cem-typography-ui-line-height); overflow-wrap: anywhere; }
+[part~='details'] { min-inline-size: 0; }
+[part~='summary'] { cursor: pointer; min-block-size: var(--cem-coupling-zone-min); align-content: center; }
+[part~='summary']:focus-visible { outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1); outline-offset: var(--cem-stroke-indicator-offset); }
+[part~='description'] { margin: 0; padding-block: var(--cem-inset-container); }
+@media (forced-colors: active) { [part~='root'] { color: CanvasText; } [part~='summary']:focus-visible { outline-color: Highlight; } }
+    ```}
+    {div @part=root |
+      {details @part=details @slice=disclosure @slice-event=toggle @slice-value="@newState" @open={if datadom.slices.disclosure == "open" {true} else {null}} |
+       {summary @part=summary @aria-label={datadom.attributes.aria-label} |
+        {span @part=status @role=status @aria-live=polite @aria-atomic=true |
+        {slot | {$label}} · {$ | if $state == "unconfigured" { "Not configured" } else { if $state == "observing" { "Status observed" } else { if $state == "busy" { "Work in progress" } else { if $state == "blocked" { "Blocked" } else { "Unavailable" } } } }}
+        }
+       }
+        {p @part=description | {$ | if $reason == "not-configured" { "Checkpoint publication is not configured." } else { if $reason == "observed" { "Owner publications observed; checkpoint eligibility has not been checked." } else { if $reason == "preparing" { "Recovery preparation or checkpoint capture is in progress." } else { if $reason == "admissions" { "Admitted work has not drained." } else { if $reason == "unknown-operations" { "An operation has an unknown outcome. Recovery requires reconciliation." } else { if $reason == "owner-adapters" { "Some owners have no resume adapter." } else { if $reason == "owner-publications" { "Waiting for all owner publications." } else { "Recovery inspection is unavailable. Host checks are required." } } } } } } }}}
+        {p @part=description | Runtime registrations: {$runtime-count}. Owner publications: {$acknowledged-count} / {$owner-count}. Active admissions: {$admission-count}. Unknown operations: {$unknown-operation-count}. Owners without adapters: {$unsupported-owner-count}.}
+        {p @part=description | Entered passwords or one-time codes block recovery. Clear them explicitly before recovery; this status never reads or clears credentials.}
+        {p @part=description | Observation does not authorize recovery. Automatic recovery is off.}
+      }
+    }
+  </template>
+</cem-element>

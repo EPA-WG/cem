@@ -440,6 +440,10 @@
             "path": "./assets/cem-elements/lib/checkpoint-publication.js",
             "contentType": "text/javascript"
         },
+        "@epa-wg/cem-elements/dist/lib/recovery-status.js": {
+            "path": "./assets/cem-elements/lib/recovery-status.js",
+            "contentType": "text/javascript"
+        },
         "@epa-wg/cem-elements/dist/lib/checkpoint-resume.js": {
             "path": "./assets/cem-elements/lib/checkpoint-resume.js",
             "contentType": "text/javascript"

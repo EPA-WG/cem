@@ -429,10 +429,10 @@ expose `prepareResume()` tickets. Capture those before retirement and pass every
 original binding ticket to the shared cem-elements owner transaction. It claims
 one complete admission and binds all routes before provider renewal; raw aliases
 and artifact handles remain attached to their original workers. See
-[the combined handoff contract](../../docs/committed-checkpoints.md#explicit-runtime-recovery-enrollment).
+[the combined handoff contract](https://github.com/EPA-WG/cem/blob/develop/docs/committed-checkpoints.md#explicit-runtime-recovery-enrollment).
 
 Legacy `buildBrowserCommandInvocation`, `createBrowserTransformConfigAuthor` and
 `projectBrowserCommandPresentation` retain their original singleton behavior.
 Consumers retaining those aliases must still call
 `enrollBrowserCommandInvocationRecovery(scope, id)` to record its unsupported
-allocator boundary. See [the shared enrollment contract](../../docs/committed-checkpoints.md#explicit-runtime-recovery-enrollment).
+allocator boundary. See [the shared enrollment contract](https://github.com/EPA-WG/cem/blob/develop/docs/committed-checkpoints.md#explicit-runtime-recovery-enrollment).

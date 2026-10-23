@@ -1743,3 +1743,19 @@ remain closed until the completion task publishes the final value. One private
 completion token fences older callbacks after a new composition, control rebind
 or disconnect; no pending composition is serialized into a checkpoint. Native
 `InputEvent.isComposing` is unchanged, and no additional task or delay is added.
+
+## Shared declarative recovery status
+
+The shared `CemRecoveryStatusObserver` exposes bounded enrollment/publication
+metadata as `cem-recovery-status/1`; `cem-recovery-status` renders it in Studio's
+status bar. Runtime registrations, owner publications and adapters are advisory:
+no observation asserts a current checkpoint, credential eligibility or complete
+physical runtime coverage. Production Studio still has no capture consent or
+automatic recovery; its status truthfully reports publication as unconfigured.
+
+The observer never probes private owners or invokes native processing. Entered
+passwords/one-time codes still block the original capture path, including
+property-only credential changes. Hosts suspend status publication before
+quiescence/capture/retirement and release it after fresh-owner publication. The
+[component/observer contract](../packages/cem-components/docs/recovery-status-contract.md)
+documents codes, counts, lifecycle, accessibility and privacy limitations.
