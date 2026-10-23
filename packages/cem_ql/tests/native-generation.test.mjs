@@ -211,3 +211,16 @@ test('matching runtime labels never substitute a foreign physical binding partic
     assert.throws(() => claimNativeGenerationBindings(authority, [ticket], []), /binding/);
     admission.revoke();
 });
+
+test('workspace receipt transport keeps the complete group bounded to 4 MiB', async () => {
+    const a = source(), b = source();
+    const group = new CemNativeGenerationGroup([a.participant, b.participant]);
+    const first = completeNativeRetirement(a.participant, new Uint8Array(3 * 1024 * 1024));
+    const second = completeNativeRetirement(b.participant, new Uint8Array(1024 * 1024 + 1));
+    await assert.rejects(group.allocate([first, second]), /limit/);
+    assert.equal(a.calls.length, 0); assert.equal(b.calls.length, 0);
+    const c = source(), single = new CemNativeGenerationGroup([c.participant]);
+    assert.throws(() => completeNativeRetirement(c.participant, new Uint8Array(4 * 1024 * 1024 + 1)), /receipt/);
+    const receipt = completeNativeRetirement(c.participant, new Uint8Array(4 * 1024 * 1024));
+    const admitted = await single.allocate([receipt]); assert.equal(admitted.generations[0].checkpoint.byteLength, 4 * 1024 * 1024); admitted.revoke();
+});

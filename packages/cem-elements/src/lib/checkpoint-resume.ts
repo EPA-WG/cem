@@ -1,3 +1,4 @@
+import { DEFAULT_CHECKPOINT_BYTES, MAX_WORKSPACE_CHECKPOINT_BYTES } from './committed-checkpoint.js';
 import type { CemCheckpointOwnerReceipt, CemStoredCheckpoint } from './committed-checkpoint.js';
 import { claimNativeGenerationAdmission, claimNativeGenerationBindings, type CemNativeGenerationBindingTicket, type CemNativeGenerationAdmission } from './internal/runtime-support/native-generation.js';
 
@@ -51,6 +52,7 @@ interface Ticket {
     runtimeId: string;
     checkpoint: Uint8Array;
     current: () => boolean;
+    epochCurrent: () => boolean;
     owners: { receipt: Readonly<CemCheckpointOwnerReceipt>; island: string; authority?: object; prepare: CemCheckpointResumeAdapter['prepare'] }[];
     used: boolean;
     authority?: object;
@@ -72,7 +74,8 @@ const fail = (code: string): never => { throw new Error(`cem.checkpoint.resume.$
  * original complete endpoint adapters, never a reconstruction from user data. */
 export function issueCheckpointResumeTicket(runtimeId: string, saved: CemStoredCheckpoint,
     current: () => boolean, adapters: ReadonlyMap<string, CemCheckpointResumeAdapter>, authority?: object, authorities?: ReadonlyMap<string, object>): CemCheckpointResumeTicket {
-    if (!saved.bytes.byteLength || saved.bytes.byteLength > 1024 * 1024 || !current()) fail('stale');
+    const budget = saved.receipt.maxBytes ?? DEFAULT_CHECKPOINT_BYTES;
+    if (![DEFAULT_CHECKPOINT_BYTES, MAX_WORKSPACE_CHECKPOINT_BYTES].includes(budget) || !saved.bytes.byteLength || saved.bytes.byteLength > budget || !current()) fail('stale');
     if (saved.receipt.operations.some(operation => operation.outcome !== 'acknowledged' && operation.outcome !== 'not-applied')) fail('unknown');
     const witnesses: (() => boolean)[] = [];
     // This is the named checkpoint control DTO. Island strings remain opaque.
@@ -101,14 +104,14 @@ export function issueCheckpointResumeTicket(runtimeId: string, saved: CemStoredC
         }
         if (!valid()) fail('stale');
     } catch (error) { for (const release of unpark.reverse()) release(); throw error; }
-    tickets.set(ticket, { runtimeId, checkpoint: new Uint8Array(saved.bytes), current: valid, owners, used: false, authority, unpark });
+    tickets.set(ticket, { runtimeId, checkpoint: new Uint8Array(saved.bytes), current: valid, epochCurrent: current, owners, used: false, authority, unpark });
     return ticket;
 }
 /** @internal Erase superseded/private bytes and cancel an active preparation. */
 export function revokeCheckpointResumeTicket(ticket: CemCheckpointResumeTicket): void {
     const record = tickets.get(ticket);
     if (!record) return;
-    record.used = true; record.checkpoint.fill(0); record.checkpoint = new Uint8Array(0); record.owners.length = 0; record.current = () => false;
+    record.used = true; record.checkpoint.fill(0); record.checkpoint = new Uint8Array(0); record.owners.length = 0; record.current = () => false; record.epochCurrent = () => false;
     const cancel = record.cancel; record.cancel = undefined; cancel?.();
     for (const release of record.unpark.splice(0).reverse()) { try { release(); } catch { /* Continue cleanup. */ } }
 }
@@ -172,7 +175,11 @@ export async function resumeCemCheckpointOwners(admission: CemNativeGenerationAd
     controller.signal.addEventListener('abort', onAbort, { once: true });
     if (controller.signal.aborted) onAbort();
     const deadline = performance.now() + timeoutMs;
-    const current = () => !revoked && fresh.current() && records.every(record => record.current());
+    // Staged owners remain inactive. Epoch/native checks fence every await;
+    // complete property/source witnesses fence initial import, final admission
+    // and binding, without rescanning the whole domain for each preparation.
+    const current = (complete = false) => !revoked && fresh.current()
+        && records.every(record => complete ? record.current() : record.epochCurrent());
     activationWitnesses.push(...records.map(record => record.current));
     let bound = false, binding = false;
     const bindOwners = () => {
@@ -220,7 +227,7 @@ export async function resumeCemCheckpointOwners(admission: CemNativeGenerationAd
         if (records.some(record => !fresh.generations.some(generation => generation.previousRuntimeId === record.runtimeId))) fail('checkpoint');
         const hostBindings = claimNativeGenerationBindings(fresh, bindings, records.map(record => record.runtimeId));
         activationWitnesses.push(...hostBindings.map(binding => binding.current));
-        if (!current()) fail('coverage');
+        if (!current(true)) fail('coverage');
         const pairs = fresh.generations.filter(generation => records.some(record => record.runtimeId === generation.previousRuntimeId)).map(generation => {
             const record = records.find(record => record.runtimeId === generation.previousRuntimeId);
             if (!record || !sameBytes(record.checkpoint, generation.checkpoint)) return fail('checkpoint');
@@ -271,7 +278,7 @@ export async function resumeCemCheckpointOwners(admission: CemNativeGenerationAd
             if (!current()) fail('stale');
         }
         for (const prepared of staged) if (prepared.current() !== true) fail('stale');
-        if (!current()) fail('stale');
+        if (!current(true)) fail('stale');
         if (performance.now() >= deadline) fail('timeout');
         // All preparation/probing is finished. Opening this one gate invokes no
         // host callback and admits all prepared owners in the same JS turn.
@@ -282,6 +289,6 @@ export async function resumeCemCheckpointOwners(admission: CemNativeGenerationAd
         clearTimeout(timer); controller.signal.removeEventListener('abort', onAbort);
         // A caller-held ticket or new owner gate must not pin old DOM owners,
         // source adapters or private checkpoint copies after the attempt.
-        for (const record of records) { record.checkpoint.fill(0); record.checkpoint = new Uint8Array(0); record.owners.length = 0; record.current = () => false; record.cancel = undefined; }
+        for (const record of records) { record.checkpoint.fill(0); record.checkpoint = new Uint8Array(0); record.owners.length = 0; record.current = () => false; record.epochCurrent = () => false; record.cancel = undefined; }
     }
 }

@@ -24,8 +24,8 @@ pub fn configure(config_json: &str) -> Result<String, JsValue> {
 #[wasm_bindgen(js_name = "sealCommittedCheckpoint")]
 pub fn seal_checkpoint(candidate: &str, receipt: &str) -> Result<String, JsValue> {
     let _native = match crate::runtime_admission::admit(true) { Ok(permit) => permit, Err(error) => return Err(JsValue::from_str(error)) };
-    use crate::committed_checkpoint::{seal, MAX_CHECKPOINT_BYTES};
-    if candidate.len() > MAX_CHECKPOINT_BYTES || receipt.len() > MAX_CHECKPOINT_BYTES {
+    use crate::committed_checkpoint::{seal, MAX_CHECKPOINT_BYTES, MAX_WORKSPACE_CHECKPOINT_BYTES};
+    if candidate.len() > MAX_WORKSPACE_CHECKPOINT_BYTES || receipt.len() > MAX_CHECKPOINT_BYTES {
         return Err(JsValue::from_str("cem.checkpoint.limit"));
     }
     let workspace = ((candidate.len() + receipt.len()) as u64) * 8 + 65536;

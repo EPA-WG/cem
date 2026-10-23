@@ -11,6 +11,8 @@ export interface CemCheckpointPublicationOptions {
     runtimeId: string;
     generation: number;
     policyStamp: string;
+    /** Reserve 4 MiB for a complete workspace before pressure; default 1 MiB. */
+    maxBytes?: number;
     seal: CemCheckpointSealer;
     /** Explicit whole-island consent; absent/false denies recovery for the domain. */
     allowOwner?: (owner: Readonly<CemCheckpointOwnerReceipt>) => boolean;
@@ -54,7 +56,6 @@ interface Owner {
     current: () => boolean;
     dependencies: () => CemCheckpointRelationship[] | undefined;
 }
-const MAX_BYTES = 1024 * 1024;
 const MAX_OWNERS = 256;
 
 /** Host-side publication barrier. Keeps only active export hooks, bounded
@@ -100,7 +101,7 @@ export class CemCheckpointPublicationCoordinator {
     static combine(peers: readonly CemCheckpointPublicationCoordinator[]): CemCheckpointPublicationCoordinator {
         if (peers.length < 2 || peers.length > 16 || new Set(peers).size !== peers.length
             || peers.some(peer => peer.disposed || peer.peers || peer.combined && !peer.combined.disposed
-                || peer.policyStamp !== peers[0].policyStamp)) throw Error('cem.checkpoint.combined.coverage');
+                || peer.policyStamp !== peers[0].policyStamp || peer.maxBytes !== peers[0].maxBytes)) throw Error('cem.checkpoint.combined.coverage');
         const epochs = peers.map(peer => peer.resumeEpoch);
         const members = peers.map(peer => [...peer.owners.values()]);
         const current = () => peers.every((peer, index) => !peer.disposed && !peer.blocked && !peer.capturing && !peer.admissions.size
@@ -143,12 +144,14 @@ export class CemCheckpointPublicationCoordinator {
 
     constructor(private readonly options: CemCheckpointPublicationOptions) {
         if (!options.runtimeId || !options.policyStamp || !Number.isSafeInteger(options.generation) || options.generation < 1) throw new Error('cem.checkpoint.identity');
-        this.store = new CemCommittedCheckpointStore(options.runtimeId);
+        this.store = new CemCommittedCheckpointStore(options.runtimeId, options.maxBytes);
         this.policyStamp = options.policyStamp;
         this.allowOwner = options.allowOwner;
         // Copy host options: mutation of a caller's record is not a policy update.
         this.options = { ...options };
     }
+
+    get maxBytes(): number { return this.store.maxBytes; }
 
     get lastError(): string | undefined { return this.error; }
 
@@ -345,7 +348,7 @@ export class CemCheckpointPublicationCoordinator {
     setPolicy(stamp: string, allowOwner?: CemCheckpointPublicationOptions['allowOwner']): void {
         if (this.disposed || !stamp) throw new Error('cem.checkpoint.identity');
         this.combined?.dispose();
-        this.invalidate(); this.store.dispose(); this.store = new CemCommittedCheckpointStore(this.options.runtimeId);
+        this.invalidate(); this.store.dispose(); this.store = new CemCommittedCheckpointStore(this.options.runtimeId, this.options.maxBytes);
         this.policySequence++; this.retirement.clear();
         this.policyStamp = stamp; this.allowOwner = allowOwner;
         for (const owner of this.owners.values()) owner.receipt = undefined;
@@ -450,25 +453,30 @@ export class CemCheckpointPublicationCoordinator {
             const dependenciesCurrent = () => JSON.stringify([this.dependencySnapshot(), this.nativeSnapshot()]) === dependencyIdentity;
             const receipt: CemCommitReceipt = { runtimeId: this.options.runtimeId, generation: this.options.generation,
                 commitSequence: ++this.sequence, policyStamp: this.policyStamp,
+                ...(this.options.maxBytes === undefined ? {} : { maxBytes: this.options.maxBytes }),
                 ...(native.length ? { nativeRuntimes: native } : {}),
                 owners: sources.map(owner => ({ ...owner.receipt! })),
                 ...(dependencies.length ? { relationships: dependencies.map(descriptor => ({ ...descriptor, requester: { ...descriptor.requester }, provider: { ...descriptor.provider } })) } : {}), operations: [...this.operations.values()].filter(record => !this.retirement.has(record.operationId)).map(record => ({ ...record })) };
             const owners = [];
             let bytes = 0;
+            // Export each original owner once. Input/native/policy changes are
+            // fenced by the epoch between exports; full live-property/source
+            // validation below rejects unobserved changes before any seal.
+            // Scanning all owners around every export makes capture quadratic.
             for (const owner of sources) {
-                if (epoch !== this.epoch || !this.ready() || !dependenciesCurrent()) throw new Error('cem.checkpoint.stale');
+                if (epoch !== this.epoch) throw new Error('cem.checkpoint.stale');
                 if (this.allowOwner?.(Object.freeze({ ...owner.receipt! })) !== true) throw new Error('cem.checkpoint.privacy');
                 const exported = owner.exportIsland();
                 const island = typeof exported === 'string' || exported === undefined ? exported : await exported;
-                if (epoch !== this.epoch || !this.ready() || !dependenciesCurrent()) throw new Error('cem.checkpoint.stale');
+                if (epoch !== this.epoch) throw new Error('cem.checkpoint.stale');
                 if (typeof island !== 'string' || !island) throw new Error('cem.checkpoint.unavailable');
                 bytes += island.length;
-                if (bytes > MAX_BYTES) throw new Error('cem.checkpoint.limit');
+                if (bytes > this.maxBytes) throw new Error('cem.checkpoint.limit');
                 owners.push({ instanceId: owner.id, island });
             }
             if (epoch !== this.epoch || !this.ready() || !dependenciesCurrent()) throw new Error('cem.checkpoint.stale');
             const candidate = JSON.stringify({ version: 'cem-committed-checkpoint/1', receipt, owners });
-            if (candidate.length > MAX_BYTES || new TextEncoder().encode(candidate).byteLength > MAX_BYTES) throw new Error('cem.checkpoint.limit');
+            if (candidate.length > this.maxBytes || new TextEncoder().encode(candidate).byteLength > this.maxBytes) throw new Error('cem.checkpoint.limit');
             store.acknowledge(receipt);
             await store.capture(candidate, async (candidateJson, receiptJson) => {
                 const seal = sources.find(owner => owner.nativeSeal)?.nativeSeal ?? this.options.seal;

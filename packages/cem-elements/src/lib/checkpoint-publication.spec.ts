@@ -8,6 +8,37 @@ const options = () => ({ runtimeId: 'host-session', generation: 1, policyStamp: 
 const read = (coordinator: CemCheckpointPublicationCoordinator) => JSON.parse(new TextDecoder().decode(coordinator.current()!.bytes));
 
 describe('all-owner publication checkpoint capture', () => {
+    it('keeps reserved workspace capacity across privacy withdrawal and exact re-acknowledgment', async () => {
+        const c = new CemCheckpointPublicationCoordinator({ ...options(), maxBytes: 4 * 1024 * 1024 });
+        const owner = c.register('a', () => '<template>private</template>'); owner.published(metadata); await c.capture();
+        expect(c.current()!.receipt.maxBytes).toBe(4 * 1024 * 1024);
+        c.setPolicy('new policy', () => true); expect(c.current()).toBeUndefined();
+        owner.published(metadata); await c.capture(); expect(c.current()!.receipt.maxBytes).toBe(c.maxBytes); c.dispose();
+    });
+    it('refuses combining domains with different reserved budgets', () => {
+        const small = new CemCheckpointPublicationCoordinator(options());
+        const large = new CemCheckpointPublicationCoordinator({ ...options(), maxBytes: 4 * 1024 * 1024 });
+        expect(() => CemCheckpointPublicationCoordinator.combine([small, large])).toThrow('coverage');
+        small.dispose(); large.dispose();
+    });
+    it('bounds full-domain scans while detecting an earlier peer changing during later export', async () => {
+        let scans = 0, changed = false, mutate = false, seals = 0;
+        const c = new CemCheckpointPublicationCoordinator({ ...options(), seal: text => { seals++; return text; } });
+        const count = 128;
+        for (let i = 0; i < count; i++) {
+            const owner = c.register(String(i), async () => {
+                if (i === count - 1 && mutate) changed = true;
+                return '<template>original</template>';
+            }, () => { scans++; return i !== 0 || !changed; });
+            owner.published({ ...metadata, instanceId: String(i) });
+        }
+        await c.capture();
+        expect(scans).toBeLessThanOrEqual(count * 5);
+        expect(seals).toBe(1);
+        mutate = true;
+        await expect(c.capture()).rejects.toThrow('stale');
+        expect(seals).toBe(1); expect(c.current()).toBeUndefined(); c.dispose();
+    });
     it('combines complete original domains on one heap and erases aggregate bytes on privacy withdrawal', async () => {
         for (const change of ['input', 'policy', 'dispose', 'missing']) {
             const domain = new CemNativeCheckpointDomain('main-thread'); domain.bindNativeRuntime({});

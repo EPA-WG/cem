@@ -27,8 +27,11 @@ export complete portable state under its privacy policy, recovery is unavailable
 do not omit the owner. Redaction/omission is explicit and cannot recover state
 from rendered DOM.
 
-Both JSON inputs and resulting checkpoint are each bounded to 1 MiB; owner and
-operation counts are each capped at 256. Generations/committed sequences are
+The receipt JSON and each owner island are bounded to 1 MiB. Candidate and sealed
+checkpoint default to 1 MiB. A host may reserve `maxBytes: 4 * 1024 * 1024` before
+pressure for a complete workspace; only the 1 MiB and 4 MiB tiers are accepted.
+The independent receipt carries that exact budget and must match the candidate
+and host store. Owner and operation counts are each capped at 256. Generations/committed sequences are
 positive JavaScript-safe integers; accepted event sequences may be zero. Native
 sealing is synchronous bounded transport work, without resource callbacks,
 rendering, actions or replay. Its exclusive recovery reservation estimates eight
@@ -39,8 +42,9 @@ This does not disable operation-control cancellation or render memory checks.
 ABI copies precede admission; headroom is a forecast, not an OOM guarantee.
 
 `CemCommittedCheckpointStore` in shared `cem-elements` owns bytes outside WASM.
-Construct one per affected runtime before pressure: it reserves two fixed 1 MiB
-host slots. `acknowledge(receipt)` copies the trusted publication receipt.
+Construct one per affected runtime before pressure: it reserves two fixed host
+slots of the selected size (1 MiB by default, or the explicit 4 MiB workspace
+budget). Privacy withdrawal erases both slots without changing reserved capacity. `acknowledge(receipt)` copies the trusted publication receipt.
 If replacing an entire worker, keep this store in the surviving host, outside
 the worker being terminated.
 `capture(candidate, nativeSealer, signal)` seals against that receipt, checks
@@ -65,6 +69,8 @@ retains older private bytes for work recovery.
 `CemCheckpointPublicationCoordinator` adds an opt-in host publication barrier.
 Construct it before mounting owners, with a host `runtimeId`, positive generation,
 policy stamp, trusted native `seal` adapter and `allowOwner` consent function.
+Its optional `maxBytes` selects the fixed store budget; preview coordinators inherit
+it, and combined domains require the same budget.
 Pass the **same coordinator** as `checkpointPublication` to every participating
 `CemElementRuntime` in that host domain, including nested scopes. Its active owner
 registry is lifecycle-owned; disconnected/disposed owners remove their export
@@ -368,8 +374,8 @@ The exporter writes the canonical inert data-island template, including existing
 native binary envelopes; it does not derive state from rendered output or decode
 an AST in JavaScript. Omission/redaction cannot yield a recoverable partial owner.
 `setPolicy(stamp, consent)` erases both old host slots and requires new owner
-publication. Traversal caps at 16,384 nodes/depth 64; islands and the combined
-UTF-8 transport must fit 1 MiB. At most 256 owners and 256 admissions are tracked.
+publication. Traversal caps at 16,384 nodes/depth 64; each island must fit 1 MiB
+and the complete UTF-8 transport must fit the explicit host budget. At most 256 owners and 256 admissions are tracked.
 Overflow blocks the domain instead of omitting owners or buffering input; ordinary
 rendering still proceeds. A fresh host domain is required after overflow.
 
@@ -994,7 +1000,8 @@ owner and original retained-source witness must be covered by the same current
 private drain. Copied receipts, omitted peers/sources and cleanup mutations
 refuse preparation. Unknown external outcomes refuse checkpoint handoff.
 
-Retirement retains an independent host byte copy (at most 1 MiB), then performs
+Rendering retirement retains an independent host byte copy (at most 4 MiB for
+an explicitly reserved workspace checkpoint), then performs
 terminal cleanup of the rendering engine's owned sessions, documents, templates,
 XPath libraries and stylesheet leases. The existing complete native census and
 original RAII permit are reused: unmanaged retained native roots still refuse
@@ -1179,7 +1186,9 @@ reentrant inspection cannot substitute members or supersede a running group.
 The group retains its own bounded checkpoint/journal copies, independent of
 caller modifications to returned arrays. The default deadline is five seconds,
 with a positive maximum of five seconds, at most 16 heaps and an aggregate
-four-MiB checkpoint limit (one MiB per retirement).
+four-MiB checkpoint limit across the complete group, including command journals.
+An explicitly reserved rendering checkpoint may use up to four MiB; command
+clients retain their one-MiB handoff limit.
 
 Allocation creates distinct WASM factory instances or dedicated workers using
 the original shared runtime's captured setup. Fresh initializers and private
@@ -1189,7 +1198,7 @@ identity/liveness. A single synchronous host gate then admits the complete set;
 no callback or asynchronous gap opens one peer before another. Allocation failure,
 expired initialization, failed headroom or stale identity fences all candidates.
 A failed allocation group is terminal; it cannot reuse the old receipts for another attempt.
-Cancellation aborts owned fallback fetch/startup and terminates new workers;
+Cancellation fences the owned initializer and terminates new workers;
 a late successful initializer discards its result without opening admission.
 Final synchronous probes recheck the deadline, but cannot preempt synchronous
 native/JavaScript CPU work. Revocation fences handles immediately and rejects in-flight rendering requests
@@ -1253,18 +1262,18 @@ checks prevent a source-only test pass from masking missing deployment modules.
 The exact workspace dependency audit includes declarative Storybook fixture routes;
 published runtime dependencies remain unchanged.
 
-This audit does **not** pass successful whole-workspace recovery. Theme text
-storage and its external-trigger/viewport popup now have shared adapters.
-Media/live previews own additional runtime state.
-Shared action/disclosure/list owners now have guarded adapters, including
-complete command/descriptor/submenu endpoint coverage.
-Command-service heaps also need explicit host-service rebinding and complete group
-coverage. These owners must not be omitted, silently reconstructed or treated as
-plain retained templates. The ordinary Studio release/navigation/live-view gates
-and individual real-heap resume tests remain complementary evidence. A bounded
-editing/build probe is not an OOM/RSS guarantee. Successful complete-group Studio
-retirement/resume and declarative recovery status remain on the active checklist;
-automatic Studio recovery stays disabled.
+The successful workspace lane now retires and resumes every enrolled rendering,
+command-service and owned invocation/graph heap three times in both worker and
+fallback modes. It uses the Login graph artifact preview and an explicit 4 MiB
+host checkpoint budget. Twelve editor changes, unchanged editor/preview nodes,
+paint, focus/selection, theme values, URL/storage and native Save/builds are
+checked. The incomplete-mode lane and unknown-outcome refusal remain alongside
+it. Shared adapters own all browser lifecycle behavior; Studio adds no UI JS.
+
+Credential-bearing live Login controls retain their privacy refusal; successful
+live-view recovery needs a reviewed policy. Automatic recovery and declarative
+recovery status remain on the active checklist. A bounded editing/build probe is
+not an OOM/RSS guarantee, and does not authorize omitting unsupported owners.
 
 ## Explicit owner resume transactions
 
@@ -1509,8 +1518,9 @@ Child enrollment alone never establishes whole-workspace resume. Inspection
 reports adapter registration, not eligibility of the current mode or inputs;
 only complete capture/preparation can prove readiness. Studio's incomplete-group
 acceptance deliberately selects an unknown mode, preserving fail-closed behavior
-after the static modes gain policies. Successful whole-Studio recovery remains
-a separate acceptance gate.
+after the static modes gain policies. The successful graph-preview workspace lane
+also performs three full worker/fallback handoffs; credential-bearing live Login
+remains a separate privacy-policy gate.
 
 `CemCheckpointPublicationCoordinator.combine([parent, child, ...])` creates one
 bounded checkpoint transaction for coordinators sharing one physical generation.
@@ -1548,7 +1558,13 @@ uses this binding instead of initializing legacy singleton aliases. The low-leve
 bindings, memory views, finalizers and initialization state are independent, with
 no eval, blob modules or per-generation URLs. Initialization validates native
 headroom before creating a candidate. Candidate work stays gated until the entire
-original native generation group is admitted.
+original native generation group is admitted. Each installed factory caches one
+immutable default `WebAssembly.Module`, allowing new physical heaps to instantiate
+without refetching/recompiling the same code. Instances, memories, custom inputs
+and binding closures are never cached. A failed default load is retryable by a
+new generation; the failed generation stays terminal. Cancelling one initializer
+does not cancel shared compilation or revive its private heap. Retaining the
+module or disposed factory does not retain disposed memories.
 
 Public enrollment inputs use the shared scope's structural enrollment method,
 so independently emitted host/CLI declarations remain compatible. Runtime
@@ -1596,3 +1612,21 @@ synchronous. Scoped acceptance covers repeated combined handoff with actual
 Studio native commands, live source resources and artifact navigation. Complete
 whole-Studio repeated acceptance and declarative status remain required before
 automatic recovery.
+
+### Whole-workspace capture and preparation
+
+Complete capture validates all original owner/property/source witnesses at entry,
+before native sealing, after sealing and before storage publication. Each inactive
+owner export also checks its own currentness; epoch changes fence every await.
+It does not rescan the entire domain around every individual export. Resume uses
+the same pattern: epoch/native checks between inactive preparations, complete live
+witness checks before initial import, final admission and route binding. A silent
+peer edit during another owner's async work discards the staged result before any
+authority opens. The number of complete DOM/source witness scans stays bounded
+independently of owner count; host privacy checks still run between preparations.
+
+Retained form/widget controls are resolved within their original produced owner.
+Nested owners may reuse local render-node IDs; duplicate IDs within one owner,
+replacements and ownership changes still refuse. Native validation always uses
+the owner's current processing host, including newly created owners after a
+handoff. A retired fallback singleton cannot validate a fresh owner.

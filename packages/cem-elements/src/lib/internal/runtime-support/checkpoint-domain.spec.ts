@@ -336,7 +336,7 @@ describe('shared rendering retirement', () => {
         const prepare = vi.fn(async () => undefined);
         domain.retirementEndpoint({ close: async () => undefined, prepare, abort: async () => undefined, terminate: vi.fn() });
         const proof = await closeNativeRenderingGeneration(a);
-        for (const bytes of [new Uint8Array(), new Uint8Array(1024 * 1024 + 1), new Uint8Array(new SharedArrayBuffer(1))]) {
+        for (const bytes of [new Uint8Array(), new Uint8Array(4 * 1024 * 1024 + 1), new Uint8Array(new SharedArrayBuffer(1))]) {
             await expect(retireNativeRenderingGeneration(new Map([[a, ['a']]]), [], proof, { current: () => true, retain: () => bytes })).rejects.toThrow('handoff');
         }
         expect(prepare).not.toHaveBeenCalled(); expect(nativeCheckpointDrainCurrent(proof)).toBe(true); domain.revoke();

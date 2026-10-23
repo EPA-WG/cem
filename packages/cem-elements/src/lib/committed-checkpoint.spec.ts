@@ -10,6 +10,23 @@ const seal = (candidate: string) => candidate; // transport tests; native valida
 const text = (store: CemCommittedCheckpointStore) => new TextDecoder().decode(store.lastCommitted()!.bytes);
 
 describe('host-owned committed checkpoints', () => {
+    it('reserves an explicit workspace capacity without widening default stores or receipt budgets', async () => {
+        const bytes = 4 * 1024 * 1024;
+        for (const invalid of [0, NaN, 2 * 1024 * 1024, bytes + 1])
+            expect(() => new CemCommittedCheckpointStore('runtime', invalid)).toThrow('budget');
+        const normal = new CemCommittedCheckpointStore('runtime');
+        expect(() => normal.acknowledge({ ...receipt(), maxBytes: bytes })).toThrow('stale');
+        normal.acknowledge(receipt());
+        await expect(normal.capture('é'.repeat(600_000), seal)).rejects.toThrow('limit');
+        const workspace = new CemCommittedCheckpointStore('runtime', bytes);
+        expect(() => workspace.acknowledge(receipt())).toThrow('stale');
+        workspace.acknowledge({ ...receipt(), maxBytes: bytes });
+        await workspace.capture('é'.repeat(600_000), seal);
+        expect(workspace.current()!.bytes.byteLength).toBe(1_200_000);
+        await expect(workspace.capture('é'.repeat(bytes / 2 + 1), seal)).rejects.toThrow('limit');
+        expect(workspace.current()!.bytes.byteLength).toBe(1_200_000);
+        normal.dispose(); workspace.dispose();
+    });
     it('copies immutable bytes and receipts and retains no WASM memory view', async () => {
         const store = new CemCommittedCheckpointStore('runtime');
         const ack = receipt(); store.acknowledge(ack); ack.owners[0].dataRevision = 'mutated';

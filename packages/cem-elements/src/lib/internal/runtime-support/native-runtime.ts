@@ -89,7 +89,7 @@ class OwnedFallback {
         // eslint-disable-next-line @nx/enforce-module-boundaries -- lazy generated factory; the package build rewrites this to its vendored copy.
         return this.initialization ??= import('../../../../../cem_ql/dist/wasm/cem_ql_factory.js').then(async module => {
             this.native = module.createCemQlWasmGeneration();
-            await this.native.initialize(signal ? new Request(new URL('../../../../../cem_ql/dist/wasm/cem_ql_bg.wasm', import.meta.url), { signal }) : undefined);
+            await this.native.initialize(undefined, signal);
             if (signal?.aborted) throw new Error('cem.runtime.allocation.cancelled');
             const memory = this.native.memory();
             if (!memory) throw new Error('cem.runtime.generation.identity');

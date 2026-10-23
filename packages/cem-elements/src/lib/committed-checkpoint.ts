@@ -29,6 +29,8 @@ export interface CemCommitReceipt {
     generation: number;
     commitSequence: number;
     policyStamp: string;
+    /** Explicit host capacity; absent preserves the 1 MiB default. */
+    maxBytes?: number;
     owners: CemCheckpointOwnerReceipt[];
     relationships?: CemCheckpointRelationship[];
     nativeRuntimes?: CemCheckpointNativeRuntime[];
@@ -46,10 +48,11 @@ export interface CemCheckpointRetirementHandoff {
     current(): boolean;
     retain(): Uint8Array;
 }
-const MAX_BYTES = 1024 * 1024;
+export const DEFAULT_CHECKPOINT_BYTES = 1024 * 1024;
+export const MAX_WORKSPACE_CHECKPOINT_BYTES = 4 * DEFAULT_CHECKPOINT_BYTES;
 
 export class CemCommittedCheckpointStore {
-    private readonly slots = [new Uint8Array(MAX_BYTES), new Uint8Array(MAX_BYTES)];
+    private readonly slots: Uint8Array[];
     private slot = 0;
     private length = 0;
     private acknowledged?: string;
@@ -61,12 +64,15 @@ export class CemCommittedCheckpointStore {
     private storedRevision = 0;
     private disposed = false;
 
-    constructor(private readonly runtimeId: string) {}
+    constructor(private readonly runtimeId: string, readonly maxBytes = DEFAULT_CHECKPOINT_BYTES) {
+        if (![DEFAULT_CHECKPOINT_BYTES, MAX_WORKSPACE_CHECKPOINT_BYTES].includes(maxBytes)) throw Error('cem.checkpoint.budget');
+        this.slots = [new Uint8Array(maxBytes), new Uint8Array(maxBytes)];
+    }
 
     /** Call only after all affected owners have acknowledged atomic DOM/CSS
      * publication. This trusted host receipt must not come from authored data. */
     acknowledge(receipt: CemCommitReceipt): void {
-        if (this.disposed || receipt.runtimeId !== this.runtimeId
+        if ((receipt.maxBytes ?? DEFAULT_CHECKPOINT_BYTES) !== this.maxBytes || this.disposed || receipt.runtimeId !== this.runtimeId
             || !Number.isSafeInteger(receipt.generation) || receipt.generation < 1
             || !Number.isSafeInteger(receipt.commitSequence) || receipt.commitSequence < 1
             || receipt.generation < this.generation
@@ -74,7 +80,7 @@ export class CemCommittedCheckpointStore {
             throw new Error('cem.checkpoint.stale');
         }
         const json = JSON.stringify(receipt);
-        if (json.length > MAX_BYTES) throw new Error('cem.checkpoint.limit');
+        if (json.length > DEFAULT_CHECKPOINT_BYTES) throw new Error('cem.checkpoint.limit');
         this.acknowledged = json;
         this.generation = receipt.generation;
         this.sequence = receipt.commitSequence;
@@ -92,7 +98,7 @@ export class CemCommittedCheckpointStore {
         if (this.disposed || this.pending || !this.acknowledged || signal?.aborted) {
             throw new Error('cem.checkpoint.unavailable');
         }
-        if (candidate.length > MAX_BYTES) throw new Error('cem.checkpoint.limit');
+        if (candidate.length > this.maxBytes) throw new Error('cem.checkpoint.limit');
         const epoch = this.epoch;
         const receipt = this.acknowledged;
         this.pending = true;
@@ -103,7 +109,7 @@ export class CemCommittedCheckpointStore {
             if (this.disposed || signal?.aborted || epoch !== this.epoch) {
                 throw new Error('cem.checkpoint.stale');
             }
-            if (sealed.length > MAX_BYTES) throw new Error('cem.checkpoint.limit');
+            if (sealed.length > this.maxBytes) throw new Error('cem.checkpoint.limit');
             const next = 1 - this.slot;
             const result = new TextEncoder().encodeInto(sealed, this.slots[next]);
             if (result.read !== sealed.length) {

@@ -6,13 +6,17 @@ Use the shared native `sealCommittedCheckpoint` export as its trusted sealer.
 `CemCheckpointPublicationCoordinator.inspectRecovery()` reports immutable owner
 adapter/acknowledgment metadata and pending admissions/unknown operations without
 exporting source, probing owners or touching native state. It grants no recovery
-authority. Complete Studio recovery remains gated by whole-workspace acceptance; see
+authority. Explicit whole-Studio graph-preview recovery passes isolated worker and
+fallback acceptance; automatic recovery and credential-bearing live-view admission
+remain gated. See
 [the Studio admission contract](../../docs/committed-checkpoints.md#complete-studio-admission-acceptance).
 
 `CemCheckpointPublicationCoordinator` adds opt-in all-owner capture through
 `CemElementRuntimeOptions.checkpointPublication`. Supply one trusted coordinator
 for the entire host domain, a native sealer and explicit whole-island privacy
-consent. `automatic: true` coalesces captures after successful DOM/CSS publication
+consent. `maxBytes` defaults to 1 MiB; a host can explicitly reserve 4 MiB before
+pressure for a complete workspace, with unchanged per-owner and aggregate-group
+bounds. `automatic: true` coalesces captures after successful DOM/CSS publication
 and admission drain. Native control edits and the shared plaintext editor use a
 bounded native-validated control envelope; composition, credential/file inputs
 and unsupported capabilities block the whole domain. Trusted `mountCemView`

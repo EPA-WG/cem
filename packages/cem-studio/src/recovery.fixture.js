@@ -1,14 +1,15 @@
 /** Isolated acceptance driver, never imported by the application. */
-export async function studioRecovery(mode, progress) {
+export async function studioRecovery(mode, progress, complete = false) {
     const check = (condition, message) => { if (!condition) throw Error(message); };
     const elements = new URL('.', new URL('../../cem-elements/dist/index.js', import.meta.url));
     const support = new URL('lib/internal/runtime-support/', elements);
+    progress('native binding import');
     const binding = await import(/* @vite-ignore */ new URL('native-runtime.js', support).href);
-    const initial = binding.isolateCemFallbackGeneration(); await initial.ready();
-    initial.claimOwnership();
-    const { CemElementRuntime, createCemDeclarationScope, CemCheckpointPublicationCoordinator, CemNativeRecoveryScope } = await import(/* @vite-ignore */ elements.href + 'index.js');
+    const initial = binding.isolateCemFallbackGeneration(); progress('native initialization'); await initial.ready(); progress('native ready');
+    let heap = initial, embedding = initial.claimOwnership(), admission, combined;
+    const { CemElementRuntime, createCemDeclarationScope, CemCheckpointPublicationCoordinator, CemNativeRecoveryScope, resumeCemCheckpointOwners } = await import(/* @vite-ignore */ elements.href + 'index.js');
     const coordinator = new CemCheckpointPublicationCoordinator({ runtimeId: crypto.randomUUID(), generation: 1,
-        policyStamp: 'studio-acceptance', allowOwner: () => true,
+        policyStamp: 'studio-acceptance', maxBytes: 4 * 1024 * 1024, allowOwner: () => true,
         seal: (candidate, receipt) => binding.sealCommittedCheckpoint(candidate, receipt) });
     const recoveryScope = new CemNativeRecoveryScope();
     const scope = createCemDeclarationScope({ document });
@@ -16,6 +17,7 @@ export async function studioRecovery(mode, progress) {
         processingWorkerFactory: () => { if (mode === 'fallback') throw Error('owned fallback acceptance');
             return new Worker(new URL('processing-worker.js', support), { type: 'module' }); } });
     const map = document.createElement('script'); map.type = 'importmap'; map.textContent = JSON.stringify({ imports: {
+        '@epa-wg/cem-theme': new URL('../../cem-theme/dist/index.js', import.meta.url).href,
         '@epa-wg/cem-components/components.xhtml': new URL('../../cem-components/dist/components.xhtml', import.meta.url).href,
     } }); document.head.append(map);
     const { installCemStudioShellComponents, mountCemStudioApplicationShell } = await import('./shell.js');
@@ -26,9 +28,12 @@ export async function studioRecovery(mode, progress) {
     const { createCemStudioNavigation } = await import('./navigation.js');
     const { createCemStudioProjectWorkbench, createCemStudioSessionWorkbench, mountCemStudioWorkbench } = await import('./workbench.js');
     const records = new Map([['unrelated-draft', 'preserved']]);
-    const storage = { getItem: key => records.get(key) ?? null, setItem: (key, value) => records.set(key, value) };
+    let storageWrites = 0;
+    const storage = { getItem: key => records.get(key) ?? null, setItem: (key, value) => { storageWrites++; records.set(key, value); } };
     const databaseName = `cem-studio-recovery-${crypto.randomUUID()}`;
+    progress('command services');
     const validator = await createCemStudioBrowserValidator({ recoveryScope });
+    progress('command services ready');
     const repository = createCemStudioProjectRepository({ databaseName, validateProject: validator.validateProject });
     const request = (operation, parameters = {}) => ({ protocolVersion: 1, repository: 'studio-projects', requestRevision: 1, operation, parameters });
     let session, workbench, view, shell, stage = 'install';
@@ -74,14 +79,14 @@ export async function studioRecovery(mode, progress) {
         // Live/artifact controllers have adapters. Unknown preview modes still
         // refuse publication; keep this actual incomplete-workspace lane.
         setStage('initial native preview'); await workbench.buildProjectPreview(); await view.whenSettled();
-        check(workbench.snapshot().projectPreview?.attempt?.status === 'succeeded', 'initial recovery preview failed');
-        await selectUnreviewedPreview();
-        check(unreviewedPreviews().length > 0 && blockers().some(owner => owner.tag === 'cem-media-preview'), 'refusal lane has no unknown preview mode');
+        check(workbench.snapshot().projectPreview?.attempt?.status === 'succeeded', `initial recovery preview failed: ${JSON.stringify(workbench.snapshot().projectPreview?.attempt)}`);
+        if (!complete) await selectUnreviewedPreview();
+        check(complete || unreviewedPreviews().length > 0 && blockers().some(owner => owner.tag === 'cem-media-preview'), 'refusal lane has no unknown preview mode');
         const enrolledKinds = () => recoveryScope.inspect().members.map(member => member.kind);
         check(enrolledKinds().includes('rendering') && enrolledKinds().includes('command-service') && enrolledKinds().includes('command-invocation'), 'Studio omitted an active runtime from recovery membership');
         let groupRefused = false;
-        try { await recoveryScope.prepare(); } catch (error) { groupRefused = /unsupported|unavailable/.test(String(error)); }
-        check(groupRefused, 'incomplete Studio runtime inventory prepared a partial group');
+        try { if (!complete) await recoveryScope.prepare(); } catch (error) { groupRefused = /unsupported|unavailable/.test(String(error)); }
+        check(complete || groupRefused, 'incomplete Studio runtime inventory prepared a partial group');
 
         for (let cycle = 0; cycle < 3; cycle++) {
             for (let edit = 0; edit < 4; edit++) {
@@ -96,29 +101,69 @@ export async function studioRecovery(mode, progress) {
             for (let attempt = 0; !paint(colored).length; attempt++) {
                 check(attempt < 100, 'editor coloring did not settle'); await new Promise(resolve => setTimeout(resolve, 10));
             }
-            setStage(`refusal ${cycle}`); await selectUnreviewedPreview();
+            setStage(`${complete ? 'recovery' : 'refusal'} ${cycle}`); if (!complete) await selectUnreviewedPreview();
             const draft = workbench.snapshot().draft;
             const editor = root.querySelector('cem-source-editor[data-cem-studio-editor]'), control = editor.querySelector('[role=textbox]');
+            const writes = storageWrites;
             const url = browser.location.href, savedRecords = JSON.stringify([...records]), styles = [...document.querySelectorAll('style')];
-            const supportBefore = coordinator.inspectRecovery();
-            let refused = false;
-            try { coordinator.prepareResume(); } catch (error) { refused = /unavailable|unsupported/.test(String(error)); }
-            check(refused, 'incomplete workspace granted a resume ticket');
-            try { await coordinator.capture(); throw Error('incomplete workspace admitted capture'); }
-            catch (error) { check(/cem.checkpoint.unavailable/.test(String(error)), String(error)); }
-            check(coordinator.lastCommitted() === undefined, 'incomplete workspace published a partial checkpoint');
-            check(JSON.stringify(coordinator.inspectRecovery()) === JSON.stringify(supportBefore), 'admission refusal changed owners or journal');
-            check(root.querySelector('cem-source-editor[data-cem-studio-editor]') === editor && editor.querySelector('[role=textbox]') === control, 'refusal replaced source editor');
-            check(document.activeElement === control && control.value === draft && control.selectionStart === 2 && control.selectionEnd === 7, 'refusal lost focus, selection or draft');
-            check(browser.location.href === url && JSON.stringify([...records]) === savedRecords && records.get('unrelated-draft') === 'preserved', 'refusal changed URL or storage');
-            check(paint(editor).length > 0 && [...records.values()].some(value => value.includes(JSON.stringify(draft).slice(1, -1))), 'refusal lost paint or draft journal');
-            check(styles.every(style => style.isConnected), 'refusal replaced stylesheet installation');
+            const previews = [...root.querySelectorAll('cem-media-preview')].map(host => ({ host, mode: host.getAttribute('mode'), frames: [...host.querySelectorAll('iframe')].map(frame => ({ frame, document: frame.contentDocument })) }));
+            const themeValues = [...root.querySelectorAll('cem-theme-switch')].map(host => ({ host, value: host.getAttribute('value') }));
+            if (complete) {
+                const capture = async c => {
+                    for (let n = 0; ; n++) {
+                        try { await c.capture(); return; } catch (error) {
+                            if (n === 0) progress(`capture retry ${error}: ${JSON.stringify(c.inspectRecovery().owners.filter(owner => !owner.acknowledged || !owner.adapterAvailable))}`);
+                            if (n >= 100 || !/unavailable|stale/.test(String(error))) throw Error(`${error.stack} ${JSON.stringify(c.inspectRecovery().owners.filter(owner => !owner.acknowledged || !owner.adapterAvailable))}`, { cause: error });
+                            await new Promise(resolve => setTimeout(resolve, 10));
+                        }
+                    }
+                };
+                const peers = [coordinator, ...coordinator.previewCoordinators()];
+                if (mode === 'fallback' && peers.length > 1) combined = CemCheckpointPublicationCoordinator.combine(peers);
+                const coordinators = combined ? [combined] : peers;
+                setStage(`capture ${cycle}`); for (const c of coordinators) await capture(c);
+                const consent = mode === 'fallback' ? heap.retirementConsent([embedding]) : undefined;
+                const proofs = []; for (const c of coordinators) proofs.push(await c.closeRenderingGeneration(5000, consent));
+                for (const c of coordinators) await capture(c);
+                const tickets = coordinators.map(c => c.prepareResume()), native = validator.prepareRecovery();
+                const plan = await recoveryScope.prepare(), group = plan.createGenerationGroup();
+                const commands = [native.invocation, native.commands], owners = commands.map(client => client.claimNativeEmbedding());
+                const commandProofs = []; for (let i = 0; i < commands.length; i++) commandProofs.push(await commands[i].closeNativeAdmission([owners[i]]));
+                setStage(`retire ${cycle}`); const retired = [];
+                for (let i = 0; i < coordinators.length; i++) retired.push(await coordinators[i].retireRenderingGeneration(proofs[i], 5000, consent));
+                for (let i = 0; i < commands.length; i++) retired.push(await commands[i].retireNativeGeneration(commandProofs[i], [owners[i]], {
+                    current: plan.current, retain: () => new TextEncoder().encode('Studio host ledger; no pending commands or writes'),
+                }));
+                setStage(`allocate ${cycle}`); const previous = admission; admission = await group.allocate(retired);
+                check(admission.generations.length === retired.length && admission.generations.every(generation => generation.runtimeId !== generation.previousRuntimeId), 'partial or reused runtime generation admitted');
+                setStage(`resume ${cycle}`); const resumed = await resumeCemCheckpointOwners(admission, tickets, 5000, native.bindings);
+                for (const owner of resumed.owners) await owner.owner.resume(); previous?.revoke();
+                if (mode === 'fallback') { heap = admission.generations[0].runtime; embedding = heap.claimOwnership(); }
+                combined?.dispose(); combined = undefined;
+            } else {
+                const supportBefore = coordinator.inspectRecovery();
+                let refused = false;
+                try { coordinator.prepareResume(); } catch (error) { refused = /unavailable|unsupported/.test(String(error)); }
+                check(refused, 'incomplete workspace granted a resume ticket');
+                try { await coordinator.capture(); throw Error('incomplete workspace admitted capture'); }
+                catch (error) { check(/cem.checkpoint.unavailable/.test(String(error)), String(error)); }
+                check(coordinator.lastCommitted() === undefined, 'incomplete workspace published a partial checkpoint');
+                check(JSON.stringify(coordinator.inspectRecovery()) === JSON.stringify(supportBefore), 'admission refusal changed owners or journal');
+            }
+            check(previews.every(({ host, mode, frames }) => host.isConnected && host.getAttribute('mode') === mode && frames.every(({ frame, document }) => host.contains(frame) && frame.contentDocument === document)), 'handoff replaced preview presentation');
+            check(storageWrites === writes, 'handoff repeated a host storage write');
+            check(themeValues.every(({ host, value }) => host.isConnected && host.getAttribute('value') === value), 'handoff changed theme values');
+            check(root.querySelector('cem-source-editor[data-cem-studio-editor]') === editor && editor.querySelector('[role=textbox]') === control, 'handoff replaced source editor');
+            check(document.activeElement === control && control.value === draft && control.selectionStart === 2 && control.selectionEnd === 7 && control.selectionDirection === 'backward', 'handoff lost focus, selection or draft');
+            check(browser.location.href === url && JSON.stringify([...records]) === savedRecords && records.get('unrelated-draft') === 'preserved', 'handoff changed URL or storage');
+            check(paint(editor).length > 0 && [...records.values()].some(value => value.includes(JSON.stringify(draft).slice(1, -1))), 'handoff lost paint or draft journal');
+            check(styles.every(style => style.isConnected), 'handoff replaced stylesheet installation');
             setStage(`save ${cycle}`); await workbench.saveSource(); await view.whenSettled();
             const exported = (await repository.query(request('export-project', { projectId: project }))).value;
-            check(new TextDecoder().decode(exported.contents['login-html']) === draft, 'Save after refusal did not persist exact bytes');
+            check(new TextDecoder().decode(exported.contents['login-html']) === draft, 'Save after handoff did not persist exact bytes');
             setStage(`build ${cycle}`);
             await workbench.buildProjectPreview(); await view.whenSettled();
-            check(workbench.snapshot().projectPreview?.attempt?.status === 'succeeded', `native build after refusal failed: ${JSON.stringify(workbench.snapshot().projectPreview?.attempt)}`);
+            check(workbench.snapshot().projectPreview?.attempt?.status === 'succeeded', `native build after handoff failed: ${JSON.stringify(workbench.snapshot().projectPreview?.attempt)}`);
         }
         await selectUnreviewedPreview();
         check(unreviewedPreviews().length > 0 && blockers().some(owner => owner.tag === 'cem-media-preview'), 'unknown preview mode incorrectly published');
@@ -130,11 +175,11 @@ export async function studioRecovery(mode, progress) {
         check(refused && coordinator.inspectRecovery().unknownOperations === 1, 'refusal consumed an unknown operation');
         operation.acknowledge();
         check(coordinator.inspectRecovery().unknownOperations === 0, 'explicit acknowledgment was lost');
-        return { recoveries: 0, refusedRecoveries: 3, edits, unknownRefused: true, unavailable: [...new Set(blockers().map(owner => owner.tag))].sort() };
+        return { recoveries: complete ? 3 : 0, refusedRecoveries: complete ? 0 : 3, edits, unknownRefused: true, unavailable: [...new Set(blockers().map(owner => owner.tag))].sort() };
     } catch (error) { throw Error(`${mode}/${stage}: ${error.stack || error}`, { cause: error }); }
     finally {
         view?.dispose(); shell?.dispose(); workbench?.dispose(); session?.dispose(); await validator?.close(); repository.close();
-        coordinator.dispose(); scope.dispose(); recoveryScope.dispose();
+        admission?.revoke(); combined?.dispose(); coordinator.dispose(); scope.dispose(); recoveryScope.dispose();
         await new Promise((resolve, reject) => { const deletion = indexedDB.deleteDatabase(databaseName); deletion.onsuccess = resolve; deletion.onerror = () => reject(deletion.error); });
     }
 }

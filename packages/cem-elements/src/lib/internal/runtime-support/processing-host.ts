@@ -887,7 +887,7 @@ export function isCemRenderingRetirementControl(value: unknown): value is CemRen
         && (r.direction === 'request' && r.action === 'checkpoint' ? !!r.input && typeof r.input === 'object'
             && ['controls', 'runtime', 'seal'].includes((r.input as Record<string, unknown>).action as string)
             && typeof (r.input as Record<string, unknown>).text === 'string'
-            && ((r.input as Record<string, unknown>).text as string).length <= 1024 * 1024
+            && ((r.input as Record<string, unknown>).text as string).length <= ((r.input as Record<string, unknown>).action === 'seal' ? 4 : 1) * 1024 * 1024
             && ((r.input as Record<string, unknown>).receipt === undefined || typeof (r.input as Record<string, unknown>).receipt === 'string'
                 && ((r.input as Record<string, unknown>).receipt as string).length <= 1024 * 1024)
             && Object.keys(r.input).every(key => ['action', 'text', 'receipt'].includes(key)) : r.input === undefined)

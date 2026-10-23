@@ -39,3 +39,38 @@ await assert.rejects(failed.initialize(new Uint8Array()), /WebAssembly|wasm|buff
 assert.equal(failed.memory(), undefined); await assert.rejects(failed.initialize(bytes), /retired/);
 if (global.gc) { global.gc(); await new Promise(resolve => setTimeout(resolve, 20)); }
 console.log('Owned WASM generations: distinct memories, native-root refusal, closed cleanup, private reference release, stale alias/initializer fencing and legacy independence passed.');
+
+// Default code is shared; mutable heaps and cancellation are always per owner.
+const fetchOriginal = globalThis.fetch;
+let loads = 0, respond;
+globalThis.fetch = async () => { loads++; return new Promise(resolve => { respond = () => resolve(new Response(bytes, { headers: { 'content-type': 'application/wasm' } })); }); };
+try {
+    const abandoned = createCemQlWasmGeneration(), cancelled = new AbortController();
+    const pending = abandoned.initialize(undefined, cancelled.signal);
+    const survivor = createCemQlWasmGeneration(), ready = survivor.initialize();
+    cancelled.abort(new Error('cancelled fixture'));
+    await assert.rejects(pending, /cancelled fixture/);
+    respond(); await ready;
+    assert.equal(abandoned.memory(), undefined);
+    await assert.rejects(abandoned.initialize(), /retired/);
+    const renewed = createCemQlWasmGeneration(); await renewed.initialize();
+    assert.equal(loads, 1); assert.notEqual(survivor.memory(), renewed.memory());
+    const weak = new WeakRef(survivor.memory()); survivor.dispose();
+    if (global.gc) {
+        for (let n = 0; n < 20; n++) { await new Promise(resolve => setTimeout(resolve, 10)); global.gc(); }
+        assert.equal(weak.deref(), undefined, 'immutable module cache retained a disposed memory');
+    }
+    renewed.dispose();
+} finally { globalThis.fetch = fetchOriginal; }
+console.log('Default compiled module reuse: single load, distinct memories, independent cancellation and disposed-memory collection passed.');
+
+const retryFactory = await import('../dist/wasm/cem_ql_factory.js?default-load-failure');
+let attempts = 0;
+globalThis.fetch = async () => ++attempts === 1 ? new Response('', { status: 503 }) : new Response(bytes, { headers: { 'content-type': 'application/wasm' } });
+try {
+    const rejected = retryFactory.createCemQlWasmGeneration();
+    await assert.rejects(rejected.initialize(), /generation.load/);
+    await assert.rejects(rejected.initialize(), /retired/);
+    const retry = retryFactory.createCemQlWasmGeneration(); await retry.initialize();
+    assert.equal(attempts, 2); retry.dispose();
+} finally { globalThis.fetch = fetchOriginal; }

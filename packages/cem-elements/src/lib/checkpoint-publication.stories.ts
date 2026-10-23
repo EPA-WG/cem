@@ -1,3 +1,5 @@
+import { prepareCemRetainedWidgetResume } from './checkpoint-form-resume.js';
+import { captureCheckpointControls } from './checkpoint-controls.js';
 import { isolatedMediaResume } from './retained-media.fixtures.js';
 import { retainCemMlTemplateSource, disposeRetainedCemMlTemplate } from './internal/runtime-support/cem-ql-render.js';
 import { connectCemNativeSurface } from './native-surface.js';
@@ -4036,3 +4038,19 @@ export const StaticPreviewRefusals: Story = { render: () => '<section aria-label
     play: async ({ canvasElement }) => mediaResumeStory(canvasElement, ['worker-static-change', 'fallback-static-frame']) };
 export const RestrictedHttpPreviewRepeatedResume: Story = { render: () => '<section aria-label="Restricted HTTP native source receipts"></section>',
     play: async ({ canvasElement }) => mediaResumeStory(canvasElement, ['worker-http', 'fallback-http', 'worker-http-refuse']) };
+
+export const NestedWidgetControlOwnership: Story = {
+    render: () => '<section aria-label="Nested control ownership"><button data-cem-render-node-id="local">Parent</button><div><button data-cem-render-node-id="local">Child</button></div></section>',
+    play: async ({ canvasElement }) => {
+        const host = canvasElement.querySelector('section')!, parent = host.querySelector('button')!, child = host.querySelector('div')!;
+        const owns = (node: HTMLElement) => node.parentElement === host;
+        const read = () => captureCheckpointControls([...host.querySelectorAll('button')].filter(owns));
+        const capability = { kind: 'native-list' as const, selectable: false, scrollTop: 0, scrollLeft: 0 };
+        const guard = () => prepareCemRetainedWidgetResume(host, capability, read()!, read, () => capability, owns);
+        const initial = guard(); expect(initial.current()).toBe(true);
+        child.append(parent); expect(initial.current()).toBe(false);
+        host.prepend(parent); const retained = guard(); parent.replaceWith(parent.cloneNode(true)); expect(retained.current()).toBe(false);
+        const current = host.querySelector('button')!; host.append(current.cloneNode(true));
+        expect(guard).toThrow('widget-stale');
+    },
+};

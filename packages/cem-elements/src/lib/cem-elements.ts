@@ -53,8 +53,6 @@ import {
     type SerializedNode,
 } from './projection.js';
 import {
-    validatePortableCheckpointControls,
-    validatePortableCheckpointRuntime,
     type CemXsltComponentOptions,
     type CemMlTemplateModuleLoader,
     type CemMlTemplateModuleClosure,
@@ -3259,7 +3257,7 @@ export class CemElementRuntime {
             length += node.nodeValue?.length ?? 0;
             if (node.nodeValue !== null) textNodes.push(node.nodeValue);
             if (node.nodeType === 1) for (const attribute of Array.from((node as Element).attributes)) length += attribute.name.length + attribute.value.length;
-            if (length > 1024 * 1024) throw new Error('cem.checkpoint.limit');
+            if (length > (this.checkpointPublication?.maxBytes ?? 1024 * 1024)) throw new Error('cem.checkpoint.limit');
             for (const child of Array.from(node.childNodes)) visit(child, depth + 1);
             if (node.nodeType === 1 && (node as Element).localName === 'template') visit((node as HTMLTemplateElement).content, depth + 1);
         };
@@ -3335,6 +3333,7 @@ export class CemElementRuntime {
 
     private checkpointResumeAdapter(instance: HTMLElement, compiled: CompiledDeclaration,
         publication: () => CemCheckpointPublicationOwner): CemCheckpointResumeAdapter | undefined {
+        const ownsControl = (node: HTMLElement) => this.ownsRenderedElement(instance, node);
         const plaintext = compiled.behavior === CEM_PLAINTEXT_EDITOR_CAPABILITY;
         const formKind = compiled.behavior === CEM_FORM_CONTROL_CAPABILITY ? 'form-control'
             : compiled.behavior === CEM_CHECKABLE_CONTROL_CAPABILITY ? 'checkable-control'
@@ -3381,8 +3380,8 @@ export class CemElementRuntime {
                 const storageCurrent = this.checkpointTextStorageGuard(instance);
                 const fingerprint = this.checkpointResumeHostWitness(instance, compiled);
                 const form = provider ? undefined : formKind ? prepareCemRetainedFormResume(instance, formKind,
-                    cemRetainedFormCheckpoint(instance, formKind), this.checkpointControls(instance)!, () => this.checkpointControls(instance))
-                    : widgetCheckpoint ? prepareCemRetainedWidgetResume(instance, widgetCheckpoint(), this.checkpointControls(instance)!, () => this.checkpointControls(instance), widgetCheckpoint) : undefined;
+                    cemRetainedFormCheckpoint(instance, formKind), this.checkpointControls(instance)!, () => this.checkpointControls(instance), ownsControl)
+                    : widgetCheckpoint ? prepareCemRetainedWidgetResume(instance, widgetCheckpoint(), this.checkpointControls(instance)!, () => this.checkpointControls(instance), widgetCheckpoint, ownsControl) : undefined;
                 return () => { try { return storageCurrent() && (!retained || retained()) && (!form || form.current()) && (!provider || provider.current()) && (!pair || pair.current()) && this.checkpointResumeHostWitness(instance, compiled) === fingerprint; } catch { return false; } };
             },
             park: () => {
@@ -3443,9 +3442,9 @@ export class CemElementRuntime {
                 if (references) context.signal.addEventListener('abort', references.discard, { once: true });
                 const widget = plaintext ? prepareCemPlaintextEditorResume(instance, native.state.capability, native.controls)
                     : provider ? prepareCemRetainedWidgetResume(instance, native.state.capability, native.controls, () => this.checkpointControls(instance),
-                        () => provider?.current() ? sealedCapability : undefined)
-                        : formKind ? prepareCemRetainedFormResume(instance, formKind, native.state.capability, native.controls, () => this.checkpointControls(instance))
-                        : widgetCheckpoint ? prepareCemRetainedWidgetResume(instance, native.state.capability, native.controls, () => this.checkpointControls(instance), widgetCheckpoint) : undefined;
+                        () => provider?.current() ? sealedCapability : undefined, ownsControl)
+                        : formKind ? prepareCemRetainedFormResume(instance, formKind, native.state.capability, native.controls, () => this.checkpointControls(instance), ownsControl)
+                        : widgetCheckpoint ? prepareCemRetainedWidgetResume(instance, native.state.capability, native.controls, () => this.checkpointControls(instance), widgetCheckpoint, ownsControl) : undefined;
                 const formWitness = formKind || widgetCheckpoint ? this.checkpointResumeHostWitness(instance, compiled) : undefined;
                 const css = compiled.stylesheets.length ? await native.host.compile(cssSource).result : undefined;
                 let binding = this.checkpointScopeBindings.get(scope);
@@ -3604,16 +3603,12 @@ export class CemElementRuntime {
             visit(island, 0);
             const controls = this.checkpointControls(instance);
             if (!controls) return undefined;
-            const restored = this.checkpointResumedProcessing.get(instance);
             const host = this.processingHost(compiled);
-            if (restored) await checkpointProcessingControl(host, { action: 'controls', text: JSON.stringify(controls) });
-            else await validatePortableCheckpointControls(JSON.stringify(controls));
+            await checkpointProcessingControl(host, { action: 'controls', text: JSON.stringify(controls) });
             const runtime = this.checkpointRuntimeState(instance, compiled, state, true);
             if (!runtime) return undefined;
             // Decode only this explicitly named native lifecycle control DTO.
-            const validated = JSON.parse(restored
-                ? await checkpointProcessingControl(host, { action: 'runtime', text: JSON.stringify(runtime) })
-                : await validatePortableCheckpointRuntime(JSON.stringify(runtime))) as CemCheckpointRuntimeState;
+            const validated = JSON.parse(await checkpointProcessingControl(host, { action: 'runtime', text: JSON.stringify(runtime) })) as CemCheckpointRuntimeState;
             if (!current()) return undefined;
             const snapshot = this.snapshotFromCapturedForms(instance, compiled, island, publishedRevision, state, this.captureRenderedForms(instance));
             writeDataIslandHydrationData(island, { ...snapshot, version: '1.0.0-checkpoint.1', checkpointControls: controls, checkpointRuntime: validated,

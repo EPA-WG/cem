@@ -515,7 +515,7 @@ export async function retireNativeRenderingGeneration(
     try {
         if (handoff.current() !== true || !current()) throw new Error('cem.runtime.retirement.stale');
         const bytes = handoff.retain();
-        if (!(bytes instanceof Uint8Array) || bytes.byteLength < 1 || bytes.byteLength > 1024 * 1024 || !(bytes.buffer instanceof ArrayBuffer))
+        if (!(bytes instanceof Uint8Array) || bytes.byteLength < 1 || bytes.byteLength > 4 * 1024 * 1024 || !(bytes.buffer instanceof ArrayBuffer))
             throw new Error('cem.runtime.retirement.handoff');
         const checkpoint = new Uint8Array(bytes);
         if (handoff.current() !== true || !current()) throw new Error('cem.runtime.retirement.stale');

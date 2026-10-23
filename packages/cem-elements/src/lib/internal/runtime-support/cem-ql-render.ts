@@ -506,7 +506,7 @@ export function createCemQlRenderBindings(context: CemQlNativeBindingContext) {
     /** Named recovery controls allocate no persistent source handles and remain
      * available after ordinary native admission closes. */
     async function processCheckpointControl(input: import('./processing-host.js').CemProcessingCheckpointControlInput): Promise<string> {
-        if (typeof input.text !== 'string' || new TextEncoder().encode(input.text).byteLength > 1024 * 1024
+        if (typeof input.text !== 'string' || new TextEncoder().encode(input.text).byteLength > (input.action === 'seal' ? 4 : 1) * 1024 * 1024
             || input.receipt !== undefined && (typeof input.receipt !== 'string' || new TextEncoder().encode(input.receipt).byteLength > 1024 * 1024))
             throw new Error('cem.checkpoint.limit');
         await ensureRuntimeReady();

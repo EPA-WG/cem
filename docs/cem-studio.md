@@ -3249,8 +3249,8 @@ also preserves compatible DOM and edits when roots are inserted, removed or reor
 and explicitly clears empty output without removing data islands/styles. Produced
 children retain current resources on internal sibling moves; real removal or a
 change of parent keeps the ordinary context lifecycle. Studio consumes the shared
-runtime without application JavaScript for this behavior. WASM restart/recovery
-remains future resilience work.
+runtime without application JavaScript for this behavior. Explicit WASM retirement/resume is verified in isolated acceptance; automatic
+pressure-triggered Studio recovery remains disabled.
 
 ### Runtime recovery membership
 
@@ -3262,9 +3262,16 @@ heap, with original ledger/staged-write witnesses. The reusable lifecycle and
 host-service adapters live in cem-elements and the command package; Studio's
 visible UI remains declarative.
 
-This is complete inventory enrollment, not automatic whole-Studio recovery.
-The main-thread invocation singleton is an explicit unsupported member; retained
-media-preview handoff and combined cross-domain semantic activation still need
-acceptance. No partial worker-only recovery is reported as success. Existing
-saved projects/drafts and unknown command outcomes are preserved. See
+Isolated whole-workspace acceptance performs three complete retire/allocate/resume
+cycles in both worker and owned-fallback modes with the Login graph artifact
+preview, twelve editor changes, exact draft/paint/focus/selection preservation and
+fresh native Save/build operations. It includes rendering, command-service and
+owned invocation/graph heaps. The host explicitly reserves a 4 MiB checkpoint
+budget; aggregate generation-group bytes still cap at 4 MiB.
+
+Automatic whole-Studio recovery remains disabled. Credential-bearing live Login
+controls still require a reviewed privacy policy before successful live-view
+recovery can be claimed. Unknown preview modes and command outcomes continue to
+refuse complete admission. Acceptance uses isolated realms and temporary project
+databases, preserving existing saved projects and drafts. See
 [the enrollment contract](committed-checkpoints.md#explicit-runtime-recovery-enrollment).

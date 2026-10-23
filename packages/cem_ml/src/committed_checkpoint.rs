@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
 pub const MAX_CHECKPOINT_BYTES: usize = 1024 * 1024;
+pub const MAX_WORKSPACE_CHECKPOINT_BYTES: usize = 4 * MAX_CHECKPOINT_BYTES;
 const MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -22,6 +23,9 @@ pub struct CommitReceipt {
     pub generation: u64,
     pub commit_sequence: u64,
     pub policy_stamp: String,
+    /// Trusted host capacity reserved before pressure; absent preserves 1 MiB.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_bytes: Option<usize>,
     pub owners: Vec<OwnerReceipt>,
     /// Outstanding external actions must be recorded as unknown, not retried.
     pub operations: Vec<OperationReceipt>,
@@ -188,7 +192,8 @@ fn identity(value: &str) -> bool {
     !value.is_empty() && value.len() <= 1024 && !value.chars().any(char::is_control)
 }
 fn valid_receipt(receipt: &CommitReceipt) -> bool {
-    if !identity(&receipt.runtime_id)
+    if !matches!(receipt.max_bytes, None | Some(MAX_CHECKPOINT_BYTES) | Some(MAX_WORKSPACE_CHECKPOINT_BYTES))
+        || !identity(&receipt.runtime_id)
         || !identity(&receipt.policy_stamp)
         || receipt.generation == 0
         || receipt.generation > MAX_SAFE_INTEGER
@@ -225,15 +230,17 @@ fn valid_receipt(receipt: &CommitReceipt) -> bool {
 /// transport and exact receipt, not the semantic safety of island content.
 /// Cancellation/commit freshness must also be checked by the host after return.
 pub fn seal(candidate_json: &str, receipt_json: &str) -> Result<String, &'static str> {
-    if candidate_json.len() > MAX_CHECKPOINT_BYTES || receipt_json.len() > MAX_CHECKPOINT_BYTES {
+    if candidate_json.len() > MAX_WORKSPACE_CHECKPOINT_BYTES || receipt_json.len() > MAX_CHECKPOINT_BYTES {
         return Err("cem.checkpoint.limit");
     }
-    let candidate: Checkpoint =
-        serde_json::from_str(candidate_json).map_err(|_| "cem.checkpoint.format")?;
     let expected: CommitReceipt =
         serde_json::from_str(receipt_json).map_err(|_| "cem.checkpoint.receipt")?;
+    if !valid_receipt(&expected) { return Err("cem.checkpoint.receipt"); }
+    let max_bytes = expected.max_bytes.unwrap_or(MAX_CHECKPOINT_BYTES);
+    if candidate_json.len() > max_bytes { return Err("cem.checkpoint.limit"); }
+    let candidate: Checkpoint =
+        serde_json::from_str(candidate_json).map_err(|_| "cem.checkpoint.format")?;
     if candidate.version != "cem-committed-checkpoint/1"
-        || !valid_receipt(&expected)
         || candidate.receipt != expected
         || candidate.owners.len() != expected.owners.len()
     {
@@ -242,6 +249,7 @@ pub fn seal(candidate_json: &str, receipt_json: &str) -> Result<String, &'static
     let mut owners = BTreeSet::new();
     for owner in &candidate.owners {
         if owner.island.is_empty()
+            || owner.island.len() > MAX_CHECKPOINT_BYTES
             || !owners.insert(owner.instance_id.as_str())
             || !expected
                 .owners
@@ -252,7 +260,7 @@ pub fn seal(candidate_json: &str, receipt_json: &str) -> Result<String, &'static
         }
     }
     let sealed = serde_json::to_string(&candidate).map_err(|_| "cem.checkpoint.format")?;
-    if sealed.len() > MAX_CHECKPOINT_BYTES {
+    if sealed.len() > max_bytes {
         return Err("cem.checkpoint.limit");
     }
     Ok(sealed)

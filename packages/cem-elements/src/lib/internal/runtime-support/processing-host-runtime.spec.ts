@@ -994,3 +994,11 @@ describe('bounded source paint processing jobs', () => {
         expect(host.mode).toBe('main-thread'); scope.dispose();
     });
 });
+
+it('bounds workspace seal transport independently of ordinary control payloads', () => {
+    const message = (action: string, length: number) => ({ protocol: CEM_RENDERING_RETIREMENT_PROTOCOL, direction: 'request', id: 1,
+        action: 'checkpoint', input: { action, text: 'x'.repeat(length), receipt: '{}' } });
+    expect(isCemRenderingRetirementControl(message('seal', 4 * 1024 * 1024))).toBe(true);
+    expect(isCemRenderingRetirementControl(message('seal', 4 * 1024 * 1024 + 1))).toBe(false);
+    for (const action of ['controls', 'runtime']) expect(isCemRenderingRetirementControl(message(action, 1024 * 1024 + 1))).toBe(false);
+});

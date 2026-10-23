@@ -706,7 +706,7 @@ class RootCemProcessingHost implements CemProcessingHost {
     renderBindings(): CemQlRenderBindings | undefined { return this.fresh?.bindings; }
     checkpointControl(input: CemProcessingCheckpointControlInput): Promise<string> {
         if (!['controls', 'runtime', 'seal'].includes(input.action) || typeof input.text !== 'string'
-            || new TextEncoder().encode(input.text).byteLength > 1024 * 1024
+            || new TextEncoder().encode(input.text).byteLength > (input.action === 'seal' ? 4 : 1) * 1024 * 1024
             || input.receipt !== undefined && (typeof input.receipt !== 'string' || new TextEncoder().encode(input.receipt).byteLength > 1024 * 1024))
             return Promise.reject(new Error('cem.checkpoint.limit'));
         input = { action: input.action, text: input.text, ...(input.receipt === undefined ? {} : { receipt: input.receipt }) };

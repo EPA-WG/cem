@@ -28,6 +28,26 @@ async function fixture(adjust?: (id: string, context: CemCheckpointResumeContext
     return { ticket, admission, contexts, discarded, checkpoint, invalidate: () => { valid = false; }, alive: () => alive };
 }
 describe('fresh generation semantic owner transaction', () => {
+    it('bounds whole-domain witnesses and refuses a silent edit while later owners prepare', async () => {
+        for (const change of [false, true]) {
+            let scans = 0, valid = true, disposed = 0;
+            const checkpoint = saved();
+            checkpoint.receipt.owners = Array.from({ length: 128 }, (_, index) => ({ ...receipt.owners[0], instanceId: String(index) }));
+            checkpoint.bytes = new TextEncoder().encode(JSON.stringify({ version: 'cem-committed-checkpoint/1', receipt: checkpoint.receipt,
+                owners: checkpoint.receipt.owners.map(owner => ({ instanceId: owner.instanceId, island: '<template>original</template>' })) }));
+            const id = crypto.randomUUID(), participant = registerNativeGeneration({}, id, async () => ({ identity: {}, runtimeId: crypto.randomUUID(), runtime: {}, current: () => true, discard: () => undefined }));
+            const ticket = issueCheckpointResumeTicket(id, checkpoint, () => true, new Map(checkpoint.receipt.owners.map((owner, index) => [owner.instanceId, {
+                witness: () => () => { scans++; return index !== 0 || valid; }, prepare: async context => {
+                    expect(context.active()).toBe(false); if (change && index === 127) valid = false;
+                    return { owner: {}, current: () => true, discard: () => { disposed++; } };
+                },
+            }])));
+            const admission = await new CemNativeGenerationGroup([participant]).allocate([completeNativeRetirement(participant, checkpoint.bytes)]);
+            scans = 0;
+            if (change) { await expect(resumeCemCheckpointOwners(admission, [ticket])).rejects.toThrow('stale'); expect(disposed).toBe(128); }
+            else { const resumed = await resumeCemCheckpointOwners(admission, [ticket]); expect(scans).toBeLessThanOrEqual(128 * 3); resumed.revoke(); }
+        }
+    });
     it('binds mixed command routes before rendering renewal and revokes them on late failure', async () => {
         for (const failure of ['none', 'missing', 'copied', 'late', 'bind']) {
             const events: string[] = [], checkpoint = saved(); let valid = true, alive = true;

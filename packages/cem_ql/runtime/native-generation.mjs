@@ -37,7 +37,7 @@ export function registerNativeGeneration(identity, runtimeId, allocate) {
 /** Internal: called only after original ownership/census/handoff retirement. */
 export function completeNativeRetirement(participant, bytes) {
     const record = object(participant) && state.participants.get(participant);
-    if (!record || record.receipt || !(bytes instanceof Uint8Array) || !(bytes.buffer instanceof ArrayBuffer) || bytes.byteLength < 1 || bytes.byteLength > 1024 * 1024) fail('receipt');
+    if (!record || record.receipt || !(bytes instanceof Uint8Array) || !(bytes.buffer instanceof ArrayBuffer) || bytes.byteLength < 1 || bytes.byteLength > 4 * 1024 * 1024) fail('receipt');
     const checkpoint = new Uint8Array(bytes);
     const receipt = Object.freeze({ checkpoint: new Uint8Array(checkpoint), replacementAllowed: false });
     record.receipt = receipt; record.identity = undefined;

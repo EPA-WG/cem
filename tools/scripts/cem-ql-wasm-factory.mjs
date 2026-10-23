@@ -37,6 +37,26 @@ export function ownedWasmFactory(source, stem, name) {
     source = source.replace(`/* @ts-self-types="./${stem}.d.ts" */`, '');
     return `/* @ts-self-types="./${stem}_factory.d.ts" */
 // Generated from pinned wasm-bindgen bindings. Owned lifecycle controls only.
+// One immutable code module per installed asset; never cache an Instance,
+// Memory, binding closure, custom input or an unbounded set of URLs.
+let defaultModule;
+function loadDefaultModule() {
+    return defaultModule ??= fetch(new URL('${stem}_bg.wasm', import.meta.url)).then(async response => {
+        if (!response.ok) throw new Error('cem.runtime.generation.load');
+        if (typeof WebAssembly.compileStreaming === 'function' && response.headers.get('content-type')?.split(';')[0].trim() === 'application/wasm')
+            return WebAssembly.compileStreaming(response);
+        return WebAssembly.compile(await response.arrayBuffer());
+    }).catch(error => { defaultModule = undefined; throw error; });
+}
+function cancellable(input, signal) {
+    if (!signal) return input;
+    signal.throwIfAborted();
+    return new Promise((resolve, reject) => {
+        const cancel = () => reject(signal.reason);
+        signal.addEventListener('abort', cancel, { once: true });
+        Promise.resolve(input).then(resolve, reject).finally(() => signal.removeEventListener('abort', cancel));
+    });
+}
 export function create${name}WasmGeneration() {
 ${source}
     const confirmationOf = CommandNativeRetirement.prototype.confirmation;
@@ -52,10 +72,15 @@ ${source}
         wasm = undefined; wasmInstance = undefined; wasmModule = undefined;
     };
     return Object.freeze({
-        async initialize(input) {
+        async initialize(input, signal) {
             alive();
-            initialization ??= __wbg_init(input === undefined ? undefined : { module_or_path: input })
-                .then(() => { initialized = true; }, error => { release(); throw error; });
+            initialization ??= (async () => {
+                signal?.throwIfAborted();
+                const module = await cancellable(input === undefined ? loadDefaultModule() : input, signal);
+                alive(); signal?.throwIfAborted();
+                await __wbg_init({ module_or_path: module });
+                alive(); signal?.throwIfAborted(); initialized = true;
+            })().catch(error => { release(); throw error; });
             await initialization;
         },
         memory() { return initialized && !dead ? wasm.memory : undefined; },
@@ -117,7 +142,7 @@ export const cemQlWasmFactoryTypes = ownedWasmFactoryTypes('cem_ql', 'CemQl');
 
 export function ownedWasmFactoryTypes(stem, name) { return `import type { InitInput } from './${stem}.js';
 export interface ${name}WasmGeneration {
-    initialize(input?: InitInput): Promise<void>;
+    initialize(input?: InitInput, signal?: AbortSignal): Promise<void>;
     memory(): WebAssembly.Memory | undefined;
     call(name: string, args: unknown[]): unknown;
     prepareRetirement(expectedRevision: number): Readonly<{ schemaVersion: 1; frozen: true; inventoryRevision: number; frozenRevision: number; replacementAllowed: false }>;

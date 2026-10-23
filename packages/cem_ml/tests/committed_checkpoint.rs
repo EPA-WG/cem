@@ -9,6 +9,7 @@ fn receipt() -> CommitReceipt {
         generation: 1,
         commit_sequence: 3,
         policy_stamp: "private-session".into(),
+        max_bytes: None,
         operations: vec![],
         relationships: vec![],
         native_runtimes: vec![],
@@ -366,4 +367,25 @@ fn physical_runtime_client_coverage_is_complete_bounded_and_inert() {
     let mut stale = candidate.clone();
     stale["receipt"]["nativeRuntimes"][0]["runtimeId"] = serde_json::json!("old");
     assert!(seal(&stale.to_string(), &candidate["receipt"].to_string()).is_err());
+}
+
+#[test]
+fn workspace_budget_is_explicit_exact_and_bounded() {
+    let mut candidate = serde_json::to_value(candidate()).unwrap();
+    candidate["owners"][0]["island"] = serde_json::json!("x".repeat(600_000));
+    candidate["owners"].as_array_mut().unwrap().push(serde_json::json!({"instanceId":"second","island":"é".repeat(300_000)}));
+    candidate["receipt"]["owners"].as_array_mut().unwrap().push(serde_json::json!({"instanceId":"second","declarationIdentity":"source:2","dataRevision":"1","acceptedEventSequence":0}));
+    let encode = |value: &serde_json::Value| serde_json::to_string(value).unwrap();
+    assert_eq!(seal(&encode(&candidate), &encode(&candidate["receipt"])), Err("cem.checkpoint.limit"));
+    candidate["receipt"]["maxBytes"] = serde_json::json!(4 * 1024 * 1024);
+    assert!(seal(&encode(&candidate), &encode(&candidate["receipt"])).is_ok());
+    let mut mismatched = candidate["receipt"].clone(); mismatched["maxBytes"] = serde_json::json!(1024 * 1024);
+    assert!(seal(&encode(&candidate), &encode(&mismatched)).is_err());
+    for limit in [0, 2 * 1024 * 1024, 4 * 1024 * 1024 + 1] {
+        candidate["receipt"]["maxBytes"] = serde_json::json!(limit);
+        assert!(seal(&encode(&candidate), &encode(&candidate["receipt"])).is_err());
+    }
+    candidate["receipt"]["maxBytes"] = serde_json::json!(4 * 1024 * 1024);
+    candidate["owners"][0]["island"] = serde_json::json!("x".repeat(1024 * 1024 + 1));
+    assert!(seal(&encode(&candidate), &encode(&candidate["receipt"])).is_err());
 }
