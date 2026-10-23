@@ -1441,7 +1441,7 @@ source-range request; no tab DOM methods or app event listeners are needed.
 ### Script-free live previews
 
 `mountCemLivePreview(frame, { source, sourceUri, resources, styles?, declarations?, onError? })`
-returns `{ ready, dispose }`. `resources` contains explicit `{ uri, contentType, text }`
+returns `{ ready, checkpoint, dispose }`. `resources` contains explicit `{ uri, contentType, text }`
 transport records, `styles` names supplied CSS resources, and optional `declarations`
 contains `{ tag, uri }` entries. The `live-preview` declarative capability backs
 `cem-media-preview mode="live"`; ordinary applications should use that component.
@@ -1455,6 +1455,13 @@ CSP denies network; only explicitly supplied native resource bodies can load.
 `restrictedPreview` additionally rejects active/navigation output before each patch,
 and disables ambient local-storage and location resources. This option alone is
 not a sandbox: use the shared mount, which establishes the complete boundary.
+
+Readiness waits for the current mount's bootstrap document, identified by a fresh
+internal marker. Initial `about:blank` and prior-navigation load events cannot
+start native owners or acknowledge a preview. Recovery membership stays pending
+until that document loads. Cancellation removes the waiter; a late load cannot
+revive a disposed mount. The marker correlates document loading and grants no
+resource or recovery authority.
 
 Replacement/disposal cancels pending mounting, detaches resize observation, removes
 produced instances, disposes their scope and clears resource ownership. Form state

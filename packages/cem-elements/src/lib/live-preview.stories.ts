@@ -172,3 +172,61 @@ export const StaticCheckpointGuards = meta.story({
         } finally { behavior.disconnected!(host); host.remove(); }
     },
 });
+
+export const CurrentDocumentLoad = meta.story({
+    render: () => '<iframe title="Live preview document ownership"></iframe>',
+    play: async ({ canvasElement }) => {
+        const { CemNativeRecoveryScope } = await import('./internal/runtime-support/native-generation.js');
+        for (const cancel of [false, true]) {
+            const scope = new CemNativeRecoveryScope(), frame = canvasElement.querySelector('iframe')!;
+            const native = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'srcdoc')!;
+            let requested = '', controller: ReturnType<typeof mountCemLivePreview> | undefined;
+            const previous = new Promise<void>(resolve => {
+                const loaded = () => {
+                    if (frame.contentDocument?.querySelector('meta[name="cem-live-preview-owner"]')?.getAttribute('content') !== 'previous') return;
+                    frame.removeEventListener('load', loaded); resolve();
+                };
+                frame.addEventListener('load', loaded);
+            });
+            try {
+                // Hold the requested navigation while a real prior navigation emits
+                // its trusted load event. A load event alone cannot name this mount.
+                native.set!.call(frame, '<!doctype html><meta name="cem-live-preview-owner" content="previous"><body>Prior document</body>');
+                Object.defineProperty(frame, 'srcdoc', { configurable: true, get: () => requested, set: value => { requested = String(value); } });
+                controller = mountCemLivePreview(frame, { sourceUri: 'studio://load/view.cem', resources: [],
+                    source: '{input @value="Original é😀"}{p | Current document}', runtimeOptions: { recoveryScope: scope } });
+                await previous; await Promise.resolve(); await Promise.resolve();
+                expect(scope.inspect().members.map(member => member.id)).toEqual([expect.stringMatching(/^cem-preview-loading:/)]);
+                expect(frame.contentDocument!.querySelector('cem-element')).toBeNull();
+                expect(frame.contentDocument!.body.textContent).toBe('Prior document');
+                expect(controller.checkpoint()).toBeUndefined();
+                const oldDocument = frame.contentDocument;
+                delete (frame as unknown as { srcdoc?: string }).srcdoc;
+                if (!cancel) native.set!.call(frame, requested);
+                if (cancel) {
+                    controller.dispose(); await expect(controller.ready).rejects.toThrow('cem.preview.disposed');
+                    expect(scope.inspect().members).toEqual([]);
+                    const loaded = new Promise<void>(resolve => {
+                        const receive = () => {
+                            const owner = frame.contentDocument?.querySelector('meta[name="cem-live-preview-owner"]')?.getAttribute('content');
+                            if (!owner || owner === 'previous') return;
+                            frame.removeEventListener('load', receive); resolve();
+                        };
+                        frame.addEventListener('load', receive);
+                    });
+                    native.set!.call(frame, requested); await loaded;
+                    expect(frame.contentDocument!.querySelector('cem-element')).toBeNull();
+                    expect(controller.checkpoint()).toBeUndefined(); expect(scope.inspect().members).toEqual([]);
+                } else {
+                    await controller.ready;
+                    expect(frame.contentDocument).not.toBe(oldDocument);
+                    expect(frame.contentDocument!.querySelector('p')!.textContent).toBe('Current document');
+                    expect(controller.checkpoint()!()).toBe(true);
+                }
+            } finally {
+                delete (frame as unknown as { srcdoc?: string }).srcdoc;
+                controller?.dispose(); scope.dispose();
+            }
+        }
+    },
+});

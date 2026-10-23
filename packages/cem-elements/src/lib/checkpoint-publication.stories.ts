@@ -4054,3 +4054,8 @@ export const NestedWidgetControlOwnership: Story = {
         expect(guard).toThrow('widget-stale');
     },
 };
+
+export const RetainedMediaLoadAcknowledgment: Story = {
+    render: () => '<section aria-label="Current live document publication acknowledgments"></section>',
+    play: async ({ canvasElement }) => mediaResumeStory(canvasElement, ['worker-load', 'fallback-load']),
+};

@@ -1492,6 +1492,16 @@ registry; pending loads, released artifact trees, replaced documents/controllers
 and changed source/resource inputs refuse. Recovery retains the document, edited
 controls, child source callbacks and artifact object URLs. The controller renews
 its slice-publication callback on the fresh parent binding without mounting again.
+Live-preview readiness requires a load of the current mount's bootstrap document,
+using the same per-mount document marker pattern as artifact preview. A queued
+initial `about:blank` or previous-navigation event must leave loading membership
+pending and must not initialize native owners in the prior document. Otherwise
+`ready` can resolve for a document that the requested navigation then replaces,
+leaving the retained-controller witness unavailable and preventing acknowledgment.
+Disposal removes the load waiter and pending membership; late events cannot revive
+it. The marker only correlates loading: original document/source witnesses,
+privacy consent, native census and complete group admission still grant authority.
+
 Static `document`, `text`, `media` and `message` modes use the distinct native
 `retain-presentation` disposition and a bounded revision. Shared host witnesses
 retain exact presentation nodes/attributes/topology (at most 4096 nodes), keeping

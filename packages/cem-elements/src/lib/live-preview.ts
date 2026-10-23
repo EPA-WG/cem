@@ -21,7 +21,7 @@ export interface CemLivePreview {
     checkpoint(): (() => boolean) | undefined;
     dispose(): void;
 }
-const blank = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-src 'none'; connect-src 'none'; object-src 'none'"><meta name="referrer" content="no-referrer"><title>Live CEM preview</title></head><body></body></html>`;
+const blank = (owner: string) => `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-src 'none'; connect-src 'none'; object-src 'none'"><meta name="referrer" content="no-referrer"><meta name="cem-live-preview-owner" content="${owner}"><title>Live CEM preview</title></head><body></body></html>`;
 const encoder = new TextEncoder();
 const mounts = new WeakMap<HTMLIFrameElement, CemLivePreview>();
 
@@ -68,11 +68,17 @@ function mountPreview(frame: HTMLIFrameElement, options: CemLivePreviewOptions):
         frame.setAttribute('sandbox', 'allow-same-origin');
         frame.setAttribute('referrerpolicy', 'no-referrer');
         frame.setAttribute('allow', '');
+        const owner = crypto.randomUUID();
         await new Promise<void>((resolve, reject) => {
-            const loaded = () => { frame.removeEventListener('load', loaded); cancelLoad = undefined; resolve(); };
+            const loaded = () => {
+                // A queued initial/prior load can arrive after srcdoc changes.
+                // Only this mount's document may initialize native owners.
+                if (frame.contentDocument?.querySelector('meta[name="cem-live-preview-owner"]')?.getAttribute('content') !== owner) return;
+                frame.removeEventListener('load', loaded); cancelLoad = undefined; resolve();
+            };
             cancelLoad = () => { frame.removeEventListener('load', loaded); reject(new Error('cem.preview.disposed')); };
             frame.addEventListener('load', loaded);
-            frame.srcdoc = blank;
+            frame.srcdoc = blank(owner);
         });
         current();
         const document = frame.contentDocument, window = frame.contentWindow;

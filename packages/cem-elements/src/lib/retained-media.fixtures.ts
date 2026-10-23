@@ -29,8 +29,25 @@ export async function isolatedMediaResume(base: string, load: (url: string) => P
     const tree = artifacts.registerCemArtifactTree([{ path: 'index.html', contentType: 'text/html', bytes: new TextEncoder().encode('<input value="Artifact"><a href="#section">Next</a><h2 id="section">Section</h2>') }]);
     let heap = initial, embedding = initial.claimOwnership(), admission: any, combined: any, stage = 'mount';
     const progress = setInterval(() => parent.postMessage({ progress: stage }, '*'), 250);
+    const nativeSrcdoc = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'srcdoc')!;
+    let previousLoad: Promise<void> | undefined, releaseNavigation: (() => void) | undefined;
+    if (scenario.endsWith('-load')) Object.defineProperty(HTMLIFrameElement.prototype, 'srcdoc', { ...nativeSrcdoc,
+        set(this: HTMLIFrameElement, value: string) {
+            if (!previousLoad && this.getAttribute('part')?.split(' ').includes('live-document')) {
+                previousLoad = new Promise<void>(resolve => {
+                    const loaded = () => {
+                        if (this.contentDocument?.querySelector('meta[name="cem-live-preview-owner"]')?.getAttribute('content') !== 'previous') return;
+                        this.removeEventListener('load', loaded); resolve();
+                    };
+                    this.addEventListener('load', loaded);
+                });
+                releaseNavigation = () => nativeSrcdoc.set!.call(this, value);
+                nativeSrcdoc.set!.call(this, '<!doctype html><meta name="cem-live-preview-owner" content="previous"><body>Prior document</body>');
+            } else nativeSrcdoc.set!.call(this, value);
+        },
+    });
     const capture = async (c: any) => { for (let n = 0; ; n++) { try { await c.capture(); return; } catch (error) {
-        if (n >= 100) throw Error(`${String(error)} ${JSON.stringify(c.inspectRecovery())}`, { cause: error }); await new Promise(resolve => setTimeout(resolve, 10));
+        if (n >= 100) throw Error(`${String(error)} ${JSON.stringify(c.inspectRecovery())} publication=${JSON.stringify([...document.querySelectorAll('cem-media-preview')].map(host => ({ mode: host.getAttribute('mode'), token: runtime.renderTokens.get(host), published: runtime.checkpointPublishedTokens.get(host), revision: runtime.dataRevisions.get(host), queued: runtime.queuedRenders.has(host), processing: runtime.processingRenderJobs.has(host), interacting: runtime.checkpointInteracting.has(host), frameChildren: host.querySelector('iframe')?.contentDocument?.body.childElementCount, diagnostics: runtime.diagnosticsFor(host) })))}`, { cause: error }); await new Promise(resolve => setTimeout(resolve, 10));
     } } };
     try {
         const declaration = document.createElement('div');
@@ -49,6 +66,14 @@ export async function isolatedMediaResume(base: string, load: (url: string) => P
         }
         artifact.setAttribute('mode', 'artifact-tree'); artifact.setAttribute('resource-set', tree.resourceSet); artifact.setAttribute('artifact-path', 'index.html');
         document.body.append(live, artifact); await runtime.whenRenderSettled(live); await runtime.whenRenderSettled(artifact);
+        if (scenario.endsWith('-load')) {
+            check(previousLoad && releaseNavigation, 'live srcdoc navigation was not intercepted');
+            await previousLoad; await Promise.resolve(); await Promise.resolve();
+            const previewMembers = recoveryScope.inspect().members.filter((member: any) => member.kind === 'live-preview');
+            check(previewMembers.length === 1 && previewMembers[0].id.startsWith('cem-preview-loading:'), 'prior document initialized preview owners');
+            check(!live.querySelector('iframe')!.contentDocument!.querySelector('cem-element'), 'prior document received CEM declarations');
+            releaseNavigation!();
+        }
         for (let n = 0; ; n++) {
             if (live.textContent!.includes('Live view ready') && artifact.textContent!.includes('Artifact view ready')) break;
             if (n > 200) throw Error(`not ready: ${live.textContent} ${artifact.textContent}`); await new Promise(resolve => setTimeout(resolve, 10));
@@ -147,5 +172,5 @@ export async function isolatedMediaResume(base: string, load: (url: string) => P
         check(!services || commandRuns === 3, 'command work replayed during handoff');
         return `${scenario} media passed`;
     } catch (error) { throw Error(`${scenario}/${stage}: ${error instanceof Error ? error.stack : String(error)}`, { cause: error }); }
-    finally { clearInterval(progress); await services?.close(); admission?.revoke(); combined?.dispose(); document.body.replaceChildren(); scope.dispose(); coordinator.dispose(); tree.dispose(); recoveryScope.dispose(); }
+    finally { Object.defineProperty(HTMLIFrameElement.prototype, 'srcdoc', nativeSrcdoc); clearInterval(progress); await services?.close(); admission?.revoke(); combined?.dispose(); document.body.replaceChildren(); scope.dispose(); coordinator.dispose(); tree.dispose(); recoveryScope.dispose(); }
 }
