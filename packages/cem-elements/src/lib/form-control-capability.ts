@@ -26,6 +26,7 @@ export interface CemEditorLease {
 export interface CemEditorProvider {
     readonly control: Control | null;
     readonly revision: number;
+    /** IME transaction, including its deferred final-input publication. */
     readonly composing: boolean;
     readonly editable: boolean;
     compositionOwned(event: KeyboardEvent): boolean;
@@ -45,6 +46,7 @@ interface FormControlState {
     control: Control | null;
     revision: number;
     composing: boolean;
+    compositionEnd?: object;
     imePresses: Set<string>;
     handledPresses: Map<string, object>;
     listeners: Set<(update: CemEditorUpdate) => void>;
@@ -96,7 +98,7 @@ export function subscribeCemEditorCheckpoint(provider: CemEditorProvider, lease:
 /** Exact browser claim graph witness; does not inspect expired native authority. */
 export function prepareCemEditorProviderHandoff(host: HTMLElement) {
     const state = states.get(host), consumers = state && checkpointConsumers.get(state.provider);
-    if (!state || consumers?.size !== 1 || state.composing || state.imePresses.size || state.handledPresses.size) return undefined;
+    if (!state || consumers?.size !== 1 || state.composing || state.compositionEnd || state.imePresses.size || state.handledPresses.size) return undefined;
     const consumer = [...consumers][0], control = state.control, revision = state.revision;
     const entries = [state.listeners, state.leases, state.attributeClaims, state.validityClaims, state.validityOwners] as const;
     const copies = entries.map(value => [...value]);
@@ -104,7 +106,7 @@ export function prepareCemEditorProviderHandoff(host: HTMLElement) {
         state.selectionRequest, state.checkpoint && [state.checkpoint.revision, state.checkpoint.value]]);
     const captured = scalar();
     const current = () => states.get(host) === state && state.control === control && controlFor(host) === control
-        && state.revision === revision && !state.composing && !state.imePresses.size && !state.handledPresses.size
+        && state.revision === revision && !state.composing && !state.compositionEnd && !state.imePresses.size && !state.handledPresses.size
         && checkpointConsumers.get(state.provider)?.size === 1 && checkpointConsumers.get(state.provider)?.has(consumer) === true
         && scalar() === captured && entries.every((entry, index) => {
             const now = [...entry] as unknown[]; return now.length === copies[index].length && now.every((value, n) => {
@@ -122,7 +124,7 @@ export function prepareCemEditorProviderHandoff(host: HTMLElement) {
 /** Admit only standalone providers or one exactly accounted shared consumer. */
 export function cemFormControlCheckpoint(instance: HTMLElement, consumerId?: (host: HTMLElement) => string | undefined) {
     const state = states.get(instance);
-    if (!state?.control || !state.abort || state.composing || state.imePresses.size || state.handledPresses.size) return undefined;
+    if (!state?.control || !state.abort || state.composing || state.compositionEnd || state.imePresses.size || state.handledPresses.size) return undefined;
     if (state.checkpoint && (state.checkpoint.control !== state.control || state.checkpoint.revision !== state.revision || state.checkpoint.value !== state.control.value)) return undefined;
     const changeSuppression = state.checkpoint ? { revision: state.checkpoint.revision, value: state.checkpoint.value, disposition: 'suppress-once' as const } : undefined;
     let provider: { revision: number; consumer: string; validity: string } | undefined;
@@ -201,13 +203,18 @@ export const CEM_FORM_CONTROL_CAPABILITY: CemProducedElementBehavior = {
         instance.addEventListener('change', state.onInput, options);
         instance.addEventListener('compositionstart', event => {
             if (event.target !== controlFor(instance)) return;
-            state.composing = true; publish(instance, state, 'composition-start');
+            state.compositionEnd = undefined; state.composing = true; publish(instance, state, 'composition-start');
         }, options);
         instance.addEventListener('compositionend', event => {
             if (event.target !== controlFor(instance)) return;
             state.composing = false;
+            // Native final input may follow compositionend. Keep providers and
+            // checkpoint handoffs busy through this original completion task.
+            const completion = {}; state.compositionEnd = completion;
             const control = controlFor(instance), revision = state.revision;
             setTimeout(() => {
+                if (state.compositionEnd !== completion) return;
+                state.compositionEnd = undefined;
                 if (state.abort !== abort || abort.signal.aborted || state.composing || control !== controlFor(instance)) return;
                 // Final input may follow compositionend. Its own edit revision wins.
                 if (revision === state.revision) synchronize(instance, state);
@@ -218,7 +225,7 @@ export const CEM_FORM_CONTROL_CAPABILITY: CemProducedElementBehavior = {
             if (event.target !== controlFor(instance)) return;
             const key = event as KeyboardEvent;
             const press = key.code || key.key;
-            if (state.composing || key.isComposing || key.key === 'Process' || key.keyCode === 229 || state.imePresses.has(press)) {
+            if (state.composing || state.compositionEnd || key.isComposing || key.key === 'Process' || key.keyCode === 229 || state.imePresses.has(press)) {
                 state.imePresses.add(press); compositionKeys.add(key);
             } else if (state.handledPresses.has(press)) {
                 key.preventDefault(); key.stopPropagation();
@@ -238,7 +245,7 @@ export const CEM_FORM_CONTROL_CAPABILITY: CemProducedElementBehavior = {
     disconnected(instance) {
         const state = stateFor(instance);
         state.abort?.abort(); state.abort = undefined;
-        state.composing = false; state.imePresses.clear(); state.handledPresses.clear(); state.checkpoint = undefined;
+        state.composing = false; state.compositionEnd = undefined; state.imePresses.clear(); state.handledPresses.clear(); state.checkpoint = undefined;
         state.generation++; state.leases.clear(); state.validityClaims.clear(); state.validityOwners.clear();
         for (const claim of state.attributeClaims.values()) claim.dispose(); state.attributeClaims.clear();
         publish(instance, state, 'availability');
@@ -270,7 +277,7 @@ export const CEM_FORM_CONTROL_CAPABILITY: CemProducedElementBehavior = {
     rendered(instance) {
         const state = stateFor(instance), control = controlFor(instance);
         if (state.control !== control) {
-            state.control = control; state.generation++; state.leases.clear(); state.validityClaims.clear(); state.validityOwners.clear();
+            state.control = control; state.compositionEnd = undefined; state.generation++; state.leases.clear(); state.validityClaims.clear(); state.validityOwners.clear();
             for (const claim of state.attributeClaims.values()) claim.dispose(); state.attributeClaims.clear();
             publish(instance, state, 'rebind', true);
         }
@@ -309,7 +316,7 @@ function applySelectionRequest(instance: HTMLElement, state: FormControlState, c
     state.selectionRequest = request;
     const start = instance.getAttribute('selection-start'), end = instance.getAttribute('selection-end');
     const direction = instance.getAttribute('selection-direction') ?? 'none';
-    if (!control || !instance.isConnected || state.composing || state.formDisabled || instance.hasAttribute('disabled')
+    if (!control || !instance.isConnected || state.composing || state.compositionEnd || state.formDisabled || instance.hasAttribute('disabled')
         || control.matches(':disabled') || control.selectionStart === null
         || start === null || end === null || !/^\d+$/.test(start) || !/^\d+$/.test(end)
         || !Number.isSafeInteger(Number(start)) || !Number.isSafeInteger(Number(end))
@@ -361,9 +368,9 @@ function editorProvider(instance: HTMLElement, state: FormControlState): CemEdit
     return {
         get control() { return controlFor(instance); },
         get revision() { return state.revision; },
-        get composing() { return state.composing; },
+        get composing() { return state.composing || !!state.compositionEnd; },
         get editable() { return editable(instance, state); },
-        compositionOwned(event) { return state.composing || isCemEditorCompositionKey(event) || state.imePresses.has(event.code || event.key); },
+        compositionOwned(event) { return state.composing || !!state.compositionEnd || isCemEditorCompositionKey(event) || state.imePresses.has(event.code || event.key); },
         subscribe(listener) { state.listeners.add(listener); return () => state.listeners.delete(listener); },
         validity(owner) {
             const token = { owner }, generation = state.generation; let released = false;
@@ -412,7 +419,7 @@ function editorProvider(instance: HTMLElement, state: FormControlState): CemEdit
                 },
                 commit(value, request) {
                     const control = controlFor(instance);
-                    const current = () => valid() && !datalist.valid && editable(instance, state) && !state.composing
+                    const current = () => valid() && !datalist.valid && editable(instance, state) && !state.composing && !state.compositionEnd
                         && control === controlFor(instance) && state.revision === request.revision
                         && state.authoredValue === instance.getAttribute('value') && (request.current?.() ?? true);
                     if (!control || !current() || isDomInstance(control, 'HTMLInputElement') && control.type === 'file') return false;
@@ -477,7 +484,7 @@ const implicitSubmissionTypes = new Set([
 
 function implicitSubmit(instance: HTMLElement, state: FormControlState, event: KeyboardEvent): void {
     const control = controlFor(instance);
-    const imeOwned = state.composing || event.isComposing || state.imePresses.has(event.code || event.key);
+    const imeOwned = state.composing || !!state.compositionEnd || event.isComposing || state.imePresses.has(event.code || event.key);
     if (!event.isTrusted || event.key !== 'Enter' || imeOwned || event.defaultPrevented
         || event.target !== control || !isDomInstance(control, 'HTMLInputElement')
         || !implicitSubmissionTypes.has(control.type) || control.form) return;

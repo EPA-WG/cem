@@ -1658,3 +1658,28 @@ owner between captures. `node --expose-gc packages/cem-elements/tests/checkpoint
 `cem-elements:build`) checks callback reachability with retained registration
 handles after removal/disposal. This supplements the owned WASM factory's
 disposed-memory collection probe; it does not enable automatic recovery.
+
+Native `setSelectionRange` can queue a trusted `select` notification after its
+selection has already been captured. Such a notification does not advance the
+checkpoint input epoch or request a render when the original active owner still
+has an acknowledgment, matching data revision and publication token, and an
+identical complete control/runtime/dependency/resource fingerprint. This only
+filters redundant checkpoint bookkeeping: the DOM event and other listeners
+continue normally. Synthetic events, changed selections, composition, pending
+publication, incomplete source/provider authority and unprovable fingerprints
+retain ordinary invalidation. No event queue, timestamp heuristic, timeout
+extension, source-policy grant or automatic recovery is introduced.
+
+Controlled browser fixtures delay actual trusted selection notifications until
+suggestions sealing or worker/combined-fallback allocation. They require one
+successful capture or recovery with unchanged event receipts and retained edits;
+changed selections and synthetic notifications must still invalidate enrollment.
+
+Form editor providers keep `composing` true through the existing deferred
+composition-end publication, even after the DOM `compositionend` event. Final
+input may arrive in that interval and its newer revision wins. Capture, paired
+provider handoff, suggestion readiness, provider commits and implicit submission
+remain closed until the completion task publishes the final value. One private
+completion token fences older callbacks after a new composition, control rebind
+or disconnect; no pending composition is serialized into a checkpoint. Native
+`InputEvent.isComposing` is unchanged, and no additional task or delay is added.

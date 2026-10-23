@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect } from 'storybook/test';
+import { createCemDeclarationScope } from './declaration-scope.js';
 import { CemElementRuntime } from './cem-elements.js';
 import { getCemEditorProvider } from './form-control-capability.js';
 
@@ -189,5 +190,37 @@ export const ReentrancyAndAdmission: Story = {
         await runtime.whenRenderSettled(outer);
         await runtime.whenRenderSettled(required(outer.querySelector<HTMLElement>('story-editor-reentrant')));
         expect(required(getCemEditorProvider(outer)).control).toBeNull();
+    },
+};
+
+export const CompositionCompletionPublication: Story = {
+    render: () => '<section aria-label="Editor composition completion publication"></section>',
+    play: async ({ canvasElement }) => {
+        const scope = createCemDeclarationScope({ document }), suffix = crypto.randomUUID();
+        const runtime = new CemElementRuntime({ declarationScope: scope, declarationTag: `composition-declaration-${suffix}` }); runtime.install(window);
+        const declaration = document.createElement('div'), template = document.createElement('template'), tag = `composition-editor-${suffix}`;
+        declaration.setAttribute('tag', tag); declaration.setAttribute('capability', 'form-control');
+        template.setAttribute('type', 'text/cem-ml'); template.textContent = '{input @part=control @type=text @value={datadom.slices.value}}';
+        declaration.append(template); canvasElement.append(declaration); runtime.registerDeclaration(declaration); await runtime.whenDeclarationSettled(declaration);
+        const field = document.createElement(tag) as Field; canvasElement.append(field); await runtime.whenRenderSettled(field);
+        const provider = required(getCemEditorProvider(field)), input = required(provider.control), lease = provider.lease({});
+        const completions: string[] = [], release = provider.subscribe(update => { if (update.cause === 'composition-end') completions.push(field.value); });
+        const event = (name: string) => input.dispatchEvent(new CompositionEvent(name, { bubbles: true }));
+        const task = () => new Promise(resolve => setTimeout(resolve, 0));
+        try {
+            event('compositionstart'); input.value = 'Before final input'; event('compositionend');
+            expect(provider.composing).toBe(true); expect(lease.commit('Premature', { revision: provider.revision })).toBe(false);
+            input.value = 'Final café 😀'; input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText' }));
+            const revision = provider.revision; await task();
+            expect(provider.composing).toBe(false); expect(field.value).toBe('Final café 😀'); expect(provider.revision).toBe(revision);
+            expect(completions).toEqual(['Final café 😀']);
+            event('compositionstart'); event('compositionend'); event('compositionstart'); await task();
+            expect(provider.composing).toBe(true); expect(completions).toHaveLength(1);
+            event('compositionend'); await task(); expect(provider.composing).toBe(false); expect(completions).toHaveLength(2);
+            event('compositionstart'); event('compositionend'); event('compositionstart'); event('compositionend');
+            expect(provider.composing).toBe(true); await task(); expect(provider.composing).toBe(false); expect(completions).toHaveLength(3);
+            event('compositionstart'); event('compositionend'); field.remove(); canvasElement.append(field); await runtime.whenRenderSettled(field); await task();
+            expect(provider.composing).toBe(false); expect(lease.valid).toBe(false); expect(completions).toHaveLength(3);
+        } finally { release(); lease.release(); field.remove(); scope.dispose(); }
     },
 };

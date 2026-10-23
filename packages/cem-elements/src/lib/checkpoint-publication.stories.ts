@@ -698,10 +698,30 @@ function readySuggestionsCheckpoint(host: HTMLElement) {
     const state = cemSuggestionsCheckpoint(host);
     return state && !('phase' in state) ? state : undefined;
 }
-async function activeSuggestionsCheckpointContract(canvasElement: HTMLElement, mode: boolean): Promise<void> {
+async function activeSuggestionsCheckpointContract(canvasElement: HTMLElement, mode: boolean, lateSelection = false): Promise<void> {
         await init(); const root = canvasElement.querySelector('section')!;
         for (const fallback of [mode]) {
             const f = fixture(root, fallback, false, undefined, { localSuggestions: true });
+            let armed = false, released = false, observed: (() => void) | undefined;
+            const selected = new Promise<void>(resolve => { observed = resolve; }), notifications: (() => void)[] = [];
+            const prototype = EventTarget.prototype, add = prototype.addEventListener, remove = prototype.removeEventListener;
+            const wrappers = new WeakMap<EventListener, EventListener>();
+            if (lateSelection) {
+                prototype.addEventListener = function(type, listener, options) {
+                    if (type === 'select' && options === true && typeof listener === 'function' && listener.name === 'input'
+                        && this instanceof HTMLElement && root.contains(this)) {
+                        const wrapped: EventListener = event => {
+                            if (!armed || released || !event.isTrusted) listener.call(this, event);
+                            else { notifications.push(() => listener.call(this, event)); observed?.(); }
+                        };
+                        wrappers.set(listener, wrapped); return add.call(this, type, wrapped, options);
+                    }
+                    return add.call(this, type, listener, options);
+                };
+                prototype.removeEventListener = function(type, listener, options) {
+                    return remove.call(this, type, type === 'select' && typeof listener === 'function' ? wrappers.get(listener) ?? listener : listener, options);
+                };
+            }
             try {
                 const original = await f.create(declarationTemplate(fieldDeclaration), 'cem-ml', root, undefined, 'form-control');
                 await f.runtime.whenRenderSettled(original); const tag = original.localName; original.remove();
@@ -711,7 +731,16 @@ async function activeSuggestionsCheckpointContract(canvasElement: HTMLElement, m
                 const field = host.querySelector<HTMLElement>(tag)!; await f.runtime.whenRenderSettled(field);
                 const input = field.querySelector('input')!;
                 const ready = () => waitFor(() => expect(readySuggestionsCheckpoint(host)).toBeDefined());
-                const capture = () => waitFor(async () => { await f.coordinator.capture(); });
+                let captureIndex = 0;
+                const capture = async () => {
+                    const index = ++captureIndex;
+                    try { await waitFor(async () => { await f.coordinator.capture(); }); }
+                    catch (error) { throw Error(`suggestions capture ${index}: ${JSON.stringify({ owners: f.coordinator.inspectRecovery(),
+                        provider: (() => { const state = cemSuggestionsCheckpoint(host); return state && { phase: 'phase' in state ? state.phase : 'ready', queryRevision: state.queryRevision, providerRevision: state.providerRevision }; })(), flags: [host, field].map(element => ({ tag: element.localName,
+                            token: f.runtime['renderTokens'].get(element), published: f.runtime['checkpointPublishedTokens'].get(element),
+                            revision: f.runtime['dataRevisions'].get(element), queued: f.runtime['queuedRenders'].has(element),
+                            processing: f.runtime['processingRenderJobs'].has(element), interacting: f.runtime['checkpointInteracting'].has(element) })) })}`, { cause: error }); }
+                };
                 await ready();
                 const revision = f.runtime.readInstanceSnapshot(host).dataRevision;
                 expect(f.runtime.readInstanceSnapshot(host).dataRevision).toBe(revision);
@@ -774,7 +803,25 @@ async function activeSuggestionsCheckpointContract(canvasElement: HTMLElement, m
                 await expect(f.coordinator.capture()).rejects.toThrow('unavailable'); emptyValidity.release(); await capture();
                 input.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
                 await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
-                input.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true })); await ready(); await capture();
+                input.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+                expect(getCemEditorProvider(field)?.composing).toBe(true);
+                expect(cemSuggestionsCheckpoint(host)).toBeUndefined();
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                await ready(); await capture();
+                if (lateSelection) {
+                    armed = true; input.setSelectionRange(0, 2, 'forward'); await selected;
+                    await waitFor(() => expect(f.coordinator['ready']()).toBe(true));
+                    const sequence = f.coordinator.lastCommitted()!.receipt.owners.map(owner => owner.acceptedEventSequence);
+                    const seal = f.coordinator['options'].seal;
+                    f.coordinator['options'].seal = (candidate, receipt) => {
+                        released = true; for (const notify of notifications.splice(0)) notify();
+                        return seal(candidate, receipt);
+                    };
+                    await f.coordinator.capture();
+                    expect(f.coordinator.current()!.receipt.owners.map(owner => owner.acceptedEventSequence)).toEqual(sequence);
+                    expect(input.selectionStart).toBe(0); expect(input.selectionEnd).toBe(2);
+                    f.coordinator['options'].seal = seal;
+                }
                 host.setAttribute('options-state', 'pending'); await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
                 host.setAttribute('options-state', 'ready'); await ready(); await capture();
                 expect(input.value).toBe('same');
@@ -793,7 +840,7 @@ async function activeSuggestionsCheckpointContract(canvasElement: HTMLElement, m
                 field.removeAttribute('readonly'); await f.runtime.whenRenderSettled(field); input.focus();
                 await ready(); await capture(); expect(input.validationMessage).toBe('Select a suggestion.');
                 expect(input.value).toBe('same');
-            } finally { f.dispose(); }
+            } finally { f.dispose(); if (lateSelection) { prototype.addEventListener = add; prototype.removeEventListener = remove; } }
         }
 
 }
@@ -4064,4 +4111,12 @@ export const RetainedMediaLoadAcknowledgment: Story = {
 export const ReplacedOwnerFreshSealing: Story = {
     render: () => '<section aria-label="Fresh sealing after complete owner replacement"></section>',
     play: async ({ canvasElement }) => mediaResumeStory(canvasElement, ['worker', 'fallback'], isolatedOwnerReplacement),
+};
+
+export const LateNativeSelectionRecovery: Story = { render: () => '<section aria-label="Delayed native selection recovery"></section>',
+    play: async ({ canvasElement }) => mediaResumeStory(canvasElement, ['fallback-select', 'worker-select', 'fallback-select-change', 'worker-select-synthetic']),
+};
+
+export const SuggestionsLateNativeSelectionCapture: Story = { render: () => '<section aria-label="Suggestions native selection acknowledgment"></section>',
+    play: async ({ canvasElement }) => activeSuggestionsCheckpointContract(canvasElement, false, true),
 };

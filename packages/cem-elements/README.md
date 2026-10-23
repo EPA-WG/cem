@@ -31,7 +31,14 @@ runtime/generation/policy authority; compaction waits for a successful all-owner
 seal. After an admitted handoff, newly created owners in the same live declaration
 scope also seal through its current processing host, even after every resumed
 owner is replaced. Removed/disposed owners release their sealing callbacks;
-initial owners retain the configured host sealer. IDs are host-issued and never reused; no operation is replayed.
+initial owners retain the configured host sealer. A delayed trusted native
+`select` notification for an already acknowledged complete fingerprint does not
+create another checkpoint input epoch or render. Changed selections, synthetic
+events and incomplete source/provider state still invalidate normally; event
+listeners continue to receive the DOM event. Form providers remain `composing`
+through their existing final-input completion task, keeping capture, handoff and
+commits closed until the final value is published. Restart/rebind/disconnect
+fences stale completion callbacks. IDs are host-issued and never reused; no operation is replayed.
 Checkpoint-only form envelopes require explicit semantic resume and are refused
 by ordinary hydration. Ordinary rendering continues.
 This is host-session capture, not automatic WASM replacement or resume. See

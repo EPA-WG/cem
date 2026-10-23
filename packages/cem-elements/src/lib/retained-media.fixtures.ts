@@ -11,6 +11,7 @@ export async function isolatedMediaResume(base: string, load: (url: string) => P
     const fallback = scenario.startsWith('fallback'), scope = createCemDeclarationScope({ document }), recoveryScope = new CemNativeRecoveryScope();
     const coordinator = new CemCheckpointPublicationCoordinator({ runtimeId: crypto.randomUUID(), generation: 1, policyStamp: 'media',
         allowOwner: () => true, seal: (candidate: string, receipt: string) => binding.sealCommittedCheckpoint(candidate, receipt) });
+    const eventTrace: string[] = [];
     const runtime = new CemElementRuntime({ declarationScope: scope, checkpointPublication: coordinator, recoveryScope,
         declarationTag: `media-declaration-${crypto.randomUUID()}`, processingWorkerFactory: () => {
             if (fallback) throw Error('owned fallback'); return new Worker(`${support}processing-worker.js`, { type: 'module' });
@@ -46,6 +47,39 @@ export async function isolatedMediaResume(base: string, load: (url: string) => P
             } else nativeSrcdoc.set!.call(this, value);
         },
     });
+    const heldSelect: (() => void)[] = [];
+    let selectReleased = false, selectObserved: (() => void) | undefined;
+    const selectReady = new Promise<void>(resolve => { selectObserved = resolve; });
+    const restoreSelect: (() => void)[] = [];
+    if (scenario.includes('-select')) Object.defineProperty(HTMLIFrameElement.prototype, 'srcdoc', { ...nativeSrcdoc,
+        set(this: HTMLIFrameElement, value: string) {
+            if (this.getAttribute('part')?.split(' ').includes('live-document')) {
+                const prepare = () => {
+                    const view = this.contentWindow;
+                    if (!view || !this.contentDocument?.querySelector('meta[name="cem-live-preview-owner"]')) return;
+                    this.removeEventListener('load', prepare, true);
+                    const prototype = (view as any).EventTarget.prototype, add = prototype.addEventListener, remove = prototype.removeEventListener;
+                    const wrappers = new WeakMap<object, EventListener>();
+                    prototype.addEventListener = function(type: string, listener: EventListener, options: any) {
+                        if (type === 'select' && options === true && listener?.name === 'input' && this.localName === 'cem-live-view') {
+                            const wrapped = (event: Event) => {
+                                if (selectReleased || !event.isTrusted) listener.call(this, event);
+                                else { heldSelect.push(() => listener.call(this, event)); selectObserved?.(); }
+                            };
+                            wrappers.set(listener, wrapped); return add.call(this, type, wrapped, options);
+                        }
+                        return add.call(this, type, listener, options);
+                    };
+                    prototype.removeEventListener = function(type: string, listener: EventListener, options: any) {
+                        return remove.call(this, type, type === 'select' ? wrappers.get(listener) ?? listener : listener, options);
+                    };
+                    restoreSelect.push(() => { prototype.addEventListener = add; prototype.removeEventListener = remove; });
+                };
+                this.addEventListener('load', prepare, true);
+            }
+            nativeSrcdoc.set!.call(this, value);
+        },
+    });
     const capture = async (c: any) => { for (let n = 0; ; n++) { try { await c.capture(); return; } catch (error) {
         if (n >= 100) throw Error(`${String(error)} ${JSON.stringify(c.inspectRecovery())} publication=${JSON.stringify([...document.querySelectorAll('cem-media-preview')].map(host => ({ mode: host.getAttribute('mode'), token: runtime.renderTokens.get(host), published: runtime.checkpointPublishedTokens.get(host), revision: runtime.dataRevisions.get(host), queued: runtime.queuedRenders.has(host), processing: runtime.processingRenderJobs.has(host), interacting: runtime.checkpointInteracting.has(host), frameChildren: host.querySelector('iframe')?.contentDocument?.body.childElementCount, diagnostics: runtime.diagnosticsFor(host) })))}`, { cause: error }); await new Promise(resolve => setTimeout(resolve, 10));
     } } };
@@ -79,6 +113,7 @@ export async function isolatedMediaResume(base: string, load: (url: string) => P
             if (n > 200) throw Error(`not ready: ${live.textContent} ${artifact.textContent}`); await new Promise(resolve => setTimeout(resolve, 10));
         }
         const frame = live.querySelector('iframe')!, artifactFrame = artifact.querySelector('iframe')!, liveDocument = frame.contentDocument!, artifactDocument = artifactFrame.contentDocument!;
+        for (const type of ['select', 'focusin', 'focusout', 'input', 'change']) liveDocument.addEventListener(type, event => eventTrace.push(`${stage}:event:${event.type}:${(event.target as Element).localName}:${event.isTrusted}`), true);
         const input = liveDocument.querySelector('input')!, artifactInput = artifactDocument.querySelector('input')!;
         input.value = 'Edited café 😀'; input.focus(); input.setSelectionRange(2, 7, 'backward'); artifactInput.value = 'Edited artifact';
         const statics: { host: HTMLElement; root: Element; frame?: HTMLIFrameElement; control?: HTMLInputElement; audio?: HTMLAudioElement; loads(): number }[] = [];
@@ -111,6 +146,7 @@ export async function isolatedMediaResume(base: string, load: (url: string) => P
         const text = statics.find(value => value.host.getAttribute('mode') === 'text')?.host.querySelector('pre');
         const textNode = text ? [...text.childNodes].find(node => node.nodeType === 3 && node.nodeValue!.length >= 7)! : undefined;
         if (text) { text.style.maxHeight = '20px'; text.scrollTop = 30; window.getSelection()!.setBaseAndExtent(textNode!, 2, textNode!, 7); }
+        if (scenario.includes('-select')) await selectReady;
         const child = coordinator.previewCoordinators()[0]; check(child, 'preview coordinator missing');
         if (fallback) {
             let refused = false; try { await coordinator.capture(); } catch { refused = true; } check(refused, 'partial parent fallback coverage admitted');
@@ -135,7 +171,21 @@ export async function isolatedMediaResume(base: string, load: (url: string) => P
             for (let i = 0; i < commands.length; i++) retired.push(await commands[i].retireNativeGeneration(commandProofs[i], [commandOwners[i]], {
                 current: plan.current, retain: () => new TextEncoder().encode('terminal command ledger; no outstanding handles or effects'),
             }));
-            stage = `allocate ${cycle}`; const previous = admission; admission = await group.allocate(retired);
+            stage = `allocate ${cycle}`; const previous = admission;
+            const allocating = group.allocate(retired);
+            if (scenario.includes('-select') && cycle === 0) {
+                check(heldSelect.length > 0, 'trusted native select notification was not intercepted');
+                selectReleased = true;
+                if (scenario.endsWith('-select-synthetic')) input.dispatchEvent(new Event('select', { bubbles: true }));
+                if (scenario.endsWith('-select-change')) input.setSelectionRange(0, 1, 'forward');
+                for (const notify of heldSelect.splice(0)) notify();
+                if (scenario.endsWith('-select-change') || scenario.endsWith('-select-synthetic')) {
+                    let refused = false; try { await allocating; } catch (error) { refused = /enrollment-stale/.test(String(error)); }
+                    check(refused && input.value === 'Edited café 😀' && input.selectionStart === (scenario.endsWith('-select-change') ? 0 : 2) && input.selectionEnd === (scenario.endsWith('-select-change') ? 1 : 7), 'changed or synthetic selection admitted or lost');
+                    return `${scenario} media passed`;
+                }
+            }
+            admission = await allocating;
             if (scenario.endsWith('release')) tree.dispose();
             if (scenario === 'worker-frame') artifactFrame.srcdoc = '<p>Changed document</p>';
             if (scenario.endsWith('static-change')) statics[0].root.append(document.createTextNode('changed'));
@@ -171,6 +221,6 @@ export async function isolatedMediaResume(base: string, load: (url: string) => P
         check(navigations === 1 && artifact.textContent!.includes('Artifact view ready') && artifactFrame.contentDocument === artifactDocument, 'fresh callback lost or remounted document');
         check(!services || commandRuns === 3, 'command work replayed during handoff');
         return `${scenario} media passed`;
-    } catch (error) { throw Error(`${scenario}/${stage}: ${error instanceof Error ? error.stack : String(error)}`, { cause: error }); }
-    finally { Object.defineProperty(HTMLIFrameElement.prototype, 'srcdoc', nativeSrcdoc); clearInterval(progress); await services?.close(); admission?.revoke(); combined?.dispose(); document.body.replaceChildren(); scope.dispose(); coordinator.dispose(); tree.dispose(); recoveryScope.dispose(); }
+    } catch (error) { throw Error(`${scenario}/${stage}: ${error instanceof Error ? error.stack : String(error)} events=${JSON.stringify(eventTrace.slice(-16))} peers=${JSON.stringify([coordinator, ...coordinator.previewCoordinators()].map(c => c.inspectRecovery()))}`, { cause: error }); }
+    finally { Object.defineProperty(HTMLIFrameElement.prototype, 'srcdoc', nativeSrcdoc); clearInterval(progress); await services?.close(); admission?.revoke(); combined?.dispose(); document.body.replaceChildren(); scope.dispose(); coordinator.dispose(); tree.dispose(); recoveryScope.dispose(); for (const restore of restoreSelect) restore(); }
 }

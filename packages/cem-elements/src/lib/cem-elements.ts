@@ -3634,6 +3634,20 @@ export class CemElementRuntime {
             published(receipt);
         };
         const input = (event?: Event) => {
+            // setSelectionRange queues a trusted notification. A capture may
+            // already include that exact selection before the task is delivered.
+            // Do not turn its late acknowledgment into a new render/input epoch.
+            // Synthetic events, changed properties and incomplete native/source
+            // fingerprints still take the ordinary invalidation path.
+            if (event?.type === 'select' && event.isTrusted && owner.acknowledged
+                && instance.isConnected && !compiled.declarationScope.disposed
+                && this.checkpointOwners.get(instance)?.owner === owner
+                && publishedRevision === String(this.dataRevisions.get(instance))
+                && this.checkpointPublishedTokens.get(instance) === this.renderTokens.get(instance)
+                && publishedControls !== undefined) {
+                try { if (this.checkpointFingerprint(instance, compiled) === publishedControls) return; }
+                catch { /* Unprovable state retains ordinary input invalidation. */ }
+            }
             // Only the explicitly admitted paired adapter may reset native picker
             // presentation. Edits, focus, keys and commands remain ordinary input.
             if (event?.type === 'toggle' && this.checkpointPresentationResume.get(instance) === event.target) return;
