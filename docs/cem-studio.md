@@ -3269,9 +3269,15 @@ fresh native Save/build operations. It includes rendering, command-service and
 owned invocation/graph heaps. The host explicitly reserves a 4 MiB checkpoint
 budget; aggregate generation-group bytes still cap at 4 MiB.
 
-Automatic whole-Studio recovery remains disabled. Credential-bearing live Login
-controls still require a reviewed privacy policy before successful live-view
-recovery can be claimed. Unknown preview modes and command outcomes continue to
+Automatic whole-Studio recovery remains disabled. The reviewed Login policy
+blocks capture/recovery while a password or one-time code is entered; recovery
+never clears credentials or omits their owners. Explicit clearing permits the
+shared native-validated empty-control checkpoint, preserving consented email and
+other edits. Empty Login child capture is supported, but the complete workspace
+with the active live view currently exceeds the existing 4 MiB checkpoint budget;
+that capacity refusal remains a separate gate before successful whole-Studio live
+recovery can be claimed. See the [credential privacy policy](committed-checkpoints.md#credential-privacy-policy-for-live-login-recovery).
+Unknown preview modes and command outcomes continue to
 refuse complete admission. Acceptance uses isolated realms and temporary project
 databases, preserving existing saved projects and drafts. See
 [the enrollment contract](committed-checkpoints.md#explicit-runtime-recovery-enrollment).

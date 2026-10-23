@@ -7,8 +7,9 @@ Use the shared native `sealCommittedCheckpoint` export as its trusted sealer.
 adapter/acknowledgment metadata and pending admissions/unknown operations without
 exporting source, probing owners or touching native state. It grants no recovery
 authority. Explicit whole-Studio graph-preview recovery passes isolated worker and
-fallback acceptance; automatic recovery and credential-bearing live-view admission
-remain gated. See
+fallback acceptance. Empty credential-control capture is admitted under the
+reviewed policy below; entered credentials block recovery. Automatic recovery
+and complete Studio live-view checkpoint capacity remain gated. See
 [the Studio admission contract](../../docs/committed-checkpoints.md#complete-studio-admission-acceptance).
 
 `CemCheckpointPublicationCoordinator` adds opt-in all-owner capture through
@@ -1535,3 +1536,13 @@ retain normal admission. The native cache stores bounded owned output bytes only
 clears on template disposal/runtime reset, and retains no DOM, native owners or
 previous connection. Optional processing `renderReuse` counters are diagnostic;
 they never authorize publication. See the [native contract](../cem_ql/README.md#shared-retained-wasm-processing).
+
+### Credential controls during explicit checkpoint recovery
+
+Entered passwords and password/one-time-code autocomplete controls block recovery
+for the complete runtime group. Recovery never clears credentials or omits their
+owners. After explicit clearing, the native-validated `credential-empty` control
+kind preserves the empty control and other consented edits without exporting a
+secret. Nonempty reset values/custom errors and file controls remain refused;
+property-only changes still invalidate currentness. See the
+[credential privacy policy](../../docs/committed-checkpoints.md#credential-privacy-policy-for-live-login-recovery).

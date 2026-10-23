@@ -244,6 +244,11 @@ for attribute presence, host form ownership, reset and scoped indicators.
 Both single-line fields forward native range/step, length/pattern, editing hints
 and `list` bindings; see that contract for the full shared inventory. Live public
 value writes update submission/validity synchronously and preserve reset defaults.
+Explicit runtime recovery refuses entered passwords and password/one-time-code
+controls. After explicit clearing, the shared runtime can capture an empty
+credential control; it never clears a value to gain admission. Nonempty reset
+values/custom errors, file controls and other unsupported source/state contracts
+still block complete recovery. See the [credential checkpoint policy](../../../docs/committed-checkpoints.md#credential-privacy-policy-for-live-login-recovery).
 
 | Component | Semantics | Content and Attributes | Token Families | Required A11y |
 | --- | --- | --- | --- | --- |

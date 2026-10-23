@@ -77,3 +77,42 @@ fn bounds_normalized_output_even_when_optional_selection_is_omitted() {
     s["controls"][0]["value"] = "x".repeat(remaining).into();
     assert!(validate(&s.to_string()).is_err());
 }
+
+#[test]
+fn credential_policy_refuses_empty_and_entered_controls_without_echoing_values() {
+    for input_type in ["password", "file", "PASSWORD"] {
+        for value in ["", "fixture-private-credential"] {
+            let mut s = state();
+            let control = &mut s["controls"][0];
+            control["inputType"] = input_type.into();
+            control["value"] = value.into();
+            control["selection"] = serde_json::Value::Null;
+            assert_eq!(
+                validate(&s.to_string()).unwrap_err(),
+                "cem.checkpoint.controls.shape"
+            );
+        }
+    }
+}
+
+#[test]
+fn empty_credential_controls_have_a_distinct_fail_closed_contract() {
+    for input_type in ["password", "text", "tel", "number"] {
+        let mut s = state();
+        let c = &mut s["controls"][0];
+        c["kind"] = "credential-empty".into();
+        c["inputType"] = input_type.into();
+        c["value"] = "".into();
+        c["customValidity"] = "".into();
+        c["selection"] = serde_json::Value::Null;
+        assert!(validate(&s.to_string()).is_ok());
+        for field in ["value", "customValidity"] {
+            let mut bad = s.clone();
+            bad["controls"][0][field] = "fixture-private-credential".into();
+            assert!(validate(&bad.to_string()).is_err());
+        }
+        let mut bad = s.clone();
+        bad["controls"][0]["inputType"] = "file".into();
+        assert!(validate(&bad.to_string()).is_err());
+    }
+}

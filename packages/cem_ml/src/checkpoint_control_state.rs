@@ -84,6 +84,22 @@ pub fn validate(input: &str) -> Result<String, &'static str> {
                     | "textarea"
                     | "plaintext"
             ),
+            "credential-empty" => {
+                control.value.is_empty()
+                    && control.custom_validity.is_empty()
+                    && control.selection.is_none()
+                    && matches!(
+                        control.input_type.as_str(),
+                        "password"
+                            | "text"
+                            | "search"
+                            | "tel"
+                            | "url"
+                            | "email"
+                            | "number"
+                            | "textarea"
+                    )
+            }
             "check" => matches!(control.input_type.as_str(), "checkbox" | "radio"),
             "select" => matches!(
                 control.input_type.as_str(),

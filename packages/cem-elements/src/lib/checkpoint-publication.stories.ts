@@ -202,6 +202,65 @@ export const CssDrainFailureAndAutomaticCapture: Story = {
     },
 };
 
+export const EmptyCredentialControlsAndEnteredValueRefusal: Story = {
+    render: () => '<section aria-label="Empty credential checkpoint policy fixture"></section>',
+    play: async ({ canvasElement }) => {
+        await init(); const root = canvasElement.querySelector('section')!;
+        for (const fallback of [false, true]) {
+            const f = fixture(root, fallback);
+            try {
+                for (const attributes of ['@type=password', '@type=PASSWORD @autocomplete=current-password',
+                    '@autocomplete="section-login NEW-PASSWORD"', '@autocomplete="section-login one-time-code"']) {
+                    const owner = await f.create(`{input ${attributes}}`); await f.runtime.whenRenderSettled(owner);
+                    const input = owner.querySelector('input')!;
+                    await waitFor(async () => f.coordinator.capture());
+                    expect(decode(f.coordinator).owners).toHaveLength(1);
+                    expect(decode(f.coordinator).owners[0].island).toContain('credential-empty');
+                    const credential = `private-${crypto.randomUUID()}`;
+                    input.value = credential;
+                    expect(f.coordinator.current()).toBeUndefined();
+                    await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                    expect(input.value).toBe(credential);
+                    expect(() => f.coordinator.prepareResume()).toThrow();
+                    expect(new TextDecoder().decode(f.coordinator.lastCommitted()!.bytes)).not.toContain(credential);
+                    input.value = ''; input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+                    await f.runtime.whenRenderSettled(owner); await waitFor(async () => f.coordinator.capture());
+                    input.defaultValue = credential;
+                    await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                    input.defaultValue = ''; input.setCustomValidity(credential);
+                    await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                    input.setCustomValidity('');
+                    owner.remove();
+                }
+                const field = await f.create(declarationTemplate(fieldDeclaration), 'cem-ml', root, undefined, 'form-control', { type: 'password' });
+                await f.runtime.whenRenderSettled(field); await waitFor(async () => f.coordinator.capture());
+                const control = field.querySelector('input')!;
+                (field as HTMLInputElement).value = 'private-bound-value'; control.value = '';
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                (field as HTMLInputElement).value = '';
+                (field as HTMLInputElement).setCustomValidity('private-validity'); control.setCustomValidity('');
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                (field as HTMLInputElement).setCustomValidity('');
+                await f.runtime.whenRenderSettled(field); await waitFor(async () => f.coordinator.capture());
+                control.value = 'private-event-value'; control.dispatchEvent(new InputEvent('input', { bubbles: true }));
+                await f.runtime.whenRenderSettled(field); (field as HTMLInputElement).value = '';
+                await f.runtime.whenRenderSettled(field);
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+                control.dispatchEvent(new InputEvent('input', { bubbles: true }));
+                await f.runtime.whenRenderSettled(field); await waitFor(async () => f.coordinator.capture());
+                field.remove();
+                const bound = await f.create('{slice @name=typed}{input @type=password @slice=typed @slice-event=input @slice-value="$target.value"}{output | {$typed}}');
+                await f.runtime.whenRenderSettled(bound);
+                const raw = bound.querySelector('input')!; raw.value = 'private-bound-raw';
+                raw.dispatchEvent(new InputEvent('input', { bubbles: true })); await f.runtime.whenRenderSettled(bound);
+                expect(bound.querySelector('output')!.textContent).toBe('private-bound-raw');
+                raw.value = ''; f.coordinator.current(); await f.runtime.whenRenderSettled(bound);
+                await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
+            } finally { f.dispose(); }
+        }
+    },
+};
+
 export const UnsupportedOwnersBlockTheWholeDomain: Story = {
     render: () => '<section aria-label="Checkpoint completeness refusal fixture"></section>',
     play: async ({ canvasElement }) => {
@@ -222,6 +281,7 @@ export const UnsupportedOwnersBlockTheWholeDomain: Story = {
                 unsupported.remove(); await waitFor(async () => f.coordinator.capture());
                 for (const attributes of ['@type=file', '@type=PASSWORD', '@autocomplete=CURRENT-PASSWORD']) {
                     const secret = await f.create(`{input ${attributes}}`); await f.runtime.whenRenderSettled(secret);
+                    secret.querySelector('input')!.value = attributes === '@type=file' ? '' : 'Private';
                     await expect(f.coordinator.capture()).rejects.toThrow('unavailable');
                     secret.remove(); await waitFor(async () => f.coordinator.capture());
                 }

@@ -3242,6 +3242,25 @@ export class CemElementRuntime {
         const runtime = this.checkpointRuntimeState(instance, compiled, state);
         const controls = this.checkpointControls(instance);
         if (!runtime || !controls) return undefined;
+        if (controls.controls.some(control => control.kind === 'credential-empty')) {
+            // Arbitrary authored bindings can retain earlier credentials even
+            // after a property-only clear. Only the shared provider's bounded
+            // empty value/disabled state has a reviewed private-state contract.
+            if (Object.keys(state.nativeSlices).length) return undefined;
+            if (compiled.behavior !== CEM_FORM_CONTROL_CAPABILITY) {
+                if (Object.keys(state.slices).length || Object.keys(state.eventPayloads).length) return undefined;
+            } else {
+                if (state.slices.value !== undefined && state.slices.value !== ''
+                    || Object.keys(state.slices).some(name => !['value', 'formDisabled'].includes(name))
+                    || state.slices.formDisabled !== undefined && typeof state.slices.formDisabled !== 'boolean'
+                    || Object.keys(state.eventPayloads).some(name => name !== 'value')) return undefined;
+                const payload = state.eventPayloads.value;
+                if (payload !== undefined && (!isPlainRecord(payload) || !['input', 'change'].includes(String(payload.type))
+                    || payload.sliceValue !== '' || 'detail' in payload
+                    || [payload.target, payload.currentTarget].some(target => target != null
+                        && (!isPlainRecord(target) || target.value !== null && target.value !== '')))) return undefined;
+            }
+        }
         for (const control of instance.querySelectorAll('[host-command]')) if (!this.checkpointCommandRoot(control)) return undefined;
         return JSON.stringify({ controls, runtime, dependencies: this.checkpointDependencies(instance), resources: portableResourceState(state),
             values: runtime.resources.filter(resource => ['repository-query', 'storage-status', 'http'].includes(resource.kind)).map(resource => state.slices[resource.name]) });

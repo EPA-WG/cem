@@ -1353,3 +1353,54 @@ fn resource_map_http_sources_need_explicit_policy_and_safe_urls() {
         }
     }
 }
+
+#[test]
+fn credential_metadata_cannot_hide_in_retained_projections_or_native_inputs() {
+    use cem_ml::value::artifact::{CemValueGraph, CemValueRecord};
+    for (name, value) in [
+        ("type", "PASSWORD"),
+        ("type", "file"),
+        ("autocomplete", "section-login CURRENT-PASSWORD"),
+        ("autocomplete", "shipping new-password"),
+        ("autocomplete", "section-login\tone-time-code"),
+    ] {
+        let mut projection = native_projection_state();
+        projection["capability"]["state"]["body"]["projection"]["entries"][0]["attributes"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"name":name,"value":value}));
+        assert_eq!(
+            validate(&projection.to_string()).unwrap_err(),
+            "cem.checkpoint.runtime.projection"
+        );
+        let graph = CemValueGraph {
+            roots: vec![0],
+            records: vec![
+                CemValueRecord {
+                    kind: "attribute".into(),
+                    name: name.into(),
+                    native_content: true,
+                    values: vec![1],
+                    ..Default::default()
+                },
+                CemValueRecord {
+                    lexical: value.into(),
+                    ..Default::default()
+                },
+            ],
+        };
+        let bytes = graph.encode(&Default::default()).unwrap();
+        let artifact = json!({"base64":STANDARD.encode(&bytes),"contentHash":cem_ml::content_cache::ContentHash::from_blake3(&bytes).header_value()});
+        for path in [
+            "/capability/state/invocation/context/artifact",
+            "/references/preparation/nativeBindings/artifacts/0",
+        ] {
+            let mut input = native_inputs_state();
+            *input.pointer_mut(path).unwrap() = artifact.clone();
+            assert_eq!(
+                validate(&input.to_string()).unwrap_err(),
+                "cem.checkpoint.runtime.projection.native"
+            );
+        }
+    }
+}

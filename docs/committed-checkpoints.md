@@ -379,6 +379,50 @@ and the complete UTF-8 transport must fit the explicit host budget. At most 256 
 Overflow blocks the domain instead of omitting owners or buffering input; ordinary
 rendering still proceeds. A fresh host domain is required after overflow.
 
+### Credential privacy policy for live Login recovery
+
+The reviewed policy is **block recovery while credentials are entered**. Recovery
+never clears a password, asks a controller to replay an input, or drops an owner
+to gain admission. This applies to passwords and controls annotated with
+`current-password`, `new-password` or `one-time-code` autocomplete tokens,
+case-insensitively and including section prefixes. A nonempty authored/reset
+value or custom validity message also blocks the control. File controls remain
+unsupported. Email/username values are personal data covered by the existing
+explicit whole-island consent, rather than automatically treated as passwords.
+
+`cem-checkpoint-controls/1` has an explicit `credential-empty` discriminator.
+Native validation admits it only with an empty value and custom validity, no
+selection, and an allowed effective text/password input type. It cannot carry a
+redacted or encrypted secret. The control keeps its identity, focus, disabled and
+read-only state. Unsupported native value capsules and retained projections keep
+their separate refusal; an empty browser control alone grants no source or
+native authority.
+
+The shared browser adapter checks effective control properties, autocomplete
+metadata, default/value attributes and custom-error state before control export.
+Property-only/password-manager writes must invalidate currentness even without
+an input event. Raw controls with arbitrary authored slices/events and owners
+with opaque native slices remain unsupported: an empty DOM property cannot prove
+those copies are empty. The shared form provider admits only its empty `value`,
+boolean disabled state and a value-only input/change payload whose control values
+are empty. A property/API clear must not declassify an older bound/event value;
+an unsupported owner is refused rather than redacted. Capture/currentness, preparation, retirement and fresh-generation
+admission retain their existing all-owner checks; typing after capture must make
+the old checkpoint ineligible for recovery. A previous empty checkpoint is not
+authority to erase a more recent credential. After explicit clearing and a new
+stable publication, recovery may retain the empty control together with every
+other owner and its exact nonsecret edits. No pending input, selection event or
+external command is replayed.
+
+Checkpoints remain private host-memory snapshots. They never implicitly enter
+project resources, drafts, URLs, local storage, IndexedDB or diagnostic payloads.
+The Login example action only changes a local notice; recovery must not invoke
+it. Native/group/source/privacy guards and unknown-operation refusal remain
+mandatory. Existing saved projects/drafts and automatic-recovery defaults are
+unchanged. This policy grants no OAuth/token-storage or real authentication
+permission. Applications must separately consent to whole-island source and
+personal-data export and withdraw that consent at security boundaries.
+
 Control capture supports owned native inputs, textareas, selects and buttons,
 including unbound edits, and the existing shared plaintext-editor capability.
 `cem_ml::checkpoint_control_state::validate` and WASM
@@ -1270,8 +1314,9 @@ paint, focus/selection, theme values, URL/storage and native Save/builds are
 checked. The incomplete-mode lane and unknown-outcome refusal remain alongside
 it. Shared adapters own all browser lifecycle behavior; Studio adds no UI JS.
 
-Credential-bearing live Login controls retain their privacy refusal; successful
-live-view recovery needs a reviewed policy. Automatic recovery and declarative
+Entered live Login credentials retain their privacy refusal. Explicit clearing
+admits empty-control capture under the reviewed policy above; complete Studio
+live-view recovery still exceeds the current 4 MiB checkpoint budget. Automatic recovery and declarative
 recovery status remain on the active checklist. A bounded editing/build probe is
 not an OOM/RSS guarantee, and does not authorize omitting unsupported owners.
 
@@ -1529,8 +1574,9 @@ reports adapter registration, not eligibility of the current mode or inputs;
 only complete capture/preparation can prove readiness. Studio's incomplete-group
 acceptance deliberately selects an unknown mode, preserving fail-closed behavior
 after the static modes gain policies. The successful graph-preview workspace lane
-also performs three full worker/fallback handoffs; credential-bearing live Login
-remains a separate privacy-policy gate.
+also performs three full worker/fallback handoffs. Empty Login child capture
+is separately admitted under the credential policy; the complete active live
+workspace remains blocked by its existing 4 MiB byte budget.
 
 `CemCheckpointPublicationCoordinator.combine([parent, child, ...])` creates one
 bounded checkpoint transaction for coordinators sharing one physical generation.

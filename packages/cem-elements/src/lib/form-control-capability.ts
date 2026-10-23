@@ -121,10 +121,16 @@ export function prepareCemEditorProviderHandoff(host: HTMLElement) {
         return () => { if (!active) return; active = false; datalist(); attributes(); };
     } };
 }
+/** Credential metadata is shared by native-control and private-provider capture. */
+export function isCemCredentialControl(control: Element): boolean {
+    return (control as HTMLInputElement).type === 'password' || (control.getAttribute('autocomplete') ?? '').toLowerCase().split(/\s+/)
+        .some(token => ['current-password', 'new-password', 'one-time-code'].includes(token));
+}
 /** Admit only standalone providers or one exactly accounted shared consumer. */
 export function cemFormControlCheckpoint(instance: HTMLElement, consumerId?: (host: HTMLElement) => string | undefined) {
     const state = states.get(instance);
     if (!state?.control || !state.abort || state.composing || state.compositionEnd || state.imePresses.size || state.handledPresses.size) return undefined;
+    if (isCemCredentialControl(state.control) && (state.authoredValue || state.customValidity)) return undefined;
     if (state.checkpoint && (state.checkpoint.control !== state.control || state.checkpoint.revision !== state.revision || state.checkpoint.value !== state.control.value)) return undefined;
     const changeSuppression = state.checkpoint ? { revision: state.checkpoint.revision, value: state.checkpoint.value, disposition: 'suppress-once' as const } : undefined;
     let provider: { revision: number; consumer: string; validity: string } | undefined;

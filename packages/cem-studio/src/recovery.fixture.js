@@ -1,5 +1,5 @@
 /** Isolated acceptance driver, never imported by the application. */
-export async function studioRecovery(mode, progress, complete = false) {
+export async function studioRecovery(mode, progress, complete = false, privacy = false) {
     const check = (condition, message) => { if (!condition) throw Error(message); };
     const elements = new URL('.', new URL('../../cem-elements/dist/index.js', import.meta.url));
     const support = new URL('lib/internal/runtime-support/', elements);
@@ -60,6 +60,7 @@ export async function studioRecovery(mode, progress, complete = false) {
         setStage('clone'); await workbench.openEntity('sample=login'); workbench.requestAction('clone');
         await workbench.submitAction({ name: ['Recovery acceptance'] }); await view.whenSettled();
         const project = workbench.snapshot().navigation.selection.project;
+        const sourceId = 'login-html';
         await workbench.openEntity(`project=${project}&file=login-html&build=render-graph`); await view.whenSettled();
         const original = workbench.snapshot().draft;
         let edits = 0;
@@ -82,6 +83,103 @@ export async function studioRecovery(mode, progress, complete = false) {
         check(workbench.snapshot().projectPreview?.attempt?.status === 'succeeded', `initial recovery preview failed: ${JSON.stringify(workbench.snapshot().projectPreview?.attempt)}`);
         if (!complete) await selectUnreviewedPreview();
         check(complete || unreviewedPreviews().length > 0 && blockers().some(owner => owner.tag === 'cem-media-preview'), 'refusal lane has no unknown preview mode');
+        if (privacy) {
+            setStage('Login credential privacy');
+            await workbench.selectWorkbench(JSON.stringify({ projectId: project, entryId: 'live-view' }));
+            await view.whenSettled();
+            workbench.selectPreviewConfiguration('render-graph');
+            await workbench.runPersistedOperation(); await view.whenSettled();
+            let liveDocument;
+            for (let n = 0; n < 100; n++) {
+                liveDocument = root.querySelector('cem-media-preview[mode=live] iframe')?.contentDocument;
+                if (liveDocument?.querySelector('input[type=password]')
+                    && root.querySelector('cem-media-preview[mode=live] [role=status]')?.textContent === 'Live view ready') break;
+                await new Promise(resolve => setTimeout(resolve, 10));
+            }
+            await view.whenSettled();
+            check(root.querySelector('cem-media-preview[mode=live] [role=status]')?.textContent === 'Live view ready', 'Login controller has not published readiness');
+            const password = liveDocument?.querySelector('input[type=password]');
+            const email = liveDocument?.querySelector('input[type=email]');
+            check(password && email, 'missing real Login credential controls');
+            const liveHost = root.querySelector('cem-media-preview[mode=live]');
+            const notice = () => liveDocument.querySelector('cem-alert')?.getAttribute('label');
+            const initialNotice = notice(), credential = `private-${crypto.randomUUID()}`, identity = `identity-${crypto.randomUUID()}@example.test`;
+            const editor = root.querySelector('cem-source-editor[data-cem-studio-editor]');
+            for (let n = 0; !paint(editor).length; n++) {
+                check(n < 100, 'Login source coloring did not settle'); await new Promise(resolve => setTimeout(resolve, 10));
+            }
+            for (const peer of [coordinator, ...coordinator.previewCoordinators()]) peer.current();
+            if (mode === 'fallback') combined = CemCheckpointPublicationCoordinator.combine([coordinator, ...coordinator.previewCoordinators()]);
+            const assertPrivacy = async () => {
+                const peers = coordinator.previewCoordinators();
+                check(peers.length > 0, 'Login child runtime was omitted');
+                let blocked = false;
+                for (const peer of combined ? [combined] : peers) {
+                    try { await peer.capture(); } catch (error) { check(/cem.checkpoint.unavailable/.test(String(error)), 'unexpected Login capture failure'); blocked = true; }
+                    const bytes = peer.lastCommitted()?.bytes;
+                    check(!bytes || !new TextDecoder().decode(bytes).includes(credential), 'credential entered a child checkpoint');
+                }
+                check(blocked, 'Login child admitted credential-bearing checkpoint');
+                let refused = false;
+                try { await recoveryScope.prepare(); } catch (error) { refused = /unsupported|unavailable/.test(String(error)); }
+                check(refused, 'Login admitted an incomplete recovery group');
+                check(liveHost.isConnected && liveHost.querySelector('iframe')?.contentDocument === liveDocument, 'privacy refusal replaced Login');
+                check(notice() === initialNotice, 'privacy refusal invoked the Login action');
+                const exported = (await repository.query(request('export-project', { projectId: project }))).value;
+                check(Object.values(exported.contents).every(bytes => !new TextDecoder().decode(bytes).includes(credential)), 'credential entered project resources');
+                check(!JSON.stringify([...records]).includes(credential) && !JSON.stringify([...records]).includes(identity), 'credential entered draft/session storage');
+            };
+            password.value = credential; email.value = identity;
+            await assertPrivacy(); // Password-manager/property-only edits cannot bypass the policy.
+            password.dispatchEvent(new InputEvent('input', { bubbles: true }));
+            email.dispatchEvent(new InputEvent('input', { bubbles: true }));
+            await view.whenSettled(); await assertPrivacy();
+            check(password.value === credential && email.value === identity, 'privacy refusal erased live credentials');
+            password.value = '';
+            password.dispatchEvent(new InputEvent('input', { bubbles: true }));
+            email.dispatchEvent(new InputEvent('input', { bubbles: true }));
+            await view.whenSettled();
+            // The real Login view remains enrolled for all following recoveries.
+            // Clearing is an explicit test-user action, never recovery behavior.
+            setStage('Login credential cleared');
+            const captureSettled = async c => {
+                for (let n = 0; ; n++) {
+                    try { await c.capture(); return; }
+                    catch (error) {
+                        if (n === 0) progress(`empty Login capture: ${JSON.stringify(c.inspectRecovery())}`);
+                        if (n >= 100 || !/unavailable|stale/.test(String(error))) throw Error(`${error}: ${JSON.stringify(c.inspectRecovery())}`, { cause: error });
+                        await new Promise(resolve => setTimeout(resolve, 10));
+                    }
+                }
+            };
+            const peers = [coordinator, ...coordinator.previewCoordinators()];
+            // Entered/cleared input invalidates a combined membership witness.
+            // Dispose the old alias and prepare a fresh one after publication.
+            combined?.dispose(); combined = undefined;
+            if (mode === 'fallback') {
+                for (let n = 0; ; n++) {
+                    for (const peer of peers) peer.current();
+                    try { combined = CemCheckpointPublicationCoordinator.combine(peers); break; }
+                    catch (error) {
+                        if (n >= 100 || !/coverage/.test(String(error))) throw error;
+                        await new Promise(resolve => setTimeout(resolve, 10));
+                    }
+                }
+            }
+            // Fallback peers share a physical heap: only their complete combined
+            // coordinator has native inventory coverage, even with empty fields.
+            for (const peer of mode === 'worker' ? peers.slice(1) : []) {
+                await captureSettled(peer);
+                check(!new TextDecoder().decode(peer.current().bytes).includes(credential), 'cleared Login checkpoint retained a credential');
+            }
+            let budgetRefused = false;
+            try { for (const c of combined ? [combined] : peers) await captureSettled(c); }
+            catch (error) { check(String(error).includes('cem.checkpoint.limit'), `unexpected whole-Studio capture failure: ${error}`); budgetRefused = true; }
+            check(budgetRefused, 'review the full live-workspace budget policy before enabling recovery');
+            check(password.value === '' && email.value === identity && notice() === initialNotice, 'bounded capture changed Login edits or invoked an action');
+            return { privacyRefusals: 2, emptyLoginCaptured: mode === 'worker', workspaceBudgetRefused: true };
+
+        }
         const enrolledKinds = () => recoveryScope.inspect().members.map(member => member.kind);
         check(enrolledKinds().includes('rendering') && enrolledKinds().includes('command-service') && enrolledKinds().includes('command-invocation'), 'Studio omitted an active runtime from recovery membership');
         let groupRefused = false;
@@ -160,7 +258,7 @@ export async function studioRecovery(mode, progress, complete = false) {
             check(styles.every(style => style.isConnected), 'handoff replaced stylesheet installation');
             setStage(`save ${cycle}`); await workbench.saveSource(); await view.whenSettled();
             const exported = (await repository.query(request('export-project', { projectId: project }))).value;
-            check(new TextDecoder().decode(exported.contents['login-html']) === draft, 'Save after handoff did not persist exact bytes');
+            check(new TextDecoder().decode(exported.contents[sourceId]) === draft, 'Save after handoff did not persist exact bytes');
             setStage(`build ${cycle}`);
             await workbench.buildProjectPreview(); await view.whenSettled();
             check(workbench.snapshot().projectPreview?.attempt?.status === 'succeeded', `native build after handoff failed: ${JSON.stringify(workbench.snapshot().projectPreview?.attempt)}`);

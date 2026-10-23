@@ -1,4 +1,5 @@
 import type { CheckpointEndpoint, CheckpointSource, CheckpointSuggestions, CheckpointPlacement, CheckpointSurface, CheckpointPopup, CheckpointMenu, CheckpointNativePublication, CheckpointManualListbox, CheckpointStandaloneDatalist } from './checkpoint-interactions.js';
+import { isCemCredentialControl } from './form-control-capability.js';
 import { cemPlaintextEditorEventValue } from './plaintext-editor-capability.js';
 
 /** Explicit browser control-state DTO; not a document or template AST. Native
@@ -6,7 +7,7 @@ import { cemPlaintextEditorEventValue } from './plaintext-editor-capability.js';
 export interface CemCheckpointControlState {
     version: 'cem-checkpoint-controls/1';
     controls: {
-        id: string; kind: 'text' | 'check' | 'select' | 'button'; inputType: string; value: string;
+        id: string; kind: 'text' | 'check' | 'select' | 'button' | 'credential-empty'; inputType: string; value: string;
         checked: boolean; indeterminate: boolean; multiple: boolean;
         options: { value: string; selected: boolean; disabled: boolean }[];
         selection: { start: number; end: number; direction: string } | null;
@@ -55,12 +56,17 @@ export function captureCheckpointControls(elements: readonly Element[]): CemChec
     let size = 0;
     for (const element of elements) {
         const id = element.getAttribute('data-cem-render-node-id');
-        if (!id || element.matches('input[type=password],input[type=file],[autocomplete~="current-password" i],[autocomplete~="new-password" i],[autocomplete~="one-time-code" i]')) return undefined;
+        if (!id) return undefined;
         const plaintext = cemPlaintextEditorEventValue(element);
         const input = element as HTMLInputElement;
         const inputType = plaintext !== undefined ? 'plaintext' : element.localName === 'textarea' ? 'textarea' : input.type;
-        if (['password', 'file'].includes(inputType)) return undefined;
-        const kind = element.localName === 'select' ? 'select' : ['checkbox', 'radio'].includes(inputType) ? 'check'
+        if (inputType === 'file') return undefined;
+        const credential = isCemCredentialControl(element);
+        // An empty-only marker records the control, never a redacted credential.
+        // Authored/reset values and custom messages can also contain secrets.
+        if (credential && (input.value !== '' || input.defaultValue !== '' || (element.getAttribute('value') ?? '') !== ''
+            || input.validity?.customError)) return undefined;
+        const kind = credential ? 'credential-empty' : element.localName === 'select' ? 'select' : ['checkbox', 'radio'].includes(inputType) ? 'check'
             : element.localName === 'button' || ['button', 'submit', 'reset'].includes(inputType) ? 'button' : 'text';
         if (element.hasAttribute('contenteditable') && plaintext === undefined) return undefined;
         const value = plaintext ?? input.value;
@@ -68,7 +74,7 @@ export function captureCheckpointControls(elements: readonly Element[]): CemChec
         size += value.length; if (size > 256 * 1024) return undefined;
         const select = element as HTMLSelectElement;
         if (kind === 'select' && select.options.length > 1024) return undefined;
-        const selection = ['text', 'search', 'tel', 'url', 'textarea', 'plaintext'].includes(inputType)
+        const selection = !credential && ['text', 'search', 'tel', 'url', 'textarea', 'plaintext'].includes(inputType)
             && typeof input.selectionStart === 'number' && typeof input.selectionEnd === 'number'
             ? { start: input.selectionStart, end: input.selectionEnd, direction: input.selectionDirection ?? 'none' } : null;
         const customValidity = input.validity?.customError ? input.validationMessage || undefined : '';
