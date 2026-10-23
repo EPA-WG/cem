@@ -84,7 +84,7 @@ it.each(['worker', 'fallback'])('recovers the whole Studio workspace through rep
     } finally { stop?.(); frame.remove(); }
 }, 120_000);
 
-it.each(['worker', 'fallback'])('enforces Login credential privacy and the complete-workspace budget: %s', async mode => {
+it.each(['worker', 'fallback'])('recovers the complete live Login workspace within budget and preserves credential privacy: %s', async mode => {
     const frame = document.createElement('iframe'); document.body.append(frame);
     const id = crypto.randomUUID(); let stop;
     try {
@@ -106,6 +106,12 @@ it.each(['worker', 'fallback'])('enforces Login credential privacy and the compl
             import(${JSON.stringify(fixture)}).then(({ studioRecovery }) => studioRecovery(${JSON.stringify(mode)}, stage => parent.postMessage({id, stage}, '*'), true, true))
                 .then(result => parent.postMessage({id, result}, '*'), error => parent.postMessage({id, error: error.stack || String(error)}, '*'));
             </script>`;
-        expect(await result).toEqual({ privacyRefusals: 2, emptyLoginCaptured: mode === 'worker', workspaceBudgetRefused: true });
+        const observed = await result;
+        expect(observed).toMatchObject({ privacyRefusals: 2, recoveries: 3, refusedRecoveries: 0, edits: 12, unknownRefused: true });
+        expect(observed.checkpointBytes).toBeGreaterThan(0);
+        expect(observed.checkpointBytes).toBeLessThanOrEqual(4 * 1024 * 1024);
+        expect(observed.groupBytes).toBeGreaterThan(observed.checkpointBytes);
+        expect(observed.groupBytes).toBeLessThanOrEqual(4 * 1024 * 1024);
+        console.info(`[studio-live-recovery:${mode}] checkpoint=${observed.checkpointBytes} group=${observed.groupBytes} recoveries=${observed.recoveries}`);
     } finally { stop?.(); frame.remove(); }
 }, 120_000);

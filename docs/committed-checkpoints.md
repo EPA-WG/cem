@@ -1315,9 +1315,12 @@ checked. The incomplete-mode lane and unknown-outcome refusal remain alongside
 it. Shared adapters own all browser lifecycle behavior; Studio adds no UI JS.
 
 Entered live Login credentials retain their privacy refusal. Explicit clearing
-admits empty-control capture under the reviewed policy above; complete Studio
-live-view recovery still exceeds the current 4 MiB checkpoint budget. Automatic recovery and declarative
-recovery status remain on the active checklist. A bounded editing/build probe is
+admits empty-control capture under the reviewed policy above. Live-preview
+transport requests individual component declarations instead of the complete
+library, reducing repeated resource-set payloads under the same 4 MiB budget.
+The complete live Login lane exercises the same three handoffs, retaining its
+frame, email and empty credential controls without repeating an action. Automatic
+recovery and declarative recovery status remain on the active checklist. A bounded editing/build probe is
 not an OOM/RSS guarantee, and does not authorize omitting unsupported owners.
 
 ## Explicit owner resume transactions
@@ -1574,9 +1577,20 @@ reports adapter registration, not eligibility of the current mode or inputs;
 only complete capture/preparation can prove readiness. Studio's incomplete-group
 acceptance deliberately selects an unknown mode, preserving fail-closed behavior
 after the static modes gain policies. The successful graph-preview workspace lane
-also performs three full worker/fallback handoffs. Empty Login child capture
-is separately admitted under the credential policy; the complete active live
-workspace remains blocked by its existing 4 MiB byte budget.
+also performs three full worker/fallback handoffs, as does the complete live
+Login lane after explicit credential clearing. Every owner, native inventory,
+original source and command journal remains included within the existing 4 MiB
+budget. Selective declaration transport removes unused library bodies from
+repeated resource-set copies; it does not omit active owners or change consent.
+See [capacity and optional modules](cem-studio.md#checkpoint-capacity-and-optional-module-loading).
+
+Fresh preparation imports the exact sealed canonical islands through native XML
+loading. Long attributes retain scalar/entity source maps using a forward lexical
+cursor; prefix rescanning for every scalar previously made this quadratic and
+exceeded the five-second preparation deadline. The cursor preserves byte ranges,
+Unicode columns and CR/CRLF/newline boundaries, including numeric newline entities
+whose source positions follow their lexical bytes. The original timeout, import,
+source/policy validation and all-owner admission remain mandatory.
 
 `CemCheckpointPublicationCoordinator.combine([parent, child, ...])` creates one
 bounded checkpoint transaction for coordinators sharing one physical generation.

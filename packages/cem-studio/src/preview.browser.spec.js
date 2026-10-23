@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
     CEM_STUDIO_LIMITS,
@@ -158,6 +158,42 @@ describe('CEM Studio bounded preview boundary', () => {
     });
 });
 
+
+it('loads only requested preview declarations, bounds requests and retries failures', async () => {
+    const fetcher = vi.spyOn(globalThis, 'fetch');
+    const input = { source: '{p | Preview}', sourceUri: 'studio://one/view.cem', components: ['cem-alert', 'cem-alert'] };
+    try {
+        const first = await createCemStudioLivePreview(input);
+        const resources = JSON.parse(first.resourceSet);
+        expect(resources.declarations).toEqual([{ tag: 'cem-alert', uri: 'cem-preview://shared/components/cem-alert/cem-alert.xhtml#cem-alert' }]);
+        expect(resources.resources.map(resource => resource.uri)).toEqual(['cem-preview://shared/theme.css', 'cem-preview://shared/components/cem-alert/cem-alert.xhtml']);
+        expect(resources.resources[1].text).toContain('id="cem-alert"');
+        expect(fetcher.mock.calls.some(([url]) => String(url).endsWith('/dist/components.xhtml'))).toBe(false);
+        fetcher.mockClear();
+        for (const tag of ['../cem-alert', 'cem-alert/path', 'https://example.test/a', 'cem-alert#other', 'CEM-alert']) {
+            await expect(createCemStudioLivePreview({ ...input, components: [tag] })).rejects.toThrow('Preview component');
+        }
+        await expect(createCemStudioLivePreview({ ...input, components: Array.from({ length: 128 }, (_, n) => `cem-test-${n}`) })).rejects.toMatchObject({ code: 'cem.studio.limit.resource_count' });
+        expect(fetcher).not.toHaveBeenCalled();
+        fetcher.mockResolvedValueOnce(new Response('', { status: 503 }));
+        await expect(createCemStudioLivePreview(input)).rejects.toThrow('Preview library unavailable: 503');
+        const retried = await createCemStudioLivePreview(input);
+        expect(retried.resourceSet).toBe(first.resourceSet);
+        expect(fetcher).toHaveBeenCalledTimes(2);
+    } finally { fetcher.mockRestore(); }
+});
+
+it('preserves relative asset addresses without granting nested declaration authority', async () => {
+    const preview = await createCemStudioLivePreview({ source: '{cem-menu | {cem-menu-item @label=Home}}',
+        sourceUri: 'studio://menu/view.cem', components: ['cem-menu', 'cem-menu-item'] });
+    const envelope = JSON.parse(preview.resourceSet);
+    const menu = envelope.declarations.find(item => item.tag === 'cem-menu');
+    expect(new URL('../cem-menu-item/cem-menu-item.xhtml', menu.uri).href).toBe(envelope.resources[2].uri);
+    const host = document.createElement('cem-media-preview'); host.setAttribute('mode', 'live');
+    host.setAttribute('value', preview.source); host.setAttribute('source-uri', preview.sourceUri); host.setAttribute('resource-set', preview.resourceSet);
+    document.body.append(host); await runtime.whenRenderSettled(host);
+    await expect.poll(() => host.querySelector('[role=status]')?.textContent, { timeout: 15000 }).toContain('cem.preview.element_denied: cem-element');
+}, 30000);
 
 it('renders the Login project through shared light DOM with saved data and template replacements', async () => {
     const host = document.createElement('cem-media-preview'); host.setAttribute('mode', 'live');

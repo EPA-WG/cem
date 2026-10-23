@@ -3273,11 +3273,59 @@ Automatic whole-Studio recovery remains disabled. The reviewed Login policy
 blocks capture/recovery while a password or one-time code is entered; recovery
 never clears credentials or omits their owners. Explicit clearing permits the
 shared native-validated empty-control checkpoint, preserving consented email and
-other edits. Empty Login child capture is supported, but the complete workspace
-with the active live view currently exceeds the existing 4 MiB checkpoint budget;
-that capacity refusal remains a separate gate before successful whole-Studio live
-recovery can be claimed. See the [credential privacy policy](committed-checkpoints.md#credential-privacy-policy-for-live-login-recovery).
+other edits. The complete live Login workspace uses demand-loaded component declarations:
+`preview-component:<tag>` requests the individual packaged XHTML file, rather
+than copying the complete library into the resource set. Duplicate tags share
+one resource; invalid tags and excess resource counts fail before a request.
+Relative sibling declaration addresses retain their package directory structure;
+projects must list their complete component dependency set explicitly. Unknown
+resources still fail closed. Template-emitted `cem-element` declarations remain
+denied by live-preview policy, even when their source is in the resource set.
+The full theme remains present. The release component bundle/catalog is intact,
+and native CEM import owns every loaded declaration and project document.
+See the [credential privacy policy](committed-checkpoints.md#credential-privacy-policy-for-live-login-recovery).
 Unknown preview modes and command outcomes continue to
 refuse complete admission. Acceptance uses isolated realms and temporary project
 databases, preserving existing saved projects and drafts. See
 [the enrollment contract](committed-checkpoints.md#explicit-runtime-recovery-enrollment).
+
+### Checkpoint capacity and optional module loading
+
+Checkpoint capacity measures the complete UTF-8 sealed control envelope, including
+all owner islands and group journals. It does not measure JavaScript bundles,
+compiled WebAssembly code, native linear memory or process RSS. Limits remain
+1 MiB by default/per owner and 4 MiB for explicitly opted-in workspaces and the
+complete generation group. All active owners remain mandatory.
+
+Profiling the original live Login workspace found an 880,550-byte tabs island
+(payload 426,978 bytes, slices 450,259 bytes), a 402,465-byte media-preview island
+(attributes 399,647 bytes), and a 396,136-byte results island (slices 392,409 bytes).
+These are pre-export DOM measurements, not the final sealed envelope or a sum
+of unique owners. They identify the resource-set string repeated through normal
+declarative projections. The complete component source was 289,526 bytes; Login's
+three individual declarations total 29,154 bytes. Loading those files on demand
+removes 260,372 source bytes from each resource-set copy. The complete 80,884-byte
+theme is preserved, including inherited overrides and unused public tokens.
+
+Further code/schema partitioning is a separate startup/resident-memory task.
+The command-service entry currently imports its generated command schema
+synchronously; wrapping its existing module in another dynamic import would not
+split that dependency. Native `schema/package_sources.rs` embeds 200 distinct
+manifest/schema/formatter/colorizer sources (1,343,965 source bytes in this
+revision), selected by the native package registry/loader. Lookup on demand does
+not remove their bytes from the WASM binary. These embedded tables and compiled
+code are not copied wholesale into the checkpoint transport, so splitting them
+cannot be counted as checkpoint savings.
+
+The preferred next partition is an immutable schema-asset pack addressed by
+package/version/path and content digest, with a small native bootstrap catalog.
+Keep package identity resolution, import/validation and compilation native; load
+optional formatter/colorizer/schema bodies through the existing bounded host
+resource contract. Require explicit missing/offline diagnostics, deployment and
+service-worker inventory, cancellation, source provenance and fresh-generation
+reimport before removing embedded fallback sources. Measure download size,
+linear-memory headroom and cold command/editor latency independently. A separate
+rare-command WASM module needs an explicit ABI, independent ownership and recovery
+enrollment; splitting it creates additional heaps and is not automatically a
+memory reduction. Do not move validation or AST decoding into Studio JavaScript,
+prune release catalogs/themes, or relax credential/privacy admission.

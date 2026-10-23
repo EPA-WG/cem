@@ -60,9 +60,11 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
         setStage('clone'); await workbench.openEntity('sample=login'); workbench.requestAction('clone');
         await workbench.submitAction({ name: ['Recovery acceptance'] }); await view.whenSettled();
         const project = workbench.snapshot().navigation.selection.project;
-        const sourceId = 'login-html';
+        let sourceId = 'login-html';
         await workbench.openEntity(`project=${project}&file=login-html&build=render-graph`); await view.whenSettled();
-        const original = workbench.snapshot().draft;
+        let original = workbench.snapshot().draft;
+        let assertLogin = () => undefined;
+        let checkpointBytes = 0, groupBytes = 0;
         let edits = 0;
         const paint = editor => [...CSS.highlights.values()].flatMap(value => [...value]).filter(range => editor.contains(range.startContainer));
         const unreviewedPreviews = () => [...root.querySelectorAll('cem-media-preview')].filter(host => !['live', 'artifact-tree', 'document', 'text', 'media', 'message'].includes(host.getAttribute('mode')));
@@ -172,15 +174,18 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
                 await captureSettled(peer);
                 check(!new TextDecoder().decode(peer.current().bytes).includes(credential), 'cleared Login checkpoint retained a credential');
             }
-            let budgetRefused = false;
-            try { for (const c of combined ? [combined] : peers) await captureSettled(c); }
-            catch (error) { check(String(error).includes('cem.checkpoint.limit'), `unexpected whole-Studio capture failure: ${error}`); budgetRefused = true; }
-            check(budgetRefused, 'review the full live-workspace budget policy before enabling recovery');
-            check(password.value === '' && email.value === identity && notice() === initialNotice, 'bounded capture changed Login edits or invoked an action');
-            return { privacyRefusals: 2, emptyLoginCaptured: mode === 'worker', workspaceBudgetRefused: true };
+            for (const c of combined ? [combined] : peers) await captureSettled(c);
+            assertLogin = () => check(liveHost.isConnected && liveHost.querySelector('iframe')?.contentDocument === liveDocument
+                && password.value === '' && email.value === identity && notice() === initialNotice,
+            'handoff changed Login edits, frame or action state');
+            assertLogin();
+            combined?.dispose(); combined = undefined;
+            sourceId = 'login-live-view';
+            original = workbench.snapshot().draft;
 
         }
         const enrolledKinds = () => recoveryScope.inspect().members.map(member => member.kind);
+        if (privacy) check(enrolledKinds().includes('live-preview'), 'active Login runtime was omitted from membership');
         check(enrolledKinds().includes('rendering') && enrolledKinds().includes('command-service') && enrolledKinds().includes('command-invocation'), 'Studio omitted an active runtime from recovery membership');
         let groupRefused = false;
         try { if (!complete) await recoveryScope.prepare(); } catch (error) { groupRefused = /unsupported|unavailable/.test(String(error)); }
@@ -190,7 +195,7 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
             for (let edit = 0; edit < 4; edit++) {
                 setStage(`edit ${cycle}/${edit}`);
                 const control = root.querySelector('cem-source-editor[data-cem-studio-editor] [role=textbox]');
-                control.focus(); control.value = `${original}\n<!-- recovery ${cycle}/${edit} é😀 -->\n`;
+                control.focus(); control.value = privacy ? original.replace('Edit and save this view', `Edit and save this view recovery ${cycle}/${edit} é😀`) : `${original}\n<!-- recovery ${cycle}/${edit} é😀 -->\n`;
                 control.setSelectionRange(2, 7, 'backward'); control.dispatchEvent(new InputEvent('input', { bubbles: true }));
                 await view.whenSettled(); edits++;
                 check(workbench.snapshot().dirty && workbench.snapshot().draft === control.value, 'editor draft not accepted');
@@ -223,6 +228,9 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
                 const consent = mode === 'fallback' ? heap.retirementConsent([embedding]) : undefined;
                 const proofs = []; for (const c of coordinators) proofs.push(await c.closeRenderingGeneration(5000, consent));
                 for (const c of coordinators) await capture(c);
+                const bytes = coordinators.reduce((total, c) => total + c.current().bytes.byteLength, 0);
+                check(bytes <= 4 * 1024 * 1024, 'complete workspace exceeded existing aggregate byte budget');
+                checkpointBytes = Math.max(checkpointBytes, bytes);
                 const tickets = coordinators.map(c => c.prepareResume()), native = validator.prepareRecovery();
                 const plan = await recoveryScope.prepare(), group = plan.createGenerationGroup();
                 const commands = [native.invocation, native.commands], owners = commands.map(client => client.claimNativeEmbedding());
@@ -233,6 +241,8 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
                     current: plan.current, retain: () => new TextEncoder().encode('Studio host ledger; no pending commands or writes'),
                 }));
                 setStage(`allocate ${cycle}`); const previous = admission; admission = await group.allocate(retired);
+                groupBytes = Math.max(groupBytes, admission.generations.reduce((total, generation) => total + generation.checkpoint.byteLength, 0));
+                check(groupBytes <= 4 * 1024 * 1024, 'complete native group exceeded existing byte budget');
                 check(admission.generations.length === retired.length && admission.generations.every(generation => generation.runtimeId !== generation.previousRuntimeId), 'partial or reused runtime generation admitted');
                 setStage(`resume ${cycle}`); const resumed = await resumeCemCheckpointOwners(admission, tickets, 5000, native.bindings);
                 for (const owner of resumed.owners) await owner.owner.resume(); previous?.revoke();
@@ -248,6 +258,7 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
                 check(coordinator.lastCommitted() === undefined, 'incomplete workspace published a partial checkpoint');
                 check(JSON.stringify(coordinator.inspectRecovery()) === JSON.stringify(supportBefore), 'admission refusal changed owners or journal');
             }
+            assertLogin();
             check(previews.every(({ host, mode, frames }) => host.isConnected && host.getAttribute('mode') === mode && frames.every(({ frame, document }) => host.contains(frame) && frame.contentDocument === document)), 'handoff replaced preview presentation');
             check(storageWrites === writes, 'handoff repeated a host storage write');
             check(themeValues.every(({ host, value }) => host.isConnected && host.getAttribute('value') === value), 'handoff changed theme values');
@@ -273,7 +284,7 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
         check(refused && coordinator.inspectRecovery().unknownOperations === 1, 'refusal consumed an unknown operation');
         operation.acknowledge();
         check(coordinator.inspectRecovery().unknownOperations === 0, 'explicit acknowledgment was lost');
-        return { recoveries: complete ? 3 : 0, refusedRecoveries: complete ? 0 : 3, edits, unknownRefused: true, unavailable: [...new Set(blockers().map(owner => owner.tag))].sort() };
+        return { ...(privacy ? { privacyRefusals: 2, checkpointBytes, groupBytes } : {}), recoveries: complete ? 3 : 0, refusedRecoveries: complete ? 0 : 3, edits, unknownRefused: true, unavailable: [...new Set(blockers().map(owner => owner.tag))].sort() };
     } catch (error) { throw Error(`${mode}/${stage}: ${error.stack || error}`, { cause: error }); }
     finally {
         view?.dispose(); shell?.dispose(); workbench?.dispose(); session?.dispose(); await validator?.close(); repository.close();

@@ -217,7 +217,10 @@ Open **Login live view** in an ordinary Studio project copy. Its configuration p
 `views/login.cem`, then the shared `cem-media-preview` renders that saved template
 in a script-free frame using `cem-element` light DOM. The configuration's explicit
 `live-preview` tag opts a template resource into this presentation. `preview-component:<tag>` tags
-select its shared controls for declaration and CSS preflight. The view reads
+load only those individual shared declarations for declaration and CSS preflight,
+while retaining the complete shared theme. List transitive component dependencies
+explicitly for dependent assets; live preview still refuses template-emitted
+`cem-element` declarations rather than granting new registration authority. The view reads
 `data/login.html` through the native resource importer and uses shared text fields,
 action and alert controls. The HTML/CEM comparison and graph remain independently
 runnable configurations.

@@ -1438,6 +1438,8 @@ fn xml_entity_decode_attribute_value(
         source_position: value_source_range.start,
     }];
     let mut source_offset = 0usize;
+    let mut source_position = value_source_range.start;
+    let mut previous_cr = false;
 
     while source_offset < lexical_value.len() {
         let (scalar, source_end) = if lexical_value.as_bytes()[source_offset] == b'&' {
@@ -1449,6 +1451,26 @@ fn xml_entity_decode_attribute_value(
             (scalar, source_offset + scalar.len_utf8())
         };
 
+        // Advance over each source scalar once. Recomputing each span from its
+        // complete prefix made long resource-set attributes quadratic. Positions
+        // follow lexical entity bytes, not the entity's decoded newline/scalar.
+        let source_start = source_position;
+        for ch in lexical_value[source_offset..source_end].chars() {
+            match ch {
+                '\r' => {
+                    source_position.line = source_position.line.saturating_add(1);
+                    source_position.column = 1;
+                }
+                '\n' if previous_cr => {}
+                '\n' => {
+                    source_position.line = source_position.line.saturating_add(1);
+                    source_position.column = 1;
+                }
+                _ => source_position.column = source_position.column.saturating_add(1),
+            }
+            previous_cr = ch == '\r';
+        }
+        source_position.byte_offset = value_source_range.start.byte_offset + source_end as u64;
         let decoded_start = decoded.len();
         decoded.push(scalar);
         spans.push(XmlAttributeValueSourceSpan {
@@ -1456,22 +1478,14 @@ fn xml_entity_decode_attribute_value(
                 decoded_start as u64,
                 u32::try_from(scalar.len_utf8()).ok()?,
             ),
-            source_range: xml_source_range_within(
-                value_source_range,
-                lexical_value,
-                source_offset,
-                source_end,
-            ),
+            source_range: XmlSourceRange {
+                start: source_start,
+                byte_length: (source_end - source_offset) as u64,
+            },
         });
         boundaries.push(XmlAttributeValueSourceBoundary {
             decoded_byte_offset: decoded.len() as u64,
-            source_position: xml_source_range_within(
-                value_source_range,
-                lexical_value,
-                source_end,
-                source_end,
-            )
-            .start,
+            source_position,
         });
         source_offset = source_end;
     }
@@ -1854,6 +1868,60 @@ mod tests {
         assert!(document.to_cemt_subject()["events"]
             .as_array()
             .is_some_and(|events| !events.is_empty()));
+    }
+
+    #[test]
+    fn checkpoint_sized_attribute_decoding_is_bounded_and_preserves_source_boundaries() {
+        let origin = XmlSourceRange {
+            start: XmlSourcePosition {
+                line: 7,
+                column: 13,
+                byte_offset: 99,
+            },
+            byte_length: 0,
+        };
+        for lexical in ["é💡&quot;\r\nA&amp;\rB\n&#13;&#10;💰", "\r\r\n\n&bogus;"] {
+            let decoded = xml_entity_decode_attribute_value(lexical, origin);
+            if lexical.contains("bogus") {
+                assert!(decoded.is_none());
+                continue;
+            }
+            let (_, map) = decoded.unwrap();
+            for boundary in map.boundaries() {
+                let offset =
+                    (boundary.source_position.byte_offset - origin.start.byte_offset) as usize;
+                assert_eq!(
+                    boundary.source_position,
+                    xml_source_range_within(origin, lexical, offset, offset).start
+                );
+            }
+            for span in map.spans() {
+                let offset =
+                    (span.source_range.start.byte_offset - origin.start.byte_offset) as usize;
+                assert_eq!(
+                    span.source_range,
+                    xml_source_range_within(
+                        origin,
+                        lexical,
+                        offset,
+                        offset + span.source_range.byte_length as usize
+                    )
+                );
+            }
+        }
+        let lexical = "{&quot;resource&quot;:&quot;Café 💡&quot;}\r\n".repeat(4_000);
+        let start = std::time::Instant::now();
+        let (decoded, map) = xml_entity_decode_attribute_value(&lexical, origin).unwrap();
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(5),
+            "checkpoint-sized attribute exceeded the recovery preparation budget"
+        );
+        assert_eq!(decoded, "{\"resource\":\"Café 💡\"}\r\n".repeat(4_000));
+        assert_eq!(
+            map.boundaries().last().unwrap().source_position,
+            xml_source_range_within(origin, &lexical, lexical.len(), lexical.len()).start
+        );
+        assert_eq!(map.spans().len(), decoded.chars().count());
     }
 
     #[test]

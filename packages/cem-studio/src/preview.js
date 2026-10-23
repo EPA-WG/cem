@@ -188,22 +188,39 @@ function decodeUtf8(bytes, mayEndMidSequence) {
 }
 
 
-let livePreviewLibrary;
+let livePreviewTheme;
 /** Resource transport only. Shared cem-elements owns the preview DOM and interaction. */
-export async function createCemStudioLivePreview({ source, sourceUri, dependencies, components = [] }) {
+export async function createCemStudioLivePreview({ source, sourceUri, dependencies = [], components = [] }) {
     const { sourceBytes } = assertCemStudioSourceSet(new TextEncoder().encode(source), dependencies);
     if (sourceBytes > CEM_STUDIO_LIMITS.inlinePreviewBytes) {
         return { kind: 'download', label: 'Live view', contentType: 'application/cem', byteLength: sourceBytes, reason: 'The live template exceeds the inline preview limit.' };
     }
-    livePreviewLibrary ??= Promise.all([
-        readPreviewLibrary(import.meta.resolve('@epa-wg/cem-components/components.xhtml'), 'cem-preview://shared/components.xhtml', 'application/xhtml+xml'),
-        readPreviewLibrary(new URL('./lib/css/cem-combined.css', import.meta.resolve('@epa-wg/cem-theme')).href, 'cem-preview://shared/theme.css', 'text/css'),
-    ]).catch(error => { livePreviewLibrary = undefined; throw error; });
-    const resources = [...await livePreviewLibrary, ...dependencies.map(resource => ({
+    // Only explicit declaration addresses cross this transport boundary. Native
+    // CEM loading still owns parsing/import; no template or schema decoding here.
+    const tags = [...new Set(components)];
+    if (tags.some(tag => typeof tag !== 'string' || tag.length > 128 || !/^cem-[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(tag))) {
+        throw new TypeError('Preview component must be a CEM component tag');
+    }
+    assertMaximum(tags.length + dependencies.length + 1, CEM_STUDIO_LIMITS.resourceCount,
+        'cem.studio.limit.resource_count', 'live preview resource set');
+    livePreviewTheme ??= readPreviewLibrary(
+        new URL('./lib/css/cem-combined.css', import.meta.resolve('@epa-wg/cem-theme')).href,
+        'cem-preview://shared/theme.css', 'text/css',
+    ).catch(error => { livePreviewTheme = undefined; throw error; });
+    // The package ships individual declarations alongside its complete bundle.
+    // Keep the release bundle intact; a preview transports only requested files.
+    const bundle = import.meta.resolve('@epa-wg/cem-components/components.xhtml');
+    const libraries = await Promise.all([
+        livePreviewTheme,
+        ...tags.map(tag => readPreviewLibrary(new URL(`../src/components/${tag}/${tag}.xhtml`, bundle).href,
+            `cem-preview://shared/components/${tag}/${tag}.xhtml`, 'application/xhtml+xml')),
+    ]);
+    const resources = [...libraries, ...dependencies.map(resource => ({
         uri: resource.path, contentType: resource.contentType, text: textDecoder.decode(resource.bytes),
     }))];
+    assertCemStudioSourceSet(new TextEncoder().encode(source), resources.map(resource => ({ bytes: new TextEncoder().encode(resource.text) })));
     return Object.freeze({ kind: 'live-cem', label: 'Live CEM view', source, sourceUri,
-        resourceSet: JSON.stringify({ resources, styles: ['cem-preview://shared/theme.css'], declarations: components.map(tag => ({ tag, uri: `cem-preview://shared/components.xhtml#${tag}` })) }) });
+        resourceSet: JSON.stringify({ resources, styles: ['cem-preview://shared/theme.css'], declarations: tags.map(tag => ({ tag, uri: `cem-preview://shared/components/${tag}/${tag}.xhtml#${tag}` })) }) });
 }
 async function readPreviewLibrary(url, uri, contentType) {
     const response = await fetch(url, { headers: { Accept: contentType } });
