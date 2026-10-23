@@ -1640,3 +1640,21 @@ Nested owners may reuse local render-node IDs; duplicate IDs within one owner,
 replacements and ownership changes still refuse. Native validation always uses
 the owner's current processing host, including newly created owners after a
 handoff. A retired fallback singleton cannot validate a fresh owner.
+
+New owners in a still-live admitted declaration scope also inherit its fresh
+processing route for native checkpoint sealing. This survives removal of every
+previously resumed owner, including combined coordinators sharing fallback
+memory. Ordinary initial owners retain the configured host sealer. The trusted
+endpoint registration's optional `seal` callback is supplied by the runtime,
+never read from markup or serialized checkpoint data. Complete current native
+client/source inventories, privacy consent and receipt checks remain mandatory.
+No independent sealer cache or generation history is added; removal/disposal
+clears owner-held sealing callbacks and endpoint references, and scope disposal
+removes its existing processing binding.
+
+The owner replacement browser fixture exercises three actual retire/allocate/
+resume cycles in worker and two-domain combined fallback modes, replacing every
+owner between captures. `node --expose-gc packages/cem-elements/tests/checkpoint-sealer-reachability.mjs` (after
+`cem-elements:build`) checks callback reachability with retained registration
+handles after removal/disposal. This supplements the owned WASM factory's
+disposed-memory collection probe; it does not enable automatic recovery.

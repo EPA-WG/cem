@@ -1,5 +1,6 @@
 import { prepareCemRetainedWidgetResume } from './checkpoint-form-resume.js';
 import { captureCheckpointControls } from './checkpoint-controls.js';
+import { isolatedOwnerReplacement } from './checkpoint-owner-replacement.fixtures.js';
 import { isolatedMediaResume } from './retained-media.fixtures.js';
 import { retainCemMlTemplateSource, disposeRetainedCemMlTemplate } from './internal/runtime-support/cem-ql-render.js';
 import { connectCemNativeSurface } from './native-surface.js';
@@ -4008,7 +4009,7 @@ export const ParentKeepsUnchangedChildInputs: Story = {
 };
 
 
-async function mediaResumeStory(canvasElement: HTMLElement, scenarios: string[]) {
+async function mediaResumeStory(canvasElement: HTMLElement, scenarios: string[], driver = isolatedMediaResume) {
     const root = canvasElement.querySelector('section')!, base = new URL('../../dist/', import.meta.url).href;
     for (const scenario of scenarios) {
         const frame = document.createElement('iframe'), id = crypto.randomUUID(); root.append(frame); let stop = () => undefined;
@@ -4021,7 +4022,7 @@ async function mediaResumeStory(canvasElement: HTMLElement, scenarios: string[])
                 window.addEventListener('message', receive); stop = () => { clearTimeout(timer); window.removeEventListener('message', receive); };
             });
             const hook = import.meta.env.MODE === 'test' ? 'globalThis.__vitest_browser_runner__ = { wrapDynamicImport: f => f() };' : '';
-            frame.srcdoc = `<script type="module">${hook}(${isolatedMediaResume.toString()})(${JSON.stringify(base)}, url => import(url), ${JSON.stringify(scenario)}, ${JSON.stringify(mediaPreviewDeclaration)})
+            frame.srcdoc = `<script type="module">${hook}(${driver.toString()})(${JSON.stringify(base)}, url => import(url), ${JSON.stringify(scenario)}, ${JSON.stringify(mediaPreviewDeclaration)})
                 .then(result => parent.postMessage({id:${JSON.stringify(id)},result},'*'), error => parent.postMessage({id:${JSON.stringify(id)},error:error.stack||String(error)},'*'));</script>`;
             expect(await result).toBe(`${scenario} media passed`);
         } finally { stop(); frame.remove(); }
@@ -4058,4 +4059,9 @@ export const NestedWidgetControlOwnership: Story = {
 export const RetainedMediaLoadAcknowledgment: Story = {
     render: () => '<section aria-label="Current live document publication acknowledgments"></section>',
     play: async ({ canvasElement }) => mediaResumeStory(canvasElement, ['worker-load', 'fallback-load']),
+};
+
+export const ReplacedOwnerFreshSealing: Story = {
+    render: () => '<section aria-label="Fresh sealing after complete owner replacement"></section>',
+    play: async ({ canvasElement }) => mediaResumeStory(canvasElement, ['worker', 'fallback'], isolatedOwnerReplacement),
 };

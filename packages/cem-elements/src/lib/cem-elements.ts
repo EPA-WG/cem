@@ -3556,6 +3556,12 @@ export class CemElementRuntime {
     private connectCheckpointOwner(instance: HTMLElement, compiled: CompiledDeclaration): void {
         const coordinator = this.checkpointPublication;
         if (!coordinator || this.checkpointOwners.has(instance)) return;
+        // Scope admission outlives individual resumed owners. New owners must
+        // seal through that same live processing route, even after full replacement.
+        const binding = this.checkpointScopeBindings.get(cemProcessingHostOwnerScope(compiled.declarationScope));
+        const seal = binding && this.admittedCheckpointBinding(binding)
+            ? (candidate: string, receipt: string) => checkpointProcessingControl(this.processingHost(compiled), { action: 'seal', text: candidate, receipt })
+            : undefined;
         let publishedRevision: string | undefined;
         let publishedControls: string | undefined;
         const current = () => {
@@ -3619,7 +3625,7 @@ export class CemElementRuntime {
             state.observer?.takeRecords();
             units = 0; length = 0; visit(island, 0);
             return island.outerHTML;
-        }, current, this.checkpointEventSequences.get(instance) ?? 0, () => this.checkpointDependencies(instance), { host: instance, resume: this.checkpointResumeAdapter(instance, compiled, () => owner), nativeClient: this.processingHost(compiled).checkpointClient, nativeSources: () => this.checkpointNativeSources.get(instance), resolve: element => this.checkpointOwnedEndpoint(instance, compiled, element), refresh: () => this.checkpointInteractionSettled(instance) }); }
+        }, current, this.checkpointEventSequences.get(instance) ?? 0, () => this.checkpointDependencies(instance), { host: instance, resume: this.checkpointResumeAdapter(instance, compiled, () => owner), nativeClient: this.processingHost(compiled).checkpointClient, seal, nativeSources: () => this.checkpointNativeSources.get(instance), resolve: element => this.checkpointOwnedEndpoint(instance, compiled, element), refresh: () => this.checkpointInteractionSettled(instance) }); }
         catch { return; /* Coordinator is blocked; ordinary owner lifecycle continues. */ }
         const published = owner.published;
         owner.published = receipt => {

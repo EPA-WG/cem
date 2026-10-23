@@ -36,6 +36,9 @@ export interface CemCheckpointEndpointOwner {
     /** Explicit shared semantic adapter; absent means resume is unsupported. */
     resume?: CemCheckpointResumeAdapter;
     nativeClient?: CemCheckpointNativeClient;
+    /** Trusted current-host route for owners created in an admitted resumed scope.
+     * Never supplied by authored attributes; ordinary initial owners use options.seal. */
+    seal?: CemCheckpointSealer;
     nativeSources?: () => readonly CemCheckpointNativeSourceProof[] | undefined;
     resolve: (element: HTMLElement) => CheckpointEndpoint | undefined;
     /** Retry an already-settled interaction after a peer finishes publication. */
@@ -198,7 +201,7 @@ export class CemCheckpointPublicationCoordinator {
             // An unregistered owner must never disappear from the all-owner proof.
             this.blocked = true; this.invalidate(); throw new Error('cem.checkpoint.owners');
         }
-        const owner: Owner = { id, exportIsland, current, sequence: initialEventSequence, dependencies, ...(endpoint ? { endpoint: { ...endpoint } } : {}) };
+        const owner: Owner = { id, exportIsland, current, nativeSeal: endpoint?.seal, sequence: initialEventSequence, dependencies, ...(endpoint ? { endpoint: { ...endpoint } } : {}) };
         if (owner.endpoint?.nativeClient) {
             try { owner.stopNative = nativeCheckpointSubscribe(owner.endpoint.nativeClient, () => { this.invalidate(false); this.schedule(); }); }
             catch { this.blocked = true; this.invalidate(); throw new Error('cem.checkpoint.native-client'); }
@@ -247,7 +250,8 @@ export class CemCheckpointPublicationCoordinator {
             },
             remove: () => {
                 if (this.owners.get(id) !== owner) return;
-                owner.stopNative?.(); this.owners.delete(id); if (owner.endpoint) this.endpoints.delete(owner.endpoint.host); this.invalidate(); this.schedule();
+                owner.stopNative?.(); owner.stopNative = undefined; owner.nativeSeal = undefined; this.owners.delete(id);
+                if (owner.endpoint) this.endpoints.delete(owner.endpoint.host); owner.endpoint = undefined; this.invalidate(); this.schedule();
             },
         };
     }
@@ -598,7 +602,7 @@ export class CemCheckpointPublicationCoordinator {
             this.owners.clear(); this.operations.clear(); this.relationships.clear(); return;
         }
         for (const stop of this.sourceClients.values()) stop(); this.sourceClients.clear();
-        for (const owner of this.owners.values()) { owner.stopNative?.(); if (owner.endpoint) this.endpoints.delete(owner.endpoint.host); }
+        for (const owner of this.owners.values()) { owner.stopNative?.(); owner.stopNative = undefined; owner.nativeSeal = undefined; if (owner.endpoint) this.endpoints.delete(owner.endpoint.host); owner.endpoint = undefined; }
         this.owners.clear(); this.admissions.clear(); this.operations.clear(); this.retirement.clear(); this.relationships.clear();
     }
     private schedule(): void {

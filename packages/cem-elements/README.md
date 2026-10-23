@@ -28,7 +28,10 @@ resume must suppress consumed writes and reacquire host permissions. Pending or
 unaccounted leased/private state blocks the complete domain. Trusted hosts can explicitly
 reconcile unknown outcomes and stage terminal journal retirement under matching
 runtime/generation/policy authority; compaction waits for a successful all-owner
-seal. IDs are host-issued and never reused; no operation is replayed.
+seal. After an admitted handoff, newly created owners in the same live declaration
+scope also seal through its current processing host, even after every resumed
+owner is replaced. Removed/disposed owners release their sealing callbacks;
+initial owners retain the configured host sealer. IDs are host-issued and never reused; no operation is replayed.
 Checkpoint-only form envelopes require explicit semantic resume and are refused
 by ordinary hydration. Ordinary rendering continues.
 This is host-session capture, not automatic WASM replacement or resume. See

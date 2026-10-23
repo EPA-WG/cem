@@ -8,6 +8,19 @@ const options = () => ({ runtimeId: 'host-session', generation: 1, policyStamp: 
 const read = (coordinator: CemCheckpointPublicationCoordinator) => JSON.parse(new TextDecoder().decode(coordinator.current()!.bytes));
 
 describe('all-owner publication checkpoint capture', () => {
+    it('uses a trusted replacement-owner sealer, and refuses revoked native clients before sealing', async () => {
+        const domain = new CemNativeCheckpointDomain('worker'), client = domain.client();
+        let seals = 0;
+        const c = new CemCheckpointPublicationCoordinator({ ...options(), seal: () => { throw Error('retired original sealer'); } });
+        const owner = c.register('a', () => '<template>replacement</template>', () => true, 0, () => [], {
+            host: {} as HTMLElement, nativeClient: client, resolve: () => undefined,
+            seal: text => { seals++; return text; },
+        });
+        owner.published(metadata); await c.capture(); expect(seals).toBe(1);
+        domain.revoke(); await expect(c.capture()).rejects.toThrow('unavailable'); expect(seals).toBe(1);
+        owner.remove(); expect(c.inspectRecovery().owners).toHaveLength(0); c.dispose();
+        await expect(c.capture()).rejects.toThrow('unavailable'); expect(seals).toBe(1);
+    });
     it('keeps reserved workspace capacity across privacy withdrawal and exact re-acknowledgment', async () => {
         const c = new CemCheckpointPublicationCoordinator({ ...options(), maxBytes: 4 * 1024 * 1024 });
         const owner = c.register('a', () => '<template>private</template>'); owner.published(metadata); await c.capture();
