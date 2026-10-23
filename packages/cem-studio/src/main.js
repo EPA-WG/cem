@@ -57,7 +57,9 @@ const shell = await mountCemStudioApplicationShell({
 /** @type {string | undefined} */
 let providerSelection;
 const unsubscribeUpdateState = workbench.subscribe((snapshot) => {
-    shell.setWorkspaceState(snapshot.navigation.title, snapshot.navigation.status);
+    shell.setWorkspaceState(snapshot.navigation.title, snapshot.navigation.status, {
+        projectName: snapshot.navigation.projectName, path: snapshot.navigation.path, pathKind: snapshot.navigation.pathKind,
+    });
     document.title = snapshot.navigation.title;
     const identity = JSON.stringify([snapshot.projectId, snapshot.resourceId]);
     if (identity !== providerSelection) {

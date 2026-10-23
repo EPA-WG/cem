@@ -1330,7 +1330,10 @@ async function exerciseExampleProjects(page, context) {
     await selectConfiguration(firstId, 'semantics-html-cemql'); await click('Run configuration');
     assert.deepEqual(await semanticValues(), contract);
     await selectConfiguration(firstId, 'validation-repair');
-    assert.ok(await page.getByText('Validate the form method using the project-owned teaching schema.', { exact: false }).isVisible());
+    const teachingDescription = page.getByText('Validate the form method using the project-owned teaching schema.', { exact: false });
+    await teachingDescription.waitFor({ state: 'attached' });
+    await revealStudioElement(page, teachingDescription);
+    assert.ok(await teachingDescription.isVisible());
     const invalid = (await snapshot()).draft;
     assert.equal(invalid, original.replace(' @method=post', ''));
     await click('Validate persisted revision');
@@ -1446,7 +1449,7 @@ async function exerciseExampleProjects(page, context) {
     await liveClick('cem-text-field[label=Email] input'); await page.keyboard.type('demo@example.com');
     assert.equal((await liveView()).email, 'demo@example.com');
     await liveClick('cem-action button');
-    await page.waitForFunction(() => document.querySelector('iframe[part~="live-document"]').contentDocument.querySelector('cem-alert')?.getAttribute('label') === 'Local interaction received. No credentials were sent.');
+    await page.waitForFunction(() => document.querySelector('[data-cem-studio-operation-preview] iframe[part~="live-document"]').contentDocument.querySelector('cem-alert')?.getAttribute('label') === 'Local interaction received. No credentials were sent.');
     const editedLive = originalLive.replace('Sign in locally', 'Continue locally');
     await sourcePane();
     await page.getByRole('textbox', { name: 'CEM source', exact: true }).fill(editedLive); await settle();
@@ -1555,7 +1558,9 @@ async function exerciseSupplierProject(page, _context) {
     await clickStudioTab(page, 'Results'); await settle();
     assert.equal(await page.getByRole('button', { name: 'Copy exact output', exact: true }).isDisabled(), true);
     assert.equal(await page.getByRole('button', { name: 'Download exact output', exact: true }).isDisabled(), true);
-    assert.equal(await page.getByText('No output was published. See the command diagnostics below.', { exact: true }).count(), 1);
+    const missingOutputMessage = 'No output was published. See the command diagnostics below.';
+    assert.equal(await page.locator('[data-cem-studio-operation-preview]').getByText(missingOutputMessage, { exact: true }).count(), 1);
+    assert.equal(await page.locator('cem-studio-workbench-preview[section=preview]').getByText(missingOutputMessage, { exact: true }).count(), 1);
     assert.ok(failure.diagnostics.some(diagnostic => diagnostic.message.includes('invalid data number')));
     await configuration(firstId, 'stock-source'); await editor.fill(original.replace('SKU-A,7', 'SKU-A,0')); await settle(); await click('Save and validate');
     await run(firstId, 0);
@@ -2330,16 +2335,17 @@ async function inspectShell(page) {
             const editor = getComputedStyle(document.querySelector('[data-cem-studio-editor] [role="textbox"]'));
             const action = getComputedStyle(document.querySelector('[data-cem-studio-reload] button'));
             workbenchStyles.push({ mode, background: editor.backgroundColor, color: editor.color,
-                boundary: editor.borderTopWidth, actionBorder: action.borderTopWidth });
+                boundary: editor.borderTopWidth, actionBorder: action.borderTopWidth, actionMinimum: action.minBlockSize });
             workbenchStyled &&= editor.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
-                editor.color !== editor.backgroundColor && editor.borderTopStyle === 'solid' && parseFloat(editor.borderTopWidth) > 0 && parseFloat(action.borderTopWidth) > 0;
+                editor.color !== editor.backgroundColor && editor.borderTopStyle === 'solid' && parseFloat(editor.borderTopWidth) > 0 &&
+                action.borderTopStyle === 'solid' && parseFloat(action.minBlockSize) > 0 && action.color !== action.backgroundColor;
             const commandEditor = getComputedStyle(document.querySelector('[data-cem-studio-command-editor] textarea'));
             const commandAction = getComputedStyle(document.querySelector('[data-cem-studio-command-copy] button'));
             commandStyles.push({ mode, background: commandEditor.backgroundColor, color: commandEditor.color,
-                indicator: commandEditor.boxShadow, actionBorder: commandAction.borderTopWidth });
+                indicator: commandEditor.boxShadow, actionBorder: commandAction.borderTopWidth, actionMinimum: commandAction.minBlockSize });
             commandStyled &&= commandEditor.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
                 commandEditor.color !== commandEditor.backgroundColor && commandEditor.boxShadow !== 'none' &&
-                parseFloat(commandAction.borderTopWidth) > 0;
+                commandAction.borderTopStyle === 'solid' && parseFloat(commandAction.minBlockSize) > 0 && commandAction.color !== commandAction.backgroundColor;
             const figure = getComputedStyle(previewProbe.querySelector('figure'));
             const text = getComputedStyle(previewProbe.querySelector('pre'));
             previewStyles.push({ mode, background: figure.backgroundColor, color: figure.color,
@@ -2352,6 +2358,7 @@ async function inspectShell(page) {
         const shellHost = application.shell.view.element;
         shellHost.style.setProperty('--cem-content-interaction-default-background', 'rgb(12, 34, 56)');
         shellHost.style.setProperty('--cem-inset-container', '19px');
+        shellHost.style.setProperty('--cem-control-padding-x', '23px');
         shellHost.style.setProperty('--cem-typography-script-font-size', '21px');
         shellHost.style.setProperty('--cem-bend-media', '11px');
         shellHost.style.setProperty('--cem-action-border-radius', '13px');
@@ -2360,6 +2367,7 @@ async function inspectShell(page) {
         const overrideStyles = { treeBackground: getComputedStyle(document.querySelector('cem-tree [role="treeitem"]:not([aria-selected="true"])')).backgroundColor, padding: getComputedStyle(header).paddingInlineStart,
             radius: actionStyle.borderTopLeftRadius, couplingBorder: actionStyle.borderTopWidth,
             editorBackground: getComputedStyle(document.querySelector('[data-cem-studio-editor] [role="textbox"]')).backgroundColor,
+            editorInset: getComputedStyle(document.querySelector('[data-cem-studio-editor] [role="textbox"]')).paddingInlineStart,
             workbenchRadius: getComputedStyle(document.querySelector('[data-cem-studio-reload] button')).borderTopLeftRadius,
             workbenchBorder: getComputedStyle(document.querySelector('[data-cem-studio-reload] button')).borderTopWidth,
             commandBackground: getComputedStyle(document.querySelector('[data-cem-studio-command-editor] textarea')).backgroundColor,
@@ -2374,10 +2382,11 @@ async function inspectShell(page) {
             parseFloat(overrideStyles.commandRadius) === 13 + parseFloat(overrideStyles.commandBorder);
         const workbenchOverrides = overrideStyles.editorBackground === 'rgb(31, 47, 63)' &&
             parseFloat(overrideStyles.workbenchRadius) === 13 + parseFloat(overrideStyles.workbenchBorder);
-        const inheritedOverrides = overrideStyles.treeBackground === 'rgb(12, 34, 56)' && overrideStyles.padding === '19px' &&
+        const inheritedOverrides = overrideStyles.treeBackground === 'rgb(12, 34, 56)' && overrideStyles.padding === '23px' && overrideStyles.editorInset === '19px' &&
             parseFloat(overrideStyles.radius) === 13 + parseFloat(overrideStyles.couplingBorder);
         shellHost.style.removeProperty('--cem-content-interaction-default-background');
         shellHost.style.removeProperty('--cem-inset-container');
+        shellHost.style.removeProperty('--cem-control-padding-x');
         shellHost.style.removeProperty('--cem-typography-script-font-size');
         shellHost.style.removeProperty('--cem-bend-media');
         previewProbe.remove();
@@ -2432,8 +2441,13 @@ async function inspectShell(page) {
             fileSystemState: application.shell.fileSystem.status().state,
             obsoleteControlsAbsent: !document.querySelector('[data-cem-studio-install], [host-command="install"], [host-command="update"], [data-cem-studio-open-project]'),
             navigationControlsInstalled: Boolean(
-                document.querySelector('cem-tree[label="Samples"] [role="tree"]') &&
-                document.querySelector('cem-tree[label="Saved projects"] [role="tree"]') &&
+                document.querySelector('cem-accordion[fit=fill][label="Navigation"]') &&
+                ['Projects', 'Structure', 'Output files'].every(label =>
+                    document.querySelector(`cem-expansion[layout=panel][indicator=start][label="${label}"] [part~=header]`)) &&
+                document.querySelector('cem-tree[label="Projects"][data-cem-density=super-compact][separate-toggle] [role="tree"]') &&
+                document.querySelector('cem-tree[label="Project files"][data-cem-density=super-compact][separate-toggle] [role="tree"]') &&
+                ['Examples', 'Saved projects'].every(name =>
+                    document.querySelector(`cem-tree[label="Projects"] [role=treeitem][aria-label="${name}"]`)) &&
                 ['create-selected', 'clone-selected', 'delete-selected'].every(command =>
                     document.querySelector(`cem-workspace [part~=navigation] header cem-icon-button[variant=contextual][host-command="${command}"] button`)),
             ),

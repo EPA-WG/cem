@@ -78,7 +78,31 @@ export async function studioRecovery(mode, progress, complete = false, privacy =
         const unreviewedPreviews = () => [...root.querySelectorAll('cem-media-preview')].filter(host => !['live', 'artifact-tree', 'document', 'text', 'media', 'message'].includes(host.getAttribute('mode')));
         const blockers = () => coordinator.inspectRecovery().owners.filter(owner => !owner.adapterAvailable || owner.tag === 'cem-media-preview' && unreviewedPreviews().length > 0);
         const selectUnreviewedPreview = async () => {
-            const preview = root.querySelector('cem-media-preview'); check(preview, 'missing real preview');
+            let preview = root.querySelector('cem-media-preview');
+            if (!preview) {
+                const before = workbench.snapshot();
+                const artifacts = before.projectPreview?.projection?.buildRun.artifacts ?? [];
+                const contentType = artifact => artifact.contentType?.split(';', 1)[0].trim().toLowerCase();
+                const artifact = artifacts.find(item => ['text/html', 'application/xhtml+xml'].includes(contentType(item)))
+                    ?? artifacts.find(item => contentType(item)?.startsWith('text/') && contentType(item) !== 'text/csv');
+                check(artifact, 'native build manifest has no media artifact for refusal coverage');
+                // A source selection does not imply an unrelated graph output.
+                // Explicitly choose a native manifest artifact without navigating
+                // away from the current source or replacing its unsaved draft.
+                await workbench.selectPreviewArtifact(artifact.path); await view.whenSettled();
+                const selected = workbench.snapshot();
+                check(selected.navigation.selection.file === before.navigation.selection.file && selected.draft === before.draft,
+                    'preview selection changed the current source or draft');
+                const expectedMode = { 'artifact-tree': 'artifact-tree', 'sandboxed-html': 'document', text: 'text' }[selected.projectPreview?.preview?.kind];
+                check(selected.projectPreview?.selectedArtifact?.id === artifact.id && expectedMode,
+                    'explicit native artifact was not admitted as a media preview');
+                preview = root.querySelector('cem-media-preview'); check(preview, 'missing real preview');
+                await runtime.whenRenderSettled(preview);
+                check(preview.getAttribute('mode') === expectedMode, 'native artifact did not reach the media preview host');
+            }
+            await runtime.whenRenderSettled(preview);
+            check(['live', 'artifact-tree', 'document', 'text', 'media', 'message', 'unreviewed-recovery-mode'].includes(preview.getAttribute('mode')),
+                'missing admitted preview mode');
             // Deliberately select this public mode to retain the unsupported-
             // group test after live/artifact controllers gained adapters.
             preview.setAttribute('mode', 'unreviewed-recovery-mode'); await runtime.whenRenderSettled(preview);

@@ -392,12 +392,17 @@
             "dependsOn": ["build:css"],
             "executor": "nx:run-commands",
             "options": {
-                "command": "node scripts/verify-phase13.mjs",
+                "commands": [
+                    "node scripts/verify-phase13.mjs",
+                    "node scripts/verify-compact-density.mjs"
+                ],
+                "parallel": false,
                 "cwd": "packages/cem-theme"
             },
             "cache": true,
             "inputs": [
                 "{projectRoot}/scripts/verify-phase13.mjs",
+                "{projectRoot}/scripts/verify-compact-density.mjs",
                 "{projectRoot}/scripts/manifest-utils.mjs",
                 "{projectRoot}/scripts/validate-manifest.mjs",
                 "{projectRoot}/dist/lib/css/*.css",

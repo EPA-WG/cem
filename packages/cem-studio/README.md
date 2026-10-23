@@ -31,10 +31,23 @@ provider, and graph-owned offline deployment. The project-backed workbench
 executes parse, inspect, conversion, query, direct transformation, trace, and
 transformation-graph commands through the same browser worker and exact-revision
 repository boundary.
-The application still selects the Feature Tour project and derives workbench
-descriptors from its seed catalog. General project navigation is the next
-delivery milestone; existing repository/provider APIs do not yet constitute
-that complete user flow.
+The compact IDE layout opens Examples by default. A shared `cem-accordion`
+stacks Projects (Examples and Saved projects), Structure, and Output files;
+sections can stay open together. Shared `cem-tree` disclosure preserves selection.
+The URL selects a project, resource, configuration or generated output. The center
+shows project Build controls, a source editor, a folder listing or read-only
+generated text, while the right pane follows its output context.
+
+Studio uses the canonical compact desktop profile. Trees and JSON/CSV tables use
+the super-compact profile: adjacent paragraph lines, zero row padding/gaps and
+1em glyphs, with larger hit targets retained for coarse/hybrid input. Native
+provenance relates source files to generated artifacts; bounded per-file Markdown
+conversion and the shared `cem-data-view` provide read-only HTML/table previews
+without saving drafts or starting arbitrary project builds.
+
+Entered passwords or one-time codes continue to block recovery until the user
+clears them. Automatic whole-Studio recovery remains disabled, and portable
+workspace checkpoints retain the existing aggregate 4 MiB budget.
 
 ## Package surfaces
 
@@ -301,9 +314,9 @@ resources, dependencies and native command resources without requiring a catalog
 Startup uses guarded project navigation with shared CEM dialogs; Feature Tour
 metadata is optional. Empty/read-only resources remain selectable, and failed
 Save/Apply or cancelled navigation retains the active workbench. The current
-navigator renders Samples, Saved projects and opened files from application data;
+navigator renders Examples, Saved projects and opened files from application data;
 URL parameters select folders/files/configurations, and an empty URL selects
-Samples. Action dialogs expose project/file creation, cloning and deletion.
+Examples. Action dialogs expose project/file creation, cloning and deletion.
 Native persistence, search, archive/provider and Trash/Restore services remain
 available. Draft recovery follows explicit URL admission. The current deployed
 layout is covered by `verify:navigation`; older monolithic lifecycle selectors

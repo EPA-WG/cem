@@ -1,0 +1,131 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-data-view">
+<template id="cem-data-view" type="text/cem-ml">
+{attribute @name=value | }
+{attribute @name=format | json}
+{attribute @name=label | Data}
+{style @type=text/css |```
+:scope { display: block; min-inline-size: 0; }
+:scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
+[part~="root"] { background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); font-family: var(--cem-typography-data-font-family); font-size: var(--cem-typography-data-font-size); font-weight: var(--cem-typography-data-font-weight); line-height: var(--cem-typography-data-line-height); letter-spacing: var(--cem-typography-data-letter-spacing); font-variant-numeric: var(--cem-typography-data-font-variant-numeric); min-inline-size: 0; overflow-wrap: anywhere; }
+[part~="scroll"] { overflow: auto; max-inline-size: 100%; }
+[part~="scroll"]:focus-visible { outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1); outline-offset: calc(-1 * var(--cem-stroke-focus)); }
+table { border-collapse: collapse; border-spacing: 0; inline-size: 100%; font: inherit; }
+caption, [part~="label"] { text-align: start; font-weight: var(--cem-typography-heading-font-weight); }
+tr { block-size: var(--cem-data-row-height); }
+th, td { border-block-end: var(--cem-data-row-border-width) solid var(--cem-separator-color); padding-block: var(--cem-data-row-padding-block); padding-inline: var(--cem-data-row-padding-inline); text-align: start; vertical-align: top; }
+[part~="value"] { white-space: pre-wrap; overflow-wrap: anywhere; }
+[part~="structure"], [part~="property"] { margin: var(--cem-stroke-none); padding: var(--cem-stroke-none); list-style: none; }
+[part~="structure"] [part~="structure"] { margin-inline-start: var(--cem-data-tree-indent); }
+[part~="notice"] { margin-block: var(--cem-data-row-gap); }
+[role="alert"] { color: var(--cem-input-indicator-anchor-invalid-color); }
+@media (forced-colors: active) {
+ [part~="root"] { background-color: Canvas; color: CanvasText; }
+ th, td { border-color: CanvasText; }
+ [role="alert"] { color: CanvasText; }
+ [part~="scroll"]:focus-visible { outline-color: Highlight; }
+}
+```}
+{module |
+ {template @name=scalar |
+  {param @name=text}
+  {body | {span @part=value | {$str:slice(text, 0, 2048)}{cem:if @test='str:length(text) > 2048' | … [cell limit: 2048]}}}
+ }
+ {template @name=structure |
+  {param @name=node}{param @name=depth}
+  {body |
+   {cem:choose |
+    {cem:when @test='node.name == "null"' | {span @part=value @data-kind=null | null}}
+    {cem:when @test='node.name == "object" || node.name == "array"' |
+     {cem:choose |
+      {cem:when @test='seq:count(node.children) == 0' | {span @part=value | {$if node.name == "array" { "[]" } else { "{}" }}}}
+      {cem:when @test='depth >= 4' | {span @part=notice | Depth limit: 4}}
+      {cem:otherwise |
+       {ul @part=structure |
+        {cem:for-each @select='seq:take(node.children, if node.name == "array" { 100 } else { 32 })' @as=child |
+         {li @part=property |
+          {cem:choose |
+           {cem:when @test='child.name == "property"' |
+            {strong | {call @template=scalar @with:text={child.attributes.value}}: }
+            {call @template=structure @with:node={seq:first(child.children)} @with:depth={depth + 1}}
+           }
+           {cem:otherwise | {call @template=structure @with:node={child} @with:depth={depth + 1}}}
+          }
+         }
+        }
+       }
+       {cem:if @test='seq:count(node.children) > (if node.name == "array" { 100 } else { 32 })' |
+        {p @part=notice | {$if node.name == "array" { "Row limit: 100" } else { "Column limit: 32" }}}
+       }
+      }
+     }
+    }
+    {cem:otherwise |
+     {cem:variable @name=text @select='str:concat(node.children.value, "")'}
+     {span @part=value @data-kind={node.name} | {$if node.name == "string" { "\"" + str:slice(text, 0, 2048) + "\"" } else { str:slice(text, 0, 2048) }}{cem:if @test='str:length(text) > 2048' | … [cell limit: 2048]}}
+    }
+   }
+  }
+ }
+ {template @name=table |
+  {param @name=rows}
+  {body |
+   {cem:variable @name=records @select='
+    for row in seq:take(rows, 100) {
+     {cells: if row.name == "object" {
+       if seq:count(row.children) > 0 {
+        seq:map(row.children, fn(property) => {key: property.attributes.value, subject: seq:first(property.children)})
+       } else { {key: "#value", subject: row} }
+      } else { {key: "#value", subject: row} }
+     }
+    }'}
+   {cem:variable @name=allHeadings @select='seq:union(records.cells.key, ())'}
+   {cem:variable @name=headings @select='seq:take(allHeadings, 32)'}
+   {div @part=scroll @tabindex=0 @role=region @aria-label={datadom.attributes.aria-label ?? label} |
+    {table @aria-label={datadom.attributes.aria-label} |
+     {caption | {slot @name=label | {$label}}}
+     {thead | {tr | {cem:for-each @select=headings @as=heading |
+      {th @scope=col | {call @template=scalar @with:text={heading}}}
+     }}}
+     {tbody | {cem:for-each @select=records @as=row |
+      {tr | {cem:for-each @select=headings @as=heading |
+       {cem:variable @name=cells @select='seq:where(row.cells, fn(cell) => cell.key == heading)'}
+       {td | {cem:choose |
+        {cem:when @test='seq:count(cells) == 0' | {span @part=value | ∅ missing}}
+        {cem:otherwise | {call @template=structure @with:node={seq:first(cells).subject} @with:depth={0}}}
+       }}
+      }}
+     }}
+    }
+   }
+   {cem:if @test='seq:count(rows) > 100' | {p @part=notice | Row limit: 100}}
+   {cem:if @test='seq:count(allHeadings) > 32' | {p @part=notice | Column limit: 32}}
+  }
+ }
+ {body |
+  {cem:variable @name=document @select='
+   if str:length(value) > 65536 { {error: "Source limit: 65536 Unicode characters", root: ()} }
+   else { if format == "json" || format == "csv" {
+     if value == null || value == "" { {error: "", root: ()} } else { data:read(value, format) }
+    } else { {error: "Choose json or csv explicitly.", root: ()} }
+   }'}
+  {cem:variable @name=root @select='seq:first(document.root.children)'}
+  {div @part=root @role=group @aria-label={datadom.attributes.aria-label ?? label} |
+   {cem:choose |
+    {cem:when @test='document.error != ""' | {p @part=notice @role=alert | {$document.error}}}
+    {cem:when @test='seq:count(document.root.children) == 0' | {p @part=notice | No data}}
+    {cem:when @test='root.name == "array"' |
+     {cem:choose |
+      {cem:when @test='seq:count(root.children) > 0' | {call @template=table @with:rows={root.children}}}
+      {cem:otherwise | {div @part=label | {slot @name=label | {$label}}}{span @part=value | []}}
+     }
+    }
+    {cem:otherwise |
+     {div @part=label | {slot @name=label | {$label}}}
+     {call @template=structure @with:node={root} @with:depth={0}}
+    }
+   }
+  }
+ }
+}
+</template>
+</cem-element>

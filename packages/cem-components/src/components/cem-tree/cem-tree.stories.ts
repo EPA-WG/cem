@@ -2,6 +2,91 @@ import { expect } from 'storybook/test';
 import preview, { loadCemDeclaration, nextRenderFrame, whenCemRendered, createCemStoryRuntime, cemComponentDeclarationSource, mountCemView, cemWorkflowDeclarationSource } from '../../../../cem-elements/.storybook/preview.js';
 import declarationSource from './cem-tree.xhtml?raw';
 const meta = preview.meta({ component: 'cem-tree', title: 'CEM Components/cem-tree', loaders: [async () => { await loadCemDeclaration('cem-tree', declarationSource); return {}; }] });
+
+export const SeparateDisclosure = meta.story({
+    parameters: { docs: { description: { story: 'Browser-runner-only: trusted pointer and native Enter activation.' } } },
+    render: () => '<cem-tree label="Project navigation" selection="single" separate-toggle selected-values="source" expanded-values="project folder"><cem-tree-item value="project" label="My project" icon="◇" kind="project"><cem-tree-item value="folder" label="Content" icon="▱" kind="folder"><cem-tree-item value="source" label="Article" icon="▤" kind="resource"></cem-tree-item></cem-tree-item></cem-tree-item></cem-tree>',
+    play: async ({ canvasElement }) => {
+        if (import.meta.env.MODE !== 'test') return;
+        const { userEvent } = await import('vitest/browser');
+        const host = requiredElement<HTMLElement>(canvasElement, 'cem-tree'); await whenCemRendered(host);
+        const node = (value: string) => requiredElement<HTMLButtonElement>(host, `[data-tree-value="${value}"]`);
+        const source = node('source'), project = node('project');
+        const events: unknown[] = [];
+        host.addEventListener('cem-tree-activate', event => events.push(['activate', (event as CustomEvent).detail]));
+        host.addEventListener('cem-tree-toggle', event => events.push(['toggle', (event as CustomEvent).detail]));
+        expect(project.dataset.kind).toBe('project');
+        expect(project.querySelector('[part=icon]')?.textContent).toBe('◇');
+        await userEvent.click(requiredElement<HTMLElement>(project, '[part=marker]')); await whenCemRendered(host);
+        expect(events).toEqual([['toggle', { value: 'project', expanded: false }]]);
+        expect(host.getAttribute('selected-values')).toBe('source');
+        expect(source.getAttribute('aria-selected')).toBe('true');
+        expect(host.querySelector('[data-tree-value=source]')).toBe(source);
+        expect(project.getAttribute('aria-expanded')).toBe('false');
+        await userEvent.click(requiredElement<HTMLElement>(project, '[part=label]')); await whenCemRendered(host);
+        expect(events.at(-1)).toEqual(['activate', { value: 'project' }]);
+        expect(project.getAttribute('aria-expanded')).toBe('false');
+        project.focus(); await userEvent.keyboard('{ArrowRight}'); await whenCemRendered(host);
+        expect(project.getAttribute('aria-expanded')).toBe('true');
+        expect(host.querySelector('[data-tree-value=source]')).toBe(source);
+        expect(source.getAttribute('aria-selected')).toBe('true');
+        await userEvent.keyboard('{Enter}'); await whenCemRendered(host);
+        expect(events.at(-1)).toEqual(['activate', { value: 'project' }]);
+        expect(project.getAttribute('aria-expanded')).toBe('true');
+        expect(host.querySelector('button button')).toBeNull();
+    },
+});
+
+export const SuperCompactLines = meta.story({
+    render: () => '<cem-tree data-cem-density="super-compact" separate-toggle label="Paragraph-like rows"><cem-tree-item value="first" label="First resource" icon="▤" kind="resource" expandable></cem-tree-item><cem-tree-item value="second" label="Second resource" icon="▤" kind="resource"></cem-tree-item><cem-tree-item value="third" label="Third resource" icon="▤" kind="resource"></cem-tree-item></cem-tree>',
+    play: async ({ canvasElement }) => {
+        const host = requiredElement<HTMLElement>(canvasElement, 'cem-tree'); await whenCemRendered(host);
+        const rows = [...host.querySelectorAll<HTMLButtonElement>('[role=treeitem]')];
+        const precise = matchMedia('(hover: hover) and (pointer: fine)').matches && !matchMedia('(any-pointer: coarse)').matches;
+        const style = getComputedStyle(rows[0]);
+        if (precise) {
+            const line = Number.parseFloat(style.lineHeight);
+            expect(style.paddingBlockStart).toBe('0px');
+            expect(style.paddingInlineStart).toBe('0px');
+            expect(style.borderTopWidth).toBe('0px');
+            expect(Math.abs(rows[0].getBoundingClientRect().height - line)).toBeLessThan(0.1);
+            expect(Math.abs(rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().bottom)).toBeLessThan(0.1);
+            expect(getComputedStyle(requiredElement(rows[0], '[part=icon]')).fontSize).toBe(style.fontSize);
+        } else {
+            expect(rows[0].getBoundingClientRect().height).toBeGreaterThanOrEqual(resolveTokenLength(rows[0], '--cem-coupling-zone-min'));
+        }
+        const first = rows[0];
+        host.style.setProperty('--cem-typography-ui-font-size', '20px'); await nextRenderFrame();
+        expect(host.querySelector('[role=treeitem]')).toBe(first);
+        expect(Number.parseFloat(getComputedStyle(first).fontSize)).toBe(20);
+        expect(first.getBoundingClientRect().height).toBeGreaterThanOrEqual(Number.parseFloat(getComputedStyle(first).lineHeight));
+        host.style.setProperty('--cem-coupling-zone-min', '48px'); await nextRenderFrame();
+        const marker = requiredElement<HTMLElement>(first, '[part=marker]');
+        const markerRect = marker.getBoundingClientRect(), labelRect = requiredElement(first, '[part=label]').getBoundingClientRect();
+        expect(markerRect.width).toBeGreaterThanOrEqual(48);
+        expect(markerRect.height).toBeGreaterThanOrEqual(48);
+        expect(getComputedStyle(marker).fontSize).toBe(getComputedStyle(first).fontSize);
+        expect(labelRect.left).toBeGreaterThanOrEqual(markerRect.right);
+        expect(getComputedStyle(requiredElement(first, '[part=icon]')).fontSize).toBe(getComputedStyle(first).fontSize);
+    },
+});
+
+export const InheritedOrdinaryGeometry = meta.story({
+    render: () => '<cem-tree label="Inherited geometry" expanded-values="parent"><cem-tree-item value="parent" label="Parent"><cem-tree-item value="child" label="Child" kind="configuration"></cem-tree-item></cem-tree-item></cem-tree>',
+    play: async ({ canvasElement }) => {
+        const host = requiredElement<HTMLElement>(canvasElement, 'cem-tree'); await whenCemRendered(host);
+        host.style.cssText = '--cem-gap-related:17px;--cem-control-padding-x:19px;--cem-control-padding-y:7px;--cem-coupling-zone-min:61px;--cem-icon-button-icon-size:23px';
+        const row = requiredElement(host, '[role=treeitem]');
+        expect(getComputedStyle(requiredElement(host, '[part=root]')).rowGap).toBe('17px');
+        expect(getComputedStyle(row).paddingInlineStart).toBe('19px');
+        expect(getComputedStyle(row).paddingBlockStart).toBe('7px');
+        expect(getComputedStyle(row).minBlockSize).toBe('61px');
+        expect(getComputedStyle(requiredElement(host, '[role=group]')).marginInlineStart).toBe('19px');
+        expect(getComputedStyle(requiredElement(row, '[part=marker]')).inlineSize).toBe('23px');
+        const probe = document.createElement('span'); probe.style.color = 'var(--cem-resource-file-color)'; canvasElement.append(probe);
+        expect(getComputedStyle(requiredElement(host, '[data-tree-value=child] [part=label]')).color).toBe(getComputedStyle(probe).color); probe.remove();
+    },
+});
 interface TestCemTree extends HTMLElement {
     expandedValues: string[];
     selectedValues: string[];

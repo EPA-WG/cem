@@ -103,6 +103,40 @@ Boundary heuristic:
 | `--cem-list-popup-rows`       | `8`                            | Default maximum visible rows in a transient list popup            | recommended |
 | `--cem-menu-row-height`       | `3rem`                         | Menu row height                                                   | recommended |
 | `--cem-table-row-height`      | `2.5rem`                       | Data table row height                                             | recommended |
+| `--cem-data-row-height` | `var(--cem-list-row-height)` | Minimum structured row block size; content may wrap and grow | required |
+| `--cem-data-icon-size` | `var(--cem-icon-button-icon-size)` | Glyph box in a structured row | required |
+
+### Desktop compact geometry
+
+The inherited `data-cem-density="compact|super-compact"` profiles are an explicit
+desktop policy, separate from coupling-mode overrides. They apply only for a
+fine primary pointer with hover and no coarse input (including hybrid devices).
+The compact profile reduces chrome; super-compact is reserved for structured
+tree/table composites and makes rows as close as lines in a paragraph. It has
+no row padding or vertical gap, uses a `1lh` minimum, and keeps icons at `1em`.
+Wrapped labels and text zoom grow the line boxes; no fixed height clips text.
+Coarse/hybrid input retains the original target geometry and D2 minimums. Glyph
+sizes remain `1em` on every modality: changing an icon's ink does not shrink its
+operable container. The generator emits only the icon glyph rows outside the
+precise-input gate; control/container sizes remain inside it.
+
+###### cem-controls-density-overrides
+
+| Token | compact | super-compact |
+|---|---|---|
+| `--cem-control-height` | `1.75rem` | `1lh` |
+| `--cem-control-padding-x` | `0.375rem` | `0px` |
+| `--cem-control-padding-y` | `0.125rem` | `0px` |
+| `--cem-icon-button-size` | `1.5rem` | `1em` |
+| `--cem-icon-button-icon-size` | `1em` | `1em` |
+| `--cem-icon-size` | `1em` | `1em` |
+| `--cem-icon-size-small` | `1em` | `1em` |
+| `--cem-icon-size-large` | `1em` | `1em` |
+| `--cem-list-row-height` | `1.75rem` | `1lh` |
+| `--cem-menu-row-height` | `1.75rem` | `1lh` |
+| `--cem-table-row-height` | `1.75rem` | `1lh` |
+| `--cem-data-row-height` | `var(--cem-list-row-height)` | `1lh` |
+| `--cem-data-icon-size` | `1em` | `1em` |
 
 ### 3.1.1 Optional size profiles
 
@@ -290,6 +324,7 @@ A draft becomes "canonical" when all of the following are true:
 | `cem-progress-geometry` | §3.2 | Circular-progress diameter and shared progress-track thickness |
 | `cem-slider-geometry` | §3.3 | Slider track thickness and visible thumb diameter |
 | `cem-controls-geometry-overrides` | §3.4 | Forgiving/compact override values for visual geometry (generator-only; no new tokens) |
+| `cem-controls-density-overrides` | Desktop compact geometry | Explicit inherited desktop chrome/paragraph-line data geometry; no new tokens |
 
 Generator derivation rules:
 - `cem-controls-size-profiles` → `[data-cem-size]` height overrides, emitted after coupling rules.

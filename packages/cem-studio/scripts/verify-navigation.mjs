@@ -23,7 +23,7 @@ const preview = () => page.evaluate(() => {
 });
 const choose = async (name, option) => { await page.getByRole('combobox', { name, exact: true }).click(); await page.getByRole('option', { name: option, exact: true }).click(); await settle(); };
 const click = async name => { await page.getByRole('button', { name, exact: true }).click(); await settle(); };
-const tree = async (name, owner = 'Samples') => { await page.getByRole('tree', { name: owner, exact: true }).getByRole('treeitem', { name, exact: true }).click(); await settle(); };
+const tree = async (name, owner = 'Projects') => { await page.getByRole('tree', { name: owner, exact: true }).getByRole('treeitem', { name, exact: true }).click(); await settle(); };
 const submit = async (name, action) => { if (name) await page.getByRole('dialog').getByRole('textbox').fill(name); await page.getByRole('dialog').getByRole('button', { name: action, exact: true }).click(); await settle(); };
 const heading = async () => assert.equal(await page.getByRole('heading', { level: 1 }).innerText(), await page.title());
 
@@ -34,7 +34,7 @@ try {
     await tree(collection.name);
     assert.ok(await page.getByRole('list', { name: 'Folder contents' }).getByRole('button', { name: 'Supplier pipeline', exact: true }).isVisible());
     await tree('Supplier pipeline');
-    assert.equal((await state()).content, 'folder');
+    assert.equal((await state()).content, 'project');
     await click('Build project');
     const artifactFrame = page.locator('cem-media-preview[mode="artifact-tree"] iframe');
     await artifactFrame.waitFor();
@@ -50,7 +50,7 @@ try {
     assert.ok(projectId); await heading();
     const projectUrl = page.url();
     assert.ok(new URL(projectUrl).searchParams.get('project') === projectId);
-    await page.getByRole('list', { name: 'Folder contents' }).getByRole('button', { name: 'data', exact: true }).click(); await settle();
+    await tree('data', 'Project files');
     assert.equal((await state()).selection.folder, 'data/');
     const file = (await state()).children.find(item => item.name === 'stock.csv');
     await page.getByRole('list', { name: 'Folder contents' }).getByRole('button', { name: 'stock.csv', exact: true }).click(); await settle();
@@ -59,8 +59,8 @@ try {
     await page.screenshot({ path: '/tmp/cem-studio-navigator.png', fullPage: true });
     const original = await editor.evaluate(element => element.value);
     await editor.fill(`${original}\n`); await settle();
-    await click('Build project');
-    await choose('Preview artifact', 'generated/availability.json');
+    await page.evaluate(() => globalThis.__cemStudioApplication.workbench.buildProjectPreview()); await settle();
+    await page.evaluate(() => globalThis.__cemStudioApplication.workbench.selectPreviewArtifact('generated/availability.json')); await settle();
     assert.equal((await preview()).stale, true);
     assert.equal(await editor.evaluate(element => element.value), `${original}\n`);
     const runId = (await preview()).runId;
@@ -72,7 +72,7 @@ try {
         assert.notEqual(palette[0], palette[1]);
     }
     // A folder change is guarded by the same source admission as a file change.
-    await page.getByRole('tree', { name: 'Navigator Supplier', exact: true }).getByRole('treeitem', { name: '📁 data', exact: true }).click(); await settle();
+    await page.getByRole('tree', { name: 'Project files', exact: true }).getByRole('treeitem', { name: 'data', exact: true }).click(); await settle();
     assert.ok(await page.getByRole('dialog', { name: 'Resolve drafts before navigation' }).isVisible());
     await click('Cancel navigation');
     assert.equal((await state()).selection.file, file.resourceId);
@@ -91,10 +91,12 @@ try {
     await click('Clone selected'); await submit('notes-copy.cem', 'Clone');
     assert.equal((await state()).selected.name, 'notes-copy.cem');
     await click('Delete selected'); await submit(undefined, 'Delete');
-    assert.equal((await state()).content, 'folder');
+    assert.equal((await state()).content, 'project');
     await page.goto(bookmarked); await ready();
     const fileUrl = page.url();
-    await page.getByRole('tree', { name: 'Samples', exact: true }).getByRole('treeitem', { name: 'Samples', exact: true }).click(); await settle();
+    const examplesRoot = page.getByRole('tree', { name: 'Projects', exact: true }).locator('[role=treeitem][data-tree-value="samples"]');
+    assert.equal(await examplesRoot.getAttribute('aria-label'), 'Examples');
+    await examplesRoot.click(); await settle();
     assert.equal((await state()).selection.key, 'samples');
     await page.goBack(); await settle();
     assert.equal(page.url(), fileUrl); assert.equal((await state()).selection.file, file.resourceId);
@@ -107,7 +109,13 @@ try {
         shell.style.removeProperty('--cem-inset-container');
         return value;
     });
-    assert.equal(inset, '23px');
+    assert.equal(inset, '0px'); // Explicit shared flush appearance owns zero content inset.
+    const headerInset = await page.locator('cem-studio-shell').evaluate(shell => {
+        shell.style.setProperty('--cem-control-padding-x', '23px');
+        const value = getComputedStyle(shell.querySelector('cem-workspace [part~=editor] > [part~=heading]')).paddingInlineStart;
+        shell.style.removeProperty('--cem-control-padding-x'); return value;
+    });
+    assert.equal(headerInset, '23px');
     const layouts = [];
     for (const width of [1440, 900, 390, 320]) {
         await page.setViewportSize({ width, height: 1000 });
@@ -126,6 +134,7 @@ try {
     // Run the ordinary Supplier configuration through the new file/configuration route.
     await page.goto(`${projectUrl}&configuration=availability`); await ready();
     assert.equal((await state()).error, undefined);
+    await page.locator('cem-expansion[label="Commands and results"] > [part~=root] [part~=header]').first().click(); await settle();
     await click('Run configuration');
     assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().status), 'projected');
     const provenance = await page.evaluate(async () => {
@@ -142,8 +151,9 @@ try {
     await page.evaluate(async () => { await navigator.serviceWorker.ready; });
     await context.setOffline(true); await page.reload(); await ready();
     assert.equal((await state()).content, 'file');
-    await click('Build project');
+    await page.evaluate(() => globalThis.__cemStudioApplication.workbench.buildProjectPreview()); await settle();
     assert.equal((await preview()).attempt, 'succeeded');
+    await page.locator('cem-expansion[label="Commands and results"] > [part~=root] [part~=header]').first().click(); await settle();
     await click('Run configuration');
     assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().status), 'projected');
     await context.setOffline(false);

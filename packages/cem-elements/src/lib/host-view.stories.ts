@@ -5,6 +5,41 @@ import { connectCemNativeSurface } from './native-surface.js';
 
 const meta = preview.meta({ title: 'Runtime/Declarative host-service views' });
 
+export const IndependentOwnerEvents = meta.story({
+    render: () => '<section></section>',
+    play: async ({ canvasElement }) => {
+        const required = (root: ParentNode, selector: string): HTMLElement => {
+            const element = root.querySelector<HTMLElement>(selector);
+            if (!element) throw new Error(`Missing owner-event fixture ${selector}`);
+            return element;
+        };
+        const { runtime, scope, declare } = createCemStoryRuntime(canvasElement, false);
+        const tag = `multi-event-host-${crypto.randomUUID()}`;
+        const declaration = await declare('<cem-element tag="multi-event-host"><template id="multi-event-host" type="text/cem-ml">{div @host-command=open @host-command-event=cem-tree-activate @host-command-cem-tree-toggle=expand @host-command-cem-disclosure-toggle=section | {span | Child}}</template></cem-element>', tag);
+        const calls: CemHostCommandRequest[] = [];
+        const view = mountCemView(runtime, { root: required(canvasElement, 'section'), tag,
+            commands: { open: request => calls.push(request), expand: request => calls.push(request), section: request => calls.push(request) } });
+        try {
+            await view.whenSettled();
+            const owner = required(view.element, 'div');
+            const emit = (type: string, value: unknown, target: Element = owner) => target.dispatchEvent(new CustomEvent(type, { bubbles: true, detail: { value, expanded: true, ignored: { secret: 'unavailable' } } }));
+            emit('cem-tree-activate', 'source'); emit('cem-tree-toggle', 'folder'); emit('cem-disclosure-toggle', 'projects');
+            expect(calls.map(({ command, value }) => [command, value])).toEqual([['open', 'source'], ['expand', 'folder'], ['section', 'projects']]);
+            expect(Object.keys(calls[1])).toEqual(['command', 'eventType', 'value', 'isTrusted']);
+            emit('cem-tree-toggle', 'folder', required(owner, 'span'));
+            emit('cem-tree-toggle', 'with spaces'); expect(view.errors).toHaveLength(1);
+            owner.setAttribute('disabled', ''); emit('cem-disclosure-toggle', 'projects'); owner.removeAttribute('disabled');
+            owner.removeAttribute('host-command-cem-tree-toggle'); emit('cem-tree-toggle', 'folder');
+            expect(calls).toHaveLength(3);
+            emit('cem-tree-activate', 'other'); expect(calls.at(-1)?.command).toBe('open');
+            owner.addEventListener('cem-disclosure-toggle', event => event.preventDefault(), { once: true });
+            owner.dispatchEvent(new CustomEvent('cem-disclosure-toggle', { bubbles: true, cancelable: true, detail: { value: 'projects' } }));
+            expect(calls).toHaveLength(4);
+            view.dispose(); emit('cem-tree-activate', 'late'); expect(calls).toHaveLength(4);
+        } finally { view.dispose(); declaration.remove(); scope.dispose(); }
+    },
+});
+
 export const ArtifactNavigation = meta.story({
     render: () => '<section></section>',
     play: async ({ canvasElement }) => {

@@ -156,7 +156,7 @@
                 "{workspaceRoot}/package.json",
                 "{workspaceRoot}/yarn.lock",
                 {
-                    "dependentTasksOutputFiles": "**/*.{js,d.ts}",
+                    "dependentTasksOutputFiles": "**/*.{js,d.ts,css,xhtml}",
                     "transitive": false
                 },
                 "{projectRoot}/src/shell.xhtml",
@@ -167,7 +167,8 @@
                 "{projectRoot}/src/workbench-preview.xhtml",
                 "{projectRoot}/src/workbench-tools.xhtml",
                 "{projectRoot}/src/project-picker.xhtml",
-                "{projectRoot}/src/workbench-results.xhtml"
+                "{projectRoot}/src/workbench-results.xhtml",
+                "{projectRoot}/src/workbench-center.xhtml"
             ],
             "outputs": []
         },
@@ -223,10 +224,16 @@
                         "@epa-wg/cem-components"
                     ],
                     "target": "build"
+                },
+                {
+                    "projects": [
+                        "@epa-wg/cem-theme"
+                    ],
+                    "target": "build:css"
                 }
             ],
             "options": {
-                "command": "yarn vitest --config packages/cem-studio/vitest.config.mts --project=browser --run src/workbench.browser.spec.js src/recovery.browser.spec.js --no-file-parallelism",
+                "command": "yarn vitest --config packages/cem-studio/vitest.config.mts --project=browser --run src/workbench.browser.spec.js src/navigation.browser.spec.js src/recovery.browser.spec.js --no-file-parallelism",
                 "cwd": "{workspaceRoot}"
             },
             "inputs": [
@@ -247,7 +254,7 @@
                 "{workspaceRoot}/package.json",
                 "{workspaceRoot}/yarn.lock",
                 {
-                    "dependentTasksOutputFiles": "**/*.{js,d.ts}",
+                    "dependentTasksOutputFiles": "**/*.{js,d.ts,css,xhtml}",
                     "transitive": false
                 },
                 "{projectRoot}/src/shell.xhtml",
@@ -262,7 +269,9 @@
                 "{projectRoot}/src/project-session.js",
                 "{projectRoot}/src/project-session.d.ts",
                 "{projectRoot}/src/navigation.js",
-                "{projectRoot}/src/navigation.d.ts"
+                "{projectRoot}/src/navigation.d.ts",
+                "{projectRoot}/src/navigation.browser.spec.js",
+                "{projectRoot}/src/workbench-center.xhtml"
             ],
             "outputs": []
         },
@@ -597,6 +606,7 @@
                 "verify:output",
                 "verify:static-worker",
                 "verify:determinism",
+                "verify:navigation",
                 "verify:shell-delivery",
                 "verify:workspace-delivery"
             ],
@@ -803,6 +813,7 @@
             },
             "inputs": [
                 "{projectRoot}/scripts/verify-navigation.mjs",
+                "{projectRoot}/scripts/verify-markdown-site.mjs",
                 "{projectRoot}/dist/static/**/*",
                 {
                     "dependentTasksOutputFiles": "**/*",

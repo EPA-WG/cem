@@ -1,37 +1,20 @@
 <cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-studio-workbench-layout">
  <template id="cem-studio-workbench-layout" type="text/cem-ml">
 {module |
- {slice @name=pane | source}{slice @name=navigation}
+ {slice @name=navigation}
  {body |
  {style @type=text/css |```
 :scope { display: block; block-size: 100%; min-block-size: 0; min-inline-size: 0; }
 [part~='root'] { block-size: 100%; min-block-size: 0; }
-[part~='content'] { display: grid; gap: var(--cem-gap-related); min-inline-size: 0; align-content: start; }
-[part~='file'][hidden] { display: none; }
+
 ```}
  {section @part=root @aria-label="Project workbench" @data-cem-studio-workbench="" |
-  {cem-workspace @label="Studio workspace" @layout=project @fit=fill @navigation-label=Navigation @editor-label=Contents @preview-label="Project preview" |
+  {cem-workspace @label="Studio workspace" @layout=project @fit=fill @appearance=flush @navigation-label=Navigation @editor-label=Contents @preview-label="Output preview" |
    {span @slot=navigation-actions @data-cem-studio-workbench-navigation-actions-mount="" | {cem-studio-workbench-navigation @section=actions}}
    {div @slot=navigation @data-cem-studio-workbench-navigation-mount="" | {cem-studio-workbench-navigation}}
-   {span @slot=editor-heading | {$ | datadom.slices.navigation.selected.name ?? "Samples"}}
-   {cem-stack @slot=editor @part=content @gap=sm |
-    {div @data-cem-studio-project-picker-mount="" | {cem-studio-project-picker}}
-    {section @part=file @aria-label="Selected file" @hidden={if datadom.slices.navigation &amp;&amp; datadom.slices.navigation.content != "file" { true } else { null }} |
-     {div @data-cem-studio-workbench-controls-mount="" | {cem-studio-workbench-controls}}
-     {cem-expansion @label="Commands and results" @expanded={if datadom.slices.navigation { null } else { true }} |
-      {cem-tabs @label="Workbench panes" @selected-index={if datadom.slices.pane == "results" { 1 } else { 0 }} @host-command=select-pane @host-command-event=cem-tab |
-       {cem-tab @value=source @label="Source and command" |
-        {div @data-cem-studio-workbench-command-mount="" | {cem-studio-workbench-command}}
-        {div @data-cem-studio-workbench-tools-mount="" | {cem-studio-workbench-tools}}
-       }
-       {cem-tab @value=results @label=Results |
-        {div @data-cem-studio-workbench-results-mount="" | {cem-studio-workbench-results @project-preview={if datadom.slices.navigation { true } else { null }}}}
-       }
-      }
-     }
-    }
-   }
-   {div @slot=preview @data-cem-studio-workbench-preview-mount="" | {cem-studio-workbench-preview}}
+   {cem-text @slot=editor-heading @variant=caption @kind={if datadom.slices.navigation.pathKind == "output-file" || datadom.slices.navigation.pathKind == "output-folder" { "output" } else { if datadom.slices.navigation.pathKind == "project" { "project" } else { if datadom.slices.navigation.pathKind == "file" || datadom.slices.navigation.pathKind == "configuration" { "resource" } else { "" } } }} @text={datadom.slices.navigation.selected.name ?? "Examples"}}
+   {div @slot=editor @data-cem-studio-workbench-center-mount="" | {cem-studio-workbench-center}}
+   {div @slot=preview @data-cem-studio-workbench-preview-mount="" | {cem-studio-workbench-preview @section=preview}}
   }
  }
  }

@@ -137,6 +137,20 @@ yarn nx run @epa-wg/cem-theme:lint
 
 ## Related docs
 
+Compact desktop tools can set `data-cem-density="compact"` on a container and
+`data-cem-density="super-compact"` on its tree/table data surfaces. Structured
+rows then follow consecutive paragraph lines: `1lh` minimum, zero row padding
+and vertical gap, and `1em` glyphs. Wrapping and text scaling remain available.
+The profile requires fine hover input and no coarse pointer; touch and hybrid
+devices retain larger targets. Existing coupling/spacing modes are unchanged.
+Consume canonical `--cem-data-row-*`/`--cem-data-icon-size` tokens rather than
+adding component-local density defaults. The D2 policy and its inset-focus and
+keyboard requirements are documented in the canonical
+[coupling specification](src/lib/tokens/cem-coupling.md#6-0-explicit-desktop-density-policy).
+After building CSS, run `node packages/cem-theme/scripts/verify-compact-density.mjs`
+from the workspace root for computed desktop/touch targets, all theme modes,
+paragraph-line rows, text scaling, inherited overrides and forced colors.
+
 - [Token export architecture](docs/token-export.md) — DTCG export, Figma workflow, platform strategy, output contracts.
 - [CEM tokens in Figma](docs/token-figma.md) — native Figma library variable model and UI checks.
 - [Native platform packages](../../docs/native-platforms.md) — supported package layouts, toolchains, component mapping, and compile gates.

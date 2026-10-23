@@ -16,6 +16,10 @@ export interface CemStudioProjectPreviewState {
     readonly comparison?: CemStudioBuildComparison;
     readonly comparisonArtifactPath?: string;
     readonly currentRunId?: string;
+    readonly previewContext: 'project' | 'source' | 'output' | 'none';
+    readonly relatedArtifacts: readonly CemStudioBuildArtifact[];
+    readonly missingReason?: string;
+    readonly selectedOutput?: import('./workbench.js').CemStudioCommandOutput;
     readonly currentArtifactPath?: string;
     readonly projectId?: string;
     readonly contextKey?: string;
@@ -41,9 +45,9 @@ export interface CemStudioProjectPreviewState {
 
 export interface CemStudioNavigationNode {
     readonly key: string;
-    readonly route: Readonly<Partial<Record<'view' | 'collection' | 'project' | 'sample' | 'folder' | 'file' | 'configuration', string>>>;
+    readonly route: Readonly<Partial<Record<'view' | 'collection' | 'project' | 'sample' | 'folder' | 'file' | 'configuration' | 'selection' | 'output-folder' | 'build' | 'artifact', string>>>;
     readonly name: string;
-    readonly kind: 'folder' | 'project' | 'file' | 'configuration';
+    readonly kind: 'folder' | 'project' | 'file' | 'configuration' | 'output-folder' | 'output-file';
     readonly description: string;
     readonly icon: string;
     readonly path?: string;
@@ -55,12 +59,23 @@ export interface CemStudioNavigationState {
     readonly samples: CemStudioNavigationNode;
     readonly saved: CemStudioNavigationNode;
     readonly files?: CemStudioNavigationNode;
+    readonly output?: CemStudioNavigationNode;
+    readonly sections: Readonly<Record<'projects' | 'structure' | 'output', boolean>>;
+    readonly trees: Readonly<Record<'projects' | 'structure' | 'output', { readonly selected: string; readonly expanded: string }>>;
+    readonly projectName?: string;
+    readonly path?: string;
+    readonly pathKind: CemStudioNavigationNode['kind'];
+    readonly canCreate: boolean;
+    readonly canClone: boolean;
+    readonly canDelete: boolean;
+    readonly sourcePreview?: CemStudioSourcePreviewState & Readonly<{ resourceId: string; sourceUri: string; contentType: string; schema?: string; text: string; revision: number; sha256: string; draft: boolean; mode: 'saved' | 'draft' }>;
+    readonly expanded: string;
     readonly selected: CemStudioNavigationNode;
     readonly children: readonly CemStudioNavigationNode[];
     readonly selection: CemStudioNavigationNode['route'] & { readonly key: string; readonly kind: string };
     readonly title: string;
     readonly status: string;
-    readonly content: 'folder' | 'file' | 'sample-file';
+    readonly content: 'folder' | 'project' | 'file' | 'sample-file' | 'output-file' | 'output-folder';
     readonly sampleText: string;
     readonly contentType: string;
     readonly sourceId: string;
@@ -76,11 +91,15 @@ export interface CemStudioNavigationState {
 export interface CemStudioNavigation extends CemStudioFeatureTourWorkbench {
     snapshot(): CemStudioWorkbenchState & { readonly navigation: CemStudioNavigationState };
     subscribe(notify: (state: CemStudioWorkbenchState & { readonly navigation: CemStudioNavigationState }) => void): () => void;
+    setNavigationSection(name: 'projects' | 'structure' | 'output', open: boolean): void;
+    toggleNavigationSection(name: 'projects' | 'structure' | 'output'): void;
+    setNavigationExpanded(tree: 'projects' | 'structure' | 'output', keys: string | readonly string[]): void;
+    toggleNavigationExpanded(tree: 'projects' | 'structure' | 'output', key: string): void;
     requestAction(kind: 'create' | 'clone' | 'delete'): void;
     cancelAction(): void;
     submitAction(fields: Readonly<Record<string, readonly string[]>>): Promise<void>;
     selectPreviewConfiguration(id: string): void;
-    selectPreviewArtifact(path: string): void;
+    selectPreviewArtifact(path: string): void | Promise<void>;
     pinProjectBuild(): Promise<void>;
     selectPinnedBuild(key: string): Promise<void>;
     deletePinnedBuild(): Promise<void>;
@@ -108,7 +127,8 @@ export function createCemStudioProjectPreview(options: {
 }): {
     snapshot(): CemStudioProjectPreviewState;
     subscribe(notify: (state: CemStudioProjectPreviewState) => void): () => void;
-    setContext(context?: Readonly<Record<string, unknown>>, settings?: { build?: string; artifact?: string; configuration?: string; reset?: boolean }): void;
+    setContext(context?: Readonly<Record<string, unknown>>, settings?: { build?: string; artifact?: string; configuration?: string; reset?: boolean; sourceActivation?: boolean; sourceResourceId?: string }): void;
+    setSelection(selection: CemStudioNavigationNode['route']): void;
     updateSource(state: CemStudioWorkbenchState): void;
     selectConfiguration(id: string): void;
     selectArtifact(path: string): void;
@@ -121,5 +141,18 @@ export function createCemStudioProjectPreview(options: {
     cancel(): void;
     copy(writeText?: (text: string) => Promise<void>): Promise<void>;
     download(save?: (file: { filename: string; contentType: string; bytes: Uint8Array }) => Promise<void>): Promise<void>;
+    dispose(): void;
+};
+
+export interface CemStudioSourcePreviewState {
+    readonly status: 'idle' | 'pending' | 'ready' | 'error';
+    readonly stale: boolean;
+    readonly preview?: import('./preview.js').CemStudioPreview;
+    readonly error?: { readonly message: string };
+}
+export function createCemStudioSourcePreview(options?: { validator?: Pick<CemStudioBrowserValidator, 'runResourceCommand'>; delay?: number }): {
+    snapshot(): CemStudioSourcePreviewState;
+    setSource(source?: Readonly<{ resourceId: string; sourceUri: string; contentType: string; schema?: string; text: string; revision: number; sha256: string; draft: boolean; projectId?: string; projectRootUri?: string; projectRevision?: number }>): void;
+    subscribe(notify: (state: CemStudioSourcePreviewState) => void): () => void;
     dispose(): void;
 };

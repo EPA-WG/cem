@@ -57,6 +57,8 @@ use construction::ResultBuffer;
 #[cfg(test)]
 mod prepared_tests;
 #[cfg(test)]
+mod data_view_tests;
+#[cfg(test)]
 mod copy_profile_tests;
 #[cfg(test)]
 mod input_profile_tests;

@@ -18,6 +18,8 @@ type SelectionMode = 'none' | 'single' | 'multiple';
 interface NormalizedTreeItem {
     value: string;
     label: string;
+    icon: string;
+    kind: string;
     id: string;
     groupId: string;
     level: number;
@@ -33,6 +35,8 @@ interface NormalizedTreeItem {
 interface RenderTreeItem {
     value: string;
     label: string;
+    icon: string;
+    kind: string;
     id: string;
     groupId: string;
     level: number;
@@ -231,6 +235,8 @@ function normalizeTree(
             const item: NormalizedTreeItem = {
                 value,
                 label: itemLabel,
+                icon: node.attributes.icon ?? '',
+                kind: node.attributes.kind ?? '',
                 id,
                 groupId: `${id}-group`,
                 level,
@@ -282,6 +288,8 @@ function renderSlices(instance: HTMLElement, state: TreeState): Record<string, u
         return {
             value: item.value,
             label: item.label,
+            icon: item.icon,
+            kind: item.kind,
             id: item.id,
             groupId: item.groupId,
             level: item.level,
@@ -399,6 +407,11 @@ function handleClick(instance: HTMLElement, state: TreeState, event: Event): voi
     state.focusValue = item.value;
     state.refocusValue = item.value;
     if (isBranch(item)) {
+        if (instance.hasAttribute('separate-toggle')) {
+            if (target?.closest('[part~="marker"]')?.parentElement === button) toggleItem(instance, state, item);
+            else activateItem(instance, item);
+            return;
+        }
         toggleItem(instance, state, item);
         if (instance.hasAttribute('activate-branches')) activateItem(instance, item);
     }

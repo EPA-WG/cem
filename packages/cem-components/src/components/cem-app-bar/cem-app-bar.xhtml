@@ -7,6 +7,9 @@
 [part~='root'] { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cem-gap-group); padding: var(--cem-inset-container); background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); border: var(--cem-stroke-boundary) solid currentColor; }
 [part~='title'] { flex: 1; min-inline-size: 0; }
 [part~='actions'] { display: flex; flex-wrap: wrap; gap: var(--cem-gap-group); }
+:scope:where([appearance='compact']) [part~='root'] { gap: var(--cem-coupling-guard-min); padding-block: var(--cem-control-padding-y); padding-inline: var(--cem-control-padding-x); }
+:scope:where([appearance='compact']) [part~='actions'] { gap: var(--cem-coupling-guard-min); }
+:scope:where([appearance='compact']) [slot='title'] { margin: 0; font: inherit; overflow-wrap: anywhere; }
 @media (forced-colors: active) { [part~='root'] { background-color: Canvas; color: CanvasText; border-color: CanvasText; forced-color-adjust: auto; } }
     ```}
     {attribute @name=label | Application}

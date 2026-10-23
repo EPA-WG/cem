@@ -54,7 +54,7 @@ export interface CemStudioApplicationShell {
     readonly update: CemStudioUpdateCoordinator;
     readonly fileSystem: CemStudioFileSystemController;
     readonly view: CemHostView;
-    setWorkspaceState(title: string, status: string): void;
+    setWorkspaceState(title: string, status: string, heading?: { readonly projectName?: string; readonly path?: string; readonly pathKind?: string }): void;
     whenSettled(): Promise<void>;
     dispose(): void;
 }

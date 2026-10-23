@@ -4,7 +4,33 @@ import assert from 'node:assert/strict';
 export async function verifyMarkdownSite({ page, context, url }) {
     const ready = async () => { await page.waitForFunction(() => globalThis.__cemStudioApplication); await settle(); };
     const settle = () => page.evaluate(() => globalThis.__cemStudioApplication.workbenchView.whenSettled());
-    const click = async name => { await page.getByRole('button', { name, exact: true }).click(); await settle(); };
+    const withProject = async operation => {
+        const route = await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().navigation.selection);
+        const restore = route.file || route.folder || route.configuration || route.selection === 'output';
+        if (restore) {
+            await page.evaluate(async route => { const selection = Object.fromEntries(['project', 'sample', 'build'].filter(key => route[key]).map(key => [key, route[key]]));
+                await globalThis.__cemStudioApplication.workbench.openEntity(new URLSearchParams(selection).toString()); }, route);
+            await settle();
+            assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().navigation.content), 'project', 'Project controls require admitted navigation; source drafts must remain guarded.');
+        }
+        try { return await operation(); }
+        finally {
+            if (restore) {
+                await page.evaluate(async route => {
+                    const application = globalThis.__cemStudioApplication;
+                    const selected = Object.fromEntries(['project', 'sample', 'file', 'folder', 'configuration', 'selection', 'output-folder', 'build', 'artifact'].filter(key => Object.hasOwn(route, key)).map(key => [key, route[key]]));
+                    const artifact = application.workbench.snapshot().projectPreview.artifactPath;
+                    if (artifact && route.selection !== 'output') selected.artifact = artifact;
+                    await application.workbench.openEntity(new URLSearchParams(selected).toString());
+                }, route); await settle();
+            }
+        }
+    };
+    const click = async name => {
+        const button = page.getByRole('button', { name, exact: true });
+        const operation = async () => { await button.click(); await settle(); };
+        if (await button.isVisible()) await operation(); else await withProject(operation);
+    };
     const state = () => page.evaluate(() => {
         const snapshot = globalThis.__cemStudioApplication.workbench.snapshot();
         const preview = snapshot.projectPreview;
@@ -15,10 +41,14 @@ export async function verifyMarkdownSite({ page, context, url }) {
             html: preview.projection?.output.text };
     });
     const build = async () => { await click('Build project'); const current = await state(); assert.equal(current.status, 'succeeded', JSON.stringify(current)); return current; };
-    const choosePin = async name => { await page.getByRole('combobox', { name: 'Preview build', exact: true }).click(); await page.getByRole('option', { name, exact: true }).click(); await settle(); };
+    const choosePin = async name => withProject(async () => { await page.getByRole('combobox', { name: 'Preview build', exact: true }).click(); await page.getByRole('option', { name, exact: true }).click(); await settle(); });
     const frame = page.locator('cem-media-preview[mode="artifact-tree"] iframe');
     const viewReady = async title => {
         await page.waitForFunction(title => document.querySelector('cem-media-preview[mode="artifact-tree"] iframe')?.contentDocument?.querySelector('h1')?.textContent === title, title);
+    };
+    const expandGeneratedOutput = async () => {
+        const generated = page.getByRole('tree', { name: 'Output files', exact: true }).getByRole('treeitem', { name: 'generated', exact: true });
+        if (await generated.getAttribute('aria-expanded') === 'false') { await generated.locator('[part~=marker]').click(); await settle(); }
     };
     const save = async text => { await page.getByRole('textbox', { name: 'CEM source', exact: true }).fill(text); await settle(); await click('Save and validate'); };
     const open = async (project, file) => {
@@ -30,6 +60,8 @@ export async function verifyMarkdownSite({ page, context, url }) {
     const sample = await build();
     console.log('[cem-studio:markdown-site] catalog build ready');
     assert.equal(sample.artifacts.length, 7); await viewReady('CEM field notes');
+    await expandGeneratedOutput();
+    await page.screenshot({ path: '/tmp/cem-studio-compact-project-build.png', fullPage: true });
     await frame.contentFrame().getByRole('link', { name: 'a small build', exact: true }).click(); await settle();
     await viewReady('Build a small site');
     assert.equal((await state()).artifact, 'generated/articles/first-build.html');
@@ -66,6 +98,8 @@ export async function verifyMarkdownSite({ page, context, url }) {
     assert.equal(edited.file, article);
     await page.evaluate(() => globalThis.__cemStudioApplication.workbench.selectPreviewArtifact('generated/articles/first-build.html')); await settle();
     await viewReady('Build an edited site');
+    await expandGeneratedOutput();
+    await page.screenshot({ path: '/tmp/cem-studio-compact-editor-preview.png', fullPage: true });
     const successful = await state();
     await save(original.replace('title: Build a small site', 'title: [broken'));
     await click('Build project');
@@ -129,11 +163,12 @@ export async function verifyMarkdownSite({ page, context, url }) {
         assert.deepEqual(offline.artifacts, shared.artifacts); assert.equal(offline.file, article);
         await viewReady('CEM field notes');
         assert.equal(offline.entryArtifact, 'generated/index.html');
-        const layout = await page.locator('cem-studio-workbench-preview').evaluate(host => {
-            const toolbar = host.querySelector('[part="build-controls"]'), preview = host.querySelector('[part="preview"]');
-            return { overflow: getComputedStyle(toolbar).overflowY, bottom: toolbar.getBoundingClientRect().bottom, top: preview.getBoundingClientRect().top };
-        });
-        assert.equal(layout.overflow, 'auto'); assert.ok(layout.top >= layout.bottom, 'Expanded build controls must not cover the preview');
+        const layout = await withProject(() => page.locator('cem-studio-workbench-layout').evaluate(host => {
+            const toolbar = host.querySelector('cem-studio-workbench-preview[section="build"] [part="build-controls"]');
+            const preview = host.querySelector('cem-studio-workbench-preview[section="preview"] [part="preview"]');
+            return { overflow: getComputedStyle(toolbar).overflowY, right: toolbar.getBoundingClientRect().right, left: preview.getBoundingClientRect().left };
+        }));
+        assert.equal(layout.overflow, 'auto'); assert.ok(layout.left >= layout.right, 'Project build controls and output preview occupy separate columns');
         await frame.contentFrame().getByRole('navigation', { name: 'Site navigation' }).getByRole('link', { name: 'Articles', exact: true }).click();
         await settle(); await viewReady('Articles');
         await frame.contentFrame().getByRole('navigation', { name: 'Site navigation' }).getByRole('link', { name: 'Home', exact: true }).click();
@@ -154,20 +189,25 @@ export async function verifyMarkdownSite({ page, context, url }) {
         const comparison = (await state()).comparison;
         assert.equal(comparison.baselineRunId, pinned.runId); assert.equal(comparison.currentRunId, current.runId);
         assert.deepEqual(comparison.counts, { added: 0, removed: 0, changed: 1, unchanged: 6 });
-        await click('Compare pin with current build');
-        assert.match(await page.getByRole('list', { name: 'Artifact comparison', exact: true }).innerText(), /changed · generated\/articles\/first-build.html/);
-        assert.match(await page.getByRole('list', { name: 'Pinned native provenance', exact: true }).innerText(), /content\/articles\/first-build.md/);
-        assert.match(await page.getByRole('list', { name: 'Current native provenance', exact: true }).innerText(), /layouts\/partials\/chrome.cemt/);
+        await withProject(async () => {
+            await click('Compare pin with current build');
+            assert.match(await page.getByRole('list', { name: 'Artifact comparison', exact: true }).innerText(), /changed · generated\/articles\/first-build.html/);
+            assert.match(await page.getByRole('list', { name: 'Pinned native provenance', exact: true }).innerText(), /content\/articles\/first-build.md/);
+            assert.match(await page.getByRole('list', { name: 'Current native provenance', exact: true }).innerText(), /layouts\/partials\/chrome.cemt/);
+        });
         await page.emulateMedia({ forcedColors: 'active' });
-        await page.getByRole('combobox', { name: 'Compare artifact', exact: true }).click();
-        await page.getByRole('option', { name: 'generated/images/harbor.svg', exact: true }).click(); await settle();
+        await withProject(async () => {
+            await page.getByRole('combobox', { name: 'Compare artifact', exact: true }).click();
+            await page.getByRole('option', { name: 'generated/images/harbor.svg', exact: true }).click(); await settle();
+            const comparisonLayout = await page.locator('cem-studio-workbench-layout').evaluate(element => {
+                const toolbar = element.querySelector('cem-studio-workbench-preview[section="build"] [part="build-controls"]');
+                const preview = element.querySelector('cem-studio-workbench-preview[section="preview"] [part="preview"]');
+                return { overflow: getComputedStyle(toolbar).overflowY, clear: preview.getBoundingClientRect().left >= toolbar.getBoundingClientRect().right };
+            });
+            assert.deepEqual(comparisonLayout, { overflow: 'auto', clear: true });
+        });
         assert.equal((await state()).artifact, 'generated/index.html');
         assert.equal((await state()).file, article);
-        const comparisonLayout = await page.locator('cem-studio-workbench-preview').evaluate(element => {
-            const toolbar = element.querySelector('[part="build-controls"]'), preview = element.querySelector('[part="preview"]');
-            return { overflow: getComputedStyle(toolbar).overflowY, clear: preview.getBoundingClientRect().top >= toolbar.getBoundingClientRect().bottom };
-        });
-        assert.deepEqual(comparisonLayout, { overflow: 'auto', clear: true });
         await page.emulateMedia({ forcedColors: 'none' });
 
         await click('Delete pinned build');

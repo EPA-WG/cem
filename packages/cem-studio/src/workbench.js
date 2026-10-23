@@ -1765,9 +1765,16 @@ export async function mountCemStudioWorkbench({
     const mount = authoredLayout?.parentElement ?? document.createElement('div');
     if (!authoredLayout) root.append(mount);
     const layout = mountCemView(components.runtime, { root: mount, element: authoredLayout ?? undefined, tag: 'cem-studio-workbench-layout',
-        state: { pane: 'source', navigation: workbenchLayoutNavigation(workbench.snapshot().navigation) }, commands: { 'select-pane': ({ value }) => layout.update({ pane: value === 'results' ? 'results' : 'source' }) } });
+        state: { navigation: workbenchLayoutNavigation(workbench.snapshot().navigation) } });
     await layout.whenSettled();
     const host = layout.element;
+    const center = mountCemView(components.runtime, {
+        root: host.querySelector('[data-cem-studio-workbench-center-mount]'),
+        element: host.querySelector('[data-cem-studio-workbench-center-mount] > cem-studio-workbench-center'), tag: 'cem-studio-workbench-center',
+        state: { pane: 'source', navigation: workbenchLayoutNavigation(workbench.snapshot().navigation) },
+        commands: { 'select-pane': ({ value }) => center.update({ pane: value === 'results' ? 'results' : 'source' }) },
+    });
+    await center.whenSettled();
 
     let renderPromise = Promise.resolve();
     let controlPromise = Promise.resolve();
@@ -1829,6 +1836,10 @@ export async function mountCemStudioWorkbench({
             'navigation-cancel': () => workbench.resolveNavigation('cancel'),
             'select-workbench': ({ value }) => perform(() => workbench.selectWorkbench(value)),
             'open-entity': ({ value }) => perform(() => workbench.openEntity(value)),
+            'toggle-section': ({ value }) => workbench.toggleNavigationSection?.(value),
+            'toggle-projects': ({ value }) => workbench.toggleNavigationExpanded?.('projects', value),
+            'toggle-structure': ({ value }) => workbench.toggleNavigationExpanded?.('structure', value),
+            'toggle-output': ({ value }) => workbench.toggleNavigationExpanded?.('output', value),
             'search-projects': ({ fields }) => perform(() => workbench.searchProjects(fields.query?.[0])),
             'open-search': ({ fields }) => perform(() => workbench.openEntity(fields.result?.[0])),
         },
@@ -1837,7 +1848,7 @@ export async function mountCemStudioWorkbench({
         root: host.querySelector('[data-cem-studio-workbench-navigation-actions-mount]'),
         element: host.querySelector('[data-cem-studio-workbench-navigation-actions-mount] > cem-studio-workbench-navigation'),
         tag: 'cem-studio-workbench-navigation',
-        state: { state: workbenchNavigationState(workbench.snapshot()), pending },
+        state: { state: workbenchNavigationState(workbench.snapshot(), true), pending },
         commands: {
             'create-selected': () => workbench.requestAction?.('create'),
             'clone-selected': () => workbench.requestAction?.('clone'),
@@ -1847,7 +1858,7 @@ export async function mountCemStudioWorkbench({
     const projectPicker = mountCemView(components.runtime, {
         root: host.querySelector('[data-cem-studio-project-picker-mount]'),
         element: host.querySelector('cem-studio-project-picker'), tag: 'cem-studio-project-picker',
-        state: { navigation: workbenchListingNavigation(workbench.snapshot().navigation), pending },
+        state: { navigation: workbenchListingNavigation(workbench.snapshot().navigation, workbench.snapshot().projectPreview), pending },
         commands: {
             'submit-action': ({ fields }) => perform(() => workbench.submitAction(fields)),
             'cancel-action': () => workbench.cancelAction?.(),
@@ -1858,6 +1869,7 @@ export async function mountCemStudioWorkbench({
             'home-import': () => perform(() => workbench.importProject()),
             'home-open': ({ fields }) => perform(() => workbench.selectWorkbench(fields.project?.[0])),
             'open-entity': ({ value }) => perform(() => workbench.openEntity(value)),
+            'download-preview': () => perform(() => workbench.downloadPreview(download)),
         },
     });
     const controlCommands = {
@@ -1887,23 +1899,28 @@ export async function mountCemStudioWorkbench({
         element: host.querySelector('cem-studio-workbench-tools'), tag: 'cem-studio-workbench-tools',
         state: { state: workbenchToolsState(workbench.snapshot()), pending }, commands: controlCommands,
     });
-    const previewView = mountCemView(components.runtime, {
-        root: host.querySelector('[data-cem-studio-workbench-preview-mount]'),
-        element: host.querySelector('cem-studio-workbench-preview'), tag: 'cem-studio-workbench-preview',
-        state: { state: workbenchPreviewState(workbench.snapshot()) },
-        commands: {
+    const previewCommands = {
             'pin-build': () => perform(() => workbench.pinProjectBuild()),
             'select-pinned-build': ({ value }) => perform(() => workbench.selectPinnedBuild(value)),
             'delete-pinned-build': () => perform(() => workbench.deletePinnedBuild()),
             'select-build': ({ value }) => workbench.selectPreviewConfiguration(value),
             'select-comparison-artifact': ({ value }) => workbench.selectComparisonArtifact(value),
-            'select-preview-artifact': ({ value }) => workbench.selectPreviewArtifact(value),
+            'select-preview-artifact': ({ value }) => perform(() => workbench.selectPreviewArtifact(value)),
             'save-build-entry': ({ fields }) => perform(() => workbench.saveBuildEntryArtifact(fields.entryArtifact?.[0] ?? '')),
             'build-project': () => { buildPromise = workbench.buildProjectPreview(); return buildPromise; },
             'cancel-build': () => workbench.cancelProjectPreview(),
             'copy-preview': () => perform(() => workbench.copyPreview(typeof clipboard?.writeText === 'function' ? text => clipboard.writeText(text) : undefined)),
             'download-preview': () => perform(() => workbench.downloadPreview(download)),
-        },
+        };
+    const buildView = mountCemView(components.runtime, {
+        root: host.querySelector('[data-cem-studio-workbench-build-mount]'),
+        element: host.querySelector('[data-cem-studio-workbench-build-mount] > cem-studio-workbench-preview'), tag: 'cem-studio-workbench-preview',
+        state: { state: workbenchPreviewState(workbench.snapshot(), false) }, commands: previewCommands,
+    });
+    const previewView = mountCemView(components.runtime, {
+        root: host.querySelector('[data-cem-studio-workbench-preview-mount]'),
+        element: host.querySelector('[data-cem-studio-workbench-preview-mount] > cem-studio-workbench-preview'), tag: 'cem-studio-workbench-preview',
+        state: { state: workbenchPreviewState(workbench.snapshot()) }, commands: previewCommands,
     });
 
     const newTarget = (values = {}) => {
@@ -1961,8 +1978,8 @@ export async function mountCemStudioWorkbench({
                 ? text => clipboard.writeText(text) : undefined)),
             'download-output': () => perform(() => workbench.downloadProjection(download)),
             'select-artifact': ({ value }) => workbench.selectArtifact(value),
-            diagnostic: ({ value }) => perform(async () => { layout.update({ pane: 'source' }); await layout.whenSettled(); workbench.navigateDiagnostic(Number(value)); }),
-            provenance: ({ value }) => perform(async () => { layout.update({ pane: 'source' }); await layout.whenSettled(); await workbench.navigateProvenance(Number(value)); }),
+            diagnostic: ({ value }) => perform(async () => { center.update({ pane: 'source' }); await center.whenSettled(); workbench.navigateDiagnostic(Number(value)); }),
+            provenance: ({ value }) => perform(async () => { center.update({ pane: 'source' }); await center.whenSettled(); await workbench.navigateProvenance(Number(value)); }),
         },
     });
     let latestSnapshot;
@@ -1974,15 +1991,17 @@ export async function mountCemStudioWorkbench({
             if (current.selection && current.selection !== selection) selectionRequest++;
             selection = current.selection;
             navigation.update({ state: workbenchNavigationState(current), pending });
-            navigationActions.update({ state: workbenchNavigationState(current), pending });
+            navigationActions.update({ state: workbenchNavigationState(current, true), pending });
             controls.update({ state: workbenchControlState(current), selectionRequest: selection ? String(selectionRequest) : '', pending });
             commandView.update({ command: workbenchCommandState(current.command, current.transition), pending, busy: workbenchBusy(current) });
             results.update({ state: workbenchResultState(current), pending });
             previewView.update({ state: workbenchPreviewState(current) });
+            buildView.update({ state: workbenchPreviewState(current, false) });
             tools.update({ state: workbenchToolsState(current), pending });
-            projectPicker.update({ navigation: workbenchListingNavigation(current.navigation), pending });
+            projectPicker.update({ navigation: workbenchListingNavigation(current.navigation, current.projectPreview), pending });
             layout.update({ navigation: workbenchLayoutNavigation(current.navigation) });
-            await Promise.all([layout.whenSettled(), navigation.whenSettled(), navigationActions.whenSettled(), controls.whenSettled(), commandView.whenSettled(), results.whenSettled(), tools.whenSettled(), previewView.whenSettled(), projectPicker.whenSettled()]);
+            center.update({ navigation: workbenchLayoutNavigation(current.navigation) });
+            await Promise.all([layout.whenSettled(), center.whenSettled(), navigation.whenSettled(), navigationActions.whenSettled(), controls.whenSettled(), commandView.whenSettled(), results.whenSettled(), tools.whenSettled(), buildView.whenSettled(), previewView.whenSettled(), projectPicker.whenSettled()]);
         });
     };
     const unsubscribe = workbench.subscribe(render);
@@ -2001,7 +2020,7 @@ export async function mountCemStudioWorkbench({
                 await build;
                 const renders = renderPromise;
                 await renders;
-                await Promise.all([layout.whenSettled(), navigation.whenSettled(), navigationActions.whenSettled(), controls.whenSettled(), commandView.whenSettled(), results.whenSettled(), tools.whenSettled(), previewView.whenSettled(), projectPicker.whenSettled()]);
+                await Promise.all([layout.whenSettled(), center.whenSettled(), navigation.whenSettled(), navigationActions.whenSettled(), controls.whenSettled(), commandView.whenSettled(), results.whenSettled(), tools.whenSettled(), buildView.whenSettled(), previewView.whenSettled(), projectPicker.whenSettled()]);
                 if (controlAction === controlPromise && edits === editPromise && build === buildPromise && renders === renderPromise) return;
             }
         },
@@ -2014,8 +2033,10 @@ export async function mountCemStudioWorkbench({
             tools.dispose();
             projectPicker.dispose();
             previewView.dispose();
+            buildView.dispose();
             commandView.dispose();
             results.dispose();
+            center.dispose();
             layout.dispose();
             if (!authoredLayout) mount.remove();
         },
@@ -2697,19 +2718,26 @@ function workbenchBusy(state) {
 // Forward service data used by this view, excluding potentially large result
 // bytes, graphs and command previews. Presentation remains in the declaration.
 function workbenchLayoutNavigation(navigation) {
-    return navigation && { selected: { name: navigation.selected.name }, content: navigation.content };
+    return navigation && { selected: { name: navigation.selected.name }, content: navigation.content, pathKind: navigation.pathKind };
 }
-function workbenchListingNavigation(navigation) {
+function workbenchListingNavigation(navigation, project) {
+    const output = navigation?.content === 'output-file' && project?.selectedOutput;
+    const bounded = output?.bytes && createCemStudioPreview({ bytes: output.bytes, contentType: output.contentType });
     return navigation && { selected: { name: navigation.selected.name, description: navigation.selected.description },
         children: navigation.children, content: navigation.content, path: navigation.path,
-        sampleText: navigation.sampleText, contentType: navigation.contentType, sourceId: navigation.sourceId, action: navigation.action, error: navigation.error };
+        sampleText: navigation.content === 'output-file' ? bounded?.text ?? bounded?.source ?? '' : navigation.sampleText,
+        outputAvailable: Boolean(output), outputTextAvailable: typeof bounded?.text === 'string' || typeof bounded?.source === 'string', outputTruncated: Boolean(bounded?.truncated), outputReason: bounded?.reason,
+        contentType: navigation.content === 'output-file' ? project?.selectedOutput?.contentType ?? 'text/plain' : navigation.contentType,
+        sourceId: navigation.content === 'output-file' ? JSON.stringify(['output', project?.projection?.buildRun.id, project?.selectedArtifact?.path]) : navigation.sourceId, action: navigation.action, error: navigation.error };
 }
-function workbenchNavigationState(state) {
+function workbenchNavigationState(state, actionsOnly = false) {
     const navigation = state.navigation;
-    return { transition: state.transition, navigationError: state.navigationError,
-        navigation: navigation && { samples: navigation.samples, saved: navigation.saved, files: navigation.files,
-            selection: navigation.selection, expanded: navigation.expanded, count: navigation.count, countKind: navigation.countKind,
-            busy: navigation.busy, canClone: navigation.canClone, canDelete: navigation.canDelete } };
+    return { ...(actionsOnly ? {} : { transition: state.transition, navigationError: state.navigationError }),
+        navigation: navigation && {
+            ...(actionsOnly ? {} : { samples: navigation.samples, saved: navigation.saved, files: navigation.files, output: navigation.output,
+                sections: navigation.sections, trees: navigation.trees, selection: navigation.selection, expanded: navigation.expanded }),
+            count: navigation.count, countKind: navigation.countKind, busy: navigation.busy,
+            canCreate: navigation.canCreate, canClone: navigation.canClone, canDelete: navigation.canDelete } };
 }
 
 function workbenchControlState(state) {
@@ -2762,12 +2790,47 @@ function buildComparisonState(comparison, path) {
         artifacts: comparison.artifacts.map(({ path, status }) => ({ path, status })) };
 }
 
-function workbenchPreviewState(state) {
+// Only the active source/configuration may publish its invocation in this pane.
+// Retain same-owner stale results (including live controllers); captured native
+// identity, rather than the last open editor or a filename, proves ownership.
+function workbenchInvocationProjection(state) {
+    const route = state.navigation?.selection, projection = state.projection, run = projection?.buildRun;
+    if (!route?.project || route.selection || !route.file && !route.configuration
+        || route.project !== state.projectId || run?.projectId !== route.project) return undefined;
+    if (route.configuration && state.entryId !== route.configuration || route.file && state.resourceId !== route.file) return undefined;
+    const configurationId = route.configuration ?? state.entryId ?? state.resourceId;
+    if (!configurationId || run.configuration?.id !== configurationId
+        || !state.resourceId || !run.inputs?.some(input => input.resourceId === state.resourceId)) return undefined;
+    return projection;
+}
+
+function workbenchPreviewState(state, includePreview = true) {
     const project = state.projectPreview;
-    const projection = project ? project.selectedArtifact ? project.projection : undefined : state.projection;
-    return { projection: projection && { preview: project?.preview ?? projection.preview,
-        output: projection.output && { available: projection.output.available } },
-        projectPreview: project && { projectId: project.projectId, configurations: project.configurations, configurationId: project.configurationId,
+    const source = includePreview ? state.navigation?.sourcePreview : undefined;
+    const configuration = state.navigation?.selection.configuration;
+    const projectContext = !configuration || project?.projection?.buildRun.configuration?.id === configuration;
+    const projectArtifact = projectContext ? project?.selectedArtifact : undefined;
+    const invocation = includePreview && (configuration || !projectArtifact) && !project?.missingArtifact
+        && !(project?.relatedArtifacts?.length > 1) ? workbenchInvocationProjection(state) : undefined;
+    const selected = includePreview ? invocation ? invocation.output?.available === false ? undefined : invocation.output
+        : projectArtifact ? project.selectedOutput : undefined : undefined;
+    const sourceContext = project?.previewContext === 'source';
+    const data = selected ?? (sourceContext && !project?.missingArtifact ? source : undefined);
+    const contentType = data?.contentType?.split(';')[0].trim().toLowerCase();
+    const live = invocation?.preview?.kind === 'live-cem' || projectContext && project?.preview?.kind === 'live-cem';
+    const format = live ? undefined : contentType === 'application/json' || contentType?.endsWith('+json') ? 'json' : contentType === 'text/csv' ? 'csv' : undefined;
+    // Artifact bytes pass the existing fatal UTF-8 and truncation policy before
+    // entering a native table importer. Command-result.text is transfer metadata,
+    // not permission to replacement-decode an invalid external document.
+    const admitted = format && selected?.bytes ? createCemStudioPreview({ bytes: selected.bytes, contentType: selected.contentType }) : undefined;
+    const projection = invocation ?? (project ? projectArtifact ? project.projection : undefined : state.projection);
+    const sourceFallback = sourceContext && !project?.missingArtifact && !project?.relatedArtifacts?.length;
+    const preview = includePreview && (invocation?.preview ?? (projectContext ? project?.preview : undefined) ?? projection?.preview ?? (sourceFallback ? source?.preview : undefined));
+    const dataText = selected ? admitted?.kind === 'text' && !admitted.truncated ? admitted.text : undefined : data?.text;
+    const tooLarge = typeof dataText === 'string' && (dataText.length > 131072 || [...dataText].length > 65536
+        || textEncoder.encode(dataText).byteLength > CEM_STUDIO_LIMITS.inlinePreviewBytes);
+    const build = !includePreview && project && { previewContext: project.previewContext, relatedArtifacts: project.relatedArtifacts?.map(({ path }) => ({ path })), missingReason: project.missingReason,
+            projectId: project.projectId, configurations: project.configurations, configurationId: project.configurationId,
             comparison: buildComparisonState(project.comparison, project.comparisonArtifactPath),
             pins: project.pins, pinId: project.pinId, pinSelection: project.pinSelection, pinBusy: project.pinBusy, pinError: project.pinError, pinMessage: project.pinMessage, canPin: project.canPin,
             pinnedConfiguration: project.pinId ? project.projection?.buildRun.configuration : undefined,
@@ -2776,9 +2839,21 @@ function workbenchPreviewState(state) {
             entryArtifact: project.entryArtifact, entryEditable: project.entryEditable, canEditEntry: project.canEditEntry, entryBusy: project.entryBusy, entryError: project.entryError, entryMessage: project.entryMessage,
             artifactPath: project.selectedArtifact?.path ?? project.artifactPath, available: project.available, busy: project.busy, attempt: project.attempt,
             stale: project.stale, hasRun: Boolean(project.projection), missingArtifact: project.missingArtifact,
-            selected: Boolean(project.selectedArtifact), artifacts: project.artifacts.map(({ path }) => ({ path })),
+            selected: Boolean(project.selectedArtifact), copyable: Boolean(project.selectedArtifact && project.preview?.kind !== 'download'), artifacts: project.artifacts.map(({ path }) => ({ path })),
             runId: project.projection?.buildRun.id, projectRevision: project.projection?.buildRun.projectRevision,
-            transfer: project.projection?.transfer } };
+            transfer: project.projection?.transfer };
+    return { sourcePreview: includePreview && sourceContext && !project?.missingArtifact && source ? { draft: Boolean(source.draft && !selected && (format || sourceFallback && source.status === 'ready' && !source.stale)),
+        stale: Boolean(!selected && source.stale), status: source.status, error: source.error } : undefined,
+        dataPreview: includePreview && format && data && (typeof dataText === 'string' || admitted?.truncated) ? { format, text: tooLarge ? undefined : dataText, tooLarge: tooLarge || admitted?.truncated,
+            label: (invocation ? invocation.buildRun.artifacts.find(item => item.uri === invocation.output?.uri)?.path : selected ? projectArtifact?.path : state.navigation?.path) || 'Data preview' } : undefined,
+        projection: preview ? { preview, output: projection?.output && { available: projection.output.available } } : undefined,
+        projectPreview: includePreview && project ? {
+            projectId: project.projectId, relatedArtifacts: project.relatedArtifacts?.map(({ path }) => ({ path })), missingReason: project.missingReason,
+            artifactPath: invocation ? invocation.buildRun.artifacts.find(item => item.uri === invocation.output?.uri)?.path : projectArtifact?.path ?? project.artifactPath,
+            stale: invocation ? invocation.stale : project.stale,
+            hasRun: Boolean(invocation ?? (projectContext ? project.projection : undefined)), missingArtifact: project.missingArtifact, busy: project.busy,
+            attempt: { status: invocation ? undefined : project.attempt?.status },
+        } : build };
 }
 
 function workbenchResultState(state) {

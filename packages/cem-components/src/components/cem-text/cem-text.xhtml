@@ -7,6 +7,10 @@
 :scope:where([variant='heading']) [part~='root'] { font-family: var(--cem-typography-ui-font-family); font-size: var(--cem-typography-ui-font-size); font-weight: var(--cem-typography-ui-font-weight); line-height: var(--cem-typography-ui-line-height); letter-spacing: var(--cem-typography-ui-letter-spacing); }
 :scope:where([variant='data']) [part~='root'] { font-variant-numeric: var(--cem-typography-data-font-variant-numeric); font-family: var(--cem-typography-data-font-family); font-size: var(--cem-typography-data-font-size); font-weight: var(--cem-typography-data-font-weight); line-height: var(--cem-typography-data-line-height); letter-spacing: var(--cem-typography-data-letter-spacing); }
 :scope:where([variant='heading']) [part~='root'] { font-weight: var(--cem-typography-heading-font-weight); }
+:scope:where([kind='project']) [part~='root'] { color: var(--cem-resource-project-color); }
+:scope:where([kind='resource']) [part~='root'] { color: var(--cem-resource-file-color); }
+:scope:where([kind='output']) [part~='root'] { color: var(--cem-resource-output-color); }
+@media (forced-colors: active) { :scope:where([kind]) [part~='root'] { color: CanvasText; } }
 :scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
     ```}
     {attribute @name=variant | body}{attribute @name=text | }

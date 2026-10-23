@@ -165,6 +165,10 @@ These rules prevent spacing changes from degrading operability, accessibility, o
 
 2. **Normative layout contract for interactive adjacency**
 
+The explicit precise-input desktop density policy in D2 §6.0 is independently
+opted in and has its own target/guard values. It never alters these spacing modes
+or the coarse/hybrid default contract.
+
 When spacing occurs **between two interactive affordances**, layout must respect D2 guard:
 
 ```css
@@ -332,6 +336,42 @@ Optimized for scan/compare flows (tables, metrics).
 |---------------------------|--------------------------|---------------------------------------------------------------|-------------|
 | `--cem-rhythm-data-row`   | `var(--cem-dim-x-small)` | Table-like, scan-first row padding (8px)                      | recommended |
 | `--cem-rhythm-data-group` | `var(--cem-dim-medium)`  | Scan grouping — subtotals, row groups, metric clusters (16px) | recommended |
+| `--cem-data-row-padding-block` | `var(--cem-control-padding-y)` | Structured row block inset; shared by trees and tabular views | required |
+| `--cem-data-row-padding-inline` | `var(--cem-control-padding-x)` | Structured row inline inset; hierarchy indentation is separate | required |
+| `--cem-data-row-gap` | `var(--cem-gap-related)` | Vertical spacing between structured rows and groups | required |
+| `--cem-data-tree-indent` | `var(--cem-control-padding-x)` | Hierarchy indentation independent of row padding | required |
+
+### 6.6 Desktop density profiles
+
+`data-cem-density="compact"` is an inherited desktop chrome recipe. Use
+`data-cem-density="super-compact"` on structured trees and tabular data: rows
+follow adjacent lines of one paragraph, with no extra padding or vertical gap.
+`1lh` is a minimum, so wrapped labels and user text scaling can grow naturally.
+Icons remain `1em`; the profile never scales the font to manufacture density.
+
+Both profiles require a fine primary pointer with hover and **no coarse pointer
+at all**. Coarse, unknown and hybrid input keep the modality-neutral D2 contract.
+This explicit profile is separate from existing spacing/coupling modes, which
+retain their previous values. D2 owns the approved desktop target policy;
+D2c owns row/control geometry and D5 keeps structured-row focus inside its line.
+Components consume these tokens without per-component density recipes.
+
+###### cem-dim-density-overrides
+
+| Token | compact | super-compact |
+|---|---|---|
+| `--cem-gap-related` | `0.25rem` | `0.25rem` |
+| `--cem-gap-group` | `0.5rem` | `0.5rem` |
+| `--cem-gap-block` | `0.5rem` | `0.5rem` |
+| `--cem-gap-section` | `0.75rem` | `0.75rem` |
+| `--cem-inset-control` | `0.25rem` | `0px` |
+| `--cem-inset-container` | `0.5rem` | `0px` |
+| `--cem-inset-surface` | `0.75rem` | `0px` |
+| `--cem-layout-gutter` | `0.5rem` | `0px` |
+| `--cem-data-row-padding-block` | `var(--cem-control-padding-y)` | `0px` |
+| `--cem-data-row-padding-inline` | `var(--cem-control-padding-x)` | `0px` |
+| `--cem-data-row-gap` | `var(--cem-gap-related)` | `0px` |
+| `--cem-data-tree-indent` | `1em` | `1em` |
 
 ---
 
@@ -617,7 +657,8 @@ from these tables using the same XPath pattern as `cem-dimension.html`.
 | `cem-dim-gaps`           | `--cem-gap-*` (5 tokens)                                                  | one token per row    |
 | `cem-dim-insets`         | `--cem-inset-*` (3 tokens)                                                | one token per row    |
 | `cem-dim-rhythm-reading` | `--cem-rhythm-reading-*` (2 tokens)                                       | one token per row    |
-| `cem-dim-rhythm-data`    | `--cem-rhythm-data-*` (2 tokens)                                          | one token per row    |
+| `cem-dim-rhythm-data`    | `--cem-rhythm-data-*` and structured `--cem-data-row-*` insets/gaps | one token per row    |
+| `cem-dim-density-overrides` | Precise-input inherited desktop profiles; no new tokens | overrides only |
 | `cem-dim-layout`         | `--cem-layout-*` (11 tokens; deprecated tier omitted from default output) | one token per row    |
 
 Spacing mode overrides (`cem-dim-spacing-overrides`) produce no new token names — they override existing tokens within

@@ -184,3 +184,35 @@ Enter/Space activation as well as leaves. The branch still toggles and emits
 `cem-tree-toggle`. Arrow keys only disclose or move focus. Without this attribute,
 branches retain their disclosure-only behavior. Selection remains application-owned
 through `selected-values`; expanding a branch does not select it automatically.
+
+## Separate disclosure and compact resource trees
+
+`separate-toggle` is an opt-in interaction mode. Clicking the leading chevron
+toggles a branch and emits `cem-tree-toggle { value, expanded }` without activating
+it. Clicking its label, icon or remaining row activates that branch and emits
+`cem-tree-activate { value }` without changing disclosure. Native Enter/Space
+activate the focused row; Left/Right keep their existing disclosure behavior.
+The chevron hit region respects the current coupling minimum in both axes,
+separately from its `1em` glyph; its grid column cannot overlap the label.
+The default mode, including `activate-branches`, is unchanged.
+
+A collapsed ancestor retains its selected descendant, stable row/group owners and
+expanded keys below it. Focus hidden by collapse returns to the nearest visible
+enabled ancestor, without emitting activation or changing selection. Applications
+keep expansion and selection state separate and must not force selected ancestors
+open on unrelated publications.
+
+Tree-item payloads also accept `icon` (decorative plain text) and `kind` (plain
+classification metadata). `project`, `resource`/`file`/`configuration`, and `output` kinds consume
+the shared semantic kind colors; interaction and disabled paint take precedence.
+Icons do not become part of the accessible name or create another focus owner.
+
+An explicit `data-cem-density="super-compact"` on the tree host opts it into the canonical precise-input
+line-row recipe: paragraph-like adjacent rows, no extra row padding or vertical
+gap, and `1em` icons. Focus rings remain inside the line. Coarse or hybrid input
+retains the normal larger target recipe; zoom and font changes can grow rows.
+This is a shared theme setting, never an application-local font reduction.
+
+Ordinary trees retain their original control, gap, icon and coupling token reads,
+including inherited consumer overrides. The new structured-row aliases apply
+only to the explicit super-compact tree profile.

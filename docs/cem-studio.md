@@ -32,11 +32,11 @@ renderer, tutorial step or dedicated example screen.
 - A project owns source, schema, query, template, command/configuration and
   documentation resources. Configurations reference these resources by stable
   identity and use the native CLI command or run-config format.
-- Samples lists predefined projects in collection folders. Browsing opens their
+- Examples lists predefined projects in collection folders. Browsing opens their
   files read-only. **Clone selected** verifies/imports an independent editable
   project into Saved projects, then requests guarded admission to the new copy.
 - The URL selects the opened project, folder, file or configuration. With no
-  selection parameters, startup selects Samples; it does not restore a previous
+  selection parameters, startup selects Examples; it does not restore a previous
   project implicitly. **Create** uses a neutral source-only starter at catalog roots.
 - The deterministic catalog at `samples/index.json` lists `projects` with an id,
   name, version, archive URI, SHA-256 and optional `collections`. `starter` uses
@@ -60,6 +60,252 @@ are configurations; `subproject` entries are configuration groups. These wire
 names do not introduce a separate page model. Internal compatibility API names
 may remain; visible terminology and new authored example definitions use
 projects, resources and configurations.
+
+### Planned compact IDE layout (2026-10-23)
+
+Status: accepted layout direction, implemented in shared declarations and theme profiles. The supplied IntelliJ
+IDEA screenshot is a spatial reference: stacked navigation sections, leading
+chevrons, dense rows, compact headings and clear pane boundaries. Studio keeps
+its own project/resource/configuration model and the requested right output pane;
+a terminal, IDE activity rail and editor tab system are not prerequisites.
+
+Confirmed choices: multiple accordion sections can stay open together; introduce
+a shared desktop compact density profile with smaller precise-input rows while
+retaining larger touch targets. Studio opts into `data-cem-density="compact"`;
+its structured trees and data tables opt into `data-cem-density="super-compact"`.
+
+```text
+┌────────────────────────────────────────────────────────────────────────┐
+│ Project name · resource/path — CEM Studio                       Theme  │
+├───────────────────┬──────────────────────────────┬─────────────────────┤
+│ ▾ ◇ Projects      │ Active selection             │ Output              │
+│   ▾ Examples      │                              │ selected output /   │
+│     ▸ Amsterdam   │ Project → build/configuration│ derived file view   │
+│   ▾ Saved projects│ Source → source editor       │                     │
+│     ◇ My project  │ Output → read-only contents  │ HTML / site         │
+├───────────────────┤ Folder → children            │ JSON / CSV table    │
+│ ▾ ▱ Structure     │                              │ media / text        │
+│   ▾ My project    │                              │                     │
+│     ▾ content     │                              │                     │
+│       article.md  │                              │                     │
+├───────────────────┤                              │                     │
+│ ▾ ⇥ Output files  │                              │                     │
+│   ▾ generated     │                              │                     │
+│       article.html│                              │                     │
+├───────────────────┴──────────────────────────────┴─────────────────────┤
+│ Selection / edits / build freshness                    Recovery status │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+Glyphs in this diagram illustrate positions, not production icon choices.
+Use theme-adaptive shared icons sized to `1em` of the surrounding UI text.
+
+#### Navigation composition and retained state
+
+- Keep `cem-workspace` as the three-region owner. Its navigation slot contains
+  one full-height `cem-accordion` with Projects, Structure and Output files.
+- Add `cem-accordion` as a reusable declarative container for `cem-expansion`.
+  Open sections share the
+  remaining height; closed sections consume only their header height. Bodies
+  scroll independently; long trees cannot enlarge the whole workspace.
+  With all sections closed, compact headers remain at the top and spare space
+  stays empty. A pane shorter than its combined headers uses an outer scroll
+  fallback so every header remains reachable.
+- Extend `cem-expansion` with a leading indicator and flush/fill presentation.
+  Each header presents chevron, icon and text. The closed state has a visible
+  leading right-facing chevron; the open state uses a downward chevron. Context
+  counts precede applicable actions at the header's trailing edge. Action buttons
+  are siblings of the disclosure button, never nested inside it.
+- Projects contains Examples and Saved projects as roots of the shared tree.
+  Keep collections/folders and project descriptions in the application data model.
+  The visible label is Examples; existing sample URLs, bundle identities and
+  storage compatibility are retained.
+- Structure shows the opened project's files, directories and configurations.
+  Selecting a file keeps the project tree available. File AST/symbol outlines
+  are a separate capability; the initial Structure section is the project tree.
+- Output files projects the admitted successful build manifest into folders/files.
+  Before a build it has an explicit empty state. No filesystem walk, guessed
+  extension mapping or synthesized artifact body is involved. Derived output is
+  read-only; Create/Clone/Delete never target generated files implicitly.
+- Reuse `cem-tree` and `cem-tree-item`, the existing tree-view components. Do not
+  create a second `cem-treeview` implementation. Add generic icon/kind support
+  instead of concatenating folder emoji into labels.
+- Extend shared `cem-elements` tree behavior with an opt-in separation between
+  disclosure and activation. Clicking a chevron only expands/collapses; clicking
+  the row label selects/activates its entity. Keep one roving tree focus model,
+  Left/Right disclosure, Up/Down traversal and native Enter/Space activation. Ordinary tree
+  consumers retain their existing behavior unless they opt in.
+- Keep section openness and each tree's selected/expanded keys separate from the
+  globally active navigation entity. Collapse changes visibility only; it does
+  not change URL selection, active editor, output context or a hidden descendant's
+  selection. If focus would become hidden, move focus to the visible heading or
+  ancestor without changing selection.
+- Stop rebuilding expanded keys from selected ancestors on every publication.
+  Reveal the selection path once on explicit navigation/URL admission, then
+  respect manual collapse. Do not force root expansion on ordinary renders.
+- Keep scroll containers and tree/editor DOM owners stable across collapse and
+  updates. Scroll offset restoration across recreated runtimes requires a shared
+  lifecycle/checkpoint contract; ordinary DOM retention alone is not that proof.
+  Default Projects open, reveal Structure when a project first opens and Output
+  files when output first becomes available, without overriding a user collapse.
+
+#### Main contents, URL and selection
+
+The application data model owns the complete catalogs, source/output trees,
+selection and presentation state. XHTML/CEM-ML projects that model. Keep one
+active entity controlling the center, with independent retained tree context.
+
+| Last activated navigation entity | Center | Right output pane |
+| --- | --- | --- |
+| Examples/Saved root or collection folder | Child projects/folders with icon, name and description | Contextual empty state |
+| Project | Project build configuration, Build/Cancel, status and diagnostics | Selected/configured entry from its generated output set |
+| Source directory | Child resources/folders | Contextual output/empty state; never an unrelated file preview |
+| Source resource | Shared `cem-source-editor`; samples remain read-only until cloned | Derived view for this resource and revision |
+| Configuration | Native configuration/graph authoring and execution | Corresponding configuration output |
+| Output directory | Read-only artifact children/details | Select-output state |
+| Output file | Read-only generated contents and metadata, exact copy/download | Rendered HTML/site, table or supported media/text view |
+
+Selection is navigation, not an implicit Save or project Build. Existing draft
+leave guards, cancellation, unknown-target rejection and native command admission
+remain in force. Do not save, clear or discard drafts on section collapse.
+
+Preserve `project`/`sample`, `collection`, `folder`/`file`/`configuration`, `build`
+and `artifact` URL conventions. Add an explicit navigation-selection discriminator
+for output activation (proposed `selection=output`), since existing URLs can carry
+both a source file and a preview artifact. Legacy URLs retain their current
+source/project interpretation. Output URLs use configuration/path and available
+logical run/pin identity, never native handles. Back/forward and direct URL loads
+admit one active selection and reveal its ancestors once. No parameters still
+selects the Examples catalog root.
+
+Output directories use `selection=output&output-folder=<normalized relative
+directory>`; the existing `folder` parameter continues to mean a source directory.
+An output directory and an `artifact` file target are mutually exclusive. On a
+new source activation, clear an unrelated prior artifact choice from preview
+state and URL; retain it only when it is related to the selected resource. A
+directly opened legacy file-plus-artifact URL preserves its explicit preview
+choice and shows the artifact's actual identity, without changing the source
+editor or claiming it was generated from that file.
+
+A source tree can retain its remembered file while Output files is active; that
+remembered context cannot override the active center. Likewise, navigating links
+inside a generated site may update the right preview/output path without switching
+the center away from the last activated navigation entity.
+
+The compact page heading uses separate project and resource/output path segments,
+with the same semantic kind colors as navigation items. Keep an accessible h1 and
+the existing plain window-title convention; structured colored spans do not alter
+`document.title`. Kind must also be conveyed by icon/text, not color alone.
+
+#### Compressed theme and shared ownership
+
+The existing `data-cem-spacing="dense"` and `data-cem-coupling="compact"` settings
+are insufficient: the current coupling contract still requires a `3rem` target
+and `0.5rem` guard, and expansion/workspace panels add container insets. Merely
+changing Studio CSS or shrinking the root font would violate that contract.
+
+Implement an opt-in shared desktop compact profile in the canonical D1/D2/D2c
+source tables and generators, preserving existing profiles. It must explicitly
+specify row/header/control geometry, adjacency and precise-input target bounds,
+plus the larger-target policy for coarse/touch input. An initial visual target
+for compact section headers is 24–28 CSS pixels at a 16px root. Structured
+tree/table rows use `1lh`, as adjacent lines within a paragraph: zero row gap,
+zero block/inline cell padding, zero row borders and inset focus paint.
+Purposeful tree indentation and icon/text separation remain. Wrapping, font
+changes and zoom increase row height naturally; typography is never shrunk.
+Cover hybrid hardware explicitly: `pointer: fine` alone does not prove that
+touch/coarse input is absent. Retain the larger-target recipe when coarse input
+is available; test both pure precise-input and hybrid configurations.
+
+Use zero extra page/card/tree-container padding and no vertical gaps between
+rows. Retain only purposeful indentation, icon/text separation and the token-owned
+space required to keep focus/selection paint visible. Keep disclosure/activation
+hit regions distinct and nonoverlapping. Glyphs, including chevrons, are `1em`;
+shrinking a glyph is independent of its hit target. Header, status, toolbars,
+fields and tables consume the same canonical compact recipe where appropriate.
+
+Define shared project/resource kind-color roles through the theme audit; reuse
+semantically matching roles or promote bounded missing roles in canonical tables.
+Both nav labels and heading segments consume those roles. Selected/hover/focus,
+contrast modes and forced colors remain authoritative over kind paint. Component
+CSS stays in its declarations, with no Studio token defaults or global selectors
+reaching into component internals. Generated-site/live-example content keeps its
+own declared theme; compact Studio chrome does not restyle project output.
+
+#### Output following and native data tables
+
+Reuse existing native build configurations, bounded artifact sets, configured
+entry paths, source provenance and shared artifact-tree preview. Whole-project
+preview shows its selected/configured generated entry, including site-relative
+HTML links, CSS and images. Source editor selection and build execution remain
+independent services, even though the preview follows the active context.
+
+For source files, determine the view from declared type/configuration and native
+provenance, not filename substitution. Markdown uses an available declared native
+HTML transformation; JSON/CSV use a native typed data/table view by default.
+An explicit related output choice or project preview association can select an
+alternative. Multiple matching outputs require a clear choice; missing matches
+show an empty/unsupported state instead of an unrelated previous preview. A shared
+layout or supplier source can contribute to several artifacts, so provenance is
+not automatically a one-source/one-output mapping.
+
+Read-only per-file preview may run automatically when its declared native
+transformation and resource policy permit it. It uses a bounded revision snapshot,
+coalescing/cancellation and late-result rejection; it never starts an arbitrary
+project graph, saves a draft, commits external writes or adds resolver grants.
+Draft preview is labeled separately from saved-build output. Transient draft
+results do not masquerade as files from the successful project-build manifest.
+Keep the last successful preview only for the same context, marked stale when
+its input changes; never show a previous resource as the newly selected file.
+
+The existing reusable starting point for JSON/CSV is
+[`data-table-view.cemt`](../packages/cem-elements/demo/data-table-view.cemt), which
+uses native `data:read` and typed generic-data trees. Promote its reusable viewer
+into the declarative `cem-data-view` component using native table markup; do not copy a parser
+or per-file DOM renderer into Studio JavaScript. The admitted source is limited to 65,536 Unicode characters (at most 256 KiB
+UTF-8), with 100 rows, 32 columns, depth 4 and 2,048 characters per scalar cell. Cover quoted CSV, exact values, missing vs
+null vs empty, heterogeneous JSON records, nested values and native diagnostics.
+Unsupported shapes use the native structural/text view rather than invented rows.
+Native `tabular` source formatting is not an interactive table renderer.
+
+Populate Output files atomically after complete artifact admission. Rebuilds keep
+an applicable selected output path if it still exists; missing selected outputs
+remain explicit. Failed/cancelled attempts preserve the same configuration's last
+successful tree and preview with freshness/status, not an empty replacement.
+Switching project/configuration releases incompatible output and rejects late
+publication. Keep pins, comparisons, exact transfers, byte/count limits and the
+existing preview script/network isolation.
+
+#### Delivery sequence and acceptance
+
+1. Canonical compact theme policy, `1em` icon mapping and kind-color roles, with
+   precise/coarse input, zoom, inherited overrides and forced-color fixtures.
+2. Shared accordion/expansion/tree contracts and colocated tests: multi-open
+   full-height allocation, leading disclosure, flush panels, independent activation,
+   retained descendant selection and no nested interactive header controls.
+3. Studio data/URL state and declarative layout: three sidebar sections, typed
+   active entity, stable per-tree expansion/scroll, compact heading/status, project
+   Build center and file editor center. Preserve folder listings and draft guards.
+4. Output tree and context-following preview: native manifests/provenance,
+   Markdown file and whole-site output, ambiguity/missing paths, saved/draft
+   freshness, failed/cancelled builds, URL/history and relative asset navigation.
+5. Shared bounded data/table viewer and Studio consumption, followed by source
+   and isolated-package galleries, native/table fixtures and integrated acceptance.
+
+Every fixture receives an actionable TODO before implementation. Native metadata,
+transformation and import changes use Rust tests first. Reusable lifecycle/input
+behavior belongs in `cem-elements`; accordion/tree/data-view markup belongs in
+`cem-components`; Studio orchestration remains non-UI services. Announce the shared
+tree interaction JavaScript before implementation. Required browser cases include
+collapse with a selected descendant, collapse during editing, multiple open
+sections, explicit output activation vs preview-link navigation, old/new URLs,
+project Build vs source editing, readonly outputs, empty/error/stale states,
+keyboard/AX, coarse/precise density, narrow layouts and theme/forced-color behavior.
+Preserve saved projects/drafts, existing source-editor focus/selection/highlights,
+password/OTP recovery refusal and the complete 4 MiB recovery budget; automatic
+whole-Studio recovery remains disabled.
+
+### Application delivery shape
 
 CEM Studio should be an installable, offline-capable web application and its own
 public `@epa-wg/cem-studio` npm package. It makes the useful `cem-ml` CLI
@@ -1028,6 +1274,10 @@ config provenance required to decide whether it is stale.
 
 ### Project builds and artifact previews
 
+The [compact IDE layout](#planned-compact-ide-layout-2026-10-23) places project
+Build controls in the center and makes the right output pane follow the active
+navigation context, while retaining these execution and artifact guarantees.
+
 Project preview belongs to a saved build and its artifact set, independently of
 the resource open in the editor. Its workspace region selects a Build
 configuration, runs or cancels Build project, and selects a Preview artifact for
@@ -1083,7 +1333,7 @@ defines reserved field types, bounds and original source coordinates. Page
 metadata is `input.metadata`; site-wide data/navigation uses an explicit
 `@with:site` graph input. Template modules and output destinations remain
 explicit, independently of `layout`/`slug` metadata. Studio consumes native
-artifact provenance without reconstructing source locations. **Samples →
+artifact provenance without reconstructing source locations. **Examples →
 Amsterdam 2026 → Markdown site** contains home, an article index and two articles,
 shared layout/content/chrome modules, explicit navigation data, CSS, an image and
 a downloadable asset. Clone it to edit, validate and build saved resources. The
@@ -1107,7 +1357,7 @@ suffixes. Literal Unicode and spaces are preserved.
 In a saved project's **Build entry settings** expansion, **Build entry artifact**
 and **Save build entry** update the named configuration through ordinary guarded
 project edits, with native validation, revision checks and undo/redo. Empty clears
-the setting. Samples remain read-only; clone one to edit it. Source/command drafts
+the setting. Examples remain read-only; clone one to edit it. Source/command drafts
 and active builds must finish before saving an entry setting. The controls use
 shared declarative field, expansion, stack and action components.
 
@@ -1158,7 +1408,7 @@ successful complete results in the repository's separate `resultSnapshots` store
 with a small inventory in `runs`. Listing/capacity checks never load artifact
 bodies. Using these existing stores needs no database migration and does not change source
 project/resource revisions, drafts, configurations or portable project exports.
-Samples can be pinned without importing them as saved source projects.
+Examples can be pinned without importing them as saved source projects.
 
 Expand **Pinned builds**, choose **Pin successful build**, then choose a saved pin
 in **Preview build**. **Current build** restores the retained current run and its
@@ -1279,7 +1529,7 @@ selects an output artifact and reports freshness. Opening another source file
 changes the editor, while preview retains its selected project/build/artifact.
 Selecting a configuration explicitly can change the build context; merely
 opening its source as a file does not. Reveal source uses artifact provenance to
-open an input resource intentionally. Samples remain ordinary projects in this
+open an input resource intentionally. Examples remain ordinary projects in this
 workspace, with no separate example screens.
 
 URL selection extends the existing source-selection contract:
@@ -1421,21 +1671,26 @@ The theme switch is beside the heading. A bottom status bar reports the current 
 controls are omitted from this layout. The former overlapping project forms, storage cards
 and inactive shell controls have been removed.
 
-The left column contains Create, Clone selected, Delete selected and a selection
-count, followed by Samples, Saved projects and the opened project's Files tree.
+The Navigation heading contains a selection count before Create, Clone selected
+and Delete selected. Below it, a full-height multi-open `cem-accordion` groups
+Projects (Examples and Saved projects), Structure, and Output files.
 Folder selection lists children with an icon, name and description in the main
-panel. File selection shows its source. Configurations appear in the project
+panel. Project selection opens Build controls; source file selection opens its
+editor, and output file selection opens bounded read-only generated text. Configurations appear in the project
 hierarchy and use the same editor and command workbench. **Commands and results**
 contains the source command, source/graph tools, operation results and diagnostics.
-The project preview stays available while browsing folders or opening files.
-Its Build configuration and Preview artifact selectors do not change editor
-selection; choosing a configuration in the tree may explicitly change the build.
+The right output pane follows the active project, source or generated artifact.
+Source folders have no unrelated output preview. Build configuration and artifact
+choices do not activate a different center; an explicit tree configuration may
+change the selected build. JSON/CSV use the shared native table viewer, while
+declared Markdown uses bounded native HTML conversion without Save or Build.
 
 All tree nodes, resource metadata, folder children, action availability and the
 selection record reside in `navigation.js` application data. Studio declarations
 render those records; JavaScript only handles domain services and browser routing.
-Shared `cem-tree activate-branches` emits folder activation as well as disclosure;
-arrow keys remain disclosure/focus operations. Stable resource IDs remain distinct
+Shared `cem-tree activate-branches separate-toggle` keeps row activation distinct
+from marker disclosure. Left/Right disclose or move focus; Enter/Space activate.
+Collapsing a tree or section retains its selected descendant and mounted editor. Stable resource IDs remain distinct
 from display/export paths, including Unicode directory names.
 
 ### Navigation URLs
@@ -1444,8 +1699,8 @@ The Navigation heading contains the current selection count before Create, Clone
 and Delete. These contextual actions have unfilled resting and disabled backgrounds
 and retain the theme's coupling guard between controls. The shared workspace
 navigation-actions slot keeps these actions beside their tree
-context. A horizontal rule separates the project catalog from the opened project's
-files tree. That tree prefixes the project root and directories with 📁, while
+context. Accordion boundaries separate Projects, Structure and Output files.
+The Structure tree prefixes the project root and directories with 📁, while
 file names and catalog labels remain unchanged. Ordinary tree rows reserve no
 hidden loading row. Project action dialogs
 separate the name/path field from a two-column action row using shared stack and
@@ -1455,14 +1710,14 @@ structure change; actual external changes still retain drafts and require explic
 reload or navigation.
 
 The URL is the selection authority at startup and on Back/Forward. Opening Studio
-without selection parameters selects the Samples root, even when a previous
+without selection parameters selects the Examples root, even when a previous
 project was open. Existing local drafts are recovered when their project/resource
 is explicitly reopened; startup does not silently restore the previous selection.
 
 | Selection | Query parameters |
 | --- | --- |
-| Samples root | none |
-| Samples collection | `collection=amsterdam-2026` |
+| Examples root | none |
+| Examples collection | `collection=amsterdam-2026` |
 | Sample project | `sample=supplier-pipeline` |
 | Saved projects root | `view=projects` |
 | Saved project | `project=<project-id>` |
@@ -1470,20 +1725,25 @@ is explicitly reopened; startup does not silently restore the previous selection
 | Directory | project or sample plus `folder=<project-relative-directory/>` |
 | Configuration | project or sample plus `configuration=<configuration-id>` |
 | Preview build | project or sample plus independent `build=<configuration-id>` |
-| Preview artifact | project or sample plus `artifact=<output-path>`; may accompany file/folder/configuration |
+| Preview artifact | project or sample plus `artifact=<output-path>`; an explicit legacy file/artifact URL retains preview intent |
+| Output file | project or sample plus `selection=output&artifact=<output-path>` |
+| Output directory | project or sample plus `selection=output&output-folder=<relative-directory/>`; empty selects the output root |
 
 Paths and IDs are URL encoded. Only admitted saved-project/file selections update
 the trees and heading; unsaved source/command drafts use the existing Save, Apply,
 Discard and Cancel guard. Cancelling history navigation restores the accepted URL.
 Missing projects/files and conflicting roots show an error while retaining the
-previous selection (Samples on initial load). Unrelated URL parameters survive.
+previous selection (Examples on initial load). Unrelated URL parameters survive.
 
-Build/artifact parameters are independent of the source tree selection and survive
-file/folder navigation. History restores both selections; missing artifact paths
-show an explicit missing state without falling back to another output. Reopening
-a bookmark restores the choices and asks for Build when no in-memory run exists.
+Build selection is independent of source navigation. Activating a new source
+clears unrelated prior artifact intent and uses native provenance or its declared
+transformation. An explicit legacy file/artifact URL retains that preview choice.
+History restores admitted selections; missing output paths remain explicit.
+Reopening a bookmark restores configuration/path choices and asks for Build when
+no in-memory run exists. Pins remain explicit selections; pin identity is not
+added to these output URLs.
 
-Samples load lazily for browsing and builds without creating saved projects. Clone selected
+Examples load lazily for browsing and builds without creating saved projects. Clone selected
 creates an independent editable project with its own identity and storage. Create
 adds a project at catalog roots or a resource in a saved project; Clone selected
 also copies a saved resource. Delete moves a saved project to Trash or deletes an
@@ -2592,7 +2852,7 @@ Resizable panes and broader device/AT acceptance remain separate work.
 The session records its last admitted identity in `cem-studio-selection-v1` for
 explicit session recovery consumers. Studio startup uses the URL instead. A bookmark
 reopens exact IndexedDB bytes through the ordinary project resolver; missing or
-trashed destinations leave Samples selected and report the failed request. Local
+trashed destinations leave Examples selected and report the failed request. Local
 preferences and unsaved text never enter exported project data. Draft journals are
 restored when the corresponding project/resource is explicitly opened.
 

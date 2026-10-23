@@ -4,7 +4,7 @@ import { cemPlaintextEditorEventValue } from './plaintext-editor-capability.js';
 export interface CemHostCommandRequest {
     readonly command: string;
     readonly eventType: string;
-    /** Native/admitted plaintext value or validated tree/tab/artifact identity; never arbitrary event detail. */
+    /** Native/admitted plaintext value or validated composite identity; never arbitrary event detail. */
     readonly value: string | null;
     readonly isTrusted: boolean;
     /** Opaque host journal ID, present only for opted-in checkpoint domains. */
@@ -32,7 +32,18 @@ export interface CemHostView {
 
 const boundaries = new WeakSet<Element>();
 const mounts = new WeakMap<Element, CemHostView>();
-const events = ['click', 'input', 'change', 'submit', 'cem-close', 'cem-tree-activate', 'cem-tab', 'cem-preview-navigate'] as const;
+const events = ['click', 'input', 'change', 'submit', 'cem-close', 'cem-tree-activate', 'cem-tree-toggle', 'cem-disclosure-toggle', 'cem-tab', 'cem-preview-navigate'] as const;
+
+// Per-event bindings let a composite owner expose independent actions without
+// widening the command or payload boundary. The original binding remains valid.
+function binding(control: Element, eventType: string): string | null {
+    const specific = control.getAttribute(`host-command-${eventType}`);
+    return specific ?? ((control.getAttribute('host-command-event') ?? 'click') === eventType
+        ? control.getAttribute('host-command') : null);
+}
+function ownsBinding(control: Element): boolean {
+    return control.hasAttribute('host-command') || events.some(name => control.hasAttribute(`host-command-${name}`));
+}
 
 /** Mount declarative UI with an explicit, revocable set of non-UI host services. */
 export function mountCemView(runtime: CemElementRuntime, options: CemHostViewOptions): CemHostView {
@@ -63,27 +74,26 @@ export function mountCemView(runtime: CemElementRuntime, options: CemHostViewOpt
             // Never route a nested view's command through its parent, even when
             // the nested command name is not available to that child.
             if (boundaries.has(target)) return;
-            control ??= target.hasAttribute('host-command') ? target : undefined;
+            control ??= ownsBinding(target) ? target : undefined;
         }
         if (!control || !element.contains(control)) return;
         // Component events report their bound owner's state. A nested owner
         // must never invoke an ancestor's command through a bubbling event.
-        if ((event.type === 'cem-close' || event.type === 'cem-tree-activate' || event.type === 'cem-tab' || event.type === 'cem-preview-navigate') && event.target !== control) return;
-        const command = control.getAttribute('host-command') ?? '';
-        if ((control.getAttribute('host-command-event') ?? 'click') !== event.type) return;
+        if (event.type.startsWith('cem-') && event.target !== control) return;
+        const command = binding(control, event.type);
+        if (!command) return;
         const handler = commands.get(command);
         if (!handler || control.hasAttribute('disabled')) return;
         if (event.type === 'submit') event.preventDefault();
         try {
             const fields = event.type === 'submit' ? formFields(event, control, element) : undefined;
-            const value = event.type === 'cem-tree-activate' || event.type === 'cem-tab' || event.type === 'cem-preview-navigate' ? activationValue(event) : controlValue(event.target);
+            const value = event.type === 'cem-tree-activate' || event.type === 'cem-tree-toggle' || event.type === 'cem-disclosure-toggle' || event.type === 'cem-tab' || event.type === 'cem-preview-navigate' ? activationValue(event) : controlValue(event.target);
             // Input capture (FormData listeners, custom control getters or
             // payload proxy traps) can revoke authority before delivery.
             if (!active || !element.isConnected || !runtime.hasDeclarationFor(element) || !element.contains(control)
                 || event.defaultPrevented && event.type !== 'submit'
                 || control.hasAttribute('disabled') || commands.get(command) !== handler
-                || control.getAttribute('host-command') !== command
-                || (control.getAttribute('host-command-event') ?? 'click') !== event.type) return;
+                || binding(control, event.type) !== command) return;
             const operation = runtime.beginCheckpointOperation(element);
             const request = Object.freeze({ command, eventType: event.type, value, isTrusted: event.isTrusted,
                 ...(fields ? { fields } : {}), ...(operation ? { checkpointOperationId: operation.operationId } : {}) });
@@ -146,7 +156,7 @@ function activationValue(event: Event): string {
     // objects or forward arbitrary event detail across the host-service boundary.
     const value: unknown = detail && typeof detail === 'object' && !Array.isArray(detail)
         ? Object.getOwnPropertyDescriptor(detail, 'value')?.value : undefined;
-    if (typeof value !== 'string' || !value || (event.type === 'cem-tree-activate' && /\s/u.test(value))) {
+    if (typeof value !== 'string' || !value || ((event.type === 'cem-tree-activate' || event.type === 'cem-tree-toggle') && /\s/u.test(value))) {
         throw new TypeError('Activation commands require an own non-empty string value; tree values cannot contain whitespace');
     }
     return value;

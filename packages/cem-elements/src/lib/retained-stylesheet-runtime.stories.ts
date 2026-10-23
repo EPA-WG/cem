@@ -45,6 +45,103 @@ function fixture(root: HTMLElement, fallback: boolean, read?: Reader) {
 }
 const css = (value: string, scope = '') => `{style ${scope ? `@scope=${scope}` : ''} |\`\`\`\n${value} \`\`\`\n}`;
 
+export const UnrelatedRegistrationDoesNotFailCurrentPublication: Story = {
+    render: () => '<section aria-label="Current publication survives stylesheet registration"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section');
+        if (!root) throw new Error('missing stylesheet registration fixture');
+        for (const fallback of [false, true]) {
+            const gates = [held(), held()];
+            const signals: AbortSignal[] = [];
+            const f = fixture(root, fallback, async (_request, signal) => {
+                const index = signals.push(signal) - 1;
+                return gates[index]?.promise ?? response('p { --instance: new; }');
+            });
+            try {
+                const declaration = f.declare('registration-owner', '{attribute @name=label | Before}{input @value=Initial}{p | {$label}}');
+                await declaration.ready;
+                const instance = document.createElement(declaration.tag);
+                const payload = document.createElement('template');
+                payload.innerHTML = '<style>p { --instance: old; }</style>';
+                instance.append(payload); root.append(instance);
+                await f.runtime.whenRenderSettled(instance);
+                const input = instance.querySelector('input');
+                const style = instance.querySelector('style[data-cem-instance-style]');
+                const source = instance.querySelector<HTMLTemplateElement>('template[data-cem-island="instance"]')?.content.querySelector('style');
+                if (!input || !style || !source) throw new Error('missing initial publication');
+                const value = () => getComputedStyle(instance.querySelector('p') as Element).getPropertyValue('--instance').trim();
+                input.value = 'User edit'; input.focus(); input.setSelectionRange(1, 4, 'backward');
+                source.textContent = '@import "./registration.css";';
+                instance.setAttribute('label', 'After');
+                await waitFor(() => expect(signals).toHaveLength(1));
+                const first = f.declare('unrelated-first', `${css('p { color: red; }')}{p | First}`);
+                await first.ready;
+                await waitFor(() => expect(signals[0].aborted).toBe(true));
+                await waitFor(() => expect(signals).toHaveLength(2));
+                expect(value()).toBe('old');
+                expect(instance.querySelector('p')?.textContent).toBe('Before');
+                const second = f.declare('unrelated-second', `${css('p { color: blue; }')}{p | Second}`);
+                await second.ready;
+                await waitFor(() => expect(signals[1].aborted).toBe(true));
+                await f.runtime.whenRenderSettled(instance);
+                expect(f.runtime.diagnosticsFor(instance).filter(d => d.code !== 'cem.processing_host.worker_startup_fallback')).toEqual([]);
+                expect(signals).toHaveLength(3);
+                expect(value()).toBe('new');
+                expect(instance.querySelector('p')?.textContent).toBe('After');
+                expect(instance.querySelector('style[data-cem-instance-style]')).toBe(style);
+                expect(instance.querySelector('input')).toBe(input);
+                expect(input.value).toBe('User edit');
+                expect(document.activeElement).toBe(input);
+                expect([input.selectionStart, input.selectionEnd, input.selectionDirection]).toEqual([1, 4, 'backward']);
+            } finally { for (const gate of gates) gate.resolve(response('p { --instance: obsolete; }')); f.dispose(); }
+        }
+    },
+};
+
+export const RegistrationRetryRespectsOwnerLifetime: Story = {
+    render: () => '<section aria-label="Stylesheet registration retry owner guards"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section');
+        if (!root) throw new Error('missing stylesheet owner fixture');
+        for (const fallback of [false, true]) for (const action of ['supersede', 'disconnect', 'dispose']) {
+            const gate = held();
+            const signals: AbortSignal[] = [];
+            const f = fixture(root, fallback, async (_request, signal) => { signals.push(signal); return gate.promise; });
+            try {
+                const declaration = f.declare('registration-lifetime', '{attribute @name=label | Before}{p | {$label}}');
+                await declaration.ready;
+                const instance = document.createElement(declaration.tag);
+                const payload = document.createElement('template');
+                payload.innerHTML = '<style>p { --instance: old; }</style>';
+                instance.append(payload); root.append(instance);
+                await f.runtime.whenRenderSettled(instance);
+                const source = instance.querySelector<HTMLTemplateElement>('template[data-cem-island="instance"]')?.content.querySelector('style');
+                if (!source) throw new Error('missing retained stylesheet source');
+                source.textContent = '@import "./lifetime.css";'; instance.setAttribute('label', 'Obsolete');
+                await waitFor(() => expect(signals).toHaveLength(1));
+                const unrelated = f.declare('unrelated-lifetime', `${css('p { color: red; }')}{p | Unrelated}`);
+                await unrelated.ready;
+                expect(signals[0].aborted).toBe(true);
+                if (action === 'supersede') {
+                    source.textContent = 'p { --instance: latest; }'; instance.setAttribute('label', 'Latest');
+                } else if (action === 'disconnect') instance.remove();
+                else f.scope.dispose();
+                gate.resolve(response('p { --instance: obsolete; }'));
+                await f.runtime.whenRenderSettled(instance);
+                expect(signals).toHaveLength(1);
+                expect(f.runtime.diagnosticsFor(instance).filter(d => d.code !== 'cem.processing_host.worker_startup_fallback')).toEqual([]);
+                if (action === 'supersede') {
+                    expect(instance.querySelector('p')?.textContent).toBe('Latest');
+                    expect(getComputedStyle(instance.querySelector('p') as Element).getPropertyValue('--instance').trim()).toBe('latest');
+                } else {
+                    expect(instance.querySelector('p')?.textContent).toBe('Before');
+                    expect(instance.querySelectorAll('style[data-cem-instance-style]')).toHaveLength(0);
+                }
+            } finally { gate.resolve(response('')); f.dispose(); }
+        }
+    },
+};
+
 export const PayloadReplacementPreservesActiveStyles: Story = {
     render: () => '<section aria-label="Staged runtime payload styles"></section>',
     play: async ({ canvasElement }) => {

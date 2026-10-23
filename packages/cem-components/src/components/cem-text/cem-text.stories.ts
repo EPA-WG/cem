@@ -1,14 +1,33 @@
 import { expect } from 'storybook/test';
-import preview, { loadCemDeclaration, whenCemRendered, cemStoryRuntime, createCemStoryRuntime, loadCemWorkflowDependencies, assertAriaReferenceIntegrity, assertLightDomRendered, nextRenderFrame } from '../../../../cem-elements/.storybook/preview.js';
+import preview, { loadCemDeclaration, whenCemRendered, createCemStoryRuntime, loadCemWorkflowDependencies, assertAriaReferenceIntegrity, assertLightDomRendered, nextRenderFrame } from '../../../../cem-elements/.storybook/preview.js';
 import declarationSource from './cem-text.xhtml?raw';
 import '../../styles.css';
 const meta = preview.meta({ component: 'cem-text', title: 'CEM Components/cem-text', loaders: [async () => { await loadCemDeclaration('cem-text', declarationSource); await loadCemWorkflowDependencies(); return {}; }] });
+
+export const ResourceKinds = meta.story({
+    render: () => '<h1><cem-text variant="caption" kind="project">Website</cem-text> · <cem-text variant="caption" kind="resource">content/article.md</cem-text> · <cem-text variant="caption" kind="output">generated/article.html</cem-text></h1>',
+    play: async ({ canvasElement }) => {
+        const hosts = [...canvasElement.querySelectorAll<HTMLElement>('cem-text')];
+        await Promise.all(hosts.map(whenCemRendered));
+        for (const mode of ['light', 'dark', 'contrast-light', 'contrast-dark', 'native']) {
+            canvasElement.className = `cem-theme-${mode}`;
+            for (const [index, role] of ['project', 'file', 'output'].entries()) {
+                const host = hosts[index], node = host.querySelector<HTMLElement>('[part=root]');
+                if (!node) throw Error('Missing text owner');
+                const probe = document.createElement('span'); probe.style.color = `var(--cem-resource-${role}-color)`; canvasElement.append(probe);
+                expect(getComputedStyle(node).color).toBe(getComputedStyle(probe).color);
+                probe.remove();
+                expect(node.textContent).not.toBe('');
+            }
+        }
+    },
+});
 
 export const LightDomText = meta.story({
  name: "renders text primitives as accessible light DOM",
  render: () => "\n            <cem-stack gap=\"sm\">\n                <cem-text variant=\"caption\">Ready</cem-text>\n            </cem-stack>\n        ",
  play: async ({ canvasElement }) => {
-        const root = canvasElement, runtime = cemStoryRuntime();
+        const root = canvasElement;
         const harness = { root, query: <T extends Element = Element>(selector: string): T => { const node = root.querySelector<T>(selector); if (!node) throw new Error(`Missing ${selector}`); return node; } };
         for (const host of root.querySelectorAll<HTMLElement>('*')) if (host.localName.startsWith('cem-') && customElements.get(host.localName)) await whenCemRendered(host);
         await nextRenderFrame();
@@ -58,7 +77,8 @@ export const WorkerRetention = meta.story({
         host.innerHTML = "<label>Retained field <input value=\"Initial\"></label>";
         canvasElement.append(host);
         await runtime.whenRenderSettled(host);
-        const owner = host.querySelector<HTMLElement>('[part=root]')!;
+        const owner = host.querySelector<HTMLElement>('[part=root]');
+        if (!owner) throw Error('Missing text owner');
         const authored = Array.from(owner.querySelectorAll('[slot], label')), input = host.querySelector('input');
         expect(owner).not.toBeNull();
         expect(owner.tabIndex).toBe(-1);
@@ -110,7 +130,8 @@ export const FallbackRetention = meta.story({
         host.innerHTML = "<label>Retained field <input value=\"Initial\"></label>";
         canvasElement.append(host);
         await runtime.whenRenderSettled(host);
-        const owner = host.querySelector<HTMLElement>('[part=root]')!;
+        const owner = host.querySelector<HTMLElement>('[part=root]');
+        if (!owner) throw Error('Missing text owner');
         const authored = Array.from(owner.querySelectorAll('[slot], label')), input = host.querySelector('input');
         expect(owner).not.toBeNull();
         expect(owner.tabIndex).toBe(-1);

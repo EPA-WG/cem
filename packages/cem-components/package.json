@@ -137,7 +137,11 @@
         "./playgrounds/cem-recovery-status.html": "./dist/cem-recovery-status.html",
         "./playgrounds/cem-recovery-status-gallery.html": "./dist/cem-recovery-status-gallery.html",
         "./playgrounds/cem-workspace.html": "./dist/cem-workspace.html",
-        "./playgrounds/cem-workspace-gallery.html": "./dist/cem-workspace-gallery.html"
+        "./playgrounds/cem-workspace-gallery.html": "./dist/cem-workspace-gallery.html",
+        "./playgrounds/cem-accordion.html": "./dist/cem-accordion.html",
+        "./playgrounds/cem-accordion-gallery.html": "./dist/cem-accordion-gallery.html",
+        "./playgrounds/cem-data-view.html": "./dist/cem-data-view.html",
+        "./playgrounds/cem-data-view-gallery.html": "./dist/cem-data-view-gallery.html"
     },
     "files": [
         "dist",

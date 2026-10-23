@@ -23,7 +23,7 @@
 <template type="cem-ml; version=0.0"
           id="cem-stroke-template"
           data-token-url="../../../dist/lib/tokens/cem-stroke.xhtml"
-          data-slices="action=cem-stroke-action-outline basis=cem-stroke-basis semantic=cem-stroke-semantic pending=cem-stroke-pending-pattern zebra=cem-stroke-zebra-pattern rings=cem-stroke-rings forced=cem-stroke-rings-forced appearance=cem-stroke-indicator-appearance">
+          data-slices="action=cem-stroke-action-outline basis=cem-stroke-basis semantic=cem-stroke-semantic pending=cem-stroke-pending-pattern zebra=cem-stroke-zebra-pattern rings=cem-stroke-rings forced=cem-stroke-rings-forced appearance=cem-stroke-indicator-appearance density=cem-stroke-density-overrides">
 {module @version="1.0.0" |
 {import @as=docs @src="./cem-token-docs.cemt"}
 {body |
@@ -89,6 +89,16 @@
   }
 }
 /* endregion forced-colors fallback */
+
+/* Keep paragraph-line focus inside its own row without reducing thickness. */
+@media (hover: hover) and (pointer: fine) and (not (any-pointer: coarse)) {
+  :root[data-cem-density="compact"], :where([data-cem-density="compact"]) {```{cem:for-each @select="$datadom.slices.density" @as="row" |```
+    ```{$row.token}: {$row.compact};}```
+  }
+  :root[data-cem-density="super-compact"], :where([data-cem-density="super-compact"]) {```{cem:for-each @select="$datadom.slices.density" @as="row" |```
+    ```{$row.token}: {$row.super_compact};}```
+  }
+}
 ```}}
 }
 }

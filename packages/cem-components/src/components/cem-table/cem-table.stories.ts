@@ -3,6 +3,29 @@ import preview, { loadCemDeclaration, loadCemWorkflowDependencies, whenCemRender
 import declarationSource from './cem-table.xhtml?raw';
 const meta = preview.meta({ component: 'cem-table', title: 'CEM Components/cem-table', loaders: [async () => { await loadCemDeclaration('cem-table', declarationSource); await loadCemWorkflowDependencies(); return {}; }] });
 
+export const SuperCompactRows = meta.story({
+    render: () => '<cem-table label="Dense records" data-cem-density="super-compact"><div role="row"><strong role="columnheader">Name</strong><strong role="columnheader">Count</strong></div><div role="row"><span role="cell">Ada</span><span role="cell">12</span></div><div role="row"><span role="cell">Grace</span><span role="cell">24</span></div></cem-table>',
+    play: async ({ canvasElement }) => {
+        const host = requiredElement<HTMLElement>(canvasElement, 'cem-table'); await whenCemRendered(host);
+        const rows = [...host.querySelectorAll<HTMLElement>('[role=row]')];
+        expect(host.querySelectorAll('[role=columnheader]')).toHaveLength(2);
+        expect(host.querySelectorAll('[role=cell]')).toHaveLength(4);
+        const precise = matchMedia('(hover: hover) and (pointer: fine)').matches && !matchMedia('(any-pointer: coarse)').matches;
+        if (precise) {
+            expect(getComputedStyle(rows[0]).paddingBlockStart).toBe('0px');
+            expect(getComputedStyle(rows[0]).paddingInlineStart).toBe('0px');
+            const line = Number.parseFloat(getComputedStyle(rows[0]).lineHeight);
+            expect(Math.abs(rows[0].getBoundingClientRect().height - line)).toBeLessThan(0.1);
+            expect(Math.abs(rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().bottom)).toBeLessThan(0.1);
+        }
+        const cells = [...host.querySelectorAll<HTMLElement>('[role=cell]')];
+        expect(cells[0].getBoundingClientRect().left).toBe(cells[2].getBoundingClientRect().left);
+        expect(cells[1].getBoundingClientRect().left).toBe(cells[3].getBoundingClientRect().left);
+        host.setAttribute('label', 'Updated dense records'); await whenCemRendered(host);
+        expect(host.querySelector('[role=row]')).toBe(rows[0]);
+    },
+});
+
 export const PassiveTable = meta.story({
  render: () => '<cem-table label="Records"><div role="row"><span role="cell">First</span><span role="cell"><input aria-label="Note" value="default"></span></div></cem-table><cem-table></cem-table>',
  play: async ({ canvasElement }) => {

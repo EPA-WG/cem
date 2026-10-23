@@ -8,9 +8,9 @@
  {style @type=text/css |```
 :scope { display: block; min-inline-size: 0; min-block-size: 0; }
 [part~='editor'] { display: grid; gap: var(--cem-gap-related); min-inline-size: 0; min-block-size: 0; }
-@container (min-width: 1200px) {
+@container (min-width: 840px) {
  :scope { block-size: 100%; }
- [part~='editor'] { block-size: 100%; grid-template-rows: auto auto auto minmax(20vb, 1fr) auto; }
+ [part~='editor'] { block-size: 100%; grid-template-rows: auto auto auto minmax(calc(var(--cem-control-height-xx-large) + var(--cem-typography-ui-font-size) * var(--cem-typography-ui-line-height) + var(--cem-gap-related)), 1fr) auto; }
 }
 ```}
  {cem:if @test=datadom.slices.state |

@@ -464,6 +464,26 @@
     }
   }
 
+  {import @id=cem-accordion @src="cem-accordion.html" @content-type="text/html" |
+    {rewrite-importmap @id=cem-accordion-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
+      {export @id=cem-accordion-html @out="../dist/{file}" @content-type="text/html"}
+    }
+  }
+  {import @id=cem-accordion-gallery @src="cem-accordion-gallery.html" @content-type="text/html" |
+    {rewrite-importmap @id=cem-accordion-gallery-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
+      {export @id=cem-accordion-gallery-html @out="../dist/{file}" @content-type="text/html"}
+    }
+  }
+  {import @id=cem-data-view @src="cem-data-view.html" @content-type="text/html" |
+    {rewrite-importmap @id=cem-data-view-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
+      {export @id=cem-data-view-html @out="../dist/{file}" @content-type="text/html"}
+    }
+  }
+  {import @id=cem-data-view-gallery @src="cem-data-view-gallery.html" @content-type="text/html" |
+    {rewrite-importmap @id=cem-data-view-gallery-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
+      {export @id=cem-data-view-gallery-html @out="../dist/{file}" @content-type="text/html"}
+    }
+  }
   {import @id=cem-workspace @src="cem-workspace.html" @content-type="text/html" |
     {rewrite-importmap @id=cem-workspace-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
       {export @id=cem-workspace-html @out="../dist/{file}" @content-type="text/html"}

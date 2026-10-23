@@ -2,25 +2,33 @@
  <template id="cem-studio-shell" type="text/cem-ml">
 {module |
     {slice @name=themeMode | cem-theme-light}
- {slice @name=pageTitle | Samples - CEM Studio}
+ {slice @name=pageTitle | Examples - CEM Studio}
+ {slice @name=heading}
  {slice @name=workspaceStatus | ready}
  {attribute @name=class @select='datadom.slices.themeMode ?? "cem-theme-light"'}
  {attribute @name=data-theme @select='datadom.slices.themeMode ?? "cem-theme-light"'}
  {attribute @name=data-cem-studio-shell @select='""'}
  {attribute @name=data-cem-studio-state @select='"ready"'}
+ {attribute @name=data-cem-density @select='"compact"'}
  {body |
  {style @type=text/css |```
 :scope { display: block; min-inline-size: 0; color: var(--cem-palette-comfort-text); background-color: var(--cem-palette-comfort); font-family: var(--cem-typography-ui-font-family); }
-[part~='root'] { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--cem-gap-related); min-inline-size: 0; min-block-size: calc(100dvb - 2 * var(--cem-gap-related)); }
-[part~='heading'] { margin: 0; font: inherit; overflow-wrap: anywhere; }
+[part~='root'] { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; gap: 0; min-inline-size: 0; min-block-size: 100dvb; }
 [part~='workspace'], [part~='workspace'] > * { min-inline-size: 0; min-block-size: 0; block-size: 100%; }
-[part~='status'] { display: flex; flex-wrap: wrap; gap: var(--cem-gap-related); justify-content: space-between; padding: var(--cem-inset-container); border-block-start: var(--cem-stroke-boundary) solid currentColor; }
-@media (min-width: 840px) { [part~='root'] { block-size: calc(100dvb - 2 * var(--cem-gap-related)); } }
+[part~='status'] { display: flex; flex-wrap: wrap; gap: var(--cem-coupling-guard-min); justify-content: space-between; padding-block: var(--cem-control-padding-y); padding-inline: var(--cem-control-padding-x); border-block-start: var(--cem-stroke-boundary) solid currentColor; }
+@media (min-width: 840px) { [part~='root'] { block-size: 100dvb; } }
 @media (forced-colors: active) { :scope { color: CanvasText; background-color: Canvas; } }
 ```}
  {div @part=root |
-  {cem-app-bar @label="CEM Studio" |
-   {h1 @slot=title @part=heading | {$ | datadom.slices.pageTitle}}
+  {cem-app-bar @label="CEM Studio" @appearance=compact |
+   {h1 @slot=title @part=heading @aria-label={datadom.slices.pageTitle} |
+    {cem:choose |
+     {cem:when @test=datadom.slices.heading.projectName |
+      {cem-text @variant=caption @kind=project @text={datadom.slices.heading.projectName}}{cem:if @test=datadom.slices.heading.path |  · {cem-text @variant=caption @kind={if datadom.slices.heading.pathKind == "output-file" || datadom.slices.heading.pathKind == "output-folder" { "output" } else { if datadom.slices.heading.pathKind == "file" || datadom.slices.heading.pathKind == "configuration" { "resource" } else { "" } }} @text={datadom.slices.heading.path}}} - CEM Studio
+     }
+     {cem:otherwise | {$ | datadom.slices.pageTitle}}
+    }
+   }
    {cem-theme-switch @data-cem-studio-theme="" @theme-command=theme @storage-key=cem-studio-theme @value={datadom.slices.themeMode}}
   }
   {div @part=workspace @data-cem-studio-workspace-mount="" | {slot | {cem-studio-workbench-layout}}}

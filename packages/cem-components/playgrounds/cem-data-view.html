@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>cem-data-view: Property playground</title>
+<script type="importmap">{
+    "imports": {
+        "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
+        "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
+        "@epa-wg/cem-components/styles.css": "../dist/styles.css",
+        "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
+        "@epa-wg/cem-components/action-playground": "./cem-action.html",
+        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
+        "@epa-wg/cem-components/components/": "../src/components/",
+        "@epa-wg/cem-components/playgrounds/": "./"
+    }
+}</script>
+    <link rel="stylesheet" href="../../cem-theme/dist/lib/css/cem-combined.css">
+    <link rel="stylesheet" href="../dist/styles.css">
+    <script type="module">
+import { installCemElementRuntime } from '@epa-wg/cem-elements';
+import '@epa-wg/cem-demo-element';
+const runtime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
+window.cemPlaygroundRuntime = runtime;
+</script>
+<link rel="stylesheet" href="../demo.css">
+<style>body { margin: 0; font-family: var(--cem-typography-ui-font-family); } main, .properties { min-inline-size: 0; grid-template-columns: minmax(0, 1fr); display: grid; gap: var(--cem-gap-group); } [data-gallery-theme] { padding: var(--cem-inset-container); background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } cem-demo-element { display: block; margin-block: var(--cem-gap-group); }</style>
+</head><body><cem-element hidden><template type="text/cem-ml">
+{cem-element @tag=cem-data-view @src="@epa-wg/cem-components/components/cem-data-view/cem-data-view.xhtml#cem-data-view"}
+{cem-element @tag=cem-gallery-page @src="@epa-wg/cem-components/playgrounds/cem-gallery-page.xhtml#cem-gallery-page"}
+{cem-element @tag=cem-field @src="@epa-wg/cem-components/components/cem-field/cem-field.xhtml#cem-field"}
+{cem-element @tag=cem-textarea @src="@epa-wg/cem-components/components/cem-textarea/cem-textarea.xhtml#cem-textarea"}
+{cem-element @tag=cem-checkbox @src="@epa-wg/cem-components/components/cem-checkbox/cem-checkbox.xhtml#cem-checkbox"}
+{cem-element @tag=cem-radio @src="@epa-wg/cem-components/components/cem-radio/cem-radio.xhtml#cem-radio"}
+</template></cem-element>
+<cem-gallery-page heading="cem-data-view: Property playground"><template>
+<p class="component-description">A bounded native JSON/CSV preview. It shares typography and compact geometry with <a href="./cem-table-gallery.html">cem-table</a>; use <a href="./cem-source-editor-gallery.html">cem-source-editor</a> to edit the source.</p>
+<p><a href="./cem-data-view-gallery.html">Full examples and variation matrix</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-data-view/cem-data-view.stories.ts">Automated stories</a></p>
+<p>JSON/CSV parsing and source retention belong to the native CEM import layer. Missing values, null and empty strings remain distinct. The viewer is passive and does not submit form values.</p>
+<main><cem-element class="properties"><template type="text/cem-ml">
+{slice @name=source |```[{"name":"Ada","score":3},{"name":"Bob","score":null}]```}
+{slice @name=label | Preview data}
+{slice @name=ariaLabel | }{slice @name=slotLabel | }{slice @name=class | }{slice @name=hidden | false}
+{slice @name=format | json}
+{slice @name=density | super-compact}
+{cem-field @label=label @value={datadom.slices.label} @slice=label @slice-event=input @slice-value="$target.value"}
+{cem-field @label=aria-label @value={datadom.slices.ariaLabel} @slice=ariaLabel @slice-event=input @slice-value="$target.value"}
+{cem-field @label="label slot" @value={datadom.slices.slotLabel} @slice=slotLabel @slice-event=input @slice-value="$target.value"}
+{cem-field @label=class @value={datadom.slices.class} @slice=class @slice-event=input @slice-value="$target.value"}
+{cem-checkbox @label=hidden @checked={if datadom.slices.hidden { true } else { null }} @slice=hidden @slice-event=change @slice-value="$target.checked"}
+{cem-textarea @label="Source value" @value={datadom.slices.source} @slice=source @slice-event=change @slice-value="$target.value"}
+{fieldset | {legend | format}
+ {cem-radio @name=format @label=JSON @value=json @checked={if datadom.slices.format == "json" { true } else { null }} @slice=format @slice-event=change @slice-value="$target.value"}
+ {cem-radio @name=format @label=CSV @value=csv @checked={if datadom.slices.format == "csv" { true } else { null }} @slice=format @slice-event=change @slice-value="$target.value"}
+}
+{fieldset | {legend | Density}
+ {cem-radio @name=density @label=Default @value=default @checked={if datadom.slices.density == "default" { true } else { null }} @slice=density @slice-event=change @slice-value="$target.value"}
+ {cem-radio @name=density @label=Compact @value=compact @checked={if datadom.slices.density == "compact" { true } else { null }} @slice=density @slice-event=change @slice-value="$target.value"}
+ {cem-radio @name=density @label="Paragraph lines" @value=super-compact @checked={if datadom.slices.density == "super-compact" { true } else { null }} @slice=density @slice-event=change @slice-value="$target.value"}
+}
+{cem-data-view @label={datadom.slices.label} @format={datadom.slices.format} @value={datadom.slices.source} @data-cem-density={datadom.slices.density}
+ @aria-label={if datadom.slices.ariaLabel { datadom.slices.ariaLabel } else { null }} @class={datadom.slices.class} @hidden={if datadom.slices.hidden { true } else { null }} |
+ {cem:if @test=datadom.slices.slotLabel | {strong @slot=label | {$datadom.slices.slotLabel}}}
+}
+</template></cem-element>
+<p>Preview limits: 65,536 Unicode source characters, 100 rows, 32 columns/properties, depth 4 and 2,048 characters per scalar cell. Limits are labeled and preserve the original resource. The paragraph-line profile applies to fine hover input without a coarse pointer; touch and hybrid devices retain larger geometry.</p>
+<cem-element><template type="text/cem-ml">{cem-module-url @slice=source @src="@epa-wg/cem-components/components/cem-data-view/cem-data-view.xhtml"}{cem:if @test=datadom.slices.source | {p | {a @href={datadom.slices.source} | Open canonical XHTML}}{cem-demo-element @legend="Canonical source" @src={datadom.slices.source} @type=xml @demo=false}}</template></cem-element>
+</main></template></cem-gallery-page></body></html>

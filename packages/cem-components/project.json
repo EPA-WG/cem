@@ -10,8 +10,19 @@
             "dependsOn": [
                 "build:playgrounds",
                 "build:bundle",
-                { "projects": ["cem-elements", "@epa-wg/cem-demo-element"], "target": "build" },
-                { "projects": ["@epa-wg/cem-theme"], "target": "build:css" }
+                {
+                    "projects": [
+                        "cem-elements",
+                        "@epa-wg/cem-demo-element"
+                    ],
+                    "target": "build"
+                },
+                {
+                    "projects": [
+                        "@epa-wg/cem-theme"
+                    ],
+                    "target": "build:css"
+                }
             ],
             "options": {
                 "command": "node tools/scripts/verify-cem-demo-imports.mjs",
@@ -178,7 +189,11 @@
                 "{projectRoot}/dist/cem-tab.html",
                 "{projectRoot}/dist/cem-tab-gallery.html",
                 "{projectRoot}/dist/cem-step.html",
-                "{projectRoot}/dist/cem-step-gallery.html"
+                "{projectRoot}/dist/cem-step-gallery.html",
+                "{projectRoot}/dist/cem-accordion.html",
+                "{projectRoot}/dist/cem-accordion-gallery.html",
+                "{projectRoot}/dist/cem-data-view.html",
+                "{projectRoot}/dist/cem-data-view-gallery.html"
             ]
         },
         "verify-menu-dropdown": {
@@ -924,6 +939,7 @@
             },
             "inputs": [
                 "{workspaceRoot}/tools/cem-components/verify-package.mjs",
+                "{projectRoot}/index.html",
                 "{projectRoot}/playgrounds/**/*",
                 "{projectRoot}/dist/*.html",
                 "{projectRoot}/src/components/**/*.xhtml",

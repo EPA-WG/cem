@@ -48,6 +48,38 @@ function heldResponse() {
         finalUrl: 'https://example.test/child.css', contentType: 'text/css' }) };
 }
 
+export const SourceRevisionStability: Story = {
+    render: () => '<section aria-label="Stylesheet source revision stability"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section');
+        if (!root) throw new Error('missing source revision fixture');
+        for (const fallback of [false, true]) {
+            const f = fixture(root, fallback);
+            try {
+                const first = await f.source('registry-stable-first', [{ css: 'p { color: red; }', scope: null }]);
+                const second = await f.source('registry-stable-second', [{ css: 'p { color: blue; }', scope: null }]);
+                let registrations = 0;
+                setTimeout(() => {
+                    f.registry.register(first.options); registrations++;
+                    setTimeout(() => { f.registry.register(second.options); registrations++; }, 0);
+                }, 0);
+                expect(await f.registry.whenSourcesStable(new AbortController().signal)).toBe(true);
+                expect(registrations).toBe(2);
+                const aborted = new AbortController(); aborted.abort();
+                expect(await f.registry.whenSourcesStable(aborted.signal)).toBe(false);
+                const pendingAbort = new AbortController();
+                const cancelled = f.registry.whenSourcesStable(pendingAbort.signal);
+                pendingAbort.abort();
+                expect(await cancelled).toBe(false);
+                const pendingDispose = f.registry.whenSourcesStable(new AbortController().signal);
+                await f.registry.dispose();
+                expect(await pendingDispose).toBe(false);
+                expect(await f.registry.whenSourcesStable(new AbortController().signal)).toBe(false);
+            } finally { await f.dispose(); }
+        }
+    },
+};
+
 export const QueuedConnectionActivation: Story = {
     render: () => '<section aria-label="Queued registry activation"></section>',
     play: async ({ canvasElement }) => {
@@ -190,6 +222,7 @@ export const PreparedConnectionReplacement: Story = {
                 fail = true;
                 const failed = f.registry.prepareReplacement({ ...options, context: context('failed') });
                 expect(await failed.ready).toMatchObject({ status: 'cancelled' });
+                expect(failed.sourceChanged()).toBe(false);
                 expect(current.signal.aborted).toBe(false);
                 expect(getComputedStyle(element).getPropertyValue('--private')).toContain('/new.svg');
                 fail = false;
@@ -198,8 +231,10 @@ export const PreparedConnectionReplacement: Story = {
                 await invalidated.ready;
                 const stale = invalidated.takeCommits();
                 if (!stale) throw new Error('missing stale candidates');
+                expect(invalidated.sourceChanged()).toBe(false);
                 f.registry.register(extra.options);
                 expect(invalidated.signal.aborted).toBe(true);
+                expect(invalidated.sourceChanged()).toBe(true);
                 expect(DeclarationStyleOwnership.commitGroup(stale)).toBe(false);
                 expect(getComputedStyle(element).getPropertyValue('--private')).toContain('/new.svg');
 
@@ -217,6 +252,7 @@ export const PreparedConnectionReplacement: Story = {
                 const abandoned = f.registry.prepareReplacement({ ...options, context: context('abandoned') });
                 await abandoned.ready;
                 abandoned.release();
+                expect(abandoned.sourceChanged()).toBe(false);
                 expect(remaining.signal.aborted).toBe(false);
                 expect(getComputedStyle(element).getPropertyValue('--private')).toContain('/new.svg');
                 gate = heldResponse();
@@ -226,6 +262,7 @@ export const PreparedConnectionReplacement: Story = {
                 remaining.release();
                 expect(await cancelled.ready).toMatchObject({ status: 'cancelled' });
                 expect(cancelled.signal.aborted).toBe(true);
+                expect(cancelled.sourceChanged()).toBe(false);
                 gate.resolve(':host { --private: late; }');
                 await f.registry.flush();
                 expect(f.native.host.mode).toBe(fallback ? 'main-thread' : 'worker');

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>cem-accordion: Property playground</title>
+<script type="importmap">{
+    "imports": {
+        "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
+        "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
+        "@epa-wg/cem-components/styles.css": "../dist/styles.css",
+        "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
+        "@epa-wg/cem-components/action-playground": "./cem-action.html",
+        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
+        "@epa-wg/cem-components/components/": "../src/components/",
+        "@epa-wg/cem-components/playgrounds/": "./"
+    }
+}</script>
+    <link rel="stylesheet" href="../../cem-theme/dist/lib/css/cem-combined.css">
+    <link rel="stylesheet" href="../dist/styles.css">
+    <script type="module">
+import { installCemElementRuntime } from '@epa-wg/cem-elements';
+import '@epa-wg/cem-demo-element';
+const runtime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
+window.cemPlaygroundRuntime = runtime;
+</script>
+<link rel="stylesheet" href="../demo.css">
+<style>body { margin: 0; font-family: var(--cem-typography-ui-font-family); } main, .properties { min-inline-size: 0; grid-template-columns: minmax(0, 1fr); display: grid; gap: var(--cem-gap-group); } [data-gallery-theme] { padding: var(--cem-inset-container); background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } cem-demo-element { display: block; margin-block: var(--cem-gap-group); }</style>
+</head><body>
+<cem-element hidden><template type="text/cem-ml">
+{cem-element @tag=cem-expansion @src="@epa-wg/cem-components/components/cem-expansion/cem-expansion.xhtml#cem-expansion"}
+{cem-element @tag=cem-accordion @src="@epa-wg/cem-components/components/cem-accordion/cem-accordion.xhtml#cem-accordion"}
+{cem-element @tag=cem-gallery-page @src="@epa-wg/cem-components/playgrounds/cem-gallery-page.xhtml#cem-gallery-page"}
+{cem-element @tag=cem-field @capability=form-control @src="@epa-wg/cem-components/components/cem-field/cem-field.xhtml#cem-field"}
+{cem-element @tag=cem-select @capability=choice-select @src="@epa-wg/cem-components/components/cem-select/cem-select.xhtml#cem-select"}
+{cem-element @tag=cem-radio @src="@epa-wg/cem-components/components/cem-radio/cem-radio.xhtml#cem-radio"}
+{cem-element @tag=cem-checkbox @capability=checkable-control @src="@epa-wg/cem-components/components/cem-checkbox/cem-checkbox.xhtml#cem-checkbox"}
+</template></cem-element>
+<cem-gallery-page heading="cem-accordion: Property playground"><template><p class="component-description">Stack independent <a href="./cem-expansion-gallery.html">cem-expansion</a> sections in a bounded panel. Open bodies share the available height and scroll separately; collapse retains their content.</p><p><a href="./cem-accordion-gallery.html">Full examples and variation matrix</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-accordion/cem-accordion.stories.ts">Automated stories</a></p><main>
+<cem-element class="properties"><template type="text/cem-ml">
+{slice @name=label | Navigation}{slice @name=ariaLabel | }{slice @name=class | }{slice @name=fit | fill}{slice @name=hidden | false}{slice @name=dir | ltr}
+{cem-field @label=label @value={datadom.slices.label} @slice=label @slice-event=input @slice-value="$target.value"}
+{fieldset @role=group @aria-label=fit @slice=fit @slice-event=change @slice-value="$target.value" | {legend | fit}{cem-radio @name=fit @label=content @value=content @checked={if datadom.slices.fit == "content" {true} else {null}}}{cem-radio @name=fit @label=fill @value=fill @checked={if datadom.slices.fit == "fill" {true} else {null}}}}
+{fieldset @role=group @aria-label=dir @slice=dir @slice-event=change @slice-value="$target.value" | {legend | dir}{cem-radio @name=dir @label=ltr @value=ltr @checked={if datadom.slices.dir == "ltr" {true} else {null}}}{cem-radio @name=dir @label=rtl @value=rtl @checked={if datadom.slices.dir == "rtl" {true} else {null}}}}
+{cem-field @label=aria-label @value={datadom.slices.ariaLabel} @slice=ariaLabel @slice-event=input @slice-value="$target.value"}
+{cem-field @label=class @value={datadom.slices.class} @slice=class @slice-event=input @slice-value="$target.value"}
+{cem-checkbox @label=hidden @checked={if datadom.slices.hidden { true } else { null }} @slice=hidden @slice-event=change @slice-value="$target.checked"}
+{div @style="block-size:50vb" | {cem-accordion @aria-label={if datadom.slices.ariaLabel {datadom.slices.ariaLabel} else {null}} @class={datadom.slices.class} @label={datadom.slices.label} @fit={datadom.slices.fit} @dir={datadom.slices.dir} @hidden={if datadom.slices.hidden { true } else { null }} |
+ {cem-expansion @layout=panel @indicator=start @label="◇ Projects" @expanded=true | {p | Examples and saved projects.}}
+ {cem-expansion @layout=panel @indicator=start @label="▱ Structure" @expanded=true | {p | Project directories and resources.}}
+ {cem-expansion @layout=panel @indicator=start @label="⇥ Output files" | {p | Successful build artifacts.}}
+}}
+</template></cem-element><p>Click a header or use Enter/Space to toggle it. Several sections can remain open. A definite parent height is required for fit=fill.</p>
+<cem-element><template type="text/cem-ml">{cem-module-url @slice=source @src="@epa-wg/cem-components/components/cem-accordion/cem-accordion.xhtml"}{cem:if @test=datadom.slices.source | {p | {a @href={datadom.slices.source} | Open canonical XHTML}}{cem-demo-element @legend="Canonical source" @src={datadom.slices.source} @type=xml @demo=false}}</template></cem-element>
+</main></template></cem-gallery-page></body></html>

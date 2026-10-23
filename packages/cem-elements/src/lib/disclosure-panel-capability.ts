@@ -6,6 +6,7 @@ interface ExpansionState {
     onClick?: EventListener;
     panelId: string;
     summaryId: string;
+    refocusHeader?: boolean;
 }
 
 const EXPANSION_STATES = new WeakMap<HTMLElement, ExpansionState>();
@@ -22,6 +23,10 @@ export const CEM_DISCLOSURE_PANEL_CAPABILITY: CemProducedElementBehavior = {
     },
     beforeRender(instance, context) {
         const state = stateFor(instance);
+        const panel = instance.querySelector<HTMLElement>(':scope > [part~="root"] > [part~="panel"]');
+        if (!instance.hasAttribute('expanded') && panel && !panel.hidden && panel.contains(instance.ownerDocument.activeElement)) {
+            state.refocusHeader = true;
+        }
         context.setSlices({
             headingId: state.headingId,
             headingLevel: normalizedHeadingLevel(instance),
@@ -29,10 +34,17 @@ export const CEM_DISCLOSURE_PANEL_CAPABILITY: CemProducedElementBehavior = {
             summaryId: state.summaryId,
         }, { render: false });
     },
+    rendered(instance) {
+        const state = stateFor(instance);
+        if (!state.refocusHeader) return;
+        state.refocusHeader = false;
+        instance.querySelector<HTMLButtonElement>(':scope > [part~="root"] > [part~="heading"] > button[part~="header"]')?.focus({ preventScroll: true });
+    },
     disconnected(instance) {
         const state = stateFor(instance);
         if (!state.connected) return;
         state.connected = false;
+        state.refocusHeader = false;
         if (state.onClick) instance.removeEventListener('click', state.onClick);
     },
 };
@@ -61,7 +73,13 @@ function handleClick(instance: HTMLElement, event: Event): void {
     const target = event.target instanceof Element ? event.target : null;
     const button = target?.closest<HTMLButtonElement>('button[part~=header]') ?? null;
     if (!button || button.disabled || instance.hasAttribute('disabled') || !isDirectHeader(instance, button)) return;
-    instance.toggleAttribute('expanded');
+    const expanded = instance.toggleAttribute('expanded');
+    const value = instance.getAttribute('value')?.trim();
+    if (instance.hasAttribute('notify-toggle') && value && !/\s/u.test(value)) {
+        instance.dispatchEvent(new CustomEvent('cem-disclosure-toggle', {
+            bubbles: true, composed: true, detail: { value, expanded },
+        }));
+    }
 }
 
 function isDirectHeader(instance: HTMLElement, button: HTMLButtonElement): boolean {
@@ -77,7 +95,7 @@ function isDirectHeader(instance: HTMLElement, button: HTMLButtonElement): boole
 /** Private generated IDs and retained expanded intent, inspected without creating state. */
 export function cemDisclosurePanelCheckpoint(instance: HTMLElement) {
     const state = EXPANSION_STATES.get(instance);
-    if (!state?.connected || !state.onClick || !instance.isConnected) return;
+    if (!state?.connected || !state.onClick || state.refocusHeader || !instance.isConnected) return;
     const heading = instance.querySelector<HTMLElement>(':scope > [part~="root"] > [part~="heading"]');
     const button = heading?.querySelector<HTMLButtonElement>(':scope > button[part~="header"]');
     const summary = button?.querySelector<HTMLElement>('[part~="summary"]');

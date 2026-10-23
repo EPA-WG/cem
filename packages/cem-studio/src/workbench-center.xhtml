@@ -1,0 +1,41 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-studio-workbench-center">
+ <template id="cem-studio-workbench-center" type="text/cem-ml">
+{module |
+ {slice @name=pane | source}{slice @name=navigation}
+ {body |
+ {style @type=text/css |```
+:scope { display: block; block-size: 100%; min-block-size: 0; min-inline-size: 0; }
+[part~='content'] { display: flex; flex-direction: column; min-block-size: 0; min-inline-size: 0; block-size: 100%; gap: 0; }
+[part~='file'] { display: flex; flex: 1 1 auto; flex-direction: column; min-block-size: 0; }
+[part~='file'] > [part~='controls'] { flex: 1 1 auto; min-block-size: 0; overflow: auto; }
+@container (min-width: 840px) {
+ [part~='file'] > [part~='controls'] { flex-basis: 0; }
+ [part~='file'] > [part~='inspector'] { flex: 0 1 auto; min-block-size: 0; max-block-size: 50%; }
+}
+[part~='project'][hidden] { display: none; }
+[part~='file'][hidden] { display: none; }
+```}
+ {div @part=content |
+    {div @data-cem-studio-project-picker-mount="" | {cem-studio-project-picker}}
+    {section @part=project @aria-label="Project build" @hidden={if datadom.slices.navigation.content == "project" { null } else { true }} |
+     {div @data-cem-studio-workbench-build-mount="" | {cem-studio-workbench-preview @section=build}}
+    }
+    {section @part=file @aria-label="Selected file" @hidden={if datadom.slices.navigation &amp;&amp; datadom.slices.navigation.content != "file" { true } else { null }} |
+     {div @part=controls @data-cem-studio-workbench-controls-mount="" | {cem-studio-workbench-controls}}
+     {cem-expansion @part=inspector @layout=panel @label="Commands and results" @expanded={if datadom.slices.navigation { null } else { true }} |
+      {cem-tabs @label="Workbench panes" @selected-index={if datadom.slices.pane == "results" { 1 } else { 0 }} @host-command=select-pane @host-command-event=cem-tab |
+       {cem-tab @value=source @label="Source and command" |
+        {div @data-cem-studio-workbench-command-mount="" | {cem-studio-workbench-command}}
+        {div @data-cem-studio-workbench-tools-mount="" | {cem-studio-workbench-tools}}
+       }
+       {cem-tab @value=results @label=Results |
+        {div @data-cem-studio-workbench-results-mount="" | {cem-studio-workbench-results @project-preview={if datadom.slices.navigation { true } else { null }}}}
+       }
+      }
+     }
+    }
+   }
+ }
+}
+ </template>
+</cem-element>

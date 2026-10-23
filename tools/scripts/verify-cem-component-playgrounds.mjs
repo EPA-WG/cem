@@ -32,6 +32,8 @@ const passiveTags = ['cem-option', 'cem-option-group', 'cem-badge', 'cem-avatar'
 if (!passiveTags.length) throw new Error(`Unknown passive component: ${passiveComponent}`);
 const feedbackOnly = process.argv.includes('--feedback-only');
 const disclosureDataOnly = process.argv.includes('--disclosure-data-only');
+const compactStudioOnly = process.argv.includes('--compact-studio-only');
+const compactStudioTags = ['cem-accordion', 'cem-data-view', 'cem-expansion', 'cem-tree', 'cem-workspace', 'cem-table', 'cem-icon', 'cem-text', 'cem-app-bar'];
 const layoutOnly = process.argv.includes('--layout-only');
 const sourceEditorOnly = process.argv.includes('--source-editor-only');
 const recoveryStatusOnly = process.argv.includes('--recovery-status-only');
@@ -59,6 +61,7 @@ try {
     if (!evidenceOnly && (headed || nativeBrowser !== 'chromium' || evidenceOutput)) throw new Error('Browser evidence flags require --native-datalist-only or --history-only');
     browser = await ({ chromium, firefox, webkit })[nativeBrowser].launch({ headless: !headed });
     if (!installedOnly && recoveryStatusOnly) await verifyRecoveryStatus(`${origin}/packages/cem-components/playgrounds/`);
+    else if (!installedOnly && compactStudioOnly) await verifyCompactStudio(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && sourceEditorOnly) await verifyGalleries(`${origin}/packages/cem-components/playgrounds/`, ['cem-source-editor']);
     else if (!installedOnly && fieldsetOnly) await verifyFieldset(`${origin}/packages/cem-components/playgrounds/`);
     else if (!installedOnly && passiveOnly) await verifyPassive(`${origin}/packages/cem-components/playgrounds/`);
@@ -95,6 +98,7 @@ try {
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyNavigationContent(`${origin}/packages/cem-components/playgrounds/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyLayout(`${origin}/packages/cem-components/playgrounds/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyDisclosureData(`${origin}/packages/cem-components/playgrounds/`);
+        if (!evidenceOnly && !navigationOnly && !actionOnly && !suggestionsOnly) await verifyCompactStudio(`${origin}/packages/cem-components/playgrounds/`, false);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyFeedback(`${origin}/packages/cem-components/playgrounds/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyPassive(`${origin}/packages/cem-components/playgrounds/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyAutocomplete(`${origin}/packages/cem-components/playgrounds/`);
@@ -110,6 +114,7 @@ try {
         execFileSync('tar', ['-xzf', join(temporary, output[0].filename), '--strip-components=1', '-C', target]);
     }
     if (recoveryStatusOnly) await verifyRecoveryStatus(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    else if (compactStudioOnly) await verifyCompactStudio(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     else if (sourceEditorOnly) await verifyGalleries(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`, ['cem-source-editor']);
     else if (fieldsetOnly) await verifyFieldset(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     else if (passiveOnly) await verifyPassive(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
@@ -146,6 +151,7 @@ try {
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyNavigationContent(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyLayout(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyDisclosureData(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+        if (!evidenceOnly && !navigationOnly && !actionOnly && !suggestionsOnly) await verifyCompactStudio(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`, false);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyFeedback(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyPassive(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
         if (!evidenceOnly && !navigationOnly && !actionOnly) await verifyAutocomplete(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
@@ -164,7 +170,8 @@ try {
             console.log(JSON.stringify(report, null, 2));
         }
     }
-    if (disclosureDataOnly) console.log(`Disclosure, sorting, pagination and passive table delivery verified from ${verifiedLocations}.`);
+    if (compactStudioOnly) console.log(`Compact Studio accordion/data-view properties, all nine affected galleries and the canonical bundle verified from ${verifiedLocations}.`);
+    else if (disclosureDataOnly) console.log(`Disclosure, sorting, pagination and passive table delivery verified from ${verifiedLocations}.`);
     else if (layoutOnly) console.log(`Passive layout, content state, property controls, galleries and bundle verified from ${verifiedLocations}.`);
     else if (navigationContentOnly) console.log(`Navigation and content properties, galleries and bundle verified from ${verifiedLocations}.`);
     else if (timeRangeOnly) console.log(`Timepicker and slider properties, native forms, galleries and bundle verified from ${verifiedLocations}.`);
@@ -986,7 +993,9 @@ async function verifyFieldset(baseUrl) {
 
 async function verifyGalleries(baseUrl, tags) {
     const folders = await readdir(join(root, 'packages/cem-components/src/components'), { withFileTypes: true });
-    for (const folder of folders.filter(entry => entry.isDirectory() && (!tags || tags.includes(entry.name)))) {
+    const selected = folders.filter(entry => entry.isDirectory() && (!tags || tags.includes(entry.name)));
+    if (tags) assert.deepEqual(selected.map(entry => entry.name).sort(), [...new Set(tags)].sort(), 'Every requested gallery must name an existing canonical component');
+    for (const folder of selected) {
         const tag = folder.name;
         if (tag === 'cem-recovery-status') { await verifyRecoveryStatus(baseUrl); continue; }
         const context = await browser.newContext();
@@ -1047,8 +1056,8 @@ async function verifyGalleries(baseUrl, tags) {
                 await page.waitForFunction(() => document.querySelector('cem-demo-element[legend="Immutable artifact tree"] cem-media-preview iframe')?.contentDocument?.querySelector('img')?.naturalWidth === 32);
             }
             const first = page.locator(sampleSelector).first();
-            const control = first.locator(['cem-nav', 'cem-tabs', 'cem-stepper', 'cem-tree', 'cem-chip', 'cem-expansion', 'cem-sort-header', 'cem-paginator'].includes(tag) ? 'button' : tag === 'cem-list' ? 'select' : tag === 'cem-menu' ? 'button, a[href]' : ['cem-dialog', 'cem-dialog-shell', 'cem-tooltip'].includes(tag) ? '[part=trigger], [slot=trigger]' : '[part="control"], input').first();
-            if (!['cem-icon', 'cem-surface', 'cem-text', 'cem-stack', 'cem-grid', 'cem-divider', 'cem-card', 'cem-table', 'cem-toast', 'cem-progress', 'cem-progress-spinner', 'cem-skeleton', 'cem-alert', ...passiveTags].includes(tag)) {
+            const control = first.locator(['cem-nav', 'cem-tabs', 'cem-stepper', 'cem-tree', 'cem-chip', 'cem-accordion', 'cem-expansion', 'cem-sort-header', 'cem-paginator'].includes(tag) ? 'button' : tag === 'cem-list' ? 'select' : tag === 'cem-menu' ? 'button, a[href]' : ['cem-dialog', 'cem-dialog-shell', 'cem-tooltip'].includes(tag) ? '[part=trigger], [slot=trigger]' : '[part="control"], input').first();
+            if (!['cem-icon', 'cem-surface', 'cem-text', 'cem-stack', 'cem-grid', 'cem-divider', 'cem-card', 'cem-workspace', 'cem-table', 'cem-data-view', 'cem-toast', 'cem-progress', 'cem-progress-spinner', 'cem-skeleton', 'cem-alert', ...passiveTags].includes(tag)) {
                 await control.hover();
                 await control.focus();
             }
@@ -2432,6 +2441,123 @@ async function verifyLayout(baseUrl) {
     } finally { await context.close(); }
 }
 
+
+async function verifyCompactStudio(baseUrl, galleries = true) {
+    if (galleries) await verifyGalleries(baseUrl, compactStudioTags);
+    const context = await browser.newContext(), page = await context.newPage(), errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    try {
+        const property = async tag => {
+            await page.goto(new URL(`${tag}.html`, baseUrl).href);
+            const host = page.locator(`.properties ${tag}`).last();
+            await host.locator(':scope > [part=root]').waitFor();
+            await host.evaluate(node => window.cemPlaygroundRuntime.whenRenderSettled(node));
+            return host;
+        };
+        const sourceMatches = async tag => {
+            const source = page.getByRole('link', { name: 'Open canonical XHTML', exact: true }); await source.waitFor();
+            const response = await page.request.get(await source.getAttribute('href'));
+            assert.equal(await response.text(), await readFile(join(root, `packages/cem-components/src/components/${tag}/${tag}.xhtml`), 'utf8'));
+        };
+        const checkbox = async (name, checked) => {
+            const input = page.locator(`.properties cem-checkbox[label="${name}"] input`);
+            if (checked) await input.check(); else await input.uncheck();
+        };
+        const accordion = await property('cem-accordion');
+        const sections = accordion.locator('cem-expansion');
+        assert.equal(await sections.count(), 3);
+        assert.equal(await accordion.locator('cem-expansion[expanded]').count(), 2, 'Accordion allows multiple independently open sections');
+        const first = sections.nth(0), second = sections.nth(1);
+        await first.evaluate(node => { window.compactPanel = node.querySelector('[part=panel]'); window.compactChild = node.querySelector('[part=panel] p'); });
+        await first.locator('[part=header]').click();
+        await page.waitForFunction(() => document.querySelector('.properties cem-accordion cem-expansion [part=header]')?.getAttribute('aria-expanded') === 'false');
+        assert.equal(await first.locator('[part=panel]').isVisible(), false);
+        assert.equal(await second.locator('[part=panel]').isVisible(), true);
+        await second.locator('[part=header]').press('Enter');
+        await page.waitForFunction(() => document.querySelectorAll('.properties cem-accordion cem-expansion[expanded]').length === 0);
+        assert.equal(await first.locator('[part=indicator]').textContent(), '▸', 'Closed section retains its leading disclosure glyph');
+        await first.locator('[part=header]').press('Space');
+        await page.waitForFunction(() => document.querySelector('.properties cem-accordion cem-expansion [part=header]')?.getAttribute('aria-expanded') === 'true');
+        assert.equal(await first.evaluate(node => node.querySelector('[part=panel]') === window.compactPanel && node.querySelector('[part=panel] p') === window.compactChild), true, 'Collapse retains the same panel and content');
+        await page.locator('.properties cem-field[label="label"] input').fill('Build panels');
+        await page.waitForFunction(() => document.querySelector('.properties cem-accordion > [part=root]')?.getAttribute('aria-label') === 'Build panels');
+        await page.locator('.properties cem-field[label="aria-label"] input').fill('Accessible panels');
+        await page.waitForFunction(() => document.querySelector('.properties cem-accordion > [part=root]')?.getAttribute('aria-label') === 'Accessible panels');
+        for (const fit of ['content', 'fill']) {
+            await page.getByRole('group', { name: 'fit', exact: true }).getByRole('radio', { name: fit, exact: true }).check();
+            await page.waitForFunction(fit => document.querySelector('.properties cem-accordion')?.getAttribute('fit') === fit, fit);
+        }
+        const fill = await accordion.evaluate(node => [node.getBoundingClientRect().height, node.parentElement.getBoundingClientRect().height]);
+        assert.ok(Math.abs(fill[0] - fill[1]) < 1, 'Fill accordion occupies its definite parent');
+        await page.getByRole('group', { name: 'dir', exact: true }).getByRole('radio', { name: 'rtl', exact: true }).check();
+        await page.waitForFunction(() => document.querySelector('.properties cem-accordion')?.getAttribute('dir') === 'rtl');
+        await checkbox('hidden', true); await page.waitForFunction(() => document.querySelector('.properties cem-accordion')?.hasAttribute('hidden'));
+        assert.equal(await accordion.isVisible(), false);
+        await checkbox('hidden', false); await page.waitForFunction(() => !document.querySelector('.properties cem-accordion')?.hasAttribute('hidden'));
+        assert.deepEqual(await accordion.evaluate(node => window.cemPlaygroundRuntime.diagnosticsFor(node)), []);
+        await sourceMatches('cem-accordion');
+
+        const data = await property('cem-data-view');
+        await data.getByRole('table', { name: 'Preview data', exact: true }).waitFor();
+        const source = page.getByRole('textbox', { name: 'Source value', exact: true });
+        const setSource = async value => { await source.fill(value); await source.press('Tab'); };
+        await setSource('[{"name":"","value":null},{"name":"Ada"},"null"]');
+        await page.waitForFunction(() => document.querySelector('.properties cem-data-view')?.textContent.includes('∅ missing'));
+        assert.ok((await data.textContent()).includes('""'));
+        assert.ok((await data.textContent()).includes('null'));
+        assert.equal(await data.locator('[data-kind="string"]').filter({ hasText: /^"null"$/ }).count(), 1, 'String null retains its type');
+        await page.getByRole('radio', { name: 'CSV', exact: true }).check();
+        await setSource('name,note\nAda,"first, second"\nBob,"line one\nline two"');
+        await page.waitForFunction(() => document.querySelector('.properties cem-data-view tbody')?.textContent.includes('first, second'));
+        assert.equal(await data.locator('tbody tr').count(), 2);
+        assert.ok((await data.textContent()).includes('line one\nline two'));
+        await page.getByRole('radio', { name: 'Paragraph lines', exact: true }).check();
+        await page.waitForFunction(() => document.querySelector('.properties cem-data-view')?.getAttribute('data-cem-density') === 'super-compact');
+        if (await page.evaluate(() => matchMedia('(hover: hover) and (pointer: fine) and (not (any-pointer: coarse))').matches)) {
+            const geometry = await data.locator('tbody tr').first().evaluate(row => ({ height: row.getBoundingClientRect().height, line: parseFloat(getComputedStyle(row).lineHeight), padding: getComputedStyle(row.querySelector('td')).paddingBlockStart }));
+            assert.ok(Math.abs(geometry.height - geometry.line) < 1, 'Single-line source row keeps paragraph-line height');
+            assert.equal(geometry.padding, '0px');
+        }
+        await page.locator('.properties cem-field[label="label"] input').fill('Project data');
+        await page.waitForFunction(() => document.querySelector('.properties cem-data-view caption')?.textContent === 'Project data');
+        await page.locator('.properties cem-field[label="label slot"] input').fill('Projected data');
+        await page.waitForFunction(() => document.querySelector('.properties cem-data-view caption')?.textContent === 'Projected data');
+        await page.locator('.properties cem-field[label="aria-label"] input').fill('Accessible data');
+        await data.getByRole('table', { name: 'Accessible data', exact: true }).waitFor();
+        await page.getByRole('radio', { name: 'JSON', exact: true }).check();
+        await setSource('['); await data.getByRole('alert').waitFor();
+        assert.equal(await data.locator('table').count(), 0, 'Malformed data never leaves stale table output');
+        await setSource('');
+        await page.waitForFunction(() => document.querySelector('.properties cem-data-view')?.textContent.includes('No data'));
+        assert.equal(await data.locator('[role=alert]').count(), 0);
+        await checkbox('hidden', true); await page.waitForFunction(() => document.querySelector('.properties cem-data-view')?.hasAttribute('hidden'));
+        assert.equal(await data.isVisible(), false);
+        await checkbox('hidden', false); await page.waitForFunction(() => !document.querySelector('.properties cem-data-view')?.hasAttribute('hidden'));
+        assert.deepEqual(await data.evaluate(node => window.cemPlaygroundRuntime.diagnosticsFor(node)), []);
+        await sourceMatches('cem-data-view');
+        assert.deepEqual(errors, []);
+    } finally { await context.close(); }
+    const coarseContext = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 1200, height: 800 } });
+    const coarsePage = await coarseContext.newPage();
+    try {
+        await coarsePage.goto(new URL('cem-tree-gallery.html', baseUrl).href);
+        const tree = coarsePage.locator('cem-demo-element[legend="Compact project navigation"] cem-tree');
+        const branch = tree.locator('[part=node][data-tree-value="project"]');
+        await branch.waitFor(); await tree.evaluate(node => window.cemPlaygroundRuntime.whenRenderSettled(node));
+        const marker = branch.locator('[part=marker]');
+        const dimensions = await marker.evaluate(node => {
+            const box = node.getBoundingClientRect(), row = node.parentElement.getBoundingClientRect();
+            return { width: box.width, height: box.height, row: row.height, coarse: matchMedia('(any-pointer: coarse)').matches };
+        });
+        assert.equal(dimensions.coarse, true);
+        assert.ok(dimensions.width >= 48 && dimensions.height >= 48 && dimensions.row >= 48, 'Separate touch disclosure and row activation retain independent 3rem targets');
+        await marker.tap();
+        await coarsePage.waitForFunction(() => document.querySelector('cem-tree[label="Project navigation"] [data-tree-value="project"]')?.getAttribute('aria-expanded') === 'false');
+        assert.equal(await tree.getAttribute('selected-values'), 'article', 'Touch disclosure retains descendant selection');
+    } finally { await coarseContext.close(); }
+    if (galleries) await verifyBundle(new URL('cem-bundle.html', baseUrl).href);
+    console.log(`Compact accordion/data-view property behavior verified: ${baseUrl}`);
+}
 
 async function verifyDisclosureData(baseUrl) {
     const tags = ['cem-expansion', 'cem-table', 'cem-sort-header', 'cem-paginator'];

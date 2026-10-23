@@ -10,6 +10,10 @@
         <link rel="icon" href="./icon.svg" type="image/svg+xml" />
         <link rel="stylesheet" href="./assets/@epa-wg/cem-theme/dist/lib/css/cem-combined.css" />
         <link rel="stylesheet" href="./assets/@epa-wg/cem-components/dist/styles.css" />
+        <style>
+            html, body { margin: 0; min-block-size: 100%; }
+            [data-cem-studio-root] { min-block-size: 100dvb; }
+        </style>
         <script type="importmap">
             {
                 "imports": {
@@ -44,7 +48,7 @@
             data-cem-studio-state="bootstrap"
         >
             <h1>CEM Studio</h1>
-            <p>The synchronized CEM-ML workbench package is ready for shell composition.</p>
+            <p role="status">Opening Studio…</p>
         </main>
     </body>
 </html>

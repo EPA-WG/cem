@@ -3,6 +3,7 @@
 {attribute @name=label | Workspace}
 {attribute @name=fit | content}
 {attribute @name=layout | workbench}
+{attribute @name=appearance | surface}
 {attribute @name=navigation-label | Project explorer}
 {attribute @name=editor-label | Current file editor}
 {attribute @name=preview-label | Preview}
@@ -37,16 +38,20 @@
 [part~='root'][data-layout='project'] > :where([part~='tools']) { display: none; }
 @container (min-width: 840px) {
  [part~='root'][data-layout='project'] { grid-template-areas: 'navigation editor' 'navigation preview'; grid-template-columns: minmax(0, 1fr) minmax(0, 3fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); }
- [part~='root'][data-layout='project'][data-fit='fill'] { block-size: 100%; }
+ [part~='root'][data-layout='project']:where([data-fit='fill']) { block-size: 100%; }
 }
 @container (min-width: 1200px) {
  [part~='root'][data-layout='project'] { grid-template-areas: 'navigation editor preview'; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1.5fr); grid-template-rows: minmax(0, 1fr); }
 }
+[part~='root']:where([data-appearance='flush']) { gap: 0; }
+[part~='root']:where([data-appearance='flush']) > [part~='region'] { border-radius: 0; }
+[part~='root']:where([data-appearance='flush']) > :where([part~='region']) > :where([part~='heading']) { padding-block: var(--cem-control-padding-y); padding-inline: var(--cem-control-padding-x); gap: var(--cem-coupling-guard-min); }
+[part~='root']:where([data-appearance='flush']) > :where([part~='region']) > :where([part~='content']) { padding: 0; }
 @media (forced-colors: active) {
  [part~='region'] { background-color: Canvas; color: CanvasText; border-color: CanvasText; forced-color-adjust: auto; }
 }
 ```}
-{section @part=root @data-fit={fit} @data-layout={layout} @aria-label={datadom.attributes.aria-label ?? label} |
+{section @part=root @data-fit={fit} @data-layout={layout} @data-appearance={appearance} @aria-label={datadom.attributes.aria-label ?? label} |
  {section @part="region navigation" @aria-label="{$navigation-label}" |
   {header @part=heading | {h2 @part=title | {slot @name=navigation-heading | {$navigation-label}}} {slot @name=navigation-actions}}
   {div @part=content | {slot @name=navigation}}

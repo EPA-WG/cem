@@ -2,6 +2,22 @@ import { expect } from 'storybook/test';
 import preview, { loadCemDeclaration, loadCemWorkflowDependencies, whenCemRendered, nextRenderFrame, assertAccessibleName, assertAriaReferenceIntegrity } from '../../../../cem-elements/.storybook/preview.js';
 import declarationSource from './cem-expansion.xhtml?raw';
 const meta = preview.meta({ component: 'cem-expansion', title: 'CEM Components/cem-expansion', loaders: [async () => { await loadCemDeclaration('cem-expansion', declarationSource); await loadCemWorkflowDependencies(); return {}; }] });
+
+export const ExplicitToggleNotification = meta.story({
+    render: () => '<cem-expansion label="Project panel" notify-toggle value="projects"><p>Persistent content</p></cem-expansion>',
+    play: async ({ canvasElement }) => {
+        const host = requiredElement<HTMLElement>(canvasElement, 'cem-expansion'); await whenCemRendered(host);
+        const events: unknown[] = [];
+        host.addEventListener('cem-disclosure-toggle', event => events.push((event as CustomEvent).detail));
+        requiredElement<HTMLButtonElement>(host, '[part=header]').click(); await whenCemRendered(host);
+        expect(events).toEqual([{ value: 'projects', expanded: true }]);
+        host.removeAttribute('expanded'); await whenCemRendered(host);
+        expect(events).toHaveLength(1);
+        host.setAttribute('value', 'invalid key');
+        requiredElement<HTMLButtonElement>(host, '[part=header]').click(); await whenCemRendered(host);
+        expect(events).toHaveLength(1);
+    },
+});
 const expansionContractFixture = "<section class=\"cem-theme-light\" data-expansion-contract-fixture aria-label=\"Expansion contract fixture\">\n  <button data-expansion-focus-start type=\"button\">Focus start</button>\n\n  <cem-expansion id=\"account-expansion\" label=\"Account details\" heading-level=\"2\" region>\n    <p id=\"account-content\">Account content</p>\n    <a id=\"account-link\" href=\"#account\">Account action</a>\n  </cem-expansion>\n\n  <cem-expansion id=\"open-expansion\" expanded>\n    <span slot=\"summary\">Open <strong>summary</strong></span>\n    <button id=\"nested-action\" type=\"button\">Nested action</button>\n  </cem-expansion>\n\n  <cem-expansion id=\"disabled-expansion\" label=\"Disabled details\" disabled>\n    <a id=\"disabled-link\" href=\"#disabled\">Disabled panel content</a>\n  </cem-expansion>\n\n  <cem-expansion id=\"disabled-open-expansion\" label=\"Disabled open details\" disabled expanded>\n    <button id=\"disabled-open-action\" type=\"button\">Visible nested action</button>\n  </cem-expansion>\n\n  <cem-expansion id=\"fallback-expansion\" label=\"Fallback heading\" heading-level=\"9\">\n    <p>Fallback content</p>\n  </cem-expansion>\n\n  <button data-expansion-focus-end type=\"button\">Focus end</button>\n</section>\n";
 
 export const NativeOwners = meta.story({

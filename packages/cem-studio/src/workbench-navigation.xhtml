@@ -7,17 +7,18 @@
   {param @name=item}
   {param @name=folderIcons}
   {body |
-   {cem-tree-item @value={item.key} @label={if folderIcons &amp;&amp; (item.kind == "folder" || item.kind == "project") { str:concat(("📁 ", item.name), "") } else { item.name }} |
+   {cem-tree-item @value={item.key} @label={item.name} @icon={if item.kind == "folder" || item.kind == "output-folder" || (folderIcons &amp;&amp; item.kind == "project") { "📁" } else { if item.kind == "project" { "◇" } else { if item.kind == "configuration" { "▷" } else { "▤" } } }} @kind={if item.kind == "file" { "resource" } else { if item.kind == "output-file" { "output" } else { item.kind } }} |
     {cem:for-each @as=child @select=item.children | {call @template=tree-node @with:item={child} @with:folderIcons={folderIcons}}}
    }
   }
  }
  {body |
  {style @type=text/css |```
-:scope { display: block; min-inline-size: 0; }
-[part~='navigation'] { display: grid; gap: var(--cem-gap-related); }
-[part~='navigation'] > hr { inline-size: 100%; margin: var(--cem-stroke-none); border: var(--cem-stroke-none); border-block-start: var(--cem-stroke-divider) solid var(--cem-separator-color); }
-[part~='actions'] { display: inline-flex; flex-wrap: wrap; align-items: center; gap: max(var(--cem-gap-related), var(--cem-coupling-guard-min)); }
+:scope { display: block; block-size: 100%; min-block-size: 0; min-inline-size: 0; }
+:scope[section='actions'] { display: inline-flex; block-size: auto; }
+[part~='navigation'] { block-size: 100%; min-block-size: 0; }
+[part~='actions'] { display: inline-flex; align-items: center; gap: var(--cem-coupling-guard-min); white-space: nowrap; }
+[part~='count'] { font-size: var(--cem-typography-ui-font-size); }
 ```}
  {cem:if @test=datadom.slices.state |
   {cem:variable @name=state @select=datadom.slices.state}
@@ -25,8 +26,8 @@
   {cem:variable @name=busy @select='datadom.slices.pending || nav.busy'}
   {cem:if @test='section == "actions" &amp;&amp; nav' |
    {span @part=actions @role=group @aria-label="Selection actions" |
-    {span @aria-live=polite | {$ | str:concat((nav.count, " ", nav.countKind, if nav.count == 1 { "" } else { "s" }), "")}}
-    {cem-icon-button @image="+" @aria-label="Create" @variant=contextual @host-command=create-selected @disabled={if busy { true } else { null }}}
+    {span @part=count @aria-live=polite | {$ | str:concat((nav.count, " ", nav.countKind, if nav.count == 1 { "" } else { "s" }), "")}}
+    {cem-icon-button @image="+" @aria-label="Create" @variant=contextual @host-command=create-selected @disabled={if busy || !nav.canCreate { true } else { null }}}
     {cem-icon-button @image="▣" @aria-label="Clone selected" @variant=contextual @host-command=clone-selected @disabled={if busy || !nav.canClone { true } else { null }}}
     {cem-icon-button @image="×" @aria-label="Delete selected" @variant=contextual @host-command=delete-selected @disabled={if busy || !nav.canDelete { true } else { null }}}
    }
@@ -34,14 +35,37 @@
   {cem:if @test='section != "actions"' |
   {nav @part=navigation @aria-label="Studio navigation" |
    {cem:if @test=nav |
-   {cem:for-each @as=root @select='(nav.samples, nav.saved, nav.files)' |
-    {cem:if @test=root |
-     {cem:if @test='nav.files &amp;&amp; root.key == nav.files.key' | {hr}}
-     {cem-tree @label={root.name} @selection=single @activate-branches=true @selected-values={nav.selection.key} @expanded-values={str:concat((root.key, nav.expanded), " ")} @host-command=open-entity @host-command-event=cem-tree-activate |
-      {call @template=tree-node @with:item={root} @with:folderIcons={nav.files &amp;&amp; root.key == nav.files.key}}
+    {cem-accordion @fit=fill @label="Navigation" |
+     {cem-expansion @layout=panel @indicator=start @label=Projects @value=projects @notify-toggle=true @expanded={if nav.sections.projects { true } else { null }} @host-command=toggle-section @host-command-event=cem-disclosure-toggle |
+      {span @slot=summary @part=summary | {cem-icon @image="◇"} Projects}
+      {cem-tree @data-cem-density=super-compact @label=Projects @selection=single @activate-branches=true @separate-toggle=true @selected-values={nav.trees.projects.selected} @expanded-values={nav.trees.projects.expanded} @host-command=open-entity @host-command-event=cem-tree-activate @host-command-cem-tree-toggle=toggle-projects |
+       {call @template=tree-node @with:item={nav.samples}}
+       {call @template=tree-node @with:item={nav.saved}}
+      }
+     }
+     {cem-expansion @layout=panel @indicator=start @label=Structure @value=structure @notify-toggle=true @expanded={if nav.sections.structure { true } else { null }} @host-command=toggle-section @host-command-event=cem-disclosure-toggle |
+      {span @slot=summary @part=summary | {cem-icon @image="📁"} Structure}
+      {cem:choose |
+       {cem:when @test=nav.files |
+        {cem-tree @data-cem-density=super-compact @label="Project files" @selection=single @activate-branches=true @separate-toggle=true @selected-values={nav.trees.structure.selected} @expanded-values={nav.trees.structure.expanded} @host-command=open-entity @host-command-event=cem-tree-activate @host-command-cem-tree-toggle=toggle-structure |
+         {call @template=tree-node @with:item={nav.files} @with:folderIcons={true}}
+        }
+       }
+       {cem:otherwise | {p | Select a project to view its files.}}
+      }
+     }
+     {cem-expansion @layout=panel @indicator=start @label="Output files" @value=output @notify-toggle=true @expanded={if nav.sections.output { true } else { null }} @host-command=toggle-section @host-command-event=cem-disclosure-toggle |
+      {span @slot=summary @part=summary | {cem-icon @image="▤"} Output files}
+      {cem:choose |
+       {cem:when @test=nav.output |
+        {cem-tree @data-cem-density=super-compact @label="Output files" @selection=single @activate-branches=true @separate-toggle=true @selected-values={nav.trees.output.selected} @expanded-values={nav.trees.output.expanded} @host-command=open-entity @host-command-event=cem-tree-activate @host-command-cem-tree-toggle=toggle-output |
+         {call @template=tree-node @with:item={nav.output}}
+        }
+       }
+       {cem:otherwise | {p | Build a project to populate its output files.}}
+      }
      }
     }
-   }
    }
    {cem:if @test='state.navigationError &amp;&amp; (nav.selection.project || !str:starts_with(state.navigationError.code, "cem.studio.selection."))' | {cem-alert @tone=danger @label={state.navigationError.message}}}
         {cem:if @test=state.transition |

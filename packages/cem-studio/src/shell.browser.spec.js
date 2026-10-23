@@ -145,10 +145,13 @@ describe('CEM Studio installable application shell', () => {
         shell.dispose(); expect(shell.recovery.snapshot().state).toBe('unavailable');
     });
 
-    it('applies inherited workspace and control rhythm through installed shared layouts', async () => {
+    it('uses compact flush chrome while retaining inherited shared layout rhythm', async () => {
         const root = document.createElement('main');
         root.style.setProperty('--cem-gap-related', '31px');
         root.style.setProperty('--cem-layout-stack-gap', '19px');
+        root.style.setProperty('--cem-coupling-guard-min', '8px');
+        root.style.setProperty('--cem-resource-project-color', 'rgb(101, 20, 30)');
+        root.style.setProperty('--cem-resource-file-color', 'rgb(30, 80, 120)');
         document.body.append(root);
         const shell = await mountCemStudioApplicationShell({ root, storage: memoryStorage({}) });
         mountedShells.push(shell);
@@ -157,14 +160,18 @@ describe('CEM Studio installable application shell', () => {
         const section = root.querySelector('cem-studio-shell > [part=root]');
         const status = root.querySelector('footer[aria-label="Studio status"]');
         expect(getComputedStyle(section).display).toBe('grid');
-        expect(getComputedStyle(section).rowGap).toBe('31px');
-        expect(getComputedStyle(status).columnGap).toBe('31px');
-        shell.setWorkspaceState('Login · source.cem - CEM Studio', 'Unsaved changes');
+        expect(root.querySelector('cem-studio-shell').getAttribute('data-cem-density')).toBe('compact');
+        expect(getComputedStyle(section).rowGap).toBe('0px');
+        expect(getComputedStyle(status).columnGap).toBe('8px');
+        shell.setWorkspaceState('Login · source.cem - CEM Studio', 'Unsaved changes', { projectName: 'Login', path: 'source.cem', pathKind: 'file' });
         await shell.whenSettled();
-        expect(root.querySelector('h1').textContent).toBe('Login · source.cem - CEM Studio');
+        expect(root.querySelector('h1').innerText.trim().replace(/\s+/gu, ' ')).toBe('Login · source.cem - CEM Studio');
+        expect(root.querySelector('h1').getAttribute('aria-label')).toBe('Login · source.cem - CEM Studio');
+        expect(getComputedStyle(root.querySelector('h1 cem-text[kind=project] [part~=root]')).color).toBe('rgb(101, 20, 30)');
+        expect(getComputedStyle(root.querySelector('h1 cem-text[kind=resource] [part~=root]')).color).toBe('rgb(30, 80, 120)');
         expect(status.textContent).toContain('Unsaved changes');
-        root.style.setProperty('--cem-gap-related', '37px');
-        expect(getComputedStyle(section).rowGap).toBe('37px');
+        root.querySelector('cem-studio-shell').style.setProperty('--cem-coupling-guard-min', '37px');
+        expect(getComputedStyle(section).rowGap).toBe('0px');
         expect(getComputedStyle(status).columnGap).toBe('37px');
     });
 
@@ -185,7 +192,7 @@ describe('CEM Studio installable application shell', () => {
         ]);
         expect(root.querySelector('cem-app-bar header')).not.toBeNull();
         expect(root.querySelector('cem-theme-switch [part=trigger] button')).not.toBeNull();
-        expect(root.querySelector('h1').textContent).toBe('Samples - CEM Studio');
+        expect(root.querySelector('h1').textContent).toBe('Examples - CEM Studio');
         expect(root.querySelectorAll('button:not(cem-action button):not(cem-icon-button button):not(cem-select button):not(cem-dropdown button):not(cem-expansion button):not(cem-tabs button):not(cem-tree button)')).toHaveLength(0);
         for (const action of root.querySelectorAll('cem-action')) {
             expect(['primary', 'explicit', 'contextual', 'alternate', 'destructive']).toContain(action.getAttribute('variant'));

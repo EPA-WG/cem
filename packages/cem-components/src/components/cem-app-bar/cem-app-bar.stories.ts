@@ -2,6 +2,24 @@ import { expect } from 'storybook/test';
 import preview, { assertLightDomRendered, assertAriaReferenceIntegrity, nextRenderFrame, loadCemWorkflowDependencies, loadCemDeclaration, whenCemRendered, createCemStoryRuntime, assertAccessibleName } from '../../../../cem-elements/.storybook/preview.js';
 import declarationSource from './cem-app-bar.xhtml?raw';
 const meta = preview.meta({ component: 'cem-app-bar', title: 'CEM Components/cem-app-bar', loaders: [async () => { await loadCemDeclaration('cem-app-bar', declarationSource); return {}; }] });
+
+export const CompactHeading = meta.story({
+    render: () => '<cem-app-bar appearance="compact" label="Studio"><h1 slot="title">Website · content/article.md - CEM Studio</h1><button type="button">Theme</button></cem-app-bar>',
+    play: async ({ canvasElement }) => {
+        const host = required<HTMLElement>(canvasElement, 'cem-app-bar'); await whenCemRendered(host);
+        host.style.cssText = '--cem-control-padding-x:6px;--cem-control-padding-y:2px;--cem-inset-container:33px';
+        const owner = required<HTMLElement>(host, '[part=root]'), heading = required<HTMLElement>(host, 'h1');
+        expect(getComputedStyle(owner).paddingBlockStart).toBe('2px');
+        expect(getComputedStyle(owner).paddingInlineStart).toBe('6px');
+        expect(getComputedStyle(heading).marginBlockStart).toBe('0px');
+        expect(getComputedStyle(heading).fontSize).toBe(getComputedStyle(owner).fontSize);
+        expect(heading.textContent).toContain('content/article.md');
+        host.setAttribute('label', 'Updated Studio'); await whenCemRendered(host);
+        expect(host.querySelector('h1')).toBe(heading);
+        host.removeAttribute('appearance'); await whenCemRendered(host);
+        expect(getComputedStyle(owner).paddingBlockStart).toBe('33px');
+    },
+});
 function required<T extends Element = HTMLElement>(root: ParentNode, selector: string): T {
     const node = root.querySelector<T>(selector); if (!node) throw new Error(`Missing ${selector}`); return node;
 }

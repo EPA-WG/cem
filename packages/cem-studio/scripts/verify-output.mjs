@@ -153,6 +153,12 @@ for (const command of ['create-selected', 'clone-selected', 'delete-selected', '
 }
 assert.match(navigationView, /host-command-event=cem-tree-activate/);
 assert.match(navigationView, /@activate-branches=true/);
+assert.match(navigationView, /cem-accordion @fit=fill/);
+assert.match(navigationView, /@separate-toggle=true/);
+for (const section of ['Projects', 'Structure', 'Output files']) assert.ok(navigationView.includes(section));
+for (const tree of ['projects', 'structure', 'output']) assert.ok(navigationView.includes(`host-command-cem-tree-toggle=toggle-${tree}`));
+assert.match(navigationView, /@data-cem-density=super-compact/);
+assert.match(shellView, /@name=data-cem-density @select='"compact"'/);
 const navigationModule = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/navigation.js'), 'utf8');
 assert.match(navigationModule, /popstate/);
 assert.doesNotMatch(navigationModule, /innerHTML|textContent|querySelector|createElement|classList/);
@@ -171,6 +177,7 @@ assert.doesNotMatch(workbenchModule, /commandApplicationMarkup|renderCommandAppl
 
 const resultsView = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/workbench-results.xhtml'), 'utf8');
 const layoutView = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/workbench-layout.xhtml'), 'utf8');
+const centerView = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/workbench-center.xhtml'), 'utf8');
 assert.match(layoutView, /<template id="cem-studio-workbench-layout" type="text\/cem-ml">/);
 assert.match(resultsView, /<template id="cem-studio-workbench-results" type="text\/cem-ml">/);
 for (const command of ['copy-output', 'download-output', 'diagnostic', 'provenance']) {
@@ -178,6 +185,11 @@ for (const command of ['copy-output', 'download-output', 'diagnostic', 'provenan
 }
 const previewView = await readFile(resolve(outputRoot, 'assets/@epa-wg/cem-studio/workbench-preview.xhtml'), 'utf8');
 assert.match(previewView, /cem-media-preview/);
+assert.match(previewView, /cem-data-view @data-cem-density=super-compact/);
+assert.match(centerView, /@section=build/);
+assert.match(layoutView, /cem-studio-workbench-center/);
+assert.match(layoutView, /@section=preview/);
+assert.match(layoutView, /@appearance=flush/);
 assert.match(layoutView, /cem-workspace/);
 assert.match(layoutView, /@layout=project/);
 for (const region of ['navigation', 'editor', 'preview']) assert.match(layoutView, new RegExp(`@slot=${region}(?:\\s|$)`));

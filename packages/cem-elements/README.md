@@ -372,6 +372,11 @@ patches trigger full-render recovery. Runtime state is adopted before retiring
 old styles, and resource work settles outside the queue. Hydration waits for
 imports while preserving compatible rendered DOM and animation names.
 
+When a stylesheet source revision invalidates an in-flight preparation, a still-current
+owner cancels both CSS candidates and waits for a stable revision before preparing
+them again, preserving published DOM and edited controls. Real CSS errors and
+supersession, disconnect or disposal retain their existing failure and cancellation guards.
+
 Prepared registry replacements compare predecessor generation tokens without owning
 old connections. Activation rebinds scope observers and live callbacks outside the
 preparation closure, then clears transferred commit records. Cancellation drops
@@ -1381,7 +1386,7 @@ ancestors before descendants so nested payload updates are included. Native
 surface preparation is separate: `cem-open` reports admitted visibility.
 
 Declare `host-command="save"` on a control, with optional
-`host-command-event="input|change|submit|cem-close|cem-tree-activate|cem-tab|cem-preview-navigate"`
+`host-command-event="input|change|submit|cem-close|cem-tree-activate|cem-tree-toggle|cem-disclosure-toggle|cem-tab|cem-preview-navigate"`
 (one event, default `click`). Only
 commands supplied by this mounted host are callable. The shared runtime invokes
 the service synchronously on the event stack, preserving browser user-gesture
@@ -1412,7 +1417,18 @@ accessor, array or non-string values reject delivery with a `TypeError` in
 `view.errors`. No accessor is evaluated and no additional detail is transported.
 The frozen request receives the exact string as `value`. Expansion, focus and
 selection remain under their existing tree/application owners; the bridge never
-selects or navigates on their behalf. Other component event names are unsupported.
+selects or navigates on their behalf.
+
+One composite owner can bind several supported events independently. For example,
+`host-command="open" host-command-event="cem-tree-activate"
+host-command-cem-tree-toggle="expand"` routes activation and disclosure to distinct
+services. An event-specific `host-command-<event>` takes precedence for that event;
+removing it revokes that binding. `cem-tree-toggle` follows the same whitespace-free
+identity checks as activation. Opt-in `cem-disclosure-toggle` carries a non-empty
+section identity; the bridge forwards only its validated scalar `value`, never
+the detail object or an owner node. Programmatic disclosure publication stays
+silent. All bindings share the same nested-owner, cancellation, disabled and
+checkpoint acknowledgment guards.
 
 Disabled controls, cancelled events and unavailable commands do not invoke a
 service. Input capture rechecks mounted-view/declaration authority and the command

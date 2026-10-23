@@ -30,6 +30,15 @@ user experience over implementation details.
 
 ## Core CEM Principles
 
+Desktop information density is an explicit inherited policy:
+`data-cem-density="compact"` for chrome and `data-cem-density="super-compact"`
+for trees/tabular structured text. The latter follows consecutive paragraph
+lines, with no added row gap/padding and 1em icons. Both require fine hover input
+and no coarse pointer; touch and hybrid input retain the default larger zones.
+The approved structured-text exception, keyboard/focus requirements and scope
+are defined in [D2](./cem-coupling.md#6-0-explicit-desktop-density-policy), with
+canonical geometry in D1/D2c/D5. Existing coupling and spacing modes are unchanged.
+
 ### Public CSS property ownership
 
 `--cem-<component>-*` CSS properties are public and may be overridden by

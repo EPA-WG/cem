@@ -4,6 +4,23 @@ import declarationSource from './cem-workspace.xhtml?raw';
 
 const meta = preview.meta({ component: 'cem-workspace', title: 'CEM Components/cem-workspace', loaders: [async () => { await loadCemDeclaration('cem-workspace', declarationSource); return {}; }] });
 
+export const FlushRegions = meta.story({
+    render: () => '<cem-workspace appearance="flush" layout="project"><span slot="navigation-actions">1 project</span><nav slot="navigation">Projects · Structure · Output files</nav><p slot="editor">Selected project or file</p><p slot="preview">Generated output</p></cem-workspace>',
+    play: async ({ canvasElement }) => {
+        const host = canvasElement.querySelector<HTMLElement>('cem-workspace');
+        if (!host) throw Error('Missing workspace');
+        await whenCemRendered(host);
+        const root = host.querySelector<HTMLElement>('[part=root]');
+        if (!root) throw Error('Missing workspace root');
+        expect(getComputedStyle(root).gap).toBe('0px');
+        for (const content of host.querySelectorAll<HTMLElement>('[part=content]')) expect(getComputedStyle(content).padding).toBe('0px');
+        const navigation = host.querySelector<HTMLElement>('[part~=navigation] [part=heading]');
+        if (!navigation) throw Error('Missing navigation heading');
+        expect(getComputedStyle(navigation).display).toBe('flex');
+        expect(navigation.textContent).toContain('1 project');
+    },
+});
+
 export const WorkerRetention = meta.story({
     render: () => '<div></div>',
     play: async ({ canvasElement }) => {

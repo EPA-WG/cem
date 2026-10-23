@@ -24,7 +24,7 @@
 <template type="cem-ml; version=0.0"
           id="cem-coupling-template"
           data-token-url="../../../dist/lib/tokens/cem-coupling.xhtml"
-          data-slices="minimums=cem-coupling-minimums overrides=cem-coupling-halo-overrides">
+          data-slices="minimums=cem-coupling-minimums overrides=cem-coupling-halo-overrides density=cem-coupling-density-overrides">
 {module @version="1.0.0" |
 {import @as=docs @src="./cem-token-docs.cemt"}
 {body |
@@ -61,6 +61,16 @@
   ```{$row.token}: {$row.compact};}```
 }
 /* endregion coupling mode: compact */
+
+/* Explicit desktop profile is independent of the unchanged coupling modes. */
+@media (hover: hover) and (pointer: fine) and (not (any-pointer: coarse)) {
+  :root[data-cem-density="compact"], :where([data-cem-density="compact"]) {```{cem:for-each @select="$datadom.slices.density" @as="row" |```
+    ```{$row.token}: {$row.compact};}```
+  }
+  :root[data-cem-density="super-compact"], :where([data-cem-density="super-compact"]) {```{cem:for-each @select="$datadom.slices.density" @as="row" |```
+    ```{$row.token}: {$row.super_compact};}```
+  }
+}
 ```}}
 }
 }

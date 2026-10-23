@@ -162,6 +162,20 @@ These are the **canonical semantic endpoints** that components consume.
 | `--cem-stroke-target`           | `var(--cem-stroke-standard)`| Deep-link target indicator thickness                            | required    |
 | `--cem-stroke-pending`          | `var(--cem-stroke-standard)`| Persistent pending-state boundary/indicator thickness           | recommended |
 | `--cem-stroke-indicator-offset` | `2px`                       | External ring/outline offset (distance, not thickness)          | required    |
+| `--cem-data-row-border-width` | `var(--cem-stroke-boundary)` | Structured row edge; desktop paragraph-line profile removes layout border | required |
+| `--cem-data-row-focus-offset` | `var(--cem-stroke-indicator-offset)` | Structured row focus placement; desktop paragraph-line profile keeps focus inside its line | required |
+
+###### cem-stroke-density-overrides
+
+| Token | compact | super-compact |
+|---|---|---|
+| `--cem-data-row-border-width` | `var(--cem-stroke-boundary)` | `0px` |
+| `--cem-data-row-focus-offset` | `var(--cem-stroke-indicator-offset)` | `calc(-1 * var(--cem-stroke-focus))` |
+
+These inherited `data-cem-density` overrides use the shared precise-input gate
+from D2. Super-compact structured rows have no extra border height and retain
+their full focus thickness inside the row. Adjacent row indicators cannot overlap.
+Coarse/hybrid devices keep the baseline external indicator and larger target.
 
 ### 4.2 Semantics (normative)
 
@@ -608,6 +622,7 @@ Treat as **minor/patch** if you:
 | `cem-stroke-rings`         | §5.3    | Ring composition recipes: `--cem-ring-zebra-3`, `--cem-ring-zebra-4`                                              |
 | `cem-stroke-rings-forced`  | §5.3    | Forced-colors fallback values for the rings (generator-only; no new tokens)                                       |
 | `cem-stroke-indicator-appearance` | §5.4 | Unitless outline/underline geometry selectors                                                               |
+| `cem-stroke-density-overrides` | §4.1 | Explicit desktop structured-row edge and inset-focus overrides; no new tokens |
 
 Generator derivation rules:
 - `cem-stroke-basis`, `cem-stroke-semantic`, `cem-stroke-zebra-pattern`, `cem-stroke-rings`, `cem-stroke-action-outline`,

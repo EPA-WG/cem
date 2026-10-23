@@ -197,6 +197,33 @@ overrides are governed in D2c Controls.
 
 ## 6. Implementation patterns
 
+### 6.0 Explicit desktop density policy
+
+The default zone/guard and the three coupling modes remain mode-invariant.
+An independently requested inherited `data-cem-density="compact"` profile
+allows 1.5rem chrome targets with the existing 0.5rem guard **only** when the primary pointer
+is fine, hover is available, and no input device reports a coarse pointer.
+The CSS gate is `(hover: hover) and (pointer: fine) and (not (any-pointer: coarse))`.
+This preserves the 3rem/0.5rem defaults on touch, hybrid and unknown input.
+
+`data-cem-density="super-compact"` is a narrower opt-in for structured tree/table
+composite selection. Rows follow consecutive text lines: `1lh` minimum,
+zero guard/halo, and no overlapping invisible targets. This is the deliberately
+approved compact structured-text exception, not the general target-size claim.
+Consumers must provide full-width labels, keyboard navigation, visible inset
+focus, distinct selection and disclosure controls, and content wrapping. Do not
+apply it to ordinary forms or unrelated action clusters. Row geometry and 1em
+icons belong to D2c; D1 owns zero row padding/gaps; D5 contains focus within the
+line box. Removing the profile restores ordinary inherited coupling.
+
+###### cem-coupling-density-overrides
+
+| Token | compact | super-compact |
+|---|---|---|
+| `--cem-coupling-zone-min` | `1.5rem` | `1lh` |
+| `--cem-coupling-guard-min` | `0.5rem` | `0px` |
+| `--cem-coupling-halo` | `0px` | `0px` |
+
 ### 6.1 Halo-based operability (compact visuals, safe coupling)
 
 `--cem-control-padding-*` come from D2c Controls; the safety floor (`min-block-size: --cem-coupling-zone-min`) is the
@@ -488,6 +515,7 @@ Checks:
 |-------------------------------|---------|-------------------------------------------------------------------------------------------------------------------------------------|
 | `cem-coupling-minimums`       | §4.1    | Hard safety minimums: `--cem-coupling-zone-min`, `--cem-coupling-guard-min`, `--cem-coupling-halo` (mode-invariant safety contract) |
 | `cem-coupling-halo-overrides` | §5.2    | Forgiving/compact override values for `--cem-coupling-halo` only (generator-only; no new tokens)                                    |
+| `cem-coupling-density-overrides` | §6.0 | Explicit precise-input desktop profiles; no new tokens; coupling modes unchanged |
 
 Generator derivation rules:
 - `cem-coupling-minimums` → token list (tier in last column).

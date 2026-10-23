@@ -876,6 +876,18 @@
         "@epa-wg/cem-ml/wasm/factory": {
             "path": "./assets/@epa-wg/cem-ml/dist/wasm/browser/cem_ml_factory.js",
             "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-studio/workbench-center-view": {
+            "path": "./assets/@epa-wg/cem-studio/workbench-center.xhtml",
+            "contentType": "application/xhtml+xml"
+        },
+        "@epa-wg/cem-components/components/cem-accordion": {
+            "path": "./assets/@epa-wg/cem-components/src/components/cem-accordion/cem-accordion.xhtml",
+            "contentType": "application/xhtml+xml"
+        },
+        "@epa-wg/cem-components/components/cem-data-view": {
+            "path": "./assets/@epa-wg/cem-components/src/components/cem-data-view/cem-data-view.xhtml",
+            "contentType": "application/xhtml+xml"
         }
     }
 }

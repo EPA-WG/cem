@@ -24,7 +24,7 @@ const expectedSources = {
 };
 const expectedModes = ['Light', 'Dark', 'Contrast Light', 'Contrast Dark', 'Native'];
 const payloadTags = new Set(['cem-option', 'cem-option-group', 'cem-tab', 'cem-step', 'cem-tree-item']);
-const structuralTags = new Set(['cem-stack', 'cem-grid', 'cem-workspace', 'cem-table', 'cem-app-bar']);
+const structuralTags = new Set(['cem-stack', 'cem-grid', 'cem-accordion', 'cem-workspace', 'cem-table', 'cem-app-bar']);
 const allowedRepresentations = new Set(['component-set', 'component', 'payload', 'structural']);
 const allowedPropertyKinds = new Set(['variant', 'boolean', 'text', 'instance-swap', 'slot']);
 const allowedReviewStatuses = new Set(['planned', 'reviewed']);

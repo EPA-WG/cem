@@ -4788,9 +4788,13 @@ export class CemElementRuntime {
     private async renderRetainedUpdate(instance: HTMLElement, compiled: CompiledDeclaration,
         snapshot: DataIslandSnapshot, token: number): Promise<boolean> {
         const queue = CemCssDomPublicationQueue.forElement(instance);
+        const ownerDocument = instance.ownerDocument;
+        const stylesheetSources = stylesheetRegistry(ownerDocument);
+        const sourceChanged = Symbol('stylesheet sources changed before publication');
         const controller = new AbortController();
         this.publicationControllers.set(instance, controller);
         const current = () => !controller.signal.aborted && instance.isConnected
+            && instance.ownerDocument === ownerDocument
             && !compiled.declarationScope.disposed && this.renderTokens.get(instance) === token;
         let resources: readonly CemProcessingResourceControl[] = [];
         let loadFailed = false;
@@ -4801,80 +4805,93 @@ export class CemElementRuntime {
             const compile = processing ? await this.ensureProcessingArtifact(compiled, Object.keys(data)) : undefined;
             if (!current()) throw new Error('superseded CSS/DOM render');
             const context = this.ensureModuleUrlContext(instance, compiled).wire;
-            const registry = stylesheetRegistry(instance.ownerDocument).prepareReplacement({ element: instance,
-                declaration: compiled, sharedScope: compiled.sharedStyleScope, scope: compiled.declarationScope, context });
-            const cancel = () => registry.cancelPreparation();
-            controller.signal.addEventListener('abort', cancel, { once: true });
-            const sources = payloadStylesheetSources(snapshot.payload);
-            const key = edgeContentAddress('template-artifact', { sources, context, instanceId: snapshot.instanceId }).key;
-            const styles = sources.length === 0
-                ? prepareEmittedInstanceStylesheets({ element: instance, signal: registry.signal, outputs: [] })
-                : prepareInstanceStylesheets({ element: instance, instanceId: snapshot.instanceId,
-                sources, context, signal: registry.signal, artifactId: `instance-css:${key}`,
-                scopePolicyStamp: this.scopePolicyStamp, host: this.processingHost(compiled),
-                baseUrl: compiled.resourceBaseUrl, read: this.retainedStylesheets?.read ?? readRetainedStylesheet });
-            try {
-                const [declarationCss, instanceCss] = await Promise.all([registry.ready, styles.ready]);
-                if (!current()) throw new Error('superseded CSS/DOM render');
-                this.recordDiagnostics(instance, [
-                    ...declarationCss.diagnostics.map(d => ({ ...d, source: 'declaration' as const, tag: instance.localName })),
-                    ...instanceCss.diagnostics.map(d => ({ ...d, source: 'instance' as const, tag: instance.localName })),
-                ]);
-                if (declarationCss.status !== 'prepared' || instanceCss.status !== 'prepared') {
-                    loadFailed = [...declarationCss.diagnostics, ...instanceCss.diagnostics]
-                        .some(d => d.severity === 'error' || d.severity === 'fatal');
-                    throw new Error('CSS replacement could not be prepared');
-                }
-                const revision = { instanceId: snapshot.instanceId, dataRevision: snapshot.dataRevision,
-                    templateArtifactId: snapshot.templateArtifactId, scopePolicyStamp: snapshot.scopePolicyStamp,
-                    ariaReferenceProfile: snapshot.ariaReferenceProfile,
-                    outputTarget: snapshot.outputTarget, renderAttempt: (snapshot.renderAttempt ?? 0) + (full ? 1 : 0) };
-                let domPlan: RenderPlan | undefined;
-                if (!processing) {
-                    const projected = this.renderFromDeclaration(instance, compiled, { ...snapshot, renderAttempt: revision.renderAttempt });
-                    if (!projected) throw new Error('DOM projection failed');
-                    domPlan = { ...projected, nodes: compiled.linkBaseUrl === null ? projected.nodes
-                        : await this.renderSupport(compiled.declarationScope).resolveRenderPlanLinks(projected.nodes, compiled.linkBaseUrl) };
-                }
-                const result = compile ? await this.submitProcessingRender(instance, this.processingHost(compiled), token, {
-                    artifact: compile.artifact, revision, snapshot: { ...snapshot, renderAttempt: revision.renderAttempt }, data,
-                    documents: this.httpDocumentBindings(instance, snapshot), nativeAttributes: snapshot.nativeAttributes,
-                    nativeSlices: snapshot.nativeSlices, nativeValueLimits: this.nativeValueLimits,
-                    scopeUid: this.currentScopeUid(instance, compiled), payloadStylesInstalled: true,
-                    previousRenderPlan: full ? null : this.processingRenderPlans.get(instance) ?? null,
-                }) : { frames: diffRenderPlansToPatchFrames(full ? null : this.committedRenderPlans.get(instance) ?? null,
-                    domPlan as RenderPlan), diagnostics: [], hostAttributeUpdates: [], resourceControls: [], nextRenderPlan: undefined };
-                if (!current()) throw new Error('superseded CSS/DOM render');
-                this.recordDiagnostics(instance, result.diagnostics.filter(d => this.validateGeneratedIds
-                    || !d.code.startsWith('cem.render_plan.generated_')).map(d => runtimeSupportDiagnostic(d, compiled.producedTag)));
-                const entries = registry.takeCommits();
-                if (!entries) throw new Error('superseded registry preparation');
-                const bounds = this.ensureRenderBounds(instance, this.ensureDataIsland(instance));
-                if (this.restrictedPreview) validateLivePreviewFrames(result.frames);
-                const patch = preparePatchFramesForRange(bounds, result.frames, revision, instance.ownerDocument,
-                    this.processingPatchOptions(instance, compiled));
-                return { entries, registryConnection: registry, instanceStyles: styles, patch,
-                    publish: commit => this.publishElementPlacements(instance, token, 'elementPlacementUses' in result ? result.elementPlacementUses ?? [] : [], commit),
-                    signal: controller.signal, currentRevision: () => revision,
-                    onPublished: connection => {
-                        if (!connection || !current()) throw new Error('superseded runtime publication');
-                        this.stylesheetConnections.set(instance, connection);
-                        this.instanceStylesheets.set(instance, { key, reported: true,
-                            installation: { ready: Promise.resolve(instanceCss.diagnostics), dispose: () => styles.dispose() } });
-                        this.stylesheetReady.add(instance);
-                        if (result.nextRenderPlan) {
-                            this.publishSuggestionRows(instance, result as CemProcessingRenderDiffResult, token);
-                            this.processingRenderPlans.set(instance, result.nextRenderPlan);
-                        }
-                        if (domPlan) this.committedRenderPlans.set(instance, domPlan);
-                        resources = result.resourceControls;
-                        this.applyHostAttributeUpdates(instance, compiled, result.hostAttributeUpdates, token);
-                    },
-                };
-            } catch (error) {
-                registry.cancelPreparation(); styles.cancelPreparation();
-                throw error;
-            } finally { controller.signal.removeEventListener('abort', cancel); }
+            for (;;) {
+                const registry = stylesheetSources.prepareReplacement({ element: instance,
+                    declaration: compiled, sharedScope: compiled.sharedStyleScope, scope: compiled.declarationScope, context });
+                const cancel = () => registry.cancelPreparation();
+                controller.signal.addEventListener('abort', cancel, { once: true });
+                const sources = payloadStylesheetSources(snapshot.payload);
+                const key = edgeContentAddress('template-artifact', { sources, context, instanceId: snapshot.instanceId }).key;
+                const styles = sources.length === 0
+                    ? prepareEmittedInstanceStylesheets({ element: instance, signal: registry.signal, outputs: [] })
+                    : prepareInstanceStylesheets({ element: instance, instanceId: snapshot.instanceId,
+                    sources, context, signal: registry.signal, artifactId: `instance-css:${key}`,
+                    scopePolicyStamp: this.scopePolicyStamp, host: this.processingHost(compiled),
+                    baseUrl: compiled.resourceBaseUrl, read: this.retainedStylesheets?.read ?? readRetainedStylesheet });
+                try {
+                    const [declarationCss, instanceCss] = await Promise.all([registry.ready, styles.ready]);
+                    if (!current()) throw new Error('superseded CSS/DOM render');
+                    this.recordDiagnostics(instance, [
+                        ...declarationCss.diagnostics.map(d => ({ ...d, source: 'declaration' as const, tag: instance.localName })),
+                        ...instanceCss.diagnostics.map(d => ({ ...d, source: 'instance' as const, tag: instance.localName })),
+                    ]);
+                    if (declarationCss.status !== 'prepared' || instanceCss.status !== 'prepared') {
+                        loadFailed = [...declarationCss.diagnostics, ...instanceCss.diagnostics]
+                            .some(d => d.severity === 'error' || d.severity === 'fatal');
+                        if (!loadFailed && registry.signal.aborted && registry.sourceChanged()) throw sourceChanged;
+                        throw new Error('CSS replacement could not be prepared');
+                    }
+                    const revision = { instanceId: snapshot.instanceId, dataRevision: snapshot.dataRevision,
+                        templateArtifactId: snapshot.templateArtifactId, scopePolicyStamp: snapshot.scopePolicyStamp,
+                        ariaReferenceProfile: snapshot.ariaReferenceProfile,
+                        outputTarget: snapshot.outputTarget, renderAttempt: (snapshot.renderAttempt ?? 0) + (full ? 1 : 0) };
+                    let domPlan: RenderPlan | undefined;
+                    if (!processing) {
+                        const projected = this.renderFromDeclaration(instance, compiled, { ...snapshot, renderAttempt: revision.renderAttempt });
+                        if (!projected) throw new Error('DOM projection failed');
+                        domPlan = { ...projected, nodes: compiled.linkBaseUrl === null ? projected.nodes
+                            : await this.renderSupport(compiled.declarationScope).resolveRenderPlanLinks(projected.nodes, compiled.linkBaseUrl) };
+                    }
+                    const result = compile ? await this.submitProcessingRender(instance, this.processingHost(compiled), token, {
+                        artifact: compile.artifact, revision, snapshot: { ...snapshot, renderAttempt: revision.renderAttempt }, data,
+                        documents: this.httpDocumentBindings(instance, snapshot), nativeAttributes: snapshot.nativeAttributes,
+                        nativeSlices: snapshot.nativeSlices, nativeValueLimits: this.nativeValueLimits,
+                        scopeUid: this.currentScopeUid(instance, compiled), payloadStylesInstalled: true,
+                        previousRenderPlan: full ? null : this.processingRenderPlans.get(instance) ?? null,
+                    }) : { frames: diffRenderPlansToPatchFrames(full ? null : this.committedRenderPlans.get(instance) ?? null,
+                        domPlan as RenderPlan), diagnostics: [], hostAttributeUpdates: [], resourceControls: [], nextRenderPlan: undefined };
+                    if (!current()) throw new Error('superseded CSS/DOM render');
+                    this.recordDiagnostics(instance, result.diagnostics.filter(d => this.validateGeneratedIds
+                        || !d.code.startsWith('cem.render_plan.generated_')).map(d => runtimeSupportDiagnostic(d, compiled.producedTag)));
+                    const entries = registry.takeCommits();
+                    if (!entries && registry.sourceChanged()) throw sourceChanged;
+                    if (!entries) throw new Error('superseded registry preparation');
+                    const bounds = this.ensureRenderBounds(instance, this.ensureDataIsland(instance));
+                    if (this.restrictedPreview) validateLivePreviewFrames(result.frames);
+                    const patch = preparePatchFramesForRange(bounds, result.frames, revision, instance.ownerDocument,
+                        this.processingPatchOptions(instance, compiled));
+                    return { entries, registryConnection: registry, instanceStyles: styles, patch,
+                        publish: commit => this.publishElementPlacements(instance, token, 'elementPlacementUses' in result ? result.elementPlacementUses ?? [] : [], commit),
+                        signal: controller.signal, currentRevision: () => revision,
+                        onPublished: connection => {
+                            if (!connection || !current()) throw new Error('superseded runtime publication');
+                            this.stylesheetConnections.set(instance, connection);
+                            this.instanceStylesheets.set(instance, { key, reported: true,
+                                installation: { ready: Promise.resolve(instanceCss.diagnostics), dispose: () => styles.dispose() } });
+                            this.stylesheetReady.add(instance);
+                            if (result.nextRenderPlan) {
+                                this.publishSuggestionRows(instance, result as CemProcessingRenderDiffResult, token);
+                                this.processingRenderPlans.set(instance, result.nextRenderPlan);
+                            }
+                            if (domPlan) this.committedRenderPlans.set(instance, domPlan);
+                            resources = result.resourceControls;
+                            this.applyHostAttributeUpdates(instance, compiled, result.hostAttributeUpdates, token);
+                        },
+                    };
+                } catch (error) {
+                    registry.cancelPreparation(); styles.cancelPreparation();
+                    // Source churn invalidates this CSS snapshot, not the rendered
+                    // DOM. Recreate the pair only after a stable task, without
+                    // entering authoritative DOM recovery or busy native retries.
+                    if (error === sourceChanged && current()) {
+                        controller.signal.removeEventListener('abort', cancel);
+                        const stable = await stylesheetSources.whenSourcesStable(controller.signal);
+                        if (stable && current()) continue;
+                        throw new Error('superseded CSS/DOM render', { cause: error });
+                    }
+                    throw error;
+                } finally { controller.signal.removeEventListener('abort', cancel); }
+            }
         };
         try {
             let result = queue.recoveryRequired

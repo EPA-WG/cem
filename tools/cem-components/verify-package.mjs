@@ -30,6 +30,10 @@ if (
 ) {
     throw new Error('dist/catalog/cem.components.catalog.json must contain the public component catalog');
 }
+const catalogTags = componentCatalog.components.map(component => component.tag);
+if (new Set(catalogTags).size !== catalogTags.length || [...catalogTags].sort().join('\n') !== [...canonicalTags].sort().join('\n')) {
+    throw new Error('Public catalog must include every canonical XHTML component exactly once; source declarations and catalog tags differ');
+}
 
 const suggestions = componentCatalog.components.filter(component => component.tag === 'cem-suggestions');
 if (suggestions.length !== 1 || suggestions[0].id !== 'suggestions' || suggestions[0].category !== 'Input'
@@ -162,7 +166,7 @@ try {
     }
 
     console.log(
-        `cem-components package verified (${packedFiles.length} packed files, autocomplete, divider, expansion, progress-spinner, sort-header, paginator, slider, tooltip, timepicker, datepicker, tabs, stepper, and tree owners included, ` +
+        `cem-components package verified (${packedFiles.length} packed files, all ${canonicalTags.length} canonical declarations and property/gallery exports, ` +
             'public component catalog, one dist/styles.css, zero source/root copies).',
     );
 } finally {

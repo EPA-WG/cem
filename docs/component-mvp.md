@@ -65,12 +65,14 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
 | Content | `icon` | `cem-icon` | Decorative or labeled icon text primitive | action, palette, stroke, typography |
 | Layout | `stack` | `cem-stack` | Single-axis layout container | gap, responsive |
 | Layout | `grid` | `cem-grid` | Responsive grid layout container | gap, responsive |
-| Layout | `workspace` | `cem-workspace` | Retained navigation, editor, preview and tools regions | gap, inset, palette, stroke, bend, typography, responsive |
+| Layout | `accordion` | `cem-accordion` | Stacked independent disclosure sections sharing available height | palette, typography, stroke, coupling, control |
+| Layout | `workspace` | `cem-workspace` | Retained navigation, editor, preview and tools regions | gap, inset, palette, stroke, bend, typography, responsive, control, coupling |
 | Layout | `divider` | `cem-divider` | Semantic or decorative sibling-separation track | separator, stroke, gap, inset, coupling |
 | Content | `list` | `cem-list` | Ordered or unordered collection, including empty state | palette, content, stroke, gap, typography |
 | Content | `card` | `cem-card` | Summary container for profile, asset, and message content | palette, stroke, bend, gap, inset |
 | Content | `expansion` | `cem-expansion` | Independent general-purpose disclosure panel | action, palette, stroke, bend, gap, inset, coupling, control, typography |
-| Content | `table` | `cem-table` | Structured data comparison and asset grids | palette, stroke, gap, typography |
+| Content | `data-view` | `cem-data-view` | Bounded native typed-data table and structural projection | palette, stroke, gap, typography, control |
+| Content | `table` | `cem-table` | Structured data comparison and asset grids | palette, stroke, gap, typography, control |
 | Content | `sort-header` | `cem-sort-header` | Sortable column action with application-owned row ordering | action, control, stroke, bend, gap, coupling, typography |
 | Content | `chip` | `cem-chip` | Compact filter, token, or removable label | palette, content, action, stroke, bend, inset, typography |
 | Content | `badge` | `cem-badge` | Status, count, priority, and severity labels | palette, bend, inset, typography |
@@ -78,7 +80,7 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
 | Content | `media-preview` | `cem-media-preview` | Asset thumbnail, file, or object preview | palette, stroke, bend, gap, typography |
 | Content | `tree` | `cem-tree` | Generic expandable hierarchy with composite focus and application-owned selection/loading | palette, content, control, stroke, bend, gap, coupling, typography |
 | Content | `tree-item` | `cem-tree-item` | Inert recursive hierarchy payload consumed by `cem-tree` | typography |
-| Navigation | `app-bar` | `cem-app-bar` | Product title, global actions, and current context | palette, stroke, gap, inset, typography |
+| Navigation | `app-bar` | `cem-app-bar` | Product title, global actions, and current context | palette, stroke, gap, inset, typography, control, coupling |
 | Navigation | `dropdown` | `cem-dropdown` | Triggered popup for arbitrary content and nested menus | action, palette, stroke, control, bend, typography |
 | Navigation | `menu` | `cem-menu` | Persistent wrapping commands and links with optional nested composite menus | action, palette, stroke, gap, inset, typography |
 | Navigation | `nav` | `cem-nav` | Labeled navigation region and item list | palette, navigation, gap, inset, typography |

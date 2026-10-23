@@ -464,7 +464,7 @@ export async function mountCemStudioApplicationShell(options) {
     await view.whenSettled();
     return Object.freeze({
         root, theme, install, update, fileSystem, view, recovery,
-        setWorkspaceState(pageTitle, workspaceStatus) { view.update({ pageTitle, workspaceStatus }); },
+        setWorkspaceState(pageTitle, workspaceStatus, heading) { view.update({ pageTitle, workspaceStatus, heading }); },
         whenSettled: () => view.whenSettled(),
         dispose() {
             unsubscribeTheme(); unsubscribeRecovery(); recovery.dispose();
@@ -476,7 +476,7 @@ export async function mountCemStudioApplicationShell(options) {
 async function installComponents(runtime = new CemElementRuntime({ declarationTag: 'cem-studio-component-declaration' })) {
     const source = import.meta.resolve('@epa-wg/cem-components/components.xhtml');
     const registered = [], diagnostics = [];
-    for (const tag of ['cem-icon', 'cem-icon-button', 'cem-theme-switch', 'cem-dropdown', 'cem-menu', 'cem-menu-item', 'cem-workspace', 'cem-expansion', 'cem-stack', 'cem-grid', 'cem-text', 'cem-fieldset', 'cem-action', 'cem-alert', 'cem-app-bar', 'cem-badge', 'cem-card', 'cem-media-preview', 'cem-select', 'cem-dialog', 'cem-list', 'cem-tab', 'cem-table', 'cem-tree', 'cem-tabs', 'cem-text-field', 'cem-textarea', 'cem-source-editor', 'cem-recovery-status']) {
+    for (const tag of ['cem-icon', 'cem-icon-button', 'cem-theme-switch', 'cem-dropdown', 'cem-menu', 'cem-menu-item', 'cem-workspace', 'cem-accordion', 'cem-expansion', 'cem-stack', 'cem-grid', 'cem-text', 'cem-fieldset', 'cem-action', 'cem-alert', 'cem-app-bar', 'cem-badge', 'cem-card', 'cem-media-preview', 'cem-select', 'cem-dialog', 'cem-list', 'cem-tab', 'cem-table', 'cem-data-view', 'cem-tree', 'cem-tabs', 'cem-text-field', 'cem-textarea', 'cem-source-editor', 'cem-recovery-status']) {
         if (customElements.get(tag)) continue;
         const declaration = document.createElement(runtime.declarationTag);
         declaration.setAttribute('tag', tag);
@@ -498,6 +498,7 @@ async function installComponents(runtime = new CemElementRuntime({ declarationTa
         ['cem-studio-workbench-navigation', './workbench-navigation.xhtml#cem-studio-workbench-navigation'],
         ['cem-studio-workbench-controls', './workbench-controls.xhtml#cem-studio-workbench-controls'],
         ['cem-studio-workbench-command', './workbench-command.xhtml#cem-studio-workbench-command'],
+        ['cem-studio-workbench-center', './workbench-center.xhtml#cem-studio-workbench-center'],
         ['cem-studio-workbench-layout', './workbench-layout.xhtml#cem-studio-workbench-layout'],
         ['cem-studio-workbench-results', './workbench-results.xhtml#cem-studio-workbench-results'],
         ['cem-studio-workbench-preview', './workbench-preview.xhtml#cem-studio-workbench-preview'],

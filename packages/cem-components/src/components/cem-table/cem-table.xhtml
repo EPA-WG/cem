@@ -4,6 +4,8 @@
 :scope { display: block; }
 :scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
 [part~="root"] { font-family: var(--cem-typography-data-font-family); font-size: var(--cem-typography-data-font-size); font-weight: var(--cem-typography-data-font-weight); line-height: var(--cem-typography-data-line-height); letter-spacing: var(--cem-typography-data-letter-spacing); font-variant-numeric: var(--cem-typography-data-font-variant-numeric); min-inline-size: 0; }
+:scope:where([data-cem-density='super-compact']) > :where([part~='root']) { display: grid; row-gap: var(--cem-data-row-gap); }
+:scope:where([data-cem-density='super-compact']) > :where([part~='root']) > :where([role='row']) { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); align-items: baseline; column-gap: var(--cem-gap-related); min-block-size: var(--cem-data-row-height); box-sizing: border-box; overflow-wrap: anywhere; padding-block: var(--cem-data-row-padding-block); padding-inline: var(--cem-data-row-padding-inline); }
 ```}
 {attribute @name=label | Table}{div @class=cem-table @part=root @role=table @aria-label="{$label}" | {slot | {div @role=row | {span @role=cell | No rows}}}}
 </template>

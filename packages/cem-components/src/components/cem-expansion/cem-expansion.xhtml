@@ -10,6 +10,12 @@
     color: var(--cem-palette-comfort-text);
 }
 
+:scope[layout='panel'] > :where([part~="root"]) > :where([part~="heading"]) {
+    align-items: center;
+    display: flex;
+    min-inline-size: 0;
+}
+
 :scope > :where([part~="root"]) > :where([part~="heading"]) > :where([part~="header"]) {
     align-items: center;
     appearance: none;
@@ -73,6 +79,19 @@
     margin-block-start: var(--cem-gap-related);
     padding: var(--cem-inset-container);
 }
+:scope[indicator='start'] :where([part~="indicator"]) { order: -1; }
+:scope[layout='panel'] { display: flex; min-block-size: 0; min-inline-size: 0; }
+:scope[layout='panel'] > :where([part~="root"]) {
+    display: grid; flex: 1 1 auto; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto minmax(0, 1fr); min-block-size: 0; min-inline-size: 0;
+}
+:scope[layout='panel'] > :where([part~="root"]) > :where([part~="heading"]) { grid-area: 1 / 1; }
+:scope[layout='panel'] > :where([part~="root"]) > :where([part~="heading"]) > :where([part~="header"]) { flex: 1 1 auto; min-inline-size: 0; }
+:scope[layout='panel'] > :where([part~="root"]) > :where([part~="panel"]) {
+    grid-area: 2 / 1 / 3 / 3; margin: 0; padding: 0; min-block-size: 0; min-inline-size: 0; overflow: auto;
+}
+:scope > :where([part~="root"]) > :where([slot='header-actions']) {
+    align-items: center; display: inline-flex; grid-area: 1 / 2; gap: var(--cem-coupling-guard-min);
+}
 @media (forced-colors: active) {
 :scope > :where([part~="root"]),
 :scope > :where([part~="root"]) > :where([part~="heading"]) > :where([part~="header"]),
@@ -99,6 +118,6 @@
 }
 :scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
 ```}
-{attribute @name=label | Expansion}{div @class=cem-expansion @part=root | {div @class=cem-expansion__heading @part=heading @role=heading @aria-level="{$datadom.slices.headingLevel}" |  {button @id="{$datadom.slices.headingId}" @type=button @class=cem-expansion__header @part=header @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @aria-labelledby="{$datadom.slices.summaryId}" @aria-expanded={if seq:count(datadom.attributes.expanded) > 0 { true } else { false }} @aria-controls="{$datadom.slices.panelId}" |   {span @id="{$datadom.slices.summaryId}" @class=cem-expansion__summary @part=summary | {slot @name=summary | {$label}}}   {span @class=cem-expansion__indicator @part=indicator @aria-hidden=true | {cem:choose |    {cem:when @test="seq:count(datadom.attributes.expanded) > 0" | ▾}    {cem:otherwise | ▸}}}}} {div @id="{$datadom.slices.panelId}" @class=cem-expansion__panel @part=panel @role={if seq:count(datadom.attributes.region) > 0 { "region" } else { null }} @aria-labelledby="{$datadom.slices.headingId}" @hidden={if seq:count(datadom.attributes.expanded) > 0 { null } else { true }} | {slot}}}
+{attribute @name=label | Expansion}{div @class=cem-expansion @part=root | {div @class=cem-expansion__heading @part=heading @role=heading @aria-level="{$datadom.slices.headingLevel}" |  {button @id="{$datadom.slices.headingId}" @type=button @class=cem-expansion__header @part=header @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @aria-labelledby="{$datadom.slices.summaryId}" @aria-expanded={if seq:count(datadom.attributes.expanded) > 0 { true } else { false }} @aria-controls="{$datadom.slices.panelId}" |   {span @id="{$datadom.slices.summaryId}" @class=cem-expansion__summary @part=summary | {slot @name=summary | {$label}}}   {span @class=cem-expansion__indicator @part=indicator @aria-hidden=true | {cem:choose |    {cem:when @test="seq:count(datadom.attributes.expanded) > 0" | ▾}    {cem:otherwise | ▸}}}} } {slot @name=header-actions} {div @id="{$datadom.slices.panelId}" @class=cem-expansion__panel @part=panel @role={if seq:count(datadom.attributes.region) > 0 { "region" } else { null }} @aria-labelledby="{$datadom.slices.headingId}" @hidden={if seq:count(datadom.attributes.expanded) > 0 { null } else { true }} | {slot}}}
 </template>
 </cem-element>

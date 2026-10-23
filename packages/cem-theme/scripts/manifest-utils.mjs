@@ -26,6 +26,7 @@ export const COVERAGE_CATEGORIES = [
     { id: "d0-separation", label: "Separator color tokens (D0)", spec: "cem-colors" },
     { id: "d0-progress", label: "Progress indicator color tokens (D0)", spec: "cem-colors" },
     { id: "d0-slider", label: "Slider input color tokens (D0)", spec: "cem-colors" },
+    { id: "d0-resource", label: "Resource kind color tokens (D0)", spec: "cem-colors" },
     { id: "cem-dimension", label: "Dimension & rhythm (D1)", spec: "cem-dimension" },
     { id: "cem-breakpoints", label: "Breakpoints (D1x)", spec: "cem-breakpoints" },
     { id: "cem-coupling", label: "Coupling safety (D2)", spec: "cem-coupling" },
@@ -193,6 +194,7 @@ function deriveColorManifest(xhtml) {
     addTableCategory(xhtml, "cem-progress-indicator-colors", "d0-progress", tokens, warnings);
     addTableCategory(xhtml, "cem-workflow-step-colors", "d0-workflow", tokens, warnings);
     addTableCategory(xhtml, "cem-slider-colors", "d0-slider", tokens, warnings);
+    addTableCategory(xhtml, "cem-resource-kind-colors", "d0-resource", tokens, warnings);
 
     const intentRows = extractTable(xhtml, "cem-action-intent-emotion");
     const stateRows = extractTable(xhtml, "cem-action-state-color");

@@ -1,0 +1,19 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-accordion">
+  <template id="cem-accordion" type="text/cem-ml">
+{cem-element @tag=cem-expansion @src="../cem-expansion/cem-expansion.xhtml#cem-expansion"}
+{attribute @name=label | Sections}
+{attribute @name=fit | content}
+{style @type=text/css |```
+:scope { display: block; min-block-size: 0; min-inline-size: 0; }
+:scope[fit='fill'] { block-size: 100%; }
+:scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
+[part~='root'] { display: flex; flex-direction: column; min-block-size: 0; min-inline-size: 0; background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); font-family: var(--cem-typography-ui-font-family); font-size: var(--cem-typography-ui-font-size); line-height: var(--cem-typography-ui-line-height); }
+:scope:where([fit='fill']) > :where([part~='root']) { block-size: 100%; overflow: auto; }
+[part~='root'] > cem-expansion { flex: 0 0 auto; min-block-size: min-content; min-inline-size: 0; }
+:scope:where([fit='fill']) > :where([part~='root']) > cem-expansion[expanded] { flex: 1 1 0; min-block-size: max(var(--cem-coupling-zone-min), calc(1lh + var(--cem-control-padding-y) + var(--cem-control-padding-y))); }
+[part~='root'] > cem-expansion + cem-expansion { border-block-start: var(--cem-stroke-boundary) solid var(--cem-palette-comfort-text); }
+@media (forced-colors: active) { [part~='root'] { background-color: Canvas; color: CanvasText; } [part~='root'] > cem-expansion + cem-expansion { border-color: CanvasText; } }
+```}
+{div @part=root @role=group @aria-label={datadom.attributes.aria-label ?? label} | {slot}}
+  </template>
+</cem-element>

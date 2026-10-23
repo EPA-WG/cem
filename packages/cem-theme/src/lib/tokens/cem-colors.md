@@ -844,6 +844,25 @@ enabled/disabled, and thumb/tick distinctions.
 | `--cem-slider-disabled-thumb-color` | `<color>` | `var(--cem-action-contextual-disabled-text)` | `GrayText` | Globally disabled thumb | required |
 | `--cem-slider-tick-color` | `<color>` | `var(--cem-palette-comfort-text)` | `CanvasText` | Step tick graphics; position remains a redundant cue | required |
 
+### 7.15 Resource kind colors
+
+Projects, source files and generated outputs expose stable resource roles in
+trees and compact location headings. Use the same endpoint for a role in both
+places; this identity coloring is independent of selection, navigation-current,
+hover and disabled paint. Those interaction states keep their existing ink/fill
+pairs and take precedence. Resource icons and labels retain the distinction when
+colors collapse. These endpoints are reusable resource semantics, not a Studio
+palette. Explicit nested themes resolve them against their own palette; native
+and forced-color themes use system text and retain icon/label meaning.
+
+###### cem-resource-kind-colors
+
+| Token | value-type | default-formula | forced-colors | notes | tier |
+|---|---|---|---|---|---|
+| `--cem-resource-project-color` | `<color>` | `var(--cem-palette-creativity-x)` | `CanvasText` | Project identity in heading and navigation | required |
+| `--cem-resource-file-color` | `<color>` | `var(--cem-palette-trust-x)` | `CanvasText` | Editable source identity in heading and navigation | required |
+| `--cem-resource-output-color` | `<color>` | `var(--cem-palette-comfort-text)` | `CanvasText` | Generated artifact identity in heading and navigation | required |
+
 ## 8. Zebra outline colors
 
 ### 8.1 Outline-driven state mapping (zebra)
@@ -1213,6 +1232,7 @@ from these tables using the same logic as `cem-colors.html`.
 | `cem-input-indicator-colors`                           | `--cem-input-background-color` + `--cem-input-indicator-*` (10 tokens) | one token per row             |
 | `cem-progress-indicator-colors`                        | `--cem-progress-*` (2 tokens) | one token per row                   |
 | `cem-slider-colors`                                    | `--cem-slider-*` (8 tokens) | one token per row                     |
+| `cem-resource-kind-colors` | `--cem-resource-{project,file,output}-color` (3 tokens) | one token per row; native/forced-color column overrides |
 | `cem-select-state-colors`                              | `--cem-select-*` (12 tokens) | one token per row                    |
 | `cem-navigation-item-state-colors`                     | `--cem-navigation-item-*` (14 tokens) | one token per row             |
 | `cem-content-interaction-state-colors`                  | `--cem-content-interaction-*` (15 tokens) | one token per row          |

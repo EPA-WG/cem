@@ -24,7 +24,7 @@
 <template type="cem-ml; version=0.0"
           id="cem-dimension-template"
           data-token-url="../../../dist/lib/tokens/cem-dimension.xhtml"
-          data-slices="scale=cem-dim-scale gaps=cem-dim-gaps insets=cem-dim-insets rreading=cem-dim-rhythm-reading rdata=cem-dim-rhythm-data layout=cem-dim-layout overrides=cem-dim-spacing-overrides">
+          data-slices="scale=cem-dim-scale gaps=cem-dim-gaps insets=cem-dim-insets rreading=cem-dim-rhythm-reading rdata=cem-dim-rhythm-data layout=cem-dim-layout overrides=cem-dim-spacing-overrides density=cem-dim-density-overrides">
 {module @version="1.0.0" |
 {import @as=docs @src="./cem-token-docs.cemt"}
 {body |
@@ -90,6 +90,16 @@
   ```{$row.token}: {$row.sparse};}```
 }
 /* endregion spacing mode: sparse */
+
+/* Explicit desktop density; coarse and hybrid inputs retain the baseline. */
+@media (hover: hover) and (pointer: fine) and (not (any-pointer: coarse)) {
+  :root[data-cem-density="compact"], :where([data-cem-density="compact"]) {```{cem:for-each @select="$datadom.slices.density" @as="row" |```
+    ```{$row.token}: {$row.compact};}```
+  }
+  :root[data-cem-density="super-compact"], :where([data-cem-density="super-compact"]) {```{cem:for-each @select="$datadom.slices.density" @as="row" |```
+    ```{$row.token}: {$row.super_compact};}```
+  }
+}
 ```}}
 }
 }

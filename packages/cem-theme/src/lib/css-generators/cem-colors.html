@@ -35,7 +35,7 @@
 <template type="cem-ml; version=0.0"
           id="cem-colors-template"
           data-token-url="../../../dist/lib/tokens/cem-colors.xhtml"
-          data-slices="nativeaction=cem-action-native-overrides outline=cem-action-outline-colors contrast=cem-action-contrast-overrides pending=cem-pending-colors hue=cem-color-hue-variant native=cem-color-native shift=cem-palette-emotion-shift mode=cem-theme-mode intent=cem-action-intent-emotion state=cem-action-state-color input=cem-input-indicator-colors select=cem-select-state-colors navigation=cem-navigation-item-state-colors content=cem-content-interaction-state-colors separator=cem-separator-colors progress=cem-progress-indicator-colors workflow=cem-workflow-step-colors slider=cem-slider-colors zebra=cem-zebra-tokens zmap=cem-zebra-mode-mapping">
+          data-slices="nativeaction=cem-action-native-overrides outline=cem-action-outline-colors contrast=cem-action-contrast-overrides pending=cem-pending-colors hue=cem-color-hue-variant native=cem-color-native shift=cem-palette-emotion-shift mode=cem-theme-mode intent=cem-action-intent-emotion state=cem-action-state-color input=cem-input-indicator-colors select=cem-select-state-colors navigation=cem-navigation-item-state-colors content=cem-content-interaction-state-colors separator=cem-separator-colors progress=cem-progress-indicator-colors workflow=cem-workflow-step-colors slider=cem-slider-colors resource=cem-resource-kind-colors zebra=cem-zebra-tokens zmap=cem-zebra-mode-mapping">
 {table @id=cem-color-hue-variant @data-selected-token="" |
     {caption | {a @href="../../../dist/lib/tokens/cem-colors.xhtml#cem-color-hue-variant" | cem-color-hue-variant} Branded colors}
     {thead | {tr | {th | Token}{th | Hue}{th | Swatch}{th | Label}{th | Value}}}
@@ -263,6 +263,13 @@
         {tr | {th | {code | {$row.token}}}{td | {code | {$row.value_type}}}{td | {code | {$row.default_formula}}}{td | {code | {$row.forced_colors}}}{td | {$row.tier}}{td | {$row.notes}}}}}
 }
 {hr | }
+{table @id=cem-resource-kind-colors |
+    {caption | {a @href="../../../dist/lib/tokens/cem-colors.xhtml#cem-resource-kind-colors" | cem-resource-kind-colors} — project/source/output identity colors}
+    {thead | {tr | {th | Token}{th | Value type}{th | Formula}{th | Forced colors}{th | Tier}{th | Notes}}}
+    {tbody | {cem:for-each @select="$datadom.slices.resource" @as="row" |
+        {tr | {th | {code | {$row.token}}}{td | {code | {$row.value_type}}}{td | {code | {$row.default_formula}}}{td | {code | {$row.forced_colors}}}{td | {$row.tier}}{td | {$row.notes}}}}}
+}
+{hr | }
 {pre @class=language-css | {code @class=language-css @data-generated-css |```:root {
   /* region branded colors: cem-color-[hue]-[variant] */```{cem:for-each @select="$datadom.slices.hue" @as="row" |```
   ```{$row.token}: {$row.value};}```
@@ -309,6 +316,10 @@
   ```{$row.token}: {$row.default_formula};}```
   /* endregion slider input colors */
 
+  /* region resource kind colors */```{cem:for-each @select="$datadom.slices.resource" @as="row" |```
+  ```{$row.token}: {$row.default_formula};}```
+  /* endregion resource kind colors */
+
   /* region common for cem themes */
   [data-theme*="cem-theme-"], .cem-theme-native, .cem-theme-contrast-light, .cem-theme-contrast-dark, .cem-theme-light, .cem-theme-dark {
     /* Each explicit theme root resolves its own canonical emotion palette. */```{cem:for-each @select="$datadom.slices.shift" @as="emo" |```
@@ -341,6 +352,8 @@
     ```{$row.token}: {$row.default_formula};}```
     /* slider colors resolve against the active theme palette */```{cem:for-each @select="$datadom.slices.slider" @as="row" |```
     ```{$row.token}: {$row.default_formula};}```
+    /* resource kinds retain their identity at every explicit theme boundary */```{cem:for-each @select="$datadom.slices.resource" @as="row" |```
+    ```{$row.token}: {$row.default_formula};}```
     background-color: var(--cem-palette-comfort);
     color: var(--cem-palette-comfort-text);
   }
@@ -371,6 +384,8 @@
     ```{$row.token}: {$row.forced_colors};}```
     ```{cem:for-each @select="$datadom.slices.slider" @as="row" |```
     ```{$row.token}: {$row.forced_colors};}```
+    ```{cem:for-each @select="$datadom.slices.resource" @as="row" |```
+    ```{$row.token}: {$row.forced_colors};}```
   }
   /* endregion native */
 
@@ -389,6 +404,8 @@
       ```{cem:for-each @select="$datadom.slices.workflow" @as="row" |```
       ```{$row.token}: {$row.forced_colors};}```
       ```{cem:for-each @select="$datadom.slices.slider" @as="row" |```
+      ```{$row.token}: {$row.forced_colors};}```
+      ```{cem:for-each @select="$datadom.slices.resource" @as="row" |```
       ```{$row.token}: {$row.forced_colors};}```
     }
   }

@@ -44,15 +44,15 @@
         {
             "id": "responsive-workspace-layout",
             "surface": "Application shell",
-            "requirement": "A heading/theme bar, model-backed navigator, selected folder/file panel and status bar retain selection through URL history and semantic reflow.",
+            "requirement": "A compact heading/theme bar, three independently collapsible navigation sections, active project/source/output center, right output preview and status bar retain selection through URL history and semantic reflow.",
             "disposition": "application-orchestration",
             "compositionGate": "open",
-            "generalComponents": ["cem-workspace", "cem-grid", "cem-stack", "cem-surface"],
+            "generalComponents": ["cem-workspace", "cem-grid", "cem-stack", "cem-surface", "cem-accordion", "cem-expansion"],
             "studioComponents": [],
             "materialReferences": ["grid-list", "sidenav"],
-            "contractBounds": ["cem-workspace owns retained regions; layout=browser exposes navigation and content, with optional workbench preview/tools regions. cem-grid remains a generic layout.", "No drawer, backdrop, push mode, modal focus, or resizable-splitter behavior is claimed."],
+            "contractBounds": ["cem-workspace owns retained regions with layout=project and appearance=flush; cem-accordion allocates multiple open cem-expansion bodies without owning project routing.", "No drawer, backdrop, push mode, modal focus, or resizable-splitter behavior is claimed."],
             "applicationOwns": ["URL selection and history transport", "project, sample and resource datasets", "folder listing and guarded file admission"],
-            "evidence": ["docs/cem-studio.md#responsive-layout", "packages/cem-components/docs/angular-material-parity.md"]
+            "evidence": ["docs/cem-studio.md#responsive-layout", "packages/cem-components/docs/angular-material-parity.md", "packages/cem-components/docs/accordion-contract.md"]
         },
         {
             "id": "compact-pane-navigation",
@@ -203,12 +203,12 @@
             "requirement": "Bounded tree/table inspection, paging, sorting, raw-source fallback, and click-to-source behavior for structured output.",
             "disposition": "studio-export",
             "compositionGate": "open",
-            "generalComponents": ["cem-tree", "cem-tree-item", "cem-table", "cem-sort-header", "cem-paginator", "cem-alert", "cem-action"],
+            "generalComponents": ["cem-tree", "cem-tree-item", "cem-table", "cem-sort-header", "cem-paginator", "cem-alert", "cem-action", "cem-data-view"],
             "studioComponents": ["cem-studio-data-inspector"],
             "materialReferences": ["tree", "table", "sort", "paginator", "button"],
-            "contractBounds": ["The composite owns bounded projection/navigation vocabulary; tree hierarchy, passive table semantics, sort requests, paginator requests, and actions remain general component behavior. Studio owns data loading and row ordering."],
+            "contractBounds": ["The composite owns bounded projection/navigation vocabulary; tree hierarchy, passive table semantics, sort requests, paginator requests, and actions remain general component behavior. Studio owns data loading and row ordering.", "cem-data-view owns bounded native JSON/CSV projection as a read-only table/structure; Studio never parses its AST or renders its cells in JavaScript."],
             "applicationOwns": ["artifact projection", "paging data", "sort application", "source navigation"],
-            "evidence": ["docs/cem-studio.md#preview-rules", "packages/cem-components/docs/tree-contract.md", "packages/cem-components/docs/paginator-contract.md"]
+            "evidence": ["docs/cem-studio.md#preview-rules", "packages/cem-components/docs/tree-contract.md", "packages/cem-components/docs/paginator-contract.md", "packages/cem-components/docs/data-view-contract.md"]
         },
         {
             "id": "diagnostics-panel",

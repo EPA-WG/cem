@@ -68,7 +68,7 @@ const PRESENTATION_PROTOCOLS = {
         ],
     },
     "cem-controls": {
-        generatorOnly: ["cem-controls-size-profiles"],
+        generatorOnly: ["cem-controls-size-profiles", "cem-controls-density-overrides"],
         tables: [
             {
                 id: "cem-controls-geometry",
@@ -104,7 +104,7 @@ const PRESENTATION_PROTOCOLS = {
         ],
     },
     "cem-coupling": {
-        generatorOnly: [],
+        generatorOnly: ["cem-coupling-density-overrides"],
         tables: [
             {
                 id: "cem-coupling-minimums",
@@ -124,7 +124,7 @@ const PRESENTATION_PROTOCOLS = {
         ],
     },
     "cem-dimension": {
-        generatorOnly: ["cem-dim-rhythm-reading", "cem-dim-rhythm-data"],
+        generatorOnly: ["cem-dim-rhythm-reading", "cem-dim-rhythm-data", "cem-dim-density-overrides"],
         tables: [
             {
                 id: "cem-dim-scale",
@@ -236,7 +236,7 @@ const PRESENTATION_PROTOCOLS = {
         ],
     },
     "cem-stroke": {
-        generatorOnly: ["cem-stroke-action-outline"],
+        generatorOnly: ["cem-stroke-action-outline", "cem-stroke-density-overrides"],
         tables: [
             {
                 id: "cem-stroke-basis",
@@ -701,6 +701,7 @@ async function runColorGeneratorProtocolChecks(page) {
             ["cem-progress-indicator-colors", [0, 1, 2, 3, 5, 4], ["Token", "Value type", "Formula", "Forced colors", "Tier", "Notes"]],
             ["cem-workflow-step-colors", [0, 1, 2, 3, 5, 4], ["Token", "Value type", "Formula", "Forced colors", "Tier", "Notes"]],
             ["cem-slider-colors", [0, 1, 2, 3, 5, 4], ["Token", "Value type", "Formula", "Forced colors", "Tier", "Notes"]],
+            ["cem-resource-kind-colors", [0, 1, 2, 3, 5, 4], ["Token", "Value type", "Formula", "Forced colors", "Tier", "Notes"]],
         ];
         simpleGroups.forEach(([id, projection, headers]) => {
             const table = renderedTable(id);
@@ -1384,10 +1385,16 @@ function parseMs(value) {
 
 async function runCrossSpecChecks(combinedCss) {
     const rootDecls = new Map();
-    const declRe = /(--cem-[a-z][a-z0-9-]*)\s*:\s*([^;]+);/g;
-    let match;
-    while ((match = declRe.exec(combinedCss)) !== null) {
-        rootDecls.set(match[1], match[2].trim());
+    const { parse } = await import("postcss");
+    // Baseline invariants must read unconditional root declarations. A later
+    // opt-in profile or media override is not the default coupling contract.
+    for (const rule of parse(combinedCss).nodes) {
+        if (rule.type !== "rule" || !rule.selectors.includes(":root")) continue;
+        for (const declaration of rule.nodes) {
+            if (declaration.type === "decl" && declaration.prop.startsWith("--cem-")) {
+                rootDecls.set(declaration.prop, declaration.value.trim());
+            }
+        }
     }
 
     function resolveValue(token, seen = new Set()) {

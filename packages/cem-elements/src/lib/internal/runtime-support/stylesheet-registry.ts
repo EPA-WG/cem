@@ -38,6 +38,8 @@ export interface CemStylesheetConnection {
 
 export interface CemPreparedStylesheetConnection {
     readonly element: HTMLElement;
+    /** Historical proof that this snapshot was invalidated by source registration/removal/rebind. */
+    sourceChanged(): boolean;
     /** Validate the exact transferred group before publication. */
     check(entries: readonly DeclarationStylesheetCommit[]): boolean;
     isPublished(): boolean;
@@ -77,6 +79,36 @@ export class CemStylesheetRegistry {
     private disposed = false;
     private sourceRevision = 0;
     private readonly preparations = new Map<HTMLElement, CemPreparedStylesheetConnection>();
+    private readonly stabilityWaiters = new Set<() => void>();
+
+    /** Yield until one task observes the same source revision. One timer per
+     * waiting owner; abort/disposal releases it without starting native work. */
+    whenSourcesStable(signal: AbortSignal): Promise<boolean> {
+        if (this.disposed || signal.aborted) return Promise.resolve(false);
+        return new Promise(resolve => {
+            let revision = this.sourceRevision;
+            let timer: ReturnType<typeof setTimeout> | undefined;
+            let finished = false;
+            const finish = (stable: boolean) => {
+                if (finished) return;
+                finished = true;
+                if (timer !== undefined) clearTimeout(timer);
+                signal.removeEventListener('abort', cancel);
+                this.stabilityWaiters.delete(cancel);
+                resolve(stable);
+            };
+            const cancel = () => finish(false);
+            const check = () => {
+                if (this.disposed || signal.aborted) { finish(false); return; }
+                if (revision === this.sourceRevision) { finish(true); return; }
+                revision = this.sourceRevision;
+                timer = setTimeout(check, 0);
+            };
+            signal.addEventListener('abort', cancel, { once: true });
+            this.stabilityWaiters.add(cancel);
+            timer = setTimeout(check, 0);
+        });
+    }
 
     /** Snapshot matching sources while retaining the live connection until activation. */
     prepareReplacement(input: CemStylesheetConsumer): CemPreparedStylesheetConnection {
@@ -113,6 +145,7 @@ export class CemStylesheetRegistry {
                     && this.current.get(options.element)?.generation === predecessor);
         const handle: CemPreparedStylesheetConnection = {
             element: options.element,
+            sourceChanged: () => sourceRevision !== this.sourceRevision,
             check: candidates => !activated && current() && taken && entries === candidates,
             isPublished: () => !!activated && current(),
             cancelPreparation: () => { if (!activated) release(); },
@@ -282,6 +315,7 @@ export class CemStylesheetRegistry {
 
     async dispose(): Promise<void> {
         this.disposed = true;
+        for (const cancel of this.stabilityWaiters) cancel();
         this.cancelPreparations();
         this.observer?.disconnect();
         for (const connection of this.connections) this.removeConnection(connection);

@@ -247,6 +247,10 @@ derived from surface text at reduced salience, D5 supplies the hairline, D1 supp
 and D2 floors the complete line-plus-margins track at the coupling guard. Horizontal, vertical, inset, and decorative
 forms remain non-focusable and event-neutral; forced colors restore the line to `CanvasText`.
 
+`cem-accordion` groups independent disclosure panels and can share the available height among multiple open sections. It preserves panel DOM owners while each `cem-expansion` owns disclosure and focus. See the [accordion contract](docs/accordion-contract.md), [property playground](playgrounds/cem-accordion.html) and [gallery](playgrounds/cem-accordion-gallery.html).
+
+`cem-data-view` presents bounded native typed data in a canonical native HTML table, retaining structural output for unsupported shapes. It complements the passive [cem-table projection contract](docs/disclosure-data-contract.md) with caption and scoped native column headers. It shares the native import boundary and never parses JSON/CSV in JavaScript. See its [property playground](playgrounds/cem-data-view.html) and [gallery](playgrounds/cem-data-view-gallery.html).
+
 `cem-expansion` owns one independent disclosure panel rather than reusing navigation-specific `cem-nav`. Its native
 header button is the sole hover/focus/active/disabled owner, the live `expanded` host attribute controls a persistent
 ARIA-linked panel, and the default slot remains instantiated while collapsed. Contextual action and existing
@@ -571,6 +575,12 @@ Use `yarn nx run @epa-wg/cem-components:verify-playgrounds --args=--icons-only`
 for the icon and icon-button property playgrounds, their full galleries, and
 the release bundle in both locations. This focused mode reuses the full gate's
 checks; failures in unrelated component galleries remain part of the full gate.
+Use `yarn nx run @epa-wg/cem-components:verify-playgrounds --args=--compact-studio-only`
+for accordion and native data-view property interactions, the nine affected
+component galleries, and the release bundle in both source and isolated npm
+archives. The complete gate also runs the new property checks; requested
+gallery tags must exist, and the package catalog must contain every canonical
+declaration exactly once.
 
 ## Select property playground
 

@@ -5,26 +5,36 @@
  {body |
  {style @type=text/css |```
 :scope { display: block; min-inline-size: 0; }
-[part~='listing'] { display: grid; gap: var(--cem-gap-related); margin: 0; padding: 0; list-style: none; }
-[part~='entry'] { display: grid; gap: var(--cem-gap-related); padding: var(--cem-inset-container); border-block-end: var(--cem-stroke-boundary) solid currentColor; overflow-wrap: anywhere; }
+[part~='listing'] { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+[part~='entry'] { display: grid; gap: var(--cem-gap-related); padding-block: var(--cem-control-padding-y); padding-inline: var(--cem-control-padding-x); border-block-end: var(--cem-stroke-boundary) solid currentColor; overflow-wrap: anywhere; }
 ```}
  {cem:if @test=datadom.slices.navigation |
   {cem:variable @name=nav @select=datadom.slices.navigation}
   {cem:if @test='nav.error &amp;&amp; !nav.action' | {cem-alert @tone=danger @label={nav.error.message}}}
-  {cem:if @test='nav.content == "folder"' |
+  {cem:if @test='nav.content == "folder" || nav.content == "output-folder"' |
    {p | {$ | nav.selected.description}}
    {ul @part=listing @aria-label="Folder contents" |
     {cem:for-each @as=item @select=nav.children |
      {li @part=entry |
-      {cem-icon-button @image={if item.icon == "file" { "▤" } else { if item.icon == "configuration" { "▷" } else { if item.icon == "project" { "◇" } else { "▱" } } }} @label={item.name} @align=start @variant=navigation @value={item.key} @host-command=open-entity @host-command-event=click}
+      {cem-icon-button @image={if item.icon == "file" || item.icon == "output-file" { "▤" } else { if item.icon == "configuration" { "▷" } else { if item.icon == "project" { "◇" } else { "▱" } } }} @label={item.name} @align=start @variant=navigation @value={item.key} @host-command=open-entity @host-command-event=click}
       {span | {$ | item.description}}
      }
     }
    }
    {cem:if @test='seq:count(nav.children.key) == 0' | {p | This folder is empty.}}
   }
-  {cem:if @test='nav.content == "sample-file"' |
-   {cem-source-editor @content-type={nav.contentType} @source-id={nav.sourceId} @label={nav.path ?? nav.selected.name} @value={nav.sampleText} @readonly=true}
+  {cem:if @test='nav.content == "sample-file" || nav.content == "output-file"' |
+   {cem:if @test='nav.content == "output-file"' |
+    {p @role=status | Generated output · read only}
+    {cem:if @test=nav.outputTruncated | {cem-alert @tone=warning @label="Text preview is truncated. Download the artifact for its complete bytes."}}
+    {cem-action @variant=contextual @host-command=download-preview @disabled={if nav.outputAvailable { null } else { true }} | Download artifact}
+   }
+   {cem:choose |
+    {cem:when @test='nav.content == "output-file" &amp;&amp; !nav.outputTextAvailable' |
+     {cem-alert @tone=info @label={nav.outputReason ?? "Text preview is unavailable. Download the exact artifact bytes."}}
+    }
+    {cem:otherwise | {cem-source-editor @content-type={nav.contentType} @source-id={nav.sourceId} @label={nav.path ?? nav.selected.name} @value={nav.sampleText} @readonly=true}}
+   }
   }
   {cem:if @test=nav.action |
    {cem-dialog @label={str:concat((nav.action.kind, " · ", nav.action.targetName), "")} @mode=modal @default-open=true @closedby=closerequest @host-command=cancel-action @host-command-event=cem-close |

@@ -294,10 +294,11 @@ describe('CEM Studio Feature Tour workbench', () => {
             expect(preview().projection.outputs.filter(output => output.contentType.startsWith('text/html')).every(output => output.text.includes('Shared layout edited.'))).toBe(true);
             expect(preview().projection.buildRun.artifacts.every(item => item.uri.startsWith(`studio://${copyId}/`)), JSON.stringify(preview().projection.buildRun.artifacts.map(item => item.uri))).toBe(true);
             root.querySelector('cem-expansion[label="Pinned builds"] [part="header"]').click(); await view.whenSettled();
-            const toolbar = root.querySelector('cem-studio-workbench-preview [part="build-controls"]');
-            const previewRegion = root.querySelector('cem-studio-workbench-preview [part="preview"]');
+            const toolbar = root.querySelector('cem-studio-workbench-preview[section=build] [part="build-controls"]');
+            const previewRegion = root.querySelector('cem-studio-workbench-preview[section=preview] [part="preview"]');
             expect(getComputedStyle(toolbar).overflowY).toBe('auto');
-            expect(previewRegion.getBoundingClientRect().top).toBeGreaterThanOrEqual(toolbar.getBoundingClientRect().bottom);
+            expect(toolbar.closest('cem-studio-workbench-preview').getAttribute('section')).toBe('build');
+            expect(previewRegion.closest('cem-studio-workbench-preview').getAttribute('section')).toBe('preview');
             const pinButton = [...root.querySelectorAll('cem-action')].find(action => action.textContent.trim() === 'Pin successful build');
             pinButton.querySelector('button').click(); await view.whenSettled();
             expect(preview().pinError).toBeUndefined(); expect(preview().pins).toHaveLength(1);
@@ -305,7 +306,14 @@ describe('CEM Studio Feature Tour workbench', () => {
             const pinnedBytes = preview().projection.outputs.map(item => new Uint8Array(item.bytes));
             workbench.updateDraft(original.replaceAll('Build a small site', 'Only this copy'));
             await workbench.saveSource(); await view.whenSettled(); await build();
-            const current = preview().projection, selectedFile = workbench.snapshot().navigation.selection.file;
+            const current = preview().projection, currentResourceSet = preview().preview.resourceSet, selectedFile = workbench.snapshot().navigation.selection.file;
+            const expectCurrentPreview = () => {
+                expect(preview().projection.buildRun).toBe(current.buildRun);
+                expect(preview().projection.outputs).toBe(current.outputs);
+                expect(preview().preview.resourceSet).toBe(currentResourceSet);
+                expect(preview().selectedArtifact.path).toBe('generated/articles/first-build.html');
+                expect(preview().preview.artifactPath).toBe('generated/articles/first-build.html');
+            };
             workbench.updateDraft(workbench.snapshot().draft + '\nUnsaved draft retained.'); await view.whenSettled();
             const draft = workbench.snapshot().draft;
             const pinSelect = root.querySelector('cem-select[label="Preview build"]');
@@ -328,9 +336,12 @@ describe('CEM Studio Feature Tour workbench', () => {
             expect(root.querySelector('[aria-label="Current native provenance"]').textContent).toContain('/layouts/partials/chrome.cemt');
             expect(root.querySelector('cem-expansion[label="Compare pin with current build"]').textContent).toContain(comparedArticle.before.sha256);
             expect(root.querySelector('cem-expansion[label="Compare pin with current build"]').textContent).toContain(comparedArticle.after.sha256);
+            const selectedPreviewPath = preview().artifactPath;
+            expect(selectedPreviewPath).toBe('generated/articles/first-build.html');
+            expect(preview().projection.buildRun.configuration.entryArtifact).toBe('generated/index.html');
             selectValue(root, '[label="Compare artifact"]', 'generated/images/harbor.svg'); await view.whenSettled();
             expect(root.querySelector('cem-select[label="Compare artifact"]').value).toBe('generated/images/harbor.svg');
-            expect(preview().comparison).toBe(comparison); expect(preview().artifactPath).toBe('generated/index.html');
+            expect(preview().comparison).toBe(comparison); expect(preview().artifactPath).toBe(selectedPreviewPath);
             selectValue(root, '[label="Compare artifact"]', comparedArticle.path); await view.whenSettled();
 
             expect(preview().projection.outputs.map(item => new Uint8Array(item.bytes))).toEqual(pinnedBytes);
@@ -368,11 +379,11 @@ describe('CEM Studio Feature Tour workbench', () => {
             expect(delayed.snapshot().pinId).toBeUndefined(); expect(delayed.snapshot().projection).toBeUndefined();
             const lateCopy = deferred(), copying = workbench.copyPreview(() => lateCopy.promise);
             await workbench.selectPinnedBuild(''); lateCopy.resolve(); await copying; await view.whenSettled();
-            expect(preview().projection).toBe(current); expect(preview().comparison).toBeUndefined(); expect(workbench.snapshot().draft).toBe(draft);
+            expectCurrentPreview(); expect(preview().comparison).toBeUndefined(); expect(workbench.snapshot().draft).toBe(draft);
             await workbench.selectPinnedBuild(pinId); await view.whenSettled();
             const deleteButton = [...root.querySelectorAll('cem-action')].find(action => action.textContent.trim() === 'Delete pinned build');
             deleteButton.querySelector('button').click(); await view.whenSettled();
-            expect(preview().pinId).toBeUndefined(); expect(preview().projection).toBe(current); expect(preview().pins).toHaveLength(0);
+            expect(preview().pinId).toBeUndefined(); expectCurrentPreview(); expect(preview().pins).toHaveLength(0);
             expect(workbench.snapshot().draft).toBe(draft); expect(workbench.snapshot().navigation.selection.file).toBe(selectedFile);
             // An unreadable pin remains selected for deletion while the current view stays intact.
             await workbench.pinProjectBuild(); const damagedId = preview().pins[0].key;
@@ -385,12 +396,12 @@ describe('CEM Studio Feature Tour workbench', () => {
             await workbench.selectPinnedBuild(damagedId); await view.whenSettled();
             expect(preview().comparison).toBeUndefined();
             expect(preview().pinError.message).toContain('SHA-256'); expect(preview().pinSelection).toBe(damagedId);
-            expect(preview().pinId).toBeUndefined(); expect(preview().projection).toBe(current);
+            expect(preview().pinId).toBeUndefined(); expectCurrentPreview();
             const damagedDelete = [...root.querySelectorAll('cem-action')].find(action => action.textContent.trim() === 'Delete pinned build');
             expect(damagedDelete.querySelector('button').disabled).toBe(false);
             damagedDelete.querySelector('button').click(); await view.whenSettled();
             expect(preview().pins).toHaveLength(0); expect(preview().pinSelection).toBeUndefined();
-            expect(preview().projection).toBe(current); expect(workbench.snapshot().draft).toBe(draft);
+            expectCurrentPreview(); expect(workbench.snapshot().draft).toBe(draft);
             const unchanged = (await repository.query(request('export-project', { projectId }))).value;
             expect(new TextDecoder().decode(unchanged.contents[articleId])).toBe(original);
             expect(bundle.contents[articleId]).toEqual(new Uint8Array(unchanged.contents[articleId]));
@@ -557,7 +568,7 @@ describe('CEM Studio Feature Tour workbench', () => {
         const validator = validatorFor(validResult());
         const session = createCemStudioProjectSession({ openWorkbench: selection => createCemStudioProjectWorkbench({ repository, validator, selection }) }); workbenches.push(session);
         const base = await createCemStudioSessionWorkbench({ repository, session });
-        const browser = new EventTarget(); browser.location = new URL('https://studio.test/?project=feature-tour&file=source');
+        const browser = new EventTarget(); browser.location = new URL('https://studio.test/?project=feature-tour&file=source&artifact=index.html');
         browser.history = { pushState: vi.fn((_, __, url) => { browser.location = new URL(url); }), replaceState: vi.fn((_, __, url) => { browser.location = new URL(url); }) };
         let runs = 0, fail = false;
         const workbench = await createCemStudioNavigation({ repository, workbench: base, browser, openBuildWorkbench: async () => {
@@ -622,7 +633,7 @@ describe('CEM Studio Feature Tour workbench', () => {
             let copied;
             const view = await mountCemStudioFeatureTourWorkbench({ root, workbench, clipboard: { writeText: async text => { copied = text; } } }); views.push(view);
             expect(workbench.snapshot().projectPreview.configurationId).toBe('html-v1:source');
-            root.querySelector('[host-command="build-project"] button').click(); await view.whenSettled();
+            await workbench.buildProjectPreview(); await view.whenSettled();
             expect(workbench.snapshot().projectPreview.projection.output.text).toContain('<main>Saved document</main>');
             expect(root.querySelector('[part~=region][part~=preview] iframe').srcdoc).toContain('Saved document');
             root.querySelector('[host-command="copy-preview"] button').click(); await view.whenSettled();
@@ -655,19 +666,22 @@ describe('CEM Studio Feature Tour workbench', () => {
             const root = document.createElement('main'); document.body.append(root);
             const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
             const pane = root.querySelector('[part~="preview"][part~="region"]');
-            const build = async () => { pane.querySelector('[host-command="build-project"] button').click(); await view.whenSettled(); };
+            const build = async () => { await workbench.buildProjectPreview(); await view.whenSettled(); };
             const preview = () => workbench.snapshot().projectPreview;
-            expect(preview()).toMatchObject({ configurationId: 'availability', artifactPath: 'generated/availability.json' });
-            expect(pane.textContent).toContain('Build a project configuration to preview its output.');
+            expect(preview()).toMatchObject({ configurationId: 'availability', previewContext: 'none' });
+            expect(pane.textContent).toContain('Select a generated output or a source resource to preview.');
             expect(root.querySelector('[aria-label="Folder contents"]').textContent).toContain('view.cemt');
             const projectCount = (await repository.query(request('list-projects', {}))).value.length;
             await build();
             expect(preview().projection.output.contentType).toBe('application/json');
             expect(JSON.parse(preview().projection.output.text)[0].quantity).toBe(7);
-            const first = preview().projection, output = pane.querySelector('cem-media-preview pre');
+            const first = preview().projection;
+            expect(preview().preview).toBeUndefined(); // A source directory has no unrelated right preview.
             await workbench.openEntity('sample=supplier&file=supplier-view'); await view.whenSettled();
-            expect(preview().projection).toBe(first); expect(pane.querySelector('cem-media-preview pre')).toBe(output);
-            expect(new URL(browser.location).searchParams.get('artifact')).toBe('generated/availability.json');
+            expect(preview().projection.buildRun).toBe(first.buildRun);
+            expect(preview().projection.outputs).toBe(first.outputs);
+            expect(preview().selectedArtifact.provenance.some(frame => frame.uri.endsWith('/templates/view.cemt'))).toBe(true);
+            expect(new URL(browser.location).searchParams.get('artifact')).toBe('generated/availability.html');
             expect((await repository.query(request('list-projects', {}))).value).toHaveLength(projectCount);
             await workbench.openEntity(`project=${bundle.project.id}&file=supplier-stock`); await view.whenSettled();
             selectValue(root, '[label="Build configuration"]', 'availability'); await view.whenSettled();
@@ -690,19 +704,19 @@ describe('CEM Studio Feature Tour workbench', () => {
             expect(preview().attempt.status).toBe('failed');
             expect(preview().projection.buildRun).toBe(successful.buildRun);
             expect(JSON.parse(preview().projection.output.text)[0].quantity).toBe(0);
-            expect(pane.textContent).toContain('Showing the last successful run');
-            expect(pane.querySelector('[aria-label="Build diagnostics"]').textContent).toContain('invalid data number');
+            expect(pane.textContent).toContain('Showing output from the last successful saved build');
+            expect(root.querySelector('cem-studio-workbench-preview[section=build] [aria-label="Build diagnostics"]').textContent).toContain('invalid data number');
             workbench.updateDraft(original); await workbench.saveSource(); await view.whenSettled(); await build();
             expect(JSON.parse(preview().projection.output.text)[0].quantity).toBe(7);
             await workbench.openEntity(`project=${bundle.project.id}&folder=templates%2F`); await view.whenSettled();
             expect(root.querySelector('[aria-label="Folder contents"]').textContent).toContain('view.cemt');
             expect(preview().projection.output.contentType).toBe('application/json');
-            browser.location = new URL(`https://studio.test/?project=${bundle.project.id}&folder=templates%2F&build=availability&artifact=missing.html`);
+            browser.location = new URL(`https://studio.test/?project=${bundle.project.id}&file=supplier-stock&build=availability&artifact=missing.html`);
             browser.dispatchEvent(new Event('popstate'));
             await vi.waitFor(() => expect(preview().missingArtifact).toBe(true)); await view.whenSettled();
             expect(pane.querySelector('cem-media-preview')).toBeNull();
             expect(pane.textContent).toContain('requested artifact is unavailable');
-            expect(workbench.snapshot().navigation.selection.folder).toBe('templates/');
+            expect(workbench.snapshot().navigation.selection.file).toBe('supplier-stock');
         } finally { await validator.close(); }
     }, 60_000);
 
@@ -748,10 +762,16 @@ describe('CEM Studio Feature Tour workbench', () => {
             openBuildWorkbench: async () => ({ snapshot: () => ({}), runPersistedOperation: run, dispose }) }); workbenches.push(workbench);
         const root = document.createElement('main'); document.body.append(root);
         const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
+        await workbench.openEntity('project=feature-tour'); await view.whenSettled();
         root.querySelector('[host-command="build-project"] button').click();
         await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(1));
         await vi.waitFor(() => expect(root.querySelector('[host-command="cancel-build"] button').disabled).toBe(false));
-        expect(root.querySelector('[data-cem-studio-editor] [role="textbox"]')).not.toBeNull();
+        root.querySelector('cem-tree[label="Project files"] [data-tree-value="project=feature-tour&file=source"] [part~=label]').click();
+        await vi.waitFor(() => expect(workbench.snapshot().navigation.content).toBe('file'));
+        await vi.waitFor(() => expect(root.querySelector('section[aria-label="Selected file"]').hidden).toBe(false));
+        await vi.waitFor(() => expect(root.querySelector('[data-cem-studio-editor] [role="textbox"]')).not.toBeNull());
+        root.querySelector('cem-tree[label="Project files"] [data-tree-value="project=feature-tour"] [part~=label]').click();
+        await vi.waitFor(() => expect(root.querySelector('section[aria-label="Project build"]').hidden).toBe(false));
         root.querySelector('[host-command="cancel-build"] button').click(); await view.whenSettled();
         expect(workbench.snapshot().projectPreview).toMatchObject({ busy: false, attempt: { status: 'cancelled' }, projection: undefined });
         expect(root.querySelector('[host-command="build-project"] button').disabled).toBe(false);
@@ -2513,7 +2533,7 @@ describe('Project-owned workbench loading', () => {
 
     it('models default samples, project folders and read-only sample files without creating saved projects', async () => {
         const { repository, workbench, browser, examples } = await navigatorFixture();
-        expect(workbench.snapshot().navigation).toMatchObject({ title: 'Samples - CEM Studio', selection: { key: 'samples' }, count: 1, countKind: 'folder', content: 'folder' });
+        expect(workbench.snapshot().navigation).toMatchObject({ title: 'Examples - CEM Studio', selection: { key: 'samples' }, count: 1, countKind: 'folder', content: 'folder' });
         expect(workbench.snapshot().navigation.children[0]).toMatchObject({ name: 'Amsterdam', description: 'Presentation examples', icon: 'folder' });
         const before = (await repository.query(request('list-projects', {}))).value;
         await workbench.openEntity('collection=amsterdam');
@@ -2577,12 +2597,13 @@ describe('Project-owned workbench loading', () => {
         expect(root.querySelector('[aria-label="Folder contents"]').textContent).toContain('Login');
         await userEvent.click(treeNode('Login')); await view.whenSettled();
         expect(workbench.snapshot().navigation.selection.sample).toBe('login');
-        const filesTree = root.querySelector('cem-tree:last-of-type');
+        const filesTree = root.querySelector('cem-tree[label="Project files"]');
         const assertFileTreeLabels = item => {
-            const label = item.kind === 'folder' || item.kind === 'project' ? `📁 ${item.name}` : item.name;
+            const label = item.name;
             const rendered = [...filesTree.querySelectorAll('[role=treeitem]')].find(element => element.getAttribute('data-tree-value') === item.key);
             expect(rendered.getAttribute('aria-label')).toBe(label);
             expect(rendered.querySelector('[part~=label]').textContent).toBe(label);
+            expect(rendered.querySelector('[part~=icon]').textContent).toBe(item.kind === 'folder' || item.kind === 'project' ? '📁' : item.kind === 'configuration' ? '▷' : '▤');
             item.children.forEach(assertFileTreeLabels);
         };
         assertFileTreeLabels(workbench.snapshot().navigation.files);
@@ -2612,7 +2633,7 @@ describe('Project-owned workbench loading', () => {
         root.querySelector('[host-command="delete-selected"] button').click(); await view.whenSettled();
         expect(root.querySelector('dialog[open] h2').textContent).toBe('delete · new.cem');
         await submit();
-        expect(workbench.snapshot().navigation.content).toBe('folder');
+        expect(workbench.snapshot().navigation.content).toBe('project');
         expect(workbench.snapshot().navigationError).toBeUndefined();
         expect((await repository.query(request('get-project', { projectId: id }))).value.resources.some(item => item.id === resourceId)).toBe(false);
         expect((await repository.query(request('get-project', { projectId: 'alpha' }))).value.resources).toHaveLength(3);
@@ -2780,7 +2801,7 @@ describe('Project-owned workbench loading', () => {
         await workbench.openEntity('project=project+with+spaces&file=source');
         const root = document.createElement('main'); document.body.append(root);
         const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view);
-        const tree = root.querySelector('cem-tree[label="project with spaces"]');
+        const tree = root.querySelector('cem-tree[label="Project files"]');
         const node = key => [...tree.querySelectorAll('[role=treeitem]')].find(item => item.dataset.treeValue === key);
         const current = 'project=project+with+spaces&file=source';
         const target = 'project=project+with+spaces&file=extra';

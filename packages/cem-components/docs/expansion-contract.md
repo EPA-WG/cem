@@ -108,3 +108,23 @@ The canonical owner is `src/components/cem-expansion/cem-expansion.xhtml`;
 all component assertions live in its colocated `.stories.ts` plays. See the
 [declarative migration and CEM principle audit](disclosure-data-contract.md).
 The static HTML contract fixture remains reference material, not a second owner.
+
+## Bounded accordion presentation
+
+`indicator="start"` places the disclosure chevron before the summary; the default
+remains trailing. `layout="panel"` uses a flush, flexible panel with its own scroll
+container. Compose these options inside [cem-accordion](./accordion-contract.md)
+for stacked independent sections. `slot="header-actions"` places contextual
+counts/actions beside the disclosure heading, never inside that heading or its
+button. Keep the
+summary slot phrasing-only. An empty action slot leaves the existing header owner
+and ARIA relationships unchanged.
+
+Programmatic collapse repairs focus from a newly hidden panel descendant to the
+section header, while preserving its controls and values. It does not activate
+navigation, clear drafts or alter another section.
+
+`notify-toggle` with a nonempty whitespace-free `value` opts user toggles into
+`cem-disclosure-toggle { value, expanded }`. This reusable notification lets a
+declarative owner retain section intent. Programmatic changes remain silent;
+ordinary expansions keep their existing event-free behavior.
