@@ -7,6 +7,8 @@ z.*
 
 dist
 dist-stripped
+/packages/cem-ml-npm/dist-schema-assets/
+/packages/cem-ml-npm/dist-schema-assets-wasm/
 tmp
 out-tsc
 storybook-static

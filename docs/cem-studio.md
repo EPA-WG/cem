@@ -3317,15 +3317,34 @@ not remove their bytes from the WASM binary. These embedded tables and compiled
 code are not copied wholesale into the checkpoint transport, so splitting them
 cannot be counted as checkpoint savings.
 
-The preferred next partition is an immutable schema-asset pack addressed by
-package/version/path and content digest, with a small native bootstrap catalog.
-Keep package identity resolution, import/validation and compilation native; load
-optional formatter/colorizer/schema bodies through the existing bounded host
-resource contract. Require explicit missing/offline diagnostics, deployment and
-service-worker inventory, cancellation, source provenance and fresh-generation
-reimport before removing embedded fallback sources. Measure download size,
-linear-memory headroom and cold command/editor latency independently. A separate
+The opt-in native schema-asset prototype now emits the complete catalog index,
+a small pinned bootstrap, digest-addressed original sources and a complete
+offline/integrity inventory. Package/version/path and content digest identify
+each source. A per-consumer native store admits bodies lazily with explicit
+index/count/individual/aggregate bounds, resolver policy, cancellation and
+digest/MIME/UTF-8 checks. Missing or offline bodies refuse; native authoritative
+conversion readers cannot silently substitute embedded artifacts. Import retains
+the original catalog source URI independently of its transport address. A fresh
+store/runtime reimports source bytes into new native owners, carrying no handles
+or checkpoint authority across generations.
+
+The optional `schema-asset-packs` WASM profile exposes bounded, stateless
+bootstrap/summary/import probes. Its compiled bootstrap pins the emitted index;
+adjacent downloaded sidecars are not trust anchors. Probes use ordinary admission
+and memory reservations, release all temporary ownership, and return only scalar
+metadata. JavaScript transports bytes and named catalog/control metadata; package
+identity, source import and formatter/colorizer semantics stay native. See the
+[build and verification commands](https://github.com/EPA-WG/cem/blob/develop/packages/cem-ml-npm/README.md#optional-native-schema-asset-packs-prototype).
+
+The prototype deliberately retains default embedded sources and does not enroll
+the optional delivery tree in Studio's production service-worker map. Actual
+native consumers still need owned bootstrap/source access before those bodies
+can be excluded from an opt-in binary. Production loading will also need explicit
+pack inventory in deployment/service-worker resources and coordinated reload
+policy. Raw/gzip delivery, allocator/linear-memory observations and cold-load
+latency are measured separately; no binary, headroom or checkpoint reduction is
+claimed. Default release catalogs and themes remain complete. A separate
 rare-command WASM module needs an explicit ABI, independent ownership and recovery
-enrollment; splitting it creates additional heaps and is not automatically a
-memory reduction. Do not move validation or AST decoding into Studio JavaScript,
-prune release catalogs/themes, or relax credential/privacy admission.
+enrollment; additional heaps are not automatically a memory reduction. Studio UI
+remains declarative, automatic recovery stays disabled, and entered passwords or
+one-time codes still block recovery until the user explicitly clears them.

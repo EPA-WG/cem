@@ -26,6 +26,36 @@ Indexed access to the borrowed evaluator view remains available.
 
 ## Native document I/O
 
+### Optional immutable schema assets
+
+`schema::asset_pack` provides a native-generated catalog and a per-consumer
+`SchemaAssetPack` for explicitly admitted immutable source bodies. Authenticate
+the exact index digest independently, then acquire/admit only required
+package/version/path entries. Defaults bound the index to 4 MiB, 1,024 sources,
+each source to the document import limit and resident source bytes to 32 MiB;
+these are source-store limits, separate from retained arenas and checkpoint
+budgets. Resolver policy/cancellation and digest, length, MIME and UTF-8 checks
+apply before admission. Failed reads never consult embedded sources.
+
+`load_package` revalidates the native manifest/schema identity against the
+bootstrap. Source import preserves its original catalog URI and creates fresh
+native owners; CEM/XML sources retain lexical capture, while data-format sources
+use the shared data importer. Catalog metadata alone does not activate a schema.
+Use an authoritative conversion artifact reader for opt-in packed transformations
+so failed acquisition cannot select an embedded artifact or descriptor-only cache.
+`ConversionPackageArtifactReader<'a>` now names the object-safe
+`ConversionPackageArtifactSourceReader` contract. Closure values and the
+environment's lifetime shape remain supported; call erased readers with
+`reader.read(artifact)`. Wrap an already erased `&dyn Fn` in a forwarding closure
+when supplying it to the environment.
+
+The `schema-asset-packs` feature adds stateless WASM probes, leaving the default
+ABI/catalog intact. The native producer and isolated offline/WASM verification
+commands are documented in the
+[deployment package](https://github.com/EPA-WG/cem/blob/develop/packages/cem-ml-npm/README.md#optional-native-schema-asset-packs-prototype).
+
+### Shared imports
+
 `import::import_data_bytes` resolves external content types into retained CEM
 AST documents. XML, JSON, YAML and CSV semantics belong to this boundary;
 query/render consumers receive native nodes.

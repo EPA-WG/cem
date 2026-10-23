@@ -842,9 +842,7 @@ fn execute_cem_tree_output_pipeline_with_context(
             .unwrap_or(&conversion_registry),
         package_artifact_reader: context.map(|_| {
             &package_artifact_reader
-                as &dyn Fn(
-                    &ConversionPackageArtifactDescriptor,
-                ) -> Result<ConversionPackageArtifactRead, String>
+                as &crate::conversion::ConversionPackageArtifactReader<'_>
         }),
         artifact_cache: None,
     };

@@ -184,6 +184,54 @@ protected release job, provide `CEM_ML_GITHUB_ATTESTATION_BUNDLE` (and set
 `CEM_ML_RELEASE_SIGNING=required`) so it verifies the packed tarball with `gh`,
 copies the bundle, and marks the signing record publication-ready.
 
+## Optional native schema asset packs (prototype)
+
+The default package retains its complete embedded schema catalog. An opt-in
+prototype emits an immutable catalog index and original source bodies addressed
+by SHA-256, outside the default package output:
+
+```sh
+node packages/cem-ml-npm/scripts/build-schema-assets.mjs
+node packages/cem-ml-npm/scripts/build-schema-assets-wasm.mjs
+node packages/cem-ml-npm/scripts/verify-schema-assets.mjs --wasm=packages/cem-ml-npm/dist-schema-assets-wasm/wasm/node/cem_ml.js
+```
+
+Run these from the repository root after the ordinary package build, using the
+repository Rust/Node toolchains and matching `wasm-bindgen` CLI. The emitter
+writes `dist-schema-assets/`; the optional `schema-asset-packs` Cargo profile
+writes `dist-schema-assets-wasm/`. Both are separate from `dist/` and excluded
+from the default npm tarball. Deploy every URL in the pack's `integrity.json`
+for disconnected use. That inventory is a complete delivery list, not a trust
+anchor: use the native-compiled bootstrap pin to authenticate `index.json`.
+After intentionally changing catalog sources, regenerate the pack and copy its
+native-generated `bootstrap.json` to
+`packages/cem_ml/schema/schema-assets-bootstrap-v1.json` before rebuilding the
+optional profile. Native fixtures verify that committed pin against the catalog.
+
+Only the optional profile exposes `schemaAssetPackBootstrapV1`,
+`schemaAssetPackSummaryV1` and `schemaAssetPackImportV1`. These synchronous probes
+accept bounded byte arrays, validate the native-pinned index, import original
+sources natively and return scalar metadata. Each call drops its temporary store
+and native owners; reimport in another physical WASM instance creates fresh
+owners. Normal native admission and memory budgets apply. These exports provide
+no checkpoint, retirement or credential authority.
+
+The native per-consumer store bounds index bytes, source count, individual and
+aggregate resident bytes. It checks package/version/path, MIME, UTF-8, byte length
+and digest, and supports explicit resolver policy/cancellation. Missing/offline
+or invalid inputs refuse without embedded fallback. The authoritative native
+conversion reader likewise propagates pack failures; legacy reader behavior
+remains available for existing consumers. JavaScript transports bytes and reads
+named catalog/control metadata; source interpretation remains native.
+
+This prototype does **not** remove embedded bodies, change Studio's production
+resource map or enable automatic recovery. It therefore claims no WASM size,
+resident-memory or checkpoint savings. Native consumer ownership must migrate
+before embedded bodies can become optional. The verifier records raw/gzip
+delivery, cold import time, allocator observations and linear-memory capacity
+separately under `dist/reports/cem-ml-npm/`. See the
+[Studio loading design](https://github.com/EPA-WG/cem/blob/develop/docs/cem-studio.md#checkpoint-capacity-and-optional-module-loading).
+
 ## Unmanaged embedding boundary
 
 This package exposes raw generated WASM. Calling these exports, retaining native

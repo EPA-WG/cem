@@ -368,6 +368,7 @@
             "inputs": [
                 "{projectRoot}/src/**/*.rs",
                 "{projectRoot}/tests/**/*.rs",
+                "{projectRoot}/schema/schema-assets-bootstrap-v1.json",
                 "{projectRoot}/Cargo.toml",
                 "{projectRoot}/grammar/tree-sitter-cem/**/*",
                 "{workspaceRoot}/packages/custom-element/material/components/**/*.html",

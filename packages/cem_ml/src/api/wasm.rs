@@ -39,6 +39,8 @@
 //! the observer to `observe_pipeline`.
 
 mod runtime_memory;
+#[cfg(feature = "schema-asset-packs")]
+mod schema_asset_pack;
 
 use crate::runtime_inventory::NativeRegistry as RefCell;
 use std::collections::BTreeMap;

@@ -504,6 +504,18 @@ pub fn schema_descriptor_from_manifest_and_schema_document(
     schema_descriptor_from_documents_inner(package_id_hint, &manifest, schema, schema_path, None)
 }
 
+/// Derive bootstrap identity directly from two retained native documents. The
+/// caller keeps their original imported source arenas and lexical provenance;
+/// neither document is serialized or parsed again for descriptor discovery.
+pub fn schema_descriptor_from_manifest_and_schema_documents(
+    package_id_hint: &str,
+    manifest: &CemDocument,
+    schema_path: &str,
+    schema: &CemDocument,
+) -> Result<SchemaDescriptor, SchemaPackageDescriptorError> {
+    schema_descriptor_from_documents_inner(package_id_hint, manifest, schema, schema_path, None)
+}
+
 pub fn schema_package_id_from_manifest_source(
     manifest_source: &str,
     package_id_hint: &str,

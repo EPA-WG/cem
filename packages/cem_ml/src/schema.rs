@@ -27,6 +27,7 @@ pub mod prelude_values;
 pub mod package_compilation;
 pub mod package_consistency;
 pub mod package_loader;
+pub mod asset_pack;
 pub mod package_sources;
 pub mod reference_resolution;
 pub mod reference_traversal;

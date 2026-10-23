@@ -6,6 +6,8 @@
 
 #[cfg(test)]
 pub(crate) mod writer_profile_tests;
+#[cfg(test)]
+mod schema_asset_pack_tests;
 
 pub use crate::conversion_output::CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE;
 use crate::conversion_output::{
@@ -1149,8 +1151,67 @@ pub struct ConversionPackageArtifactRead {
     pub content_type: Option<String>,
 }
 
-pub type ConversionPackageArtifactReader<'a> = dyn Fn(&ConversionPackageArtifactDescriptor) -> Result<ConversionPackageArtifactRead, String>
-    + 'a;
+pub trait ConversionPackageArtifactSourceReader {
+    fn read(
+        &self,
+        artifact: &ConversionPackageArtifactDescriptor,
+    ) -> Result<ConversionPackageArtifactRead, String>;
+
+    /// Legacy readers may use the embedded catalog when a read fails. A reader
+    /// for explicitly selected immutable assets must refuse that substitution.
+    fn allow_embedded_fallback(&self) -> bool {
+        true
+    }
+}
+
+impl<F> ConversionPackageArtifactSourceReader for F
+where
+    F: Fn(&ConversionPackageArtifactDescriptor) -> Result<ConversionPackageArtifactRead, String>
+        + ?Sized,
+{
+    fn read(
+        &self,
+        artifact: &ConversionPackageArtifactDescriptor,
+    ) -> Result<ConversionPackageArtifactRead, String> {
+        self(artifact)
+    }
+}
+
+/// Lifetime-bearing reader object retained for existing environment bindings.
+/// Closures implement the source-reader contract directly. An already erased
+/// `dyn Fn` reader can be forwarded through a closure adapter.
+pub type ConversionPackageArtifactReader<'a> = dyn ConversionPackageArtifactSourceReader + 'a;
+
+/// Explicit asset-pack selection makes the supplied reader authoritative.
+/// Missing or refused source bytes never activate the embedded catalog.
+pub struct AuthoritativeConversionPackageArtifactReader<'a> {
+    reader: &'a dyn Fn(
+        &ConversionPackageArtifactDescriptor,
+    ) -> Result<ConversionPackageArtifactRead, String>,
+}
+
+impl<'a> AuthoritativeConversionPackageArtifactReader<'a> {
+    pub fn new(
+        reader: &'a dyn Fn(
+            &ConversionPackageArtifactDescriptor,
+        ) -> Result<ConversionPackageArtifactRead, String>,
+    ) -> Self {
+        Self { reader }
+    }
+}
+
+impl ConversionPackageArtifactSourceReader for AuthoritativeConversionPackageArtifactReader<'_> {
+    fn read(
+        &self,
+        artifact: &ConversionPackageArtifactDescriptor,
+    ) -> Result<ConversionPackageArtifactRead, String> {
+        (self.reader)(artifact)
+    }
+
+    fn allow_embedded_fallback(&self) -> bool {
+        false
+    }
+}
 
 #[derive(Debug, Default)]
 pub struct ConversionOutputPipelineArtifactCache {
@@ -2790,9 +2851,12 @@ fn read_cem_tree_cemt_output_stage_artifact(
     artifact: &ConversionPackageArtifactDescriptor,
 ) -> Result<ConversionPackageArtifactRead, String> {
     if let Some(reader) = environment.package_artifact_reader {
-        match reader(artifact) {
+        match reader.read(artifact) {
             Ok(source) => return Ok(source),
             Err(error) => {
+                if !reader.allow_embedded_fallback() {
+                    return Err(error);
+                }
                 if let Some(source) =
                     builtin_schema_package_artifact_source(&artifact.package_id, &artifact.path)
                 {
@@ -2821,7 +2885,7 @@ fn read_cem_tree_cemt_output_stage_artifact(
             artifact.path
         ));
     };
-    reader(artifact)
+    reader.read(artifact)
 }
 
 fn package_artifact_matches_cem_tree_target(
@@ -2856,6 +2920,15 @@ fn parse_cem_tree_cemt_output_artifact_module_options(
     environment: &ConversionOutputPipelineEnvironment<'_>,
     artifact: &ConversionPackageArtifactDescriptor,
 ) -> Result<TransformTemplateModuleOptions, String> {
+    // This cache identifies descriptors, not admitted immutable source bytes.
+    // An authoritative reader must revalidate its selected source before every
+    // parse; cached embedded options cannot stand in for that admission.
+    if environment
+        .package_artifact_reader
+        .is_some_and(|reader| !reader.allow_embedded_fallback())
+    {
+        return parse_cem_tree_cemt_output_artifact_module_options_uncached(environment, artifact);
+    }
     let cache_key = cem_tree_cemt_output_artifact_cache_key(artifact);
     if let Some(cache) = environment.artifact_cache {
         if let Some(cached) = cache.module_options.borrow().get(&cache_key) {
