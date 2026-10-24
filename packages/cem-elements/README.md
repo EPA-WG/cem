@@ -1675,6 +1675,11 @@ fallback heap. Ordinary command-service contexts, resolver contexts and CSV
 resource imports use that heap's published context. Import still produces the
 retained typed CEM tree, with checked source diagnostics and existing limits.
 Defaults retain their complete embedded catalog until explicitly opted in.
+The `external-schema-assets` native profile omits original CSV, Markdown, SCSS,
+XSLT and Relax NG bodies. Complete native identity metadata remains
+available for discovery, but it cannot authorize execution: missing optional
+sources refuse with `cem.schema_asset.missing` until the original heap has an
+admitted package. Exact formatter/colorizer body requirements still apply.
 
 For a host spanning several physical runtimes, use `CemSchemaAssetDemandGroup`.
 Its `run(work, originalEndpoint)` enrolls each actual heap/worker once and waits

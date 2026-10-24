@@ -219,8 +219,14 @@ before cleanup; native inventory, ownership, coordinated publication and
 credential gates still govern replacement. Entered passwords/one-time codes
 block recovery until cleared. Automatic whole-Studio recovery stays disabled.
 The ordinary deployment retains its complete embedded catalog and does not
-create a demand group. This profile makes no binary-size or memory-saving claim;
-embedded-body exclusion and partition measurement remain next.
+create a demand group. The optional binary excludes original CSV, Markdown,
+SCSS, XSLT and Relax NG bodies while retaining bootstrap dependencies
+and complete package identities. Its current Studio host explicitly grants and
+demands CSV; the other excluded formats require further trusted host grants and
+declarative demand before use. Missing sources refuse execution, including when
+offline. The verifier checks admitted CSV import and formatter execution both
+online and from the complete offline cache. This experimental profile makes no
+binary-size or memory-saving claim; partition measurements remain next.
 
 Those JavaScript assets may own bootstrap, workers, persistence, and browser
 service adapters. Visible DOM composition and UI bindings belong to the

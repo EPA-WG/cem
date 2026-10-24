@@ -3623,7 +3623,7 @@ theme is preserved, including inherited overrides and unused public tokens.
 Further code/schema partitioning is a separate startup/resident-memory task.
 The command-service entry currently imports its generated command schema
 synchronously; wrapping its existing module in another dynamic import would not
-split that dependency. Native `schema/package_sources.rs` embeds 200 distinct
+split that dependency. The complete native `schema/package_sources.rs` catalog embeds 200 distinct
 manifest/schema/formatter/colorizer sources (1,343,965 source bytes in this
 revision), selected by the native package registry/loader. Lookup on demand does
 not remove their bytes from the WASM binary. These embedded tables and compiled
@@ -3649,7 +3649,7 @@ metadata. JavaScript transports bytes and named catalog/control metadata; packag
 identity, source import and formatter/colorizer semantics stay native. See the
 [build and verification commands](https://github.com/EPA-WG/cem/blob/develop/packages/cem-ml-npm/README.md#optional-native-schema-asset-packs-prototype).
 
-The prototype deliberately retains embedded sources. Studio's opt-in
+The native pack producer retains the complete embedded catalog. Studio's opt-in
 `build:schema-assets` target now emits a separate `dist/schema-assets/` native
 deployment graph with the complete pack in its service-worker inventory. The
 ordinary `dist/static/` deployment remains complete and unchanged by that build.
@@ -3664,7 +3664,21 @@ package consumers now accept shared owned manifest/schema text; admitted packs
 produce the same consumer inputs without static lifetimes. Packed conversion
 readers remain authoritative and parsed formatter/colorizer options are keyed by
 complete descriptor/source identity, with admission rechecked before cache reuse.
-These boundaries do not themselves remove embedded bodies from an opt-in binary.
+The `external-schema-assets` feature, which enables `schema-asset-packs`, now
+excludes original manifests, schemas and artifacts for CSV, Markdown, SCSS, XSLT
+and Relax NG from that separate binary. Bootstrap dependencies remain
+embedded; XPath and MathML are required by CEM-QL/transform and CSS/HTML. All 32
+package identities remain in a native-emitted DTO catalog, checked against the
+complete original producer on every optional build. Identity metadata confers no
+native model readiness. Missing optional input sources refuse with
+`cem.schema_asset.missing` before parser fallback. Bootstrap conversion registries
+skip optional executable contracts until admission; artifact consumption requires
+its exact admitted body. Advisory `schemaAssetEmbeddedSourcesV1` metadata and
+binary-body omission checks describe this build boundary, without granting
+admission or claiming download, allocator or checkpoint savings.
+Studio currently supplies trusted CSV grants and declarative CSV demand. Other
+excluded formats require corresponding trusted host integration before use;
+the ordinary complete deployment remains the general Studio release.
 The shared `CemSchemaAssetPackLoader` now performs bounded acquisition through
 the ordinary HTTP transport, authenticates the index through the native-compiled
 pin and reimports retained original bytes on a distinct initialized heap. It

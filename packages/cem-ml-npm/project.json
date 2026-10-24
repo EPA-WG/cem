@@ -83,6 +83,7 @@
         "{workspaceRoot}/packages/cem_ml/schema-packages/**/*",
         "{projectRoot}/scripts/build-schema-assets*.mjs",
         "{workspaceRoot}/packages/cem_ml/schema/schema-assets-bootstrap-v1.json",
+        "{workspaceRoot}/packages/cem_ml/schema/schema-assets-registry-v1.json",
         {
           "dependentTasksOutputFiles": "**/*",
           "transitive": false

@@ -14901,12 +14901,19 @@ fn builtin_conversion_packages() -> impl Iterator<Item = SchemaPackage> {
     let schemas = SchemaRegistry::with_builtin_schemas();
     builtin_converter_package_schema_uris()
         .iter()
-        .map(move |schema_uri| {
+        .filter_map(move |schema_uri| {
             let descriptor = schemas
                 .schema(schema_uri)
                 .expect("built-in converter package must have a schema descriptor");
-            load_builtin_schema_package_from_descriptor(descriptor)
-                .expect("built-in converter package must have embedded sources")
+            // Optional identities remain discoverable, but executable conversion
+            // contracts are installed only from their admitted original package.
+            #[cfg(feature = "external-schema-assets")]
+            if crate::schema::package_sources::OPTIONAL_SCHEMA_ASSET_PACKAGES
+                .contains(&descriptor.package_id.as_str()) {
+                return None;
+            }
+            Some(load_builtin_schema_package_from_descriptor(descriptor)
+                .expect("built-in converter package must have embedded sources"))
         })
 }
 

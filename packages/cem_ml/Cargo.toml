@@ -17,6 +17,8 @@ debug-control = []
 fake-engine = []
 typescript-projections = ["dep:ts-rs"]
 schema-asset-packs = []
+# Keep bootstrap packages; optional original bodies must arrive through admitted packs.
+external-schema-assets = ["schema-asset-packs"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

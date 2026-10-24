@@ -1,8 +1,8 @@
-//! Embedded built-in schema package sources.
+//! Built-in original schema package sources.
 //!
-//! The runtime registry and package loader both consume this catalog. Keeping
-//! embedded sources here avoids maintaining one package list for registry
-//! identity and another for loading schema/package documents.
+//! Complete releases derive registry identities from these sources. The opt-in
+//! external profile retains their native-emitted identity DTOs and the bootstrap
+//! dependency closure, while optional originals require explicit admission.
 
 #[derive(Debug, Clone, Copy)]
 pub struct BuiltinSchemaPackageSource {
@@ -241,36 +241,43 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
         path: "schema-packages/yaml/v1/colorizers/md.cemt",
         source: include_str!("../../schema-packages/yaml/v1/colorizers/md.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "csv",
         path: "schema-packages/csv/v1/formatters/compact.cemt",
         source: include_str!("../../schema-packages/csv/v1/formatters/compact.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "csv",
         path: "schema-packages/csv/v1/formatters/pretty.cemt",
         source: include_str!("../../schema-packages/csv/v1/formatters/pretty.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "csv",
         path: "schema-packages/csv/v1/formatters/tabular.cemt",
         source: include_str!("../../schema-packages/csv/v1/formatters/tabular.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "csv",
         path: "schema-packages/csv/v1/colorizers/terminal.cemt",
         source: include_str!("../../schema-packages/csv/v1/colorizers/terminal.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "csv",
         path: "schema-packages/csv/v1/colorizers/html.cemt",
         source: include_str!("../../schema-packages/csv/v1/colorizers/html.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "csv",
         path: "schema-packages/csv/v1/colorizers/md.cemt",
         source: include_str!("../../schema-packages/csv/v1/colorizers/md.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "markdown",
         path: "schema-packages/markdown/v1/formatters/markdown-format-document.cemt",
@@ -278,6 +285,7 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
             "../../schema-packages/markdown/v1/formatters/markdown-format-document.cemt"
         ),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "markdown",
         path: "schema-packages/markdown/v1/colorizers/markdown-color-document.cemt",
@@ -325,41 +333,49 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
         path: "schema-packages/css/v1/colorizers/css-color-document.cemt",
         source: include_str!("../../schema-packages/css/v1/colorizers/css-color-document.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "scss",
         path: "schema-packages/scss/v1/formatters/compact.cemt",
         source: include_str!("../../schema-packages/scss/v1/formatters/compact.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "scss",
         path: "schema-packages/scss/v1/formatters/pretty.cemt",
         source: include_str!("../../schema-packages/scss/v1/formatters/pretty.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "scss",
         path: "schema-packages/scss/v1/formatters/tabular.cemt",
         source: include_str!("../../schema-packages/scss/v1/formatters/tabular.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "scss",
         path: "schema-packages/scss/v1/formatters/scss-format-source.cemt",
         source: include_str!("../../schema-packages/scss/v1/formatters/scss-format-source.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "scss",
         path: "schema-packages/scss/v1/colorizers/terminal.cemt",
         source: include_str!("../../schema-packages/scss/v1/colorizers/terminal.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "scss",
         path: "schema-packages/scss/v1/colorizers/html.cemt",
         source: include_str!("../../schema-packages/scss/v1/colorizers/html.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "scss",
         path: "schema-packages/scss/v1/colorizers/md.cemt",
         source: include_str!("../../schema-packages/scss/v1/colorizers/md.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "scss",
         path: "schema-packages/scss/v1/colorizers/scss-color-source.cemt",
@@ -489,36 +505,43 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
         path: "schema-packages/xml/v1/colorizers/xml-color-document.cemt",
         source: include_str!("../../schema-packages/xml/v1/colorizers/xml-color-document.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "relax-ng",
         path: "schema-packages/relax-ng/v1/formatters/xml-compact.cemt",
         source: include_str!("../../schema-packages/relax-ng/v1/formatters/xml-compact.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "relax-ng",
         path: "schema-packages/relax-ng/v1/formatters/xml-pretty.cemt",
         source: include_str!("../../schema-packages/relax-ng/v1/formatters/xml-pretty.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "relax-ng",
         path: "schema-packages/relax-ng/v1/formatters/xml-tabular.cemt",
         source: include_str!("../../schema-packages/relax-ng/v1/formatters/xml-tabular.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "relax-ng",
         path: "schema-packages/relax-ng/v1/formatters/compact-compact.cemt",
         source: include_str!("../../schema-packages/relax-ng/v1/formatters/compact-compact.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "relax-ng",
         path: "schema-packages/relax-ng/v1/formatters/compact-pretty.cemt",
         source: include_str!("../../schema-packages/relax-ng/v1/formatters/compact-pretty.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "relax-ng",
         path: "schema-packages/relax-ng/v1/formatters/compact-tabular.cemt",
         source: include_str!("../../schema-packages/relax-ng/v1/formatters/compact-tabular.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "relax-ng",
         path: "schema-packages/relax-ng/v1/formatters/relax-ng-format-schema.cemt",
@@ -526,36 +549,43 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
             "../../schema-packages/relax-ng/v1/formatters/relax-ng-format-schema.cemt"
         ),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "relax-ng",
         path: "schema-packages/relax-ng/v1/colorizers/xml-terminal.cemt",
         source: include_str!("../../schema-packages/relax-ng/v1/colorizers/xml-terminal.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "relax-ng",
         path: "schema-packages/relax-ng/v1/colorizers/xml-html.cemt",
         source: include_str!("../../schema-packages/relax-ng/v1/colorizers/xml-html.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "relax-ng",
         path: "schema-packages/relax-ng/v1/colorizers/xml-md.cemt",
         source: include_str!("../../schema-packages/relax-ng/v1/colorizers/xml-md.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "relax-ng",
         path: "schema-packages/relax-ng/v1/colorizers/compact-terminal.cemt",
         source: include_str!("../../schema-packages/relax-ng/v1/colorizers/compact-terminal.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "relax-ng",
         path: "schema-packages/relax-ng/v1/colorizers/compact-html.cemt",
         source: include_str!("../../schema-packages/relax-ng/v1/colorizers/compact-html.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "relax-ng",
         path: "schema-packages/relax-ng/v1/colorizers/compact-md.cemt",
         source: include_str!("../../schema-packages/relax-ng/v1/colorizers/compact-md.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "relax-ng",
         path: "schema-packages/relax-ng/v1/colorizers/relax-ng-color-schema.cemt",
@@ -733,21 +763,25 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
             "../../schema-packages/xpath/v1/colorizers/xpath-color-expression.cemt"
         ),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "xslt",
         path: "schema-packages/xslt/v1/formatters/compact.cemt",
         source: include_str!("../../schema-packages/xslt/v1/formatters/compact.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "xslt",
         path: "schema-packages/xslt/v1/formatters/pretty.cemt",
         source: include_str!("../../schema-packages/xslt/v1/formatters/pretty.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "xslt",
         path: "schema-packages/xslt/v1/formatters/tabular.cemt",
         source: include_str!("../../schema-packages/xslt/v1/formatters/tabular.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "xslt",
         path: "schema-packages/xslt/v1/formatters/xslt-format-stylesheet.cemt",
@@ -755,21 +789,25 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
             "../../schema-packages/xslt/v1/formatters/xslt-format-stylesheet.cemt"
         ),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "xslt",
         path: "schema-packages/xslt/v1/colorizers/terminal.cemt",
         source: include_str!("../../schema-packages/xslt/v1/colorizers/terminal.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "xslt",
         path: "schema-packages/xslt/v1/colorizers/html.cemt",
         source: include_str!("../../schema-packages/xslt/v1/colorizers/html.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "xslt",
         path: "schema-packages/xslt/v1/colorizers/md.cemt",
         source: include_str!("../../schema-packages/xslt/v1/colorizers/md.cemt"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageArtifactSource {
         package_id: "xslt",
         path: "schema-packages/xslt/v1/colorizers/xslt-color-stylesheet.cemt",
@@ -840,12 +878,14 @@ static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
         manifest_source: include_str!("../../schema-packages/yaml/v1/package.cem"),
         schema_source: include_str!("../../schema-packages/yaml/v1/schema/yaml.cem"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageSource {
         package_id: "csv",
         schema_path: "schema-packages/csv/v1/schema/csv.cem",
         manifest_source: include_str!("../../schema-packages/csv/v1/package.cem"),
         schema_source: include_str!("../../schema-packages/csv/v1/schema/csv.cem"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageSource {
         package_id: "markdown",
         schema_path: "schema-packages/markdown/v1/schema/markdown.cem",
@@ -894,6 +934,7 @@ static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
         manifest_source: include_str!("../../schema-packages/xml/v1/package.cem"),
         schema_source: include_str!("../../schema-packages/xml/v1/schema/xml.cem"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageSource {
         package_id: "relax-ng",
         schema_path: "schema-packages/relax-ng/v1/schema/relax-ng.cem",
@@ -924,6 +965,7 @@ static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
         manifest_source: include_str!("../../schema-packages/xpath/v1/package.cem"),
         schema_source: include_str!("../../schema-packages/xpath/v1/schema/xpath.cem"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageSource {
         package_id: "xslt",
         schema_path: "schema-packages/xslt/v1/schema/xslt.cem",
@@ -942,6 +984,7 @@ static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
         manifest_source: include_str!("../../schema-packages/css/v1/package.cem"),
         schema_source: include_str!("../../schema-packages/css/v1/schema/css.cem"),
     },
+    #[cfg(not(feature = "external-schema-assets"))]
     BuiltinSchemaPackageSource {
         package_id: "scss",
         schema_path: "schema-packages/scss/v1/schema/scss.cem",
@@ -4768,6 +4811,99 @@ mod tests {
             let helper = builtin_schema_package_artifact_source("xslt", path)
                 .unwrap_or_else(|| panic!("XSLT helper source `{path}`"));
             assert!(helper.source.contains("{body |"));
+        }
+    }
+}
+
+/// Packages whose original bodies are delivered on explicit demand in the opt-in profile.
+pub const OPTIONAL_SCHEMA_ASSET_PACKAGES: &[&str] = &[
+    "csv",
+    "markdown",
+    "scss",
+    "xslt",
+    "relax-ng",
+];
+
+/// Missing optional originals cannot be replaced by a legacy parser fallback.
+/// Explicitly admitted, ready native models remain governed by their own readers.
+#[cfg(feature = "external-schema-assets")]
+pub fn missing_external_source(
+    context: Option<&crate::engine::EngineContext>, schema: Option<&str>, content_type: Option<&str>,
+) -> Option<String> {
+    let builtin;
+    let registry = if let Some(context) = context { &context.schema_registry } else {
+        builtin = super::registry::SchemaRegistry::with_builtin_schemas(); &builtin
+    };
+    let descriptor = schema.and_then(|uri| registry.schema(uri)).or_else(||
+        content_type.and_then(|mime| registry.resolve_content_type(mime).ok()))?;
+    if !OPTIONAL_SCHEMA_ASSET_PACKAGES.contains(&descriptor.package_id.as_str()) { return None; }
+    if let Some(context) = context {
+        if context.schema_asset_activation.as_ref().is_some_and(|binding| binding.owns_package(&descriptor.package_id)) {
+            return None;
+        }
+        if matches!(registry.package_origin(&descriptor.package_id), Some(super::registry::SchemaPackageOrigin::Manifest(_)))
+            && context.schema_document_models.resolve_for_identity(Some(&descriptor.schema_uri), None, Some(registry))
+                .is_some_and(|model| model.is_ready_for_validation()) { return None; }
+    }
+    Some(format!("cem.schema_asset.missing: package `{}` requires admitted original sources", descriptor.package_id))
+}
+
+/// Advisory identity/count DTO. It never grants package admission or recovery.
+pub fn embedded_source_profile() -> serde_json::Value {
+    let external: &[&str] = if cfg!(feature = "external-schema-assets") {
+        OPTIONAL_SCHEMA_ASSET_PACKAGES
+    } else { &[] };
+    serde_json::json!({
+        "kind": "cem-schema-embedding-profile/1",
+        "externalBodies": cfg!(feature = "external-schema-assets"),
+        "externalPackages": external,
+        "embeddedPackages": builtin_schema_package_sources().iter().map(|p| p.package_id).collect::<Vec<_>>(),
+        "embeddedBodyCount": builtin_schema_package_sources().len() * 2 + builtin_schema_package_artifact_sources().len(),
+        "catalogPackageCount": super::registry::builtin_schema_descriptors().len(),
+    })
+}
+
+#[cfg(test)]
+mod embedding_profile_tests {
+    use super::*;
+    #[test]
+    fn external_source_profile_preserves_complete_native_identity_catalog() {
+        let expected: Vec<super::super::asset_pack::SchemaAssetPackageDescriptor> = serde_json::from_str(
+            include_str!("../../schema/schema-assets-registry-v1.json"),
+        ).unwrap();
+        let mut actual = super::super::registry::builtin_schema_descriptors();
+        actual.sort_by(|a, b| a.package_id.cmp(&b.package_id));
+        assert_eq!(actual, expected.iter().map(|p| p.schema_descriptor()).collect::<Vec<_>>());
+        let context = crate::engine::EngineContext::default();
+        for package in OPTIONAL_SCHEMA_ASSET_PACKAGES {
+            assert!(actual.iter().any(|descriptor| descriptor.package_id == *package), "external package {package} must exist in the native catalog");
+            if cfg!(feature = "external-schema-assets") {
+                assert!(!context.converter_registry.converters().any(|d| d.package_id == *package));
+                assert!(!context.converter_registry.package_artifacts().any(|a| a.package_id == *package));
+            }
+        }
+        if cfg!(feature = "external-schema-assets") {
+            for descriptor in &actual {
+                if OPTIONAL_SCHEMA_ASSET_PACKAGES.contains(&descriptor.package_id.as_str()) { continue; }
+                for dependency in &descriptor.uses {
+                    if let Some(used) = actual.iter().find(|d| d.schema_uri == *dependency) {
+                        assert!(!OPTIONAL_SCHEMA_ASSET_PACKAGES.contains(&used.package_id.as_str()), "bootstrap dependency {} -> {}", descriptor.package_id, used.package_id);
+                    }
+                }
+            }
+            for mime in ["text/csv", "csv", "TEXT/CSV;header=present"] {
+                let missing = crate::import::import_data_bytes_with_context(b"id,name\n1,Ada\n", mime, "data", "memory:not-admitted", None).err().expect("optional input must refuse legacy parser fallback");
+                assert!(missing.contains("cem.schema_asset.missing"), "optional alias {mime}: {missing}");
+            }
+        }
+        for descriptor in actual {
+            let optional = cfg!(feature = "external-schema-assets") && OPTIONAL_SCHEMA_ASSET_PACKAGES.contains(&descriptor.package_id.as_str());
+            assert_eq!(builtin_schema_package_source(&descriptor.package_id).is_none(), optional);
+            let loaded = super::super::package_loader::load_builtin_schema_package(&descriptor.schema_uri);
+            if optional {
+                assert!(matches!(loaded, Err(super::super::package_loader::BuiltinSchemaPackageLoadError::MissingEmbeddedSource { .. })));
+                assert!(!builtin_schema_package_artifact_sources().iter().any(|p| p.package_id == descriptor.package_id));
+            } else { assert!(loaded.is_ok(), "bootstrap package {}", descriptor.package_id); }
         }
     }
 }

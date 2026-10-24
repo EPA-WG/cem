@@ -39,7 +39,7 @@ const cargoTree = capture('cargo', [
   '--package',
   'cem-ml-transform-cem-ql',
   '--features',
-  'schema-asset-packs',
+  'external-schema-assets',
   '--invert',
   'wasm-bindgen',
   '--target',
@@ -61,11 +61,15 @@ if (resolvedBindgenVersion !== cliBindgenVersion) {
 }
 
 // The default package is a comparison input only. Its embedded catalog and
-// generated bindings stay in place; this profile adds optional native APIs.
+// generated bindings stay in place; this profile excludes optional source bodies.
 const defaultWasm = {
   browser: measure(resolve(defaultRoot, 'wasm/browser/cem_ml_bg.wasm')),
   node: measure(resolve(defaultRoot, 'wasm/node/cem_ml_bg.wasm')),
 };
+// Refuse stale identity metadata; generating it requires the complete source build.
+run('cargo', ['run', '--locked', '--package', 'cem-ml', '--no-default-features', '--bin', 'cem-ml-schema-assets-emit',
+  '--target-dir', resolve(workspaceRoot, 'dist/target/cem_ml_schema_assets'), '--', '--check-registry',
+  resolve(workspaceRoot, 'packages/cem_ml/schema/schema-assets-registry-v1.json')]);
 const stagingRoot = mkdtempSync(join(tmpdir(), 'cem-schema-assets-wasm-'));
 try {
   const browserRoot = resolve(stagingRoot, 'wasm/browser');
@@ -84,7 +88,7 @@ try {
     '--target-dir',
     cargoTargetRoot,
     '--features',
-    'schema-asset-packs',
+    'external-schema-assets',
   ]);
   const wasmInput = resolve(
     cargoTargetRoot,
@@ -115,6 +119,7 @@ try {
     throw new Error('The generated optional Node runtime does not report the common Cargo version');
   }
   const optionalExports = [
+    'schemaAssetEmbeddedSourcesV1',
     'schemaAssetPackBootstrapV1',
     'schemaAssetPackSummaryV1',
     'schemaAssetPackImportV1',
@@ -148,12 +153,13 @@ try {
     schemaVersion: 1,
     package: packageMetadata.name,
     commonVersion: cargoVersion,
-    featureProfile: 'debug-control+schema-asset-packs',
+    featureProfile: 'debug-control+schema-asset-packs+external-schema-assets',
     wasmBindgenVersion: resolvedBindgenVersion,
     gzipLevel: 9,
-    defaultEmbeddingsRetained: true,
+    defaultEmbeddingsRetained: false,
+    embeddingProfile: JSON.parse(runtime.schemaAssetEmbeddedSourcesV1()),
     checkpointSavingsClaimed: false,
-    caution: 'This opt-in profile retains the default embedded schema catalog. WASM bytes and gzip bytes measure generated artifacts, not checkpoint size or runtime memory savings.',
+    caution: 'This opt-in profile retains bootstrap bodies and complete identity metadata; optional package bodies require explicit admission. Artifact byte counts do not establish checkpoint or allocator-memory savings.',
     artifacts: {
       browserModule: outputPath('wasm/browser/cem_ml.js'),
       browserFactory: outputPath('wasm/browser/cem_ml_factory.js'),

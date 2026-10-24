@@ -198,15 +198,18 @@ node packages/cem-ml-npm/scripts/verify-schema-assets.mjs --wasm=packages/cem-ml
 
 Run these from the repository root after the ordinary package build, using the
 repository Rust/Node toolchains and matching `wasm-bindgen` CLI. The emitter
-writes `dist-schema-assets/`; the optional `schema-asset-packs` Cargo profile
-writes `dist-schema-assets-wasm/`. Both are separate from `dist/` and excluded
+writes `dist-schema-assets/`; the optional `external-schema-assets` Cargo profile
+(which enables `schema-asset-packs`) writes `dist-schema-assets-wasm/`. Both are separate from `dist/` and excluded
 from the default npm tarball. Deploy every URL in the pack's `integrity.json`
 for disconnected use. That inventory is a complete delivery list, not a trust
 anchor: use the native-compiled bootstrap pin to authenticate `index.json`.
 After intentionally changing catalog sources, regenerate the pack and copy its
 native-generated `bootstrap.json` to
 `packages/cem_ml/schema/schema-assets-bootstrap-v1.json` before rebuilding the
-optional profile. Native fixtures verify that committed pin against the catalog.
+optional profile. Also regenerate the identity DTO catalog using the native emitter's
+`--registry-out packages/cem_ml/schema/schema-assets-registry-v1.json` mode.
+The optional build runs `--check-registry` against the complete native producer;
+fixtures verify both the catalog and committed pin against original sources.
 
 Only the optional profile exposes `schemaAssetPackBootstrapV1`,
 `schemaAssetPackSummaryV1` and `schemaAssetPackImportV1`. These synchronous probes
@@ -224,15 +227,24 @@ conversion reader likewise propagates pack failures; legacy reader behavior
 remains available for existing consumers. JavaScript transports bytes and reads
 named catalog/control metadata; source interpretation remains native.
 
-This prototype does **not** remove embedded bodies, change Studio's production
-resource map or enable automatic recovery. It therefore claims no WASM size,
-resident-memory or checkpoint savings. Native package consumers now accept shared
-owned source text, and formatter/colorizer caches revalidate admission and use
-complete source identities. The
-remaining opt-in deployment and body-exclusion builds still
-precede any binary partition claim. The verifier records raw/gzip
-delivery, cold import time, allocator observations and linear-memory capacity
-separately under `dist/reports/cem-ml-npm/`. See the
+The opt-in profile excludes original manifest, schema and artifact bodies for
+CSV, Markdown, SCSS, XSLT and Relax NG. It retains the bootstrap package
+dependency closure, including XPath and MathML, and all 32 package
+identities as native-emitted metadata. Metadata provides discovery only: missing
+optional input sources refuse with `cem.schema_asset.missing` before legacy
+parser fallback. Bootstrap conversion registration skips those optional packages
+until admission installs their native contracts. Admitted owners must supply original sources and exact
+artifacts; absent formatter/colorizer bodies do not acquire an embedded fallback.
+`schemaAssetEmbeddedSourcesV1` reports advisory embedding identities and counts.
+The verifier checks actual body omission in the optional binary and retention in
+the complete default binary, alongside independent-heap admission and execution.
+
+The default release and Studio production deployment remain complete. Automatic
+recovery stays disabled, and entered credentials still block recovery. Body
+exclusion establishes no download, resident-memory or checkpoint savings by
+itself: measure raw/gzip delivery, cold commands/editor latency, allocator
+observations and linear-memory capacity separately. Build and verification
+reports are written under `dist/reports/cem-ml-npm/`. See the
 [Studio loading design](https://github.com/EPA-WG/cem/blob/develop/docs/cem-studio.md#checkpoint-capacity-and-optional-module-loading).
 
 The shared `CemSchemaAssetPackLoader` in `@epa-wg/cem-elements` now acquires

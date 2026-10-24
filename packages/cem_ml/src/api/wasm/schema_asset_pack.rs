@@ -211,6 +211,14 @@ fn encode(value: &impl Serialize) -> Result<String, JsValue> {
     serde_json::to_string(value).map_err(|_| failure("cem.schema_asset.response"))
 }
 
+/// Embedding evidence only; not an activation or retirement capability.
+#[wasm_bindgen(js_name = "schemaAssetEmbeddedSourcesV1")]
+pub fn embedded_sources() -> Result<String, JsValue> {
+    let _native = crate::runtime_admission::admit(false).map_err(failure)?;
+    let _memory = reserve(4096, 0)?;
+    encode(&crate::schema::package_sources::embedded_source_profile())
+}
+
 #[wasm_bindgen(js_name = "schemaAssetPackBootstrapV1")]
 pub fn bootstrap() -> Result<String, JsValue> {
     let _native = match crate::runtime_admission::admit(false) {

@@ -28,6 +28,8 @@ const glue = await readFile(resolve(native, 'cem_ml.js'), 'utf8');
 if (!glue.includes('schemaAssetOwnerActivateV1')) throw Error('Build the optional native WASM profile first');
 const probe = createRequire(import.meta.url)(resolve(native, '../node/cem_ml.js'));
 const nativePin = JSON.parse(probe.schemaAssetPackBootstrapV1());
+const embeddingProfile = JSON.parse(probe.schemaAssetEmbeddedSourcesV1());
+if (embeddingProfile.externalBodies !== true || !embeddingProfile.externalPackages.includes('csv')) throw Error('Build the external-source optional WASM profile first');
 if (Object.keys(pin).some(key => nativePin[key] !== pin[key])
     || hash(await readFile(resolve(native, 'cem_ml_bg.wasm'))) !== hash(await readFile(resolve(native, '../node/cem_ml_bg.wasm')))) {
     throw Error('Optional runtime and emitted pack are not the same pinned deployment');
@@ -59,7 +61,7 @@ const deploymentDigest = hash(JSON.stringify([source, target, pin.indexDigest, a
     hash(await readFile(resolve(project, 'studio.cem'))), hash(await readFile(import.meta.filename))]));
 const build = await json(resolve(project, 'src/studio.build.json'));
 Object.assign(build, { buildIdentity: 'cem-studio-schema-assets-v1', deploymentProfile: 'schema-assets', deploymentDigest,
-    schemaAssetBase: './schema-assets/', schemaAssetIndexDigest: pin.indexDigest, embeddedBodies: true,
+    schemaAssetBase: './schema-assets/', schemaAssetIndexDigest: pin.indexDigest, embeddedBodies: 'bootstrap-only', embeddingProfile,
     packagePublication: 'explicit-host-admission', automaticRecovery: false,
     schemaPackageHostConfiguration: { rootQueueSize: 1024, schemaPackageReplacementGrants: [{ packageId: 'csv',
         expectedOrigin: { kind: 'builtin' }, replacementManifestUri: 'schema-packages/csv/v1/package.cem' }] } });

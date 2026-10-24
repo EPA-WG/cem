@@ -32,10 +32,9 @@ Completed [editor filename de-duplication](archive/todo-completed-compact-studio
 
 Completed [graph parameter-map authoring and Studio controls](archive/todo-completed-graph-parameters-2026-10-23.md) is archived.
 
-Continue with command-service worker and rendering transport adapters for the
-implemented shared package-resource handoff, then adopt Studio demand bindings.
-Finish host admission/publication before excluding embedded bodies. Then measure
-download, cold latency and allocator/linear-memory headroom.
+Shared package transports, coordinated Studio demand and opt-in embedded-body
+exclusion are complete. Continue with download, cold latency and allocator/linear-
+memory measurements before broadening optional-profile adoption.
 
 Completed [shared popup surfaces and indicator clearance](archive/todo-completed-compact-studio-2026-10-23.md#shared-popup-surfaces-and-indicator-clearance) is archived.
 
@@ -49,11 +48,11 @@ Completed [gallery lifecycle and checkpoint-limit repairs](archive/todo-complete
 
 The optional native schema-asset prototype and
 [owned package/formatter consumers](archive/todo-completed-owned-schema-inputs-2026-10-24.md)
-are complete; embedded bodies and the default complete release remain intact.
+are complete; the default release retains its complete embedded bodies.
 The [shared acquisition and offline delivery contract](archive/todo-completed-schema-acquisition-2026-10-24.md)
-is implemented. Persistent consumer activation and opt-in deployment are complete;
-finish coordinated host integration and embedded-body exclusion before claiming
-binary, headroom or checkpoint savings. Prototype implementation,
+is implemented, including persistent activation, coordinated host integration,
+opt-in deployment and body exclusion. Measure delivery and runtime costs before
+claiming binary, headroom or checkpoint savings. Prototype implementation,
 measurements and verification are in the
 [archived evidence](archive/todo-snapshot-2026-10-23.md#project-builds-and-artifact-previews).
 
@@ -92,9 +91,15 @@ single-pass fresh import; closed-runtime cleanup; and offline Studio acceptance.
 The default complete deployment, credential refusal and disabled automatic
 whole-Studio recovery are preserved.
 
-- [ ] After shared pack-loading integration, exclude optional embedded source bodies in an opt-in WASM profile while retaining the default complete release; verify strict missing-source refusal and complete offline delivery.
+Completed [opt-in embedded source-body exclusion](archive/todo-completed-external-schema-bodies-2026-10-24.md)
+covers five optional packages, a complete native identity catalog, missing-source
+and alias refusal, deferred conversion registration, actual binary-body omission,
+and online/offline Studio formatter/recovery acceptance. The default deployment
+and credential policy remain unchanged; gzip delivery is currently larger.
 
 - [ ] Measure the resulting binary partition's raw/gzip download, cold command/editor latency and allocator/linear-memory headroom before considering a separate rare-command WASM ABI/heap; retain independent checkpoint and credential admission.
+
+- [ ] Extend the opt-in Studio host's trusted grants and declarative project demand beyond CSV to Markdown, SCSS, XSLT and Relax NG before general adoption. Keep grants outside project/URL/status data and verify offline execution, complete runtime publication and credential refusal for each format.
 
 - [ ] Make full schema-package artifact/example validation prefer its supplied resource reader over filesystem reads for file-like canonical URIs. Preserve full validation's diagnostics and legacy filesystem behavior when no reader is supplied; keep this separate from immutable owned-pack admission and strict runtime artifact consumption.
 

@@ -115,6 +115,25 @@ function verifyWasm(modulePath, indexBytes, digest, index, read) {
   assert.notEqual(runtimes[0].runtimeMemoryStatus, runtimes[1].runtimeMemoryStatus);
   assert.ok(runtimes[0].commandNativeMemoryIdentity() instanceof WebAssembly.Memory);
   assert.notEqual(runtimes[0].commandNativeMemoryIdentity(), runtimes[1].commandNativeMemoryIdentity());
+  const embedding = parseSuccess(runtimes[0].schemaAssetEmbeddedSourcesV1());
+  assert.equal(embedding.externalBodies, true);
+  assert.equal(embedding.catalogPackageCount, index.packages.length);
+  const external = new Set(embedding.externalPackages);
+  const retainedDigests = new Set(index.sources.filter(source => !external.has(source.packageId)).map(source => source.digest));
+  const excluded = index.sources.filter(source => external.has(source.packageId) && !retainedDigests.has(source.digest));
+  const optionalBinary = readFileSync(resolve(dirname(modulePath), 'cem_ml_bg.wasm'));
+  const defaultBinary = readFileSync(resolve(projectRoot, 'dist/wasm/node/cem_ml_bg.wasm'));
+  assert.ok(excluded.length > 0, 'profile must exclude actual optional source bodies');
+  for (const source of excluded) {
+    const bytes = read(`sources/${source.digest}`);
+    assert.equal(optionalBinary.includes(bytes), false, `optional binary retained ${source.path}`);
+    assert.equal(defaultBinary.includes(bytes), true, `default binary lost ${source.path}`);
+  }
+  for (const runtime of runtimes) {
+    for (const contentType of ['text/csv', 'csv', 'TEXT/CSV;header=present']) {
+      assert.throws(() => runtime.retainCemDocument(new TextEncoder().encode('id,name\n1,Ada\n'), contentType, 'memory:not-admitted.csv'), /cem.schema_asset.missing/);
+    }
+  }
   const samples = [];
   for (const runtime of runtimes) {
     assert.equal(typeof runtime.schemaAssetPackBootstrapV1, 'function');
@@ -225,6 +244,9 @@ function verifyWasm(modulePath, indexBytes, digest, index, read) {
     independentGenerations: runtimes.length + 1,
     memoryAdmission: { guardedInitial, budgetRefused, admissionClosed, inventoryInitial, inventoryBudget, inventoryClosed },
     sourceKindsImported: samples[0].imported.length,
+    embeddingProfile: embedding,
+    uniqueOptionalBodiesExcluded: excluded.length,
+    missingOptionalSourcesRefused: true,
     defaultWasmBytes: defaultWasm.length,
     defaultWasmGzipBytes: gzipSync(defaultWasm, { level: 9 }).length,
     optionalWasmBytes: optionalWasm.length,

@@ -24,6 +24,7 @@ afterEach(() => {
 });
 afterAll(() => rmSync(temporary, { recursive: true, force: true }));
 interface Native extends CemSchemaAssetNativeRuntime {
+    schemaAssetEmbeddedSourcesV1(): string;
     commandNativeResourceInventory(): string;
     closeCommandNativeAdmission(): string;
     validateCommandNativeClosure(revision: number): string;
@@ -69,6 +70,12 @@ nativeCase('publishes native ownership through the existing declarative HTTP res
     const native = freshNative(), loader = makeLoader(native);
     try {
         expect(owners(native)).toBe(0);
+        expect(JSON.parse(native.schemaAssetEmbeddedSourcesV1())).toMatchObject({ externalBodies: true, catalogPackageCount: 32,
+            externalPackages: expect.arrayContaining(['csv', 'markdown']) });
+        for (const contentType of ['text/csv', 'csv', 'TEXT/CSV;header=present']) {
+            expect(() => native.retainCemDocument(new TextEncoder().encode('id,name\n1,Ada\n'), contentType, 'memory:not-admitted.csv'))
+                .toThrow('cem.schema_asset.missing');
+        }
         const loaded = await loader.loadResource(demand());
         const chunks = [];
         for await (const bytes of loaded.body) chunks.push(bytes);
@@ -84,6 +91,20 @@ nativeCase('publishes native ownership through the existing declarative HTTP res
         expect(owners(native)).toBe(1);
     } finally { loader.dispose(); }
     expect(owners(native)).toBe(0);
+});
+
+nativeCase('refuses a missing optional artifact without publishing or falling back to embedded sources', async () => {
+    const native = freshNative();
+    const index = JSON.parse(readFileSync(join(pack, 'index.json'), 'utf8')) as { sources: Array<{ packageId: string; path: string; digest: string }> };
+    const missing = index.sources.find(source => source.packageId === 'csv' && source.path.endsWith('/formatters/compact.cemt'));
+    if (!missing) throw Error('missing native CSV fixture');
+    const loader = new CemSchemaAssetPackLoader({ baseUrl, runtime: { native, current: () => true }, activationHostConfiguration: hostConfiguration,
+        loadHttpResource: request => request.resolvedUrl.endsWith(`sources/${missing.digest}`) ? Promise.reject(Error('offline missing body')) : transport(request) });
+    try {
+        await expect(loader.loadResource(demand())).rejects.toThrow('cem.schema_asset.unavailable');
+        expect(owners(native)).toBe(0);
+        expect(() => native.retainCemDocument(new TextEncoder().encode('id,name\n1,Ada\n'), 'text/csv', 'memory:still-missing.csv')).toThrow('cem.schema_asset.missing');
+    } finally { loader.dispose(); }
 });
 
 nativeCase('refuses ungranted and unknown demand and never grants authority from a URL', async () => {
@@ -185,7 +206,6 @@ nativeCase('fences cancelled demand and entered-credential host admission withou
 nativeCase('runs ordinary command-service validation with the persistent package context', async () => {
     const native = freshNative(), loader = makeLoader(native);
     try {
-        await loader.activatePackages([csv]);
         const bytes = new TextEncoder().encode('id,name\n1,"Ada\n'), uri = 'memory:command.csv';
         const version = { revision: 1, sha256: createHash('sha256').update(bytes).digest('hex') };
         const runPlan = JSON.parse(native.normalizeCommandRunPlanV1(JSON.stringify({ configBytes: [...new TextEncoder().encode(JSON.stringify({
@@ -195,11 +215,16 @@ nativeCase('runs ordinary command-service validation with the persistent package
             resourceVersions: { [uri]: version }, operation: { kind: 'validate', inputIds: ['input:0'], projection: 'text' }, runPlan, resources: {},
             policyStamp: { resolver: 'fixture', safety: 'fixture', budget: 'fixture' } };
         const forbidden = (): never => { throw Error('unexpected publication'); };
-        const result = JSON.parse(await native.executeCommandServiceV1(JSON.stringify(request), JSON.stringify({ runtime: 'wasm-node',
+        const execute = async (requestId: string) => JSON.parse(await native.executeCommandServiceV1(JSON.stringify({ ...request, requestId }), JSON.stringify({ runtime: 'wasm-node',
             targetIdentity: 'fixture', abiIdentity: 'fixture', debugControlActive: false }),
             () => JSON.stringify({ project: request.project, resourceVersions: request.resourceVersions }),
             () => JSON.stringify({ version, bytes: [...bytes], identity: { contentType: 'text/csv', schema: 'https://cem.dev/ns/data/csv/1' } }),
             forbidden, forbidden, () => undefined));
+        const missing = await execute('missing-csv-validation');
+        expect(JSON.stringify(missing)).toContain('cem.schema_asset.missing');
+        expect(owners(native)).toBe(0);
+        await loader.activatePackages([csv]);
+        const result = await execute('owned-csv-validation');
         expect(result.error).toBeUndefined();
         expect(JSON.stringify(result)).toContain('cem.csv.unclosed_quote');
         expect(owners(native)).toBe(1);

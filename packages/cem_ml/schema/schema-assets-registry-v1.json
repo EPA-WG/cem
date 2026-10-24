@@ -1,0 +1,983 @@
+[
+  {
+    "packageId": "cem-ast-projection",
+    "schemaUri": "https://cem.dev/ns/projection/ast/1",
+    "version": "1.0.0",
+    "source": "schema-packages/cem-ast-projection/v1/schema/cem-ast-projection.cem",
+    "contentTypes": [
+      {
+        "value": "application/vnd.cem.ast+cem-bin",
+        "primary": true
+      },
+      {
+        "value": "application/vnd.cem.ast+json",
+        "primary": false
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "cemast",
+        "uri": "https://cem.dev/ns/projection/ast/1"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1",
+      "https://cem.dev/ns/cem-ml/1"
+    ]
+  },
+  {
+    "packageId": "cem-data-island",
+    "schemaUri": "https://cem.dev/ns/runtime/data-island",
+    "version": "1.0.0",
+    "source": "schema-packages/cem-data-island/v1/schema/cem-data-island.cem",
+    "contentTypes": [
+      {
+        "value": "application/vnd.cem.data-island+cem",
+        "primary": true
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "cem-island",
+        "uri": "https://cem.dev/ns/runtime/data-island"
+      },
+      {
+        "prefix": "cem-hydration",
+        "uri": "https://cem.dev/ns/runtime/hydration-data"
+      },
+      {
+        "prefix": "cem-attributes",
+        "uri": "https://cem.dev/ns/runtime/instance-attributes"
+      },
+      {
+        "prefix": "cem-dataset",
+        "uri": "https://cem.dev/ns/runtime/instance-dataset"
+      },
+      {
+        "prefix": "cem-payload",
+        "uri": "https://cem.dev/ns/runtime/instance-payload"
+      },
+      {
+        "prefix": "cem-slices",
+        "uri": "https://cem.dev/ns/runtime/instance-slices"
+      },
+      {
+        "prefix": "cem-resources",
+        "uri": "https://cem.dev/ns/runtime/resource-state"
+      },
+      {
+        "prefix": "cem-form",
+        "uri": "https://cem.dev/ns/runtime/form-state"
+      },
+      {
+        "prefix": "cem-validation",
+        "uri": "https://cem.dev/ns/runtime/validation-state"
+      },
+      {
+        "prefix": "cem-events",
+        "uri": "https://cem.dev/ns/runtime/event-state"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1",
+      "https://cem.dev/ns/cem-ml/1"
+    ]
+  },
+  {
+    "packageId": "cem-dom-projection",
+    "schemaUri": "https://cem.dev/ns/projection/dom/1",
+    "version": "1.0.0",
+    "source": "schema-packages/cem-dom-projection/v1/schema/cem-dom-projection.cem",
+    "contentTypes": [
+      {
+        "value": "application/vnd.cem.dom+cem-bin",
+        "primary": true
+      },
+      {
+        "value": "application/vnd.cem.dom+json",
+        "primary": false
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "cemdom",
+        "uri": "https://cem.dev/ns/projection/dom/1"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1",
+      "https://cem.dev/ns/cem-ml/1"
+    ]
+  },
+  {
+    "packageId": "cem-element-template",
+    "schemaUri": "https://cem.dev/ns/template/cem-element/1",
+    "version": "1.0.0",
+    "source": "schema-packages/cem-element-template/v1/schema/cem-element-template.cem",
+    "contentTypes": [
+      {
+        "value": "application/vnd.cem.element-template+cem",
+        "primary": true
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "element",
+        "uri": "https://cem.dev/ns/template/cem-element/1"
+      },
+      {
+        "prefix": "cem",
+        "uri": "https://cem.dev/ns/core/1"
+      },
+      {
+        "prefix": "html",
+        "uri": "http://www.w3.org/1999/xhtml"
+      },
+      {
+        "prefix": "svg",
+        "uri": "http://www.w3.org/2000/svg"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1",
+      "https://cem.dev/ns/cem-ml/1"
+    ]
+  },
+  {
+    "packageId": "cem-events-projection",
+    "schemaUri": "https://cem.dev/ns/projection/events/1",
+    "version": "1.0.0",
+    "source": "schema-packages/cem-events-projection/v1/schema/cem-events-projection.cem",
+    "contentTypes": [
+      {
+        "value": "application/vnd.cem.events+cem-bin",
+        "primary": true
+      },
+      {
+        "value": "application/vnd.cem.events+json",
+        "primary": false
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "cemevents",
+        "uri": "https://cem.dev/ns/projection/events/1"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1",
+      "https://cem.dev/ns/cem-ml/1"
+    ]
+  },
+  {
+    "packageId": "cem-ml",
+    "schemaUri": "https://cem.dev/ns/cem-ml/1",
+    "version": "1.0.0",
+    "source": "schema-packages/cem-ml/v1/schema/cem-ml-generic.cem",
+    "contentTypes": [
+      {
+        "value": "application/cem",
+        "primary": true
+      },
+      {
+        "value": "text/cem-ml",
+        "primary": false
+      },
+      {
+        "value": "text/cem",
+        "primary": false
+      },
+      {
+        "value": "application/cem+xml",
+        "primary": false
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "cemml",
+        "uri": "https://cem.dev/ns/cem-ml/1"
+      },
+      {
+        "prefix": "schema",
+        "uri": "https://cem.dev/ns/schema/1"
+      }
+    ],
+    "uses": []
+  },
+  {
+    "packageId": "cem-native-template",
+    "schemaUri": "https://cem.dev/ns/template/cem-native/1",
+    "version": "1.0.0",
+    "source": "schema-packages/cem-native-template/v1/schema/cem-native-template.cem",
+    "contentTypes": [
+      {
+        "value": "application/vnd.cem.template+cem",
+        "primary": true
+      },
+      {
+        "value": "application/cem",
+        "primary": false
+      },
+      {
+        "value": "application/cem+xml",
+        "primary": false
+      },
+      {
+        "value": "text/cem",
+        "primary": false
+      },
+      {
+        "value": "text/cem-ml",
+        "primary": false
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "template",
+        "uri": "https://cem.dev/ns/template/cem-native/1"
+      },
+      {
+        "prefix": "cem",
+        "uri": "https://cem.dev/ns/core/1"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1",
+      "https://cem.dev/ns/cem-ml/1"
+    ]
+  },
+  {
+    "packageId": "cem-ql",
+    "schemaUri": "https://cem.dev/ns/query/cem-ql/1",
+    "version": "1.0.0",
+    "source": "schema-packages/cem-ql/v1/schema/cem-ql.cem",
+    "contentTypes": [
+      {
+        "value": "application/vnd.cem.query+cem-ql",
+        "primary": true
+      },
+      {
+        "value": "text/cem-ql",
+        "primary": false
+      },
+      {
+        "value": "application/vnd.cem.query-expression+cem-ql",
+        "primary": false
+      },
+      {
+        "value": "application/vnd.cem.query-artifact+cem-bin",
+        "primary": false
+      },
+      {
+        "value": "cem-ql/1",
+        "primary": false
+      },
+      {
+        "value": "cem-ql/module",
+        "primary": false
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "ql",
+        "uri": "https://cem.dev/ns/query/cem-ql/1"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1",
+      "https://cem.dev/ns/cem-ml/1",
+      "https://cem.dev/ns/query/xpath/1"
+    ]
+  },
+  {
+    "packageId": "cem-transform",
+    "schemaUri": "https://cem.dev/ns/transform/cem/1",
+    "version": "1.0.0",
+    "source": "schema-packages/cem-transform/v1/schema/cem-transform.cem",
+    "contentTypes": [
+      {
+        "value": "application/vnd.cem.transform+cem",
+        "primary": true
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "transform",
+        "uri": "https://cem.dev/ns/transform/cem/1"
+      },
+      {
+        "prefix": "template",
+        "uri": "https://cem.dev/ns/template/cem-native/1"
+      },
+      {
+        "prefix": "cem",
+        "uri": "https://cem.dev/ns/core/1"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1",
+      "https://cem.dev/ns/template/cem-native/1",
+      "https://cem.dev/ns/query/xpath/1"
+    ]
+  },
+  {
+    "packageId": "cli-command",
+    "schemaUri": "https://cem.dev/ns/cli/command/1",
+    "version": "1.0.0",
+    "source": "schema-packages/cli-command/v1/schema/cli-command.cem",
+    "contentTypes": [
+      {
+        "value": "application/vnd.cem.cli-command+json",
+        "primary": true
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "command",
+        "uri": "https://cem.dev/ns/cli/command/1"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1",
+      "https://cem.dev/ns/cem-ml/1"
+    ]
+  },
+  {
+    "packageId": "css",
+    "schemaUri": "https://cem.dev/ns/data/css/1",
+    "version": "1.0.0",
+    "source": "schema-packages/css/v1/schema/css.cem",
+    "contentTypes": [
+      {
+        "value": "text/css",
+        "primary": true
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "cemcss",
+        "uri": "https://cem.dev/ns/data/css/1"
+      },
+      {
+        "prefix": "cemhtml",
+        "uri": "https://cem.dev/ns/data/html/1"
+      },
+      {
+        "prefix": "cemsvg",
+        "uri": "https://cem.dev/ns/data/svg/1"
+      },
+      {
+        "prefix": "cemmathml",
+        "uri": "https://cem.dev/ns/data/mathml/1"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1",
+      "https://cem.dev/ns/cem-ml/1",
+      "https://cem.dev/ns/data/html/1",
+      "https://cem.dev/ns/data/svg/1",
+      "https://cem.dev/ns/data/mathml/1"
+    ]
+  },
+  {
+    "packageId": "css-selector",
+    "schemaUri": "https://cem.dev/ns/query/css-selector/1",
+    "version": "1.0.0",
+    "source": "schema-packages/css-selector/v1/schema/css-selector.cem",
+    "contentTypes": [
+      {
+        "value": "application/vnd.cem.query-expression+css-selector",
+        "primary": true
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "csssel",
+        "uri": "https://cem.dev/ns/query/css-selector/1"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1",
+      "https://cem.dev/ns/cem-ml/1"
+    ]
+  },
+  {
+    "packageId": "csv",
+    "schemaUri": "https://cem.dev/ns/data/csv/1",
+    "version": "1.0.0",
+    "source": "schema-packages/csv/v1/schema/csv.cem",
+    "contentTypes": [
+      {
+        "value": "text/csv",
+        "primary": true
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "csv",
+        "uri": "https://cem.dev/ns/data/csv/1"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1",
+      "https://cem.dev/ns/cem-ml/1"
+    ]
+  },
+  {
+    "packageId": "html",
+    "schemaUri": "https://cem.dev/ns/data/html/1",
+    "version": "1.0.0",
+    "source": "schema-packages/html/v1/schema/html.cem",
+    "contentTypes": [
+      {
+        "value": "text/html",
+        "primary": true
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "cemhtml",
+        "uri": "https://cem.dev/ns/data/html/1"
+      },
+      {
+        "prefix": "cemsvg",
+        "uri": "https://cem.dev/ns/data/svg/1"
+      },
+      {
+        "prefix": "cemmathml",
+        "uri": "https://cem.dev/ns/data/mathml/1"
+      },
+      {
+        "prefix": "html",
+        "uri": "http://www.w3.org/1999/xhtml"
+      },
+      {
+        "prefix": "svg",
+        "uri": "http://www.w3.org/2000/svg"
+      },
+      {
+        "prefix": "mathml",
+        "uri": "http://www.w3.org/1998/Math/MathML"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1",
+      "https://cem.dev/ns/cem-ml/1",
+      "https://cem.dev/ns/data/svg/1",
+      "https://cem.dev/ns/data/mathml/1"
+    ]
+  },
+  {
+    "packageId": "json",
+    "schemaUri": "https://cem.dev/ns/data/json/1",
+    "version": "1.0.0",
+    "source": "schema-packages/json/v1/schema/json.cem",
+    "contentTypes": [
+      {
+        "value": "application/json",
+        "primary": true
+      },
+      {
+        "value": "text/json",
+        "primary": false
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "json",
+        "uri": "https://cem.dev/ns/data/json/1"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1"
+    ]
+  },
+  {
+    "packageId": "json-schema",
+    "schemaUri": "https://cem.dev/ns/data/json-schema/1",
+    "version": "1.0.0",
+    "source": "schema-packages/json-schema/v1/schema/json-schema.cem",
+    "contentTypes": [
+      {
+        "value": "application/schema+json",
+        "primary": true
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "jsonschema",
+        "uri": "https://cem.dev/ns/data/json-schema/1"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1",
+      "https://cem.dev/ns/data/json/1"
+    ]
+  },
+  {
+    "packageId": "markdown",
+    "schemaUri": "https://cem.dev/ns/data/markdown/1",
+    "version": "1.0.0",
+    "source": "schema-packages/markdown/v1/schema/markdown.cem",
+    "contentTypes": [
+      {
+        "value": "text/markdown",
+        "primary": true
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "markdown",
+        "uri": "https://cem.dev/ns/data/markdown/1"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1",
+      "https://cem.dev/ns/cem-ml/1"
+    ]
+  },
+  {
+    "packageId": "mathml",
+    "schemaUri": "https://cem.dev/ns/data/mathml/1",
+    "version": "1.0.0",
+    "source": "schema-packages/mathml/v1/schema/mathml.cem",
+    "contentTypes": [
+      {
+        "value": "application/mathml+xml",
+        "primary": true
+      },
+      {
+        "value": "application/mathml-presentation+xml",
+        "primary": false
+      },
+      {
+        "value": "application/mathml-content+xml",
+        "primary": false
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "cemmathml",
+        "uri": "https://cem.dev/ns/data/mathml/1"
+      },
+      {
+        "prefix": "mathml",
+        "uri": "http://www.w3.org/1998/Math/MathML"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1",
+      "https://cem.dev/ns/cem-ml/1",
+      "https://cem.dev/ns/data/xml/1"
+    ]
+  },
+  {
+    "packageId": "module-map",
+    "schemaUri": "https://cem.dev/ns/data/module-map/1",
+    "version": "1.0.0",
+    "source": "schema-packages/module-map/v1/schema/module-map.cem",
+    "contentTypes": [
+      {
+        "value": "application/vnd.cem.module-map+json",
+        "primary": true
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "module-map",
+        "uri": "https://cem.dev/ns/data/module-map/1"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1"
+    ]
+  },
+  {
+    "packageId": "module-map-v2",
+    "schemaUri": "https://cem.dev/ns/data/module-map/2",
+    "version": "1.0.0",
+    "source": "schema-packages/module-map-v2/v1/schema/module-map-v2.cem",
+    "contentTypes": [
+      {
+        "value": "application/vnd.cem.module-map+json",
+        "primary": false
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "module-map",
+        "uri": "https://cem.dev/ns/data/module-map/2"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1"
+    ]
+  },
+  {
+    "packageId": "module-map-v3",
+    "schemaUri": "https://cem.dev/ns/data/module-map/3",
+    "version": "1.0.0",
+    "source": "schema-packages/module-map-v3/v1/schema/module-map-v3.cem",
+    "contentTypes": [
+      {
+        "value": "application/vnd.cem.module-map+json",
+        "primary": false
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "module-map",
+        "uri": "https://cem.dev/ns/data/module-map/3"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1"
+    ]
+  },
+  {
+    "packageId": "relax-ng",
+    "schemaUri": "https://cem.dev/ns/data/relax-ng/1",
+    "version": "1.0.0",
+    "source": "schema-packages/relax-ng/v1/schema/relax-ng.cem",
+    "contentTypes": [
+      {
+        "value": "application/relax-ng+xml",
+        "primary": true
+      },
+      {
+        "value": "application/relax-ng-compact-syntax",
+        "primary": false
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "cemrng",
+        "uri": "https://cem.dev/ns/data/relax-ng/1"
+      },
+      {
+        "prefix": "rng",
+        "uri": "http://relaxng.org/ns/structure/1.0"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1",
+      "https://cem.dev/ns/cem-ml/1",
+      "https://cem.dev/ns/data/xml/1"
+    ]
+  },
+  {
+    "packageId": "schema",
+    "schemaUri": "https://cem.dev/ns/schema/1",
+    "version": "1.0.0",
+    "source": "schema-packages/schema/v1/schema/cem-schema.cem",
+    "contentTypes": [
+      {
+        "value": "application/vnd.cem.schema+cem",
+        "primary": true
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "schema",
+        "uri": "https://cem.dev/ns/schema/1"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/cem-ml/1"
+    ]
+  },
+  {
+    "packageId": "schema-package",
+    "schemaUri": "https://cem.dev/ns/schema-package/1",
+    "version": "1.0.0",
+    "source": "schema-packages/schema-package/v1/schema/schema-package.cem",
+    "contentTypes": [
+      {
+        "value": "application/vnd.cem.schema-package+cem",
+        "primary": true
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "pkg",
+        "uri": "https://cem.dev/ns/schema-package/1"
+      },
+      {
+        "prefix": "schema",
+        "uri": "https://cem.dev/ns/schema/1"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1"
+    ]
+  },
+  {
+    "packageId": "scss",
+    "schemaUri": "https://cem.dev/ns/data/scss/1",
+    "version": "1.0.0",
+    "source": "schema-packages/scss/v1/schema/scss.cem",
+    "contentTypes": [
+      {
+        "value": "text/vnd.cem.scss",
+        "primary": true
+      },
+      {
+        "value": "text/x-scss",
+        "primary": false
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "scss",
+        "uri": "https://cem.dev/ns/data/scss/1"
+      },
+      {
+        "prefix": "css",
+        "uri": "https://cem.dev/ns/data/css/1"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1",
+      "https://cem.dev/ns/cem-ml/1",
+      "https://cem.dev/ns/data/css/1"
+    ]
+  },
+  {
+    "packageId": "studio-project",
+    "schemaUri": "https://cem.dev/ns/studio/project/1",
+    "version": "1.0.0",
+    "source": "schema-packages/studio-project/v1/schema/studio-project.cem",
+    "contentTypes": [
+      {
+        "value": "application/vnd.cem.studio-project+cem",
+        "primary": true
+      },
+      {
+        "value": "application/vnd.cem.studio-project+json",
+        "primary": false
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "studio",
+        "uri": "https://cem.dev/ns/studio/project/1"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1",
+      "https://cem.dev/ns/cem-ml/1"
+    ]
+  },
+  {
+    "packageId": "svg",
+    "schemaUri": "https://cem.dev/ns/data/svg/1",
+    "version": "1.0.0",
+    "source": "schema-packages/svg/v1/schema/svg.cem",
+    "contentTypes": [
+      {
+        "value": "image/svg+xml",
+        "primary": true
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "cemsvg",
+        "uri": "https://cem.dev/ns/data/svg/1"
+      },
+      {
+        "prefix": "svg",
+        "uri": "http://www.w3.org/2000/svg"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1",
+      "https://cem.dev/ns/cem-ml/1",
+      "https://cem.dev/ns/data/xml/1"
+    ]
+  },
+  {
+    "packageId": "xhtml",
+    "schemaUri": "https://cem.dev/ns/data/xhtml/1",
+    "version": "1.0.0",
+    "source": "schema-packages/xhtml/v1/schema/xhtml.cem",
+    "contentTypes": [
+      {
+        "value": "application/xhtml+xml",
+        "primary": true
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "cemxhtml",
+        "uri": "https://cem.dev/ns/data/xhtml/1"
+      },
+      {
+        "prefix": "xhtml",
+        "uri": "http://www.w3.org/1999/xhtml"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1",
+      "https://cem.dev/ns/cem-ml/1",
+      "https://cem.dev/ns/data/xml/1"
+    ]
+  },
+  {
+    "packageId": "xml",
+    "schemaUri": "https://cem.dev/ns/data/xml/1",
+    "version": "1.0.0",
+    "source": "schema-packages/xml/v1/schema/xml.cem",
+    "contentTypes": [
+      {
+        "value": "application/xml",
+        "primary": true
+      },
+      {
+        "value": "text/xml",
+        "primary": false
+      },
+      {
+        "value": "application/xml-external-parsed-entity",
+        "primary": false
+      },
+      {
+        "value": "text/xml-external-parsed-entity",
+        "primary": false
+      },
+      {
+        "value": "application/xml-dtd",
+        "primary": false
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "xml",
+        "uri": "https://cem.dev/ns/data/xml/1"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1",
+      "https://cem.dev/ns/cem-ml/1"
+    ]
+  },
+  {
+    "packageId": "xpath",
+    "schemaUri": "https://cem.dev/ns/query/xpath/1",
+    "version": "1.0.0",
+    "source": "schema-packages/xpath/v1/schema/xpath.cem",
+    "contentTypes": [
+      {
+        "value": "application/vnd.cem.xpath",
+        "primary": true
+      },
+      {
+        "value": "application/vnd.cem.xpath-artifact+cem-bin",
+        "primary": false
+      },
+      {
+        "value": "text/xpath",
+        "primary": false
+      },
+      {
+        "value": "application/vnd.cem.xpath-result+json",
+        "primary": false
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "xpath",
+        "uri": "https://cem.dev/ns/query/xpath/1"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1",
+      "https://cem.dev/ns/cem-ml/1"
+    ]
+  },
+  {
+    "packageId": "xslt",
+    "schemaUri": "https://cem.dev/ns/transform/xslt/1",
+    "version": "1.0.0",
+    "source": "schema-packages/xslt/v1/schema/xslt.cem",
+    "contentTypes": [
+      {
+        "value": "application/xslt+xml",
+        "primary": true
+      },
+      {
+        "value": "application/vnd.cem.xslt-bundle+cem-bin",
+        "primary": false
+      },
+      {
+        "value": "text/xsl",
+        "primary": false
+      },
+      {
+        "value": "custom-element-xslt",
+        "primary": false
+      },
+      {
+        "value": "text/custom-element-xslt",
+        "primary": false
+      },
+      {
+        "value": "application/custom-element-xslt",
+        "primary": false
+      },
+      {
+        "value": "text/x-custom-element-xslt",
+        "primary": false
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "cemxslt",
+        "uri": "https://cem.dev/ns/transform/xslt/1"
+      },
+      {
+        "prefix": "xsl",
+        "uri": "http://www.w3.org/1999/XSL/Transform"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1",
+      "https://cem.dev/ns/cem-ml/1",
+      "https://cem.dev/ns/data/xml/1",
+      "https://cem.dev/ns/query/xpath/1"
+    ]
+  },
+  {
+    "packageId": "yaml",
+    "schemaUri": "https://cem.dev/ns/data/yaml/1",
+    "version": "1.0.0",
+    "source": "schema-packages/yaml/v1/schema/yaml.cem",
+    "contentTypes": [
+      {
+        "value": "application/yaml",
+        "primary": true
+      },
+      {
+        "value": "application/x-yaml",
+        "primary": false
+      },
+      {
+        "value": "text/yaml",
+        "primary": false
+      },
+      {
+        "value": "text/x-yaml",
+        "primary": false
+      }
+    ],
+    "namespaces": [
+      {
+        "prefix": "yaml",
+        "uri": "https://cem.dev/ns/data/yaml/1"
+      }
+    ],
+    "uses": [
+      "https://cem.dev/ns/schema/1",
+      "https://cem.dev/ns/cem-ml/1"
+    ]
+  }
+]

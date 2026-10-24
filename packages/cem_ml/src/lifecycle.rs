@@ -253,6 +253,14 @@ impl LifecycleRegistry {
             .clone()
             .or_else(|| input.root_scope.format_identity_option())
             .unwrap_or_else(|| FormatIdentity::from(context));
+        #[cfg(feature = "external-schema-assets")]
+        if let Some(message) = crate::schema::package_sources::missing_external_source(
+            Some(context), identity.schema.as_deref(), identity.content_type.as_deref(),
+        ) {
+            return LoadedInput { bytes: input.bytes.clone(), from_format: input.from_format.unwrap_or(InputFormat::Cem),
+                ast_stream: None, adapter_id: None, diagnostics: vec![Diagnostic { uri: Some(input.uri.clone()),
+                    code: "cem.schema_asset.missing".into(), severity: Severity::Error, message, ..Diagnostic::default() }] };
+        }
         let matches: Vec<&dyn LifecycleAdapter> = self
             .adapters
             .iter()

@@ -15,13 +15,35 @@ struct IntegrityFile {
 }
 
 fn main() -> ExitCode {
-    match output_directory().and_then(|output| emit(&output)) {
+    let arguments: Vec<_> = std::env::args_os().skip(1).collect();
+    let result = match arguments.as_slice() {
+        [flag, path] if flag == "--registry-out" || flag == "--check-registry" => {
+            registry(Path::new(path), flag == "--check-registry")
+        }
+        _ => output_directory().and_then(|output| emit(&output)),
+    };
+    match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("cem-ml-schema-assets-emit: {error}");
             ExitCode::FAILURE
         }
     }
+}
+
+/// Emit/check named native identity metadata using the complete source build.
+fn registry(path: &Path, check: bool) -> Result<(), String> {
+    if cfg!(feature = "external-schema-assets") {
+        return Err("registry emission requires the complete embedded source catalog".into());
+    }
+    let export = builtin_schema_asset_pack_export().map_err(message)?;
+    let bytes = json_bytes(&export.index.packages)?;
+    if check {
+        if std::fs::read(path).map_err(message)? != bytes {
+            return Err("compiled registry differs from complete native sources; regenerate with --registry-out".into());
+        }
+        Ok(())
+    } else { std::fs::write(path, bytes).map_err(message) }
 }
 
 fn emit(output: &Path) -> Result<(), String> {

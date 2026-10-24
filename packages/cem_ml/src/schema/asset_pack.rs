@@ -1,5 +1,5 @@
-//! Opt-in immutable schema asset packs. This prototype leaves embedded sources
-//! and the existing native/WASM ABI unchanged; it does not establish WASM savings.
+//! Opt-in immutable schema asset packs. Complete releases retain embedded sources;
+//! `external-schema-assets` excludes optional bodies without claiming WASM savings.
 
 use crate::{
     import::{import_bytes_with_lexical_scopes, import_data_bytes, MAX_DOCUMENT_BYTES},

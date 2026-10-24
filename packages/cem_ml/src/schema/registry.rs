@@ -10,7 +10,9 @@ use crate::events::cem::CemEventNormalizer;
 use crate::parser::builder::CemAstBuilder;
 use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
-use crate::schema::package_sources::{builtin_schema_package_sources, BuiltinSchemaPackageSource};
+use crate::schema::package_sources::BuiltinSchemaPackageSource;
+#[cfg(any(test, not(feature = "external-schema-assets")))]
+use crate::schema::package_sources::builtin_schema_package_sources;
 use crate::source::{BytesSource, SourceId};
 use crate::tokenizer::cem::CemTokenizer;
 
@@ -455,6 +457,7 @@ pub fn content_type_essence(content_type: &str) -> String {
         .to_ascii_lowercase()
 }
 
+#[cfg(not(feature = "external-schema-assets"))]
 pub fn builtin_schema_descriptors() -> Vec<SchemaDescriptor> {
     builtin_schema_package_sources()
         .iter()
@@ -463,6 +466,16 @@ pub fn builtin_schema_descriptors() -> Vec<SchemaDescriptor> {
                 .expect("built-in schema package descriptor metadata must be valid")
         })
         .collect()
+}
+
+/// Native-emitted identity DTOs retain the complete registry without retaining
+/// optional original sources. This catalog grants no package/model readiness.
+#[cfg(feature = "external-schema-assets")]
+pub fn builtin_schema_descriptors() -> Vec<SchemaDescriptor> {
+    let packages: Vec<super::asset_pack::SchemaAssetPackageDescriptor> = serde_json::from_str(
+        include_str!("../../schema/schema-assets-registry-v1.json"),
+    ).expect("native-emitted schema registry metadata must be valid");
+    packages.iter().map(|package| package.schema_descriptor()).collect()
 }
 
 pub fn schema_descriptor_from_package_sources(

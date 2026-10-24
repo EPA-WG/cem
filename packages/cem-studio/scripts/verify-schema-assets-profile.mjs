@@ -22,7 +22,9 @@ assert.ok(selected);
 assert.equal(build.deploymentProfile, 'schema-assets');
 assert.equal(build.automaticRecovery, false);
 assert.equal(build.packagePublication, 'explicit-host-admission');
-assert.equal(build.embeddedBodies, true);
+assert.equal(build.embeddedBodies, 'bootstrap-only');
+assert.equal(build.embeddingProfile.externalBodies, true);
+assert.ok(build.embeddingProfile.externalPackages.includes('csv'));
 assert.equal((await json(resolve(ordinary, 'build.json'))).deploymentProfile, undefined);
 assert.equal((await json(resolve(ordinary, 'cache-inventory.json'))).groups.some(group => group.id === 'schema-assets'), false);
 const packFiles = await files(pack);
@@ -132,6 +134,11 @@ try {
         const renderer = createCemQlWasmGeneration();
         await renderer.initialize();
         if (JSON.parse(renderer.call('schemaAssetPackBootstrapV1', [])).indexDigest !== pin.indexDigest) throw Error('renderer pin mismatch');
+        if (JSON.parse(renderer.call('schemaAssetEmbeddedSourcesV1', [])).externalBodies !== true) throw Error('renderer retained optional bodies');
+        let missingSourceRefused = false;
+        try { renderer.call('retainCemDocument', [new TextEncoder().encode('id,name\n1,Ada\n'), 'text/csv', 'memory:missing.csv']); }
+        catch (error) { missingSourceRefused = String(error).includes('cem.schema_asset.missing'); }
+        if (!missingSourceRefused) throw Error('renderer imported CSV before package admission');
         renderer.dispose();
         const first = createCemMlWasmGeneration(), second = createCemMlWasmGeneration();
         await first.initialize(); await second.initialize();
@@ -267,7 +274,12 @@ async function verifyStudioDemand(page) {
         try { await app.validator.parseResource({ ...options, bytes: new TextEncoder().encode('id,name\n1,"Ada\n') }); }
         catch (error) { invalidRefused = JSON.stringify(error.result).includes('cem.csv.unclosed_quote'); }
         if (!invalidRefused) throw Error('Studio package command lost native CSV diagnostics');
-        return { ...app.packageStatus(), nativeCommand: true, nativeInvalidCsvRefused: true };
+        const converted = await app.validator.runResourceCommand({ bytes: new TextEncoder().encode('[{"id":1,"name":"Ada"}]'), uri: 'table.json',
+            contentType: 'application/json', schema: 'https://cem.dev/ns/data/json/1',
+            argv: ['convert', 'studio://cem-studio-command/table.json', '--content-type', 'application/json', '--schema', 'https://cem.dev/ns/data/json/1',
+                '--to-content-type', 'text/csv', '--to-schema', 'https://cem.dev/ns/data/csv/1'] });
+        if (converted.result.exitCode !== 0 || !converted.output?.text.includes('Ada')) throw Error('Studio did not use the externally delivered CSV formatter');
+        return { ...app.packageStatus(), nativeCommand: true, nativeInvalidCsvRefused: true, externalCsvFormatter: true };
     });
 }
 async function openStudio(page, url) {

@@ -629,6 +629,10 @@ pub fn import_data_bytes_with_context(
         return RetainedCemTree::new(builder.ast, source_uri, text, builder.semantics, None);
     }
     let (_, normalized) = import_content_type(content_type)?;
+    #[cfg(feature = "external-schema-assets")]
+    if let Some(message) = crate::schema::package_sources::missing_external_source(context, None, Some(&normalized)) {
+        return Err(message);
+    }
     let model = context.and_then(|ctx| ctx.schema_document_models.resolve_for_identity(
         None, Some(&normalized), Some(&ctx.schema_registry),
     ).or_else(|| ctx.schema_document_models.inspect_for_identity(

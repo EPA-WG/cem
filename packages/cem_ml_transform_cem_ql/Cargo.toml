@@ -15,6 +15,7 @@ crate-type = ["rlib", "cdylib"]
 default = ["debug-control"]
 debug-control = ["cem-ml/debug-control", "cem-ql/debug-control"]
 schema-asset-packs = ["cem-ml/schema-asset-packs"]
+external-schema-assets = ["schema-asset-packs", "cem-ml/external-schema-assets"]
 
 [dependencies]
 blake3 = "1"
