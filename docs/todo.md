@@ -315,3 +315,7 @@ physical-device/spoken AT acceptance.
 ## Component gallery source-link maintenance (after Studio presentation work)
 
 - [ ] Migrate remaining extensionless canonical-source `cem-module-url` references to full declaration paths under the folder import-map convention. Add source/isolated-package fixtures without assuming a template has only id/type attributes. The current artifact-tree increment repairs and verifies cem-media-preview; a filtered passive-component gate keeps that verification scoped while this older bulk maintenance remains separate.
+
+- [x] Halve normal tree row padding through theme-owned `--cem-data-tree-padding-factor` (normal/dense 0.5, sparse 1). Verified `yarn nx run @epa-wg/cem-theme:build:css` and Chromium gallery styles across all five themes: normal 4px/6px (58px rows), sparse 8px/12px (66px rows), condensed unchanged. Ancestor sparse, nested normal reset and inherited control-padding override verified. Coupling minima and color/forced-color rules remain unchanged; forced-colors emulation was not separately run.
+
+- [x] Group tree marker and icon in a zero-gap `part="leading"` span. Updated shared disclosure hit testing for nested markers and existing story assertions for the wrapper and zero gap. Verified `cem-elements:build`, `@epa-wg/cem-components:verify-declarative`, and Chromium gallery measurements (normal/sparse/condensed gap 0, row heights unchanged); marker click emits toggle and icon click emits activation.

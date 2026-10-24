@@ -1441,13 +1441,74 @@ then extend the same cache contract to other supported languages and formats.
 - Design browser AST/DOM caching across windows and sessions, including shared
   ownership, persistence, restoration and invalidation. Define how reusable
   parsed trees relate to document-owned DOM instances and source locations.
-- Permit cross-site cache reuse when content checksums match. Design the browser
-  sharing mechanism and compatible parsing-context checks; a source site's URL
-  alone must not prevent reuse of identical parsed content.
+- Permit cross-site cache reuse when content checksums match and the consuming
+  context independently admits the resource. A source site's URL alone must not
+  prevent reuse of identical content; apply the security and compatibility
+  boundaries below.
 - Prove cache hits reuse the retained tree, changed content cannot reuse a stale
   tree, and concurrent consumers preserve independent runtime state. Add
   cross-window/session and cross-site checksum-matching fixtures when the browser
   cache design is promoted to implementation work.
+
+### URI and checksum units for SSR and reusable element definitions
+
+- [ ] Define a shared immutable resource unit identified by resolved absolute URI
+  plus an algorithm-qualified cryptographic checksum (SHA-256 or stronger) of the
+  exact resource bytes before parsing. Retain requested/final redirect URIs and
+  source provenance; identify template/definition fragments separately from the
+  enclosing resource checksum. Mutable URIs resolve to revisioned units rather
+  than replacing bytes under an existing checksum.
+- [ ] Use these units for SSR, cross-page custom-element templates and
+  `<cem-element>` declarations. Index URI/checksum bindings over a content-addressed
+  byte store: already loaded, verified bytes may be reused regardless of the
+  origin that supplied them. Different URIs with equal digests can share bytes;
+  they do not automatically share resolution context, trust or installed state.
+- [ ] Reuse compatible immutable parsed/compiled artifacts across native SSR,
+  browser pages and workers. Identity also covers content type/schema,
+  parser/compiler and artifact-format versions, options, effective base URI,
+  import maps/resolver policy and the complete dependency closure. Rebind source
+  locations to the current provenance. Resolve relative imports/assets against
+  the admitted consumer resource context; equal source bytes with different
+  resolved dependencies must not reuse an incompatible compiled artifact.
+- [ ] Carry resource and artifact integrity metadata from trusted SSR manifests
+  into browser hydration. Validate bytes, compatibility and the current
+  declaration/version/publication contract before reuse. Keep data islands,
+  credentials, grants, event handlers, DOM instances and custom-element registry
+  installation local to each consumer; a cache hit never grants activation.
+
+Security impact and required boundaries:
+
+- A digest proves byte equality, not publisher authority or permission. Obtain
+  expected digests from an independently trusted declaration/manifest; computing a
+  checksum from an untrusted response alone does not establish trust. Verify
+  persistent/transferred bytes on admission, reject corruption and unsupported
+  algorithms, and prevent cache poisoning or stale revision-pointer rollback.
+- Enforce each consumer's current resolver allowlists, CSP, CORS, redirect and
+  response rules on cache hits as on loads. Reject opaque/unreadable responses
+  from verified shared reuse. SSR must enforce its own network/filesystem
+  capabilities, including private-network/metadata endpoint restrictions; browser
+  CORS is not an SSR protection. Reuse must not bypass those checks or the
+  [existing native lifecycle admission](docs/cem-element-lifecycle-principle.md).
+- Share only explicitly public, non-personalized resources across security
+  principals. Partition authenticated/private responses by tenant/principal and
+  relevant request variants; honor `no-store` and applicable HTTP caching rules.
+  Neither URI nor checksum alone is an authorization key. Do not persist SSR
+  secrets, personalized render output or live capability handles in this store.
+- Ordinary browser storage and HTTP caches remain subject to origin/network
+  partitioning. Cross-origin content deduplication requires an explicit authorized
+  host/transport; it does not imply arbitrary websites can inspect one another's
+  caches. Bound quotas and artifact validation costs, and avoid exposing global
+  hit/miss or timing probes that reveal another user's browsing or private data.
+- [ ] Verify same-content/different-origin reuse, SSR-to-browser compatibility,
+  nested/fragment definitions and independent instances; reject wrong checksums,
+  changed imports/base URIs, incompatible engines, revoked access, cross-tenant
+  reads, opaque responses, redirect/SSRF escapes and poisoned persistent entries.
+
+Security references: [W3C Subresource Integrity, security considerations](https://www.w3.org/TR/sri/#security-considerations)
+explains why integrity does not replace cross-origin permission;
+[WHATWG Fetch](https://fetch.spec.whatwg.org/#http-cors-protocol) defines CORS and
+[network/cache partitioning](https://fetch.spec.whatwg.org/#network-partition-keys).
+These constrain the proposed design; this roadmap item does not implement a cache.
 
 ### CLI scope checksums and directly loadable CEM AST output
 

@@ -352,6 +352,7 @@ Optimized for scan/compare flows (tables, metrics).
 | `--cem-data-row-padding-block` | `var(--cem-control-padding-y)` | Structured row block inset; shared by trees and tabular views | required |
 | `--cem-data-row-padding-inline` | `var(--cem-control-padding-x)` | Structured row inline inset; hierarchy indentation is separate | required |
 | `--cem-data-row-gap` | `var(--cem-gap-related)` | Vertical spacing between structured rows and groups | required |
+| `--cem-data-tree-padding-factor` | `0.5` | Tree row padding multiplier applied to inherited control padding; sparse uses full padding | required |
 | `--cem-data-tree-indent` | `var(--cem-control-padding-x)` | Hierarchy indentation independent of row padding | required |
 | `--cem-data-tree-padding-inline` | `0px` | Outer tree inset, independent of per-level indentation | required |
 | `--cem-data-tree-column-gap` | `var(--cem-gap-related)` | Horizontal separation of tree disclosure, icon and label | required |
@@ -506,6 +507,7 @@ step. Tokens not in this table are unaffected by spacing mode.
 
 | Token                            | dense                     | sparse                     |
 |----------------------------------|---------------------------|----------------------------|
+| `--cem-data-tree-padding-factor` | `0.5` | `1` |
 | `--cem-gap-related`              | `var(--cem-dim-x-small)`  | `var(--cem-dim-small)`     |
 | `--cem-gap-group`                | `var(--cem-dim-x-small)`  | `var(--cem-dim-medium)`    |
 | `--cem-gap-block`                | `var(--cem-dim-small)`    | `var(--cem-dim-large)`     |

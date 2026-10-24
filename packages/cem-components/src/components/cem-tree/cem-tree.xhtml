@@ -2,7 +2,7 @@
 <template id="cem-tree" type="text/cem-ml">
 {module | {attribute @name=label | }
  {slice @name=items}
- {template @name=tree-item |  {param @name=item}  {body |   {div @class=cem-tree__item @part="item" @role=none |    {button @id="{$item.id}" @type=button @class=cem-tree__node @part="node" @role=treeitem @data-tree-value="{$item.value}" @data-kind="{$item.kind}" @data-icon={if item.icon { true } else { null }} @data-expanded="{$item.expanded}" @data-selected="{$item.selected}" @data-loading="{$item.loading}" @tabindex="{$item.tabIndex}" @aria-label="{$item.label}" @aria-level="{$item.level}" @aria-posinset="{$item.position}" @aria-setsize="{$item.setSize}" @aria-expanded={if item.branch { item.expanded } else { null }} @aria-selected={if item.selectionEnabled { item.selected } else { null }} @aria-disabled={if item.disabled { true } else { null }} @aria-busy={if item.loading { true } else { null }} @aria-owns={if item.hasGroup { item.groupId } else { null }} |     {span @class=cem-tree__marker @part="marker" @aria-hidden=true | {$item.marker}}     {cem:if @test=item.icon | {span @part=icon @aria-hidden=true | {$item.icon}}} {span @class=cem-tree__label @part="label" | {$item.label}}     {cem:if @test=item.selectedMarker | {span @class=cem-tree__selection @part="selection" @aria-hidden=true | {$item.selectedMarker}}}     {span @class=cem-tree__status @part="status" @hidden={if item.loading { null } else { true }} | {$item.loadingLabel}}}    {div @id="{$item.groupId}" @class=cem-tree__group @part="group" @role={if item.hasGroup { "group" } else { null }} @hidden={if item.hasGroup &amp;&amp; item.expanded { null } else { true }} |     {cem:for-each @select=item.children @as=child | {call @template=tree-item @with:item="{$child}"}}}}}}
+ {template @name=tree-item |  {param @name=item}  {body |   {div @class=cem-tree__item @part="item" @role=none |    {button @id="{$item.id}" @type=button @class=cem-tree__node @part="node" @role=treeitem @data-tree-value="{$item.value}" @data-kind="{$item.kind}" @data-icon={if item.icon { true } else { null }} @data-expanded="{$item.expanded}" @data-selected="{$item.selected}" @data-loading="{$item.loading}" @tabindex="{$item.tabIndex}" @aria-label="{$item.label}" @aria-level="{$item.level}" @aria-posinset="{$item.position}" @aria-setsize="{$item.setSize}" @aria-expanded={if item.branch { item.expanded } else { null }} @aria-selected={if item.selectionEnabled { item.selected } else { null }} @aria-disabled={if item.disabled { true } else { null }} @aria-busy={if item.loading { true } else { null }} @aria-owns={if item.hasGroup { item.groupId } else { null }} |     {span @part=leading | {span @class=cem-tree__marker @part="marker" @aria-hidden=true | {$item.marker}}     {cem:if @test=item.icon | {span @part=icon @aria-hidden=true | {$item.icon}}}} {span @class=cem-tree__label @part="label" | {$item.label}}     {cem:if @test=item.selectedMarker | {span @class=cem-tree__selection @part="selection" @aria-hidden=true | {$item.selectedMarker}}}     {span @class=cem-tree__status @part="status" @hidden={if item.loading { null } else { true }} | {$item.loadingLabel}}}    {div @id="{$item.groupId}" @class=cem-tree__group @part="group" @role={if item.hasGroup { "group" } else { null }} @hidden={if item.hasGroup &amp;&amp; item.expanded { null } else { true }} |     {cem:for-each @select=item.children @as=child | {call @template=tree-item @with:item="{$child}"}}}}}}
  {body | {style @type=text/css |```
 :scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
 :scope {
@@ -45,20 +45,15 @@
     font-weight: var(--cem-typography-ui-font-weight);
     gap: var(--cem-gap-related);
     column-gap: var(--cem-gap-related);
-    grid-template-areas: 'marker label selection';
+    grid-template-areas: 'leading label selection';
     grid-template-columns: auto minmax(0, 1fr) auto;
     inline-size: 100%;
     letter-spacing: var(--cem-typography-ui-letter-spacing);
     margin: var(--cem-stroke-none);
     min-block-size: var(--cem-coupling-zone-min);
-    padding-block: var(--cem-control-padding-y);
-    padding-inline: var(--cem-control-padding-x);
+    padding-block: calc(var(--cem-control-padding-y) * var(--cem-data-tree-padding-factor));
+    padding-inline: calc(var(--cem-control-padding-x) * var(--cem-data-tree-padding-factor));
     text-align: start;
-}
-
-:scope :where([part~="node"][data-icon]) {
-    grid-template-areas: 'marker icon label selection';
-    grid-template-columns: auto auto minmax(0, 1fr) auto;
 }
 
 :scope :where([part~="node"]:not([aria-disabled='true'])):hover {
@@ -96,19 +91,25 @@
     outline-offset: var(--cem-stroke-indicator-offset);
 }
 
+:scope :where([part~="leading"]) {
+    display: inline-flex;
+    align-items: center;
+    align-self: center;
+    grid-area: leading;
+    gap: 0;
+}
+
 :scope :where([part~="marker"]) {
     align-items: center;
     align-self: center;
     block-size: var(--cem-icon-button-icon-size);
     display: inline-flex;
-    grid-area: marker;
     inline-size: var(--cem-icon-button-icon-size);
     justify-content: center;
 }
 
 :scope :where([part~="icon"]) {
     align-self: center;
-    grid-area: icon;
     font-size: var(--cem-icon-button-icon-size);
     inline-size: var(--cem-icon-button-icon-size);
     line-height: 1;
@@ -129,11 +130,7 @@
 }
 
 :scope :where([part~="node"]):has(:where([part~="status"]:not([hidden]))) {
-    grid-template-areas: 'marker label selection' 'marker status selection';
-}
-
-:scope :where([part~="node"][data-icon]):has(:where([part~="status"]:not([hidden]))) {
-    grid-template-areas: 'marker icon label selection' 'marker icon status selection';
+    grid-template-areas: 'leading label selection' 'leading status selection';
 }
 
 :scope :where([part~="status"]) {

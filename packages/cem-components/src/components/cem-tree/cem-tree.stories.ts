@@ -15,6 +15,11 @@ export const SeparateDisclosure = meta.story({
         const events: unknown[] = [];
         host.addEventListener('cem-tree-activate', event => events.push(['activate', (event as CustomEvent).detail]));
         host.addEventListener('cem-tree-toggle', event => events.push(['toggle', (event as CustomEvent).detail]));
+        const marker = requiredElement<HTMLElement>(project, '[part=marker]');
+        const icon = requiredElement<HTMLElement>(project, '[part=icon]');
+        expect(marker.parentElement).toBe(icon.parentElement);
+        expect(marker.parentElement?.getAttribute('part')).toBe('leading');
+        expect(Math.abs(marker.getBoundingClientRect().right - icon.getBoundingClientRect().left)).toBeLessThan(0.1);
         expect(project.dataset.kind).toBe('project');
         expect(project.querySelector('[part=icon]')?.textContent).toBe('◇');
         await userEvent.click(requiredElement<HTMLElement>(project, '[part=marker]')); await whenCemRendered(host);

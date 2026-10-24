@@ -408,7 +408,7 @@ function handleClick(instance: HTMLElement, state: TreeState, event: Event): voi
     state.refocusValue = item.value;
     if (isBranch(item)) {
         if (instance.hasAttribute('separate-toggle')) {
-            if (target?.closest('[part~="marker"]')?.parentElement === button) toggleItem(instance, state, item);
+            if (target?.closest('[part~="marker"]')?.closest('button[part~="node"]') === button) toggleItem(instance, state, item);
             else activateItem(instance, item);
             return;
         }
