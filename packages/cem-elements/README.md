@@ -706,6 +706,19 @@ host form, preserving default submitter activation and event cancellation.
 It is not a file, checkbox/radio, or multi-value capability. Template-fragment
 loaders inherit this metadata from the selected source; they need not repeat it.
 
+`value-request` matches the shared select convention: a changed nonempty token
+silently reapplies the authored `value`, even when that default text is unchanged.
+An omitted `value` supplies an empty-string default, so an explicit request also
+clears a staged value when CEM-ML omits the empty attribute.
+Use it when a retained control switches editing context. Repeated tokens and
+unrelated renders preserve live edits; removing the attribute does not reset the
+value. Reintroducing a token after removal is a new request. Native form reset
+still uses the authored default. A hydrated live slice wins on initial attachment.
+Consumed tokens are included in portable form state so a fresh runtime does not
+replay the request. A pending token change invalidates capture, handoff and stale
+provider commits. Tokens identify context or requests; never derive them from
+credential values. Entered credentials retain their existing recovery refusal.
+
 Text navigation uses the host attributes `selection-request` (a new nonempty
 token for each request), `selection-start`, `selection-end` (nonnegative safe
 integers in UTF-16 code units), optional `selection-direction` (`none`, `forward`

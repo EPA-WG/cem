@@ -105,6 +105,8 @@ enum Capability {
     #[serde(rename_all = "camelCase")]
     FormControl {
         authored_value: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        value_request: Option<String>,
         form_disabled: bool,
         custom_validity: String,
         selection_request: Option<String>,

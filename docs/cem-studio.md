@@ -3141,7 +3141,8 @@ child rules. Choose the run root to add an import, or a named operation to appen
 a supported child. **Create graph node** requires a unique authored ID and exposes
 canonical scalar attributes through shared controls. Optional empty form fields
 are omitted; conditional requirements still come from whole-graph validation.
-All six operation kinds are supported. Parameter values remain source-only.
+All six operation kinds are supported. Named transforms also expose literal
+parameter-map authoring as described below.
 For a join needing secondary inputs, create a `collect` join, add named edges,
 then set its other required attributes and mode; every intermediate draft must
 remain valid.
@@ -3154,8 +3155,8 @@ the graph source is parsed only by the native CEM AST and graph validator.
 **Set graph attribute** replaces or adds a literal value; **Reset** removes an
 optional attribute. Empty text remains an explicit value. Required attributes cannot
 be removed. The entire candidate graph is validated before it becomes a source
-draft, including input references and cycles. Existing ID changes, parameter
-maps, alias spellings and expressions remain in the source editor. Anonymous nodes
+draft, including input references and cycles. Existing ID changes, alias
+spellings and expressions remain in the source editor. Anonymous nodes
 have no structured fields. Mixed graphs can fail the preservation check if formatting
 changes generated anonymous-node IDs; add authored IDs or use the source editor.
 The authoring boundary accepts at most 100 graph nodes
@@ -3169,8 +3170,9 @@ source bytes. Existing graph-node values and edges must survive creation and
 serialization. Native candidates that change generated anonymous-node identities
 are rejected without publishing a draft.
 
-The native host request can describe, edit an attribute, create a node, or edit
-an edge. Mutation operations are mutually exclusive within one request. For example:
+The native host request can describe, edit an attribute, create a node, edit
+an edge, or change one parameter. Mutation operations are mutually exclusive
+within one request. For example:
 
 ```js
 validator.authorGraph({
@@ -3217,17 +3219,62 @@ Use `source: null` to reset an input override, remove a named secondary edge,
 or select the run root for a parent operation. Node metadata includes `named`
 and `edges`, describing allowed roles, current sources and named bindings.
 
+**Graph parameter owner** selects a named transform. **Existing graph parameter**
+chooses a literal entry or **New parameter**. The super-compact shared table lists
+the native parameter map. The shared name field and multiline value control
+stage one entry; **Graph parameter change** chooses **Set** or **Remove**.
+**Apply graph parameter** adds or replaces only that name, or explicitly removes
+it. Empty text is a literal value, distinct from removal. Changing the name adds
+or updates that name; it does not rename or remove the previously selected entry.
+**Reset staged parameter change** restores the unsubmitted native form.
+Switching parameters, owners, workbench instances or source revisions discards
+unsubmitted parameter staging. Studio binds a collision-safe identity token to
+the shared `value-request` attribute on the name, value and mode controls;
+an omitted text `value` resets to the empty default. Unrelated publications
+preserve edits. The token contains identities, never the
+entered parameter value. Consumed requests survive runtime handoff without
+replaying a reset, and entered credentials continue to block recovery.
+
+```js
+validator.authorGraph({
+    source,
+    parameter: { node: 'view', name: 'title', value: 'Café {stem}' },
+});
+```
+
+The referenced native template must admit the caller parameter through a public
+global declaration, such as `{param @name=title @visibility=public
+@default="Default title"}`, or a parameter on the selected entrypoint.
+
+Use `value: null` to remove one parameter. Names contain 1–256 UTF-8 bytes with
+no surrounding whitespace or control characters. Values remain literal strings,
+including empty and multiline text; native graph binding templates are expanded
+only during an explicit graph Run. The native AST writer validates the complete
+candidate, checks its nodes and edge multiset, and preserves unrelated parameters,
+authored IDs, aliases and resource references. Exact no-ops preserve source bytes
+and do not add history. Removing a parameter with additional authored attributes
+is source-only so structured removal cannot silently delete metadata.
+Unrepresentable literals and expression-valued attributes remain subject to the
+existing native validation and serialization refusal. Studio does not evaluate
+or parse graph expressions. Node descriptors expose `canEditParameters` and
+`parameters` entries with `name`, `value` and `editable`; source-only entries
+cannot be submitted through the structured form. Graphs with explicit element
+namespace prefixes remain source-only until native formatting preserves those
+namespace identities; structured edits refuse them rather than losing identity.
+
 Parent/kind and node/attribute selection, labels, creation, Set/Reset, form capture and pending disabling are
-XHTML/CEM-ML. Shared `cem-fieldset`, `cem-select`, `cem-text-field`, `cem-stack`,
+XHTML/CEM-ML. Shared `cem-fieldset`, `cem-select`, `cem-text-field`, `cem-textarea`, `cem-stack`,
 `cem-grid`, `cem-list` and `cem-action` retain their native form, keyboard, focus and theme
-contracts. One creation form, one edge form and one attribute form can be mounted
+contracts. One creation form, one edge form, one parameter form and one attribute form can be mounted
 at a time. **Reset staged edge change** resets only the unsubmitted native form.
 Changing the parent hides an incompatible kind's form. **Reset new graph node**
 clears only unsubmitted creation fields. **Reset staged graph change**
 uses native form reset and does not change the source draft. Switching the node or
-attribute drops unsubmitted staging. No new component JavaScript, application CSS,
-DOM listener or runtime UI capability is introduced. Studio JavaScript orchestrates
-the native authoring and repository services.
+attribute drops unsubmitted staging. The shared `form-control` capability in
+`cem-elements` extends the existing `value-request` convention to text controls,
+including consumed-token checkpoint currentness. No component JavaScript,
+application CSS or application DOM listener is introduced. Studio JavaScript
+orchestrates the native authoring and repository services.
 
 Each submission carries the workbench instance and source-draft revision it was
 rendered from. Stale, foreign, unexpected, repeated and pending submissions are
@@ -3237,7 +3284,7 @@ including edits made directly in the source editor, bounded to 20 snapshots and
 text-editor undo or keyboard events. New edits clear redo. Save retains local history,
 so undo after Save stages a new dirty revision; reload/navigation resets history.
 
-Create, Apply edge, Set, Reset, Undo and Redo do not persist or run. **Save and validate** commits the
+Create, Apply edge/parameter, Set, Reset, Undo and Redo do not persist or run. **Save and validate** commits the
 exact accepted source bytes using project/resource revision guards; explicit **Run
 configured workbench** executes the persisted graph. Resource resolution, referenced
 bytes and execution capability checks retain the shared native command pipeline.
@@ -3247,11 +3294,13 @@ CLI command and its configuration references. Source-only edits do not rewrite c
 input resource records.
 
 The deployed lifecycle gate requires `graphConfigurationAuthoring`,
-`graphNodeCreation` and `graphEdgeAuthoring`: it creates a named export branch,
-stages an attribute and reparents the branch through shared controls. It checks
-no revision/Run before Save, exercises native reset and Undo/Redo, saves and
-reopens exact bytes, recovers unsaved creation and edge changes, and runs all three
-committed exports offline while retaining input and command resource records.
+`graphNodeCreation`, `graphEdgeAuthoring` and `graphParameterAuthoring`: it creates
+a named export branch, stages an attribute, reparents the branch and changes
+literal parameters through shared controls. It checks no revision/Run before Save,
+exercises native reset and Undo/Redo, saves and reopens exact bytes, recovers
+unsaved creation/edge/parameter changes, and runs all four committed exports
+offline. The native HTML output must contain the authored Unicode parameter,
+while input, template and command resource records remain unchanged.
 All three forms are checked across all five themes, forced colors and an
 inherited 23px inset. Native/WASM and focused browser fixtures additionally cover
 input override/reset and named-secondary add/replace/remove operations.

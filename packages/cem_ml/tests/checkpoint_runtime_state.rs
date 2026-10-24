@@ -1404,3 +1404,57 @@ fn credential_metadata_cannot_hide_in_retained_projections_or_native_inputs() {
         }
     }
 }
+
+#[test]
+fn form_value_request_preserves_consumption_without_replaying_a_value() {
+    let mut input = state();
+    input["capability"]["authoredValue"] = "same default".into();
+    input["capability"]["valueRequest"] = "graph-parameter-context:3".into();
+    let normalized = validate(&input.to_string()).unwrap();
+    assert_eq!(serde_json::from_str::<Value>(&normalized).unwrap(), input);
+    assert_eq!(validate(&normalized).unwrap(), normalized);
+}
+
+#[test]
+fn form_value_request_keeps_older_checkpoints_unchanged_and_omits_absence() {
+    let legacy = state();
+    let normalized = validate(&legacy.to_string()).unwrap();
+    assert_eq!(serde_json::from_str::<Value>(&normalized).unwrap(), legacy);
+    assert!(
+        serde_json::from_str::<Value>(&normalized).unwrap()["capability"]
+            .get("valueRequest")
+            .is_none()
+    );
+    let mut explicit_absence = legacy.clone();
+    explicit_absence["capability"]["valueRequest"] = Value::Null;
+    assert_eq!(
+        serde_json::from_str::<Value>(&validate(&explicit_absence.to_string()).unwrap()).unwrap(),
+        legacy
+    );
+}
+
+#[test]
+fn form_value_request_refuses_non_scalar_and_repeated_consumption_fields() {
+    for request in [
+        json!(false),
+        json!(1),
+        json!([]),
+        json!({}),
+        json!(["request:1"]),
+    ] {
+        let mut input = state();
+        input["capability"]["valueRequest"] = request;
+        assert_eq!(
+            validate(&input.to_string()).unwrap_err(),
+            "cem.checkpoint.runtime.format"
+        );
+    }
+    let repeated = state().to_string().replace(
+        "\"kind\":\"form-control\"",
+        "\"kind\":\"form-control\",\"valueRequest\":\"first\",\"valueRequest\":\"second\"",
+    );
+    assert_eq!(
+        validate(&repeated).unwrap_err(),
+        "cem.checkpoint.runtime.format"
+    );
+}

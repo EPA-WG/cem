@@ -26,10 +26,12 @@ cleared by the user; automatic whole-Studio recovery remains disabled. Follow th
 
 Completed [compact Studio layout and shared runtime work](archive/todo-completed-compact-studio-2026-10-23.md) is archived.
 
-Continue Studio functionality with native graph parameter-map authoring and its
-Studio controls; node and edge creation are already complete. Then migrate
-optional native schema/formatter consumers to owned inputs, followed by shared
-optional-pack acquisition, offline delivery and fresh-generation reimport.
+Completed [graph parameter-map authoring and Studio controls](archive/todo-completed-graph-parameters-2026-10-23.md) is archived.
+
+Continue Studio functionality by migrating optional native schema/package and
+formatter/colorizer consumers to owned bootstrap/source inputs. Follow with
+shared optional-pack acquisition, offline delivery and fresh-generation reimport;
+then measure download, cold latency and allocator/linear-memory headroom.
 
 ## Project builds and artifact previews
 
@@ -280,26 +282,18 @@ audience-facing message. This file remains the sole execution checklist.
 
 ## CEM Studio delivery planning
 
-Keep shared component functionality ahead of application composition. Completed
-workspace, source-editor, node and edge authoring work is preserved in the
-[archive](archive/todo-snapshot-2026-10-23.md#cem-studio-delivery-planning).
+Completed workspace, source-editor, node and edge authoring work remains in the
+[prior snapshot](archive/todo-snapshot-2026-10-23.md#cem-studio-delivery-planning).
+Native parameter maps, shared form controls and their verification are in the
+[graph authoring completion record](archive/todo-completed-graph-parameters-2026-10-23.md).
 
-### Next milestone: user-owned project workspace
-
-Continue the [bounded project lifecycle](cem-studio.md#next-delivery-milestone-user-owned-project-workspace)
-with parameter-map authoring. Named-node creation and edge creation/editing are
-complete; preserve their IDs, resource references, validation and reversible draft
-history. Existing bounds remain 100 nodes / 1 MiB source and 20 history snapshots /
-8 MiB. IDs, aliases, expressions and parameter-map values remain source-only until
-explicitly supported. Physical-device/spoken AT acceptance remains separate.
-
-- [ ] Extend native graph authoring to node/edge creation and parameter maps;
-  preserve authored IDs and resource references, validate each candidate and
-  verify transactional persistence/history/recovery/offline execution. Add
-  fixtures before implementation and shared controls before Studio composition.
-
-  - [ ] Add native fixtures and parameter-map authoring, then verify Save,
-    history, recovery and explicit offline Run for the expanded graph editor.
+Continue with the owned optional native consumers, shared pack-loading contract
+and measurements under [Project builds and artifact previews](#project-builds-and-artifact-previews).
+Preserve the [bounded project lifecycle](cem-studio.md#next-delivery-milestone-user-owned-project-workspace):
+100 graph nodes / 1 MiB source and 20 history snapshots / 8 MiB. Authored ID
+changes, aliases and expression-valued attributes remain source-only. Keep
+credential recovery refusal, the aggregate 4 MiB checkpoint budget and separate
+physical-device/spoken AT acceptance.
 
 ## Component gallery source-link maintenance (after Studio presentation work)
 

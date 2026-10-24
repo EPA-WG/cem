@@ -255,6 +255,7 @@ export interface CemStudioFeatureTourWorkbench {
     updateGraphAttribute(fields: Record<string, string[]>): Promise<CemStudioWorkbenchState>;
     createGraphNode(fields: Record<string, string[]>): Promise<CemStudioWorkbenchState>;
     updateGraphEdge(fields: Record<string, string[]>): Promise<CemStudioWorkbenchState>;
+    updateGraphParameter(fields: Record<string, string[]>): Promise<CemStudioWorkbenchState>;
     undoGraphDraft(): CemStudioWorkbenchState;
     redoGraphDraft(): CemStudioWorkbenchState;
     reload(): Promise<CemStudioWorkbenchState>;

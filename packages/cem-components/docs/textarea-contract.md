@@ -11,6 +11,12 @@ light DOM. `cem-action` supplies submit and reset commands.
   description ID; `error` supplies an `aria-errormessage` ID.
 - `value` supplies the initial/reset value. The host `value` property is live;
   `defaultValue` gets/sets the authored value. Input updates the value slice.
+- `value-request` supplies a changed nonempty token to reapply that default
+  silently, including equal-valued defaults. An omitted `value` is an empty-string
+  default and a request reapplies that empty default too. Repeated tokens preserve
+  edits; consumed tokens survive fresh runtimes without replay. It follows the shared
+  [form-control contract](../../cem-elements/README.md#native-string-form-controls),
+  including the unchanged credential recovery policy.
 - `name` and `form` belong to the host. It submits one value through its form
   internals; the native control has no submission name or form owner.
 - `rows`, `cols`, `minlength`, `maxlength`, `autocomplete`, and `placeholder`

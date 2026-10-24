@@ -10,6 +10,8 @@
     {slice @name=graphCreateKind | }
     {slice @name=graphEdgeNodeId | }
     {slice @name=graphEdgeRole | }
+    {slice @name=graphParameterNodeId | }
+    {slice @name=graphParameterName | }
 {body |
 {style @type=text/css |```
 [part~='root'] { display: grid; gap: var(--cem-gap-related); }
@@ -53,7 +55,7 @@
                     {cem:variable @name=graphBusy @select='datadom.slices.pending || (datadom.slices.state.status == "saving") || (datadom.slices.state.status == "validating") || (datadom.slices.state.status == "projecting") || (datadom.slices.state.command.status == "checking") || (datadom.slices.state.command.application.status == "applying") || (datadom.slices.state.command.application.status == "running")'}
                     {cem-select @name=graph-node @value={datadom.slices.graphNodeId ?? ""} @slice=graphNodeId @slice-event=change @slice-value="$target.value" @disabled={if graphBusy { true } else { null }} |
                         {span @slot=label | Graph node}
-                        {span @slot=help | Edit one named node attribute. Set stages a source draft; Save commits it. Run uses the saved graph. Create named nodes below. Edit edges below. Existing IDs, aliases and parameters remain in source.}
+                        {span @slot=help | Edit one named node attribute. Set stages a source draft; Save commits it. Run uses the saved graph. Create named nodes, edit edges and edit literal parameters below. Existing IDs, aliases and expressions remain in source.}
                         {option @value="" | Choose a named node}
                         {cem:for-each @select=graph.nodes @as=node |
                             {cem:if @test='seq:count(node.fields.id) &gt; 0' |
@@ -208,6 +210,68 @@
                                                     {cem-action @type=submit @variant=alternate | Apply graph edge}
                                                     {cem-action @type=reset @variant=contextual | Reset staged edge change}
                                                 }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    {cem-select @name=graph-parameter-node @value={datadom.slices.graphParameterNodeId ?? ""} @slice=graphParameterNodeId @slice-event=change @slice-value="$target.value" @disabled={if graphBusy { true } else { null }} |
+                        {span @slot=label | Graph parameter owner}
+                        {span @slot=help | Set or remove literal template parameters on a named transform. Apply stages a reversible source draft; Save commits it and Run uses the saved graph. Expressions stay in source.}
+                        {option @value="" | Choose a named transform}
+                        {cem:for-each @select=graph.nodes @as=node |
+                            {cem:if @test='node.named &amp;&amp; ((node.kind == "transform") || node.canEditParameters)' |
+                                {option @value={node.id} | {$ | str:concat((node.id, " (", node.kind, ")"), "")}}
+                            }
+                        }
+                    }
+                    {cem:for-each @select=graph.nodes @as=node |
+                        {cem:if @test='node.id == datadom.slices.graphParameterNodeId' |
+                            {cem:if @test='seq:count(node.parameters.name) &gt; 0' |
+                                {cem-table @label="Graph parameter map" @data-cem-density=super-compact |
+                                    {div @role=row |
+                                        {span @role=columnheader | Name}
+                                        {span @role=columnheader | Value}
+                                    }
+                                    {cem:for-each @select=node.parameters @as=parameter |
+                                        {div @role=row |
+                                            {span @role=cell | {$ | parameter.name}}
+                                            {span @role=cell | {$ | parameter.value ?? "Expression; edit in source"}}
+                                        }
+                                    }
+                                }
+                            }
+                            {cem:if @test='!node.canEditParameters' |
+                                {p | Edit this parameter map in source.}
+                            }
+                            {cem:if @test=node.canEditParameters |
+                                {cem:variable @name=parameter @select='dom::chain(node.parameters).flat_map(|items| items).find(|candidate| candidate.editable &amp;&amp; (candidate.name == (datadom.slices.graphParameterName ?? "")))'}
+                                {cem:variable @name=parameterRequest @select='str:concat((num:string(str:length(graph.version)), ":", graph.version, ":", num:string(str:length(node.id)), ":", node.id, ":", parameter.name ?? ""), "")'}
+                                {cem-select @name=graph-parameter @value={parameter.name ?? ""} @slice=graphParameterName @slice-event=change @slice-value="$target.value" @disabled={if graphBusy { true } else { null }} |
+                                    {span @slot=label | Existing graph parameter}
+                                    {option @value="" | New parameter}
+                                    {cem:for-each @select=node.parameters @as=entry |
+                                        {cem:if @test=entry.editable | {option @value={entry.name} | {$ | entry.name}}}
+                                    }
+                                }
+                                {form @host-command=edit-graph-parameter @host-command-event=submit |
+                                    {cem-fieldset @label="Graph parameters" @disabled={if graphBusy { true } else { null }} |
+                                        {span @slot=help | Set adds or replaces the literal name. Remove deletes only that named literal. Empty values are valid. Reset staged parameter change restores the form without editing the draft.}
+                                        {cem-stack @gap=sm |
+                                            {input @type=hidden @name=node @value={node.id}}
+                                            {input @type=hidden @name=version @value={graph.version}}
+                                            {cem-select @name=mode @value=set @value-request={parameterRequest} |
+                                                {span @slot=label | Graph parameter change}
+                                                {option @value=set @selected | Set}
+                                                {option @value=remove | Remove}
+                                            }
+                                            {cem-text-field @name=name @label="Graph parameter name" @required @value={parameter.name ?? ""} @value-request={parameterRequest}}
+                                            {cem-textarea @name=value @label="Graph parameter value" @value={parameter.value ?? ""} @value-request={parameterRequest}}
+                                            {cem-grid |
+                                                {cem-action @type=submit @variant=alternate | Apply graph parameter}
+                                                {cem-action @type=reset @variant=contextual | Reset staged parameter change}
                                             }
                                         }
                                     }

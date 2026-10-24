@@ -883,7 +883,14 @@ async function exerciseProjectLifecycle(page, context) {
         bundle.project = { ...bundle.project, id: 'acceptance-graph-authoring', name: 'Graph authoring acceptance', rootUri: 'studio://acceptance-graph-authoring/', revision: 1 };
         bundle.project.resources = bundle.project.resources.filter(resource => resource.id !== 'config');
         const encoder = new TextEncoder();
-        bundle.contents.graph = encoder.encode('{run | {import @id=asset @src="../assets/old.svg" @opaque=true @content-type=image/svg+xml | {export @id=result @out="../output/result.svg"}} {import @id=backup @src="../assets/old.svg" @opaque=true @content-type=image/svg+xml | {export @id=backup-result @out="../output/backup.svg"}}}\n');
+        bundle.contents.graph = encoder.encode('{run | {import @id=asset @src="../assets/old.svg" @opaque=true @content-type=image/svg+xml | {export @id=result @out="../output/result.svg"}} {import @id=backup @src="../assets/old.svg" @opaque=true @content-type=image/svg+xml | {export @id=backup-result @out="../output/backup.svg"}} {import @id=label-data @src="../data/label.cem" @content-type=application/cem @schema=https://cem.dev/ns/cem-ml/1 | {transform @id=label @src="../templates/label.cemt" @entrypoint=main @template-content-type=application/vnd.cem.template+cem @template-schema=https://cem.dev/ns/template/cem-native/1 | {param @name=title @value="Original parameter"} {export @id=label-result @out="../output/label.html" @content-type=text/html @schema=https://cem.dev/ns/data/html/1}}}}\n');
+        bundle.contents['label-data'] = encoder.encode('{article | {p | Parameter input}}\n');
+        bundle.contents['label-template'] = encoder.encode('@doc cem-ml 1\n@ns template = "https://cem.dev/ns/template/cem-native/1"\n@default template\n{param @name=title @visibility=public @default="Default title"}\n{template @name=main @visibility=public | {element @name=p @namespace=http://www.w3.org/1999/xhtml | {$title}}}\n');
+        bundle.project.resources.push(
+            { id: 'label-data', role: 'data', path: 'data/label.cem', contentType: 'application/cem', schema: 'https://cem.dev/ns/cem-ml/1', sourceKind: 'project-file' },
+            { id: 'label-template', role: 'template', path: 'templates/label.cemt', contentType: 'application/vnd.cem.template+cem', schema: 'https://cem.dev/ns/template/cem-native/1', sourceKind: 'project-file' },
+        );
+        bundle.project.entries = bundle.project.entries.map(entry => ({ ...entry, resourceIds: [...entry.resourceIds, 'label-data', 'label-template'] }));
         bundle.contents.command = encoder.encode(serializeCemMlCommandResource(parseCemMlCommandText('cem-ml transform --config studio://acceptance-graph-authoring/graphs/run.cem')));
         delete bundle.contents.config;
         for (const resource of bundle.project.resources) {
@@ -900,6 +907,9 @@ async function exerciseProjectLifecycle(page, context) {
     assert.ok(graphDescription, 'The imported graph must expose native authoring metadata');
     assert.equal(graphDescription.error, undefined);
     assert.equal(graphDescription.parents.some(parent => parent.id === 'backup'), true);
+    const graphParameterOwner = () => page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().graphConfiguration.nodes.find(node => node.id === 'label'));
+    assert.equal((await graphParameterOwner()).canEditParameters, true);
+    assert.deepEqual((await graphParameterOwner()).parameters, [{ name: 'title', value: 'Original parameter', editable: true }]);
     const graphRecords = await page.evaluate(async () => {
         const { repository } = globalThis.__cemStudioApplication;
         const value = (await repository.query({ protocolVersion: 1, repository: 'studio-projects', requestRevision: 1, operation: 'export-project', parameters: { projectId: 'acceptance-graph-authoring' } })).value;
@@ -936,10 +946,37 @@ async function exerciseProjectLifecycle(page, context) {
     await pick('Graph edge source', 'backup (import)'); await click('Apply graph edge');
     assert.equal((await snapshot()).projectRevision, 1);
     assert.equal((await snapshot()).projection, undefined);
-    const graphDraft = (await snapshot()).draft;
-    assert.notEqual(graphDraft, graphAttributeDraft);
+    const graphEdgeDraft = (await snapshot()).draft;
+    assert.notEqual(graphEdgeDraft, graphAttributeDraft);
     await click('Undo graph edit'); assert.equal((await snapshot()).draft, graphAttributeDraft);
+    await click('Redo graph edit'); assert.equal((await snapshot()).draft, graphEdgeDraft);
+    await pick('Graph parameter owner', 'label (transform)'); await pick('Existing graph parameter', 'title');
+    const parameterValue = page.getByRole('textbox', { name: 'Graph parameter value', exact: true });
+    await parameterValue.fill('Reset without editing'); await click('Reset staged parameter change');
+    assert.equal(await parameterValue.inputValue(), 'Original parameter');
+    assert.equal((await snapshot()).draft, graphEdgeDraft);
+    await parameterValue.fill('Authored café 🍒'); await click('Apply graph parameter');
+    const graphParameterDraft = (await snapshot()).draft;
+    assert.notEqual(graphParameterDraft, graphEdgeDraft);
+    assert.deepEqual((await graphParameterOwner()).parameters, [{ name: 'title', value: 'Authored café 🍒', editable: true }]);
+    await click('Undo graph edit'); assert.equal((await snapshot()).draft, graphEdgeDraft);
+    await click('Redo graph edit'); assert.equal((await snapshot()).draft, graphParameterDraft);
+    await pick('Existing graph parameter', 'New parameter');
+    await page.getByRole('textbox', { name: 'Graph parameter name', exact: true }).fill('note');
+    await parameterValue.fill(''); await click('Apply graph parameter');
+    const graphEmptyParameterDraft = (await snapshot()).draft;
+    assert.deepEqual((await graphParameterOwner()).parameters.find(parameter => parameter.name === 'note'), { name: 'note', value: '', editable: true });
+    await pick('Existing graph parameter', 'note'); await pick('Graph parameter change', 'Remove');
+    await click('Apply graph parameter');
+    const graphDraft = (await snapshot()).draft;
+    assert.equal((await graphParameterOwner()).parameters.some(parameter => parameter.name === 'note'), false);
+    await click('Undo graph edit'); assert.equal((await snapshot()).draft, graphEmptyParameterDraft);
     await click('Redo graph edit'); assert.equal((await snapshot()).draft, graphDraft);
+    assert.equal((await snapshot()).projectRevision, 1);
+    assert.equal((await snapshot()).persistedText, graphBefore.draft);
+    assert.equal((await snapshot()).dirty, true);
+    assert.equal((await snapshot()).projection, undefined);
+    await pick('Existing graph parameter', 'title');
     await inspectWorkspaceAccessibility(page, context);
     const graphPaint = await page.evaluate(async () => {
         const application = globalThis.__cemStudioApplication;
@@ -947,13 +984,13 @@ async function exerciseProjectLifecycle(page, context) {
         const paint = [];
         for (const mode of modes) {
             application.shell.theme.setMode(mode); await application.shell.whenSettled(); await application.workbenchView.whenSettled();
-            for (const label of ['Graph configuration', 'New graph node', 'Graph edge']) {
+            for (const label of ['Graph configuration', 'New graph node', 'Graph edge', 'Graph parameters']) {
                 const fieldset = document.querySelector(`cem-fieldset[label="${label}"] fieldset`);
                 const style = getComputedStyle(fieldset);
                 paint.push({ mode, label, background: style.backgroundColor, color: style.color, inset: parseFloat(style.paddingInlineStart), border: parseFloat(style.borderTopWidth) });
             }
         }
-        const inheritedInsets = ['Graph configuration', 'New graph node', 'Graph edge'].map(label => {
+        const inheritedInsets = ['Graph configuration', 'New graph node', 'Graph edge', 'Graph parameters'].map(label => {
             const host = document.querySelector(`cem-fieldset[label="${label}"]`);
             host.style.setProperty('--cem-inset-container', '23px');
             const inset = getComputedStyle(host.querySelector('fieldset')).paddingInlineStart;
@@ -962,10 +999,10 @@ async function exerciseProjectLifecycle(page, context) {
         application.shell.theme.setMode('cem-theme-contrast-dark'); await application.shell.whenSettled();
         return { paint, inheritedInsets };
     });
-    assert.deepEqual(graphPaint.inheritedInsets, ['23px', '23px', '23px']);
+    assert.deepEqual(graphPaint.inheritedInsets, ['23px', '23px', '23px', '23px']);
     for (const paint of graphPaint.paint) assert.ok(paint.background !== 'rgba(0, 0, 0, 0)' && paint.color !== paint.background && paint.inset > 0 && paint.border > 0, JSON.stringify(paint));
     await page.emulateMedia({ forcedColors: 'active' });
-    for (const label of ['Graph configuration', 'New graph node', 'Graph edge']) assert.equal(await page.locator(`cem-fieldset[label="${label}"] fieldset`).evaluate(fieldset => {
+    for (const label of ['Graph configuration', 'New graph node', 'Graph edge', 'Graph parameters']) assert.equal(await page.locator(`cem-fieldset[label="${label}"] fieldset`).evaluate(fieldset => {
         const style = getComputedStyle(fieldset);
         return style.color !== style.backgroundColor && style.borderTopColor === style.color;
     }), true);
@@ -976,12 +1013,15 @@ async function exerciseProjectLifecycle(page, context) {
     await page.reload({ waitUntil: 'load' }); await waitForApplication(page, browserErrors, httpFailures); await settle();
     assert.equal((await snapshot()).persistedText, graphDraft);
     assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().graphConfiguration.nodes.find(node => node.id === 'copy').edges.find(field => field.id === 'parent').source), 'backup');
+    assert.deepEqual((await graphParameterOwner()).parameters, [{ name: 'title', value: 'Authored café 🍒', editable: true }]);
     await pick('New graph node parent', 'asset (import)'); await pick('New graph node kind', 'export');
     await page.getByRole('textbox', { name: 'Graph node ID', exact: true }).fill('recovered-copy');
     await page.getByRole('textbox', { name: 'out', exact: true }).fill('../output/recovered.svg');
     await click('Create graph node');
     await pick('Graph edge target', 'copy (export)'); await pick('Graph edge role', 'parent');
     await pick('Graph edge source', 'asset (import)'); await click('Apply graph edge');
+    await pick('Graph parameter owner', 'label (transform)'); await pick('Existing graph parameter', 'title');
+    await parameterValue.fill('Recovered unsaved title'); await click('Apply graph parameter');
     const recoveredGraph = (await snapshot()).draft;
     const graphBackup = await page.evaluate(async () => {
         let result;
@@ -993,16 +1033,30 @@ async function exerciseProjectLifecycle(page, context) {
     assert.equal((await snapshot()).draft, recoveredGraph);
     assert.equal((await snapshot()).persistedText, graphDraft);
     assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().graphConfiguration.nodes.find(node => node.id === 'copy').edges.find(field => field.id === 'parent').source), 'asset');
+    assert.deepEqual((await graphParameterOwner()).parameters, [{ name: 'title', value: 'Recovered unsaved title', editable: true }]);
+    assert.equal((await snapshot()).projectRevision, 2);
+    assert.equal((await snapshot()).projection, undefined);
     assert.equal(await page.evaluate(() => globalThis.__cemStudioApplication.session.snapshot().draftRecovery.status), 'recovered');
     await context.setOffline(false);
     await context.setOffline(true);
     assert.equal(await page.evaluate(() => navigator.onLine), false);
     await click('Reload persisted revision'); await click('Run configuration');
     const graphRun = await snapshot();
-    assert.equal(graphRun.projection.exitCode, 0);
+    assert.equal(graphRun.projection.exitCode, 0, JSON.stringify(await page.evaluate(() => {
+        const state = globalThis.__cemStudioApplication.workbench.snapshot();
+        return { projectId: state.projectId, projectRevision: state.projectRevision, source: state.persistedText,
+            diagnostics: state.projection?.diagnostics, output: state.projection?.output?.text };
+    })));
     assert.equal(graphRun.projection.stale, false);
-    assert.equal(graphRun.projection.summary.artifactCount, 3);
+    assert.equal(graphRun.projection.summary.artifactCount, 4);
     assert.equal(graphRun.projection.output.text.includes('Exact café'), true);
+    const parameterOutput = await page.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().projection.outputs.find(output => output.uri.endsWith('/output/label.html')));
+    assert.ok(parameterOutput, 'The saved parameterized native template must emit its own HTML artifact');
+    assert.equal(parameterOutput.available, true);
+    assert.match(parameterOutput.contentType, /^text\/html(?:;|$)/);
+    assert.equal(parameterOutput.text.trim(), '<p>Authored café 🍒</p>');
+    assert.equal((await snapshot()).persistedText, graphDraft);
+    assert.equal((await snapshot()).projectRevision, 2);
     assert.equal(await page.evaluate(() => navigator.onLine), false);
     assert.deepEqual(await page.evaluate(async () => {
         const { repository } = globalThis.__cemStudioApplication;
@@ -1011,7 +1065,7 @@ async function exerciseProjectLifecycle(page, context) {
     }), graphRecords);
     await exerciseExampleProjects(page, context);
     await editor.dispose();
-    return { supplierPipeline: true, exampleProjects: true, projectSemanticComparison: true, projectQueryEquivalence: true, projectValidationRepair: true, projectTemplateOutput: true, projectGraphProvenance: true, projectLiveView: true, projectSourceInspection: true, projectSourceFormatting: true, projectSourceColors: true, projectStandaloneExpression: true, graphEdgeAuthoring: true, graphNodeCreation: true, graphConfigurationAuthoring: true, stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
+    return { supplierPipeline: true, exampleProjects: true, projectSemanticComparison: true, projectQueryEquivalence: true, projectValidationRepair: true, projectTemplateOutput: true, projectGraphProvenance: true, projectLiveView: true, projectSourceInspection: true, projectSourceFormatting: true, projectSourceColors: true, projectStandaloneExpression: true, graphEdgeAuthoring: true, graphNodeCreation: true, graphConfigurationAuthoring: true, graphParameterAuthoring: true, stableResourceReferences, resourcePathEditing: true, typedOperationForms: true, groupedOperationForms: true, structuralEditing: true, draftRecovery: true, projects: [alpha.project.id, betaId], entries, onlineCreateAndImport: true, offlineSaveApplyRun: true,
         guardedDraftAndFocusRetained: true, exportedExactBytes: true, trashRestore: true, offlineReopen: true, accessibility };
 }
 

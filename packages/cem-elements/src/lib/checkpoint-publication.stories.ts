@@ -3180,7 +3180,7 @@ async function isolatedFormResume(base: string, load: (url: string) => Promise<a
             template.textContent = new DOMParser().parseFromString(source, 'text/html').querySelector('template')!.content.textContent;
             declaration.append(template); document.body.append(declaration); runtime.registerDeclaration(declaration); await runtime.whenDeclarationSettled(declaration);
             const owner = document.createElement(tag) as any; owner.setAttribute('name', `control-${index}`);
-            if (index === 0) { owner.setAttribute('value', 'Default field'); owner.setAttribute('required', ''); owner.setAttribute('selection-request', 'consumed'); owner.setAttribute('selection-start', '0'); owner.setAttribute('selection-end', '1'); }
+            if (index === 0) { owner.setAttribute('value', 'Default field'); owner.setAttribute('required', ''); owner.setAttribute('value-request', 'consumed'); owner.setAttribute('selection-request', 'consumed'); owner.setAttribute('selection-start', '0'); owner.setAttribute('selection-end', '1'); }
             if (index === 1) { owner.setAttribute('checked', ''); owner.setAttribute('indeterminate', ''); }
             if (index >= 2) {
                 const payload = document.createElement('template');
@@ -3207,6 +3207,7 @@ async function isolatedFormResume(base: string, load: (url: string) => Promise<a
         await runtime.whenRenderSettled(field); await capture();
         const before = coordinator.lastCommitted();
         check(before.receipt.owners.length === 4 && JSON.parse(new TextDecoder().decode(before.bytes)).owners.some((owner: any) => owner.island.includes('suppress-once')), 'missing control/suppression checkpoint');
+        check(providers.cemFormControlCheckpoint(field)?.valueRequest === 'consumed', 'missing consumed field value request');
         let inputs = 0, changes = 0, trustedChanges = 0; form.addEventListener('input', () => inputs++); form.addEventListener('change', () => changes++);
         document.addEventListener('change', event => { if (event.target === input && event.isTrusted) trustedChanges++; }, true);
         if (scenario === 'composition' || scenario === 'provider') {
@@ -3229,18 +3230,23 @@ async function isolatedFormResume(base: string, load: (url: string) => Promise<a
         const resumed = await resumeCemCheckpointOwners(admission, [ticket]);
         if (scenario.startsWith('late-')) {
             if (scenario === 'late-value') editor.value = 'Late unreported draft';
+            if (scenario === 'late-value-request') field.setAttribute('value-request', 'newer-request');
             if (scenario === 'late-composition') input.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
             if (scenario === 'late-default') checkable.removeAttribute('checked');
             const held = scenario === 'late-provider' ? provider.lease({}) : undefined;
             await refused(async () => { for (const owner of resumed.owners) await owner.owner.resume(); }, /form-stale|resume.stale/);
             held?.release();
             if (scenario === 'late-value') check(editor.value === 'Late unreported draft', 'activation overwrote late choice edit');
+            if (scenario === 'late-value-request') check(input.value === 'Committed é😀' && document.activeElement === input
+                && inputs === 0 && changes === 0, 'late request refusal reset the live field or manufactured events');
             return `${scenario} form resume passed`;
         }
         stage = 'activate'; for (const owner of resumed.owners) await owner.owner.resume(); await capture();
         check(owners.every((owner, index) => owner.querySelector('[part~=control]') === controls[index]), 'native control was replaced');
         check(input.value === 'Committed é😀' && document.activeElement === input && input.selectionStart === 1 && input.selectionEnd === 6
             && input.selectionDirection === 'backward', 'field edit/focus/selection was replayed or lost');
+        check(field.getAttribute('value-request') === 'consumed' && providers.cemFormControlCheckpoint(field)?.valueRequest === 'consumed',
+            'fresh field lost its consumed value request');
         check(!checkbox.checked && !checkbox.indeterminate && checkbox.defaultChecked, 'checkable live/default state was replayed');
         check(select.value === 'b' && editor.value === 'Unsaved choice é😀', 'choice edit or consumed value request was replayed');
         check(editor.readOnly && editor.selectionStart === 2 && editor.selectionEnd === 8 && editor.selectionDirection === 'backward', 'choice readonly/selection state lost');
@@ -3251,6 +3257,9 @@ async function isolatedFormResume(base: string, load: (url: string) => Promise<a
             && new FormData(form).get('control-3') === 'Unsaved choice é😀' && !new FormData(form).has('control-1'), 'fresh form submission incorrect');
         check(inputs === 0 && changes === 0, 'resume manufactured input/change');
         check(coordinator.lastCommitted().receipt.owners.every((owner: any, index: number) => owner.acceptedEventSequence === before.receipt.owners[index].acceptedEventSequence), 'resume advanced input authority');
+        field.setAttribute('value-request', 'consumed'); await runtime.whenRenderSettled(field);
+        check(input.value === 'Committed é😀' && input.selectionStart === 1 && input.selectionEnd === 6 && input.selectionDirection === 'backward'
+            && inputs === 0 && changes === 0, 'repeating the consumed request after resume replayed its authored default');
         stage = 'consumed change'; outside.focus();
         check(trustedChanges === 1 && changes === 0 && !providers.cemFormControlCheckpoint(field)?.changeSuppression,
             'already-consumed trusted native change was not suppressed exactly once');
@@ -3305,7 +3314,7 @@ export const FormFreshRuntimeRefusals: Story = {
 };
 export const FormFreshRuntimeLateAuthorityRefusals: Story = {
     render: () => '<section aria-label="Form late authority refusal"></section>',
-    play: async ({ canvasElement }) => formResumeStory(canvasElement, ['late-composition', 'late-provider', 'late-default']),
+    play: async ({ canvasElement }) => formResumeStory(canvasElement, ['late-composition', 'late-provider', 'late-default', 'late-value-request']),
 };
 
 /** Complete retained browser widgets plus native source/placement reacquisition. */

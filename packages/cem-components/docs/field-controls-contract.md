@@ -31,6 +31,13 @@ controls require their own documented capabilities. See the
   `search`, `tel`, or `url`. File and choice controls have separate owners.
 - `value` declares the initial/reset value. Changing this attribute replaces the
   live value; input events update the `value` slice without rewriting the default.
+- `value-request` supplies a changed nonempty token to reapply the authored value
+  silently when the editing context changes, including equal-valued defaults.
+  Omitting `value` declares an empty-string default; a request reapplies that
+  empty default too.
+  Repeated tokens preserve edits. Consumed tokens survive runtime handoff without
+  replay; credential recovery refusal is unchanged. See the shared
+  [form-control contract](../../cem-elements/README.md#native-string-form-controls).
 - `name` and `form` belong to the form-associated host. The native input is
   unnamed and uses `form=""`, so it neither submits twice nor validates a different
   ancestor form when the host has an explicit external form owner.

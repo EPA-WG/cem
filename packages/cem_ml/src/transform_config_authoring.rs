@@ -23,6 +23,7 @@ pub struct GraphAuthoringRequest {
     pub edit: Option<GraphAuthoringEdit>,
     pub create: Option<GraphAuthoringCreate>,
     pub edge: Option<GraphAuthoringEdge>,
+    pub parameter: Option<GraphAuthoringParameter>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -53,6 +54,30 @@ pub struct GraphAuthoringEdge {
     /// None restores parent input, removes one named binding, or chooses the run root.
     pub source: Option<String>,
     pub name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GraphAuthoringParameter {
+    pub node: String,
+    pub name: String,
+    /// An explicit null removes one parameter; empty text stays a literal value.
+    #[serde(deserialize_with = "deserialize_parameter_value")]
+    pub value: Option<String>,
+}
+
+fn deserialize_parameter_value<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Option::<String>::deserialize(deserializer)
+}
+
+#[derive(Debug, Serialize)]
+pub struct GraphAuthoringParameterField {
+    pub name: String,
+    pub value: Option<String>,
+    pub editable: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -101,6 +126,9 @@ pub struct GraphAuthoringNode {
     pub fields: Vec<GraphAuthoringField>,
     pub named: bool,
     pub edges: Vec<GraphAuthoringEdgeField>,
+    pub parameters: Vec<GraphAuthoringParameterField>,
+    #[serde(rename = "canEditParameters")]
+    pub can_edit_parameters: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -113,7 +141,7 @@ pub struct GraphAuthoringField {
     pub has_choices: bool,
 }
 
-/// Describe, edit one scalar attribute, or append one named node to the native AST.
+/// Describe or edit one scalar, edge or parameter, or append a native graph node.
 /// Existing IDs/topology, expressions, aliases and parameter maps remain intact.
 pub fn author_transform_config(
     request: GraphAuthoringRequest,
@@ -122,6 +150,7 @@ pub fn author_transform_config(
         request.edit.is_some(),
         request.create.is_some(),
         request.edge.is_some(),
+        request.parameter.is_some(),
     ]
     .into_iter()
     .filter(|active| *active)
@@ -131,6 +160,9 @@ pub fn author_transform_config(
         return Err("Choose one graph authoring operation per request".into());
     }
     let (mut document, mut response) = describe(&request.source)?;
+    if let Some(parameter) = request.parameter {
+        return edit_parameter(document, response, parameter);
+    }
     if let Some(edge) = request.edge {
         return edit_edge(document, response, edge);
     }
@@ -222,6 +254,233 @@ pub fn author_transform_config(
     }
     response = candidate;
     Ok(response)
+}
+
+fn parameter_name_is_editable(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 256
+        && name.trim() == name
+        && !name.chars().any(char::is_control)
+}
+
+fn parameter_attribute(document: &CemDocument, owner: u32, name: &str) -> Option<u32> {
+    let CemAstNode::Element { attributes, .. } = &document.nodes[owner as usize] else {
+        return None;
+    };
+    attributes.iter().copied().find(|id| {
+        matches!(
+            &document.nodes[*id as usize],
+            CemAstNode::Attribute { expanded_name, .. }
+                if expanded_name.namespace_uri.is_empty() && expanded_name.local_name == name
+        )
+    })
+}
+
+fn parameter_children(document: &CemDocument, owner: u32) -> Vec<u32> {
+    let CemAstNode::Element { children, .. } = &document.nodes[owner as usize] else {
+        return vec![];
+    };
+    children
+        .iter()
+        .copied()
+        .filter(|id| {
+            matches!(
+                &document.nodes[*id as usize],
+                CemAstNode::Element { expanded_name, .. }
+                    if expanded_name.local_name == "param"
+            )
+        })
+        .collect()
+}
+
+fn literal_attribute(document: &CemDocument, owner: u32, name: &str) -> Option<String> {
+    parameter_attribute(document, owner, name).and_then(|id| match &document.nodes[id as usize] {
+        CemAstNode::Attribute {
+            value, value_nodes, ..
+        } if value_nodes.is_empty() => value.clone(),
+        _ => None,
+    })
+}
+
+fn describe_parameters(
+    document: &CemDocument,
+    owner: Option<u32>,
+    node: &TransformGraphNode,
+) -> (Vec<GraphAuthoringParameterField>, bool) {
+    if node.kind != crate::transform_config::TransformGraphNodeKind::Transform {
+        return (vec![], false);
+    }
+    // An unrelated authored ID (for example on a parameter) must not shadow
+    // the actual transform owner in the document ID table.
+    let owner = owner.filter(|owner| {
+        matches!(&document.nodes[*owner as usize], CemAstNode::Element { expanded_name, .. }
+            if expanded_name.local_name == "transform")
+            && literal_attribute(document, *owner, "id").as_deref() == Some(node.id.as_str())
+    });
+    let Some(owner) = owner else {
+        return (
+            node.params
+                .iter()
+                .map(|(name, value)| GraphAuthoringParameterField {
+                    name: name.clone(),
+                    value: Some(value.clone()),
+                    editable: false,
+                })
+                .collect(),
+            false,
+        );
+    };
+    let children = parameter_children(document, owner);
+    // A dynamic name could collide with any authored literal name. The current
+    // graph parser rejects these inputs; keep the descriptor fail-closed too.
+    let names_are_literal = children
+        .iter()
+        .all(|id| literal_attribute(document, *id, "name").is_some());
+    // The legacy graph formatter writes element local names only. Explicit
+    // element prefixes are source-only until that writer preserves their
+    // namespace identities; even editing another parameter could erase one.
+    let can_edit = names_are_literal && !document.nodes.iter().any(|node| matches!(
+        node, CemAstNode::Element { expanded_name, .. } if !expanded_name.namespace_uri.is_empty()
+    ));
+    let parameters = children
+        .into_iter()
+        .map(|id| {
+            let name = literal_attribute(document, id, "name")
+                .unwrap_or_default()
+                .trim()
+                .to_owned();
+            let value = literal_attribute(document, id, "value");
+            GraphAuthoringParameterField {
+                editable: can_edit && parameter_name_is_editable(&name) && value.is_some(),
+                name,
+                value,
+            }
+        })
+        .collect();
+    (parameters, can_edit)
+}
+
+fn edit_parameter(
+    mut document: CemDocument,
+    before: GraphAuthoringResponse,
+    parameter: GraphAuthoringParameter,
+) -> Result<GraphAuthoringResponse, String> {
+    let node = before
+        .nodes
+        .iter()
+        .find(|node| node.id == parameter.node && node.can_edit_parameters)
+        .ok_or("Choose a named transform node with literal parameter names")?;
+    if !parameter_name_is_editable(&parameter.name) {
+        return Err("Use a literal parameter name of 1–256 UTF-8 bytes without surrounding whitespace or control characters".into());
+    }
+    if parameter
+        .value
+        .as_ref()
+        .is_some_and(|value| value.len() > 1024 * 1024)
+    {
+        return Err("Graph parameter exceeds the 1 MiB authoring limit".into());
+    }
+    if std::iter::once(&parameter.name)
+        .chain(parameter.value.iter())
+        .any(|value| value.contains('"') && value.contains('\''))
+    {
+        return Err(
+            "A graph literal containing both quote delimiters must be edited in source".into(),
+        );
+    }
+    let existing = node
+        .parameters
+        .iter()
+        .find(|field| field.name == parameter.name);
+    if existing.is_some_and(|field| !field.editable) {
+        return Err("Expression-valued parameters must be edited in source".into());
+    }
+    if existing.and_then(|field| field.value.as_ref()) == parameter.value.as_ref() {
+        return Ok(before);
+    }
+    let owner = *document
+        .id_table
+        .get(&parameter.node)
+        .ok_or("Graph node has no authored ID")?;
+    let child = parameter_children(&document, owner).into_iter().find(|id| {
+        literal_attribute(&document, *id, "name").is_some_and(|name| name.trim() == parameter.name)
+    });
+    if parameter.value.is_none() && child.is_some_and(|id| {
+        match &document.nodes[id as usize] {
+            CemAstNode::Element { attributes, .. } => attributes.iter().any(|attribute| {
+                !matches!(&document.nodes[*attribute as usize], CemAstNode::Attribute { expanded_name, .. }
+                    if expanded_name.namespace_uri.is_empty() && matches!(expanded_name.local_name.as_str(), "name" | "value"))
+            }),
+            _ => true,
+        }
+    }) {
+        return Err("A parameter with additional source metadata must be removed in source".into());
+    }
+    if let Some(value) = &parameter.value {
+        if let Some(child) = child {
+            let id = parameter_attribute(&document, child, "value")
+                .ok_or("Parameter has no literal value")?;
+            if let CemAstNode::Attribute { value: current, .. } = &mut document.nodes[id as usize] {
+                *current = Some(value.clone());
+            }
+        } else {
+            let namespace = match &document.nodes[owner as usize] {
+                CemAstNode::Element { expanded_name, .. } => expanded_name.namespace_uri.clone(),
+                _ => unreachable!(),
+            };
+            let mut attributes = vec![];
+            for (name, value) in [("name", &parameter.name), ("value", value)] {
+                let node_id = document.nodes.len() as u32;
+                document.nodes.push(CemAstNode::Attribute {
+                    node_id,
+                    expanded_name: ExpandedName {
+                        namespace_uri: String::new(),
+                        local_name: name.into(),
+                        schema_id: None,
+                    },
+                    value: Some(value.clone()),
+                    value_nodes: vec![],
+                    source: SourceMapStack::default(),
+                });
+                attributes.push(node_id);
+            }
+            let node_id = document.nodes.len() as u32;
+            document.nodes.push(CemAstNode::Element {
+                node_id,
+                expanded_name: ExpandedName {
+                    namespace_uri: namespace,
+                    local_name: "param".into(),
+                    schema_id: None,
+                },
+                attributes,
+                children: vec![],
+                has_explicit_boundary: true,
+                source: SourceMapStack::default(),
+            });
+            if let CemAstNode::Element { children, .. } = &mut document.nodes[owner as usize] {
+                children.push(node_id);
+            }
+        }
+    } else if let CemAstNode::Element { children, .. } = &mut document.nodes[owner as usize] {
+        children.retain(|id| Some(*id) != child);
+    }
+    let mut expected = before.graph.nodes.clone();
+    let expected_node = expected
+        .iter_mut()
+        .find(|node| node.id == parameter.node)
+        .unwrap();
+    if let Some(value) = &parameter.value {
+        expected_node
+            .params
+            .insert(parameter.name.clone(), value.clone());
+    } else {
+        expected_node.params.remove(&parameter.name);
+    }
+    let (_, candidate) = describe(&crate::formatter::format(&document))?;
+    if candidate.graph.nodes != expected || candidate.graph.edges != before.graph.edges {
+        return Err("Graph parameter serialization changed an identity, value or unrelated binding; edit in source".into());
+    }
+    Ok(candidate)
 }
 
 fn edge_role(role: TransformGraphEdgeRole) -> &'static str {
@@ -736,7 +995,8 @@ fn describe(source: &str) -> Result<(CemDocument, GraphAuthoringResponse), Strin
             if attribute.is_some_and(|(_, values)| !values.is_empty()) || attributes.iter().any(|id| matches!(&document.nodes[*id as usize], CemAstNode::Attribute { expanded_name, .. } if !alias.is_empty() && expanded_name.local_name == alias)) { return None; }
             Some(describe_field(name, &kind, attribute.and_then(|(value, _)| value.clone()), schema.required_attributes.contains(name)))
         }).collect()).unwrap_or_default();
-        GraphAuthoringNode { id: node.id.clone(), kind, fields, named: attributes.is_some(), edges: document.id_table.get(&node.id).map(|owner| describe_edges(&document, *owner, node)).unwrap_or_default() }
+        let (parameters, can_edit_parameters) = describe_parameters(&document, document.id_table.get(&node.id).copied(), node);
+        GraphAuthoringNode { id: node.id.clone(), kind, fields, named: attributes.is_some(), edges: document.id_table.get(&node.id).map(|owner| describe_edges(&document, *owner, node)).unwrap_or_default(), parameters, can_edit_parameters }
     }).collect();
     let node_types = TRANSFORM_CONFIG_SCHEMA_ELEMENTS
         .iter()

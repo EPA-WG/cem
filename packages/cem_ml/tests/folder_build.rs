@@ -428,6 +428,7 @@ fn native_graph_authoring_exposes_and_validates_the_folder_root() {
         }),
         create: None,
         edge: None,
+        parameter: None,
     };
     let described = author_transform_config(request(None)).unwrap();
     assert_eq!(

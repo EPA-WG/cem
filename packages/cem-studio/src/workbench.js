@@ -384,7 +384,7 @@ export async function createCemStudioSessionWorkbench({ repository, session, hom
             finally { homePending = false; if (homeState) homeState = { ...homeState, status: 'ready' }; publish(); }
         },
         refreshNavigation, dispose() { unsubscribeRepository?.(); disposed = true; ++searchVersion; ++navigationVersion; unsubscribe(); subscribers.clear(); } };
-    for (const method of ['updateDraft', 'updateGraphAttribute', 'createGraphNode', 'updateGraphEdge', 'undoGraphDraft', 'redoGraphDraft', 'reload', 'saveSource', 'saveAndValidate', 'validatePersisted', 'parsePersisted',
+    for (const method of ['updateDraft', 'updateGraphAttribute', 'createGraphNode', 'updateGraphEdge', 'updateGraphParameter', 'undoGraphDraft', 'redoGraphDraft', 'reload', 'saveSource', 'saveAndValidate', 'validatePersisted', 'parsePersisted',
         'inspectPersisted', 'runPersistedOperation', 'updateCommandDraft', 'updateCommandField', 'updateCommandFields', 'updateCommandGroup', 'resetCommandDraft', 'copyCommand',
         'copyProjection', 'downloadProjection', 'selectArtifact', 'downloadSource', 'setCommandTarget', 'applyCommand', 'applyAndRun',
         'confirmCommandReplacement', 'useNewCommandTarget', 'cancelCommandReplacement', 'navigateDiagnostic', 'selectSourceRange']) {
@@ -705,6 +705,25 @@ export async function createCemStudioWorkbench(options) {
             }
             if (typeof fields.source?.[0] !== 'string' || (field.requiresName && typeof fields.name?.[0] !== 'string')) throw new Error('Choose an edge source and any required binding name');
             const candidate = validator.authorGraph({ source: state.draft, edge: { node: fields.node[0], role: fields.role[0], source: fields.source[0] || null, ...(field.requiresName ? { name: fields.name[0] } : {}) } });
+            if (candidate.source === state.draft) return publish({ ...state, graphConfiguration: { ...state.graphConfiguration, error: undefined } });
+            return updateDraft(candidate.source);
+        } catch (error) { return publish({ ...state, graphConfiguration: { ...state.graphConfiguration, error: normalizedError(error) } }); }
+    }
+
+    async function updateGraphParameter(fields) {
+        if (!isGraphConfiguration()) throw new Error('This resource is not an editable graph configuration');
+        try {
+            if (workbenchBusy(state) || state.command?.status === 'checking' || fields.version?.[0] !== `${commandFormId}:source:${editVersion}`) throw new Error('The graph changed. Review the current configuration and retry.');
+            for (const [name, values] of Object.entries(fields)) {
+                if (!['node', 'name', 'value', 'mode', 'version'].includes(name) || !Array.isArray(values) || values.length !== 1 || typeof values[0] !== 'string') throw new Error('Unexpected or repeated graph parameter fields');
+            }
+            const node = state.graphConfiguration.nodes.find(node => node.id === fields.node?.[0]);
+            if (!node?.canEditParameters) throw new Error('Choose an editable named transform for graph parameters');
+            const mode = fields.mode?.[0], name = fields.name?.[0];
+            if (!['set', 'remove'].includes(mode)) throw new Error('Choose Set or Remove for the graph parameter');
+            if (typeof name !== 'string' || (mode === 'set' && typeof fields.value?.[0] !== 'string')) throw new Error('A graph parameter requires a name and text value');
+            if (node.parameters.some(parameter => parameter.name === name && !parameter.editable)) throw new Error('Edit expression-valued graph parameters in source');
+            const candidate = validator.authorGraph({ source: state.draft, parameter: { node: node.id, name, value: mode === 'remove' ? null : fields.value[0] } });
             if (candidate.source === state.draft) return publish({ ...state, graphConfiguration: { ...state.graphConfiguration, error: undefined } });
             return updateDraft(candidate.source);
         } catch (error) { return publish({ ...state, graphConfiguration: { ...state.graphConfiguration, error: normalizedError(error) } }); }
@@ -1712,6 +1731,7 @@ export async function createCemStudioWorkbench(options) {
         updateGraphAttribute,
         createGraphNode,
         updateGraphEdge,
+        updateGraphParameter,
         undoGraphDraft,
         redoGraphDraft,
         reload,
@@ -1877,6 +1897,7 @@ export async function mountCemStudioWorkbench({
         'edit-graph': ({ fields }) => perform(() => workbench.updateGraphAttribute(fields)),
         'create-graph-node': ({ fields }) => perform(() => workbench.createGraphNode(fields)),
         'edit-graph-edge': ({ fields }) => perform(() => workbench.updateGraphEdge(fields)),
+        'edit-graph-parameter': ({ fields }) => perform(() => workbench.updateGraphParameter(fields)),
         'undo-graph': () => workbench.undoGraphDraft(),
         'redo-graph': () => workbench.redoGraphDraft(),
         save: () => perform(() => workbench.saveAndValidate()),

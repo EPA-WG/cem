@@ -972,6 +972,144 @@ describe('CEM Studio Feature Tour workbench', () => {
         expect(workbench.snapshot().graphConfiguration).toMatchObject({ canUndo: false, canRedo: false });
     });
 
+    it('stages native graph parameters with literal empty values, revision guards and bounded history', async () => {
+        const { workbench, repository, validator } = await graphWorkbench(parameterGraphSource);
+        const original = workbench.snapshot().draft;
+        const fields = (name, value, mode = 'set') => ({ node: ['view'], name: [name], value: [value], mode: [mode], version: [workbench.snapshot().graphConfiguration.version] });
+        const parameters = () => workbench.snapshot().graphConfiguration.nodes.find(node => node.id === 'view').parameters;
+        const first = fields('title', 'Café {stem}');
+        await workbench.updateGraphParameter(first);
+        expect(workbench.snapshot().graphConfiguration.error).toBeUndefined();
+        const added = workbench.snapshot().draft;
+        expect(parameters()).toContainEqual({ name: 'title', value: 'Café {stem}', editable: true });
+        expect(workbench.snapshot()).toMatchObject({ dirty: true, projectRevision: 1, resourceRevision: 1 });
+        expect(validator.runResourceCommand).not.toHaveBeenCalled();
+        expect((await repository.query(request('export-project', { projectId: 'feature-tour' }))).value.project.revision).toBe(1);
+        await workbench.updateGraphParameter(first);
+        expect(workbench.snapshot().graphConfiguration.error.message).toContain('graph changed');
+        expect(workbench.snapshot().draft).toBe(added);
+        const missingValue = fields('title', 'invalid'); delete missingValue.value;
+        for (const invalid of [
+            missingValue,
+            { ...fields('title', 'invalid'), value: ['one', 'two'] },
+            { ...fields('title', 'invalid'), extra: ['unexpected'] },
+            { ...fields('title', 'invalid'), name: [] },
+            { ...fields('title', 'invalid'), mode: ['reset'] },
+            { ...fields('title', 'invalid'), node: ['result'] },
+            { ...fields('title', 'invalid'), version: ['foreign-workbench'] },
+            { ...fields('', 'invalid') },
+        ]) {
+            await workbench.updateGraphParameter(invalid);
+            expect(workbench.snapshot().graphConfiguration.error).toBeDefined();
+            expect(workbench.snapshot().draft).toBe(added);
+        }
+        await workbench.updateGraphParameter(fields('title', ''));
+        expect(parameters()).toContainEqual({ name: 'title', value: '', editable: true });
+        const empty = workbench.snapshot().draft;
+        const version = workbench.snapshot().graphConfiguration.version;
+        await workbench.updateGraphParameter(fields('title', ''));
+        expect(workbench.snapshot().draft).toBe(empty);
+        expect(workbench.snapshot().graphConfiguration.version).toBe(version);
+        await workbench.updateGraphParameter(fields('title', '', 'remove'));
+        expect(parameters().some(parameter => parameter.name === 'title')).toBe(false);
+        expect(parameters()).toContainEqual({ name: 'locale', value: 'en-US', editable: true });
+        workbench.undoGraphDraft(); expect(workbench.snapshot().draft).toBe(empty);
+        workbench.undoGraphDraft(); expect(workbench.snapshot().draft).toBe(added);
+        workbench.undoGraphDraft(); expect(workbench.snapshot().draft).toBe(original);
+        expect(workbench.snapshot().graphConfiguration.canUndo).toBe(false);
+        workbench.redoGraphDraft(); expect(workbench.snapshot().draft).toBe(added);
+        await workbench.saveSource(); await workbench.reload();
+        expect(workbench.snapshot()).toMatchObject({ draft: added, dirty: false, projectRevision: 2, resourceRevision: 2 });
+        for (let index = 0; index < 24; index++) await workbench.updateGraphParameter(fields('title', `Title ${index}`));
+        let undoCount = 0;
+        while (workbench.snapshot().graphConfiguration.canUndo) { workbench.undoGraphDraft(); undoCount++; }
+        expect(undoCount).toBe(20);
+        await workbench.reload();
+        expect(workbench.snapshot()).toMatchObject({ draft: added, graphConfiguration: { canUndo: false, canRedo: false } });
+    });
+
+    it('composes literal graph parameter selection, native reset and empty-value removal declaratively', async () => {
+        const { workbench } = await graphWorkbench(parameterGraphSource);
+        const root = document.createElement('main'); document.body.append(root);
+        const shell = await mountCemStudioApplicationShell({ root }); shells.push(shell);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view); await view.whenSettled();
+        const form = () => root.querySelector('form[host-command="edit-graph-parameter"]');
+        const choose = async (name, value) => { selectValue(name === 'mode' ? form() : root, `[name="${name}"]`, value); await view.whenSettled(); };
+        const action = name => [...root.querySelectorAll('button')].find(button => button.textContent.trim() === name);
+        await choose('graph-parameter-node', 'view'); await choose('graph-parameter', 'locale');
+        const name = () => form().querySelector('cem-text-field[name=name] input');
+        const value = () => form().querySelector('cem-textarea[name=value] textarea');
+        const set = (input, text) => { input.value = text; input.dispatchEvent(new Event('input', { bubbles: true })); };
+        expect(root.querySelectorAll('form[host-command="edit-graph-parameter"]')).toHaveLength(1);
+        expect(root.querySelector('cem-table[label="Graph parameter map"]').getAttribute('data-cem-density')).toBe('super-compact');
+        expect(name().value).toBe('locale'); expect(name().required).toBe(true); expect(value().value).toBe('en-US');
+        set(name(), 'staged'); set(value(), 'staged text');
+        action('Reset staged parameter change').click(); await view.whenSettled();
+        expect(name().value).toBe('locale'); expect(value().value).toBe('en-US');
+        expect(workbench.snapshot().dirty).toBe(false);
+        set(value(), 'Français\nSeconde ligne'); action('Apply graph parameter').click(); await view.whenSettled();
+        expect(workbench.snapshot().graphConfiguration.error).toBeUndefined();
+        expect(value().value).toBe('Français\nSeconde ligne');
+        expect(workbench.snapshot().projectRevision).toBe(1);
+        await choose('graph-parameter', '');
+        expect(name().value).toBe(''); expect(value().value).toBe('');
+        set(name(), 'note'); action('Apply graph parameter').click(); await view.whenSettled();
+        expect(workbench.snapshot().graphConfiguration.nodes.find(node => node.id === 'view').parameters).toContainEqual({ name: 'note', value: '', editable: true });
+        await choose('graph-parameter', 'note'); await choose('mode', 'remove');
+        action('Apply graph parameter').click(); await view.whenSettled();
+        expect(workbench.snapshot().graphConfiguration.nodes.find(node => node.id === 'view').parameters.some(parameter => parameter.name === 'note')).toBe(false);
+        expect(form()).not.toBeNull(); expect(name().value).toBe(''); expect(value().value).toBe('');
+        action('Undo graph edit').click(); await view.whenSettled();
+        expect(name().value).toBe('note'); expect(value().value).toBe('');
+        action('Redo graph edit').click(); await view.whenSettled();
+        expect(name().value).toBe('');
+        await choose('graph-parameter-node', ''); expect(form()).toBeNull();
+    }, 30_000);
+
+    it('discards unsubmitted graph parameter staging when equal-valued entries or owners change', async () => {
+        const source = '{run | {import @id=data @src=data.xml | {transform @id=view @src=view.cemt | {param @name=locale @value=en-US} {param @name=duplicate @value=en-US} {export @id=result @out=result.html}} {transform @id=second @src=view.cemt | {param @name=locale @value=en-US} {export @id=second-result @out=second.html}}}}';
+        const { workbench } = await graphWorkbench(source);
+        const root = document.createElement('main'); document.body.append(root);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view); await view.whenSettled();
+        const form = () => root.querySelector('form[host-command="edit-graph-parameter"]');
+        const choose = async (name, value) => { selectValue(name === 'mode' ? form() : root, `[name="${name}"]`, value); await view.whenSettled(); };
+        const name = () => form().querySelector('cem-text-field[name=name] input');
+        const value = () => form().querySelector('cem-textarea[name=value] textarea');
+        const mode = () => form().querySelector('cem-select[name=mode]');
+        const set = (input, text) => { input.value = text; input.dispatchEvent(new Event('input', { bubbles: true })); };
+        await choose('graph-parameter-node', 'view'); await choose('graph-parameter', 'locale');
+        set(value(), 'Unsubmitted edit'); await choose('mode', 'remove');
+        await choose('graph-parameter', 'duplicate');
+        expect(name().value, JSON.stringify({ selected: root.querySelector('cem-select[name="graph-parameter"]').value, nameDefault: form().querySelector('cem-text-field[name=name]').getAttribute('value'), valueDefault: form().querySelector('cem-textarea[name=value]').getAttribute('value'), request: form().querySelector('cem-text-field[name=name]').getAttribute('value-request'), parameters: workbench.snapshot().graphConfiguration.nodes.find(node => node.id === 'view').parameters })).toBe('duplicate');
+        expect(value().value).toBe('en-US'); expect(mode().value).toBe('set');
+        await choose('graph-parameter', ''); set(name(), 'title'); set(value(), 'Staged for view');
+        await choose('mode', 'remove');
+        await choose('graph-parameter-node', 'second');
+        expect(name().value).toBe(''); expect(value().value).toBe(''); expect(mode().value).toBe('set');
+        await choose('graph-parameter-node', 'view');
+        expect(name().value).toBe(''); expect(value().value).toBe(''); expect(mode().value).toBe('set');
+        expect(workbench.snapshot()).toMatchObject({ draft: source, dirty: false, projectRevision: 1, graphConfiguration: { canUndo: false } });
+    }, 30_000);
+
+    it('disables graph parameter forms and rejects parameter changes during validation', async () => {
+        const { workbench, validator } = await graphWorkbench(parameterGraphSource);
+        const root = document.createElement('main'); document.body.append(root);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench }); views.push(view); await view.whenSettled();
+        selectValue(root, '[name="graph-parameter-node"]', 'view'); await view.whenSettled();
+        const pending = deferred(); validator.validateResource.mockImplementationOnce(() => pending.promise);
+        const saving = workbench.saveAndValidate();
+        await vi.waitFor(() => expect(workbench.snapshot().status).toBe('validating')); await view.whenSettled();
+        try {
+            expect(root.querySelector('cem-fieldset[label="Graph parameters"] fieldset').disabled).toBe(true);
+            expect(root.querySelector('cem-select[name="graph-parameter-node"]').hasAttribute('disabled')).toBe(true);
+            const draft = workbench.snapshot().draft;
+            await workbench.updateGraphParameter({ node: ['view'], name: ['locale'], value: ['blocked'], mode: ['set'], version: [workbench.snapshot().graphConfiguration.version] });
+            expect(workbench.snapshot().draft).toBe(draft);
+            expect(workbench.snapshot().graphConfiguration.error.message).toContain('graph changed');
+        } finally { pending.resolve(validResult()); await saving; await view.whenSettled(); }
+        expect(root.querySelector('cem-fieldset[label="Graph parameters"] fieldset').disabled).toBe(false);
+    }, 30_000);
+
     it('creates native named graph nodes with revision guards and reversible unsaved drafts', async () => {
         const { workbench, repository, validator } = await graphWorkbench();
         const original = workbench.snapshot().draft;
@@ -3529,6 +3667,7 @@ describe('Studio project session admission', () => {
 let nativeGraphAuthor, nativeGraphValidator;
 afterAll(async () => { await nativeGraphValidator?.close(); });
 const edgeGraphSource = '{run | {import @id=other @src=other.xml} {import @id=data @src=data.xml | {transform @id=view @src=view.xpath @template-content-type=application/vnd.cem.xpath | {export @id=result @out=result.xml}}}}';
+const parameterGraphSource = '{run | {import @id=data @src=data.xml | {transform @id=view @src=view.cem @template-content-type=application/vnd.cem.template+cem | {param @name=locale @value=en-US} {export @id=result @out=result.html}}}}';
 async function graphWorkbench(source = '{run | {import @id=data @src=asset.svg @opaque=true @content-type=image/svg+xml | {export @id=result @out=result.svg}}}\n') {
     if (!nativeGraphAuthor) {
         const native = await createCemStudioBrowserValidator();

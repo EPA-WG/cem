@@ -11,6 +11,7 @@ fn request(source: &str, edit: Option<GraphAuthoringEdit>) -> GraphAuthoringRequ
         edit,
         create: None,
         edge: None,
+        parameter: None,
     }
 }
 fn edit(node: &str, attribute: &str, value: Option<&str>) -> GraphAuthoringEdit {
@@ -196,6 +197,7 @@ fn create(
         source: source.into(),
         edit: None,
         edge: None,
+        parameter: None,
         create: Some(GraphAuthoringCreate {
             parent: parent.map(str::to_owned),
             kind: kind.into(),
@@ -472,6 +474,7 @@ fn edge(
         source: source.into(),
         edit: None,
         create: None,
+        parameter: None,
         edge: Some(GraphAuthoringEdge {
             node: node.into(),
             role,
@@ -672,4 +675,285 @@ fn graph_edges_reject_cycles_unknown_nodes_invalid_roles_names_and_ambiguous_edi
     );
     let mixed = "{run | {import @id=a @src=a.xml | {convert @id=c @content-type=application/xml}} {import @id=b @src=b.xml | {export @out=x}}}";
     assert!(author_transform_config(edge(mixed, "c", Parent, Some("b"), None)).is_err());
+}
+
+fn parameter_json(source: &str, node: &str, name: &str, value: Option<&str>) -> serde_json::Value {
+    serde_json::from_str(
+        &cem_ml::transform_config_authoring::author_transform_config_json(
+            &serde_json::json!({
+                "source": source,
+                "parameter": { "node": node, "name": name, "value": value },
+            })
+            .to_string(),
+        ),
+    )
+    .unwrap()
+}
+
+#[test]
+fn graph_parameters_describe_literal_rows_named_transforms_and_exact_noops() {
+    let described =
+        serde_json::to_value(author_transform_config(request(EDGES, None)).unwrap()).unwrap();
+    let view = described["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|node| node["id"] == "view")
+        .unwrap();
+    assert_eq!(view["canEditParameters"], true);
+    assert_eq!(
+        view["parameters"],
+        serde_json::json!([
+            {"name":"title", "value":"café ${literal}", "editable":true}
+        ])
+    );
+    for node in described["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|node| node["id"] != "view")
+    {
+        assert_eq!(node["canEditParameters"], false);
+        assert_eq!(node["parameters"], serde_json::json!([]));
+    }
+    for (name, value) in [("title", Some("café ${literal}")), ("missing", None)] {
+        let result = parameter_json(EDGES, "view", name, value);
+        assert_eq!(result["source"], EDGES, "{result}");
+    }
+}
+
+#[test]
+fn graph_parameters_add_update_empty_and_remove_only_the_named_binding() {
+    let before = author_transform_config(request(EDGES, None)).unwrap();
+    let value = "café \\\"{stem} ${literal} $(name) | @id=x";
+    let added = parameter_json(EDGES, "view", "地域", Some(value));
+    assert!(added.get("error").is_none(), "{added}");
+    let changed =
+        author_transform_config(request(added["source"].as_str().unwrap(), None)).unwrap();
+    let view = changed
+        .graph
+        .nodes
+        .iter()
+        .find(|node| node.id == "view")
+        .unwrap();
+    assert_eq!(view.params.get("地域").map(String::as_str), Some(value));
+    assert_eq!(
+        view.params.get("title").map(String::as_str),
+        Some("café ${literal}")
+    );
+    assert_eq!(before.graph.edges, changed.graph.edges);
+    for node in before.graph.nodes.iter().filter(|node| node.id != "view") {
+        assert!(changed.graph.nodes.contains(node));
+    }
+    let empty = parameter_json(&changed.source, "view", "title", Some(""));
+    assert!(empty.get("error").is_none(), "{empty}");
+    let view = empty["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|node| node["id"] == "view")
+        .unwrap();
+    assert!(view["parameters"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|row| row["name"] == "title" && row["value"] == ""));
+    let removed = parameter_json(empty["source"].as_str().unwrap(), "view", "地域", None);
+    assert!(removed.get("error").is_none(), "{removed}");
+    let graph = author_transform_config(request(removed["source"].as_str().unwrap(), None))
+        .unwrap()
+        .graph;
+    let view = graph.nodes.iter().find(|node| node.id == "view").unwrap();
+    assert_eq!(view.params.len(), 1);
+    assert_eq!(view.params.get("title").map(String::as_str), Some(""));
+    assert_eq!(graph.edges, before.graph.edges);
+}
+
+#[test]
+fn graph_parameters_preserve_aliases_resource_references_and_other_bindings() {
+    let source = r#"// café source comment
+{run |
+ {import @id=data @src="../assets/data.xml" @contentType=application/xml |
+  {transform @id=view @src="../templates/view.xpath" @templateContentType=application/vnd.cem.xpath |
+   {param @name=title @value="before"}
+   {param @name=locale @value="fr-FR"}
+   {export @id=result @out="../output/result.xml" @stylePolicy=inline}
+  }
+ }
+}"#;
+    let before = author_transform_config(request(source, None)).unwrap();
+    let after = parameter_json(source, "view", "title", Some("after"));
+    assert!(after.get("error").is_none(), "{after}");
+    let next = author_transform_config(request(after["source"].as_str().unwrap(), None)).unwrap();
+    assert_eq!(next.graph.edges, before.graph.edges);
+    let mut expected = before.graph.nodes;
+    expected
+        .iter_mut()
+        .find(|node| node.id == "view")
+        .unwrap()
+        .params
+        .insert("title".into(), "after".into());
+    assert_eq!(next.graph.nodes, expected);
+    for spelling in [
+        "contentType",
+        "templateContentType",
+        "stylePolicy",
+        "../assets/data.xml",
+        "../templates/view.xpath",
+        "../output/result.xml",
+        "café source comment",
+    ] {
+        assert!(
+            next.source.contains(spelling),
+            "{spelling}: {}",
+            next.source
+        );
+    }
+}
+
+#[test]
+fn graph_parameters_fail_closed_for_invalid_owners_names_values_and_protocol() {
+    for (node, name, value) in [
+        ("data", "title", Some("x")),
+        ("result", "title", Some("x")),
+        ("missing", "title", Some("x")),
+        ("view", "", Some("x")),
+        ("view", " padded ", Some("x")),
+        ("view", "title", Some("both\"and'quotes")),
+    ] {
+        let result = parameter_json(EDGES, node, name, value);
+        assert!(result["error"].is_string(), "{node}/{name}: {result}");
+    }
+    assert!(parameter_json(EDGES, "view", &"x".repeat(257), Some("x"))["error"].is_string());
+    assert!(
+        parameter_json(EDGES, "view", "title", Some(&"x".repeat(1024 * 1024 + 1)))["error"]
+            .is_string()
+    );
+    let anonymous = "{run | {import @id=data @src=data.xml | {transform @src=view.xpath @template-content-type=application/vnd.cem.xpath | {param @name=title @value=x}}}}";
+    let described = author_transform_config(request(anonymous, None)).unwrap();
+    assert!(
+        parameter_json(anonymous, &described.graph.nodes[1].id, "title", Some("x"))["error"]
+            .is_string()
+    );
+    let duplicate = "{run | {import @id=data @src=data.xml | {transform @id=view @src=view.xpath @template-content-type=application/vnd.cem.xpath | {param @name=title @value=x} {param @name=title @value=y}}}}";
+    assert!(parameter_json(duplicate, "view", "title", Some("x"))["error"].is_string());
+    for extra in [
+        serde_json::json!({"edit":{"node":"data","attribute":"src","value":"x"}}),
+        serde_json::json!({"create":{"parent":null,"kind":"import","id":"x","attributes":{"src":"x"}}}),
+        serde_json::json!({"edge":{"node":"view","role":"input","source":"data","name":null}}),
+    ] {
+        let mut req = serde_json::json!({"source":EDGES,"parameter":{"node":"view","name":"title","value":"x"}});
+        req.as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        let result =
+            cem_ml::transform_config_authoring::author_transform_config_json(&req.to_string());
+        assert!(serde_json::from_str::<serde_json::Value>(&result).unwrap()["error"].is_string());
+    }
+    for parameter in [
+        r#"{"node":"view","name":"title"}"#,
+        r#"{"node":"view","name":"title","value":"x","unknown":true}"#,
+        r#"{"node":"view","name":"title","name":"other","value":"x"}"#,
+        r#"{"node":"view","name":"title","value":"x","value":"y"}"#,
+    ] {
+        let req = format!(
+            "{{\"source\":{},\"parameter\":{parameter}}}",
+            serde_json::to_string(EDGES).unwrap()
+        );
+        let result = cem_ml::transform_config_authoring::author_transform_config_json(&req);
+        assert!(
+            serde_json::from_str::<serde_json::Value>(&result).unwrap()["error"].is_string(),
+            "{result}"
+        );
+    }
+}
+
+#[test]
+fn graph_parameters_refuse_expression_and_duplicate_source_attributes() {
+    for params in [
+        "{param @name=title @value={$title}}",
+        "{param @name={$name} @value=literal}",
+        "{param @name=title @value=x @value=y}",
+        "{param @name=title @name=other @value=x}",
+    ] {
+        let source = format!("{{run | {{import @id=data @src=data.xml | {{transform @id=view @src=view.xpath @template-content-type=application/vnd.cem.xpath | {params}}}}}}}");
+        let result = parameter_json(&source, "view", "title", Some("replacement"));
+        assert!(result["error"].is_string(), "{params}: {result}");
+    }
+}
+
+#[test]
+fn graph_parameters_keep_multiline_binding_templates_literal_until_execution() {
+    for value in [
+        "first line\nsecond café line",
+        "first\r\nsecond",
+        "{stem}",
+        "${name}",
+        "{$secret}",
+    ] {
+        let result = parameter_json(EDGES, "view", "title", Some(value));
+        assert!(result.get("error").is_none(), "{value:?}: {result}");
+        let graph = author_transform_config(request(result["source"].as_str().unwrap(), None))
+            .unwrap()
+            .graph;
+        assert_eq!(
+            graph
+                .nodes
+                .iter()
+                .find(|node| node.id == "view")
+                .unwrap()
+                .params
+                .get("title")
+                .map(String::as_str),
+            Some(value)
+        );
+    }
+}
+
+#[test]
+fn graph_parameters_update_value_without_losing_source_only_metadata_and_refuse_its_removal() {
+    let source = EDGES.replace(
+        "{param @name=title",
+        "{param @id=title-parameter @meta:note=retained @name=title",
+    );
+    let described = author_transform_config(request(&source, None)).unwrap();
+    assert_eq!(described.graph.nodes.len(), 4);
+    let result = parameter_json(&source, "view", "title", Some("changed"));
+    assert!(result.get("error").is_none(), "{result}");
+    let changed = result["source"].as_str().unwrap();
+    assert!(changed.contains("@id=title-parameter"), "{changed}");
+    assert!(changed.contains("@meta:note=retained"), "{changed}");
+    assert!(parameter_json(changed, "view", "title", None)["error"].is_string());
+}
+
+#[test]
+fn graph_parameters_refuse_a_parameter_id_shadowing_its_transform_owner() {
+    let source = EDGES.replace("{param @name=title", "{param @id=view @name=title");
+    assert!(parameter_json(&source, "view", "title", None)["error"].is_string());
+}
+
+#[test]
+fn graph_parameters_keep_namespaced_elements_source_only_until_the_writer_preserves_them() {
+    let source = EDGES.replace("{param @name=title", "{config:param @name=title");
+    let before = author_transform_config(request(&source, None)).unwrap();
+    assert_eq!(before.source, source);
+    let view = before.nodes.iter().find(|node| node.id == "view").unwrap();
+    assert!(!view.can_edit_parameters);
+    assert_eq!(view.parameters[0].name, "title");
+    assert!(!view.parameters[0].editable);
+    assert_eq!(
+        before
+            .graph
+            .nodes
+            .iter()
+            .find(|node| node.id == "view")
+            .unwrap()
+            .params
+            .get("title")
+            .map(String::as_str),
+        Some("café ${literal}")
+    );
+    for value in [Some("changed"), None] {
+        assert!(parameter_json(&source, "view", "title", value)["error"].is_string());
+    }
 }

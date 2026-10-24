@@ -2,6 +2,9 @@ import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect, userEvent } from 'storybook/test';
 import { CemElementRuntime } from './cem-elements.js';
 import { createCemStoryRuntime } from '../../.storybook/preview.js';
+import { cemFormControlCheckpoint, getCemEditorProvider } from './form-control-capability.js';
+import { captureCheckpointControls } from './checkpoint-controls.js';
+import { prepareCemRetainedFormResume } from './checkpoint-form-resume.js';
 
 const meta: Meta = { title: 'CEM Elements/Form Control', tags: ['test'] };
 export default meta;
@@ -75,6 +78,94 @@ async function selectionContract(canvasElement: HTMLElement, fallback: boolean) 
 
 export const SelectionWorker: Story = { render: () => document.createElement('section'), play: async ({ canvasElement }) => selectionContract(canvasElement, false) };
 export const SelectionFallback: Story = { render: () => document.createElement('section'), play: async ({ canvasElement }) => selectionContract(canvasElement, true) };
+
+async function controlledValueContract(canvasElement: HTMLElement, fallback: boolean) {
+    const { runtime, scope } = createCemStoryRuntime(canvasElement, fallback);
+    const tag = `value-request-control-${fallback ? 'fallback' : 'worker'}`;
+    const declaration = document.createElement('div');
+    declaration.setAttribute('tag', tag); declaration.setAttribute('capability', 'form-control');
+    const template = document.createElement('template'); template.type = 'text/cem-ml';
+    template.textContent = '{textarea @part=control @form="" @aria-label=Parameter @disabled={if datadom.slices.formDisabled { true } else { null }} @slice=value @slice-event=input @slice-value="$target.value" | {$datadom.slices.value}}';
+    declaration.append(template);
+    runtime.registerDeclaration(declaration); await runtime.whenDeclarationSettled(declaration);
+    const form = document.createElement('form'), host = document.createElement(tag) as FormHost;
+    const initial = 'Original café 🍒\nSecond line';
+    host.setAttribute('name', 'parameter'); host.setAttribute('value', initial); host.setAttribute('value-request', 'first-context');
+    form.append(host); canvasElement.append(form);
+    const restored = document.createElement(tag) as FormHost;
+    const settle = () => runtime.whenRenderSettled(host);
+    try {
+        await settle();
+        const editor = host.querySelector('textarea') as HTMLTextAreaElement;
+        const provider = getCemEditorProvider(host)!;
+        let changes = 0;
+        host.addEventListener('input', () => changes++); host.addEventListener('change', () => changes++);
+        editor.focus(); host.value = 'Staged value'; await settle(); editor.setSelectionRange(1, 6, 'backward');
+        host.setAttribute('value-request', 'first-context'); host.setAttribute('aria-description', 'Unrelated update'); await settle();
+        expect(host.value).toBe('Staged value');
+        expect([editor.selectionStart, editor.selectionEnd, editor.selectionDirection]).toEqual([1, 6, 'backward']);
+        const revision = provider.revision;
+        host.setAttribute('value-request', 'second-context'); await settle();
+        expect(host.value).toBe(initial);
+        expect(new FormData(form).getAll('parameter')).toEqual([initial]);
+        expect(provider.revision).toBeGreaterThan(revision);
+        expect(host.querySelector('textarea')).toBe(editor); expect(document.activeElement).toBe(editor);
+        expect(cemFormControlCheckpoint(host)).toMatchObject({ valueRequest: 'second-context' });
+
+        host.value = 'Kept after request removal'; await settle();
+        host.removeAttribute('value-request'); await settle();
+        expect(host.value).toBe('Kept after request removal');
+        expect(cemFormControlCheckpoint(host)).not.toHaveProperty('valueRequest');
+        host.setAttribute('value-request', 'second-context'); await settle(); expect(host.value).toBe(initial);
+        host.setAttribute('value', ''); await settle(); host.value = 'A draft over an empty default'; await settle();
+        host.setAttribute('value-request', 'empty-context'); await settle(); expect(host.value).toBe('');
+        expect(new FormData(form).getAll('parameter')).toEqual(['']);
+        host.removeAttribute('value'); await settle(); host.value = 'A draft over an omitted default'; await settle();
+        host.setAttribute('value-request', 'omitted-default-context'); await settle();
+        expect(host.value).toBe(''); expect(editor.value).toBe('');
+        expect(runtime.snapshotInstance(host).slices.value).toBe('');
+        expect(new FormData(form).getAll('parameter')).toEqual(['']); expect(changes).toBe(0);
+
+        host.value = 'Retained edit'; await settle();
+        const saved = cemFormControlCheckpoint(host)!, controls = captureCheckpointControls([editor])!;
+        const resume = prepareCemRetainedFormResume(host, 'form-control', saved, controls,
+            () => captureCheckpointControls([editor]), node => host.contains(node));
+        expect(resume.current()).toBe(true); resume.activate();
+        host.setAttribute('aria-description', 'After retained activation'); await settle();
+        expect(host.value).toBe('Retained edit'); expect(resume.current()).toBe(true);
+        host.setAttribute('value-request', 'pending-context');
+        expect(cemFormControlCheckpoint(host)).toBeUndefined(); expect(resume.current()).toBe(false);
+        const pending = provider.lease({});
+        expect(pending.commit('Stale provider write', { revision: provider.revision })).toBe(false); pending.release();
+        await settle(); expect(host.value).toBe('');
+        expect(cemFormControlCheckpoint(host)).toMatchObject({ valueRequest: 'pending-context' });
+
+        const lease = provider.lease({}), before = provider.revision;
+        editor.addEventListener('beforeinput', () => host.setAttribute('value-request', 'changed-during-commit'), { once: true });
+        expect(lease.commit('Late provider write', { revision: before })).toBe(false); lease.release();
+        await settle(); expect(host.value).toBe('');
+        expect(provider.revision).toBeGreaterThan(before);
+        expect(cemFormControlCheckpoint(host)).toMatchObject({ valueRequest: 'changed-during-commit' });
+        form.reset(); await settle(); expect(host.value).toBe(''); expect(changes).toBe(0);
+        host.value = 'Retained reconnect'; await settle(); host.remove(); form.append(host); await settle();
+        expect(host.value).toBe('Retained reconnect'); expect(host.querySelector('textarea')).toBe(editor);
+        expect(changes).toBe(0);
+
+        restored.setAttribute('value', 'Authored initial value'); restored.setAttribute('value-request', 'cold-context');
+        runtime.setInstanceSlices(restored, { value: 'Hydrated unsaved value' }, { render: false });
+        canvasElement.append(restored); await runtime.whenRenderSettled(restored);
+        expect(restored.value).toBe('Hydrated unsaved value');
+        restored.setAttribute('aria-description', 'Hydration complete'); await runtime.whenRenderSettled(restored);
+        expect(restored.value).toBe('Hydrated unsaved value');
+        expect(cemFormControlCheckpoint(restored)).toMatchObject({ valueRequest: 'cold-context' });
+        expect(runtime.diagnosticsFor(host)).toEqual([]);
+        expect(runtime.diagnosticsFor(declaration).map(({ code }) => code)).toEqual(
+            fallback ? ['cem.processing_host.worker_startup_fallback'] : []);
+    } finally { restored.remove(); form.remove(); scope.dispose(); }
+}
+
+export const ControlledValueWorker: Story = { render: () => document.createElement('section'), play: async ({ canvasElement }) => controlledValueContract(canvasElement, false) };
+export const ControlledValueFallback: Story = { render: () => document.createElement('section'), play: async ({ canvasElement }) => controlledValueContract(canvasElement, true) };
 
 export const Lifecycle: Story = {
     render: () => document.createElement('section'),

@@ -37,6 +37,7 @@ export interface CemEditorProvider {
 interface FormControlState {
     context: CemProducedElementBehaviorContext;
     authoredValue: string | null | undefined;
+    valueRequest: string | null;
     formDisabled: boolean;
     customValidity: string;
     onInput?: EventListener;
@@ -98,14 +99,14 @@ export function subscribeCemEditorCheckpoint(provider: CemEditorProvider, lease:
 /** Exact browser claim graph witness; does not inspect expired native authority. */
 export function prepareCemEditorProviderHandoff(host: HTMLElement) {
     const state = states.get(host), consumers = state && checkpointConsumers.get(state.provider);
-    if (!state || consumers?.size !== 1 || state.composing || state.compositionEnd || state.imePresses.size || state.handledPresses.size) return undefined;
+    if (!state || !authoredInputsCurrent(host, state) || consumers?.size !== 1 || state.composing || state.compositionEnd || state.imePresses.size || state.handledPresses.size) return undefined;
     const consumer = [...consumers][0], control = state.control, revision = state.revision;
     const entries = [state.listeners, state.leases, state.attributeClaims, state.validityClaims, state.validityOwners] as const;
     const copies = entries.map(value => [...value]);
-    const scalar = () => JSON.stringify([state.generation, state.authoredValue, state.formDisabled, state.customValidity,
+    const scalar = () => JSON.stringify([state.generation, state.authoredValue, state.valueRequest, state.formDisabled, state.customValidity,
         state.selectionRequest, state.checkpoint && [state.checkpoint.revision, state.checkpoint.value]]);
     const captured = scalar();
-    const current = () => states.get(host) === state && state.control === control && controlFor(host) === control
+    const current = () => states.get(host) === state && authoredInputsCurrent(host, state) && state.control === control && controlFor(host) === control
         && state.revision === revision && !state.composing && !state.compositionEnd && !state.imePresses.size && !state.handledPresses.size
         && checkpointConsumers.get(state.provider)?.size === 1 && checkpointConsumers.get(state.provider)?.has(consumer) === true
         && scalar() === captured && entries.every((entry, index) => {
@@ -129,7 +130,7 @@ export function isCemCredentialControl(control: Element): boolean {
 /** Admit only standalone providers or one exactly accounted shared consumer. */
 export function cemFormControlCheckpoint(instance: HTMLElement, consumerId?: (host: HTMLElement) => string | undefined) {
     const state = states.get(instance);
-    if (!state?.control || !state.abort || state.composing || state.compositionEnd || state.imePresses.size || state.handledPresses.size) return undefined;
+    if (!state?.control || !authoredInputsCurrent(instance, state) || !state.abort || state.composing || state.compositionEnd || state.imePresses.size || state.handledPresses.size) return undefined;
     if (isCemCredentialControl(state.control) && (state.authoredValue || state.customValidity)) return undefined;
     if (state.checkpoint && (state.checkpoint.control !== state.control || state.checkpoint.revision !== state.revision || state.checkpoint.value !== state.control.value)) return undefined;
     const changeSuppression = state.checkpoint ? { revision: state.checkpoint.revision, value: state.checkpoint.value, disposition: 'suppress-once' as const } : undefined;
@@ -150,7 +151,8 @@ export function cemFormControlCheckpoint(instance: HTMLElement, consumerId?: (ho
         provider = { revision: state.revision, consumer, validity: [...state.validityClaims.values()][0] ?? '' };
     }
     return { kind: 'form-control' as const, authoredValue: state.authoredValue ?? null, formDisabled: state.formDisabled,
-        customValidity: state.customValidity, selectionRequest: state.selectionRequest ?? null, ...(provider ? { provider } : {}), ...(changeSuppression ? { changeSuppression } : {}) };
+        customValidity: state.customValidity, selectionRequest: state.selectionRequest ?? null,
+        ...(state.valueRequest ? { valueRequest: state.valueRequest } : {}), ...(provider ? { provider } : {}), ...(changeSuppression ? { changeSuppression } : {}) };
 }
 const validityKeys = [
     'badInput', 'customError', 'patternMismatch', 'rangeOverflow', 'rangeUnderflow',
@@ -161,7 +163,7 @@ const validityKeys = [
 export const CEM_FORM_CONTROL_CAPABILITY: CemProducedElementBehavior = {
     formAssociated: true,
     constructed(instance, context) {
-        const state: FormControlState = { context, authoredValue: undefined, formDisabled: false, customValidity: '',
+        const state: FormControlState = { context, authoredValue: undefined, valueRequest: null, formDisabled: false, customValidity: '',
             provider: undefined as unknown as CemEditorProvider, control: null, revision: 0, composing: false,
             imePresses: new Set(), handledPresses: new Map(), listeners: new Set(), leases: new Set(), attributeClaims: new Map(), validityClaims: new Map(), validityOwners: new Set(), generation: 0 };
         states.set(instance, state);
@@ -269,11 +271,19 @@ export const CEM_FORM_CONTROL_CAPABILITY: CemProducedElementBehavior = {
         const state = stateFor(instance);
         state.context = context;
         const authored = instance.getAttribute('value');
+        const valueRequest = instance.getAttribute('value-request');
+        const valueRequested = Boolean(valueRequest && valueRequest !== state.valueRequest);
+        state.valueRequest = valueRequest;
         const slices: Record<string, unknown> = { formDisabled: state.formDisabled || instance.hasAttribute('disabled') };
-        if (state.authoredValue !== authored) {
+        if (state.authoredValue !== authored || valueRequested) {
             // On resume, a retained live slice wins over initial host attributes.
             if (state.authoredValue !== undefined || context.snapshot().slices.value === undefined) {
-                slices.value = authored ?? '';
+                const control = valueRequested ? controlFor(instance) : null;
+                // A value request is explicit even if the template's last
+                // committed value matches; unchanged DOM must not retain an
+                // edit from the previous authored context.
+                if (control) control.value = authored ?? '';
+                slices.value = control?.value ?? authored ?? '';
             }
             state.authoredValue = authored;
             publish(instance, state, 'authored', true);
@@ -335,6 +345,10 @@ function stateFor(instance: HTMLElement): FormControlState {
     const state = states.get(instance);
     if (!state) throw new Error('Form control capability was not constructed');
     return state;
+}
+
+function authoredInputsCurrent(instance: HTMLElement, state: FormControlState): boolean {
+    return state.authoredValue === instance.getAttribute('value') && state.valueRequest === instance.getAttribute('value-request');
 }
 
 function controlFor(instance: HTMLElement): Control | null {
@@ -427,7 +441,7 @@ function editorProvider(instance: HTMLElement, state: FormControlState): CemEdit
                     const control = controlFor(instance);
                     const current = () => valid() && !datalist.valid && editable(instance, state) && !state.composing && !state.compositionEnd
                         && control === controlFor(instance) && state.revision === request.revision
-                        && state.authoredValue === instance.getAttribute('value') && (request.current?.() ?? true);
+                        && authoredInputsCurrent(instance, state) && (request.current?.() ?? true);
                     if (!control || !current() || isDomInstance(control, 'HTMLInputElement') && control.type === 'file') return false;
                     const probe = control.cloneNode(false) as Control; probe.value = value;
                     if (probe.value !== value) return false;
