@@ -535,7 +535,7 @@ fn parse_bytes(
 }
 
 /// Content negotiation and character decoding belong to this import boundary.
-fn import_content_type(value: &str) -> Result<(&'static str, String), String> {
+pub(crate) fn import_content_type(value: &str) -> Result<(&'static str, String), String> {
     let (mime, parameters) = value.split_once(';').unwrap_or((value, ""));
     let mime = mime.trim().to_ascii_lowercase();
     let (format, canonical) = match mime.as_str() {

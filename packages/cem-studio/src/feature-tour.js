@@ -36,6 +36,7 @@ export async function createCemStudioBrowserValidator({ recoveryScope, packageDe
     const ledgers = new Map();
     const pendingWrites = new Map();
     const committedWrites = new Map();
+    let pendingOperations = 0;
     let nextWrite = 1;
     /** @type {Parameters<typeof createBrowserCommandServiceBinding>[0]} */
     const clientOptions = {
@@ -75,17 +76,17 @@ export async function createCemStudioBrowserValidator({ recoveryScope, packageDe
     };
     let closed = false;
     const invocationBinding = await createBrowserCommandInvocationBinding({ recoveryScope, id: `studio-invocation:${recoveryId}`,
-        hostWitness: () => { const revision = nextWrite; return () => !closed && !ledgers.size && !pendingWrites.size && !committedWrites.size && revision === nextWrite; } });
+        hostWitness: () => { const revision = nextWrite; return () => !closed && !pendingOperations && !ledgers.size && !pendingWrites.size && !committedWrites.size && revision === nextWrite; } });
     let services;
     try {
         services = await createBrowserCommandServiceBinding(clientOptions, { recoveryScope, id: `studio-commands:${recoveryId}`, hostWitness: () => {
             const revision = nextWrite;
-            return () => !closed && !ledgers.size && !pendingWrites.size && !committedWrites.size && revision === nextWrite;
+            return () => !closed && !pendingOperations && !ledgers.size && !pendingWrites.size && !committedWrites.size && revision === nextWrite;
         } });
     } catch (error) { invocationBinding.close(); throw error; }
     const client = services;
     if (packageDemand) {
-        const current = () => !closed && !ledgers.size && !pendingWrites.size && !committedWrites.size;
+        const current = () => !closed && !pendingOperations && !ledgers.size && !pendingWrites.size && !committedWrites.size;
         try {
             await packageDemand.run(() => undefined, () => ({
                 runtime: cemSchemaAssetRuntimeFromBinding(invocationBinding.runtime.nativeResourceBinding()),
@@ -102,82 +103,108 @@ export async function createCemStudioBrowserValidator({ recoveryScope, packageDe
 
     let nextRequest = 1;
 
-    const executeResourceCommand = async ({
-        operation,
-        argv,
-        parsedCommand,
-        bytes,
-        uri = 'input.cem',
-        dependencies = [],
-        projectId = 'cem-studio-command',
-        projectRevision = 1,
-        resourceRevision = 1,
-        resourceScheme = 'cem-studio',
-        signal,
-        readOutput = false,
-    }) => nativeWork(async () => {
+    // Resource bytes and declared identities belong to this command revision.
+    // Package acquisition must never observe later mutation by a caller.
+    const snapshotResourceOptions = options => {
+        const dependencies = options.dependencies ?? [];
+        assertCemStudioSourceSet(options.bytes, dependencies);
+        const copy = value => Uint8Array.prototype.slice.call(value instanceof Uint8Array ? value : new Uint8Array(value));
+        return { ...options, bytes: copy(options.bytes),
+            dependencies: dependencies.map(dependency => ({ ...dependency, bytes: copy(dependency.bytes) })),
+            ...(options.argv && { argv: Array.isArray(options.argv) ? [...options.argv] : options.argv }),
+            ...(options.commandResource !== undefined && { commandResource: typeof options.commandResource === 'string'
+                ? options.commandResource : copy(options.commandResource) }),
+        };
+    };
+    const nativeOperation = async (signal, work) => {
+        signal?.throwIfAborted();
+        const invocationRuntime = invocationBinding.runtime, commandRuntime = client.runtime;
+        const current = () => {
+            signal?.throwIfAborted();
+            if (closed || invocationBinding.runtime !== invocationRuntime || client.runtime !== commandRuntime) throw new Error('cem.command.recovery.binding');
+        };
+        pendingOperations++;
+        try { current(); return await work(current); }
+        finally { pendingOperations--; }
+    };
+    const preparePackageDemand = async (invocation, current, signal) => {
+        if (!packageDemand) return;
+        const plan = await nativeWork(() => {
+            current();
+            return JSON.parse(invocationBinding.planSchemaAssetDemandV1(JSON.stringify(invocation.request)));
+        });
+        current();
+        // Publication shares nativeWork's queue. Wait outside that queue so
+        // every original physical heap can activate before dependent work.
+        await packageDemand.prepare(plan, signal);
+        current();
+    };
+
+    const executeResourceCommand = async (options) => {
+        const captured = snapshotResourceOptions(options);
+        const { operation, argv, parsedCommand, uri = 'input.cem', projectId = 'cem-studio-command',
+            resourceScheme = 'cem-studio', signal, readOutput = false } = captured;
         const requestId = `cem-studio-${operation}-${nextRequest++}`;
         const inputResourceUri = resourceUri(uri, projectId, resourceScheme);
         const parsed = parsedCommand ?? parseCemMlCommand(argv(inputResourceUri), { runtime: 'wasm-browser-worker' });
-        const invocation = await prepareResourceInvocation(
-            parsed,
-            {
-                bytes,
-                uri,
-                dependencies,
-                projectId,
-                projectRevision,
-                resourceRevision,
-                resourceScheme,
-            },
-            requestId,
-            true,
-        );
-        const request = invocation.request;
-        ledgers.set(requestId, {
-            project: request.project,
-            resourceVersions: request.resourceVersions,
+        return nativeOperation(signal, async current => {
+            const invocation = await nativeWork(() => {
+                current();
+                return prepareResourceInvocation(parsed, captured, requestId, true);
+            });
+            await preparePackageDemand(invocation, current, signal);
+            return nativeWork(async () => {
+                current();
+                const request = invocation.request;
+                ledgers.set(requestId, {
+                    project: request.project,
+                    resourceVersions: request.resourceVersions,
+                });
+                let handle;
+                try {
+                    handle = client.execute(request, { signal });
+                    const result = await handle.result();
+                    current();
+                    const presentation = invocationBinding.projectPresentation(invocation.presentation, result);
+                    let output, outputs;
+                    if (readOutput) {
+                        const readOptions = {
+                            requestedUri: invocation.presentation.stdoutArtifactUri,
+                            maxBytes: CEM_STUDIO_LIMITS.resultBytes,
+                            chunkBytes: ARTIFACT_READ_BYTES,
+                            committedPublications: committedWrites.get(requestId),
+                        };
+                        outputs = await readCommandOutputs(handle, result, { ...readOptions, maxArtifacts: CEM_STUDIO_LIMITS.resourceCount });
+                        output = outputs.find(({ uri }) => uri === readOptions.requestedUri) ?? outputs[0]
+                            ?? await readCommandOutput(handle, result, readOptions);
+                    }
+                    current();
+                    const admission = freezeCommandValue({ project: request.project, resourceVersions: request.resourceVersions, policyStamp: request.policyStamp });
+                    if (result.exitCode !== 0) {
+                        const diagnostics = result.diagnostics?.items
+                            ?.map(({ code, message }) => `${code}: ${message}`)
+                            .join('; ');
+                        const error = new Error(
+                            `CEM-ML ${operation} rejected ${uri} with exit code ${result.exitCode}` +
+                                (diagnostics ? ` (${diagnostics})` : ''),
+                        );
+                        error.code = `cem.studio.${operation}_failed`;
+                        error.result = result;
+                        error.presentation = presentation;
+                        error.output = output;
+                        error.outputs = outputs;
+                        error.admission = admission;
+                        throw error;
+                    }
+                    return Object.freeze({ result, presentation, output, outputs, admission });
+                } finally {
+                    ledgers.delete(requestId);
+                    committedWrites.delete(requestId);
+                    await handle?.dispose().catch(() => undefined);
+                }
+            });
         });
-        const handle = client.execute(request, { signal });
-        try {
-            const result = await handle.result();
-            const presentation = invocationBinding.projectPresentation(invocation.presentation, result);
-            let output, outputs;
-            if (readOutput) {
-                const readOptions = {
-                    requestedUri: invocation.presentation.stdoutArtifactUri,
-                    maxBytes: CEM_STUDIO_LIMITS.resultBytes,
-                    chunkBytes: ARTIFACT_READ_BYTES,
-                    committedPublications: committedWrites.get(requestId),
-                };
-                outputs = await readCommandOutputs(handle, result, { ...readOptions, maxArtifacts: CEM_STUDIO_LIMITS.resourceCount });
-                output = outputs.find(({ uri }) => uri === readOptions.requestedUri) ?? outputs[0]
-                    ?? await readCommandOutput(handle, result, readOptions);
-            }
-            const admission = freezeCommandValue({ project: request.project, resourceVersions: request.resourceVersions, policyStamp: request.policyStamp });
-            if (result.exitCode !== 0) {
-                const diagnostics = result.diagnostics?.items
-                    ?.map(({ code, message }) => `${code}: ${message}`)
-                    .join('; ');
-                const error = new Error(
-                    `CEM-ML ${operation} rejected ${uri} with exit code ${result.exitCode}` +
-                        (diagnostics ? ` (${diagnostics})` : ''),
-                );
-                error.code = `cem.studio.${operation}_failed`;
-                error.result = result;
-                error.presentation = presentation;
-                error.output = output;
-                error.outputs = outputs;
-                error.admission = admission;
-                throw error;
-            }
-            return Object.freeze({ result, presentation, output, outputs, admission });
-        } finally {
-            ledgers.delete(requestId);
-            committedWrites.delete(requestId);
-            await handle.dispose().catch(() => undefined);
-        }
-    });
+    };
 
     const prepareResourceInvocation = async (parsed, options, requestId, requireResourceSet) => {
         const {
@@ -329,7 +356,8 @@ export async function createCemStudioBrowserValidator({ recoveryScope, packageDe
         return new Uint8Array(outcome.output.bytes);
     };
 
-    const previewResourceCommand = async (options) => nativeWork(async () => {
+    const previewResourceCommand = async (options) => {
+        options = snapshotResourceOptions(options);
         const inputResourceUri = resourceUri(
             options.uri ?? 'input.cem',
             options.projectId ?? 'cem-studio-command',
@@ -344,22 +372,42 @@ export async function createCemStudioBrowserValidator({ recoveryScope, packageDe
                   )
                 : parseCemMlCommandText(options.text, { runtime: 'wasm-browser-worker' });
         const requestId = `cem-studio-command-preview-${nextRequest++}`;
-        const invocation = await prepareResourceInvocation(
-            parsed,
-            { ...options, resourceScheme: 'studio' },
-            requestId,
-            false,
-        );
-        return Object.freeze({
-            projection: 'studio',
-            binaryName: commandSchema.binaryName,
-            commonVersion: parsed.commonVersion,
-            argv: serializeCemMlCommand(parsed),
-            text: serializeCemMlCommandText(parsed),
-            parsed,
-            semantic: projectCommandSemanticPreview(invocation),
+        return nativeOperation(options.signal, async current => {
+            const invocation = await nativeWork(() => {
+                current();
+                return prepareResourceInvocation(parsed, { ...options, resourceScheme: 'studio' }, requestId, false);
+            });
+            await preparePackageDemand(invocation, current, options.signal);
+            return nativeWork(() => {
+                current();
+                return Object.freeze({
+                    projection: 'studio',
+                    binaryName: commandSchema.binaryName,
+                    commonVersion: parsed.commonVersion,
+                    argv: serializeCemMlCommand(parsed),
+                    text: serializeCemMlCommandText(parsed),
+                    parsed,
+                    semantic: projectCommandSemanticPreview(invocation),
+                });
+            });
         });
-    });
+    };
+
+    const prepareResource = async options => {
+        if (!packageDemand) return;
+        const captured = snapshotResourceOptions(options);
+        const uri = resourceUri(captured.uri ?? 'input.cem', captured.projectId ?? 'cem-studio-command', captured.resourceScheme ?? 'cem-studio');
+        const parsed = parseCemMlCommand(['parse', '--no-color', '--format', 'ast', '--content-type', captured.contentType,
+            ...(captured.schema ? ['--schema', captured.schema] : []), uri], { runtime: 'wasm-browser-worker' });
+        const requestId = `cem-studio-resource-preparation-${nextRequest++}`;
+        return nativeOperation(captured.signal, async current => {
+            const invocation = await nativeWork(() => {
+                current();
+                return prepareResourceInvocation(parsed, captured, requestId, true);
+            });
+            await preparePackageDemand(invocation, current, captured.signal);
+        });
+    };
 
     const decodeResourceCommand = (bytes) => parseCemMlCommandResource(bytes, { runtime: 'wasm-browser-worker' }).command;
 
@@ -397,6 +445,7 @@ export async function createCemStudioBrowserValidator({ recoveryScope, packageDe
         capability: client.capability,
         commonVersion: client.worker.commonVersion,
         parseResource,
+        prepareResource,
         inspectResource,
         runResourceCommand,
         executeAuthoredResourceCommand,

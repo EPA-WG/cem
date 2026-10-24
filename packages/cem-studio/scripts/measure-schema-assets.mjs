@@ -85,7 +85,7 @@ try {
                     else errors.push(`request failed: ${path} (${reason})`);
                 });
                 try {
-                    let result;
+                    let result, editorResponses;
                     if (workload === 'studio-editor') {
                         await page.goto(`${origin}/${profile.id}/index.html?sample=login&file=login-html`);
                         await page.waitForFunction(() => {
@@ -94,7 +94,7 @@ try {
                             const painted = editor && [...CSS.highlights.entries()].filter(([name]) => name.startsWith('cem-source-'))
                                 .some(([, highlight]) => [...highlight].some(range => editor.contains(range.startContainer)));
                             const status = app?.packageStatus();
-                            if (!app || !painted || (status && (status.state !== 'idle' || status.runtimeCount < 4 || status.demandCount !== 1))) return false;
+                            if (!app || !painted || (status && (status.state !== 'idle' || status.runtimeCount < 4 || status.demandCount !== 0))) return false;
                             globalThis.__cemMeasurementReadyMs ??= performance.now();
                             return true;
                         }, undefined, { timeout: 60_000 });
@@ -107,6 +107,22 @@ try {
                                 source: editor.textContent, packageStatus: app.packageStatus() ?? null };
                         });
                         assert.equal(result.source, source); delete result.source;
+                        editorResponses = requestLog.length;
+                        if (profile.id === 'external') assert.equal(requestLog.some(request => request.path.includes('/schema-assets/')), false,
+                            'HTML editor readiness downloaded optional package bodies');
+                        const firstUse = await page.evaluate(async () => {
+                            const app = globalThis.__cemStudioApplication, started = performance.now();
+                            const parsed = await app.validator.parseResource({ bytes: new TextEncoder().encode('id,name\n1,Ada\n'),
+                                uri: 'first-demand.csv', contentType: 'text/csv', schema: 'https://cem.dev/ns/data/csv/1' });
+                            if (parsed.result.exitCode !== 0) throw Error('first dependent Studio command failed');
+                            return { elapsedMs: performance.now() - started, status: app.packageStatus() ?? null };
+                        });
+                        if (profile.id === 'external') assert.equal(firstUse.status.demandCount, 1);
+                        result.timings.firstDependentStudioCommandMs = firstUse.elapsedMs;
+                        result.firstUsePackageStatus = firstUse.status;
+                        result.firstUseDelivery = { responses: requestLog.length - editorResponses,
+                            rawBodyBytes: requestLog.slice(editorResponses).reduce((sum, request) => sum + request.rawBytes, 0),
+                            requests: requestLog.slice(editorResponses) };
                     } else {
                         await page.goto(`${origin}/${profile.id}/__measure__.html`);
                         result = await page.evaluate(measureNative, { workload, profile: profile.id, maps: profile.maps,
@@ -117,8 +133,9 @@ try {
                         assert.equal(result.inventory.blockingResources, 0);
                     }
                     assert.deepEqual(errors, []);
-                    const sample = { round, profile: profile.id, workload, ...result, cancelledRequests: [...cancelledRequests], delivery: { responses: requestLog.length,
-                        rawBodyBytes: requestLog.reduce((sum, request) => sum + request.rawBytes, 0), requests: [...requestLog] } };
+                    const readinessRequests = editorResponses === undefined ? requestLog : requestLog.slice(0, editorResponses);
+                    const sample = { round, profile: profile.id, workload, ...result, cancelledRequests: [...cancelledRequests], delivery: { responses: readinessRequests.length,
+                        rawBodyBytes: readinessRequests.reduce((sum, request) => sum + request.rawBytes, 0), requests: [...readinessRequests] } };
                     samples.push(sample);
                     console.log(`${round + 1}/${sampleCount} ${profile.id} ${workload}: ${JSON.stringify(result.timings)}`);
                 } finally { await context.close(); await browser.close(); requests.delete(sampleId); }
@@ -150,7 +167,7 @@ try {
             cancellations: 'ERR_ABORTED startup/supersession requests recorded; other transport failures refuse the run',
             comparison: 'total deployed profiles; default command/rendering binaries differ, optional adds pack ABI and native identity metadata; not a causal body-only comparison',
             memory: 'isolated actual command/rendering factory heaps; requested allocator bytes and linear capacity, not Studio aggregate/RSS or JavaScript/loader byte storage',
-            studio: 'first native-painted readonly Login HTML example; readiness includes explicit optional CSV demand; not an editable keystroke or live Login credential measurement',
+            studio: 'first native-painted readonly Login HTML example with zero optional demand; delivery cutoff is editor readiness; then first native CSV parse command including project/resource-driven activation, with separate first-use delivery; not an editable keystroke or live Login credential measurement',
             timingAssertions: false, checkpointSavingsClaimed: false, automaticRecovery: false },
         profiles: profiles.map(({ id, build, binaries, delivery }) => ({ id, deploymentDigest: build.deploymentDigest ?? null, binaries, delivery })),
         summary, memorySummary, deliverySummary, samples };

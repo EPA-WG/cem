@@ -25,7 +25,7 @@ if (!deploymentResponse.ok || deploymentResponse.redirected) throw Error('CEM St
 const deployment = await deploymentResponse.json();
 /** @type {CemSchemaAssetDemandGroup | undefined} */
 let packageDemand;
-let packageHostConfiguration, packageDemandUrl;
+let packageHostConfiguration;
 if (deployment.deploymentProfile === 'schema-assets') {
     if (deployment.packagePublication !== 'explicit-host-admission' || deployment.automaticRecovery !== false
         || typeof deployment.schemaAssetBase !== 'string' || !deployment.schemaPackageHostConfiguration) throw Error('CEM Studio package configuration is invalid');
@@ -38,7 +38,6 @@ if (deployment.deploymentProfile === 'schema-assets') {
     await packageDemand.run(() => undefined, () => ({ runtime: fallback.packageResourceBinding(),
         participant: fallback.generationParticipant(), current: () => true,
         target: cemSchemaAssetGenerationTarget }));
-    packageDemandUrl = new URL('demand/csv/1.0.0', baseUrl).href;
 }
 const validator = await createCemStudioBrowserValidator({ recoveryScope, packageDemand, packageHostConfiguration });
 const demandGroup = packageDemand;
@@ -72,7 +71,6 @@ const workbench = await createCemStudioNavigation({ workbench: sessionWorkbench,
 const shell = await mountCemStudioApplicationShell({
     root: mounted.root,
     registration,
-    packageDemandUrl,
     repository,
     persistState: async () => {
         throw Object.assign(new Error('Save source and Apply or reset the command draft before updating.'), { code: 'unsaved-work' });

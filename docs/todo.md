@@ -32,9 +32,9 @@ Completed [editor filename de-duplication](archive/todo-completed-compact-studio
 
 Completed [graph parameter-map authoring and Studio controls](archive/todo-completed-graph-parameters-2026-10-23.md) is archived.
 
-Shared package transports, coordinated Studio demand and opt-in embedded-body
-exclusion and isolated profile measurements are complete. Continue with
-project/resource-driven declarative demand before broadening optional adoption.
+Shared package transports, project/resource-driven Studio demand, opt-in
+embedded-body exclusion and isolated profile measurements are complete. Continue
+with editor responsiveness, then broaden trusted optional-format adoption.
 
 Completed [shared popup surfaces and indicator clearance](archive/todo-completed-compact-studio-2026-10-23.md#shared-popup-surfaces-and-indicator-clearance) is archived.
 
@@ -99,11 +99,18 @@ and credential policy remain unchanged; gzip delivery is currently larger.
 
 Completed [profile delivery, latency and native memory measurements](archive/todo-completed-schema-profile-measurements-2026-10-24.md)
 cover 30 fresh-browser samples and the [recorded method/results](schema-asset-profile-measurements.md).
-The current optional profile adds startup/delivery cost and CSV capacity despite
-saving 256 KiB of initial/paint linear capacity. Keep the complete default and
-prioritize demand selection before a separate rare-command ABI/heap.
+The optional profile adds delivery/first-use cost and CSV capacity despite saving
+256 KiB of initial/paint linear capacity. Keep the complete default; the demand
+selection follow-up is complete below.
 
-- [ ] Make optional Studio package demand project/resource-driven instead of unconditional CSV shell startup. Preserve trusted grants and complete coordinated physical-runtime activation before dependent work; remeasure editor readiness and the first dependent command without new Studio JavaScript UI behavior or relaxed credential/budget guards.
+Completed [project/resource-driven optional package demand](archive/todo-completed-resource-package-demand-2026-10-24.md)
+covers native metadata planning, effective export selection, selected-resource
+admission, bounded shared preparation, complete physical publication despite
+cancellation/host closure, offline acceptance and 30 fresh-browser measurements.
+HTML startup downloads no optional packages; the first dependent command pays
+activation. The frozen-baseline editor timeouts remain a separate next item.
+
+- [ ] Reduce large plaintext draft publication/settling cost in Studio. The existing 200-line desktop editor cases exceed their 30-second deadlines, including frozen pre-change Studio sources. Profile shared/native rendering and the eleven-view publication fan-out; avoid unchanged view updates through shared declarative/runtime contracts, preserve focus/selection and scrolling, and keep the existing deadlines and credential policy.
 
 - [ ] Extend the opt-in Studio host's trusted grants and declarative project demand beyond CSV to Markdown, SCSS, XSLT and Relax NG before general adoption. Keep grants outside project/URL/status data and verify offline execution, complete runtime publication and credential refusal for each format.
 

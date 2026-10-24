@@ -219,6 +219,19 @@ pub fn embedded_sources() -> Result<String, JsValue> {
     encode(&crate::schema::package_sources::embedded_source_profile())
 }
 
+/// Advisory requirements for an already native-lowered request. Command
+/// identity, inline-byte and memory budgets remain the normal service bounds.
+#[wasm_bindgen(js_name = "schemaAssetDemandPlanV1")]
+pub fn demand_plan(request_json: &str) -> Result<String, JsValue> {
+    let _native = crate::runtime_admission::admit(false).map_err(failure)?;
+    let _memory = crate::runtime_memory::admit_input(request_json.len()).map_err(|error| failure(error.0))?;
+    let request = crate::command_service::decode_command_service_request_v1(request_json.as_bytes())
+        .map_err(|error| failure(error.code()))?;
+    let plan = crate::schema::asset_demand::plan_command_schema_assets(&request)
+        .map_err(|error| failure(error.code()))?;
+    encode(&plan)
+}
+
 #[wasm_bindgen(js_name = "schemaAssetPackBootstrapV1")]
 pub fn bootstrap() -> Result<String, JsValue> {
     let _native = match crate::runtime_admission::admit(false) {

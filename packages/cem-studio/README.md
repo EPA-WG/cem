@@ -200,10 +200,16 @@ other profile's caches. The verifier uses isolated browser storage.
 
 Delivery alone does not activate a package. The optional deployment explicitly
 binds `CemSchemaAssetDemandGroup` and supplies a trusted, exact built-in CSV
-replacement grant in its graph-emitted `build.json`. The declarative shell's
-`http-request` demands `schema-assets/demand/csv/1.0.0`. Its ready response follows
-activation of every enrolled physical heap: graph authoring/invocation, command
-worker, owned helper/fallback, and rendering workers. Other packages require
+replacement grant in its graph-emitted `build.json`. The shell no longer demands
+CSV unconditionally. Before a resource command or preview, the original native
+invocation host plans requirements from the submitted inputs, output identities
+and transformation graph. Shared `prepare` uses the existing named HTTP demand
+contract and waits for activation of every enrolled physical heap: graph
+authoring/invocation, command worker, owned helper/fallback, and rendering workers.
+HTML editor startup has no optional package demand. A JSON-to-CSV output demands
+CSV before conversion, as does a used CSV input. Unrelated project resources do
+not activate packages. Selected files prepare their native-declared requirements
+before navigation publishes them to shared importers. Other packages require
 additional trusted host grants; a project, URL or status cannot supply them.
 
 The shared group serializes managed asynchronous native work with demand and
@@ -212,6 +218,10 @@ hosts inherit the same admission hook; a new physical heap replays existing
 demand before its first managed job. Preview HTTP resources remain confined to
 their original project resource set. Synchronous graph authoring refuses pending
 package publication without waiting on unrelated rendering work.
+Command bytes, declared identities and revisions are captured before preparation;
+original runtime identities and recovery witnesses stay checked across every
+phase. Cancelling one command stops its waiter while group-owned publication
+finishes, so a cancelled first demand cannot leave unrelated commands fenced.
 
 Fresh source preparation imports each retained original body once into its new
 native owner before activation. Original participant cohorts must be complete
@@ -221,22 +231,24 @@ block recovery until cleared. Automatic whole-Studio recovery stays disabled.
 The ordinary deployment retains its complete embedded catalog and does not
 create a demand group. The optional binary excludes original CSV, Markdown,
 SCSS, XSLT and Relax NG bodies while retaining bootstrap dependencies
-and complete package identities. Its current Studio host explicitly grants and
-demands CSV; the other excluded formats require further trusted host grants and
-declarative demand before use. Missing sources refuse execution, including when
+and complete package identities. Its current Studio host explicitly grants CSV;
+native project/resource requirements demand it on first use. The other excluded formats require further trusted host grants and
+declarative demand before use; their resource preparation remains unavailable
+in this experimental CSV-only host. Missing sources refuse execution, including when
 offline. The verifier checks admitted CSV import and formatter execution both
 online and from the complete offline cache. This experimental profile makes no
-binary-size or memory-saving claim; partition measurements remain next.
+binary-size or memory-saving claim.
 
 Measure prepared profiles with
 `yarn nx run @epa-wg/cem-studio:measure:schema-assets`. This uncached, serial target
 runs five samples per profile/workload in fresh Chromium processes and writes
 `dist/reports/cem-studio/schema-assets-measurements.json`. It compares complete
 per-URL raw/gzip delivery, first CSV command including activation, native paint,
-actual Studio editor readiness, and separate allocator/linear-memory observations.
+actual Studio editor readiness without startup demand, the first dependent Studio
+CSV command with separate first-use delivery, and allocator/linear-memory observations.
 The [method and measured results](../../docs/schema-asset-profile-measurements.md)
-keep checkpoint and credential admission independent. Current eager demand costs
-more startup time and CSV heap capacity, so the complete deployment stays default.
+keep checkpoint and credential admission independent. The complete deployment
+stays default; deferred demand changes when optional costs are paid.
 
 Those JavaScript assets may own bootstrap, workers, persistence, and browser
 service adapters. Visible DOM composition and UI bindings belong to the

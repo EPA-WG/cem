@@ -40,6 +40,23 @@ afterEach(async () => {
 });
 
 describe('CEM Studio Feature Tour copies', () => {
+    it('keeps the submitted resource revision while asynchronous command preparation runs', async () => {
+        const validator = await createCemStudioBrowserValidator(); validators.push(validator);
+        const bytes = new TextEncoder().encode('{"title":"before"}');
+        const argv = ['convert', 'studio://snapshot/input.json', '--content-type', 'application/json',
+            '--schema', 'https://cem.dev/ns/data/json/1', '--to-content-type', 'application/json',
+            '--to-schema', 'https://cem.dev/ns/data/json/1'];
+        const options = { bytes, argv, uri: 'input.json', projectId: 'snapshot', projectRevision: 7, resourceRevision: 3,
+            contentType: 'application/json', schema: 'https://cem.dev/ns/data/json/1' };
+        const pending = validator.runResourceCommand(options);
+        bytes.set(new TextEncoder().encode('{"title":"after!"}'));
+        argv.splice(0, argv.length, 'invalid');
+        options.schema = 'https://cem.dev/ns/data/csv/1';
+        const outcome = await pending;
+        expect(JSON.parse(outcome.output.text)).toEqual({ title: 'before' });
+        expect(outcome.admission.project.revision).toBe(7);
+    }, 60_000);
+
     it('runs the packaged supplier pipeline with native multi-format output, edits, failure/repair and isolated copies', async () => {
         const response = await fetch(new URL('../generated/feature-tour/examples/supplier-pipeline.cem-studio.json', import.meta.url));
         expect(response.ok).toBe(true);

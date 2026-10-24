@@ -259,21 +259,26 @@ impl EngineContext {
     }
 
     pub fn ensure_active(&self) -> EngineResult<()> {
-        match self.operation_control.check_scope(ROOT_EXECUTION_SCOPE_ID) {
-            Ok(()) => Ok(()),
-            Err(ControlError::Triggered(failure))
-                if failure.terminal_class()
-                    == crate::operation_control::ControlTerminalClass::Cancelled =>
-            {
-                Err(EngineError::Cancelled {
-                    source_map: failure.source_map,
-                })
-            }
-            Err(ControlError::Triggered(failure)) => Err(EngineError::Control(failure)),
-            Err(error) => Err(EngineError::Internal(format!(
-                "operation control check failed: {error}"
-            ))),
+        ensure_operation_active(&self.operation_control)
+    }
+}
+
+/// Shared preparation checks do not require constructing an execution context.
+pub(crate) fn ensure_operation_active(control: &OperationControl) -> EngineResult<()> {
+    match control.check_scope(ROOT_EXECUTION_SCOPE_ID) {
+        Ok(()) => Ok(()),
+        Err(ControlError::Triggered(failure))
+            if failure.terminal_class()
+                == crate::operation_control::ControlTerminalClass::Cancelled =>
+        {
+            Err(EngineError::Cancelled {
+                source_map: failure.source_map,
+            })
         }
+        Err(ControlError::Triggered(failure)) => Err(EngineError::Control(failure)),
+        Err(error) => Err(EngineError::Internal(format!(
+            "operation control check failed: {error}"
+        ))),
     }
 }
 

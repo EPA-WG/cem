@@ -29,6 +29,7 @@ pub mod parser_contracts;
 pub mod package_consistency;
 pub mod package_loader;
 pub mod asset_pack;
+pub mod asset_demand;
 pub mod asset_pack_activation;
 pub mod asset_pack_session;
 pub mod package_sources;

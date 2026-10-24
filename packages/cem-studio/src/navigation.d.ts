@@ -113,6 +113,7 @@ export interface CemStudioNavigation extends CemStudioFeatureTourWorkbench {
 export function createCemStudioNavigation(options: {
     workbench: CemStudioFeatureTourWorkbench;
     repository: CemStudioIndexedDbRepository;
+    /** Selected resources prepare native-declared demand before navigation publication. */
     validator?: CemStudioBrowserValidator;
     openBuildWorkbench?: (options: Readonly<Record<string, unknown>>) => Promise<CemStudioFeatureTourWorkbench>;
     examples?: readonly CemStudioExampleProject[];

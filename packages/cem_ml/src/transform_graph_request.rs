@@ -110,6 +110,11 @@ pub struct TransformGraphResource {
 }
 
 pub trait TransformGraphResourceProvider {
+    /// Advisory lowering can retain identities without duplicating data bodies.
+    fn metadata_only(&self) -> bool {
+        false
+    }
+
     fn import_resources(
         &self,
         reference: &str,
@@ -143,6 +148,7 @@ pub trait TransformGraphResourceProvider {
 pub struct ManifestTransformGraphResourceProvider<'a> {
     config_uri: &'a str,
     resources: &'a BTreeMap<String, VirtualResourceV1>,
+    metadata_only: bool,
 }
 
 impl<'a> ManifestTransformGraphResourceProvider<'a> {
@@ -150,6 +156,18 @@ impl<'a> ManifestTransformGraphResourceProvider<'a> {
         Self {
             config_uri,
             resources,
+            metadata_only: false,
+        }
+    }
+
+    pub(crate) fn for_demand(
+        config_uri: &'a str,
+        resources: &'a BTreeMap<String, VirtualResourceV1>,
+    ) -> Self {
+        Self {
+            config_uri,
+            resources,
+            metadata_only: true,
         }
     }
 
@@ -157,7 +175,11 @@ impl<'a> ManifestTransformGraphResourceProvider<'a> {
         resolve_transform_graph_reference(self.config_uri, reference)
     }
 
-    fn resource(&self, uri: &str) -> Result<TransformGraphResource, TransformGraphRequestError> {
+    fn resource(
+        &self,
+        uri: &str,
+        retain_body: bool,
+    ) -> Result<TransformGraphResource, TransformGraphRequestError> {
         let resource = self.resources.get(uri).ok_or_else(|| {
             TransformGraphRequestError::diagnostic(
                 self.config_uri,
@@ -167,7 +189,11 @@ impl<'a> ManifestTransformGraphResourceProvider<'a> {
         })?;
         Ok(TransformGraphResource {
             uri: uri.to_owned(),
-            bytes: resource.bytes.clone(),
+            bytes: if self.metadata_only && !retain_body {
+                Vec::new()
+            } else {
+                resource.bytes.clone()
+            },
             identity: resource.identity.clone(),
             content_type: resource
                 .identity
@@ -178,6 +204,10 @@ impl<'a> ManifestTransformGraphResourceProvider<'a> {
 }
 
 impl TransformGraphResourceProvider for ManifestTransformGraphResourceProvider<'_> {
+    fn metadata_only(&self) -> bool {
+        self.metadata_only
+    }
+
     fn import_resources(
         &self,
         reference: &str,
@@ -185,7 +215,9 @@ impl TransformGraphResourceProvider for ManifestTransformGraphResourceProvider<'
     ) -> Result<Vec<TransformGraphResource>, TransformGraphRequestError> {
         let resolved = self.resolved(reference);
         if !reference.contains('*') {
-            return self.resource(&resolved).map(|resource| vec![resource]);
+            return self
+                .resource(&resolved, false)
+                .map(|resource| vec![resource]);
         }
         validate_transform_graph_import_glob(reference, self.config_uri)?;
         let matcher = transform_graph_reference_matcher(&resolved).map_err(|message| {
@@ -204,7 +236,7 @@ impl TransformGraphResourceProvider for ManifestTransformGraphResourceProvider<'
         validate_import_match_count(reference, self.config_uri, uris.len())?;
         let mut matches = uris
             .into_iter()
-            .map(|uri| self.resource(uri))
+            .map(|uri| self.resource(uri, false))
             .collect::<Result<Vec<_>, _>>()?;
         matches.sort_by(|left, right| left.uri.cmp(&right.uri));
         validate_import_match_count(reference, self.config_uri, matches.len())?;
@@ -214,10 +246,13 @@ impl TransformGraphResourceProvider for ManifestTransformGraphResourceProvider<'
     fn read_resource(
         &self,
         reference: &str,
-        _purpose: ResolvePurpose,
+        purpose: ResolvePurpose,
         _content_type_hint: Option<&str>,
     ) -> Result<TransformGraphResource, TransformGraphRequestError> {
-        self.resource(&self.resolved(reference))
+        self.resource(
+            &self.resolved(reference),
+            purpose == ResolvePurpose::ModuleMap,
+        )
     }
 
     fn output_uri(&self, reference: &str) -> Result<String, TransformGraphRequestError> {
@@ -838,24 +873,9 @@ pub fn lower_transform_graph_request(
     config_uri: &str,
     preserve_source_offsets: bool,
 ) -> Result<TransformGraphRequest, TransformGraphRequestError> {
-    let mut lowerer = TransformGraphRequestLowerer {
-        context,
-        graph,
-        provider,
-        config_uri,
-        imports: Vec::new(),
-        joins: Vec::new(),
-        conversions: Vec::new(),
-        stages: Vec::new(),
-        importmap_rewrites: Vec::new(),
-        exports: Vec::new(),
-        edges: Vec::new(),
-        variants: BTreeMap::new(),
-        output_routes: BTreeMap::new(),
-        module_assets: BTreeMap::new(),
-        module_asset_records: Vec::new(),
-        next_scope_id: 0,
-    };
+    let mut lowerer = TransformGraphRequestLowerer::new(
+        &context.operation_control, &context.template_adapter_registry, graph, provider, config_uri,
+    );
     lowerer.lower()?;
     apply_stage_targets(&mut lowerer.stages, &lowerer.exports);
     Ok(TransformGraphRequest {
@@ -873,8 +893,68 @@ pub fn lower_transform_graph_request(
     })
 }
 
+/// Reuse native graph expansion/identity precedence before optional bodies are
+/// admitted. This prepares metadata only: no engine context, parser activation,
+/// converter execution, publication or native package owner is constructed.
+pub(crate) fn transform_graph_demand_identities(
+    graph: &TransformGraphConfig,
+    provider: &dyn TransformGraphResourceProvider,
+    config_uri: &str,
+) -> Result<Vec<FormatIdentity>, TransformGraphRequestError> {
+    let control = crate::operation_control::OperationControl::default();
+    let adapters =
+        crate::transform_template::TransformTemplateAdapterRegistry::with_builtin_adapters();
+    let mut lowerer =
+        TransformGraphRequestLowerer::new(&control, &adapters, graph, provider, config_uri);
+    lowerer.lower()?;
+    apply_stage_targets(&mut lowerer.stages, &lowerer.exports);
+    let mut identities = Vec::new();
+    for import in lowerer.imports.iter().filter(|import| !import.opaque) {
+        identities.push(
+            import
+                .input
+                .identity
+                .clone()
+                .unwrap_or_else(|| import.input.root_scope.format_identity()),
+        );
+    }
+    for join in &lowerer.joins {
+        identities.extend(join.inputs.iter().filter_map(|input| input.target.clone()));
+    }
+    identities.extend(
+        lowerer
+            .conversions
+            .iter()
+            .map(|conversion| conversion.target.clone()),
+    );
+    for stage in &lowerer.stages {
+        identities.push(
+            stage
+                .template
+                .identity
+                .clone()
+                .unwrap_or_else(|| stage.template.root_scope.format_identity()),
+        );
+        identities.extend(stage.target.clone());
+    }
+    identities.extend(
+        lowerer
+            .exports
+            .iter()
+            .filter(|export| {
+                !lowerer
+                    .imports
+                    .iter()
+                    .any(|import| import.opaque && import.id == export.input)
+            })
+            .filter_map(|export| export.target.clone()),
+    );
+    Ok(identities)
+}
+
 struct TransformGraphRequestLowerer<'a> {
-    context: &'a EngineContext,
+    control: &'a crate::operation_control::OperationControl,
+    template_adapter_registry: &'a crate::transform_template::TransformTemplateAdapterRegistry,
     graph: &'a TransformGraphConfig,
     provider: &'a dyn TransformGraphResourceProvider,
     config_uri: &'a str,
@@ -928,10 +1008,39 @@ struct ModuleMapResource {
     module_imports: BTreeMap<String, String>,
 }
 
-impl TransformGraphRequestLowerer<'_> {
+impl<'a> TransformGraphRequestLowerer<'a> {
+    fn new(
+        control: &'a crate::operation_control::OperationControl,
+        template_adapter_registry: &'a crate::transform_template::TransformTemplateAdapterRegistry,
+        graph: &'a TransformGraphConfig,
+        provider: &'a dyn TransformGraphResourceProvider,
+        config_uri: &'a str,
+    ) -> Self {
+        Self {
+            control,
+            template_adapter_registry,
+            graph,
+            provider,
+            config_uri,
+            imports: Vec::new(),
+            joins: Vec::new(),
+            conversions: Vec::new(),
+            stages: Vec::new(),
+            importmap_rewrites: Vec::new(),
+            exports: Vec::new(),
+            edges: Vec::new(),
+            variants: BTreeMap::new(),
+            output_routes: BTreeMap::new(),
+            module_assets: BTreeMap::new(),
+            module_asset_records: Vec::new(),
+            next_scope_id: 0,
+        }
+    }
+
     fn lower(&mut self) -> Result<(), TransformGraphRequestError> {
-        self.context.ensure_active()?;
+        engine::ensure_operation_active(self.control)?;
         for node in &self.graph.nodes {
+            engine::ensure_operation_active(self.control)?;
             match node.kind {
                 TransformGraphNodeKind::Import => self.lower_import(node)?,
                 TransformGraphNodeKind::Join => self.lower_join(node)?,
@@ -972,7 +1081,7 @@ impl TransformGraphRequestLowerer<'_> {
         let count = resources.len();
         let mut variants = Vec::with_capacity(count);
         for (index, resource) in resources.into_iter().enumerate() {
-            self.context.ensure_active()?;
+            engine::ensure_operation_active(self.control)?;
             let id = variant_id(&node.id, index, count);
             let binding_path = if let Some(root) = &root {
                 rooted_resource_path(root, &resource.uri, self.config_uri)?
@@ -1049,6 +1158,7 @@ impl TransformGraphRequestLowerer<'_> {
         };
         let mut output_variants = Vec::new();
         for (join_id, input_variants, bindings) in groups {
+            engine::ensure_operation_active(self.control)?;
             let input_names = if matches!(mode, ConfigJoinMode::MatchBy | ConfigJoinMode::Zip) {
                 std::iter::once("primary".to_owned())
                     .chain(node.with.keys().cloned())
@@ -1125,6 +1235,7 @@ impl TransformGraphRequestLowerer<'_> {
         let count = primary_variants.len();
         let mut stage_variants = Vec::with_capacity(count);
         for (index, primary_variant) in primary_variants.into_iter().enumerate() {
+            engine::ensure_operation_active(self.control)?;
             let stage_id = variant_id(&node.id, index, count);
             let expanded_src = expand_binding_template(
                 src,
@@ -1151,7 +1262,7 @@ impl TransformGraphRequestLowerer<'_> {
                 Some(kind) => kind,
                 None => engine::classify_transform_template_identity_with_registry(
                     &identity,
-                    &self.context.template_adapter_registry,
+                    self.template_adapter_registry,
                 )
                 .map_err(|error| {
                     config_error(
@@ -1243,6 +1354,7 @@ impl TransformGraphRequestLowerer<'_> {
         let count = primary_variants.len();
         let mut converted_variants = Vec::with_capacity(count);
         for (index, primary_variant) in primary_variants.into_iter().enumerate() {
+            engine::ensure_operation_active(self.control)?;
             let conversion_id = variant_id(&node.id, index, count);
             let target_scope = resource_scope(
                 self.config_uri,
@@ -1305,6 +1417,7 @@ impl TransformGraphRequestLowerer<'_> {
         let count = primary_variants.len();
         let mut rewrite_variants = Vec::with_capacity(count);
         for (index, primary_variant) in primary_variants.into_iter().enumerate() {
+            engine::ensure_operation_active(self.control)?;
             let rewrite_id = variant_id(&node.id, index, count);
             let source_map = if let Some(source_map) = node.source_map.as_deref() {
                 Some(self.importmap_document(source_map, &primary_variant.bindings, false)?)
@@ -1714,6 +1827,7 @@ impl TransformGraphRequestLowerer<'_> {
 
         let mut assets = Vec::with_capacity(source_map.imports.len() + source_map.resources.len());
         for (index, (specifier, source)) in source_map.imports.iter().enumerate() {
+            engine::ensure_operation_active(self.control)?;
             validate_module_specifier(self.config_uri, specifier)?;
             let target = &target_map.imports[specifier];
             if source.module_imports != target.module_imports {
@@ -1762,8 +1876,8 @@ impl TransformGraphRequestLowerer<'_> {
                 Some(&source_content_type),
             )?;
             let source_byte_length = resource.bytes.len() as u64;
-            let source_sha256 = crate::command_service::sha256_hex(&resource.bytes);
-            if v3 && source_content_type == "text/javascript" {
+            let source_sha256 = if self.provider.metadata_only() { String::new() } else { crate::command_service::sha256_hex(&resource.bytes) };
+            if !self.provider.metadata_only() && v3 && source_content_type == "text/javascript" {
                 resource.bytes = rewrite_declared_module_specifiers(
                     self.config_uri,
                     specifier,
@@ -1774,7 +1888,7 @@ impl TransformGraphRequestLowerer<'_> {
                 )?;
             }
             let byte_length = resource.bytes.len() as u64;
-            let sha256 = crate::command_service::sha256_hex(&resource.bytes);
+            let sha256 = if self.provider.metadata_only() { String::new() } else { crate::command_service::sha256_hex(&resource.bytes) };
             let source_uri = resource.uri.clone();
             let import_id = format!("{rewrite_id}:module:{index}");
             let scheduler_scope_id = self.take_scope();
@@ -1802,6 +1916,7 @@ impl TransformGraphRequestLowerer<'_> {
             });
         }
         for (index, (name, source)) in source_map.resources.iter().enumerate() {
+            engine::ensure_operation_active(self.control)?;
             validate_module_specifier(self.config_uri, name)?;
             let target = &target_map.resources[name];
             if source.module_imports != target.module_imports {
@@ -1869,8 +1984,8 @@ impl TransformGraphRequestLowerer<'_> {
                 Some(&source_content_type),
             )?;
             let source_byte_length = resource.bytes.len() as u64;
-            let source_sha256 = crate::command_service::sha256_hex(&resource.bytes);
-            if v3 && source_content_type == "text/javascript" {
+            let source_sha256 = if self.provider.metadata_only() { String::new() } else { crate::command_service::sha256_hex(&resource.bytes) };
+            if !self.provider.metadata_only() && v3 && source_content_type == "text/javascript" {
                 resource.bytes = rewrite_declared_module_specifiers(
                     self.config_uri,
                     name,
@@ -1881,7 +1996,7 @@ impl TransformGraphRequestLowerer<'_> {
                 )?;
             }
             let byte_length = resource.bytes.len() as u64;
-            let sha256 = crate::command_service::sha256_hex(&resource.bytes);
+            let sha256 = if self.provider.metadata_only() { String::new() } else { crate::command_service::sha256_hex(&resource.bytes) };
             let source_uri = resource.uri.clone();
             let import_id = format!("{rewrite_id}:resource:{index}");
             let scheduler_scope_id = self.take_scope();
@@ -1927,6 +2042,7 @@ impl TransformGraphRequestLowerer<'_> {
         )?;
         let count = input_variants.len();
         for (index, input_variant) in input_variants.into_iter().enumerate() {
+            engine::ensure_operation_active(self.control)?;
             let export_id = variant_id(&node.id, index, count);
             let expanded = expand_binding_template(
                 out,

@@ -12,18 +12,20 @@ beforeAll(() => {
 const services = [];
 afterEach(() => { for (const service of services.splice(0)) service.dispose(); });
 
-async function fixture(url = 'https://studio.test/?project=demo&file=article', readOnly = false, { ambiguousSource = false, alternateBuild = false, plaintextSource = false } = {}) {
+async function fixture(url = 'https://studio.test/?project=demo&file=article', readOnly = false, { ambiguousSource = false, alternateBuild = false, plaintextSource = false, tabularSource = false, validator } = {}) {
     const encoder = new TextEncoder();
     const sourceResource = plaintextSource
         ? { id: 'article', path: 'geometry.txt', contentType: 'text/plain' }
-        : { id: 'article', path: 'content/article.md', contentType: 'text/markdown', schema: 'https://cem.dev/ns/data/markdown/1' };
+        : tabularSource ? { id: 'article', path: 'content/article.csv', contentType: 'text/csv', schema: 'https://cem.dev/ns/data/csv/1' }
+            : { id: 'article', path: 'content/article.md', contentType: 'text/markdown', schema: 'https://cem.dev/ns/data/markdown/1' };
     const project = { id: 'demo', name: 'Demo', rootUri: 'studio://demo/', revision: 1, resources: [
         { ...sourceResource, revision: 1, sha256: 'article' },
         { id: 'other', path: 'content/other.md', contentType: 'text/markdown', revision: 1, sha256: 'other' },
         { id: 'command', path: 'config/build.cem', contentType: 'application/cem', schema: 'https://cem.dev/ns/cli/command/1', revision: 1, sha256: 'command' },
     ], entries: [{ id: 'build', name: 'Build site', kind: 'transformation-graph', runConfigResourceId: 'command', entryArtifact: 'generated/index.html' },
         ...(alternateBuild ? [{ id: 'alternate', name: 'Alternate build', kind: 'transformation-graph', runConfigResourceId: 'command', entryArtifact: 'generated/index.html' }] : [])] };
-    const bundle = { project, contents: { article: encoder.encode('# Article'), other: encoder.encode('# Other'), command: encoder.encode('{}') } };
+    const sourceText = tabularSource ? 'id,name\n1,Ada\n' : '# Article';
+    const bundle = { project, contents: { article: encoder.encode(sourceText), other: encoder.encode('# Other'), command: encoder.encode('{}') } };
     const repository = { async query({ operation }) {
         if (operation === 'list-projects') return { value: [project] };
         if (operation === 'get-project') return { value: project };
@@ -40,7 +42,7 @@ async function fixture(url = 'https://studio.test/?project=demo&file=article', r
     const browser = new EventTarget(); browser.location = new URL(url);
     browser.history = { pushState(_, __, next) { browser.location = new URL(next); }, replaceState(_, __, next) { browser.location = new URL(next); } };
     let fail = false, wait;
-    const service = await createCemStudioNavigation({ repository, workbench, browser,
+    const service = await createCemStudioNavigation({ repository, workbench, browser, validator,
         examples: [{ id: 'demo', name: 'Demo sample', collections: ['nested'], load: async () => bundle }], collections: [{ id: 'nested', name: 'Nested examples' }], openBuildWorkbench: async ({ configuration }) => {
         const artifacts = [ ['generated/index.html', ambiguousSource ? 'studio://demo/content/article.md' : undefined], ['generated/posts/article.html', 'studio://demo/content/article.md'], ['generated/invalid.json', undefined] ].map(([path, uri]) => ({
             id: path, path, uri: `studio://demo/${path}`, contentType: path.endsWith('.json') ? 'application/json' : 'text/html', provenance: uri ? [{ uri }] : [],
@@ -65,6 +67,36 @@ function invocation({ projectId = 'demo', resourceId = 'article', configuration 
 }
 
 describe('Studio compact navigation service', () => {
+    it('prepares selected CSV before publication and discards a superseded resource selection', async () => {
+        const pending = [];
+        const validator = { prepareResource: vi.fn(options => options.contentType === 'text/csv'
+            ? new Promise(resolve => pending.push({ options, resolve })) : Promise.resolve()) };
+        const { service, browser } = await fixture('https://studio.test/?sample=demo', false, { tabularSource: true, validator });
+        const first = service.openEntity('sample=demo&file=article');
+        await vi.waitFor(() => expect(pending).toHaveLength(1));
+        expect(service.snapshot().navigation.selection.file).toBeUndefined();
+        expect(service.snapshot().navigation.sourcePreview).toBeUndefined();
+        expect(browser.location.searchParams.get('file')).toBeNull();
+        expect(pending[0].options).toMatchObject({ uri: 'studio://demo/content/article.csv', contentType: 'text/csv',
+            schema: 'https://cem.dev/ns/data/csv/1', projectId: 'demo', projectRevision: 1, resourceRevision: 1 });
+        expect(new TextDecoder().decode(pending[0].options.bytes)).toBe('id,name\n1,Ada\n');
+
+        await service.openEntity('sample=demo&file=other');
+        expect(pending[0].options.signal.aborted).toBe(true);
+        pending[0].resolve(); await first;
+        expect(service.snapshot().navigation.selection.file).toBe('other');
+        expect(browser.location.searchParams.get('file')).toBe('other');
+
+        const accepted = service.openEntity('sample=demo&file=article');
+        await vi.waitFor(() => expect(pending).toHaveLength(2));
+        expect(service.snapshot().navigation.selection.file).toBe('other');
+        expect(service.snapshot().navigation.contentType).toBe('text/markdown');
+        pending[1].resolve(); await accepted;
+        expect(service.snapshot().navigation).toMatchObject({ selection: { file: 'article' }, content: 'sample-file',
+            contentType: 'text/csv', sourcePreview: { contentType: 'text/csv', text: 'id,name\n1,Ada\n' } });
+        expect(browser.location.searchParams.get('file')).toBe('article');
+    });
+
     it('keeps section openness and per-tree selection/expansion independent across publications and collapse', async () => {
         const { service, workbench } = await fixture();
         expect(service.snapshot().navigation).toMatchObject({ content: 'file', sections: { projects: true, structure: true, output: false } });

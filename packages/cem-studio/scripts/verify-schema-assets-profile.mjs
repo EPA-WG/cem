@@ -86,6 +86,15 @@ try {
     const page = await context.newPage();
     await openStudio(page, `${origin}/optional/index.html`);
     const studioDemand = await verifyStudioDemand(page);
+    const outputPage = await context.newPage();
+    await openStudio(outputPage, `${origin}/optional/index.html?sample=login&file=login-html`);
+    const outputDrivenDemand = await verifyStudioDemand(outputPage, true);
+    await outputPage.close();
+    const resourcePage = await context.newPage();
+    await openStudio(resourcePage, `${origin}/optional/index.html?sample=schema-examples&file=example-csv`);
+    await resourcePage.waitForFunction(() => globalThis.__cemStudioApplication?.packageStatus()?.demandCount === 1);
+    assert.equal(await resourcePage.evaluate(() => globalThis.__cemStudioApplication.workbench.snapshot().navigation.selection.file), 'example-csv');
+    await resourcePage.close();
     await install(page);
     const names = await page.evaluate(() => caches.keys());
     assert.equal(names.length, 7);
@@ -236,7 +245,8 @@ try {
     assert.deepEqual(await treeHashes(ordinary), baseline);
     const report = { schemaVersion: 1, status: 'passed', deploymentDigest: build.deploymentDigest,
         nativeErrors: graphReport.summary.errorCount + graphReport.summary.fatalCount, emittedPackFiles: packFiles.length, scopedCacheGroups: optionalNames.length,
-        defaultCacheIsolation: true, defaultOutputPreserved: true, coldOfflineStudio: true, studioDemand, offlineStudioDemand, command, ...evidence, packageHandoff, workerPackageHandoff, renderingPackageHandoffs,
+        defaultCacheIsolation: true, defaultOutputPreserved: true, coldOfflineStudio: true, studioDemand, outputDrivenDemand,
+        selectedCsvResourceDemand: true, offlineStudioDemand, command, ...evidence, packageHandoff, workerPackageHandoff, renderingPackageHandoffs,
         automaticRecovery: false, packagePublication: 'explicit-host-admission', disconnectedRequests };
     const reportPath = resolve(workspace, 'dist/reports/cem-studio/schema-assets-profile.json');
     await mkdir(resolve(workspace, 'dist/reports/cem-studio'), { recursive: true });
@@ -260,13 +270,22 @@ async function ready(page) {
     await page.waitForFunction(() => globalThis.__cemStudioApplication
         && document.querySelector('[data-cem-studio-shell]')?.getAttribute('data-cem-studio-state') === 'ready', undefined, { timeout: 60_000 });
 }
-async function verifyStudioDemand(page) {
+async function verifyStudioDemand(page, outputFirst = false) {
     await page.waitForFunction(() => {
         const status = globalThis.__cemStudioApplication?.packageStatus();
-        return status?.state === 'idle' && status.demandCount === 1 && status.runtimeCount >= 4;
+        return status?.state === 'idle' && status.demandCount === 0 && status.runtimeCount >= 4;
     }, undefined, { timeout: 30_000 });
-    return page.evaluate(async () => {
+    return page.evaluate(async outputFirst => {
         const app = globalThis.__cemStudioApplication;
+        const startup = app.packageStatus();
+        const convert = async () => {
+            const converted = await app.validator.runResourceCommand({ bytes: new TextEncoder().encode('[{"id":1,"name":"Ada"}]'), uri: 'table.json',
+                contentType: 'application/json', schema: 'https://cem.dev/ns/data/json/1',
+                argv: ['convert', 'studio://cem-studio-command/table.json', '--content-type', 'application/json', '--schema', 'https://cem.dev/ns/data/json/1',
+                    '--to-content-type', 'text/csv', '--to-schema', 'https://cem.dev/ns/data/csv/1'] });
+            if (converted.result.exitCode !== 0 || !converted.output?.text.includes('Ada')) throw Error('Studio did not use the externally delivered CSV formatter');
+        };
+        if (outputFirst) await convert();
         const options = { bytes: new TextEncoder().encode('id,name\n1,Ada\n'), uri: 'demand.csv', contentType: 'text/csv', schema: 'https://cem.dev/ns/data/csv/1' };
         const parsed = await app.validator.parseResource(options);
         if (parsed.result.exitCode !== 0) throw Error('Studio package command did not complete');
@@ -274,13 +293,11 @@ async function verifyStudioDemand(page) {
         try { await app.validator.parseResource({ ...options, bytes: new TextEncoder().encode('id,name\n1,"Ada\n') }); }
         catch (error) { invalidRefused = JSON.stringify(error.result).includes('cem.csv.unclosed_quote'); }
         if (!invalidRefused) throw Error('Studio package command lost native CSV diagnostics');
-        const converted = await app.validator.runResourceCommand({ bytes: new TextEncoder().encode('[{"id":1,"name":"Ada"}]'), uri: 'table.json',
-            contentType: 'application/json', schema: 'https://cem.dev/ns/data/json/1',
-            argv: ['convert', 'studio://cem-studio-command/table.json', '--content-type', 'application/json', '--schema', 'https://cem.dev/ns/data/json/1',
-                '--to-content-type', 'text/csv', '--to-schema', 'https://cem.dev/ns/data/csv/1'] });
-        if (converted.result.exitCode !== 0 || !converted.output?.text.includes('Ada')) throw Error('Studio did not use the externally delivered CSV formatter');
-        return { ...app.packageStatus(), nativeCommand: true, nativeInvalidCsvRefused: true, externalCsvFormatter: true };
-    });
+        if (!outputFirst) await convert();
+        const status = app.packageStatus();
+        if (status.state !== 'idle' || status.demandCount !== 1 || status.runtimeCount < 4) throw Error('incomplete native package publication');
+        return { ...status, startup, outputFirst, nativeCommand: true, nativeInvalidCsvRefused: true, externalCsvFormatter: true };
+    }, outputFirst);
 }
 async function openStudio(page, url) {
     await page.goto(url);

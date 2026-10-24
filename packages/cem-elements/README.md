@@ -1691,6 +1691,19 @@ queued jobs are retained; each loader still enforces its 32 MiB byte bound.
 `assertReady()` lets synchronous adapters refuse pending package publication.
 `status()` contains advisory state and counts, never native handles or grants.
 
+For resource-driven services, the optional native
+`schemaAssetDemandPlanV1(commandRequestJson)` resolves an already lowered
+`CommandServiceRequestV1` through the native identity catalog and graph lowerer.
+It returns only `{ kind: "cem-schema-asset-demand-plan/1", packages: [{ packageId,
+version }] }`. No JavaScript extension map, source parsing, grant or native owner
+is involved. Call `await group.prepare(plan, signal)` **outside** `group.run`,
+then enter `run` for dependent work. The group snapshots at most 64 identities;
+an empty plan fetches nothing, and committed demands are reused. Original-byte
+acquisition and trusted native replacement grants remain authoritative.
+Cancelling a command stops its waiter; publication already started belongs to
+the group and finishes across the enrolled cohort before later work can run.
+Real publication failures fence the group. Disposal cancels its lifetime.
+
 `CemElementRuntime` accepts the trusted `processingNativeWork(host, work, cleanup)`
 hook. Resolve `processingSchemaAssetBinding(host)` inside that hook's queued
 operation, then use its original endpoint and participant; cleanup must avoid

@@ -4,7 +4,6 @@
     {slice @name=themeMode | cem-theme-light}
  {slice @name=pageTitle | Examples - CEM Studio}
  {slice @name=heading}
- {slice @name=packageDemandUrl}
  {slice @name=workspaceStatus | ready}
  {attribute @name=class @select='datadom.slices.themeMode ?? "cem-theme-light"'}
  {attribute @name=data-theme @select='datadom.slices.themeMode ?? "cem-theme-light"'}
@@ -13,7 +12,6 @@
  {attribute @name=data-cem-density | super-compact}
  {attribute @name=data-cem-spacing | normal}
  {body |
- {cem:if @test=datadom.slices.packageDemandUrl | {http-request @slice=schemaPackage @url={datadom.slices.packageDemandUrl} @content-type="application/json"}}
  {style @type=text/css |```
 :scope { display: block; min-inline-size: 0; color: var(--cem-palette-comfort-text); background-color: var(--cem-palette-comfort); font-family: var(--cem-typography-ui-font-family); }
 [part~='root'] { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; gap: 0; min-inline-size: 0; min-block-size: 100dvb; }

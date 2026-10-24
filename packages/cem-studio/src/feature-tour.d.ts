@@ -82,7 +82,8 @@ export interface CemStudioResourceCommandPreviewOptions extends CemStudioResourc
 }
 
 export interface CemStudioBrowserValidator {
-    /** Explicit host-only preparation; does not close/retire/replay a runtime. */
+    /** Explicit host-only preparation; refuses pending command/package preparation
+     * and does not close/retire/replay a runtime. */
     prepareRecovery(): {
         invocation: import('@epa-wg/cem-ml-cli/browser-commands').OwnedBrowserCommandInvocation;
         commands: import('@epa-wg/cem-ml-cli/browser-commands').BrowserCommandServiceClient;
@@ -92,6 +93,9 @@ export interface CemStudioBrowserValidator {
     authorGraph(request: { source: string; edit?: { node: string; attribute: string; value: string | null }; create?: { parent?: string | null; kind: string; id: string; attributes?: Record<string, string> }; edge?: { node: string; role: 'parent' | 'input' | 'with'; source?: string | null; name?: string }; parameter?: { node: string; name: string; value: string | null } }): CemStudioGraphConfiguration;
     readonly capability: Readonly<Record<string, unknown>>;
     readonly commonVersion: string;
+    /** Prepare native-declared packages before a selected resource reaches a
+     * shared importer; does not execute the parse command or publish a result. */
+    prepareResource?(options: Omit<CemStudioResourceCommandOptions, 'schema'> & { readonly schema?: string }): Promise<void>;
     parseResource(
         options: CemStudioResourceCommandOptions & {
             readonly projection?: CemStudioParseProjection;
@@ -114,6 +118,8 @@ export interface CemStudioBrowserValidator {
         }
     >;
     decodeResourceCommand(bytes: Uint8Array): Readonly<Record<string, unknown>>;
+    /** Optional deployments prepare native-declared package demand before the
+     * preview is returned; original bytes and resource revisions stay fixed. */
     previewResourceCommand(options: CemStudioResourceCommandPreviewOptions): Promise<CemStudioResourceCommandPreview>;
     serializeResourceCommand(command: Readonly<Record<string, unknown>>): string;
     validateResource(options: CemStudioResourceCommandOptions): Promise<CemStudioBrowserCommandOutcome>;

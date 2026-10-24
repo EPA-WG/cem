@@ -24,6 +24,7 @@ afterEach(() => {
 });
 afterAll(() => rmSync(temporary, { recursive: true, force: true }));
 interface Native extends CemSchemaAssetNativeRuntime {
+    schemaAssetDemandPlanV1(request: string): string;
     schemaAssetEmbeddedSourcesV1(): string;
     commandNativeResourceInventory(): string;
     closeCommandNativeAdmission(): string;
@@ -214,6 +215,11 @@ nativeCase('runs ordinary command-service validation with the persistent package
         const request = { protocolVersion: 1, requestId: 'owned-csv-validation', project: { projectId: 'owned-fixture', revision: 1 },
             resourceVersions: { [uri]: version }, operation: { kind: 'validate', inputIds: ['input:0'], projection: 'text' }, runPlan, resources: {},
             policyStamp: { resolver: 'fixture', safety: 'fixture', budget: 'fixture' } };
+        expect(JSON.parse(native.schemaAssetDemandPlanV1(JSON.stringify({ ...request,
+            resources: { [uri]: { bytes: [...bytes], identity: { contentType: 'text/csv', schema: 'https://cem.dev/ns/data/csv/1' } } },
+        }))))
+            .toEqual({ kind: 'cem-schema-asset-demand-plan/1', packages: [csv] });
+        expect(owners(native)).toBe(0);
         const forbidden = (): never => { throw Error('unexpected publication'); };
         const execute = async (requestId: string) => JSON.parse(await native.executeCommandServiceV1(JSON.stringify({ ...request, requestId }), JSON.stringify({ runtime: 'wasm-node',
             targetIdentity: 'fixture', abiIdentity: 'fixture', debugControlActive: false }),
@@ -384,6 +390,69 @@ nativeCase('coordinates demand across independent heaps and lazy clients without
         expect(group.status()).toMatchObject({ runtimeCount: 2, demandCount: 1 });
     } finally { group.dispose(); }
     expect([owners(first), owners(second), owners(lazy)]).toEqual([0, 0, 0]);
+});
+
+nativeCase('prepares bounded native requirements without startup demand, duplicate downloads or mutable plans', async () => {
+    const { CemSchemaAssetDemandGroup } = await import('./schema-asset-pack.js');
+    const { registerNativeGeneration } = await import('./internal/runtime-support/native-generation.js');
+    const open = vi.fn(transport);
+    const group = new CemSchemaAssetDemandGroup({ baseUrl, loadHttpResource: open, activationHostConfiguration: hostConfiguration });
+    const natives = [freshNative(), freshNative()];
+    try {
+        await group.prepare({ kind: 'cem-schema-asset-demand-plan/1', packages: [] });
+        expect(open).not.toHaveBeenCalled();
+        for (const native of natives) await group.run(() => undefined, () => ({ runtime: { native, current: () => true },
+            participant: registerNativeGeneration(native.commandNativeMemoryIdentity(), crypto.randomUUID(), async () => { throw Error('unused'); }),
+            current: () => true, target: () => { throw Error('unused'); } }));
+        expect(natives.map(owners)).toEqual([0, 0]);
+        const cancelled = new AbortController(); cancelled.abort();
+        await expect(group.prepare({ kind: 'cem-schema-asset-demand-plan/1', packages: [csv] }, cancelled.signal)).rejects.toThrow('stale');
+        await expect(group.prepare({ kind: 'cem-schema-asset-demand-plan/1', packages: Array(65).fill(csv) })).rejects.toThrow('response');
+        expect(open).not.toHaveBeenCalled();
+        const plan = { kind: 'cem-schema-asset-demand-plan/1' as const, packages: [{ ...csv }, { ...csv }] };
+        const preparing = group.prepare(plan);
+        plan.packages[0].packageId = 'ungranted'; plan.packages.push({ packageId: 'scss', version: '1.0.0' });
+        await preparing;
+        await group.run(() => expect(natives.map(owners)).toEqual([1, 1]));
+        expect(group.status()).toMatchObject({ state: 'idle', runtimeCount: 2, demandCount: 1 });
+        const reads = open.mock.calls.length;
+        await group.prepare({ kind: 'cem-schema-asset-demand-plan/1', packages: [csv, csv] });
+        expect(open).toHaveBeenCalledTimes(reads);
+    } finally { group.dispose(); }
+    expect(natives.map(owners)).toEqual([0, 0]);
+    await expect(group.prepare({ kind: 'cem-schema-asset-demand-plan/1', packages: [] })).rejects.toThrow('stale');
+});
+
+nativeCase('finishes publication after its waiter cancels and a completed physical host closes', async () => {
+    const { CemSchemaAssetDemandGroup } = await import('./schema-asset-pack.js');
+    const { registerNativeGeneration, discardNativeGenerationResources } = await import('./internal/runtime-support/native-generation.js');
+    let release!: () => void, started!: () => void, indexes = 0;
+    const paused = new Promise<void>(resolve => { release = resolve; });
+    const publishing = new Promise<void>(resolve => { started = resolve; });
+    const group = new CemSchemaAssetDemandGroup({ baseUrl, activationHostConfiguration: hostConfiguration,
+        loadHttpResource: async request => {
+            if (request.resolvedUrl.endsWith('/index.json') && ++indexes === 2) { started(); await paused; }
+            return transport(request);
+        } });
+    const natives = [freshNative(), freshNative(), freshNative()];
+    const participants = natives.map(native => registerNativeGeneration(native.commandNativeMemoryIdentity(), crypto.randomUUID(), async () => { throw Error('unused'); }));
+    try {
+        for (const native of natives) await group.run(() => undefined, () => ({ runtime: { native, current: () => true },
+            participant: participants[natives.indexOf(native)],
+            current: () => true, target: () => { throw Error('unused'); } }));
+        const controller = new AbortController();
+        const preparing = group.prepare({ kind: 'cem-schema-asset-demand-plan/1', packages: [csv] }, controller.signal);
+        await publishing;
+        expect(natives.map(owners)).toEqual([1, 0, 0]);
+        controller.abort(Error('command cancelled'));
+        await expect(preparing).rejects.toThrow('command cancelled');
+        expect(() => group.assertReady()).toThrow('busy');
+        discardNativeGenerationResources(participants[0]);
+        const nextCommand = group.run(() => expect(natives.map(owners)).toEqual([0, 1, 1]));
+        release(); await nextCommand;
+        expect(group.status()).toMatchObject({ state: 'idle', demandCount: 1 });
+    } finally { release(); group.dispose(); }
+    expect(natives.map(owners)).toEqual([0, 0, 0]);
 });
 
 nativeCase('fences a partially activated demand group and preserves entered-credential recovery refusal', async () => {

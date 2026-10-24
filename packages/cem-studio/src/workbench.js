@@ -473,13 +473,16 @@ export async function createCemStudioWorkbench(options) {
     function publish(next) {
         if (next.command) next = { ...next, command: { ...next.command, formVersion: `${commandFormId}:${commandEditVersion}` } };
         if (isGraphConfiguration()) {
-            if (graphCache?.source !== next.draft) {
+            const pendingError = graphCache?.retry ? graphCache.error : undefined;
+            if (graphCache?.source !== next.draft || graphCache?.retry) {
                 try {
                     const { nodes, parents, nodeTypes } = validator.authorGraph({ source: next.draft });
                     graphCache = { source: next.draft, nodes, parents, nodeTypes };
-                } catch (error) { graphCache = { source: next.draft, nodes: [], parents: [], nodeTypes: [], error: normalizedError(error) }; }
+                } catch (error) { graphCache = { source: next.draft, nodes: [], parents: [], nodeTypes: [],
+                    error: normalizedError(error), retry: error?.code === 'cem.schema_asset.busy' }; }
             }
-            next = { ...next, graphConfiguration: { nodes: graphCache.nodes, parents: graphCache.parents, nodeTypes: graphCache.nodeTypes, error: next.graphConfiguration?.error ?? graphCache.error,
+            next = { ...next, graphConfiguration: { nodes: graphCache.nodes, parents: graphCache.parents, nodeTypes: graphCache.nodeTypes,
+                error: next.graphConfiguration?.error === pendingError ? graphCache.error : next.graphConfiguration?.error ?? graphCache.error,
                 version: `${commandFormId}:source:${editVersion}`, canUndo: graphUndo.length > 0, canRedo: graphRedo.length > 0 } };
         } else next = { ...next, graphConfiguration: undefined };
         state = freezeState(next);

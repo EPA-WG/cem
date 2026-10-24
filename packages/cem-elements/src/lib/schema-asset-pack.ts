@@ -47,6 +47,11 @@ export interface CemSchemaAssetPackOptions {
 }
 export interface CemSchemaAssetSourceIdentity { packageId: string; version: string; path: string }
 export interface CemSchemaAssetPackageIdentity { packageId: string; version: string }
+/** Native requirements are advisory identities, never package grants or owners. */
+export interface CemSchemaAssetDemandPlan {
+    kind: 'cem-schema-asset-demand-plan/1';
+    packages: readonly CemSchemaAssetPackageIdentity[];
+}
 interface SourceDescriptor extends CemSchemaAssetSourceIdentity { digest: string; byteLength: number; contentType: string }
 interface Bootstrap { indexDigest: string; indexBytes: number; sourceCount: number; sourceBytes: number; packageCount: number }
 interface ImportedSource extends CemSchemaAssetSourceIdentity {
@@ -547,6 +552,7 @@ export class CemSchemaAssetDemandGroup {
     private readonly bindings: CemSchemaAssetPackRecoveryBinding[] = [];
     private readonly participants = new Map<CemSchemaAssetPackRecoveryBinding, CemNativeGenerationParticipant>();
     private readonly demands = new Map<string, CemHttpRequest>();
+    private readonly lifetime = new AbortController();
     private readonly base: URL;
     private tail: Promise<unknown> = Promise.resolve();
     private pending = 0;
@@ -567,6 +573,36 @@ export class CemSchemaAssetDemandGroup {
     }
     /** Exact existing owner cleanup stays serialized even after demand is fenced. */
     cleanup<T>(work: () => T | Promise<T>): Promise<T> { return this.enqueue(work, undefined, true); }
+    /** Prepare native-planned requirements before entering run(). The named HTTP
+     * resource path still checks catalog identities, trusted grants and every
+     * enrolled physical runtime. An empty plan acquires no package resources. */
+    async prepare(plan: CemSchemaAssetDemandPlan, signal = new AbortController().signal): Promise<void> {
+        if (this.closed || this.failed || signal.aborted) fail('stale');
+        if (!plan || plan.kind !== 'cem-schema-asset-demand-plan/1' || !Array.isArray(plan.packages)
+            || plan.packages.length > 64) fail('response');
+        let size = 0;
+        const urls = new Set(plan.packages.map(identity => {
+            if (!identity || typeof identity.packageId !== 'string' || typeof identity.version !== 'string'
+                || !identity.packageId.length || !identity.version.length
+                || identity.packageId.length > 1024 || identity.version.length > 1024) fail('response');
+            size += identity.packageId.length + identity.version.length;
+            if (size > 16 * 1024) fail('limit');
+            return new URL(`demand/${encodeURIComponent(identity.packageId)}/${encodeURIComponent(identity.version)}`, this.base).href;
+        }));
+        // Snapshot the complete plan before the first await. Repeated committed
+        // demands need no transport; lazy endpoints replay them on enrollment.
+        for (const url of urls) {
+            if (this.closed || this.failed || signal.aborted) fail('stale');
+            if (this.demands.has(url)) continue;
+            // Once publication starts it belongs to the group. Cancelling one
+            // command stops that waiter, without abandoning a partially admitted
+            // cohort or fencing unrelated future commands.
+            await abortable(this.loadResource({ authoredUrl: url, resolvedUrl: url, baseUrl: this.base.href,
+                resolverIdentity: 'cem-schema-asset-demand-plan/1', resourcePolicyStamp: 'cem-schema-asset-demand-plan/1',
+                contextIdentity: 'cem-schema-asset-demand-plan/1', method: 'GET', headers: {}, credentials: 'omit',
+                policy: { allowCrossOrigin: false, maxResponseBytes: 4096, timeoutMs: 30_000, redirect: 'error' }, signal: this.lifetime.signal }), signal);
+        }
+    }
     private enqueue<T>(work: () => T | Promise<T>, endpoint?: () => CemSchemaAssetDemandEndpoint | Promise<CemSchemaAssetDemandEndpoint>, cleanup = false): Promise<T> {
         if (!cleanup && (this.closed || this.failed)) return Promise.reject(new CemSchemaAssetLoadError('cem.schema_asset.stale'));
         if (this.pending >= 1024) return Promise.reject(new CemSchemaAssetLoadError('cem.schema_asset.busy'));
@@ -600,7 +636,10 @@ export class CemSchemaAssetDemandGroup {
             if (!this.demands.has(demand.resolvedUrl) && this.demands.size >= 64) fail('limit');
             try {
                 let result: CemHttpResourceLoadResult | undefined;
-                for (const binding of this.bindings) result = await binding.loadResource(demand);
+                // Closing an already prepared host may remove its live binding
+                // while a later host awaits bytes. Keep the original cohort so
+                // that removal cannot skip another still-active physical heap.
+                for (const binding of [...this.bindings]) result = await binding.loadResource(demand);
                 if (this.closed || demand.signal.aborted) fail('stale');
                 this.demands.set(demand.resolvedUrl, { ...demand, signal: new AbortController().signal });
                 if (!result) fail('unsupported');
@@ -637,6 +676,7 @@ export class CemSchemaAssetDemandGroup {
     dispose(): void {
         if (this.closed) return;
         this.closed = true;
+        this.lifetime.abort();
         for (const binding of [...this.bindings]) binding.dispose();
         this.bindings.length = 0; this.participants.clear(); this.demands.clear();
     }

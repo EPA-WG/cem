@@ -25,7 +25,7 @@ export async function createCemStudioNavigation({ workbench, repository, example
     const subscribers = new Set();
     const bundles = new Map();
     let projects = [], selected = node({}, 'Examples', 'folder', 'Predefined example projects. Clone a sample to save your own version.');
-    let opened, selection = {}, error, action, pendingRoute, busy = false, version = 0, refreshVersion = 0, disposed = false;
+    let opened, selection = {}, error, action, pendingRoute, navigationController, busy = false, version = 0, refreshVersion = 0, disposed = false;
     let base = workbench.snapshot();
     let acceptedUrl = browser ? new URL(browser.location.href) : new URL('https://studio.invalid/');
     for (const key of routeFields) acceptedUrl.searchParams.delete(key);
@@ -100,13 +100,23 @@ export async function createCemStudioNavigation({ workbench, repository, example
         const sort = item => { item.children.sort((a, b) => (a.kind === 'output-folder' ? 0 : 1) - (b.kind === 'output-folder' ? 0 : 1) || a.name.localeCompare(b.name)); item.children.forEach(sort); };
         sort(root); return root;
     }
-    const sourceDescriptor = () => {
-        const resource = selection.file && opened?.project.resources.find(item => item.id === selection.file);
+    const sourceDescriptor = (nextOpened = opened, route = selection, state = base) => {
+        const resource = route.file && nextOpened?.project.resources.find(item => item.id === route.file);
         // Read-only/unavailable records have no admitted UTF-8 text. Empty
         // editor placeholders must not become fabricated data or HTML input.
-        if (!selection.sample && (base.editable === false || base.resourceAvailable === false)) return undefined;
-        return resource && { resourceId: resource.id, projectId: opened.project.id, projectRootUri: opened.project.rootUri, projectRevision: opened.project.revision, sourceUri: projectResourceUri(opened.project, resource), contentType: resource.contentType, schema: resource.schema,
-            text: selection.sample ? opened.text : base.draft ?? base.persistedText ?? '', revision: resource.revision, sha256: resource.sha256, draft: Boolean(!selection.sample && base.dirty) };
+        if (!route.sample && (state.editable === false || state.resourceAvailable === false
+            || state.projectId !== nextOpened?.project.id || state.resourceId !== route.file)) return undefined;
+        return resource && { resourceId: resource.id, projectId: nextOpened.project.id, projectRootUri: nextOpened.project.rootUri, projectRevision: nextOpened.project.revision, sourceUri: projectResourceUri(nextOpened.project, resource), contentType: resource.contentType, schema: resource.schema,
+            text: route.sample ? nextOpened.text : state.draft ?? state.persistedText ?? '', revision: resource.revision, sha256: resource.sha256, draft: Boolean(!route.sample && state.dirty) };
+    };
+    const prepareSelection = async (nextOpened, route, signal) => {
+        if (!validator?.prepareResource) return;
+        const descriptor = sourceDescriptor(nextOpened, route, workbench.snapshot());
+        if (!descriptor) return;
+        await validator.prepareResource({ bytes: new TextEncoder().encode(descriptor.text), uri: descriptor.sourceUri,
+            contentType: descriptor.contentType, schema: descriptor.schema, resourceScheme: 'studio',
+            projectId: descriptor.projectId, projectRootUri: descriptor.projectRootUri,
+            projectRevision: descriptor.projectRevision, resourceRevision: descriptor.revision, signal });
     };
     function publish() {
         if (disposed) return;
@@ -221,7 +231,10 @@ export async function createCemStudioNavigation({ workbench, repository, example
         const route = { ...rest, ...(rest.selection === 'output' && artifact !== undefined ? { artifact } : {}), ...(rest.selection === 'output' && build !== undefined ? { build } : {}) };
         const settings = { build, artifact, configuration: route.configuration, reset: !preservePreview, sourceActivation: preservePreview && Boolean(route.file), sourceResourceId: route.file };
         const currentVersion = ++version;
+        navigationController?.abort();
+        const controller = new AbortController(); navigationController = controller;
         if (pendingRoute) { pendingRoute = undefined; await workbench.resolveNavigation('cancel'); }
+        if (disposed || currentVersion !== version) return;
         busy = true; error = undefined; action = undefined; publish();
         try {
             if (['view', 'collection', 'project', 'sample'].filter(key => route[key]).length > 1) throw new Error('The Studio URL has conflicting roots.');
@@ -267,7 +280,7 @@ export async function createCemStudioNavigation({ workbench, repository, example
             if (nextOpened && route.selection !== 'output' && !find(fileTree(nextOpened.project, nextOpened.route), routeKey(route))) throw new Error('The requested file or directory is unavailable.');
             if (route.project && route.selection !== 'output') {
                 const target = { projectId: route.project, ...(route.file ? { resourceId: route.file } : {}), ...(route.configuration ? { entryId: route.configuration } : {}) };
-                pendingRoute = { route, mode, opened: nextOpened, settings, target: JSON.stringify(target) };
+                pendingRoute = { route, mode, opened: nextOpened, settings, target: JSON.stringify(target), version: currentVersion, controller };
                 const current = workbench.snapshot();
                 if (current.workbenchId !== JSON.stringify(target) && JSON.stringify(current.transition?.target) !== JSON.stringify(target)) await workbench.selectWorkbench(JSON.stringify(target));
                 if (currentVersion !== version) return;
@@ -275,9 +288,11 @@ export async function createCemStudioNavigation({ workbench, repository, example
                 if (workbench.snapshot().workbenchId !== JSON.stringify(target)) throw new Error('Finish the pending operation before changing files.');
                 pendingRoute = undefined;
             }
+            await prepareSelection(nextOpened, route, controller.signal);
+            if (disposed || currentVersion !== version || controller.signal.aborted) return;
             selection = route; opened = nextOpened; revealPending = true; admitPreview(opened, settings); writeUrl(route, mode);
         } catch (cause) { if (currentVersion !== version) return; pendingRoute = undefined; error = { message: cause.message }; if (mode === 'pop' && browser) browser.history.replaceState(null, '', acceptedUrl); }
-        finally { if (currentVersion === version) { busy = false; publish(); } }
+        finally { if (currentVersion === version) { busy = false; if (pendingRoute?.version !== currentVersion) navigationController = undefined; publish(); } }
     }
     const preview = createCemStudioProjectPreview({ repository, validator, openBuildWorkbench });
     const filePreview = createCemStudioSourcePreview({ validator });
@@ -338,11 +353,22 @@ export async function createCemStudioNavigation({ workbench, repository, example
             return result;
         },
         async resolveNavigation(decision) {
+            const currentVersion = version;
             await workbench.resolveNavigation(decision);
-            if (decision === 'cancel') { pendingRoute = undefined; if (browser) browser.history.replaceState(null, '', acceptedUrl); }
+            if (disposed || currentVersion !== version) return;
+            if (decision === 'cancel') { navigationController?.abort(); navigationController = undefined; pendingRoute = undefined; if (browser) browser.history.replaceState(null, '', acceptedUrl); }
             else if (pendingRoute && !workbench.snapshot().transition && workbench.snapshot().workbenchId === pendingRoute.target) {
-                const pending = pendingRoute; pendingRoute = undefined;
-                selection = pending.route; opened = pending.opened; revealPending = true; admitPreview(opened, pending.settings); writeUrl(selection, pending.mode);
+                const pending = pendingRoute;
+                busy = true; publish();
+                try {
+                    await prepareSelection(pending.opened, pending.route, pending.controller.signal);
+                    if (disposed || currentVersion !== version || pendingRoute !== pending || pending.controller.signal.aborted) return;
+                    pendingRoute = undefined; navigationController = undefined;
+                    selection = pending.route; opened = pending.opened; revealPending = true; admitPreview(opened, pending.settings); writeUrl(selection, pending.mode);
+                } catch (cause) {
+                    if (currentVersion !== version) return;
+                    pendingRoute = undefined; navigationController = undefined; error = { message: cause.message };
+                } finally { if (currentVersion === version) busy = false; }
             }
             publish();
         },
@@ -383,7 +409,7 @@ export async function createCemStudioNavigation({ workbench, repository, example
             finally { busy = false; }
             publish();
         },
-        dispose() { disposed = true; ++version; ++refreshVersion; unsubscribe(); unsubscribePreview(); unsubscribeFilePreview(); filePreview.dispose(); preview.dispose(); unsubscribeRepository?.(); browser?.removeEventListener('popstate', onPop); subscribers.clear(); workbench.dispose(); },
+        dispose() { disposed = true; ++version; ++refreshVersion; navigationController?.abort(); navigationController = undefined; unsubscribe(); unsubscribePreview(); unsubscribeFilePreview(); filePreview.dispose(); preview.dispose(); unsubscribeRepository?.(); browser?.removeEventListener('popstate', onPop); subscribers.clear(); workbench.dispose(); },
     };
     return Object.freeze(api);
 }

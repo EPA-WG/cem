@@ -402,42 +402,12 @@ pub fn prepare_command_operation_v1(
                 )?),
             )),
             CommandTransformSourceV1::Graph { config_uri } => {
-                let resource = inline_resource(request, config_uri)?;
-                let mut identity =
-                    inferred_resource_identity(config_uri, resource).unwrap_or_default();
-                if identity.content_type.is_none() {
-                    identity.content_type = Some("application/cem+xml".to_owned());
-                }
-                if identity.schema.is_none() {
-                    identity.schema =
-                        Some(crate::transform_config::TRANSFORM_CONFIG_SCHEMA_URI.to_owned());
-                }
-                identity.base_uri = Some(config_uri.clone());
-                let parsed = parse_transform_graph_config(TransformGraphParseRequest {
-                    bytes: resource.bytes.clone(),
-                    identity,
-                    base_uri: Some(config_uri.clone()),
-                })
-                .map_err(|error| {
-                    CommandOperationPreparationError::TransformConfig {
-                        uri: config_uri.clone(),
-                        code: error.code.to_owned(),
-                        message: error.message,
-                    }
-                })?;
-                if !parsed.diagnostics.is_empty() {
-                    return Err(
-                        CommandOperationPreparationError::TransformConfigDiagnostics {
-                            uri: config_uri.clone(),
-                            diagnostics: parsed.diagnostics,
-                        },
-                    );
-                }
+                let graph = parsed_command_graph(request, config_uri)?;
                 let provider =
                     ManifestTransformGraphResourceProvider::new(config_uri, &request.resources);
                 let graph_request = lower_transform_graph_request(
                     &context,
-                    &parsed.graph,
+                    &graph,
                     &provider,
                     config_uri,
                     *preserve_source_offsets,
@@ -461,6 +431,161 @@ pub fn prepare_command_operation_v1(
         })),
         PortableOperationRequestV1::VersionCapabilities => unreachable!(),
     }
+}
+
+/// Native identity preparation without an execution context or optional models.
+/// Only inputs used by the operation, its output scopes and graph dependencies
+/// contribute requirements; unrelated inline project files do not.
+pub(crate) fn command_schema_demand_identities(
+    request: &CommandServiceRequestV1,
+) -> Result<Vec<FormatIdentity>, CommandOperationPreparationError> {
+    let Some(plan) = request.run_plan.plan() else {
+        return Ok(Vec::new());
+    };
+    let mut identities = Vec::new();
+    let input_ids: Vec<&str> = match &request.operation {
+        PortableOperationRequestV1::Parse { input_id, .. }
+        | PortableOperationRequestV1::Inspect { input_id, .. }
+        | PortableOperationRequestV1::Convert { input_id, .. }
+        | PortableOperationRequestV1::Trace { input_id, .. } => vec![input_id],
+        PortableOperationRequestV1::Validate { input_ids, .. }
+        | PortableOperationRequestV1::Check { input_ids, .. } => {
+            input_ids.iter().map(String::as_str).collect()
+        }
+        PortableOperationRequestV1::Query {
+            data_input_id,
+            query_uri,
+            ..
+        } => {
+            if let Some(identity) =
+                inferred_resource_identity(query_uri, inline_resource(request, query_uri)?)
+            {
+                identities.push(identity);
+            }
+            vec![data_input_id]
+        }
+        PortableOperationRequestV1::Transform {
+            source:
+                CommandTransformSourceV1::Direct {
+                    data_input_id,
+                    template_uri,
+                },
+            ..
+        } => {
+            if let Some(identity) =
+                inferred_resource_identity(template_uri, inline_resource(request, template_uri)?)
+            {
+                identities.push(identity);
+            }
+            vec![data_input_id]
+        }
+        PortableOperationRequestV1::Transform {
+            source: CommandTransformSourceV1::Graph { config_uri },
+            ..
+        } => {
+            let graph = parsed_command_graph(request, config_uri)?;
+            let provider =
+                ManifestTransformGraphResourceProvider::for_demand(config_uri, &request.resources);
+            identities.extend(
+                crate::transform_graph_request::transform_graph_demand_identities(
+                    &graph, &provider, config_uri,
+                )
+                .map_err(|error| graph_lowering_error(config_uri, error))?,
+            );
+            Vec::new()
+        }
+        PortableOperationRequestV1::VersionCapabilities => Vec::new(),
+    };
+    for input_id in input_ids {
+        let (_, _, identity) = input_metadata(request, plan, input_id)?;
+        identities.push(identity);
+        if !matches!(
+            request.operation,
+            PortableOperationRequestV1::Convert { .. }
+                | PortableOperationRequestV1::Transform {
+                    source: CommandTransformSourceV1::Direct { .. },
+                    ..
+                }
+        ) {
+            continue;
+        }
+        let outputs = operation_outputs(plan, input_id);
+        if let PortableOperationRequestV1::Convert { to_format, .. } = &request.operation {
+            // Resolve the same adapter and unknown-target fallback as native
+            // execution; selecting metadata does not load package bodies.
+            let registry = crate::lifecycle::LifecycleRegistry::with_builtin_adapters();
+            let targets = if outputs.is_empty() {
+                vec![None]
+            } else {
+                outputs
+                    .iter()
+                    .map(|output| Some(&output.identity))
+                    .collect()
+            };
+            for target in targets {
+                use crate::schema::registry::{
+                    CSV_CONTENT_TYPE, CSV_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI,
+                };
+                let selection = registry.select_export(target, *to_format);
+                let selected = match selection.to_format {
+                    engine::LayerFormat::Csv => Some((CSV_CONTENT_TYPE, CSV_SCHEMA_URI)),
+                    engine::LayerFormat::Markdown => {
+                        Some((MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI))
+                    }
+                    _ => None,
+                };
+                if let Some((content_type, schema)) = selected {
+                    identities.push(FormatIdentity {
+                        content_type: Some(content_type.to_owned()),
+                        schema: Some(schema.to_owned()),
+                        ..Default::default()
+                    });
+                }
+                if selection.adapter_id.is_some() {
+                    identities.extend(target.cloned());
+                }
+            }
+            continue;
+        }
+        for output in outputs {
+            identities.push(output.identity.clone());
+        }
+    }
+    Ok(identities)
+}
+
+fn parsed_command_graph(
+    request: &CommandServiceRequestV1,
+    config_uri: &str,
+) -> Result<crate::transform_config::TransformGraphConfig, CommandOperationPreparationError> {
+    let resource = inline_resource(request, config_uri)?;
+    let mut identity = inferred_resource_identity(config_uri, resource).unwrap_or_default();
+    if identity.content_type.is_none() {
+        identity.content_type = Some("application/cem+xml".to_owned());
+    }
+    if identity.schema.is_none() {
+        identity.schema = Some(crate::transform_config::TRANSFORM_CONFIG_SCHEMA_URI.to_owned());
+    }
+    identity.base_uri = Some(config_uri.to_owned());
+    let parsed = parse_transform_graph_config(TransformGraphParseRequest {
+        bytes: resource.bytes.clone(),
+        identity,
+        base_uri: Some(config_uri.to_owned()),
+    })
+    .map_err(|error| CommandOperationPreparationError::TransformConfig {
+        uri: config_uri.to_owned(),
+        code: error.code.to_owned(),
+        message: error.message,
+    })?;
+    if !parsed.diagnostics.is_empty() {
+        return Err(
+            CommandOperationPreparationError::TransformConfigDiagnostics {
+                uri: config_uri.to_owned(),
+                diagnostics: parsed.diagnostics,
+            },
+        );
+    }
+    Ok(parsed.graph)
 }
 
 fn graph_lowering_error(
@@ -588,6 +713,31 @@ fn engine_input(
     plan: &NormalizedRunPlan,
     input_id: &str,
 ) -> Result<EngineInput, CommandOperationPreparationError> {
+    let (input, resource, identity) = input_metadata(request, plan, input_id)?;
+    let uri = input.resolved_uri.as_deref().unwrap_or(&input.declared_uri);
+    let mut root_scope = scope_config(&input.root_scope);
+    apply_identity_to_scope(&mut root_scope, &identity);
+    Ok(EngineInput {
+        uri: uri.to_owned(),
+        bytes: resource.bytes.clone(),
+        from_format: input.from_format_hint,
+        identity: identity_option(&identity),
+        root_scope,
+    })
+}
+
+fn input_metadata<'a>(
+    request: &'a CommandServiceRequestV1,
+    plan: &'a NormalizedRunPlan,
+    input_id: &str,
+) -> Result<
+    (
+        &'a crate::run_config::NormalizedInput,
+        &'a VirtualResourceV1,
+        FormatIdentity,
+    ),
+    CommandOperationPreparationError,
+> {
     let input = plan
         .inputs
         .iter()
@@ -598,15 +748,7 @@ fn engine_input(
     let uri = input.resolved_uri.as_deref().unwrap_or(&input.declared_uri);
     let resource = inline_resource(request, uri)?;
     let identity = merge_identity(uri, &input.identity, resource.identity.as_ref())?;
-    let mut root_scope = scope_config(&input.root_scope);
-    apply_identity_to_scope(&mut root_scope, &identity);
-    Ok(EngineInput {
-        uri: uri.to_owned(),
-        bytes: resource.bytes.clone(),
-        from_format: input.from_format_hint,
-        identity: identity_option(&identity),
-        root_scope,
-    })
+    Ok((input, resource, identity))
 }
 
 #[allow(clippy::too_many_arguments)]

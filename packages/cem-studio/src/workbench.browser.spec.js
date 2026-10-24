@@ -972,6 +972,23 @@ describe('CEM Studio Feature Tour workbench', () => {
         expect(workbench.snapshot().graphConfiguration).toMatchObject({ canUndo: false, canRedo: false });
     });
 
+    it('retries a transient package-publication refusal without changing the graph draft', async () => {
+        const { workbench, validator } = await graphWorkbench();
+        const original = validator.authorGraph;
+        validator.authorGraph = vi.fn().mockImplementationOnce(() => { throw Object.assign(new Error('cem.schema_asset.busy'), { code: 'cem.schema_asset.busy' }); })
+            .mockImplementation(original);
+        // Changing the source invalidates the cached authoring result. A later
+        // state publication must retry a refused preparation for the same draft.
+        workbench.updateDraft(`${workbench.snapshot().draft}\n`);
+        const source = workbench.snapshot().draft;
+        expect(workbench.snapshot().graphConfiguration.error.code).toBe('cem.schema_asset.busy');
+        await workbench.validatePersisted();
+        expect(workbench.snapshot().draft).toBe(source);
+        expect(workbench.snapshot().graphConfiguration.nodes.length).toBeGreaterThan(0);
+        expect(workbench.snapshot().graphConfiguration.error).toBeUndefined();
+        expect(validator.authorGraph).toHaveBeenCalledTimes(2);
+    });
+
     it('stages native graph parameters with literal empty values, revision guards and bounded history', async () => {
         const { workbench, repository, validator } = await graphWorkbench(parameterGraphSource);
         const original = workbench.snapshot().draft;

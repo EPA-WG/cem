@@ -3676,7 +3676,15 @@ skip optional executable contracts until admission; artifact consumption require
 its exact admitted body. Advisory `schemaAssetEmbeddedSourcesV1` metadata and
 binary-body omission checks describe this build boundary, without granting
 admission or claiming download, allocator or checkpoint savings.
-Studio currently supplies trusted CSV grants and declarative CSV demand. Other
+Studio currently supplies trusted CSV grants. Its native command planner resolves
+used project/resource inputs, output scopes and graph dependencies before a
+command or preview; shared preparation activates those requirements through the
+existing HTTP demand contract before execution. The shell has no unconditional
+CSV startup request, so opening an HTML resource needs no optional package.
+Unrelated project resources do not demand their packages. Source snapshots,
+original physical runtimes and host witnesses remain checked throughout
+preparation and execution. Cancellation stops the caller while group-owned
+publication finishes before later work. Other
 excluded formats require corresponding trusted host integration before use;
 the ordinary complete deployment remains the general Studio release.
 The shared `CemSchemaAssetPackLoader` now performs bounded acquisition through
@@ -3726,7 +3734,9 @@ resource/host handoff releases it. Raw/gzip delivery, allocator/linear-memory
 observations and cold-load latency are recorded by the
 [isolated profile measurement target](schema-asset-profile-measurements.md).
 The measured initial/paint capacity reduction does not establish whole-Studio
-memory or checkpoint savings; current eager CSV activation adds startup cost. Default release catalogs and themes remain complete. A separate
+memory or checkpoint savings. CSV activation is now deferred to native
+project/resource demand; startup and first-use measurements remain separate.
+Default release catalogs and themes remain complete. A separate
 rare-command WASM module needs an explicit ABI, independent ownership and recovery
 enrollment; additional heaps are not automatically a memory reduction. Studio UI
 remains declarative, automatic recovery stays disabled, and entered passwords or
