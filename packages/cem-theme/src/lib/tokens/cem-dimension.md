@@ -279,6 +279,18 @@ Use when padding content within a container.
 | `--cem-inset-control`   | `var(--cem-dim-x-small)` | Smallest safe inset for tight controls (8px)                      | recommended |
 | `--cem-inset-container` | `var(--cem-dim-medium)`  | Default inset for common containers (16px)                        | recommended |
 | `--cem-inset-surface`   | `var(--cem-dim-large)`   | Comfortable inset for reading surfaces and prominent cards (24px) | recommended |
+| `--cem-menu-inset` | `max(var(--cem-inset-control), var(--cem-coupling-guard-min))` | Menu surface clearance around outer item indicators; retained in compressed density | required |
+| `--cem-menu-item-gap` | `max(var(--cem-gap-related), calc(2 * var(--cem-coupling-guard-min)))` | Menu item separation reserves room for simultaneous selected and focused indicators | required |
+
+Menu inset and item-gap endpoints express preferred spacing independently of
+control padding. Super-compact may reduce those preferences to zero/related
+spacing, while the menu layout still reserves the actual outward indicator
+extent from D0 stripe thickness and D5 focus width/offset. The current three-stripe
+ring requires at least `3 × --cem-zebra-strip-size` at surface edges and twice
+that between adjacent items. Focus outlines can require a larger floor.
+Compute this bound where the menu lays out its children so inherited stripe
+and stroke overrides remain effective below an ancestor density boundary.
+Density never removes this paint clearance or increases generic button padding.
 
 **Cross-reference:** When combining insets with bend (D3), ensure inset is large enough to prevent content crowding in
 rounded corners. See [`cem-shape.md`](./cem-shape.md) §8.5 for guidance.
@@ -382,6 +394,8 @@ an independent spacing choice; use `data-cem-density="normal"` together with
 | `--cem-gap-block` | `0.5rem` | `0.5rem` |
 | `--cem-gap-section` | `0.75rem` | `0.75rem` |
 | `--cem-inset-control` | `0.25rem` | `0px` |
+| `--cem-menu-inset` | `max(var(--cem-inset-control), var(--cem-coupling-guard-min))` | `0px` |
+| `--cem-menu-item-gap` | `max(var(--cem-gap-related), calc(2 * var(--cem-coupling-guard-min)))` | `var(--cem-gap-related)` |
 | `--cem-inset-container` | `0.5rem` | `0px` |
 | `--cem-inset-surface` | `0.75rem` | `0px` |
 | `--cem-layout-gutter` | `0.5rem` | `0px` |
@@ -684,7 +698,7 @@ from these tables using the same XPath pattern as `cem-dimension.html`.
 |--------------------------|---------------------------------------------------------------------------|----------------------|
 | `cem-dim-scale`          | `--cem-dim-*` (8 tokens)                                                  | one token per row    |
 | `cem-dim-gaps`           | `--cem-gap-*` (5 tokens)                                                  | one token per row    |
-| `cem-dim-insets`         | `--cem-inset-*` (3 tokens)                                                | one token per row    |
+| `cem-dim-insets`         | `--cem-inset-*` and menu surface inset/item-gap endpoints                  | one token per row    |
 | `cem-dim-rhythm-reading` | `--cem-rhythm-reading-*` (2 tokens)                                       | one token per row    |
 | `cem-dim-rhythm-data`    | `--cem-rhythm-data-*` and structured `--cem-data-row-*` insets/gaps | one token per row    |
 | `cem-dim-density-overrides` | Precise-input inherited desktop profiles; no new tokens | overrides only |

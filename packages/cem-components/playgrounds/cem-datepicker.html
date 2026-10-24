@@ -142,7 +142,7 @@ window.cemPlaygroundRuntime = runtime;
  {button @slot=toggle @type=button @aria-label="Choose date" | Choose}
 }{cem-action @type=reset @label="Reset date"}}
 </template></cem-element><form id="date-external"><cem-action type="reset" label="Reset external date"></cem-action></form>
-<cem-element><template type="text/cem-ml">{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-datepicker"}{cem:if @test="datadom.slices.sourceUrl" | {p | {a @href="{$datadom.slices.sourceUrl}" | Open canonical XHTML}}{cem-demo-element @legend="Canonical source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}}</template></cem-element>
+<cem-element><template type="text/cem-ml">{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-datepicker/cem-datepicker.xhtml"}{cem:if @test="datadom.slices.sourceUrl" | {p | {a @href="{$datadom.slices.sourceUrl}" | Open canonical XHTML}}{cem-demo-element @legend="Canonical source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}}</template></cem-element>
 </main></template>
 </cem-gallery-page>
 </body></html>

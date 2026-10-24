@@ -22,14 +22,14 @@
         :scope > [part~='popup'] {
             position: absolute; inset-inline-start: 0; top: 100%; inline-size: max-content;
             display: flex; flex-direction: column; z-index: 1;
-            background: var(--cem-action-contextual-default-background); color: var(--cem-action-contextual-default-text);
+            background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text);
             border-radius: var(--cem-autocomplete-container-shape);
             border-start-start-radius: 0; border-start-end-radius: 0;
             box-shadow: var(--cem-elevation-3); overflow: auto;
         }
         :scope > :where([part~='popup'])[hidden] { display: none; }
         @media (forced-colors: active) {
-            :scope > :where([part~='popup']) { border: var(--cem-stroke-boundary) solid CanvasText; }
+            :scope > :where([part~='popup']) { background: Canvas; color: CanvasText; border: var(--cem-stroke-boundary) solid CanvasText; }
             :scope > :where([part~='base']) > :where(button,a,[tabindex]):focus-visible { outline-color: Highlight; }
         }
         ```}

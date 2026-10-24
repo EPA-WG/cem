@@ -87,7 +87,7 @@ export function mountCemView(runtime: CemElementRuntime, options: CemHostViewOpt
         if (event.type === 'submit') event.preventDefault();
         try {
             const fields = event.type === 'submit' ? formFields(event, control, element) : undefined;
-            const value = event.type === 'cem-tree-activate' || event.type === 'cem-tree-toggle' || event.type === 'cem-disclosure-toggle' || event.type === 'cem-tab' || event.type === 'cem-preview-navigate' ? activationValue(event) : controlValue(event.target);
+            const value = event.type === 'cem-tree-activate' || event.type === 'cem-tree-toggle' || event.type === 'cem-disclosure-toggle' || event.type === 'cem-tab' || event.type === 'cem-preview-navigate' ? activationValue(event) : controlValue(event.target, control);
             // Input capture (FormData listeners, custom control getters or
             // payload proxy traps) can revoke authority before delivery.
             if (!active || !element.isConnected || !runtime.hasDeclarationFor(element) || !element.contains(control)
@@ -183,13 +183,17 @@ function formFields(event: Event, control: Element, view: Element): Readonly<Rec
     return Object.freeze(fields);
 }
 
-function controlValue(target: EventTarget | null): string | null {
+function controlValue(target: EventTarget | null, boundary: Element): string | null {
     const plaintext = cemPlaintextEditorEventValue(target);
     if (plaintext !== undefined) return plaintext;
-    if (target instanceof HTMLButtonElement || target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return target.value;
-    if (target instanceof HTMLElement && (target.constructor as typeof HTMLElement & { formAssociated?: boolean }).formAssociated) {
-        const value = (target as HTMLElement & { value?: unknown }).value;
-        if (typeof value === 'string') return value;
+    // Icons and labels are native activation descendants, not value owners.
+    // Stop at the bound command so unrelated ancestor controls cannot supply data.
+    for (let owner = target instanceof Element ? target : null; owner; owner = owner === boundary ? null : owner.parentElement) {
+        if (owner instanceof HTMLButtonElement || owner instanceof HTMLInputElement || owner instanceof HTMLTextAreaElement || owner instanceof HTMLSelectElement) return owner.value;
+        if (owner instanceof HTMLElement && (owner.constructor as typeof HTMLElement & { formAssociated?: boolean }).formAssociated) {
+            const value = (owner as HTMLElement & { value?: unknown }).value;
+            if (typeof value === 'string') return value;
+        }
     }
     return null;
 }

@@ -6,12 +6,12 @@
     {style @type="text/css" |```
         :scope { display: block; }
         :scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
-        :scope[slot='submenu'] { display: none; background: var(--cem-action-contextual-default-background); border: var(--cem-stroke-boundary) solid var(--cem-action-contextual-default-text); }
+        :scope[slot='submenu'] { display: none; background: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); border: var(--cem-stroke-boundary) solid var(--cem-palette-comfort-text); }
         :scope > :where([part~='composite']) {
             display: flex; flex-direction: row; flex-wrap: wrap; justify-content: flex-start;
             box-sizing: border-box;
-            padding: max(var(--cem-inset-control), var(--cem-coupling-guard-min));
-            gap: max(var(--cem-gap-related), calc(2 * var(--cem-coupling-guard-min)));
+            padding: max(var(--cem-menu-inset), var(--cem-inset-control), var(--cem-coupling-guard-min), calc(3 * var(--cem-zebra-strip-size)), calc(var(--cem-stroke-focus) + var(--cem-stroke-indicator-offset)));
+            gap: max(var(--cem-menu-item-gap), var(--cem-gap-related), calc(2 * var(--cem-coupling-guard-min)), calc(6 * var(--cem-zebra-strip-size)), calc(2 * (var(--cem-stroke-focus) + var(--cem-stroke-indicator-offset))));
         }
         :scope[direction='column'] > :where([part~='composite']), :scope:where([slot='submenu']:not([direction='row'])) > :where([part~='composite']) { flex-direction: column; }
         :scope[justify='end'] > :where([part~='composite']) { justify-content: flex-end; }
@@ -30,6 +30,7 @@
         :scope > :where([part~='composite']) > :is(a, button):focus-visible { outline: var(--cem-stroke-focus) solid currentColor; outline-offset: var(--cem-stroke-indicator-offset); box-shadow: var(--cem-ring-zebra-3); }
         :scope > :where([part~='composite']) > [hidden]:where(:not([hidden='until-found' i])) { display: none; }
         @media (forced-colors: active) {
+            :scope[slot='submenu'] { background: Canvas; color: CanvasText; border-color: CanvasText; }
             :scope > :where([part~='composite']) > :is(a, button):focus-visible { outline-color: Highlight; }
             :scope > :where([part~='composite']) > :is(a, button):where([disabled], [aria-disabled='true']) { color: GrayText; }
         }

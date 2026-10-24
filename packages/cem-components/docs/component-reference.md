@@ -171,6 +171,14 @@ Host visibility follows the [shared native visibility convention](./conventions.
 | `cem-menu` | Persistent wrapping command/link collection; optional composite submenus. | Default slot accepts links, buttons and menu items. | action, palette, stroke, gap, inset, typography | Native Tab by default; opt-in menu mode owns roving focus and nested popup semantics. |
 | `cem-menu-item` | Menu command row. | Default slot is command text. | action, palette, gap, inset, typography | Renders `role="menuitem"` and must be contained by a menu/list context in full menus. |
 
+Dropdown and submenu surfaces use the opaque comfort palette with matching text,
+and Canvas/CanvasText in forced colors. Menu containers consume theme-owned
+`--cem-menu-inset` and `--cem-menu-item-gap` preferences with a nonzero floor for
+outside zebra/focus paint. At default stripe geometry, super-compact menus reserve
+6px at the edge and 12px between items; inherited stripe/stroke overrides can
+increase those bounds. Controls retain zero super-compact padding/minima, and
+popup height follows content subject to the shared viewport boundary.
+
 States: `default`, `hover`, `focus-visible`, `active`, `disabled`, `pending`, `selected`.
 The canonical `cem-action` declaration embeds its scoped styles for all five
 intents. `cem-icon-button` uses the same five variants in both button and link

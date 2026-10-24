@@ -184,3 +184,76 @@ and returns HTTP 404. That independent import-map follow-up is recorded in the
 active TODO. The gallery verifier now waits for nested accordion panel content
 before capturing retained owners; the original identity assertion remains intact.
 No complete package-gallery pass is claimed for this correction.
+
+## Studio editor filename follow-up
+
+- [x] Remove repeated filename labels from editable and read-only sample/output editor bodies; keep the pane heading and accessible source name, and verify the exact Login graph URL plus sample/output navigation.
+
+Removed the editable controls' repeated path row and adjusted the grid to give
+the reclaimed row to the source editor. Read-only sample and generated-output
+editors now use an empty visible `label` with the resource path supplied through
+`aria-label`, reusing the existing shared editor contract. The pane heading and
+window/application title retain the selected file; no new UI JavaScript or
+component API was introduced.
+
+Verification: the four existing short-workspace/editor scrolling, focus and
+selection cases passed, followed by two sample/output navigation regression
+cases. The 22-task Studio build, scoped lint and whitespace checks passed.
+An isolated browser opened the exact reported Login URL
+`/?sample=login&file=login-view-graph&build=render-graph`: the pane heading was
+`view.cem`, the editor body's label was empty, its accessible name remained
+`graphs/view.cem`, and all 506 source characters were displayed read-only.
+Saved projects and drafts were not modified.
+
+## Shared popup surfaces and indicator clearance
+
+- [x] Give shared dropdown/submenu surfaces an opaque theme background and define canonical menu outer inset/item gaps with stroke-derived indicator floors independent of compressed control padding.
+- [x] Verify super-compact theme menus, adjacent selected/focused rings, overridden stripe sizes, forced colors and unchanged zero control geometry; rebuild and inspect Studio and the tree gallery.
+
+Dropdowns and submenus use the opaque comfort surface, with Canvas/CanvasText
+in forced colors. Canonical menu inset/gap preferences retain a component layout
+floor computed from the actual zebra stripe and focus stroke tokens, including
+descendant overrides. Default super-compact menus reserve 6px around items and
+12px between them, while control padding and minimum height remain zero.
+
+Validation: 14 shared dropdown/menu/theme-switch stories and nine theme density
+tests passed, including all five themes and enlarged stripe sizes. Theme generation
+validated all 527 tokens; the 22-task Studio build, scoped lint and whitespace
+checks passed. Live gallery checks covered all five modes with mouse and touch input, opaque surfaces,
+6px/12px spacing and no unnecessary scrolling; Studio light/dark checks passed.
+Repeated Studio theme changes stalled before completing the contrast transition
+on both the Login graph route and default workspace; this is recorded in the
+active TODO and no complete Studio five-theme pass is claimed. Browser checks
+used isolated contexts, preserving saved projects and drafts.
+
+## Immediate persisted theme updates
+
+- [x] Add a gallery regression for runtime storage writes after host storage methods are restored, then make shared runtime writes notify live storage consumers independently of method interception.
+- [x] Repair shared host-command value capture for clicks on a native button's nested icon/label; verify worker/fallback command boundaries and repeated Studio theme selections.
+
+Two shared runtime paths could save a preference without updating its owner.
+Live same-document storage consumers previously depended entirely on intercepted
+Storage methods. Runtime-owned writes now publish a storage change when no
+intercepted notification was issued, retaining external-writer interception and
+native cross-document events without double publishing an intercepted write.
+Separately, Studio host commands read only the literal click target's value;
+clicks on nested menu icons/labels therefore supplied null even though the
+switch saved its selection. Commands now resolve the enclosing admitted native
+or form-associated control, stopping at the bound command element. No app-local
+UI JavaScript or theme-specific runtime workaround was added.
+
+Both regressions failed before their fixes: the gallery stored dark while its
+page stayed light, and worker/fallback host commands received null from a nested
+label. After repair, 18 gallery/storage/theme-switch tests, 10 host-view tests,
+13 Studio shell tests, and five focused storage recovery/credential refusal
+tests passed. The Studio shell regression repeatedly clicks nested glyphs across
+all five themes. The 22-task Studio build and scoped lint passed (only existing
+non-null assertion warnings). Credential recovery remains blocked for entered
+secrets; isolated browser contexts preserve saved projects and drafts.
+
+Post-build live checks clicked the nested theme glyphs through dark, light,
+contrast-dark, contrast-light and native in Studio and the tree gallery without
+navigation or reload, with Storage method interception deliberately removed.
+All page theme attributes updated; the gallery's switch and computed palettes
+also matched each selection. This resolves the earlier Studio contrast-transition
+failure recorded above.

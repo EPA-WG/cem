@@ -309,7 +309,7 @@
 </cem-element>
 <cem-element>
 <template type="text/cem-ml">
-{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-action"}
+{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-action/cem-action.xhtml"}
 {cem:if @test="datadom.slices.sourceUrl" |
     {p | {a @href="{$datadom.slices.sourceUrl}" | Open canonical XHTML}}
     {cem-demo-element @legend="Canonical action source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}

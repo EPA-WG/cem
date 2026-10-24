@@ -71,7 +71,7 @@ async function contract(canvasElement: HTMLElement, fallback: boolean) {
     template.type = 'text/cem-ml';
     template.textContent = `
 {input @aria-label=Draft @value="initial" @host-command=edit @host-command-event=input}
-{button @type=button @value=selected @host-command=save @disabled={if datadom.slices.busy { true } else { null }} | Save}
+{button @type=button @value=selected @host-command=save @disabled={if datadom.slices.busy { true } else { null }} | {span | Save}}
 {button @type=button @host-command=missing | Unavailable}
 {button @type=button @host-command=fail | Fail}
 {button @type=button @host-command=reject | Reject}
@@ -108,7 +108,7 @@ async function contract(canvasElement: HTMLElement, fallback: boolean) {
         input.focus(); input.value = 'edited'; input.setSelectionRange(1, 4);
         input.dispatchEvent(new Event('input', { bubbles: true }));
         expect(calls).toEqual([{ command: 'edit', eventType: 'input', value: 'edited', isTrusted: false }]);
-        save.click();
+        (save.querySelector('span') as HTMLElement).click();
         // Invocation happens on the native event stack, retaining browser gesture authority.
         expect(calls).toHaveLength(2);
         expect(calls[1]).toEqual({ command: 'save', eventType: 'click', value: 'selected', isTrusted: false });

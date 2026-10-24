@@ -10,7 +10,7 @@
 [part~='editor'] { display: grid; gap: var(--cem-gap-related); min-inline-size: 0; min-block-size: 0; }
 @container (min-width: 840px) {
  :scope { block-size: 100%; }
- [part~='editor'] { block-size: 100%; grid-template-rows: auto auto auto minmax(calc(var(--cem-control-height-xx-large) + var(--cem-typography-ui-font-size) * var(--cem-typography-ui-line-height) + var(--cem-gap-related)), 1fr) auto; }
+ [part~='editor'] { block-size: 100%; grid-template-rows: auto auto minmax(calc(var(--cem-control-height-xx-large) + var(--cem-typography-ui-font-size) * var(--cem-typography-ui-line-height) + var(--cem-gap-related)), 1fr) auto; }
 }
 ```}
  {cem:if @test=datadom.slices.state |
@@ -25,7 +25,6 @@
         }
  {cem:if @test=state.editable |
   {section @part=editor @aria-label="Resource editor" @data-cem-studio-workbench-content="" |
-   {cem-text | {$ | state.path ?? "Current file"}}
 {div @aria-atomic=true @aria-live=polite @role=status |
                     {cem-badge @data-cem-studio-workbench-status="" @label={if state.status == "loading" { "Loading resource" } else { if state.status == "loaded" { "Persisted revision loaded" } else { if state.status == "dirty" { "Unsaved changes" } else { if state.status == "saving" { "Saving revision" } else { if state.status == "saved" { "Revision saved" } else { if state.status == "validating" { "Validating saved revision" } else { if state.status == "projecting" { "Projecting saved revision" } else { if state.status == "projected" { "Saved revision projected" } else { if state.status == "projection-invalid" { "Projection has diagnostics" } else { if state.status == "projection-stale" { "Projection result stale" } else { if state.status == "valid" { "Saved revision valid" } else { if state.status == "invalid" { "Saved revision has diagnostics" } else { if state.status == "stale" { "Validation result stale" } else { if state.status == "conflict" { "Revision conflict" } else { if state.status == "failed" { "Workbench failed" } else { state.status } } } } } } } } } } } } } } }} @tone={if (state.status == "valid") || (state.status == "saved") || (state.status == "loaded") || (state.status == "projected") { "success" } else { if (state.status == "invalid") || (state.status == "failed") || (state.status == "conflict") || (state.status == "projection-invalid") { "danger" } else { if (state.status == "dirty") || (state.status == "stale") || (state.status == "projection-stale") { "warning" } else { "info" } } }}}
                     {cem-badge @data-cem-studio-workbench-revision="" @label={str:concat(("Project ", state.projectRevision, "; resource ", state.resourceRevision), "")} @tone=info}

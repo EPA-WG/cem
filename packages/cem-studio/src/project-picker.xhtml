@@ -33,7 +33,7 @@
     {cem:when @test='nav.content == "output-file" &amp;&amp; !nav.outputTextAvailable' |
      {cem-alert @tone=info @label={nav.outputReason ?? "Text preview is unavailable. Download the exact artifact bytes."}}
     }
-    {cem:otherwise | {cem-source-editor @content-type={nav.contentType} @source-id={nav.sourceId} @label={nav.path ?? nav.selected.name} @value={nav.sampleText} @readonly=true}}
+    {cem:otherwise | {cem-source-editor @content-type={nav.contentType} @source-id={nav.sourceId} @label="" @aria-label={nav.path ?? nav.selected.name} @value={nav.sampleText} @readonly=true}}
    }
   }
   {cem:if @test=nav.action |

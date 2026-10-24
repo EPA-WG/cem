@@ -1406,6 +1406,9 @@ the service synchronously on the event stack, preserving browser user-gesture
 requirements. The service receives a frozen `{ command, eventType, value,
 isTrusted }` record, with the current string value of a native or form-associated
 control, a validated tree/tab activation value, or null; it receives no DOM node.
+Clicks on nested icons or labels read the enclosing native/form-associated
+control's value, stopping at the bound command element. Values are never taken
+from unrelated controls outside that boundary.
 Submit bindings prevent native
 submission for an authorized command. Declare submit commands on native forms;
 the request additionally includes frozen `fields` mapping names to arrays of

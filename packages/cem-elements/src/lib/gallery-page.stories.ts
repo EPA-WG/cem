@@ -52,6 +52,26 @@ export const PersistentPageTheme = meta.story({
     },
 });
 
+export const RuntimeWritesWithoutStorageInterception = meta.story({
+    render: () => '<cem-gallery-page storage-key="story-gallery-untracked" heading="Live theme"></cem-gallery-page>',
+    beforeEach: () => { localStorage.removeItem('story-gallery-untracked'); },
+    play: async ({ canvasElement }) => {
+        const page = required(canvasElement, 'cem-gallery-page'); await ready(page);
+        const interceptedSet = localStorage.setItem;
+        // Embedders can restore native methods after runtime installation.
+        // Runtime-owned writes must still notify live declarative consumers.
+        localStorage.setItem = Storage.prototype.setItem;
+        try {
+            for (const theme of ['dark', 'light', 'contrast-dark']) {
+                await choose(pageSwitch(page), theme);
+                await waitFor(() => expect(page).toHaveAttribute('data-theme', `cem-theme-${theme}`));
+                await waitFor(() => expect(pageSwitch(page)).toHaveAttribute('value', `cem-theme-${theme}`));
+                expect(localStorage.getItem('story-gallery-untracked')).toBe(`cem-theme-${theme}`);
+            }
+        } finally { localStorage.setItem = interceptedSet; }
+    },
+});
+
 export const LiveDefaultsAndInvalidValues = meta.story({
     render: () => '<cem-gallery-page storage-key="story-gallery-live" heading="First"></cem-gallery-page><cem-gallery-page storage-key="story-gallery-live" heading="Second"></cem-gallery-page>',
     beforeEach: () => { localStorage.removeItem('story-gallery-live'); },

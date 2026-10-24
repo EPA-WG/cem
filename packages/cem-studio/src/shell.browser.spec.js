@@ -98,6 +98,18 @@ describe('CEM Studio installable application shell', () => {
         expect(theme.querySelector('[part=trigger] button')).toBe(trigger);
         expect(document.activeElement).toBe(trigger);
 
+        // Real theme items contain nested icon/label nodes. Every part of a
+        // menu item must deliver its enclosing native button's value.
+        for (const mode of ['cem-theme-light', 'cem-theme-contrast-dark', 'cem-theme-contrast-light', 'cem-theme-native', 'cem-theme-dark']) {
+            await userEvent.click(trigger); await shell.whenSettled();
+            const item = theme.querySelector(`cem-menu cem-icon-button[value="${mode}"]`);
+            await userEvent.click(item.querySelector('[part=glyph]'));
+            await shell.whenSettled();
+            expect(shell.theme.mode).toBe(mode);
+            expect(shell.view.element.dataset.theme).toBe(mode);
+            expect(storage.getItem('cem-studio-theme')).toBe(mode);
+        }
+
         const workbench = document.createElement('section');
         const editor = document.createElement('textarea');
         editor.setAttribute('aria-label', 'Retained workbench editor');

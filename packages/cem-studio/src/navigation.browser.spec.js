@@ -524,6 +524,22 @@ describe('Studio compact declarative layout', () => {
         } finally { view.dispose(); root.remove(); }
     }, 30_000);
 
+    it('keeps the sample filename in the pane heading and accessible editor name without repeating it in the editor body', async () => {
+        const { service } = await fixture('https://studio.test/?sample=demo&file=article');
+        const root = document.createElement('main'); document.body.append(root);
+        const view = await mountCemStudioFeatureTourWorkbench({ root, workbench: service });
+        try {
+            await view.whenSettled();
+            expect(service.snapshot().navigation.content).toBe('sample-file');
+            const editor = root.querySelector('cem-studio-project-picker cem-source-editor[readonly]');
+            expect(editor).not.toBeNull();
+            expect(editor.querySelector('[part=label]').textContent).toBe('');
+            expect(editor.querySelector('[role=textbox]').getAttribute('aria-label')).toBe('content/article.md');
+            expect(editor.value).toBe('# Article');
+            expect(root.querySelector('[slot=editor-heading]').textContent.trim()).toBe('article.md');
+        } finally { view.dispose(); root.remove(); }
+    }, 30_000);
+
     it('renders project Build and readonly output centers from the last activated navigation item', async () => {
         await loadTreeTheme();
         const { service, browser } = await fixture();
@@ -544,6 +560,8 @@ describe('Studio compact declarative layout', () => {
             const readonly = root.querySelector('cem-studio-project-picker cem-source-editor[readonly]');
             expect(readonly).not.toBeNull();
             expect(readonly.value).toContain('generated/index.html');
+            expect(readonly.querySelector('[part=label]').textContent).toBe('');
+            expect(readonly.querySelector('[role=textbox]').getAttribute('aria-label')).toBe(output.path);
             expect(readonly.getAttribute('source-id')).toContain('output');
             expect(root.querySelectorAll('cem-tree[label="Output files"] [role=treeitem]').length).toBeGreaterThan(1);
             const trees = [...root.querySelectorAll('cem-studio-workbench-navigation cem-tree')];

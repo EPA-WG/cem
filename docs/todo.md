@@ -28,6 +28,8 @@ Completed [compact Studio layout and shared runtime work](archive/todo-completed
 
 The [explicit content-sized super-compact policy](archive/todo-completed-compact-studio-2026-10-23.md#explicit-content-sized-super-compact-policy) supersedes its earlier pointer-gated geometry.
 
+Completed [editor filename de-duplication](archive/todo-completed-compact-studio-2026-10-23.md#studio-editor-filename-follow-up) covers editable files and read-only sample/output views.
+
 Completed [graph parameter-map authoring and Studio controls](archive/todo-completed-graph-parameters-2026-10-23.md) is archived.
 
 Continue Studio functionality by migrating optional native schema/package and
@@ -35,9 +37,15 @@ formatter/colorizer consumers to owned bootstrap/source inputs. Follow with
 shared optional-pack acquisition, offline delivery and fresh-generation reimport;
 then measure download, cold latency and allocator/linear-memory headroom.
 
+Completed [shared popup surfaces and indicator clearance](archive/todo-completed-compact-studio-2026-10-23.md#shared-popup-surfaces-and-indicator-clearance) is archived.
+
+Completed [immediate persisted theme updates](archive/todo-completed-compact-studio-2026-10-23.md#immediate-persisted-theme-updates) covers storage notification independence and nested button value capture, including the earlier repeated Studio theme-change failure.
+
 ## Project builds and artifact previews
 
-- [ ] Repair extensionless Canonical source URLs in component property pages and galleries after the folder-level import-map migration; use explicit XHTML paths with the shared resolver, verify source/package viewers and rerun the broader compact-Studio gallery gate. The unchanged `cem-text` viewer currently resolves `@epa-wg/cem-components/components/cem-text` to a directory and returns HTTP 404.
+Completed [canonical source viewer repair](archive/todo-completed-canonical-source-2026-10-24.md) covers explicit XHTML endpoints, source/package viewer checks and the complete nine-gallery compact Studio gate.
+
+- [ ] Diagnose broader demo-import verifier failures independently of canonical URLs: tree gallery reports pre-existing `Cannot read properties of null (reading 'querySelector')` page errors, and a combined icon-button run did not settle the selected page theme. Keep the original browser-error and persisted-theme assertions; the canonical endpoint checks and compact Studio source/isolated-package gate pass.
 
 
 The optional native schema-asset prototype is complete; embedded bodies and the

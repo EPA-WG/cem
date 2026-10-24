@@ -24,6 +24,11 @@ for (const directory of ['playgrounds', 'dist']) {
         assert.ok(!/<(?:div|cem-theme-switch)\b[^>]*id="(?:playground|bundle)-theme"/u.test(source), `${path}: legacy page theme wrapper remains`);
         assert.ok(imports?.[componentRoot]?.endsWith('/'), `${path}: missing component folder mapping`);
         assert.deepEqual(Object.keys(imports).filter(key => key.startsWith(componentRoot) && key !== componentRoot), [], `${path}: individual component aliases remain`);
+        const canonicalSources = [...source.matchAll(/\{cem-module-url\s+[^{}]*?@src="(@epa-wg\/cem-components\/components\/[^"#]+)"/gu)].map(match => match[1]);
+        for (const specifier of canonicalSources) {
+            assert.match(specifier, /\/cem-[\w-]+\/cem-[\w-]+\.xhtml$/u, `${path}: canonical source must name an XHTML document: ${specifier}`);
+            await readFile(resolve(root, path, '..', imports[componentRoot] + specifier.slice(componentRoot.length)), 'utf8');
+        }
         const declarations = [...source.matchAll(/\{cem-element\s+@tag=([\w-]+)((?:[^{}"']|"[^"]*"|'[^']*')*)/gu)].flatMap(match => {
             const src = match[2].match(/@src="([^"]+)"/u)?.[1];
             if (src === undefined) return [];
@@ -43,7 +48,7 @@ for (const directory of ['playgrounds', 'dist']) {
             const document = await readFile(resolve(root, path, '..', target), 'utf8');
             assert.ok(document.includes(`id="${fragment}"`), `${path}: missing ${src} definition`);
         }
-        fixtures.push({ path, tags: [...new Set(declarations.map(({ tag }) => tag))], bundle: name === 'cem-bundle.html', runtime: source.includes('window.cemPlaygroundRuntime') });
+        fixtures.push({ path, tags: [...new Set(declarations.map(({ tag }) => tag))], bundle: name === 'cem-bundle.html', runtime: source.includes('window.cemPlaygroundRuntime'), canonicalSources: canonicalSources.map(specifier => imports[componentRoot] + specifier.slice(componentRoot.length)) });
     }
 }
 
@@ -100,6 +105,7 @@ try {
                         await page.getByRole('navigation', { name: 'Gallery navigation' }).waitFor();
                         await verifyPageTheme(page);
                     }
+                    if (fixture.canonicalSources?.length) await verifyCanonicalSources(page, fixture.canonicalSources);
                     if (/\/cem-fieldset(?:-gallery)?\.html$/u.test(fixture.path)) await verifyFieldsetPage(page, fixture.path);
                     const diagnostics = await page.evaluate(async tags => {
                         const runtime = window.cemPlaygroundRuntime;
@@ -199,4 +205,20 @@ async function verifyPageTheme(page) {
         otherKeys: Object.entries(localStorage).filter(([key]) => key !== 'cem-playground-theme').sort(),
     }));
     assert.deepEqual(after, { fixed: state.fixed, otherKeys: state.otherKeys }, `${page.url()}: page theme changed independent examples or storage`);
+}
+
+async function verifyCanonicalSources(page, paths) {
+    const sources = paths.map(path => new URL(path, page.url()).href);
+    await page.waitForFunction(sources => sources.every(src =>
+        [...document.querySelectorAll('cem-demo-element[src]')].some(node => node.getAttribute('src') === src && node.dataset.state === 'ready')),
+    sources);
+    for (const src of sources) {
+        const viewer = page.locator(`cem-demo-element[src="${src}"]`);
+        const response = await page.request.get(src);
+        assert.equal(response.status(), 200, `${page.url()}: canonical source response`);
+        const source = await response.text();
+        assert.ok(source.includes('<cem-element') && source.includes('<template'), `${page.url()}: canonical declaration content`);
+        assert.equal(await viewer.evaluate(node => node.source), source, `${page.url()}: displayed canonical source`);
+        assert.ok((await page.locator('a[href]').evaluateAll(links => links.map(node => node.href))).includes(src), `${page.url()}: canonical source link`);
+    }
 }

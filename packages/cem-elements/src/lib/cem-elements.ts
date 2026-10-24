@@ -1363,6 +1363,7 @@ function styleOwnership(compiled: CompiledDeclaration): DeclarationStyleOwnershi
 }
 let runtimeUidSeedSequence = 0;
 const localStorageTrackers = new WeakSet<Window>();
+const localStorageChangeRevisions = new WeakMap<Window, number>();
 const locationTrackers = new WeakSet<Window>();
 
 export interface ScopeUidInput {
@@ -2967,7 +2968,15 @@ export class CemElementRuntime {
     private writeCheckpointStorage(instance: HTMLElement, storage: Storage, key: string, raw: string | null): void {
         if (!this.checkpointWriteAllowed(instance)) return;
         const acknowledge = this.beginCheckpointEffect(instance);
+        const window = instance.ownerDocument.defaultView;
+        const revision = window ? localStorageChangeRevisions.get(window) : undefined;
         writeLocalStorageRaw(storage, key, raw);
+        // Runtime-owned writes must notify live consumers even when an embedder
+        // prevents or replaces Storage interception. Avoid a second notification
+        // when the intercepted method already published this synchronous write.
+        if (window && localStorageChangeRevisions.get(window) === revision) {
+            dispatchLocalStorageChange(window, key, raw);
+        }
         acknowledge?.();
     }
 
@@ -9150,6 +9159,7 @@ function ensureTrackedLocalStorage(window: Window): void {
 }
 
 function dispatchLocalStorageChange(window: Window, key: string | null, value: string | null): void {
+    localStorageChangeRevisions.set(window, (localStorageChangeRevisions.get(window) ?? 0) + 1);
     window.dispatchEvent(new CustomEvent(LOCAL_STORAGE_EVENT, { detail: { key, value } }));
 }
 

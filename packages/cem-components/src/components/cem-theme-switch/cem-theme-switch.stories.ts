@@ -172,6 +172,54 @@ export const MenuIndicatorClearance = meta.story({
     },
 });
 
+export const SuperCompactMenuSurface = meta.story({
+    render: () => ['light', 'dark', 'contrast-light', 'contrast-dark', 'native'].map(theme =>
+        `<section data-cem-density="super-compact"><cem-theme-switch value="cem-theme-${theme}" storage-key="story-compact-menu-${theme}"></cem-theme-switch></section>`).join(''),
+    play: async ({ canvasElement }) => {
+        for (const host of canvasElement.querySelectorAll<HTMLElement>('cem-theme-switch')) {
+            await whenCemRendered(host);
+            await waitFor(() => expect(host.querySelectorAll('cem-menu button')).toHaveLength(5));
+            await Promise.all([...host.querySelectorAll<HTMLElement>('cem-dropdown,cem-menu,cem-icon-button,cem-icon')].map(whenCemRendered));
+            await userEvent.click(required(host, '[part=trigger] button'));
+            const popup = required(host, 'cem-dropdown > [part=popup]');
+            const buttons = [...host.querySelectorAll<HTMLElement>('cem-menu button')];
+            const expectSurface = () => {
+                expect(getComputedStyle(popup).backgroundColor).toBe(getComputedStyle(host).backgroundColor);
+                expect(getComputedStyle(popup).backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
+                expect(popup.scrollHeight).toBeLessThanOrEqual(popup.clientHeight + 1);
+                const bounds = popup.getBoundingClientRect();
+                const selected = required(host, 'cem-menu cem-icon-button[selected] button');
+                const ring = Math.max(...(getComputedStyle(selected).boxShadow.match(/[\d.]+px/g) ?? []).map(parseFloat));
+                expect(ring).toBeGreaterThan(0);
+                for (const [index, button] of buttons.entries()) {
+                    const rect = button.getBoundingClientRect(), style = getComputedStyle(button);
+                    expect(style.getPropertyValue('--cem-coupling-zone-min').trim()).toBe('0px');
+                    expect(style.paddingBlockStart).toBe('0px');
+                    expect(rect.left - bounds.left).toBeGreaterThanOrEqual(ring);
+                    expect(bounds.right - rect.right).toBeGreaterThanOrEqual(ring);
+                    expect(rect.top - bounds.top).toBeGreaterThanOrEqual(ring);
+                    expect(bounds.bottom - rect.bottom).toBeGreaterThanOrEqual(ring);
+                    if (index) expect(rect.top - buttons[index - 1].getBoundingClientRect().bottom).toBeGreaterThanOrEqual(2 * ring);
+                }
+            };
+            expectSurface();
+            const selected = required(host, 'cem-menu cem-icon-button[selected] button');
+            selected.focus(); await userEvent.keyboard('{ArrowDown}');
+            const next = buttons[(buttons.indexOf(selected) + 1) % buttons.length];
+            await waitFor(() => expect(next).toHaveFocus());
+            expectSurface();
+            host.style.setProperty('--cem-zebra-strip-size', '3px');
+            expectSurface();
+            host.style.setProperty('--cem-palette-comfort', 'rgb(31, 47, 63)');
+            expect(getComputedStyle(popup).backgroundColor).toBe('rgb(31, 47, 63)');
+            expectSurface();
+            await userEvent.keyboard('{Escape}');
+            await waitFor(() => expect(popup).not.toBeVisible());
+            expect(required(host, '[part=trigger] button')).toHaveFocus();
+        }
+    },
+});
+
 async function adjacentIndicators(host: HTMLElement, selected: HTMLElement, ring: number): Promise<void> {
     if (import.meta.env.MODE !== 'test') return;
     const { userEvent: nativeInput } = await import('vitest/browser');

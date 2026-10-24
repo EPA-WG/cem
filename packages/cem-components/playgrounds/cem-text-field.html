@@ -186,7 +186,7 @@
 <cem-demo-element legend="Named label and help">
 <template slot="source"><cem-text-field name="example" value="initial"><span slot="label">Account name</span><span slot="help">Help text</span></cem-text-field></template>
 </cem-demo-element><cem-element><template type="text/cem-ml">
-{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-text-field"}
+{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-text-field/cem-text-field.xhtml"}
 {cem:if @test="datadom.slices.sourceUrl" |
  {p | {a @href="{$datadom.slices.sourceUrl}" | Canonical XHTML}}
  {cem-demo-element @legend="Canonical field source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}

@@ -42,8 +42,11 @@ value becomes the page host's `data-theme` and is passed through navigation to
 the theme switch's controlled `value`, together with the same storage key.
 
 The switch writes the preference when a choice is activated. Existing live
-storage synchronization updates the page and any other open same-origin demo
-pages. Reloads and navigation restore the saved preference. A custom key creates
+storage synchronization updates the page immediately and any other open same-origin demo
+pages. Runtime-owned storage writes notify same-document live consumers directly,
+even if the embedding host prevents or replaces storage-method interception.
+Interception remains available for external same-document writers; native
+`storage` events synchronize other documents. Reloads and navigation restore the saved preference. A custom key creates
 a separate page preference. No page-local theme JavaScript or ancestor mutation
 is needed.
 
