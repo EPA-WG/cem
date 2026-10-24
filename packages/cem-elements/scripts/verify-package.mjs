@@ -13,7 +13,7 @@ const wasmSourceRoot = resolve(workspaceRoot, 'packages/cem_ql/dist/wasm');
 const vendorRelativeRoot = 'dist/lib/internal/runtime-support/vendor';
 const vendorRoot = resolve(packageRoot, vendorRelativeRoot);
 const packageJson = JSON.parse(readFileSync(resolve(packageRoot, 'package.json'), 'utf8'));
-const runtimeFiles = ['cem_ql.js', 'cem_ql.d.ts', 'cem_ql_factory.js', 'cem_ql_factory.d.ts', 'cem_ql_bg.wasm', 'UNICODE-LICENSE.txt', 'native-generation.js', 'native-generation.d.ts'];
+const runtimeFiles = ['cem_ql.js', 'cem_ql.d.ts', 'cem_ql_factory.js', 'cem_ql_factory.d.ts', 'cem_ql_bg.wasm', 'UNICODE-LICENSE.txt', 'native-generation.js', 'native-generation.d.ts', 'schema-asset-protocol.js', 'schema-asset-protocol.d.ts'];
 
 if (!readFileSync(resolve(wasmSourceRoot, 'UNICODE-LICENSE.txt')).equals(
     readFileSync(resolve(workspaceRoot, 'packages/cem_ql/src/suggestions/UNICODE-LICENSE.txt')),

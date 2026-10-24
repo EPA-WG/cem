@@ -79,7 +79,13 @@ grants, asynchronous checked release, native empty-inventory confirmation,
 consecutive offline handoffs, credential refusal and late/unknown-outcome guards.
 
 
-- [ ] Add equivalent rendering worker and owned-fallback package adapters, then wire explicit shared demand bindings into Studio's command/render groups. Keep every native context on its own physical heap; require complete coordinated publication and entered-credential refusal. Preserve the default complete deployment and disabled automatic whole-Studio recovery.
+Completed [rendering-worker and owned-fallback package adapters](archive/todo-completed-rendering-package-adapters-2026-10-24.md)
+covers exact physical bindings, original configuration and pool/root isolation,
+checked release, fresh publication, pressure/revocation guards and consecutive
+offline handoffs with native imports and template compilation.
+
+
+- [ ] Wire explicit shared demand bindings into Studio's command/render groups. Keep every native context on its own physical heap; require complete coordinated publication and entered-credential refusal. Preserve the default complete deployment and disabled automatic whole-Studio recovery.
 
 - [ ] After shared pack-loading integration, exclude optional embedded source bodies in an opt-in WASM profile while retaining the default complete release; verify strict missing-source refusal and complete offline delivery.
 

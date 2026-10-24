@@ -896,6 +896,18 @@
         "@epa-wg/cem-elements/dist/lib/schema-asset-pack.js": {
             "path": "./assets/@epa-wg/cem-elements/dist/lib/schema-asset-pack.js",
             "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/schema-asset-protocol": {
+            "path": "./assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/schema-asset-protocol.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/schema-asset-protocol-vendor": {
+            "path": "./assets/@epa-wg/cem-elements/dist/lib/internal/runtime-support/vendor/schema-asset-protocol.js",
+            "contentType": "text/javascript"
+        },
+        "@epa-wg/cem-elements/cli-schema-asset-protocol": {
+            "path": "./assets/@epa-wg/cem-ml-cli/dist/schema-asset-protocol.js",
+            "contentType": "text/javascript"
         }
     }
 }

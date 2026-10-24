@@ -1744,8 +1744,47 @@ retire the source. Restoration recompiles packages before the complete command
 binding transaction publishes. Aborted or lost asynchronous activation outcomes
 block replay until explicit disposal.
 
-Rendering worker/fallback transports still need package adapters before Studio
-can adopt shared demand throughout its workspace. A package activated on one heap never supplies another heap's
+Rendering workers and explicitly owned fallback runtimes also support package
+transport. For lower-level processing hosts, set trusted
+`CemProcessingHostRuntimeOptions.packageHostConfiguration` to the native host
+configuration JSON before constructing a worker. With `CemElementRuntime`, the
+corresponding host option is `processingPackageHostConfiguration`; it is also
+retained by `previewRuntimeOptions()`. The original string is snapshotted by the
+worker transport and its fresh-generation allocator. Worker pools with different
+configurations cannot share a physical worker. An existing logical root rejects
+configuration changes. This does not activate a package.
+
+For an owned fallback, select
+`isolateCemFallbackGeneration({ packageHostConfiguration })` before initializing
+any fallback native work. After `ready()`, the generation exposes
+`packageResourceBinding()`. A legacy singleton refuses an owned binding instead
+of borrowing another heap or inventing disposal authority. Both fresh rendering
+worker and fallback facades expose their own original package binding.
+
+`await processingSchemaAssetBinding(host)` returns `{ runtime, participant }` for
+an original shared processing host. Supply these to `CemSchemaAssetPackLoader`
+and `CemSchemaAssetPackRecoveryBinding` respectively. Only trusted shared hosts
+are accepted; copied objects cannot select a heap. One loader owns that exact
+Worker/Memory. An explicitly attached package route refuses implicit worker
+failure fallback, since another heap would not own its package context.
+
+Rendering retirement releases packages inside
+`retireNativeRenderingGeneration` after checking the original closed drain,
+complete client/source coverage, current handoff and, for owned fallback, original
+complete embedding consent. Resource release and native retirement share the
+existing five-second deadline and 4 MiB rendering handoff limit. The native
+empty-inventory permit remains mandatory after engine cleanup. Ordinary package
+calls participate in the original drain and invalidate stale coverage; cleanup
+alone does not reopen admission or mutate the closed proof. Fresh package
+restoration precedes complete rendering/host binding publication. A revoked
+fresh gate blocks saved ordinary package aliases before physical disposal, while
+exact cleanup remains available. Failure fences the source and preserves its
+checkpoint instead of replaying effects.
+
+Command and rendering transports vendor the same strict original-byte/control
+validator, including backing-buffer bounds. Native owner IDs and grants never
+enter its demand, status or checkpoint DTOs. Explicit Studio-wide demand wiring
+across the complete command/render recovery group remains a separate next step. A package activated on one heap never supplies another heap's
 context. Ordinary reads retain their native admission policy; the recovery
 binding's separate `current` fence blocks recovery while credentials are entered.
 Automatic whole-Studio recovery remains disabled, and neither source bytes nor

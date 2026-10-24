@@ -183,7 +183,8 @@ The optional schema-asset profile also exposes the browser client's original
 `packageResourceBinding()` for `CemSchemaAssetPackLoader` from
 `@epa-wg/cem-elements/schema-assets`. This shared byte transport sends the pinned
 index and original source bodies, never native owner IDs or source ASTs. The
-worker uses its startup `hostConfiguration` for activation. Demand URLs and
+worker uses its startup `hostConfiguration` for activation. Command and rendering
+workers vendor the same bounded original-byte/control protocol validator. Demand URLs and
 loader configuration cannot supply replacement grants. The default complete
 WASM profile does not acquire optional packages implicitly.
 

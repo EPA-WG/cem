@@ -737,6 +737,8 @@ export interface CemElementRuntimeOptions {
      * tests may inject worker construction without replacing the processing host.
      */
     processingWorkerFactory?: CemProcessingWorkerFactory;
+    /** Trusted package activation setup for rendering workers, never authored resource data. */
+    processingPackageHostConfiguration?: string;
     /**
      * Retained native declaration and inert-payload CSS is enabled by default.
      * Transport returns bytes and response metadata; native import owns parsing,
@@ -1859,6 +1861,7 @@ export class CemElementRuntime {
     private readonly processingRenderPlans = new WeakMap<HTMLElement, CemProcessingRenderPlanHandle>();
     private readonly processingRenderJobs = new WeakMap<HTMLElement, ActiveProcessingRenderJob>();
     private readonly processingWorkerFactory?: CemProcessingWorkerFactory;
+    private readonly processingPackageHostConfiguration?: string;
     private readonly retainedStylesheets?: Exclude<CemElementRuntimeOptions['retainedStylesheets'], false>;
     private readonly stylesheetConnections = new WeakMap<HTMLElement, CemStylesheetConnection>();
     private readonly publicationControllers = new WeakMap<HTMLElement, AbortController>();
@@ -1948,6 +1951,7 @@ export class CemElementRuntime {
         this.uidSeedFallback = options.uidSeedFallback ?? (this.runMode === 'build-ssr' ? 'source-hash' : 'runtime');
         this.validateGeneratedIds = options.validateGeneratedIds ?? false;
         this.processingWorkerFactory = options.processingWorkerFactory;
+        this.processingPackageHostConfiguration = options.processingPackageHostConfiguration;
         this.retainedStylesheets = options.retainedStylesheets === false ? undefined : options.retainedStylesheets ?? {};
         if (this.retainedStylesheets) this.scopePolicyStamp += ':retained-declaration-css:retained-instance-css';
         this.processingPoolPolicy = options.processingPoolPolicy;
@@ -1966,9 +1970,10 @@ export class CemElementRuntime {
 
     private readonly recoveryScope?: import('./internal/runtime-support/native-generation.js').CemNativeRecoveryScope;
     /** Trusted browser lifecycle setup, never taken from a resource-set envelope. */
-    previewRuntimeOptions(): Pick<CemElementRuntimeOptions, 'checkpointPublication' | 'recoveryScope' | 'processingWorkerFactory' | 'processingPoolPolicy'> & { dispose(): void } {
+    previewRuntimeOptions(): Pick<CemElementRuntimeOptions, 'checkpointPublication' | 'recoveryScope' | 'processingWorkerFactory' | 'processingPoolPolicy' | 'processingPackageHostConfiguration'> & { dispose(): void } {
         const publication = this.checkpointPublication?.fork();
         return { checkpointPublication: publication, recoveryScope: this.recoveryScope,
+            processingPackageHostConfiguration: this.processingPackageHostConfiguration,
             processingWorkerFactory: this.processingWorkerFactory, processingPoolPolicy: this.processingPoolPolicy,
             dispose: () => publication?.dispose() };
     }
@@ -4262,6 +4267,7 @@ export class CemElementRuntime {
         return cemProcessingHostForScope(compiled.declarationScope, {
             workerScriptUrl: new URL('./internal/runtime-support/processing-worker.js', import.meta.url),
             workerFactory: this.processingWorkerFactory,
+            packageHostConfiguration: this.processingPackageHostConfiguration,
             poolPolicy: this.processingPoolPolicy,
             onTrace: this.onProcessingTrace,
         });

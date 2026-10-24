@@ -345,41 +345,8 @@ export type ResumableOperationEvent =
           readonly terminal: ResumableOperationTerminal;
       };
 
-/** Original bytes and named package control DTOs only; native owner IDs never
- * cross this protocol. Every message targets the already-owned physical worker. */
-export interface BrowserCommandPackageSource { readonly packageId: string; readonly version: string; readonly path: string; readonly bytes: Uint8Array }
-export type BrowserCommandPackageOperation =
-    | { readonly operation: 'bootstrap' | 'release' }
-    | { readonly operation: 'summary'; readonly index: Uint8Array; readonly pin: string }
-    | { readonly operation: 'import'; readonly index: Uint8Array; readonly pin: string; readonly source: BrowserCommandPackageSource }
-    | { readonly operation: 'activate'; readonly index: Uint8Array; readonly pin: string; readonly sources: readonly BrowserCommandPackageSource[]; readonly selection: string };
-export type BrowserCommandPackageRequest = BrowserCommandPackageOperation & { readonly type: 'cem-command-package'; readonly actionId: number };
-
-export function parseBrowserCommandPackageRequest(value: Record<string, unknown>): BrowserCommandPackageRequest {
-    if (value.type !== 'cem-command-package' || !Number.isSafeInteger(value.actionId) || (value.actionId as number) < 1) throw Error('Invalid package action');
-    const operation = value.operation;
-    const fields = operation === 'bootstrap' || operation === 'release' ? []
-        : operation === 'summary' ? ['index', 'pin'] : operation === 'import' ? ['index', 'pin', 'source']
-        : operation === 'activate' ? ['index', 'pin', 'sources', 'selection'] : undefined;
-    if (!fields || Object.keys(value).length !== fields.length + 3) throw Error('Invalid package message');
-    if (fields.length) {
-        if (!(value.index instanceof Uint8Array) || !(value.index.buffer instanceof ArrayBuffer) || value.index.byteLength < 1 || value.index.buffer.byteLength > 4 * 1024 * 1024
-            || typeof value.pin !== 'string' || !/^[a-f0-9]{64}$/u.test(value.pin)) throw Error('Invalid package index');
-    }
-    // Structured clone copies whole backing buffers, including bytes outside a view.
-    let total = (value.index as Uint8Array | undefined)?.buffer.byteLength ?? 0;
-    const source = (entry: unknown): entry is BrowserCommandPackageSource => {
-        if (!isRecord(entry) || Object.keys(entry).length !== 4 || typeof entry.packageId !== 'string' || !entry.packageId || entry.packageId.length > 256
-            || typeof entry.version !== 'string' || !entry.version || entry.version.length > 64 || typeof entry.path !== 'string' || !entry.path || entry.path.length > 4096
-            || !(entry.bytes instanceof Uint8Array) || !(entry.bytes.buffer instanceof ArrayBuffer) || entry.bytes.byteLength < 1 || entry.bytes.buffer.byteLength > 16 * 1024 * 1024) return false;
-        total += entry.bytes.buffer.byteLength; return total <= 32 * 1024 * 1024;
-    };
-    if (operation === 'import' && !source(value.source)) throw Error('Invalid package source');
-    if (operation === 'activate' && (!Array.isArray(value.sources) || value.sources.length < 1 || value.sources.length > 1024
-        || !Array.from(value.sources).every(source) || typeof value.selection !== 'string' || value.selection.length > 32 * 1024)) throw Error('Invalid package selection');
-    return value as unknown as BrowserCommandPackageRequest;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
+// eslint-disable-next-line @nx/enforce-module-boundaries -- canonical byte protocol is vendored into both runtime packages.
+export { parseSchemaAssetPackageRequest as parseBrowserCommandPackageRequest } from '../../cem_ql/runtime/schema-asset-protocol.mjs';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- control DTO types only, never native owners.
+export type { SchemaAssetPackageSource as BrowserCommandPackageSource, SchemaAssetPackageOperation as BrowserCommandPackageOperation,
+    SchemaAssetPackageRequest as BrowserCommandPackageRequest } from '../../cem_ql/runtime/schema-asset-protocol.mjs';

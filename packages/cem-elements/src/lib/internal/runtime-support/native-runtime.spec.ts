@@ -15,7 +15,7 @@ async function selected() {
 describe('owned fallback generation and embedding consent', () => {
     it('selects once before use, keeps generated exports private and fences saved aliases after empty disposal', async () => {
         const { api, generation, lease } = await selected(); const alias = api.cemQlVersion;
-        expect(Object.keys(generation).sort()).toEqual(['claimOwnership', 'disposeEmpty', 'generationParticipant', 'ready', 'releaseOwnership', 'retirementConsent', 'runtimeId'].sort());
+        expect(Object.keys(generation).sort()).toEqual(['packageResourceBinding', 'claimOwnership', 'disposeEmpty', 'generationParticipant', 'ready', 'releaseOwnership', 'retirementConsent', 'runtimeId'].sort());
         expect(alias()).toBe('owned'); expect(mocks.legacy).not.toHaveBeenCalled();
         expect(() => api.isolateCemFallbackGeneration()).toThrow('already-selected');
         const disposed = await generation.disposeEmpty([lease]);
@@ -239,7 +239,10 @@ it('allows only native cleanup while fresh owner revocation has fenced ordinary 
     const admission = await group.allocate([retired]);
     const fresh = admission.generations[0].runtime as import('./native-runtime.js').CemFreshFallbackGeneration;
     expect(() => fresh.release('compileTemplate' as never, [])).toThrow('entrypoint');
+    const packageAlias = fresh.packageResourceBinding();
     const release = vi.fn(() => {
+        expect(packageAlias.current()).toBe(false);
+        expect(() => packageAlias.bootstrap()).toThrow('closed');
         expect(() => fresh.invoke('cemQlVersion', [])).toThrow('closed');
         expect(fresh.release('disposeCemDocument', [77])).toBe('released');
         expect(() => fresh.release('compileTemplate' as never, [])).toThrow('entrypoint');
@@ -248,4 +251,77 @@ it('allows only native cleanup while fresh owner revocation has fenced ordinary 
     admission.revoke(); expect(release).toHaveBeenCalledOnce();
     expect(mocks.call).toHaveBeenCalledWith('disposeCemDocument', [77]);
     expect(() => fresh.release('disposeCemDocument', [77])).toThrow('retired');
+});
+
+
+it('keeps fallback package grants in original setup and permits exact cleanup after closure', async () => {
+    const api = await import('./native-runtime.js'), d = await import('./checkpoint-domain.js');
+    const options = { packageHostConfiguration: '{"schemaPackageReplacementGrants":[]}' };
+    const generation = api.isolateCemFallbackGeneration(options); options.packageHostConfiguration = 'mutated';
+    await generation.ready(); const lease = generation.claimOwnership(), endpoint = generation.packageResourceBinding();
+    mocks.call.mockImplementation((name: string) => name === 'schemaAssetOwnerOpenV1' ? 7 : name === 'schemaAssetOwnerDisposeV1' ? true : '{}');
+    endpoint.activate(new Uint8Array([1]), 'pin', [], '[]');
+    expect(mocks.call).toHaveBeenCalledWith('schemaAssetOwnerOpenV1', [new Uint8Array([1]), 'pin', '{"schemaPackageReplacementGrants":[]}']);
+    expect(endpoint.identity()).toBeInstanceOf(WebAssembly.Memory);
+    d.cemMainThreadCheckpointDomain.closeAdmission('soft-pressure');
+    expect(endpoint.current()).toBe(false); expect(() => endpoint.bootstrap()).toThrow('closed');
+    expect(endpoint.release()).toBe(true);
+    expect(mocks.call).toHaveBeenCalledWith('schemaAssetOwnerDisposeV1', [7]);
+    await generation.disposeEmpty([lease]);
+    expect(endpoint.identity()).toBeUndefined();
+    expect(() => endpoint.bootstrap()).toThrow();
+});
+
+it.each(['success', 'failure', 'credential'])('checks async fallback package release before native retirement: %s', async mode => {
+    const { generation, domains: d, client, bindings, consent, cleanup, domain } = await active();
+    const { registerNativeGenerationResource, CemNativeGenerationGroup } = await import('./native-generation.js');
+    let released = false, admitted = true;
+    registerNativeGenerationResource(generation.generationParticipant(), () => ({ current: () => admitted,
+        release: async () => {
+            await Promise.resolve();
+            if (mode === 'failure') throw Error('package release refused');
+            if (mode === 'credential') admitted = false;
+            released = true;
+        }, prepare: async () => { throw Error('unused'); } }), () => { /* No native package in this control fixture. */ });
+    new CemNativeGenerationGroup([generation.generationParticipant()]);
+    cleanup.mockImplementation(() => { expect(released).toBe(true); domain.release('template', 7); });
+    const proof = await d.closeNativeRenderingGeneration(client, 5000, consent);
+    const retiring = d.retireNativeRenderingGeneration(bindings, [], proof, { current: () => admitted, retain: () => new Uint8Array([1]) }, 5000, consent);
+    if (mode === 'success') {
+        expect((await retiring).checkpoint).toEqual(new Uint8Array([1])); expect(mocks.dispose).toHaveBeenCalledOnce();
+    } else {
+        await expect(retiring).rejects.toThrow(mode === 'failure' ? 'package release refused' : 'stale');
+        expect(cleanup).not.toHaveBeenCalled(); expect(mocks.dispose).not.toHaveBeenCalled();
+    }
+});
+
+
+it('keeps exact fallback package cleanup available after a failed generation is fenced', async () => {
+    const api = await import('./native-runtime.js'), d = await import('./checkpoint-domain.js');
+    const generation = api.isolateCemFallbackGeneration({ packageHostConfiguration: '{}' }); await generation.ready();
+    const endpoint = generation.packageResourceBinding();
+    mocks.call.mockImplementation((name: string) => name === 'schemaAssetOwnerOpenV1' ? 17 : name === 'schemaAssetOwnerDisposeV1' ? true : '{}');
+    endpoint.activate(new Uint8Array([1]), 'pin', [], '[]');
+    d.cemMainThreadCheckpointDomain.revoke();
+    expect(endpoint.current()).toBe(false); expect(() => endpoint.bootstrap()).toThrow();
+    expect(endpoint.release()).toBe(true);
+    expect(mocks.call).toHaveBeenCalledWith('schemaAssetOwnerDisposeV1', [17]);
+    expect(mocks.dispose).not.toHaveBeenCalled();
+});
+
+it('publishes package allocation pressure before another ordinary operation is admitted', async () => {
+    const api = await import('./native-runtime.js'), d = await import('./checkpoint-domain.js');
+    const generation = api.isolateCemFallbackGeneration({ packageHostConfiguration: '{}' }); await generation.ready();
+    const endpoint = generation.packageResourceBinding(); let pressure = false;
+    d.cemMainThreadCheckpointDomain.sampleWith(() => ({ softPressure: pressure, hardPressure: false }));
+    mocks.call.mockImplementation((name: string) => {
+        if (name === 'schemaAssetOwnerOpenV1') return 23;
+        if (name === 'schemaAssetOwnerDisposeV1') return true;
+        if (name === 'schemaAssetOwnerActivateV1') pressure = true;
+        return '{}';
+    });
+    endpoint.activate(new Uint8Array([1]), 'pin', [], '[]');
+    expect(endpoint.current()).toBe(false);
+    expect(d.cemMainThreadCheckpointDomain.pressureReason()).toBe('soft-pressure');
+    expect(endpoint.release()).toBe(true);
 });

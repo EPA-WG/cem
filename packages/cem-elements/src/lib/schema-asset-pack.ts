@@ -516,6 +516,13 @@ export function cemSchemaAssetRuntimeFromBinding(binding: CemSchemaAssetNativeBi
     } };
 }
 
+/** Original synchronous native session, with owner IDs held in this closure.
+ * Hosts supply the exact physical identity and original native admission controls. */
+export function cemSchemaAssetTransportFromBinding(binding: CemSchemaAssetNativeBinding, hostConfiguration?: string): CemSchemaAssetTransportRuntime {
+    const endpoint = snapshotTransport(cemSchemaAssetRuntimeFromBinding(binding), hostConfiguration);
+    return Object.freeze({ ...endpoint, identity: binding.memory.bind(binding) });
+}
+
 function physicalIdentity(runtime: CemSchemaAssetRuntimeEndpoint): object | undefined {
     return 'native' in runtime ? runtime.native.commandNativeMemoryIdentity() : runtime.identity();
 }

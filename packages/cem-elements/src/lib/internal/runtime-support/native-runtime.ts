@@ -1,3 +1,5 @@
+import { cemSchemaAssetTransportFromBinding, type CemSchemaAssetTransportRuntime } from '../../schema-asset-pack.js';
+import { discardNativeGenerationResources } from './native-generation.js';
 // eslint-disable-next-line @nx/enforce-module-boundaries -- generated native bindings are vendored by the package build.
 import * as legacy from '../../../../../cem_ql/dist/wasm/cem_ql.js';
 // eslint-disable-next-line @nx/enforce-module-boundaries -- generated owned-factory contract is vendored with its bindings.
@@ -22,6 +24,7 @@ export function freshFallbackNativeBindings(runtime: object): CemQlNativeBinding
     return freshBindings.get(runtime);
 }
 export interface CemFreshFallbackGeneration {
+    packageResourceBinding(): CemSchemaAssetTransportRuntime;
     readonly kind: 'cem-fallback';
     readonly runtimeId: string;
     /** Trusted native embedding boundary. Bindings never switch physical heaps. */
@@ -37,6 +40,7 @@ export interface CemFallbackRetirementConsent { readonly kind: 'cem-fallback-ret
 export interface CemFallbackWasmOwnership { readonly kind: 'cem-fallback-wasm-ownership' }
 export interface CemDisposedFallbackGeneration { readonly runtimeId: string; readonly releasedOwnedReferences: true; readonly replacementAllowed: false }
 export interface CemOwnedFallbackGeneration {
+    packageResourceBinding(): CemSchemaAssetTransportRuntime;
     readonly runtimeId: string;
     ready(): Promise<void>;
     generationParticipant(): CemNativeGenerationParticipant;
@@ -52,12 +56,12 @@ let legacyInitialization: Promise<void> | undefined;
 let owned: OwnedFallback | undefined;
 
 /** Explicit pre-initialization opt-in; aliases never switch a live heap. */
-export function isolateCemFallbackGeneration(): CemOwnedFallbackGeneration {
+export function isolateCemFallbackGeneration(options: { packageHostConfiguration?: string } = {}): CemOwnedFallbackGeneration {
     if (started || owned) throw new Error('cem.runtime.generation.already-selected');
-    owned = new OwnedFallback(domain);
+    owned = new OwnedFallback(domain, options.packageHostConfiguration);
     const selected = owned;
     return Object.freeze({ runtimeId: domain.issuedIdentity(), ready: () => initializeNativeRuntime(),
-        generationParticipant: () => selected.participant(),
+        generationParticipant: () => selected.participant(), packageResourceBinding: () => selected.packageBinding(),
         claimOwnership: () => selected.claim(), releaseOwnership: (lease: CemFallbackWasmOwnership) => selected.release(lease),
         retirementConsent: (leases: readonly CemFallbackWasmOwnership[]) => selected.consent(leases),
         disposeEmpty: (leases: readonly CemFallbackWasmOwnership[], timeoutMs?: number) => selected.disposeEmpty(leases, timeoutMs) });
@@ -70,7 +74,24 @@ export default function initializeNativeRuntime(): Promise<void> {
 }
 
 class OwnedFallback {
-    constructor(private readonly domain = new CemNativeCheckpointDomain('main-thread')) {}
+    constructor(private readonly domain = new CemNativeCheckpointDomain('main-thread'), private readonly packageConfiguration?: string) {}
+    private packageEndpoint?: CemSchemaAssetTransportRuntime;
+    private packageAdmission: () => boolean = () => true;
+    packageBinding(): CemSchemaAssetTransportRuntime {
+        this.requireReady(); this.domain.assertAdmission();
+        if (!this.packageAdmission()) throw Error('cem.runtime.allocation.closed');
+        return this.packageEndpoint ??= cemSchemaAssetTransportFromBinding({
+            current: () => this.packageAdmission() && this.usable() && !this.domain.pressureReason(), memory: () => this.native?.memory(),
+            call: (name, args) => {
+                if (name === 'schemaAssetOwnerDisposeV1') {
+                    if (this.disposed || !this.native) throw Error('cem.runtime.generation.retired');
+                    return this.native.call(name, args);
+                }
+                if (!this.packageAdmission()) throw Error('cem.runtime.allocation.closed');
+                const client = this.domain.client(false, true);
+                try { return this.call(name, args); } finally { this.domain.samplePressure(); this.domain.remove(client); }
+            } }, this.packageConfiguration);
+    }
     participant(): CemNativeGenerationParticipant { return this.domain.generationParticipant(); }
     private native?: CemQlWasmGeneration;
     private initialization?: Promise<void>;
@@ -117,12 +138,13 @@ class OwnedFallback {
         });
     }
     private async allocateFresh(admitted: () => boolean, signal: AbortSignal): Promise<CemNativeGenerationCandidate> {
-        const next = new OwnedFallback();
+        const next = new OwnedFallback(undefined, this.packageConfiguration);
         await next.initialize(signal);
+        next.packageAdmission = admitted;
         const identity = next.requireReady().memory();
         if (!identity) throw new Error('cem.runtime.generation.identity');
         const assert = () => { if (!admitted()) throw new Error('cem.runtime.allocation.closed'); };
-        const runtime: CemFreshFallbackGeneration = Object.freeze({ kind: 'cem-fallback', runtimeId: next.domain.issuedIdentity(),
+        const runtime: CemFreshFallbackGeneration = Object.freeze({ packageResourceBinding: () => { assert(); return next.packageBinding(); }, kind: 'cem-fallback', runtimeId: next.domain.issuedIdentity(),
             invoke: (name: CemFallbackNativeEntrypoint, args: unknown[]) => {
                 assert(); if (!(sharedEntrypoints as readonly string[]).includes(name)) throw new Error('cem.runtime.generation.entrypoint');
                 return next.call(name, args);
@@ -156,6 +178,8 @@ class OwnedFallback {
                 try {
                     for (const cleanup of next.allocationCleanup) { try { cleanup(); } catch { /* Quarantine even if a consumer cleanup fails. */ } }
                     next.allocationCleanup.clear();
+                    const participant = next.domain.retainedAllocationParticipant();
+                    if (participant) { try { discardNativeGenerationResources(participant); } catch { /* Always release the physical native factory. */ } }
                     next.native?.dispose();
                 } finally { next.failed = true; next.native = undefined; next.initialization = undefined; next.domain.discardAllocatedIdentity(); }
             } };
@@ -328,3 +352,26 @@ const cleanupEntrypoints = [
     'releaseNativeSuggestions', 'disposeReferenceSource', 'disposeNativeValueArtifact',
     'disposeCemDocument', 'disposeXsltComponent', 'disposeCemtXPathFunctions',
 ] as const satisfies readonly CemFallbackNativeEntrypoint[];
+
+
+/** Worker-only original native endpoint. The main-thread singleton cannot obtain
+ * an owned package adapter through this path. */
+export function workerSchemaAssetTransport(configuration?: string): CemSchemaAssetTransportRuntime {
+    const WorkerScope = (globalThis as unknown as { WorkerGlobalScope?: typeof EventTarget }).WorkerGlobalScope;
+    if (!WorkerScope || !(globalThis instanceof WorkerScope)) throw Error('cem.schema_asset.unsupported');
+    return cemSchemaAssetTransportFromBinding({ current: () => nativeRuntimeUsable() && !domain.pressureReason(),
+        memory: () => domain.nativeResourceIdentity() as WebAssembly.Memory | undefined,
+        call: (name, args) => {
+            if (owned) throw Error('cem.schema_asset.unsupported');
+            if (name !== 'schemaAssetOwnerDisposeV1') domain.assertAdmission();
+            const operation = Reflect.get(legacy, name);
+            if (typeof operation !== 'function') throw Error('cem.schema_asset.unsupported');
+            try { return Reflect.apply(operation, undefined, args); } finally { domain.samplePressure(); }
+        } }, configuration);
+}
+
+/** The selected owned fallback only; a legacy singleton is an explicit blocker. */
+export function selectedFallbackSchemaAssetBinding(): CemSchemaAssetTransportRuntime {
+    if (!owned) throw Error('cem.schema_asset.unsupported');
+    return owned.packageBinding();
+}

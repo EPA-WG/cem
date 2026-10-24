@@ -1025,3 +1025,76 @@ it('bounds workspace seal transport independently of ordinary control payloads',
     expect(isCemRenderingRetirementControl(message('seal', 4 * 1024 * 1024 + 1))).toBe(false);
     for (const action of ['controls', 'runtime']) expect(isCemRenderingRetirementControl(message(action, 1024 * 1024 + 1))).toBe(false);
 });
+
+class PackageProcessingWorker extends ControlledProcessingWorker {
+    readonly packageMessages: Record<string, unknown>[] = [];
+    configuration?: string;
+    override postMessage(request: CemProcessingRequestEnvelope): void {
+        const message = request as unknown as Record<string, unknown>;
+        if (message.type === 'cem-render-package-initialize') { this.configuration = message.configuration as string; return; }
+        if (message.type === 'cem-render-package') { this.packageMessages.push(message); return; }
+        if (isCemRenderingRetirementControl(request)) {
+            queueMicrotask(() => this.emit('message', { ...request, direction: 'response', ok: true })); return;
+        }
+        super.postMessage(request);
+    }
+    packageReply(message: Record<string, unknown>, result: unknown, extra = false): void {
+        this.emit('message', { type: 'cem-render-package-result', actionId: message.actionId, result,
+            ...(extra ? { owner: 99 } : {}) } as never);
+    }
+}
+
+it('tracks rendering package work in the original drain and permits only cleanup after closure', async () => {
+    const { processingSchemaAssetBinding } = await import('./processing-host-runtime.js');
+    const worker = new PackageProcessingWorker(), scope = createCemDeclarationScope({ document: {} as Document });
+    const options = { workerScriptUrl: 'https://example.test/package-worker.js', workerFactory: () => worker as unknown as Worker,
+        packageHostConfiguration: '{}' };
+    const host = cemProcessingHostForScope(scope, options); options.packageHostConfiguration = 'mutated';
+    const { runtime } = await processingSchemaAssetBinding(host), client = host.checkpointClient;
+    if (!client) throw Error('missing original client');
+    expect(worker.configuration).toBe('{}'); expect(runtime.identity()).toBe(worker);
+    const pending = runtime.bootstrap();
+    await vi.waitFor(() => expect(worker.packageMessages).toHaveLength(1));
+    let closed = false;
+    const closing = closeNativeRenderingGeneration(client).then(proof => { closed = true; return proof; });
+    await flushMicrotasks(); expect(closed).toBe(false);
+    worker.packageReply(worker.packageMessages[0], '{}'); await pending;
+    const proof = await closing; expect(nativeCheckpointDrainCurrent(proof)).toBe(true);
+    await expect(runtime.bootstrap()).rejects.toThrow('closed'); expect(worker.packageMessages).toHaveLength(1);
+    const releasing = runtime.release(); await vi.waitFor(() => expect(worker.packageMessages).toHaveLength(2));
+    worker.packageReply(worker.packageMessages[1], true); expect(await releasing).toBe(true);
+    expect(nativeCheckpointDrainCurrent(proof)).toBe(true);
+    await host.dispose({ reason: 'runtime-disposed' }).result; scope.dispose();
+});
+
+it.each(['malformed', 'timeout'])('fences rendering package %s without selecting fallback', async kind => {
+    const { processingSchemaAssetBinding } = await import('./processing-host-runtime.js');
+    const worker = new PackageProcessingWorker(), scope = createCemDeclarationScope({ document: {} as Document });
+    const host = cemProcessingHostForScope(scope, { workerScriptUrl: 'https://example.test/package-failure.js', workerFactory: () => worker as unknown as Worker });
+    const { runtime } = await processingSchemaAssetBinding(host);
+    if (kind === 'timeout') vi.useFakeTimers();
+    try {
+        const pending = runtime.bootstrap(), refused = expect(pending).rejects.toThrow(kind === 'timeout' ? 'timeout' : 'response');
+        if (kind === 'timeout') { await vi.advanceTimersByTimeAsync(30_000); }
+        else { await vi.waitFor(() => expect(worker.packageMessages).toHaveLength(1)); worker.packageReply(worker.packageMessages[0], '{}', true); }
+        await refused; expect(worker.terminated).toBe(true); expect(runtime.current()).toBe(false); expect(runtime.identity()).toBeUndefined();
+        expect(host.mode).toBe('worker');
+        await expect(host.compile(compileInput('after-package-loss')).result).rejects.toThrow();
+        expect(host.mode).toBe('worker');
+    } finally { vi.useRealTimers(); await host.dispose({ reason: 'runtime-disposed' }).result; scope.dispose(); }
+});
+
+it('refuses changing package grants on an existing root and isolates pools with different grants', async () => {
+    const document = {} as Document, scopes = [createCemDeclarationScope({ document }), createCemDeclarationScope({ document })];
+    const workers: PackageProcessingWorker[] = [];
+    const factory = () => { const worker = new PackageProcessingWorker(); workers.push(worker); return worker as unknown as Worker; };
+    const options = { workerScriptUrl: 'https://example.test/package-policy.js', workerFactory: factory, packageHostConfiguration: '{}' };
+    const first = cemProcessingHostForScope(scopes[0], options);
+    expect(() => cemProcessingHostForScope(scopes[0], { ...options, packageHostConfiguration: '{"rootQueueSize":128}' })).toThrow('configuration');
+    const second = cemProcessingHostForScope(scopes[1], { ...options, packageHostConfiguration: '{"rootQueueSize":128}' });
+    await Promise.all([first.ready, second.ready]);
+    expect(workers).toHaveLength(2); expect(workers.map(worker => worker.configuration)).toEqual(['{}', '{"rootQueueSize":128}']);
+    expect(cemProcessingHostForScope(scopes[0], { ...options })).toBe(first);
+    await Promise.all([first.dispose({ reason: 'runtime-disposed' }).result, second.dispose({ reason: 'runtime-disposed' }).result]);
+    scopes.forEach(scope => scope.dispose());
+});

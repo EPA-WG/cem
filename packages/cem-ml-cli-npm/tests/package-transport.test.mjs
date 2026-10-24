@@ -42,3 +42,11 @@ test('worker package copies are bounded before posting and cannot share mutable 
     assert.throws(() => parseBrowserCommandPackageRequest(packet({ operation: 'import', index, pin,
         source: { ...source, bytes: new Uint8Array(16 * 1024 * 1024 + 1).subarray(0, 1) } })));
 });
+
+
+test('rendering and command adapters use the same strict package controls with distinct channels', () => {
+    const render = { ...packet({ operation: 'summary', index, pin }), type: 'cem-render-package' };
+    assert.equal(parseBrowserCommandPackageRequest(render, 'cem-render-package'), render);
+    assert.throws(() => parseBrowserCommandPackageRequest(render));
+    assert.throws(() => parseBrowserCommandPackageRequest({ ...render, hostConfiguration: '{}' }, 'cem-render-package'));
+});

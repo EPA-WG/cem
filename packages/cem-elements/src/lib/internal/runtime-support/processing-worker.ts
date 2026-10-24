@@ -1,5 +1,7 @@
 /// <reference lib="webworker" />
-import { runtimeMemoryStatus } from './native-runtime.js';
+import { parseSchemaAssetPackageRequest } from './schema-asset-protocol.js';
+import type { CemSchemaAssetTransportRuntime } from '../../schema-asset-pack.js';
+import { workerSchemaAssetTransport, runtimeMemoryStatus } from './native-runtime.js';
 
 import { processCheckpointControl, ensureRuntimeReady, closeRenderingNativeAdmission, renderingNativeResourceInventory, prepareRenderingNativeRetirement } from './cem-ql-render.js';
 import { CemProcessingEngine } from './processing-engine.js';
@@ -25,9 +27,23 @@ let nativeClosed = false;
 let permit: ReturnType<typeof prepareRenderingNativeRetirement> | undefined;
 let preparing = false;
 let prepared = false;
+let packageConfiguration: string | undefined, packageConfigured = false, packageEndpoint: CemSchemaAssetTransportRuntime | undefined;
+let packageActive = false, packageQueued = 0, runtimeWorkStarted = false;
+let packageQueue: Promise<void> = Promise.resolve();
 
 
 workerScope.addEventListener('message', (event: MessageEvent<unknown>) => {
+    const message = event.data as Record<string, unknown> | undefined;
+    if (message && typeof message === 'object' && message.type === 'cem-render-package-initialize') {
+        if (packageConfigured || packageEndpoint || runtimeWorkStarted || activeRequests || nativeClosed || prepared || Object.keys(message).length !== 2
+            || typeof message.configuration !== 'string') throw Error('cem.schema_asset.policy');
+        packageConfiguration = message.configuration; packageConfigured = true; return;
+    }
+    if (message && typeof message === 'object' && message.type === 'cem-render-package') {
+        if (++packageQueued > 8) { packageQueued--; throw Error('cem.schema_asset.busy'); }
+        packageQueue = packageQueue.then(() => handlePackage(message)).finally(() => { packageQueued--; });
+        return;
+    }
     if (isCemRenderingRetirementControl(event.data) && event.data.direction === 'request') void retirementControl(event.data);
     else void handleMessage(event.data);
 });
@@ -47,8 +63,10 @@ async function handleMessage(message: unknown): Promise<void> {
         return;
     }
 
+    runtimeWorkStarted = true;
     activeRequests++;
     try {
+        if (packageActive || packageQueued) throw Error('cem.schema_asset.busy');
         if (request.operation === 'cancel') {
             workerScope.postMessage(createCemProcessingSuccessEnvelope(request, {
                 targetJobId: request.payload.targetJobId,
@@ -153,7 +171,7 @@ function cancelledDiagnostic(): CemProcessingDiagnostic {
 
 async function retirementControl(request: CemRenderingRetirementControl): Promise<void> {
     try {
-        if (preparing || activeRequests) throw new Error('cem.runtime.retirement.busy');
+        if (preparing || activeRequests || packageActive || packageQueued) throw new Error('cem.runtime.retirement.busy');
         let confirmation: unknown;
         if (request.action === 'checkpoint') {
             if (prepared || !request.input) throw new Error('cem.runtime.retirement.unavailable');
@@ -197,4 +215,30 @@ async function retirementControl(request: CemRenderingRetirementControl): Promis
         workerScope.postMessage({ protocol: CEM_RENDERING_RETIREMENT_PROTOCOL, direction: 'response',
             id: request.id, action: request.action, ok: false, error: String(error).slice(0, 512) });
     }
+}
+
+
+async function handlePackage(message: Record<string, unknown>): Promise<void> {
+    let result: unknown, error: string | undefined;
+    packageActive = true; runtimeWorkStarted = true;
+    try {
+        const request = parseSchemaAssetPackageRequest(message, 'cem-render-package');
+        if (preparing || prepared || activeRequests || nativeClosed && request.operation !== 'release') throw Error('cem.schema_asset.stale');
+        await ensureRuntimeReady();
+        if (preparing || prepared || activeRequests || nativeClosed && request.operation !== 'release') throw Error('cem.schema_asset.stale');
+        const endpoint = packageEndpoint ??= workerSchemaAssetTransport(packageConfiguration);
+        switch (request.operation) {
+            case 'bootstrap': result = await endpoint.bootstrap(); break;
+            case 'summary': result = await endpoint.summary(request.index, request.pin); break;
+            case 'import': {
+                const source = request.source;
+                result = await endpoint.importSource(request.index, request.pin, source.packageId, source.version, source.path, source.bytes); break;
+            }
+            case 'activate': result = await endpoint.activate(request.index, request.pin, request.sources, request.selection); break;
+            case 'release': result = await endpoint.release(); break;
+        }
+    } catch (failure) { error = String(failure).slice(0, 512); }
+    finally { packageActive = false; }
+    workerScope.postMessage({ type: 'cem-render-package-result', actionId: message.actionId,
+        ...(error === undefined ? { result } : { error }) });
 }

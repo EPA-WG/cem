@@ -1,4 +1,4 @@
-import { registerNativeGeneration, completeNativeRetirement, type CemNativeGenerationAllocator, type CemNativeGenerationParticipant } from './native-generation.js';
+import { releaseNativeGenerationResourcesAsync, registerNativeGeneration, completeNativeRetirement, type CemNativeGenerationAllocator, type CemNativeGenerationParticipant } from './native-generation.js';
 import type { CemCheckpointRetirementHandoff } from '../../committed-checkpoint.js';
 import type { CemCheckpointNativeRuntime } from '../../committed-checkpoint.js';
 
@@ -95,6 +95,8 @@ export class CemNativeCheckpointDomain {
         if (this.nativeIdentity && this.nativeIdentity !== identity) this.revoke();
         else this.nativeIdentity = identity;
     }
+    /** Original host adapter identity, never a serialized generation label. */
+    nativeResourceIdentity(): object | undefined { return this.alive && !this.overflow ? this.nativeIdentity : undefined; }
     ownsNativeRuntime(identity: object | undefined): boolean {
         return !!identity && this.nativeIdentity === identity && this.alive && !this.overflow;
     }
@@ -520,14 +522,18 @@ export async function retireNativeRenderingGeneration(
         const checkpoint = new Uint8Array(bytes);
         if (handoff.current() !== true || !current()) throw new Error('cem.runtime.retirement.stale');
         preparing = true; terminalRenderingGenerations.add(domain);
+        const started = performance.now(), participant = domain.retainedAllocationParticipant();
+        if (participant) await releaseNativeGenerationResourcesAsync(participant,
+            () => handoff.current() === true && current(), timeoutMs);
+        const remaining = timeoutMs - (performance.now() - started);
+        if (remaining <= 0) throw new Error('cem.runtime.retirement.timeout');
         if (fallback) {
-            const started = performance.now();
             domain.retireOwnedResources(bindings, () => handoff.current() === true && current(),
                 () => performance.now() - started < timeoutMs && domain.drainCurrent(proof) && !!closedConsent?.current(), check => fallback.commit(check));
             return completedRenderingRetirement(domain, checkpoint);
         }
         if (!endpoint) throw new Error('cem.runtime.retirement.unsupported');
-        const confirmation = await retirementDeadline(() => endpoint.prepare(), timeoutMs);
+        const confirmation = await retirementDeadline(() => endpoint.prepare(), Math.max(1, Math.floor(remaining)));
         if (!confirmation || typeof confirmation !== 'object') throw new Error('cem.runtime.retirement.confirmation');
         const record = confirmation as Record<string, unknown>;
         if (Object.keys(record).length !== 5 || record.schemaVersion !== 1 || record.frozen !== true || record.replacementAllowed !== false
