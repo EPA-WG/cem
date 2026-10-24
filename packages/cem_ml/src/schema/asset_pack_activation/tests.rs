@@ -19,12 +19,27 @@ use std::sync::Arc;
 
 const CSV: &str = "https://cem.dev/ns/data/csv/1";
 const MANIFEST: &str = "schema-packages/csv/v1/package.cem";
+const CSV_SOURCE: &str = "schema-packages/csv/v1/schema/csv.cem";
 
 fn pack(paths: &[&str]) -> Arc<SchemaAssetPack> {
+    pack_with_csv_schema(paths, None)
+}
+
+fn pack_with_csv_schema(paths: &[&str], csv_schema: Option<&str>) -> Arc<SchemaAssetPack> {
     static EXPORT: std::sync::OnceLock<crate::schema::asset_pack::SchemaAssetPackExport> =
         std::sync::OnceLock::new();
     let export = EXPORT.get_or_init(|| builtin_schema_asset_pack_export().unwrap());
-    let bytes = export.index.to_bytes().unwrap();
+    let mut index = export.index.clone();
+    if let Some(schema) = csv_schema {
+        let source = index
+            .sources
+            .iter_mut()
+            .find(|source| source.path == CSV_SOURCE)
+            .unwrap();
+        source.byte_length = schema.len();
+        source.digest = schema_asset_sha256(schema.as_bytes());
+    }
+    let bytes = index.to_bytes().unwrap();
     let mut pack = SchemaAssetPack::from_index_bytes(
         &bytes,
         &schema_asset_sha256(&bytes),
@@ -41,7 +56,11 @@ fn pack(paths: &[&str]) -> Arc<SchemaAssetPack> {
             &source.descriptor.package_id,
             &source.descriptor.version,
             &source.descriptor.path,
-            source.source.as_bytes().to_vec(),
+            if source.descriptor.path == CSV_SOURCE {
+                csv_schema.unwrap_or(source.source).as_bytes().to_vec()
+            } else {
+                source.source.as_bytes().to_vec()
+            },
             &source.descriptor.content_type,
             &control,
             control.root_scope(),
@@ -68,6 +87,27 @@ fn grant(context: &mut EngineContext) {
             expected_origin: SchemaPackageOrigin::Builtin,
             replacement_manifest_uri: MANIFEST.into(),
         });
+}
+
+fn csv_context(pack: Arc<SchemaAssetPack>) -> EngineContext {
+    let mut context = EngineContext::default();
+    grant(&mut context);
+    let diagnostics =
+        activate_schema_asset_packages(&mut context, pack, &[("csv", "1.0.0")]).unwrap();
+    assert!(
+        !diagnostics.iter().any(|d| d.severity.is_hard_violation()),
+        "{diagnostics:?}"
+    );
+    let source = context.schema_package_sources.get(CSV_SOURCE).unwrap();
+    let contract = context
+        .schema_document_models
+        .resolve_for_identity(Some(CSV), None, None)
+        .unwrap()
+        .parser_contract
+        .as_ref()
+        .unwrap();
+    assert!(Arc::ptr_eq(source, contract.source_owner().unwrap()));
+    context
 }
 
 fn convert(context: EngineContext, profile: &str) -> crate::engine::ConvertResponse {
@@ -206,7 +246,11 @@ fn pack_without_converter() -> Arc<SchemaAssetPack> {
 
 #[test]
 fn native_asset_activation_refuses_unsupported_csv_model_without_publishing() {
-    let pack = pack(&sources());
+    let source = crate::schema::package_sources::builtin_schema_package_source("csv")
+        .unwrap()
+        .schema_source
+        .replace("csv-parse-report-fact", "unregistered-parse-report-fact");
+    let pack = pack_with_csv_schema(&sources(), Some(&source));
     let mut context = EngineContext::default();
     grant(&mut context);
     let diagnostics =
@@ -223,16 +267,7 @@ fn native_asset_activation_refuses_unsupported_csv_model_without_publishing() {
 
 #[test]
 fn native_asset_ordinary_csv_output_uses_selected_reader_and_preserves_legacy_fallback() {
-    // Isolate output-reader wiring from schema publication: the public API
-    // correctly refuses this package's currently unsupported schema behaviors.
-    let binding = Arc::new(SchemaAssetActivation {
-        pack: pack(&sources()),
-        packages: [("csv".into(), "1.0.0".into())].into(),
-    });
-    let context = EngineContext {
-        schema_asset_activation: Some(binding),
-        ..Default::default()
-    };
+    let context = csv_context(pack(&sources()));
     let output = convert(context.clone(), "compact");
     assert!(
         !output
@@ -341,7 +376,9 @@ fn native_asset_activation_requires_dependencies_and_exact_versions() {
 }
 
 #[derive(Debug)]
-struct PendingCompiler;
+struct PendingCompiler {
+    only_csv: bool,
+}
 impl crate::schema::package_compilation::SchemaPackageCompiler for PendingCompiler {
     fn compile(
         &self,
@@ -360,13 +397,15 @@ impl crate::schema::package_compilation::SchemaPackageCompiler for PendingCompil
             &request.schema_uri,
             &request.source,
         );
-        model.attributes.insert(
-            "pending".into(),
-            crate::schema::document_model::AttributeModel {
-                native_type_pending: true,
-                ..Default::default()
-            },
-        );
+        if !self.only_csv || request.package_id == "csv" {
+            model.attributes.insert(
+                "pending".into(),
+                crate::schema::document_model::AttributeModel {
+                    native_type_pending: true,
+                    ..Default::default()
+                },
+            );
+        }
         Ok(model)
     }
 }
@@ -376,7 +415,7 @@ fn native_asset_activation_does_not_publish_a_pending_native_model() {
     let pack = pack_without_converter();
     let mut context = dom_context(pack.clone());
     let incumbent = context.schema_asset_activation.clone().unwrap();
-    context.schema_package_compiler = Some(Arc::new(PendingCompiler));
+    context.schema_package_compiler = Some(Arc::new(PendingCompiler { only_csv: false }));
     let diagnostics =
         activate_schema_asset_packages(&mut context, pack, &[("cem-dom-projection", "1.0.0")])
             .unwrap();
@@ -449,6 +488,7 @@ fn native_asset_activation_defers_preparation_retirement_until_the_whole_set_is_
     );
     context.schema_document_models.register(model);
     grant(&mut context);
+    context.schema_package_compiler = Some(Arc::new(PendingCompiler { only_csv: true }));
     let diagnostics = activate_schema_asset_packages(
         &mut context,
         pack.clone(),
@@ -581,4 +621,163 @@ fn native_asset_activation_cannot_be_mutated_through_the_ordinary_manifest_loade
             Some(&SchemaPackageOrigin::Manifest(DOM_MANIFEST.into()))
         );
     }
+}
+
+#[test]
+fn native_asset_csv_activation_uses_owned_fact_diagnostics_in_ordinary_validation() {
+    use crate::engine::{FailLevel, ValidateProjection, ValidateRequest};
+    let schema = crate::schema::package_sources::builtin_schema_package_source("csv")
+        .unwrap()
+        .schema_source
+        .replace("cem.csv.invalid_header_parameter", "example.csv.header")
+        .replace(
+            "@code=\"example.csv.header\" @severity=\"warning\"",
+            "@code=\"example.csv.header\" @severity=\"error\"",
+        );
+    let context = csv_context(pack_with_csv_schema(&sources(), Some(&schema)));
+    let input = EngineInput {
+        uri: "memory://owned/input.csv".into(),
+        bytes: b"id,name\n1,Ada\n".to_vec(),
+        identity: Some(FormatIdentity {
+            content_type: Some("text/csv; header=maybe".into()),
+            schema: Some(CSV.into()),
+            ..Default::default()
+        }),
+        from_format: None,
+        root_scope: Default::default(),
+    };
+    let loaded = crate::real::load_document_input(&input, &context);
+    let crate::lifecycle::LoadedInputAstStream::CsvDocument(table) = loaded.ast_stream.unwrap()
+    else {
+        panic!("native CSV AST")
+    };
+    assert_eq!(table.source.uri, input.uri);
+    assert!(table.parse_facts[0].fatal);
+    assert_eq!(
+        table.parse_facts[0].diagnostic_code.as_deref(),
+        Some("example.csv.header")
+    );
+    let validated = RealCemMlEngine
+        .validate(ValidateRequest {
+            inputs: vec![input.clone()],
+            projection: ValidateProjection::Cem,
+            fail_level: FailLevel::Validate,
+            context: context.clone(),
+        })
+        .unwrap();
+    assert!(validated
+        .report
+        .diagnostics
+        .iter()
+        .any(|d| d.code == "example.csv.header" && d.severity.is_hard_violation()));
+    assert!(!validated
+        .report
+        .diagnostics
+        .iter()
+        .any(|d| d.code == "cem.csv.invalid_header_parameter"));
+    // Invalid quote/encoding facts still refuse output with their native ranges.
+    for bytes in [
+        b"id,name\n1,\"Ada\n".as_slice(),
+        b"id,name\n1,\xff\n".as_slice(),
+    ] {
+        let invalid = EngineInput {
+            bytes: bytes.to_vec(),
+            identity: Some(FormatIdentity {
+                content_type: Some("text/csv; header=present".into()),
+                schema: Some(CSV.into()),
+                ..Default::default()
+            }),
+            ..input.clone()
+        };
+        let actual = crate::real::load_document_input(&invalid, &context);
+        let expected = crate::real::load_document_input(&invalid, &EngineContext::default());
+        assert_eq!(actual.diagnostics, expected.diagnostics);
+        assert!(actual
+            .diagnostics
+            .iter()
+            .any(|d| d.severity.is_hard_violation()
+                && d.byte_offset.is_some()
+                && d.uri.as_deref() == Some(invalid.uri.as_str())));
+    }
+}
+
+#[derive(Debug)]
+struct ForeignParserCompiler(Arc<crate::parser::tree::RetainedCemTree>);
+impl crate::schema::package_compilation::SchemaPackageCompiler for ForeignParserCompiler {
+    fn compile(
+        &self,
+        request: &crate::schema::package_compilation::SchemaPackageCompilationRequest,
+    ) -> Result<
+        crate::schema::document_model::SchemaDocumentModel,
+        Vec<crate::diagnostics::Diagnostic>,
+    > {
+        Ok(
+            crate::schema::document_model::compile_schema_document_model_from_retained(
+                &request.schema_uri,
+                &self.0,
+            ),
+        )
+    }
+}
+
+#[test]
+fn native_asset_csv_activation_rejects_a_compiler_contract_from_another_native_owner() {
+    let pack = pack(&sources());
+    let mut context = EngineContext::default();
+    grant(&mut context);
+    let source = pack.import_source("csv", "1.0.0", CSV_SOURCE).unwrap().tree;
+    context.schema_package_compiler = Some(Arc::new(ForeignParserCompiler(source)));
+    let diagnostics =
+        activate_schema_asset_packages(&mut context, pack, &[("csv", "1.0.0")]).unwrap();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|d| d.code == "cem.schema_package.schema_compilation_failed"
+                && d.message
+                    .contains("Parser contract belongs to another source owner")),
+        "{diagnostics:?}"
+    );
+    assert!(context.schema_asset_activation.is_none());
+    assert_eq!(
+        context.schema_registry.package_origin("csv"),
+        Some(&SchemaPackageOrigin::Builtin)
+    );
+}
+
+#[derive(Debug)]
+struct MissingParserCompiler;
+impl crate::schema::package_compilation::SchemaPackageCompiler for MissingParserCompiler {
+    fn compile(
+        &self,
+        request: &crate::schema::package_compilation::SchemaPackageCompilationRequest,
+    ) -> Result<
+        crate::schema::document_model::SchemaDocumentModel,
+        Vec<crate::diagnostics::Diagnostic>,
+    > {
+        Ok(crate::schema::document_model::SchemaDocumentModel {
+            schema_uri: request.schema_uri.clone(),
+            ..Default::default()
+        })
+    }
+}
+
+#[test]
+fn native_asset_csv_activation_requires_an_actual_parser_contract_even_from_an_explicit_compiler() {
+    let mut context = EngineContext::default();
+    grant(&mut context);
+    context.schema_package_compiler = Some(Arc::new(MissingParserCompiler));
+    let diagnostics =
+        activate_schema_asset_packages(&mut context, pack(&sources()), &[("csv", "1.0.0")])
+            .unwrap();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|d| d.code == "cem.schema_package.activation_not_ready"),
+        "{diagnostics:?}"
+    );
+    assert!(context.schema_asset_activation.is_none());
+    assert_eq!(
+        context.schema_registry.package_origin("csv"),
+        Some(&SchemaPackageOrigin::Builtin)
+    );
 }

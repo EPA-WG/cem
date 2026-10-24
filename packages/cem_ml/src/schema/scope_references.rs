@@ -269,6 +269,7 @@ mod tests {
             Some(schema_ids[1]),
             &Default::default(),
             Default::default(),
+            None,
         );
         assert!(!model.is_ready_for_validation());
         assert!(model.element("earlier").is_none());

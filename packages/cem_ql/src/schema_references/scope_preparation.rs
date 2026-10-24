@@ -45,7 +45,7 @@ impl SchemaScopePreparation {
             && self.issue.is_none()
             && self.target.is_some()
             && self.model.as_ref().is_some_and(|model| {
-                model.is_ready_for_validation()
+                model.is_ready_for_structural_validation()
                     && !model
                         .compile_diagnostics
                         .iter()

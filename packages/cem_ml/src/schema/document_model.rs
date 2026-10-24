@@ -144,6 +144,8 @@ pub struct SchemaDocumentModel {
     pub diagnostics: BTreeMap<String, DiagnosticDefinition>,
     pub diagnostic_behaviors: BTreeMap<String, DiagnosticBehavior>,
     pub compile_diagnostics: Vec<Diagnostic>,
+    /// Parser-backed validation at the external document import boundary.
+    pub parser_contract: Option<std::sync::Arc<super::parser_contracts::CompiledParserContract>>,
     /// Explicit declaration-reference outcomes; diagnostics alone cannot
     /// distinguish neutral/ignored incompleteness from a complete model.
     pub declaration_references: super::declaration_references::DeclarationReferenceCompilation,
@@ -178,12 +180,17 @@ impl SchemaDocumentModel {
             |contract| contract.is_node_valued(),
         )
     }
-    /// Complete declaration-reference outcomes, with no mandatory/invalid
-    /// reference failure. Legacy structural projections may contain diagnostics
+    /// Complete consuming-domain compilation, including retained parser ownership
+    /// and no mandatory/invalid reference failure. Structural projections may
+    /// contain diagnostics
     /// for behavior supplied by other consumers; those keep existing handling.
     /// Package activation separately checks hard compilation diagnostics.
     pub fn is_ready_for_validation(&self) -> bool {
         self.declaration_references.is_complete()
+            && (!super::parser_contracts::requires_parser_contract(&self.schema_uri)
+                || self.parser_contract.is_some())
+            && self.parser_contract.as_ref()
+                .is_none_or(|contract| contract.is_ready())
             && self
                 .datatype_compilation
                 .as_ref()
@@ -195,13 +202,22 @@ impl SchemaDocumentModel {
                 .any(|attribute| attribute.native_type_pending)
     }
 
+    /// Raw-source parser readiness cannot grant structural CEM-AST validation.
+    pub fn is_ready_for_structural_validation(&self) -> bool {
+        self.is_ready_for_validation() && self.parser_contract.is_none()
+    }
+
     pub(crate) fn validation_blocker_diagnostics(&self) -> Vec<Diagnostic> {
         let mut diagnostics = self.compile_diagnostics.clone();
         if !diagnostics.iter().any(|d| d.severity.is_hard_violation()) {
             let occurrence = self.declaration_references.sites.first().map(|site| &site.occurrence);
             diagnostics.push(Diagnostic {
                 code: MODEL_NOT_READY_CODE.into(), severity: Severity::Error,
-                message: format!("Final validation requires a complete, valid schema model ({:?})", self.declaration_references.state()),
+                message: if super::parser_contracts::requires_parser_contract(&self.schema_uri) {
+                    "Parser-backed validation requires original source import with a complete, owned native parser contract".into()
+                } else {
+                    format!("Final validation requires a complete, valid schema model ({:?})", self.declaration_references.state())
+                },
                 uri: Some(self.schema_uri.clone()),
                 node: occurrence.map(|value| value.identity.clone()),
                 source_map: occurrence.map(|value| value.source_map.clone()),
@@ -1215,6 +1231,22 @@ fn load_builtin_document_model_for_identity_inner(
             load_builtin_schema_package_for_content_type(content_type).ok()
         }),
     }?;
+    if super::parser_contracts::requires_parser_contract(&package.descriptor.schema_uri) {
+        // The default native parser is an incumbent too. Preserve its actual
+        // retained contract before an unauthorized/pending candidate is inspected.
+        // Ordinary CEM-AST lookups must not acquire parser-domain authority.
+        if !include_empty {
+            return None;
+        }
+        let source = super::package_compilation::SchemaPackageSourceRegistry::default()
+            .retain(&package.descriptor.source, &package.schema_source).ok()?;
+        let model = compile_schema_document_model_from_retained(
+            &package.descriptor.schema_uri, &source,
+        );
+        return (model.is_ready_for_validation()
+            && !model.compile_diagnostics.iter().any(|d| d.severity.is_hard_violation()))
+            .then_some(model);
+    }
     if !is_bootstrap_document_model_schema(&package.descriptor.schema_uri) {
         return None;
     }
@@ -1235,7 +1267,7 @@ pub fn load_document_model_for_identity(
     if let Some(model) = document_models.and_then(|models| {
         models.resolve_for_identity(schema_uri, content_type, schema_registry)
     }) {
-        return Some(model.clone());
+        return model.is_ready_for_structural_validation().then(|| model.clone());
     }
     if document_models.and_then(|models| {
         models.inspect_for_identity(schema_uri, content_type, schema_registry)
@@ -1268,7 +1300,7 @@ pub(crate) fn document_model_namespace_claims(
         schema_registry,
         document_models,
     )
-    .filter(|model| model.is_ready_for_validation() && !model.is_empty()) else {
+    .filter(|model| model.is_ready_for_structural_validation() && !model.is_empty()) else {
         return BTreeSet::new();
     };
     if let Some(registry) = schema_registry {
@@ -1328,7 +1360,7 @@ pub fn validate_document_model_with_behavior_evaluator(
     model: &SchemaDocumentModel,
     behavior_evaluator: Option<&dyn SchemaBehaviorEvaluator>,
 ) -> Vec<Diagnostic> {
-    if !model.is_ready_for_validation() {
+    if !model.is_ready_for_structural_validation() {
         return model.validation_blocker_diagnostics();
     }
     let mut diagnostics = Vec::new();
@@ -4799,6 +4831,23 @@ pub fn compile_schema_document_model(schema_uri: &str, schema_source: &str) -> S
     compile_document_model(schema_uri, schema_source)
 }
 
+/// Compile literal declarations and registered parser contracts from their
+/// original retained schema owner. Reference evaluation remains opt-in.
+pub fn compile_schema_document_model_from_retained(
+    schema_uri: &str,
+    source: &std::sync::Arc<crate::parser::tree::RetainedCemTree>,
+) -> SchemaDocumentModel {
+    compile_document_model_from_document_with_declarations(
+        schema_uri,
+        source.ast(),
+        schema_declaration_id(source.ast()),
+        &mut BTreeSet::new(),
+        &BTreeMap::new(),
+        Default::default(),
+        Some(source.clone()),
+    )
+}
+
 fn compile_document_model(schema_uri: &str, schema_source: &str) -> SchemaDocumentModel {
     compile_document_model_with_seen(schema_uri, schema_source, &mut BTreeSet::new())
 }
@@ -4831,6 +4880,7 @@ fn compile_document_model_from_document_with_seen(
         seen_schema_uris,
         &BTreeMap::new(),
         Default::default(),
+        None,
     )
 }
 
@@ -4840,6 +4890,7 @@ pub(crate) fn compile_document_model_with_declarations(
     schema_id: Option<AstNodeId>,
     declarations: &BTreeMap<AstNodeId, Vec<CompiledSchemaDeclaration>>,
     compilation: super::declaration_references::DeclarationReferenceCompilation,
+    parser_source_owner: Option<std::sync::Arc<crate::parser::tree::RetainedCemTree>>,
 ) -> SchemaDocumentModel {
     compile_document_model_from_document_with_declarations(
         schema_uri,
@@ -4848,6 +4899,7 @@ pub(crate) fn compile_document_model_with_declarations(
         &mut BTreeSet::new(),
         declarations,
         compilation,
+        parser_source_owner,
     )
 }
 
@@ -4914,6 +4966,7 @@ fn compile_document_model_from_document_with_declarations(
     seen_schema_uris: &mut BTreeSet<String>,
     declarations: &BTreeMap<AstNodeId, Vec<CompiledSchemaDeclaration>>,
     compilation: super::declaration_references::DeclarationReferenceCompilation,
+    parser_source_owner: Option<std::sync::Arc<crate::parser::tree::RetainedCemTree>>,
 ) -> SchemaDocumentModel {
     if !seen_schema_uris.insert(schema_uri.to_owned()) {
         return empty_document_model(schema_uri);
@@ -5144,12 +5197,19 @@ fn compile_document_model_from_document_with_declarations(
             &mut model.compile_diagnostics,
         );
     }
+    let parser_compilation = super::parser_contracts::compile_registered_parser_contract(
+        &model,
+        parser_source_owner,
+    );
     validate_constraint_definitions(
         schema_uri,
         &model.constraints,
         &model.diagnostic_behaviors,
+        &parser_compilation.claimed_constraints,
         &mut model.compile_diagnostics,
     );
+    model.parser_contract = parser_compilation.contract;
+    model.compile_diagnostics.extend(parser_compilation.diagnostics);
 
     model.compile_diagnostics.retain(|diagnostic| {
         if diagnostic.code == UNRESOLVED_DIAGNOSTIC_REFERENCE_CODE {
@@ -5222,6 +5282,7 @@ fn empty_document_model(schema_uri: &str) -> SchemaDocumentModel {
         diagnostics: BTreeMap::new(),
         diagnostic_behaviors: BTreeMap::new(),
         compile_diagnostics: Vec::new(),
+        parser_contract: None,
         declaration_references: Default::default(),
         datatype_compilation: None,
         function_bindings: None,
@@ -10507,9 +10568,16 @@ fn validate_constraint_definitions(
     schema_uri: &str,
     constraints: &BTreeMap<String, ConstraintDefinition>,
     diagnostic_behaviors: &BTreeMap<String, DiagnosticBehavior>,
+    parser_constraints: &BTreeSet<String>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for constraint in constraints.values() {
+        // Claimed parser facts have their own checked declarations/executor.
+        // They are not structural CEM-AST diagnostic behaviors.
+        if parser_constraints.contains(&constraint.kind) {
+            continue;
+        }
+
         if let Some(code) = constraint.diagnostic.as_deref() {
             if !diagnostic_behaviors.contains_key(code) {
                 diagnostics.push(schema_compile_diagnostic(

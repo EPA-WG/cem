@@ -372,7 +372,7 @@ fn key(source: &SchemaDeclarationNode) -> (usize, crate::parser::AstNodeId) {
     (Arc::as_ptr(source.document()) as usize, source.node_id())
 }
 fn ready(model: &SchemaDocumentModel) -> bool {
-    model.is_ready_for_validation()
+    model.is_ready_for_structural_validation()
         && !model
             .compile_diagnostics
             .iter()

@@ -260,6 +260,38 @@ impl LifecycleRegistry {
             .filter(|adapter| adapter.matches_input(&identity))
             .collect();
 
+        // A retained parser contract is the selected schema's import boundary.
+        // Pending/invalid contracts must not fall back to the embedded catalog.
+        if let [adapter] = matches.as_slice() {
+            let models = &context.schema_document_models;
+            let model = models.resolve_for_identity(
+                identity.schema.as_deref(),
+                identity.content_type.as_deref(),
+                Some(&context.schema_registry),
+            ).or_else(|| models.inspect_for_identity(
+                identity.schema.as_deref(),
+                identity.content_type.as_deref(),
+                Some(&context.schema_registry),
+            ));
+            if let Some(model) = model.filter(|model| model.parser_contract.is_some()
+                || crate::schema::parser_contracts::requires_parser_contract(&model.schema_uri)) {
+                if model.is_ready_for_validation()
+                    && !model.compile_diagnostics.iter().any(|d| d.severity.is_hard_violation()) {
+                    if let Some(loaded) = model.parser_contract.as_ref().unwrap()
+                        .load(input, &identity, adapter.id()) {
+                        return loaded;
+                    }
+                }
+                return LoadedInput {
+                    bytes: input.bytes.clone(),
+                    from_format: input.from_format.unwrap_or(InputFormat::Cem),
+                    ast_stream: None,
+                    diagnostics: model.validation_blocker_diagnostics(),
+                    adapter_id: Some(adapter.id()),
+                };
+            }
+        }
+
         match matches.as_slice() {
             [adapter] if source_validation => {
                 adapter.validate_source_with_context(input, &identity, context)
@@ -1931,7 +1963,7 @@ fn xpath_lifecycle_adapter_diagnostics(
         .collect()
 }
 
-fn csv_lifecycle_adapter_diagnostics(
+pub(crate) fn csv_lifecycle_adapter_diagnostics(
     adapter_id: &'static str,
     diagnostics: Vec<Diagnostic>,
 ) -> Vec<Diagnostic> {

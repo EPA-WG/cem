@@ -25,6 +25,7 @@ pub mod namespace;
 pub mod namespace_references;
 pub mod prelude_values;
 pub mod package_compilation;
+pub mod parser_contracts;
 pub mod package_consistency;
 pub mod package_loader;
 pub mod asset_pack;

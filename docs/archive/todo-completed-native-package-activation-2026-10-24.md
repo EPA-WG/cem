@@ -65,6 +65,9 @@ claiming successful CSV schema publication or filtering its diagnostics.
 - New Rust sources pass `rustfmt --check`; `git diff --check` passes. No generated
   screenshots or Vitest attachments are part of the change.
 
+CSV's activation limitation above is superseded by the
+[native CSV parser-contract follow-up](todo-completed-csv-parser-contracts-2026-10-24.md).
+
 ## Remaining integration
 
 This increment provides the native consumer boundary. Persistent owned WASM

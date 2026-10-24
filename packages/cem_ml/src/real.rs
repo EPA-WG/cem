@@ -1406,6 +1406,12 @@ fn register_schema_document_model_from_validated_schema_package_manifest(
                 .clone(),
         };
         let compiled = compiler.compile(&request).and_then(|model| {
+            if model.parser_contract.as_ref()
+                .is_some_and(|contract| !contract.matches_owner(request.source.ast_owner())) {
+                return Err(vec![compilation_failure(
+                    &read.uri, "Parser contract belongs to another source owner or is unbound",
+                )]);
+            }
             if model
                 .datatype_compilation
                 .as_ref()

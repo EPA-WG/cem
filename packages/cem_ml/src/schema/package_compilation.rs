@@ -1,7 +1,7 @@
 //! Opt-in package compilation at a consumer-selected document lifecycle stage.
 //! Retain source arenas across unchanged reads, never evaluated reference results.
 use super::{
-    document_model::{compile_document_model_from_document, SchemaDocumentModel},
+    document_model::{compile_schema_document_model_from_retained, SchemaDocumentModel},
     machine::{CemSchemaMachine, LexicallyScopedDocument},
     vocab::CompiledSchema,
 };
@@ -102,8 +102,11 @@ impl SchemaPackageSourceRegistry {
         Ok(tree)
     }
 }
-pub(crate) fn source_only_model(schema_uri: &str, source: &RetainedCemTree) -> SchemaDocumentModel {
-    compile_document_model_from_document(schema_uri, source.ast())
+pub(crate) fn source_only_model(
+    schema_uri: &str,
+    source: &Arc<RetainedCemTree>,
+) -> SchemaDocumentModel {
+    compile_schema_document_model_from_retained(schema_uri, source)
 }
 pub fn compilation_failure(uri: &str, reason: impl Into<String>) -> Diagnostic {
     Diagnostic {

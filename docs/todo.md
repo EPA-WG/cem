@@ -58,7 +58,7 @@ measurements and verification are in the
 
 Completed [native owned-package activation](archive/todo-completed-native-package-activation-2026-10-24.md) covers atomic publication, source ownership, ordinary engine consumers and strict body admission. WASM endpoint/service wiring and declarative demand remain below.
 
-- [ ] Add native parser-backed package compilation contracts, starting with CSV's existing `csv-parse-report-fact` diagnostic behaviors. Preserve real parser validation and source ownership; the new activation boundary must continue refusing unsupported or pending models, with no diagnostic filtering or synthetic ready models.
+Completed [native CSV parser contracts](archive/todo-completed-csv-parser-contracts-2026-10-24.md) enable owned CSV package activation and ordinary import/validation with checked fact bindings, original source ownership and separate structural-validation readiness.
 
 - [ ] Connect the shared optional-pack loader to persistent owned WASM activation endpoints and ordinary command/render services, using the native `SchemaAssetActivation` context binding. Expose demand through shared declarative resource bindings so Studio needs no UI JavaScript; enroll active package/source ownership in the existing inventory, generation and credential-admission protocol. Do not serialize native owners or infer retirement authority from source-count/byte metrics.
 
@@ -67,6 +67,8 @@ Completed [native owned-package activation](archive/todo-completed-native-packag
 - [ ] After shared pack-loading integration, exclude optional embedded source bodies in an opt-in WASM profile while retaining the default complete release; verify strict missing-source refusal and complete offline delivery.
 
 - [ ] Measure the resulting binary partition's raw/gzip download, cold command/editor latency and allocator/linear-memory headroom before considering a separate rare-command WASM ABI/heap; retain independent checkpoint and credential admission.
+
+- [ ] Diagnose the three existing linked package preparation source-map failures at `schema_package_lifecycle/attribute_datatypes.rs:473`: pretyped handoff, callback context/publication guards and checked preparation replacement retain an additional `SourceBoundary` frame. All three reproduce on unchanged `eca54d20`; preserve source provenance and intended assertions when resolving the mismatch. The broader cohort passes 46/49 cases; see the [CSV contract verification](archive/todo-completed-csv-parser-contracts-2026-10-24.md#verification).
 
 - [ ] Diagnose the intermittent worker-static-change fresh-allocation timeout in StaticPreviewRefusals observed in the frozen 111-case credential-policy cohort (110 pass); the unchanged isolated case passes. Preserve the original five-second allocation deadline and static-presentation refusal assertions.
 

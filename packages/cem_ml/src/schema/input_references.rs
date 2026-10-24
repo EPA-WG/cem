@@ -429,7 +429,7 @@ where
         complete: true,
         failed: false,
     };
-    if !model.is_ready_for_validation()
+    if !model.is_ready_for_structural_validation()
         || model
             .compile_diagnostics
             .iter()

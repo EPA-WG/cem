@@ -92,12 +92,35 @@ packages retain their legacy behavior. The reader contract's
 `allow_embedded_fallback_for(artifact)` permits this mixed context; its default
 preserves existing readers' `allow_embedded_fallback()` policy.
 
-The native tests activate the actual DOM projection package and exercise ordinary
-CEM-to-HTML conversion. CSV's current source-only schema model reports unsupported
-diagnostic behaviors, so public activation refuses it; admitting bytes does not
-grant an incomplete model validation authority. A separate output-reader fixture
-checks ordinary CSV formatter/colorizer admission without claiming successful
-CSV schema activation. No diagnostics are discarded to make activation succeed.
+The native tests activate the actual DOM projection and CSV packages and exercise
+ordinary conversion, validation, formatter/colorizer admission and owned
+schema diagnostic overrides. Incomplete or unsupported models remain refused;
+no diagnostics are discarded to make activation succeed.
+
+CSV's `csv-parse-report-fact` constraints compile in a registered native parser
+phase. The compiler checks all eight actual decoder/parser facts, their targets,
+unique bindings and declared diagnostics. Parser/encoding failures must stay
+hard violations; advisory diagnostics can be upgraded, and diagnostic codes,
+contract names and policies remain schema-owned. Missing, unknown, duplicated,
+redirected or unsafe bindings cannot publish an executable contract.
+
+`compile_schema_document_model_from_retained` pairs the compiled parser contract
+with the original retained schema tree. The linked CEM-QL compiler forwards that
+same owner through its registered source scope. A foreign or unbound owner, or a
+custom compiler omitting the required native contract, cannot publish a CSV
+model. Plain `compile_schema_document_model` remains useful for inspection and
+legacy catalog extraction, with its parser contract unbound and not ready for
+publication. Low-level catalog constructors keep their existing behavior;
+ordinary activated consumers use the checked contract.
+
+The lifecycle import boundary dispatches original source bytes to the compiled
+native parser. CSV facts, typed ASTs, source positions and authored diagnostic
+bindings come from that invocation, without rereading embedded schema bodies.
+Native parser readiness is separate from structural CEM-AST readiness:
+`is_ready_for_structural_validation` and structural scope/region checks refuse a
+parser-only model. A CEM projection cannot stand in for validated CSV syntax.
+A refused replacement also preserves the actual default parser incumbent.
+
 Persistent WASM endpoints, shared declarative demand and coordinated generation
 handoff remain integration work. This native API does not enable automatic
 recovery, serialize native owners, or change credential/checkpoint admission.

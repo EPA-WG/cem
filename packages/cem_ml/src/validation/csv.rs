@@ -14,6 +14,9 @@ use serde_json::Value;
 use std::collections::BTreeMap;
 
 const CSV_PACKAGE_ID: &str = "csv";
+pub(crate) const CSV_PARSE_REPORT_BEHAVIOR: &str = "csv-parse-report-fact";
+mod parser_contract;
+pub(crate) use parser_contract::compile_parser_contract;
 pub const GENERIC_DATA_CSV_NESTED_VALUE_UNSUPPORTED_CODE: &str =
     "cem.lifecycle.generic_data_csv_nested_value_unsupported";
 
@@ -709,6 +712,12 @@ impl CsvSchemaContractCatalog {
 
     pub fn from_schema_source(schema_source: &str) -> Self {
         let model = compile_schema_document_model(CSV_SCHEMA_URI, schema_source);
+        Self::from_document_model(&model)
+    }
+
+    pub(crate) fn from_document_model(
+        model: &crate::schema::document_model::SchemaDocumentModel,
+    ) -> Self {
         let fact_bindings = model
             .constraints
             .values()
@@ -761,9 +770,16 @@ pub fn csv_table_value_from_source_bytes(
 pub fn csv_document_ast_from_source_bytes(
     request: CsvSourceValidationRequest<'_>,
 ) -> (Option<CsvDocumentAst>, Vec<Diagnostic>) {
-    let report = extract_csv_parse_report(request);
     let contracts = CsvSchemaContractCatalog::from_builtin();
-    let diagnostics = validate_csv_parse_report(&report, &contracts);
+    csv_document_ast_from_source_bytes_with_contracts(request, &contracts)
+}
+
+pub(crate) fn csv_document_ast_from_source_bytes_with_contracts(
+    request: CsvSourceValidationRequest<'_>,
+    contracts: &CsvSchemaContractCatalog,
+) -> (Option<CsvDocumentAst>, Vec<Diagnostic>) {
+    let report = extract_csv_parse_report(request);
+    let diagnostics = validate_csv_parse_report(&report, contracts);
     let source = csv_decode_source_text(request, None).ok();
     let line_ending = source
         .as_ref()
@@ -784,7 +800,7 @@ pub fn csv_document_ast_from_source_bytes(
         delimiter: ",".to_owned(),
         header: header.to_owned(),
         dialect: CsvDialectAst::new(header, line_ending),
-        parse_facts: csv_parse_facts_for_document(&report, &contracts),
+        parse_facts: csv_parse_facts_for_document(&report, contracts),
         rows,
         line_ending: line_ending.map(str::to_owned),
     };

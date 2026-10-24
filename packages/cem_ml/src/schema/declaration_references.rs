@@ -315,6 +315,10 @@ fn compile_schema_at<H: SchemaDeclarationHost>(
     host: &mut H,
     limits: ReferenceTraversalLimits,
 ) -> Result<SchemaDocumentModel, ReferenceResolutionError> {
+    let parser_source_owner = schema_id
+        .and_then(|id| SchemaDeclarationNode::new(document.clone(), id))
+        .and_then(|source| host.input_source_tree(&source))
+        .filter(|source| Arc::ptr_eq(source.ast_owner(), &document));
     let mut declarations: BTreeMap<AstNodeId, Vec<CompiledSchemaDeclaration>> = BTreeMap::new();
     let mut compilation = DeclarationReferenceCompilation {
         compiled_attribute_types: host.compiled_attribute_types(),
@@ -333,6 +337,7 @@ fn compile_schema_at<H: SchemaDeclarationHost>(
                 None,
                 &declarations,
                 compilation,
+                parser_source_owner,
             ));
         }
     }
@@ -569,6 +574,7 @@ fn compile_schema_at<H: SchemaDeclarationHost>(
         schema_id,
         &declarations,
         compilation,
+        parser_source_owner,
     ))
 }
 fn is_element(node: &CemAstNode, local_name: &str) -> bool {
